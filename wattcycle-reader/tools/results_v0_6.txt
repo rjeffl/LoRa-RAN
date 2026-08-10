@@ -1,0 +1,124 @@
+
+(.venv) jeff@Mac bms % python3 bms_probe_v0_6.py --inventory --address 145CAB2D-1571-B3BA-4668-133CF5776880
+scanning ...
+found XDZN_001_49A1 @ 145CAB2D-1571-B3BA-4668-133CF5776880
+
+connected t+1.98s
+
+service 0000fff0-0000-1000-8000-00805f9b34fb
+  FFF1   0000fff1-0000-1000-8000-00805f9b34fb  [notify,read]
+         desc 00002902-0000-1000-8000-00805f9b34fb
+         desc 00002901-0000-1000-8000-00805f9b34fb
+  FFF2   0000fff2-0000-1000-8000-00805f9b34fb  [write-without-response,write,read]
+         desc 00002902-0000-1000-8000-00805f9b34fb
+         desc 00002901-0000-1000-8000-00805f9b34fb
+  FFFA   0000fffa-0000-1000-8000-00805f9b34fb  [write-without-response,write,read]
+service 02f00000-0000-0000-0000-00000000fe00
+  FF03   02f00000-0000-0000-0000-00000000ff03  [read]
+  FF02   02f00000-0000-0000-0000-00000000ff02  [notify,read]
+         desc 00002902-0000-1000-8000-00805f9b34fb
+  FF00   02f00000-0000-0000-0000-00000000ff00  [read]
+  FF01   02f00000-0000-0000-0000-00000000ff01  [write,write-without-response]
+  FF04   02f00000-0000-0000-0000-00000000ff04  [write-without-response,write,notify,read]
+         desc 00002902-0000-1000-8000-00805f9b34fb
+  FF05   02f00000-0000-0000-0000-00000000ff05  [write-without-response,write,read]
+
+reading every readable characteristic:
+  FFF1     0B     ||
+  FFF2     0B     ||
+  FFFA     1B  00   |.|
+  FF03     2B  06 02   |..|
+  FF02     0B     ||
+  FF00     0B     ||
+  FF04     0B     ||
+  FF05     2B  00 00   |..|
+(.venv) jeff@Mac bms % python3 bms_probe_v0_6.py --sweep --address 145CAB2D-1571-B3BA-4668-133CF5776880
+scanning ...
+found XDZN_001_49A1 @ 145CAB2D-1571-B3BA-4668-133CF5776880
+
+writable characteristics: FFF2, FFFA, FF01, FF04, FF05
+
+------------------------------------------------------------
+  jbd_basic dda50300fffd77 -> FFF2   (listening: FFF1,FF02,FF04)
+    drop t+3.77s
+------------------------------------------------------------
+  jbd_version dda50500fffb77 -> FFF2   (listening: FFF1,FF02,FF04)
+    drop t+3.72s
+------------------------------------------------------------
+  daly_soc_80 a58090080000000000000000bd -> FFF2   (listening: FFF1,FF02,FF04)
+    drop t+3.93s
+------------------------------------------------------------
+  daly_soc_40 a540900800000000000000007d -> FFF2   (listening: FFF1,FF02,FF04)
+    drop t+3.90s
+------------------------------------------------------------
+  jbd_basic dda50300fffd77 -> FFFA   (listening: FFF1,FF02,FF04)
+    drop t+3.87s
+------------------------------------------------------------
+  jbd_version dda50500fffb77 -> FFFA   (listening: FFF1,FF02,FF04)
+    drop t+3.84s
+------------------------------------------------------------
+  daly_soc_80 a58090080000000000000000bd -> FFFA   (listening: FFF1,FF02,FF04)
+    drop t+3.89s
+------------------------------------------------------------
+  daly_soc_40 a540900800000000000000007d -> FFFA   (listening: FFF1,FF02,FF04)
+    drop t+4.02s
+------------------------------------------------------------
+  jbd_basic dda50300fffd77 -> FF01   (listening: FFF1,FF02,FF04)
+    drop t+4.01s
+------------------------------------------------------------
+  jbd_version dda50500fffb77 -> FF01   (listening: FFF1,FF02,FF04)
+    drop t+4.02s
+------------------------------------------------------------
+  daly_soc_80 a58090080000000000000000bd -> FF01   (listening: FFF1,FF02,FF04)
+    drop t+4.02s
+------------------------------------------------------------
+  daly_soc_40 a540900800000000000000007d -> FF01   (listening: FFF1,FF02,FF04)
+    drop t+4.02s
+------------------------------------------------------------
+  jbd_basic dda50300fffd77 -> FF04   (listening: FFF1,FF02,FF04)
+    drop t+4.01s
+------------------------------------------------------------
+  jbd_version dda50500fffb77 -> FF04   (listening: FFF1,FF02,FF04)
+    drop t+4.02s
+------------------------------------------------------------
+  daly_soc_80 a58090080000000000000000bd -> FF04   (listening: FFF1,FF02,FF04)
+    drop t+3.89s
+------------------------------------------------------------
+  daly_soc_40 a540900800000000000000007d -> FF04   (listening: FFF1,FF02,FF04)
+    drop t+3.99s
+------------------------------------------------------------
+  jbd_basic dda50300fffd77 -> FF05   (listening: FFF1,FF02,FF04)
+    drop t+3.96s
+------------------------------------------------------------
+  jbd_version dda50500fffb77 -> FF05   (listening: FFF1,FF02,FF04)
+    drop t+3.87s
+------------------------------------------------------------
+  daly_soc_80 a58090080000000000000000bd -> FF05   (listening: FFF1,FF02,FF04)
+    drop t+3.87s
+------------------------------------------------------------
+  daly_soc_40 a540900800000000000000007d -> FF05   (listening: FFF1,FF02,FF04)
+    drop t+3.99s
+
+============================================================
+SUMMARY
+char    protocol      notifications
+FFF2    jbd_basic     0
+FFF2    jbd_version   0
+FFF2    daly_soc_80   0
+FFF2    daly_soc_40   0
+FFFA    jbd_basic     0
+FFFA    jbd_version   0
+FFFA    daly_soc_80   0
+FFFA    daly_soc_40   0
+FF01    jbd_basic     0
+FF01    jbd_version   0
+FF01    daly_soc_80   0
+FF01    daly_soc_40   0
+FF04    jbd_basic     0
+FF04    jbd_version   0
+FF04    daly_soc_80   0
+FF04    daly_soc_40   0
+FF05    jbd_basic     0
+FF05    jbd_version   0
+FF05    daly_soc_80   0
+FF05    daly_soc_40   0
