@@ -1,0 +1,62 @@
+scanning for XDZN-001-49A1 ...
+found XDZN_001_49A1 @ C0:D6:3C:58:49:A1
+
+  *** disconnected at t+32.48s
+Traceback (most recent call last):
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/backends/bluezdbus/client.py", line 325, in connect
+    await self._get_services(
+        dangerous_use_bleak_cache=dangerous_use_bleak_cache
+    )
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/backends/bluezdbus/client.py", line 677, in _get_services
+    self.services = await manager.get_services(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self._device_path, dangerous_use_bleak_cache, self._requested_services
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/backends/bluezdbus/manager.py", line 718, in get_services
+    await self._wait_for_services_discovery(device_path)
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/backends/bluezdbus/manager.py", line 872, in _wait_for_services_discovery
+    done, _ = await asyncio.wait(
+              ^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/usr/lib/python3.14/asyncio/tasks.py", line 432, in wait
+    return await _wait(fs, timeout, return_when, loop)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/tasks.py", line 521, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/jeff/Downloads/bms_probe_v0.2.py", line 225, in <module>
+    asyncio.run(main(ap.parse_args()))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/home/jeff/Downloads/bms_probe_v0.2.py", line 183, in main
+    await attempt(dev, a.reg, a.with_response, not a.fff1_only,
+                  a.delay, a.repeat, a.dump)
+  File "/home/jeff/Downloads/bms_probe_v0.2.py", line 125, in attempt
+    async with BleakClient(dev, disconnected_callback=on_disconnect) as client:
+               ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/__init__.py", line 638, in __aenter__
+    await self.connect()
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/__init__.py", line 660, in connect
+    await self._backend.connect(self._pair_before_connect, **kwargs)
+  File "/home/jeff/.local/lib/python3.14/site-packages/bleak/backends/bluezdbus/client.py", line 153, in connect
+    async with async_timeout(timeout):
+               ~~~~~~~~~~~~~^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/timeouts.py", line 114, in __aexit__
+    raise TimeoutError from exc_val
+TimeoutError
