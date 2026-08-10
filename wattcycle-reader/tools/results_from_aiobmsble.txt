@@ -1,0 +1,84 @@
+
+INFO: ------------------------------------------------------------------------
+BT device 'XDZN_001_49A1' (145CAB2D-1571-B3BA-4668-133CF5776880)
+	AdvertisementData(local_name='XDZN_001_49A1',
+	manufacturer_data={54976: b'<XI\xa1\xffXD'},
+	rssi=-84)
+DEBUG: XDZN_001_49A1|76880: 0.27.0: initializing TDT smart BMS, BT address: 145CAB2D-1571-B3BA-4668-133CF5776880
+INFO: Found matching BMS type: TDT smart BMS
+DEBUG: XDZN_001_49A1|76880: 0.27.0: initializing TDT smart BMS, BT address: 145CAB2D-1571-B3BA-4668-133CF5776880
+INFO: Querying BMS...
+DEBUG: XDZN_001_49A1|76880: connecting BMS
+DEBUG: XDZN_001_49A1|76880: GATT profile for request ('0000fff0-0000-1000-8000-00805f9b34fb',):
+ SRV 0000fff0-0000-1000-8000-00805f9b34fb (Handle: 14): Vendor specific
+  CHR 0000fff1-0000-1000-8000-00805f9b34fb (Handle: 15): Vendor specific (notify,read)
+    DCR 00002902-0000-1000-8000-00805f9b34fb (Handle: 17): Client Characteristic Configuration
+    DCR 00002901-0000-1000-8000-00805f9b34fb (Handle: 18): Characteristic User Description
+  CHR 0000fff2-0000-1000-8000-00805f9b34fb (Handle: 19): Vendor specific (write,write-without-response,read)
+    DCR 00002902-0000-1000-8000-00805f9b34fb (Handle: 21): Client Characteristic Configuration
+    DCR 00002901-0000-1000-8000-00805f9b34fb (Handle: 22): Characteristic User Description
+  CHR 0000fffa-0000-1000-8000-00805f9b34fb (Handle: 23): Vendor specific (write,write-without-response,read)
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W): 48 69 4c 69 6e 6b
+DEBUG: XDZN_001_49A1|76880: start notify on RX characteristic fff1
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #2 (W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #3 (W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (!W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #2 (!W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #3 (!W): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W): 1e 00 01 03 00 92 00 00 b7 24 0d
+DEBUG: XDZN_001_49A1|76880: RX BLE data (start): bytearray(b'~\x00\x01\x03\x00\x92\x00<WT30_10004SW14_L_01\x0011112222333344445555IKKKK0000AII00000000.\xb7\r')
+DEBUG: XDZN_001_49A1|76880: BMS connected (id: 0x10883a850)
+DEBUG: XDZN_001_49A1|76880: BMS already connected
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W.): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #2 (W.): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #3 (W.): 7e 00 01 03 00 92 00 00 9f 22 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W.): 1e 00 01 03 00 92 00 00 b7 24 0d
+DEBUG: XDZN_001_49A1|76880: RX BLE data (start): bytearray(b'~\x00\x01\x03\x00\x92\x00<WT30_10004SW14_L_01\x0011112222333344445555IKKKK0000AII00000000.\xb7\r')
+DEBUG: XDZN_001_49A1|76880: BMS info {'sw_version': 'WT30_10004SW14_L_01', 'manufacturer': '11112222333344445555', 'serial_number': 'IKKKK0000AII00000000'}
+DEBUG: XDZN_001_49A1|76880: BMS already connected
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W.): 7e 00 01 03 00 8c 00 00 99 42 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #2 (W.): 7e 00 01 03 00 8c 00 00 99 42 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #3 (W.): 7e 00 01 03 00 8c 00 00 99 42 0d
+DEBUG: XDZN_001_49A1|76880: TX BLE request timed out.
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W.): 1e 00 01 03 00 8c 00 00 b1 44 0d
+DEBUG: XDZN_001_49A1|76880: RX BLE data (start): bytearray(b'~\x00\x01\x03\x00\x8c\x00 \x04\r\x89\r\xa1\r\x9c\r\x9b\x04\x0b\x82\x0b\x9d\x0b\x7f\x0b~@\x00\x05p\x03\xe7\x03\xe8\x00\x01\x03\xe8\x00dU\xa3\r')
+DEBUG: XDZN_001_49A1|76880: TX BLE req #1 (W.): 1e 00 01 03 00 8d 00 00 71 15 0d
+DEBUG: XDZN_001_49A1|76880: RX BLE data (start): bytearray(b'~\x00\x01\x03\x00\x8d\x00\x18\x04\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x06)\x00\x00\x00\x00\x00\x00\xbd?\r')
+DEBUG: XDZN_001_49A1|76880: detected command head: 0x1E
+DEBUG: XDZN_001_49A1|76880: disconnecting BMS (id: 0x10883a850, connected: True)
+DEBUG: XDZN_001_49A1|76880: disconnected from BMS (id: 0x10883a850)
+INFO: BMS info: {'sw_version': 'WT30_10004SW14_L_01',
+	'manufacturer': '11112222333344445555',
+	'serial_number': 'IKKKK0000AII00000000'}
+INFO: BMS data: {'cell_count': 4,
+	'temp_sensors': 4,
+	'cell_voltages': [3.465, 3.489, 3.484, 3.483],
+	'temp_values': [TempSensor(21.5, <T.AMBIENT: 8>), TempSensor(24.2, <T.MOSFET: 4>), TempSensor(21.2, <T.CELL: 1>), TempSensor(21.1, <T.CELL: 1>)],
+	'voltage': 13.92,
+	'current': 0.0,
+	'cycle_charge': 99.9,
+	'battery_level': 100,
+	'cycles': 1,
+	'problem_code': 0,
+	'chrg_mosfet': True,
+	'dischrg_mosfet': True,
+	'battery_charging': False,
+	'delta_voltage': 0.024,
+	'temperature': 22.0,
+	'cycle_capacity': 1390.608,
+	'power': 0.0,
+	'problem': False}
+
+INFO: done.
