@@ -1,0 +1,353 @@
+(.venv) jeff@Mac bms % python3 bms_probe_v1_0.py --raw
+scanning ...
+  XDZN_001_49A1  rssi=-77 dBm
+  handshake=W settle=0.05s   MTU=512
+    handshake ack from FFFA: 01  OK
+    -> t+0.23s #1 0x92  1e 00 01 03 00 92 00 00 b7 24 0d
+    <- t+0.42s  71B 7e 00 01 03 00 92 00 3c 57 54 33 30 5f 31 30 30 30 34 53 57 31 34 5f 4c 5f 30 31 00 31 31 31 31 32 32 32 32 33 33 33 33 34 34 34 34 35 35 35 35 49 4b 4b 4b 4b 30 30 30 30 41 49 49 30 30 30 30 30 30 30 30 2e b7 0d
+
+  [t+  0.4s] cmd 0x92 71B  CRC ok
+    raw 7e 00 01 03 00 92 00 3c 57 54 33 30 5f 31 30 30 30 34 53 57 31 34 5f 4c 5f 30 31 00 31 31 31 31 32 32 32 32 33 33 33 33 34 34 34 34 35 35 35 35 49 4b 4b 4b 4b 30 30 30 30 41 49 49 30 30 30 30 30 30 30 30 2e b7 0d
+    raw_ascii       T30_10004SW14_L_01.11112222333344445555IKKKK0000AII00000000
+    -> t+0.42s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+0.60s  43B 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 98 0d 97 04 0b 80 0b 9a 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 0a 60 0d
+
+  [t+  0.6s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 98 0d 97 04 0b 80 0b 9a 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 0a 60 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.461  3.484  3.480  3.479   delta 23 mV
+    temps        21.3C  23.9C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+3.10s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+3.28s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 95 04 0b 80 0b 9a 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 90 fe 0d
+
+  [t+  3.3s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 95 04 0b 80 0b 9a 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 90 fe 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.477   delta 22 mV
+    temps        21.3C  23.9C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+5.79s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+5.98s  43B 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9d 0d 98 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 76 5e 0d
+
+  [t+  6.0s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9d 0d 98 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 76 5e 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.461  3.485  3.480  3.479   delta 24 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+8.49s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+8.68s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 96 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 6c df 0d
+
+  [t+  8.7s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 96 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 6c df 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.478  3.478   delta 22 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+11.19s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+11.40s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 95 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ec e4 0d
+
+  [t+ 11.4s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 95 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ec e4 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.480  3.477   delta 23 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+13.90s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+14.10s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 93 27 0d
+
+  [t+ 14.1s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 93 27 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+16.60s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+16.80s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 06 7a 0d
+
+  [t+ 16.8s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 06 7a 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.479   delta 22 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+19.30s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+19.50s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 06 7a 0d
+
+  [t+ 19.5s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 06 7a 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.479   delta 22 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+22.00s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+22.20s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 93 27 0d
+
+  [t+ 22.2s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9b 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 93 27 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.0C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+24.70s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+24.90s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 e7 92 0d
+
+  [t+ 24.9s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 e7 92 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.1C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+27.40s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+27.60s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 97 04 0b 80 0b 9c 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 82 1b 0d
+
+  [t+ 27.6s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 97 04 0b 80 0b 9c 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 82 1b 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.480  3.479   delta 22 mV
+    temps        21.3C  24.1C  21.1C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+30.10s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+30.30s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 72 cf 0d
+
+  [t+ 30.3s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 72 cf 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.479   delta 22 mV
+    temps        21.3C  24.1C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+32.80s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+33.04s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 e7 92 0d
+
+  [t+ 33.0s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 e7 92 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.1C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+35.55s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+35.70s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 17 62 0d
+
+  [t+ 35.7s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9c 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 17 62 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.1C  21.1C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+38.20s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+38.29s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b ac 0d
+
+  [t+ 38.3s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b ac 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.479  3.478   delta 23 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+40.80s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+40.92s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b 88 0d
+
+  [t+ 40.9s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b 88 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.480  3.478   delta 23 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+43.42s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+43.62s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 1b af 0d
+
+  [t+ 43.6s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 1b af 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+46.12s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+46.23s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 97 04 0b 80 0b 9d 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 fe 01 0d
+
+  [t+ 46.2s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 97 04 0b 80 0b 9d 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 fe 01 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.479  3.479   delta 23 mV
+    temps        21.3C  24.2C  21.1C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+48.73s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+48.93s  43B 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 eb ac 0d
+
+  [t+ 48.9s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 97 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 eb ac 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.461  3.484  3.479  3.478   delta 23 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+51.43s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+51.63s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9b 0d 98 0d 97 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ce da 0d
+
+  [t+ 51.6s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9b 0d 98 0d 97 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ce da 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.483  3.480  3.479   delta 21 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+54.13s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+54.33s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b 88 0d
+
+  [t+ 54.3s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 96 04 0b 80 0b 9d 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 9b 88 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.480  3.478   delta 23 mV
+    temps        21.3C  24.2C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+56.83s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+57.03s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 df e8 0d
+
+  [t+ 57.0s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 df e8 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.479  3.478   delta 23 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+59.53s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+59.73s  43B 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 3a 91 0d
+
+  [t+ 59.7s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9c 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 3a 91 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.461  3.484  3.480  3.479   delta 23 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+62.23s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+62.43s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 95 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 a0 2b 0d
+
+  [t+ 62.4s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 95 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 a0 2b 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.480  3.477   delta 22 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+64.93s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+65.13s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ca b6 0d
+
+  [t+ 65.1s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ca b6 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.479   delta 22 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+67.63s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+67.83s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9b 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 1f e7 0d
+
+  [t+ 67.8s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9b 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 1f e7 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.483  3.479  3.478   delta 21 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+70.33s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+70.53s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 4a 91 0d
+
+  [t+ 70.5s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9d 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 4a 91 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.485  3.480  3.479   delta 23 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+73.03s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+73.23s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 96 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 a0 13 0d
+
+  [t+ 73.2s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 96 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 a0 13 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.478  3.478   delta 22 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+75.73s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+75.93s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 5f eb 0d
+
+  [t+ 75.9s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 97 0d 96 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 5f eb 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.479  3.478   delta 22 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+78.43s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+78.63s  43B 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9b 0d 97 0d 97 04 0b 80 0b 9f 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 76 74 0d
+
+  [t+ 78.6s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 85 0d 9b 0d 97 0d 97 04 0b 80 0b 9f 0b 7e 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 76 74 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.461  3.483  3.479  3.479   delta 22 mV
+    temps        21.3C  24.4C  21.1C  20.9C
+    cycles       1   SOH 100.0%
+    -> t+81.13s #1 0x8C  1e 00 01 03 00 8c 00 00 b1 44 0d
+    <- t+81.33s  43B 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ca 92 0d
+
+  [t+ 81.3s] cmd 0x8C 43B  CRC ok
+    raw 7e 00 01 03 00 8c 00 20 04 0d 86 0d 9c 0d 98 0d 97 04 0b 80 0b 9e 0b 7d 0b 7c 40 00 05 6e 03 e7 03 e8 00 01 03 e8 00 64 ca 92 0d
+    SOC          100%   (99.9 / 100.0 Ah)
+    pack         13.90 V
+    current      +0.00 A  at rest  [raw 0x4000]
+    cells        3.462  3.484  3.480  3.479   delta 22 mV
+    temps        21.3C  24.3C  21.0C  20.9C
+    cycles       1   SOH 100.0%
+^C    drop t+81.61s
