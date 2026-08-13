@@ -80,6 +80,18 @@ struct BmsData {
     uint16_t deltaCell_mV() const {
         return cell_count == 0 ? 0 : (uint16_t)(maxCell_mV() - minCell_mV());
     }
+
+    // Hottest sensor. Used where only one temperature can be shown: which
+    // sensor is which (ambient / MOSFET / cell) is not established for this
+    // unit, and the maximum is the one figure that never understates a
+    // thermal problem.
+    int16_t maxTemp_dC() const {
+        if (temp_count == 0) return 0;
+        int16_t hi = temp_dC[0];
+        for (uint8_t i = 1; i < temp_count; ++i)
+            if (temp_dC[i] > hi) hi = temp_dC[i];
+        return hi;
+    }
 };
 
 // Device identity, from command 0x92 (§5.7).

@@ -15,7 +15,7 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | Milestone | State |
 |---|---|
 | M0 — toolchain up | builds clean |
-| M0b — display alive | not started (§9) |
+| M0b — display alive | **confirmed on hardware** — panel ACKs at 0x3C, layout renders |
 | **M1 — BLE scan** | **confirmed on hardware** — target found; see RSSI below |
 | M2 — connect + discover | not started |
 | M3 — handshake + raw | not started |
@@ -126,6 +126,41 @@ enclosure is built.
 
 Keep publishing RSSI as a diagnostic regardless (§5.8): it is the early-warning
 signal for a mount degrading from moisture, corrosion, or a shifted bracket.
+
+## Display (M0b)
+
+```
+XDZN_001_49A1        o     name + link indicator (filled once connected)
+                 -62dBm    RSSI — live while scanning, not just when connected
+  87%                      SOC, largest font
+13.42 V      -4.2 A        pack voltage, current
+24.1C        DSG           hottest sensor, FET state
+```
+
+The RSSI line is an addition to the §9 layout. It makes the board an aiming
+instrument: you can find a mounting position by watching the panel, with no
+laptop attached. That is why the scan sweep is 3 s with no pause — a 7 s
+refresh is too slow to position a board by.
+
+Values dash out until a frame decodes, and again after 15 s without one, so a
+dropped link never looks like a live reading.
+
+Two settings established on hardware, both easy to get wrong:
+
+- `flipScreenVertically()` is **required** on the V3 — without it the panel is
+  upside down.
+- **No degree symbol.** `0xB0` renders as nothing on this panel despite being
+  in the fonts' nominal range, so the label is a plain `C`.
+
+`BmsDisplay` takes a `const BmsData&` and a link state and knows nothing about
+BLE or the protocol — same rule as the serial printer. `displayOn()/displayOff()`
+exist from the start so GateLink inherits the §9 power behaviour rather than
+having it retrofitted.
+
+**The FET field is derived from current sign, not read from the BMS.** Real
+MOSFET status is in `0x8D`, which isn't decoded yet. A pack can sit idle with
+its discharge FET open, and those are not the same statement — this becomes
+honest at M6.
 
 Baseline resource use at M1, for the §15 RAM-contention question: 29.1 KB RAM
 (8.9%), 520 KB flash (15.6%).

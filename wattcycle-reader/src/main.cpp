@@ -1,22 +1,24 @@
-// main.cpp — WattCycle BLE BMS reader, milestone M1.
+// main.cpp — WattCycle BLE BMS reader, milestones M0b + M1.
 //
 // M1 (§11): "Serial lists nearby BLE devices; XDZN_001_49A1 /
-// C0:D6:3C:58:49:A1 appears with RSSI."
+// C0:D6:3C:58:49:A1 appears with RSSI."   — confirmed on hardware.
+// M0b (§11): OLED alive, showing the layout with live RSSI.
 //
-// That is all this does. It does not connect, handshake, or poll — M2 and M3
-// add those on top of the transport interface in lib/bms_ble/BmsTransport.h.
-// The protocol decoder in lib/bms_ble/TdtProtocol.* is already complete and
-// tested against the captured frames (`pio test -e native`), so the remaining
-// work is radio plumbing, not decode.
+// It does not connect, handshake, or poll — M2 and M3 add those on top of the
+// transport interface in lib/bms_ble/BmsTransport.h. The protocol decoder in
+// lib/bms_ble/TdtProtocol.* is already complete and tested against the
+// captured frames (`pio test -e native`), so the remaining work is radio
+// plumbing, not decode.
 //
-// Expected result: the battery shows up at roughly -77 to -88 dBm even at desk
-// range — its antenna appears shielded by the BMS heat sink (§5.8). A weak
-// number here is normal and is not a fault.
+// Measured RSSI: -77 to -88 dBm at desk range, -60 to -65 dBm at the
+// approximate mounting position. A weak desk number is normal (§5.8) — the
+// battery's antenna appears shielded by the BMS heat sink.
 
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 
 #include "BmsData.h"
+#include "BmsDisplay.h"
 #include "BmsTransport.h"
 #include "TdtProtocol.h"
 
@@ -24,10 +26,15 @@
 static const char* kTargetName = "XDZN_001_49A1";   // underscores, not dashes
 static const char* kTargetAddr = "c0:d6:3c:58:49:a1";
 
-static const uint32_t kScanSeconds = 5;
-static const uint32_t kPauseMs = 2000;
+// 3 s sweeps with no pause: the display is the aiming instrument now, and a
+// 7 s refresh is too slow to position a board by. Nothing here is power-tuned;
+// that is an M7 question.
+static const uint32_t kScanSeconds = 3;
 
 static uint32_t g_sweep = 0;
+
+static BmsDisplay g_display;
+static bool g_have_display = false;
 
 // Non-const ref: NimBLE 1.4's accessors are not const-qualified.
 static bool isTarget(NimBLEAdvertisedDevice& dev) {
@@ -41,7 +48,8 @@ static void printHex(const std::string& s) {
     }
 }
 
-static void printResults(NimBLEScanResults& results) {
+// Returns the target's RSSI, or 0 if it wasn't seen this sweep.
+static int printResults(NimBLEScanResults& results) {
     const int count = results.getCount();
 
     Serial.printf("\n=== sweep %lu — %d device%s ===\n", (unsigned long)++g_sweep,
@@ -80,6 +88,8 @@ static void printResults(NimBLEScanResults& results) {
         Serial.printf("\n  target %s NOT seen this sweep\n", kTargetName);
     }
     Serial.printf("  free heap: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
+
+    return found ? target_rssi : 0;
 }
 
 void setup() {
@@ -89,9 +99,20 @@ void setup() {
         // USB CDC needs a moment; don't wait forever on a headless boot.
     }
 
-    Serial.println(F("\n\nWattCycle BLE BMS reader — M1 (scan only)"));
+    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 (scan only)"));
     Serial.printf("heap at boot: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
     Serial.printf("looking for: %s / %s\n", kTargetName, kTargetAddr);
+
+    // M0b: prove the panel before it has to show real data. A failure here is
+    // almost always the Vext step (§9) — the OLED is powered through Vext, so
+    // without it the panel is dark and does not ACK on I2C.
+    g_have_display = g_display.begin("WattCycle BMS");
+    Serial.printf("OLED at 0x%02x: %s\n", kOledAddr,
+                  g_have_display ? "OK" : "NOT FOUND (check Vext / wiring)");
+    if (g_have_display) {
+        g_display.setDeviceName(kTargetName);
+        g_display.setLink(LinkState::Scanning, 0, false);
+    }
 
     NimBLEDevice::init("");
     Serial.printf("heap after NimBLE init: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
@@ -106,8 +127,15 @@ void loop() {
     NimBLEScan* scan = NimBLEDevice::getScan();
 
     NimBLEScanResults results = scan->start(kScanSeconds, false);
-    printResults(results);
+    const int rssi = printResults(results);
     scan->clearResults();   // free the result list before the next sweep
 
-    delay(kPauseMs);
+    if (g_have_display) {
+        // Link stays Scanning — the indicator only fills once there is a real
+        // connection to report, which is M3. Until then RSSI is the whole
+        // point of the panel: it makes the board an aiming instrument for
+        // finding a mounting position without a laptop attached.
+        g_display.setLink(LinkState::Scanning, rssi, rssi != 0);
+        g_display.render(millis());
+    }
 }
