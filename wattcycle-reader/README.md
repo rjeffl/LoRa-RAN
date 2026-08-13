@@ -74,9 +74,22 @@ Notes for this build host (§13.1):
   and the port never enumerates, which looks exactly like a driver problem.
 - If auto-reset into the bootloader fails: hold **PRG/BOOT**, tap **RST**,
   release **PRG**, upload, then press **RST** to run.
-- The PlatformIO Python env needed `intelhex` installed to produce
-  `bootloader.bin`:
-  `~/.platformio/penv/bin/python -m pip install intelhex`
+- **`ModuleNotFoundError: No module named 'intelhex'`** — the build dies at
+  `bootloader.bin` while the compile itself looks fine. PlatformIO's bundled
+  `esptool.py` needs `intelhex`, which isn't in its venv:
+
+  ```bash
+  ~/.platformio/penv/bin/python -m pip install intelhex
+  ```
+
+  **This comes back every time PlatformIO Core self-upgrades** — the upgrade
+  rebuilds the venv and drops the package. Seen twice already, once on the
+  6.1.16 → 6.1.19 upgrade. If a build that worked yesterday fails at
+  `bootloader.bin` today, this is why; the fix is the same line again.
+
+- `pio` is aliased in `~/.zshrc` to `~/.platformio/penv/bin/pio`. It is not on
+  PATH, because that directory also holds a `python`/`pip` that would shadow
+  the Homebrew ones.
 
 ## Expected M1 output
 
