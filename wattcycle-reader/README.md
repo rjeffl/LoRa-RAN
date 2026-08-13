@@ -16,7 +16,7 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 |---|---|
 | M0 — toolchain up | builds clean |
 | M0b — display alive | not started (§9) |
-| **M1 — BLE scan** | **implemented** — `src/main.cpp` lists devices with RSSI |
+| **M1 — BLE scan** | **confirmed on hardware** — target found; see RSSI below |
 | M2 — connect + discover | not started |
 | M3 — handshake + raw | not started |
 | M4 — reassembly + CRC | **decoder done and host-tested**, not yet run on hardware |
@@ -107,9 +107,25 @@ looking for: XDZN_001_49A1 / c0:d6:3c:58:49:a1
   TARGET FOUND: XDZN_001_49A1 @ -81 dBm
 ```
 
-**-77 to -88 dBm at desk range is normal**, not a fault. The battery's antenna
-appears shielded by the BMS heat sink; this was confirmed independently on two
-radios (§5.8). At the gate the node sits ~12" away, so expect −55 to −65 dBm.
+### Measured RSSI
+
+| Position | RSSI |
+|---|---|
+| Desk range, board and battery on a bench | −77 to −88 dBm |
+| **Heltec at the approximate mounting position** | **−60 to −65 dBm** |
+
+The mounting-position figure was measured at M1 and matches the §15 prediction
+of −55 to −65 dBm. This closes the "weak BLE transmitter" risk for the gate
+install: link margin at the real distance is comfortable.
+
+**−77 to −88 dBm at desk range is normal**, not a fault — the battery's antenna
+appears shielded by the BMS heat sink, confirmed independently on two radios
+(§5.8). The ~20 dB improvement at the mounting position says the loss is
+geometry, not a failing radio, so preserve the tested orientation when the
+enclosure is built.
+
+Keep publishing RSSI as a diagnostic regardless (§5.8): it is the early-warning
+signal for a mount degrading from moisture, corrosion, or a shifted bracket.
 
 Baseline resource use at M1, for the §15 RAM-contention question: 29.1 KB RAM
 (8.9%), 520 KB flash (15.6%).
