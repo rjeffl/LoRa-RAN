@@ -10,22 +10,23 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M2
+## Status: M3
 
 | Milestone | State |
 |---|---|
 | M0 — toolchain up | builds clean |
 | M0b — display alive | **confirmed on hardware** — panel ACKs at 0x3C, layout renders |
 | M1 — BLE scan | **confirmed on hardware** — target found; see RSSI below |
-| **M2 — connect + discover** | **confirmed on hardware** — connects, FFF0 enumerated, FFF1/FFF2/FFFA handles confirmed |
-| M3 — handshake + raw | not started |
+| M2 — connect + discover | **confirmed on hardware** — connects, FFF0 enumerated, FFF1/FFF2/FFFA handles confirmed |
+| **M3 — handshake + raw** | **confirmed on hardware** — HiLink ACKed, subscribed, 0x8C answered in one frame at MTU 512 |
 | M4 — reassembly + CRC | **decoder done and host-tested**, not yet run on hardware |
 | M5 — decode 0x8C | **decoder done and host-tested**, not yet run on hardware |
 | M6 — alarms (0x8D) | deliberately not decoded — see below |
 
 The protocol layer got built ahead of the radio layer on purpose: it is testable
 on the laptop against captured frames, so there is no reason to debug it over a
-serial cable. What remains for M2–M5 is BLE plumbing behind `BmsTransport`, not
+serial cable. What remains for M4–M5 is wiring the already-tested reassembler
+and decoder onto the notify stream `NimBleTransport` already delivers, not new
 decode work.
 
 **0x8D is intentionally not decoded.** It is only partially understood (§5.7):
@@ -127,32 +128,45 @@ enclosure is built.
 Keep publishing RSSI as a diagnostic regardless (§5.8): it is the early-warning
 signal for a mount degrading from moisture, corrosion, or a shifted bracket.
 
-## Connect + discover (M2)
+## Connect, discover, handshake (M2 + M3)
 
 `NimBleTransport` (`lib/bms_ble/NimBleTransport.h/.cpp`) is the only file that
 includes NimBLE headers (§7 rule 2) — it implements `BmsTransport` against
 service `0xFFF0`, and is guarded `#ifdef ARDUINO` so `pio test -e native`
 still builds without it.
 
-M2 runs once per boot, on the first sweep that finds the target: stop
-scanning, connect, resolve `FFF1`/`FFF2`/`FFFA`, log their handles, then
-disconnect and resume scanning. It is a capability check, not the persistent
-connection — that starts at M3.
+M2+M3 run as one block, once per boot, on the first sweep that finds the
+target: stop scanning, connect, discover, handshake, subscribe, request, dump
+the raw response, disconnect, then resume scanning. It is a capability check,
+not the persistent connection or poll loop — those are M7.
 
 ```
 --- M2: connect + discover ---
   MTU negotiated: 512
-  FFF1 (rx/notify)   handle 0x0011  read=1 write=0 writeNR=0 notify=1
-  FFF2 (tx)          handle 0x0013  read=1 write=1 writeNR=1 notify=0
-  FFFA (handshake)   handle 0x001c  read=1 write=1 writeNR=1 notify=0
---- M2: OK, disconnected ---
+  FFF1 (rx/notify)   handle 0x0010  read=1 write=0 writeNR=0 notify=1
+  FFF2 (tx)          handle 0x0014  read=1 write=1 writeNR=1 notify=0
+  FFFA (handshake)   handle 0x0018  read=1 write=1 writeNR=1 notify=0
+--- M3: handshake ---
+  HiLink -> FFFA: written, read-back: 0x01 (ACK)
+  subscribe FFF1: OK
+  0x8C request sent: OK
+  notify: 7e000103008c0020040d040d060d060d05040b8b0ba30b870b864000053503dd03e8000203e80063800a0d
+--- M2/M3 block complete, disconnected ---
 ```
 
 Confirmed on hardware: handles resolve and properties match the §4 GATT
 layout table. A device missing any of the three characteristics is treated as
 "not this BMS" even if it shares the JBD-style `FFF0`/`FFF1`/`FFF2` service
-topology (§4 note) — connect() logs `FFF1/FFF2/FFFA incomplete` and bails
+topology (§4 note) — `connect()` logs `FFF1/FFF2/FFFA incomplete` and bails
 rather than proceeding on a guess.
+
+The `0x8C` response above arrived as a **single notification at the full
+negotiated MTU 512** — the happy path in §5.5, no fragmentation exercised
+here. Hand-decoding it against the §5.4 layout as a sanity check gives 4
+cells at 3.332–3.334 V (2 mV delta), temps 22.0–24.8 °C, 0.0 A at rest, 13.33 V
+pack, SOC 99%, SOH 100%, 2 cycles — all sane values, and the same structure
+the §5.7 reference capture uses. That's a strong signal the decoder (already
+done and host-tested for M4/M5) will read this stream correctly once wired up.
 
 ## Display (M0b)
 

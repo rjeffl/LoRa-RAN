@@ -39,7 +39,20 @@ static BmsDisplay g_display;
 static bool g_have_display = false;
 
 static NimBleTransport g_transport;
-static bool g_m2_done = false;   // run the connect+discover check once
+static bool g_probe_done = false;   // run the connect/discover/handshake check once
+
+// Dumps raw notification bytes for M3 (§11: "raw bytes dumped"). No
+// reassembly yet — that's M4 — so a single notification is printed as-is,
+// and a fragmented response prints as multiple lines.
+class RawNotifyDumper : public bms::BmsTransport::NotifyHandler {
+  public:
+    void onNotify(const uint8_t* data, size_t len) override {
+        Serial.print(F("  notify: "));
+        for (size_t i = 0; i < len; ++i) Serial.printf("%02x", data[i]);
+        Serial.println();
+    }
+};
+static RawNotifyDumper g_notify_dumper;
 
 // Non-const ref: NimBLE 1.4's accessors are not const-qualified.
 static bool isTarget(NimBLEAdvertisedDevice& dev) {
@@ -145,18 +158,57 @@ void loop() {
     const int rssi = printResults(results, &target_dev);
     scan->clearResults();   // free the result list before the next sweep
 
-    // M2 (§11): connect, enumerate FFF0, confirm FFF1/FFF2/FFFA handles.
-    // Runs once — this is a capability check, not the persistent-connection
-    // poll loop (that's M7) — so a fresh boot is how to re-run it.
-    if (!g_m2_done && rssi != 0) {
-        g_m2_done = true;
+    // M2+M3 (§11): connect, discover FFF0, handshake, subscribe, dump one
+    // raw 0x8C response. Runs once — this is a capability check, not the
+    // persistent-connection poll loop (that's M7) — so a fresh boot is how
+    // to re-run it.
+    if (!g_probe_done && rssi != 0) {
+        g_probe_done = true;
         Serial.println(F("\n--- M2: connect + discover ---"));
         if (g_transport.connect(&target_dev)) {
             g_transport.logDiscovery();
+
+            Serial.println(F("--- M3: handshake ---"));
+            // §5.1 steps 2-3: HiLink to FFFA, with response, then read FFFA
+            // back and gate on 0x01. Everything past this point is silently
+            // ignored by the BMS otherwise, and the link drops ~4 s in.
+            bool hs_ok = g_transport.write(
+                bms::GattChar::Handshake,
+                (const uint8_t*)bms::tdt::kHandshakeMagic,
+                bms::tdt::kHandshakeMagicLen, true);
+            uint8_t hs_reply[8] = {0};
+            int hs_len = hs_ok ? g_transport.read(bms::GattChar::Handshake,
+                                                   hs_reply, sizeof(hs_reply))
+                                : -1;
+            hs_ok = hs_ok && hs_len >= 1 &&
+                    hs_reply[0] == bms::tdt::kHandshakeAck;
+            Serial.printf("  HiLink -> FFFA: %s, read-back: 0x%02x (%s)\n",
+                          hs_ok ? "written" : "write FAILED",
+                          hs_len > 0 ? hs_reply[0] : 0,
+                          hs_ok ? "ACK" : "NOT ACK");
+
+            if (hs_ok) {
+                const bool sub_ok = g_transport.subscribe(&g_notify_dumper);
+                Serial.printf("  subscribe FFF1: %s\n", sub_ok ? "OK" : "FAILED");
+
+                if (sub_ok) {
+                    uint8_t req[bms::tdt::kRequestLen];
+                    const size_t req_len = bms::tdt::buildRequest(
+                        bms::tdt::CMD_CELLS_PACK, req, sizeof(req));
+                    const bool sent = g_transport.write(bms::GattChar::Tx, req,
+                                                         req_len, true);
+                    Serial.printf("  0x8C request sent: %s\n", sent ? "OK" : "FAILED");
+                    // Notifications land asynchronously via NimBLE's host
+                    // task, not from anything we pump here — give it a
+                    // window to arrive before tearing the link down.
+                    delay(1500);
+                }
+            }
+
             g_transport.disconnect();
-            Serial.println(F("--- M2: OK, disconnected ---"));
+            Serial.println(F("--- M2/M3 block complete, disconnected ---"));
         } else {
-            Serial.println(F("--- M2: FAILED ---"));
+            Serial.println(F("--- M2: connect FAILED ---"));
         }
     }
 
