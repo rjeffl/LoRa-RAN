@@ -13,7 +13,7 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M7
+## Status: M7a
 
 | Milestone | State |
 |---|---|
@@ -26,14 +26,17 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | M5 — decode 0x8C | **confirmed on hardware** — full field-by-field decode, values sane |
 | M6 — alarms (0x8D) | deliberately not decoded — see below |
 | M6b — display live data | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
-| **M7 — poll loop + resilience** | **confirmed on hardware** — polls every 5 s, survived a real out-of-range/back-in-range cycle, zero leaks |
+| M7 — poll loop + resilience | **confirmed on hardware** — polls every 5 s, survived a real out-of-range/back-in-range cycle, zero leaks |
+| **M7a — StamPLC display port** | **confirmed on hardware** — same live data on the StamPLC's TFT via a second `TftDisplay` implementation |
 
 M0-M7 above were all run on the Heltec V3. M7 (scan, connect, handshake,
 subscribe, poll, decode) was then **also confirmed on the StamPLC** — see
 [Second board: M5Stack StamPLC](#second-board-m5stack-stamplc) — with no
-changes to any file under `lib/bms_ble/` and no code changes to `src/main.cpp`
-either; only `platformio.ini` gained a second env. The display (M0b/M6b) is
-still Heltec-OLED-only; the StamPLC's screen is unwired follow-up work.
+changes to any file under `lib/bms_ble/` and no code changes to `src/main.cpp`'s
+BLE logic either; only `platformio.ini` gained a second env. M7a then closed
+the one remaining gap: `TftDisplay` (`src/TftDisplay.h/.cpp`) ports M6b's
+display behavior onto the StamPLC's own screen — see
+[StamPLC display port (M7a)](#stamplc-display-port-m7a).
 
 The protocol layer got built ahead of the radio layer on purpose: it is testable
 on the laptop against captured frames, so there is no reason to debug it over a
@@ -50,14 +53,19 @@ framing and CRC are already covered by tests.
 ## Layout
 
 ```
-platformio.ini               three envs: heltec_wifi_lora_32_V3, m5stack_stamplc, native
+platformio.ini                three envs: heltec_wifi_lora_32_V3, m5stack_stamplc, native
 lib/bms_ble/
-  BmsData.h                 decoded record — integers in fixed units, no floats
-  TdtProtocol.h/.cpp        CRC, frame build, reassembly, decode. HOST-COMPILABLE
-  BmsTransport.h            abstract BLE seam. Interface only; no implementer yet
-src/main.cpp                M1: scan and print
-test/test_tdt_protocol/     21 host tests against the §5.7 captured frames
-tools/                      Python probes and the aiobmsble instrumentation
+  BmsData.h                  decoded record — integers in fixed units, no floats
+  TdtProtocol.h/.cpp         CRC, frame build, reassembly, decode. HOST-COMPILABLE
+  BmsTransport.h             abstract BLE seam (write/read/subscribe/rssi)
+  NimBleTransport.h/.cpp     the only file allowed to touch NimBLE (#ifdef ARDUINO)
+src/
+  main.cpp                   Scanning<->Polling state machine, serial wiring
+  LinkState.h                connection-state enum shared by both displays
+  BmsDisplay.h/.cpp          Heltec V3: SSD1306 OLED presentation
+  TftDisplay.h/.cpp          StamPLC: ST7789 TFT presentation (M7a)
+test/test_tdt_protocol/      21 host tests against the §5.7 captured frames
+tools/                       Python probes and the aiobmsble instrumentation
 ```
 
 The one architectural rule: **`TdtProtocol` must never include `Arduino.h` or
@@ -266,23 +274,87 @@ with `-DARDUINO_USB_CDC_ON_BOOT=1` in `m5stack_stamplc`'s `build_flags`.
 on hardware**, same as the Heltec V3: target found, connected, MTU 512
 negotiated, HiLink ACKed, subscribed, then polling every ~5 s with stable
 RSSI (-55 to -60 dBm at bench range) and flat heap (285884 bytes) across
-repeated cycles. `BmsDisplay::begin()` correctly reported `OLED at 0x3c: NOT
-FOUND` and the program continued normally — expected, since `kPinOledSda`
-(17), `kPinOledScl` (18) and `kPinVext` (36) aren't wired to anything on this
-board and the I2C probe just fails cleanly.
-
-**The display is the one real gap.** StamPLC's screen is a 1.14" 135x240 SPI
-ST7789v2 TFT (MOSI G8, SCK G7, CS G12, RS G6, RST G3), not an I2C SSD1306 —
-different bus, different driver, and the backlight sits behind a
-PI4IOE5V6408 IO expander (P7) rather than a plain GPIO. `BmsDisplay` still
-only targets the SSD1306; porting M0b/M6b to the StamPLC's TFT (new driver
-library, IO-expander-gated backlight, re-laying-out the 135x240 portrait
-panel) is unscoped follow-up work, not done in this session.
+repeated cycles. At that point in the session `BmsDisplay::begin()` (the
+Heltec's SSD1306 code, still unconditionally compiled in at the time)
+correctly reported `OLED at 0x3c: NOT FOUND` and the program continued
+normally — expected, since `kPinOledSda` (17), `kPinOledScl` (18) and
+`kPinVext` (36) aren't wired to anything on this board. M7a (below) replaced
+that with a real display for this board.
 
 StamPLC's onboard I2C bus (SCL G15, SDA G13) carries an LM75B temp sensor
 (0x48), INA226 voltage/current sensor (0x40), and an RX8130CE RTC (0x32) —
 none of which this firmware touches, but worth knowing before wiring
 anything else onto that bus later.
+
+## StamPLC display port (M7a)
+
+StamPLC's screen is a 1.14" SPI ST7789v2 TFT — MOSI G8, SCK G7, CS G12,
+RS/DC G6, RST G3 — not an I2C SSD1306: different bus, different driver, and
+the backlight sits behind a PI4IOE5V6408 IO expander (P7) rather than a
+plain GPIO. Rather than hand-roll the ST7789 init sequence and the IO
+expander's register protocol, `TftDisplay` (`src/TftDisplay.h/.cpp`) drives
+it through the official `m5stack/M5StamPLC` Arduino library (pulling in
+M5Unified + M5GFX transitively) — M5Stack publishes a tested example for
+exactly this board and screen, and getting an I2C expander's register map
+wrong by hand isn't worth the risk when a working implementation already
+exists.
+
+`TftDisplay` implements the same public API as `BmsDisplay`
+(`begin`/`setDeviceName`/`setLink`/`setData`/`render`/`showMessage`), so
+`src/main.cpp` only swaps a type alias — `ActiveDisplay` — behind
+`#if defined(BOARD_STAMPLC)`; no call site changes between boards. Each env's
+`build_src_filter` in `platformio.ini` excludes the other board's display
+`.cpp` (`TftDisplay.cpp` on the Heltec env, `BmsDisplay.cpp` on the StamPLC
+env), so neither board pulls in a display library it doesn't use.
+
+**Three things only showed up on real hardware:**
+
+1. **`M5StamPLC.Display` is a member reference in the published v1.2.0
+   package (`LGFX_Device& Display = M5.Display;`), not a method.** The
+   library's GitHub `main` branch (fetched while researching this) declares
+   it as `inline LGFX_Device& Display()` — a method — which is what
+   `pio pkg search` actually installs from PlatformIO's registry disagreed
+   with. Writing `M5StamPLC.Display()` against the real installed header
+   fails to compile (`no match for call to '(LGFX_Device) ()'`): the code
+   evaluates `Display` as a `LGFX_Device&` first, then tries to call *that*
+   with `()`. Fix was mechanical — drop the parens — but the lesson is to
+   check the package that actually installs (`.pio/libdeps/.../M5StamPLC.h`)
+   over `main` on GitHub when the two might have drifted.
+2. **The panel is landscape, 240x135 — not the 135x240 portrait the "1.14-inch
+   (135x240)" spec implies out of context.** `M5GFX` auto-detects this and
+   sets `rotation=1` (confirmed via a one-line diagnostic:
+   `M5StamPLC.Display.width()/height()/getRotation()`). The first layout used
+   fixed pixel row offsets sized for a 240-tall portrait screen; on the real
+   135-tall landscape panel every row past the top third drew off-screen —
+   confirmed on hardware as clipped/missing text. Fixed by computing every
+   row as a fraction of `Display.height()` instead of a hardcoded pixel
+   count, which is also what makes the layout not care which orientation a
+   future panel is actually wired in.
+3. **Drawing straight to the panel flickered visibly on every refresh.**
+   `render()` opened with `fillScreen(TFT_BLACK)` on `M5StamPLC.Display`
+   itself, so the whole panel briefly went black before each element redrew
+   over SPI — confirmed on hardware as a visible flash every poll cycle.
+   Fixed with the same off-screen-sprite pattern the library's own
+   `DashboardUI` example uses: `TftDisplay` now owns a full-screen
+   `LGFX_Sprite` (`canvas_`), every draw call in `render()`/`showMessage()`
+   targets that (invisibly, in RAM), and a single `pushSprite(0, 0)` at the
+   end blits the finished frame to the panel in one SPI burst. Costs ~63 KB
+   of heap (240x135 RGB565, allocated once in `begin()` — this board has no
+   PSRAM to put it in instead) but eliminated the flicker entirely, confirmed
+   on hardware.
+
+**Confirmed on hardware, final layout**: device name + link indicator (fills
+green when connected) top-left/top-right, RSSI top-right below that, SOC
+large and centered, pack voltage (left) and current (right, colour-coded —
+green charging, red discharging, white idle) on one row, temperature and FET
+state on the bottom row. Same staleness behavior as M6b: values dash out
+after `kStaleAfterMs` (15 s) with no connection refreshing them.
+
+`M5StamPLC.begin()` also brings up the board's onboard LM75B/INA226/RX8130
+sensors and I2C IO expanders — that's the library's own design, there's no
+display-only init path — but `Config_t`'s defaults leave Modbus, CAN and the
+SD card disabled, so nothing in `TftDisplay` ever touches the RS485/CAN
+transceivers or actuates a PLC relay.
 
 ## Display (M0b)
 

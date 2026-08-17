@@ -19,6 +19,7 @@
 #include <SSD1306Wire.h>
 
 #include "BmsData.h"
+#include "LinkState.h"
 
 // Heltec WiFi LoRa 32 V3 pin map (§9) — the part that trips everyone up.
 static const int kPinOledSda = 17;
@@ -26,17 +27,6 @@ static const int kPinOledScl = 18;
 static const int kPinOledRst = 21;
 static const int kPinVext = 36;          // ACTIVE LOW: LOW = Vext ON
 static const uint8_t kOledAddr = 0x3c;
-
-// Values older than this are shown as dashes rather than stale numbers. A
-// dropped link must never look like a live reading (§9).
-static const uint32_t kStaleAfterMs = 15000;
-
-enum class LinkState {
-    Idle,
-    Scanning,      // hollow indicator
-    Connecting,
-    Connected      // filled indicator
-};
 
 class BmsDisplay {
   public:

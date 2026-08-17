@@ -1,5 +1,5 @@
 // main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2 + M3 + M4 +
-// M5 + M6b + M7.
+// M5 + M6b + M7 + M7a.
 //
 // M1 (§11): "Serial lists nearby BLE devices; XDZN_001_49A1 /
 // C0:D6:3C:58:49:A1 appears with RSSI."   — confirmed on hardware.
@@ -34,6 +34,15 @@
 // hardware, and needed no changes to keep passing here — this file is BLE
 // state-machine wiring, not decode work.
 //
+// M7a: GateLink's real node hardware turned out to be the M5Stack StamPLC,
+// not the Heltec V3 — same ESP32-S3 family, so none of the above needed to
+// change, but the two boards' displays are different hardware entirely
+// (I2C SSD1306 OLED vs SPI ST7789v2 TFT). BOARD_STAMPLC (set only in
+// platformio.ini's m5stack_stamplc env) picks TftDisplay over BmsDisplay
+// below; both implement the same public API (begin/setDeviceName/setLink/
+// setData/render), so nothing past this block needs to know which one is
+// active.
+//
 // Measured RSSI: -77 to -88 dBm at desk range, -60 to -65 dBm at the
 // approximate mounting position. A weak desk number is normal (§5.8) — the
 // battery's antenna appears shielded by the BMS heat sink.
@@ -42,10 +51,18 @@
 #include <NimBLEDevice.h>
 
 #include "BmsData.h"
-#include "BmsDisplay.h"
 #include "BmsTransport.h"
+#include "LinkState.h"
 #include "NimBleTransport.h"
 #include "TdtProtocol.h"
+
+#if defined(BOARD_STAMPLC)
+#include "TftDisplay.h"
+using ActiveDisplay = TftDisplay;
+#else
+#include "BmsDisplay.h"
+using ActiveDisplay = BmsDisplay;
+#endif
 
 // --- Target (§3) -----------------------------------------------------------
 static const char* kTargetName = "XDZN_001_49A1";   // underscores, not dashes
@@ -63,7 +80,7 @@ static const uint32_t kPollIntervalMs = 5000;
 
 static uint32_t g_sweep = 0;
 
-static BmsDisplay g_display;
+static ActiveDisplay g_display;
 static bool g_have_display = false;
 
 static NimBleTransport g_transport;
@@ -264,16 +281,21 @@ void setup() {
         // USB CDC needs a moment; don't wait forever on a headless boot.
     }
 
+#if defined(BOARD_STAMPLC)
+    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5 + M6b + M7 + M7a (StamPLC)"));
+#else
     Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5 + M6b + M7"));
+#endif
     Serial.printf("heap at boot: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
     Serial.printf("looking for: %s / %s\n", kTargetName, kTargetAddr);
 
-    // M0b: prove the panel before it has to show real data. A failure here is
-    // almost always the Vext step (§9) — the OLED is powered through Vext, so
-    // without it the panel is dark and does not ACK on I2C.
+    // M0b/M7a: prove the panel before it has to show real data. On the
+    // Heltec V3, a failure here is almost always the Vext step (§9) — the
+    // OLED is powered through Vext, so without it the panel is dark and
+    // does not ACK on I2C. StamPLC's TFT is integrated on the same board
+    // and always reports OK (TftDisplay::begin() has no "not found" case).
     g_have_display = g_display.begin("WattCycle BMS");
-    Serial.printf("OLED at 0x%02x: %s\n", kOledAddr,
-                  g_have_display ? "OK" : "NOT FOUND (check Vext / wiring)");
+    Serial.printf("display: %s\n", g_have_display ? "OK" : "NOT FOUND (check Vext / wiring)");
     if (g_have_display) {
         g_display.setDeviceName(kTargetName);
         g_display.setLink(LinkState::Scanning, 0, false);
