@@ -1,15 +1,20 @@
-// main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2.
+// main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2 + M3 + M4 + M5.
 //
 // M1 (§11): "Serial lists nearby BLE devices; XDZN_001_49A1 /
 // C0:D6:3C:58:49:A1 appears with RSSI."   — confirmed on hardware.
 // M0b (§11): OLED alive, showing the layout with live RSSI.
-// M2 (§11): "Connects, enumerates FFF0, confirms FFF1/FFF2 handles." Runs
-// once, on the first sweep the target is seen: stop scanning, connect,
-// resolve FFF1/FFF2/FFFA via NimBleTransport, log handles, disconnect, then
-// resume scanning. No handshake and no persistent connection yet — those are
-// M3. The protocol decoder in lib/bms_ble/TdtProtocol.* is already complete
-// and tested against the captured frames (`pio test -e native`), so the
-// remaining work is radio plumbing, not decode.
+// M2 (§11): "Connects, enumerates FFF0, confirms FFF1/FFF2 handles."
+// M3 (§11): HiLink -> FFFA, read-back 0x01, subscribe FFF1, send 0x8C.
+// M4 (§11): notification bytes fed through TdtProtocol::FrameReassembler.
+// M5 (§11): a complete 0x8C frame decoded and printed field by field.
+//
+// All of M2-M5 run as one block, once per boot, on the first sweep the
+// target is seen: stop scanning, connect, discover, handshake, subscribe,
+// request, decode whatever comes back, disconnect, resume scanning. This is
+// a capability check, not the persistent-connection poll loop — that's M7.
+// The reassembler and decoder in lib/bms_ble/TdtProtocol.* were already
+// complete and host-tested (`pio test -e native`) before any of this ran on
+// hardware, so this block is wiring, not new decode work.
 //
 // Measured RSSI: -77 to -88 dBm at desk range, -60 to -65 dBm at the
 // approximate mounting position. A weak desk number is normal (§5.8) — the
@@ -41,18 +46,76 @@ static bool g_have_display = false;
 static NimBleTransport g_transport;
 static bool g_probe_done = false;   // run the connect/discover/handshake check once
 
-// Dumps raw notification bytes for M3 (§11: "raw bytes dumped"). No
-// reassembly yet — that's M4 — so a single notification is printed as-is,
-// and a fragmented response prints as multiple lines.
-class RawNotifyDumper : public bms::BmsTransport::NotifyHandler {
+// Feeds notifications through the reassembler (M4) and decodes complete
+// 0x8C frames (M5). onNotify() runs on NimBLE's host task (§7: "keep it
+// short — feed the reassembler, no more"), so decode/print happens there
+// too rather than posting to a queue — acceptable for this one-shot probe,
+// revisit if M7's poll loop needs onNotify() to stay lighter.
+class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
   public:
     void onNotify(const uint8_t* data, size_t len) override {
-        Serial.print(F("  notify: "));
-        for (size_t i = 0; i < len; ++i) Serial.printf("%02x", data[i]);
-        Serial.println();
+        size_t off = 0;
+        while (off < len) {
+            bms::tdt::FrameReassembler::Status status;
+            off += reassembler_.feed(data + off, len - off, status, millis());
+            switch (status) {
+                case bms::tdt::FrameReassembler::STATUS_COMPLETE:
+                    handleFrame(reassembler_.frame());
+                    break;
+                case bms::tdt::FrameReassembler::STATUS_CRC_ERROR:
+                    Serial.println(F("  reassembler: CRC ERROR"));
+                    break;
+                case bms::tdt::FrameReassembler::STATUS_BAD_TERMINATOR:
+                    Serial.println(F("  reassembler: BAD TERMINATOR"));
+                    break;
+                case bms::tdt::FrameReassembler::STATUS_INCOMPLETE:
+                    break;
+            }
+        }
     }
+
+    // Call from the main loop while waiting on a response, so a partial
+    // frame (fragmentation, MTU refusal) still times out per §5.5 rule 5
+    // instead of wedging the reassembler for the next probe.
+    void tick(uint32_t now_ms) { reassembler_.tick(now_ms); }
+
+  private:
+    void handleFrame(const bms::tdt::Frame& frame) {
+        if (frame.cmd != bms::tdt::CMD_CELLS_PACK) {
+            Serial.printf("  frame: cmd 0x%02x, %u bytes (not 0x8C, not decoded)\n",
+                          frame.cmd, frame.payload_len);
+            return;
+        }
+
+        bms::BmsData data;
+        if (!bms::tdt::decodeCellsAndPack(frame, data)) {
+            Serial.println(F("  decode 0x8C: FAILED"));
+            return;
+        }
+
+        Serial.printf("  decode 0x8C: OK — %u cells, %u temps\n",
+                      data.cell_count, data.temp_count);
+        Serial.print(F("    cells (mV):"));
+        for (uint8_t i = 0; i < data.cell_count; ++i) {
+            Serial.printf(" %u", data.cell_mV[i]);
+        }
+        Serial.printf("  (delta %u mV)\n", data.deltaCell_mV());
+        Serial.print(F("    temps (0.1C):"));
+        for (uint8_t i = 0; i < data.temp_count; ++i) {
+            Serial.printf(" %d", data.temp_dC[i]);
+        }
+        Serial.println();
+        Serial.printf("    pack: %u mV   current: %ld mA (%s)   SOC: %u%%\n",
+                      (unsigned)data.pack_mV, (long)data.current_mA,
+                      data.discharging ? "discharge flag" : "charge flag",
+                      data.soc_pct);
+        Serial.printf("    remaining/nominal: %u/%u (0.1 Ah)   cycles: %u   SOH: %u (0.1%%)\n",
+                      data.remaining_dAh, data.nominal_dAh, data.cycles, data.soh_dpct);
+    }
+
+    bms::tdt::FrameReassembler reassembler_;
 };
-static RawNotifyDumper g_notify_dumper;
+static BmsNotifyHandler g_notify_handler;
 
 // Non-const ref: NimBLE 1.4's accessors are not const-qualified.
 static bool isTarget(NimBLEAdvertisedDevice& dev) {
@@ -121,7 +184,7 @@ void setup() {
         // USB CDC needs a moment; don't wait forever on a headless boot.
     }
 
-    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2"));
+    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5"));
     Serial.printf("heap at boot: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
     Serial.printf("looking for: %s / %s\n", kTargetName, kTargetAddr);
 
@@ -188,7 +251,7 @@ void loop() {
                           hs_ok ? "ACK" : "NOT ACK");
 
             if (hs_ok) {
-                const bool sub_ok = g_transport.subscribe(&g_notify_dumper);
+                const bool sub_ok = g_transport.subscribe(&g_notify_handler);
                 Serial.printf("  subscribe FFF1: %s\n", sub_ok ? "OK" : "FAILED");
 
                 if (sub_ok) {
@@ -198,15 +261,22 @@ void loop() {
                     const bool sent = g_transport.write(bms::GattChar::Tx, req,
                                                          req_len, true);
                     Serial.printf("  0x8C request sent: %s\n", sent ? "OK" : "FAILED");
+                    Serial.println(F("--- M4/M5: reassembly + decode ---"));
+
                     // Notifications land asynchronously via NimBLE's host
                     // task, not from anything we pump here — give it a
-                    // window to arrive before tearing the link down.
-                    delay(1500);
+                    // window to arrive, ticking the reassembler so a
+                    // partial frame still times out per §5.5 rule 5.
+                    const uint32_t wait_until = millis() + 1500;
+                    while ((int32_t)(wait_until - millis()) > 0) {
+                        delay(20);
+                        g_notify_handler.tick(millis());
+                    }
                 }
             }
 
             g_transport.disconnect();
-            Serial.println(F("--- M2/M3 block complete, disconnected ---"));
+            Serial.println(F("--- M2-M5 block complete, disconnected ---"));
         } else {
             Serial.println(F("--- M2: connect FAILED ---"));
         }
