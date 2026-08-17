@@ -391,9 +391,19 @@ Recorded because the reasoning generalizes to the other LRAN nodes:
 | M6 | Alarms | `0x8D` decoded for protection bitmaps and MOSFET state |
 | M6b | Display live data | SOC / voltage / current / temp on the OLED, with link indicator and stale-data handling |
 | M7 | Poll loop + resilience | Polls on interval; survives battery going out of range and coming back; logs RSSI, consecutive-failure count, and free heap |
+| M7a | StamPLC display port | SOC / voltage / current / temp on the StamPLC's ST7789 TFT, same staleness/link-indicator behavior as M6b |
 | M8 | Library extraction | Protocol code under test, transport abstracted, README written, ready to merge |
 
 M0–M3 is one sitting. M4–M5 is where the real debugging is.
+
+**M7a exists because the node hardware decision landed mid-PoC:** GateLink's
+actual board turned out to be the M5Stack StamPLC, not the Heltec V3 this PoC
+started on. It's inserted after M7 rather than folded into M8, because M8's
+scope (§14, "ready to merge") is specifically `lib/bms_ble/` — the reusable
+protocol/transport layer — and the StamPLC's display is application-layer
+presentation code that doesn't touch that library at all. M7 itself needed
+zero changes to reach the StamPLC (same ESP32-S3 family); only the display
+needed a second implementation.
 
 ## 12. Repo and git workflow
 
