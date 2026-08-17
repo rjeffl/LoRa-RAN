@@ -10,7 +10,7 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M5
+## Status: M6b
 
 | Milestone | State |
 |---|---|
@@ -20,8 +20,9 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | M2 — connect + discover | **confirmed on hardware** — connects, FFF0 enumerated, FFF1/FFF2/FFFA handles confirmed |
 | M3 — handshake + raw | **confirmed on hardware** — HiLink ACKed, subscribed, 0x8C answered in one frame at MTU 512 |
 | M4 — reassembly + CRC | **confirmed on hardware** — notify bytes reassembled, CRC validated |
-| **M5 — decode 0x8C** | **confirmed on hardware** — full field-by-field decode, values sane |
+| M5 — decode 0x8C | **confirmed on hardware** — full field-by-field decode, values sane |
 | M6 — alarms (0x8D) | deliberately not decoded — see below |
+| **M6b — display live data** | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
 
 The protocol layer got built ahead of the radio layer on purpose: it is testable
 on the laptop against captured frames, so there is no reason to debug it over a
@@ -128,7 +129,7 @@ enclosure is built.
 Keep publishing RSSI as a diagnostic regardless (§5.8): it is the early-warning
 signal for a mount degrading from moisture, corrosion, or a shifted bracket.
 
-## Connect, discover, handshake, decode (M2-M5)
+## Connect, discover, handshake, decode (M2-M5, M6b)
 
 `NimBleTransport` (`lib/bms_ble/NimBleTransport.h/.cpp`) is the only file that
 includes NimBLE headers (§7 rule 2) — it implements `BmsTransport` against
@@ -171,6 +172,15 @@ still untested on hardware, only against captured frames); and the decoder
 produced the same sane values by-eye-checked at M3 (4 cells ~3.33 V, 13.33 V
 pack, SOC 99%, SOH 100%, 2 cycles, 0.0 A at rest) with zero decode bugs found —
 the host-test suite's captured-frame coverage held on live hardware.
+
+**M6b** rides on the same block: once connected, `BmsDisplay::setLink()` fills
+the link indicator for real (rather than waiting for the next scan-driven
+render), and once a frame decodes, `BmsDisplay::setData()` pushes it straight
+to the OLED. Confirmed on hardware: real SOC/pack voltage/current/temp
+appeared, the dot filled while connected and went hollow again after
+disconnect, and the numbers dashed back out ~15 s later (`kStaleAfterMs`) with
+no persistent connection to keep refreshing them — the exact staleness
+behaviour M0b built and M7's poll loop will keep exercising for real.
 
 ## Display (M0b)
 

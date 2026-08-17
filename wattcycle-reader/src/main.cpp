@@ -1,4 +1,5 @@
-// main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2 + M3 + M4 + M5.
+// main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2 + M3 + M4 +
+// M5 + M6b.
 //
 // M1 (§11): "Serial lists nearby BLE devices; XDZN_001_49A1 /
 // C0:D6:3C:58:49:A1 appears with RSSI."   — confirmed on hardware.
@@ -7,14 +8,17 @@
 // M3 (§11): HiLink -> FFFA, read-back 0x01, subscribe FFF1, send 0x8C.
 // M4 (§11): notification bytes fed through TdtProtocol::FrameReassembler.
 // M5 (§11): a complete 0x8C frame decoded and printed field by field.
+// M6b (§11): the decoded frame and a filled link indicator pushed to the
+// OLED, riding on BmsDisplay's existing staleness handling from M0b.
 //
-// All of M2-M5 run as one block, once per boot, on the first sweep the
+// All of M2-M6b run as one block, once per boot, on the first sweep the
 // target is seen: stop scanning, connect, discover, handshake, subscribe,
-// request, decode whatever comes back, disconnect, resume scanning. This is
-// a capability check, not the persistent-connection poll loop — that's M7.
-// The reassembler and decoder in lib/bms_ble/TdtProtocol.* were already
-// complete and host-tested (`pio test -e native`) before any of this ran on
-// hardware, so this block is wiring, not new decode work.
+// request, decode whatever comes back, push it to the display, disconnect,
+// resume scanning. This is a capability check, not the persistent-connection
+// poll loop — that's M7. The reassembler and decoder in
+// lib/bms_ble/TdtProtocol.* were already complete and host-tested
+// (`pio test -e native`) before any of this ran on hardware, so this block is
+// wiring, not new decode work.
 //
 // Measured RSSI: -77 to -88 dBm at desk range, -60 to -65 dBm at the
 // approximate mounting position. A weak desk number is normal (§5.8) — the
@@ -79,6 +83,12 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
     // instead of wedging the reassembler for the next probe.
     void tick(uint32_t now_ms) { reassembler_.tick(now_ms); }
 
+    // M6b: lets main.cpp push a successfully decoded frame to the OLED
+    // without BmsNotifyHandler knowing BmsDisplay exists (§9's rule: decode
+    // produces a struct, presentation layers consume it).
+    bool hasData() const { return has_data_; }
+    const bms::BmsData& lastData() const { return last_data_; }
+
   private:
     void handleFrame(const bms::tdt::Frame& frame) {
         if (frame.cmd != bms::tdt::CMD_CELLS_PACK) {
@@ -92,6 +102,8 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
             Serial.println(F("  decode 0x8C: FAILED"));
             return;
         }
+        last_data_ = data;
+        has_data_ = true;
 
         Serial.printf("  decode 0x8C: OK — %u cells, %u temps\n",
                       data.cell_count, data.temp_count);
@@ -114,6 +126,8 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
     }
 
     bms::tdt::FrameReassembler reassembler_;
+    bms::BmsData last_data_;
+    bool has_data_ = false;
 };
 static BmsNotifyHandler g_notify_handler;
 
@@ -184,7 +198,7 @@ void setup() {
         // USB CDC needs a moment; don't wait forever on a headless boot.
     }
 
-    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5"));
+    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5 + M6b"));
     Serial.printf("heap at boot: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
     Serial.printf("looking for: %s / %s\n", kTargetName, kTargetAddr);
 
@@ -221,15 +235,23 @@ void loop() {
     const int rssi = printResults(results, &target_dev);
     scan->clearResults();   // free the result list before the next sweep
 
-    // M2+M3 (§11): connect, discover FFF0, handshake, subscribe, dump one
-    // raw 0x8C response. Runs once — this is a capability check, not the
-    // persistent-connection poll loop (that's M7) — so a fresh boot is how
-    // to re-run it.
+    // M2-M6b (§11): connect, discover FFF0, handshake, subscribe, request
+    // 0x8C, decode it, push it to the display. Runs once — this is a
+    // capability check, not the persistent-connection poll loop (that's
+    // M7) — so a fresh boot is how to re-run it.
     if (!g_probe_done && rssi != 0) {
         g_probe_done = true;
         Serial.println(F("\n--- M2: connect + discover ---"));
         if (g_transport.connect(&target_dev)) {
             g_transport.logDiscovery();
+
+            // M6b: show the filled link indicator for real once there is an
+            // actual connection to report, rather than waiting for the next
+            // scan-driven render at the bottom of loop().
+            if (g_have_display) {
+                g_display.setLink(LinkState::Connected, g_transport.rssi(), true);
+                g_display.render(millis());
+            }
 
             Serial.println(F("--- M3: handshake ---"));
             // §5.1 steps 2-3: HiLink to FFFA, with response, then read FFFA
@@ -272,21 +294,33 @@ void loop() {
                         delay(20);
                         g_notify_handler.tick(millis());
                     }
+
+                    // M6b (§11): "SOC / voltage / current / temp on the OLED
+                    // ... with stale-data handling." Pushing the decoded
+                    // frame here, then leaving it cached in BmsDisplay, is
+                    // enough to exercise the staleness rule (§9,
+                    // kStaleAfterMs) over the next few scan-only sweeps even
+                    // though the persistent poll loop is still M7.
+                    if (g_have_display && g_notify_handler.hasData()) {
+                        g_display.setData(g_notify_handler.lastData(), millis());
+                        g_display.render(millis());
+                    }
                 }
             }
 
             g_transport.disconnect();
-            Serial.println(F("--- M2-M5 block complete, disconnected ---"));
+            Serial.println(F("--- M2-M6b block complete, disconnected ---"));
         } else {
             Serial.println(F("--- M2: connect FAILED ---"));
         }
     }
 
     if (g_have_display) {
-        // Link stays Scanning — the indicator only fills once there is a real
-        // connection to report, which is M3. Until then RSSI is the whole
-        // point of the panel: it makes the board an aiming instrument for
-        // finding a mounting position without a laptop attached.
+        // Back to Scanning — the indicator only fills for real during the
+        // M2-M6b block above, while a connection actually exists. Any BmsData
+        // pushed there stays cached in BmsDisplay and keeps rendering (fresh,
+        // then dashed out after kStaleAfterMs) across the plain scan sweeps
+        // that follow, since there's no persistent connection yet (M7).
         g_display.setLink(LinkState::Scanning, rssi, rssi != 0);
         g_display.render(millis());
     }
