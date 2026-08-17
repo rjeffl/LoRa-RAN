@@ -1,5 +1,5 @@
 // main.cpp — WattCycle BLE BMS reader, milestones M0b + M1 + M2 + M3 + M4 +
-// M5 + M6b.
+// M5 + M6b + M7.
 //
 // M1 (§11): "Serial lists nearby BLE devices; XDZN_001_49A1 /
 // C0:D6:3C:58:49:A1 appears with RSSI."   — confirmed on hardware.
@@ -10,15 +10,29 @@
 // M5 (§11): a complete 0x8C frame decoded and printed field by field.
 // M6b (§11): the decoded frame and a filled link indicator pushed to the
 // OLED, riding on BmsDisplay's existing staleness handling from M0b.
+// M7 (§11): "Polls on interval; survives battery going out of range and
+// coming back; logs RSSI, consecutive-failure count, and free heap." Replaces
+// M2-M6b's one-shot probe with a persistent connect-and-poll state machine
+// (§5.6: "a persistent connection is viable" once handshaked).
 //
-// All of M2-M6b run as one block, once per boot, on the first sweep the
-// target is seen: stop scanning, connect, discover, handshake, subscribe,
-// request, decode whatever comes back, push it to the display, disconnect,
-// resume scanning. This is a capability check, not the persistent-connection
-// poll loop — that's M7. The reassembler and decoder in
-// lib/bms_ble/TdtProtocol.* were already complete and host-tested
-// (`pio test -e native`) before any of this ran on hardware, so this block is
-// wiring, not new decode work.
+// State machine: Scanning <-> Polling.
+//   Scanning: normal M1 active-scan sweeps (this is still the aiming
+//     instrument). When the target is seen, attempt connect + discover +
+//     handshake + subscribe. Success moves to Polling; failure stays in
+//     Scanning and counts against g_consecutive_failures.
+//   Polling: connection is held open. Every kPollIntervalMs, send a 0x8C
+//     request; the reassembler/decoder run from BmsNotifyHandler::onNotify()
+//     same as M4/M5, and any newly decoded frame is pushed to the display.
+//     If the connection drops (out of range, BMS-side timeout, etc.), fall
+//     back to Scanning — this is the "survives going out of range and coming
+//     back" requirement. RSSI while polling comes from the connection itself
+//     (NimBLEClient::getRssi()), not from scanning, since the two aren't run
+//     concurrently here.
+//
+// The reassembler and decoder in lib/bms_ble/TdtProtocol.* were already
+// complete and host-tested (`pio test -e native`) before any of M2-M6b ran on
+// hardware, and needed no changes to keep passing here — this file is BLE
+// state-machine wiring, not decode work.
 //
 // Measured RSSI: -77 to -88 dBm at desk range, -60 to -65 dBm at the
 // approximate mounting position. A weak desk number is normal (§5.8) — the
@@ -37,10 +51,15 @@
 static const char* kTargetName = "XDZN_001_49A1";   // underscores, not dashes
 static const char* kTargetAddr = "c0:d6:3c:58:49:a1";
 
-// 3 s sweeps with no pause: the display is the aiming instrument now, and a
-// 7 s refresh is too slow to position a board by. Nothing here is power-tuned;
-// that is an M7 question.
+// 3 s sweeps with no pause: the display is the aiming instrument while
+// Scanning, and a 7 s refresh is too slow to position a board by. Nothing
+// here is power-tuned (§11 M7 note) — that's a later question.
 static const uint32_t kScanSeconds = 3;
+
+// Poll cadence once connected. Not power-tuned either — picked to be well
+// inside the observed stable-idle window (§5.6: held 3 s idle with no drop)
+// without hammering the link.
+static const uint32_t kPollIntervalMs = 5000;
 
 static uint32_t g_sweep = 0;
 
@@ -48,13 +67,18 @@ static BmsDisplay g_display;
 static bool g_have_display = false;
 
 static NimBleTransport g_transport;
-static bool g_probe_done = false;   // run the connect/discover/handshake check once
+
+enum class ConnState { Scanning, Polling };
+static ConnState g_state = ConnState::Scanning;
+static uint32_t g_consecutive_failures = 0;
+static uint32_t g_last_poll_ms = 0;
+static uint32_t g_last_frame_seen = 0;   // last BmsNotifyHandler::frameCount() consumed
 
 // Feeds notifications through the reassembler (M4) and decodes complete
 // 0x8C frames (M5). onNotify() runs on NimBLE's host task (§7: "keep it
 // short — feed the reassembler, no more"), so decode/print happens there
-// too rather than posting to a queue — acceptable for this one-shot probe,
-// revisit if M7's poll loop needs onNotify() to stay lighter.
+// too rather than posting to a queue — acceptable at this poll cadence;
+// revisit if a tighter interval ever makes onNotify() a bottleneck.
 class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
   public:
     void onNotify(const uint8_t* data, size_t len) override {
@@ -78,15 +102,18 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
         }
     }
 
-    // Call from the main loop while waiting on a response, so a partial
-    // frame (fragmentation, MTU refusal) still times out per §5.5 rule 5
-    // instead of wedging the reassembler for the next probe.
+    // Call regularly while a request may be outstanding, so a partial frame
+    // (fragmentation, MTU refusal) still times out per §5.5 rule 5 instead
+    // of wedging the reassembler for the next poll.
     void tick(uint32_t now_ms) { reassembler_.tick(now_ms); }
 
-    // M6b: lets main.cpp push a successfully decoded frame to the OLED
-    // without BmsNotifyHandler knowing BmsDisplay exists (§9's rule: decode
-    // produces a struct, presentation layers consume it).
-    bool hasData() const { return has_data_; }
+    // M6b/M7: lets main.cpp push a newly decoded frame to the OLED without
+    // BmsNotifyHandler knowing BmsDisplay exists (§9's rule: decode produces
+    // a struct, presentation layers consume it). frameCount() is a
+    // monotonic counter rather than a bool so the caller can tell a *new*
+    // frame from the same one already pushed — needed now that Polling
+    // checks in every loop() iteration instead of once per probe.
+    uint32_t frameCount() const { return frame_count_; }
     const bms::BmsData& lastData() const { return last_data_; }
 
   private:
@@ -103,7 +130,7 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
             return;
         }
         last_data_ = data;
-        has_data_ = true;
+        ++frame_count_;
 
         Serial.printf("  decode 0x8C: OK — %u cells, %u temps\n",
                       data.cell_count, data.temp_count);
@@ -127,7 +154,7 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
 
     bms::tdt::FrameReassembler reassembler_;
     bms::BmsData last_data_;
-    bool has_data_ = false;
+    uint32_t frame_count_ = 0;
 };
 static BmsNotifyHandler g_notify_handler;
 
@@ -146,7 +173,7 @@ static void printHex(const std::string& s) {
 // Returns the target's RSSI, or 0 if it wasn't seen this sweep. When found,
 // also copies the advertised device into *out_target if it is non-null — the
 // copy stays valid after scan->clearResults(), unlike a reference into the
-// scan's result list, so M2's connect() can use it afterwards.
+// scan's result list, so connect() can use it afterwards.
 static int printResults(NimBLEScanResults& results, NimBLEAdvertisedDevice* out_target) {
     const int count = results.getCount();
 
@@ -191,6 +218,45 @@ static int printResults(NimBLEScanResults& results, NimBLEAdvertisedDevice* out_
     return found ? target_rssi : 0;
 }
 
+// Connect, discover FFF0, handshake, subscribe (M2+M3). Leaves the
+// connection open on success — M7 holds it per §5.6, rather than the
+// M2-M6b probe's connect/round-trip/disconnect. Returns false, having
+// already cleaned up via g_transport.disconnect(), on any step's failure.
+static bool connectAndHandshake(NimBLEAdvertisedDevice& target_dev) {
+    Serial.println(F("\n--- connect + discover ---"));
+    if (!g_transport.connect(&target_dev)) {
+        Serial.println(F("  connect FAILED"));
+        return false;
+    }
+    g_transport.logDiscovery();
+
+    // §5.1 steps 2-3: HiLink to FFFA, with response, then read FFFA back and
+    // gate on 0x01. Everything past this point is silently ignored by the
+    // BMS otherwise, and the link drops ~4 s after connecting.
+    bool hs_ok = g_transport.write(bms::GattChar::Handshake,
+                                    (const uint8_t*)bms::tdt::kHandshakeMagic,
+                                    bms::tdt::kHandshakeMagicLen, true);
+    uint8_t hs_reply[8] = {0};
+    const int hs_len = hs_ok ? g_transport.read(bms::GattChar::Handshake,
+                                                 hs_reply, sizeof(hs_reply))
+                              : -1;
+    hs_ok = hs_ok && hs_len >= 1 && hs_reply[0] == bms::tdt::kHandshakeAck;
+    Serial.printf("  HiLink -> FFFA: read-back 0x%02x (%s)\n",
+                  hs_len > 0 ? hs_reply[0] : 0, hs_ok ? "ACK" : "NOT ACK");
+    if (!hs_ok) {
+        g_transport.disconnect();
+        return false;
+    }
+
+    if (!g_transport.subscribe(&g_notify_handler)) {
+        Serial.println(F("  subscribe FFF1 FAILED"));
+        g_transport.disconnect();
+        return false;
+    }
+    Serial.println(F("  subscribe FFF1: OK — polling"));
+    return true;
+}
+
 void setup() {
     Serial.begin(115200);
     const uint32_t t0 = millis();
@@ -198,7 +264,7 @@ void setup() {
         // USB CDC needs a moment; don't wait forever on a headless boot.
     }
 
-    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5 + M6b"));
+    Serial.println(F("\n\nWattCycle BLE BMS reader — M0b + M1 + M2 + M3 + M4 + M5 + M6b + M7"));
     Serial.printf("heap at boot: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
     Serial.printf("looking for: %s / %s\n", kTargetName, kTargetAddr);
 
@@ -216,8 +282,8 @@ void setup() {
     NimBLEDevice::init("");
     // Request the largest MTU the stack allows (§5.5), before any connect.
     // Default 23 fragments every response; this is what removes that class
-    // of bug. Still-implemented reassembly (M4) means a refusal degrades
-    // gracefully instead of corrupting data.
+    // of bug. Reassembly (M4) means a refusal still degrades gracefully
+    // instead of corrupting data.
     NimBLEDevice::setMTU(bms::kDesiredMtu);
     Serial.printf("heap after NimBLE init: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
 
@@ -227,7 +293,7 @@ void setup() {
     scan->setWindow(99);
 }
 
-void loop() {
+static void loopScanning() {
     NimBLEScan* scan = NimBLEDevice::getScan();
 
     NimBLEAdvertisedDevice target_dev;
@@ -235,93 +301,79 @@ void loop() {
     const int rssi = printResults(results, &target_dev);
     scan->clearResults();   // free the result list before the next sweep
 
-    // M2-M6b (§11): connect, discover FFF0, handshake, subscribe, request
-    // 0x8C, decode it, push it to the display. Runs once — this is a
-    // capability check, not the persistent-connection poll loop (that's
-    // M7) — so a fresh boot is how to re-run it.
-    if (!g_probe_done && rssi != 0) {
-        g_probe_done = true;
-        Serial.println(F("\n--- M2: connect + discover ---"));
-        if (g_transport.connect(&target_dev)) {
-            g_transport.logDiscovery();
+    if (g_have_display) {
+        g_display.setLink(LinkState::Scanning, rssi, rssi != 0);
+        g_display.render(millis());
+    }
 
-            // M6b: show the filled link indicator for real once there is an
-            // actual connection to report, rather than waiting for the next
-            // scan-driven render at the bottom of loop().
-            if (g_have_display) {
-                g_display.setLink(LinkState::Connected, g_transport.rssi(), true);
-                g_display.render(millis());
-            }
+    if (rssi == 0) return;   // not seen this sweep — stay Scanning, try again next sweep
 
-            Serial.println(F("--- M3: handshake ---"));
-            // §5.1 steps 2-3: HiLink to FFFA, with response, then read FFFA
-            // back and gate on 0x01. Everything past this point is silently
-            // ignored by the BMS otherwise, and the link drops ~4 s in.
-            bool hs_ok = g_transport.write(
-                bms::GattChar::Handshake,
-                (const uint8_t*)bms::tdt::kHandshakeMagic,
-                bms::tdt::kHandshakeMagicLen, true);
-            uint8_t hs_reply[8] = {0};
-            int hs_len = hs_ok ? g_transport.read(bms::GattChar::Handshake,
-                                                   hs_reply, sizeof(hs_reply))
-                                : -1;
-            hs_ok = hs_ok && hs_len >= 1 &&
-                    hs_reply[0] == bms::tdt::kHandshakeAck;
-            Serial.printf("  HiLink -> FFFA: %s, read-back: 0x%02x (%s)\n",
-                          hs_ok ? "written" : "write FAILED",
-                          hs_len > 0 ? hs_reply[0] : 0,
-                          hs_ok ? "ACK" : "NOT ACK");
-
-            if (hs_ok) {
-                const bool sub_ok = g_transport.subscribe(&g_notify_handler);
-                Serial.printf("  subscribe FFF1: %s\n", sub_ok ? "OK" : "FAILED");
-
-                if (sub_ok) {
-                    uint8_t req[bms::tdt::kRequestLen];
-                    const size_t req_len = bms::tdt::buildRequest(
-                        bms::tdt::CMD_CELLS_PACK, req, sizeof(req));
-                    const bool sent = g_transport.write(bms::GattChar::Tx, req,
-                                                         req_len, true);
-                    Serial.printf("  0x8C request sent: %s\n", sent ? "OK" : "FAILED");
-                    Serial.println(F("--- M4/M5: reassembly + decode ---"));
-
-                    // Notifications land asynchronously via NimBLE's host
-                    // task, not from anything we pump here — give it a
-                    // window to arrive, ticking the reassembler so a
-                    // partial frame still times out per §5.5 rule 5.
-                    const uint32_t wait_until = millis() + 1500;
-                    while ((int32_t)(wait_until - millis()) > 0) {
-                        delay(20);
-                        g_notify_handler.tick(millis());
-                    }
-
-                    // M6b (§11): "SOC / voltage / current / temp on the OLED
-                    // ... with stale-data handling." Pushing the decoded
-                    // frame here, then leaving it cached in BmsDisplay, is
-                    // enough to exercise the staleness rule (§9,
-                    // kStaleAfterMs) over the next few scan-only sweeps even
-                    // though the persistent poll loop is still M7.
-                    if (g_have_display && g_notify_handler.hasData()) {
-                        g_display.setData(g_notify_handler.lastData(), millis());
-                        g_display.render(millis());
-                    }
-                }
-            }
-
-            g_transport.disconnect();
-            Serial.println(F("--- M2-M6b block complete, disconnected ---"));
-        } else {
-            Serial.println(F("--- M2: connect FAILED ---"));
+    if (connectAndHandshake(target_dev)) {
+        g_state = ConnState::Polling;
+        g_consecutive_failures = 0;
+        g_last_poll_ms = 0;   // poll immediately on entering Polling
+        if (g_have_display) {
+            g_display.setLink(LinkState::Connected, g_transport.rssi(), true);
+            g_display.render(millis());
         }
+    } else {
+        ++g_consecutive_failures;
+        Serial.printf("  consecutive failures: %lu\n", (unsigned long)g_consecutive_failures);
+    }
+}
+
+static void loopPolling() {
+    const uint32_t now = millis();
+
+    // The "survives battery going out of range and coming back" half of M7:
+    // detect the drop and fall back to Scanning, which will reconnect once
+    // the target is seen again.
+    if (!g_transport.isConnected()) {
+        Serial.println(F("\n--- link dropped, resuming scan ---"));
+        ++g_consecutive_failures;
+        g_transport.disconnect();   // releases the NimBLEClient cleanly
+        g_state = ConnState::Scanning;
+        if (g_have_display) g_display.setLink(LinkState::Scanning, 0, false);
+        return;
+    }
+
+    if (now - g_last_poll_ms >= kPollIntervalMs) {
+        g_last_poll_ms = now;
+        uint8_t req[bms::tdt::kRequestLen];
+        const size_t req_len = bms::tdt::buildRequest(bms::tdt::CMD_CELLS_PACK, req, sizeof(req));
+        const bool sent = g_transport.write(bms::GattChar::Tx, req, req_len, true);
+        if (!sent) ++g_consecutive_failures;
+        Serial.printf("\n--- poll: 0x8C sent=%s  rssi=%d dBm  heap=%lu  failures=%lu ---\n",
+                      sent ? "OK" : "FAILED", g_transport.rssi(),
+                      (unsigned long)ESP.getFreeHeap(), (unsigned long)g_consecutive_failures);
+    }
+
+    g_notify_handler.tick(now);
+
+    // Push only genuinely new frames (M4/M5 decode inside onNotify() already
+    // ran by the time we get here) — pushing the same frame repeatedly would
+    // keep re-stamping BmsDisplay's freshness timer and defeat the M6b
+    // staleness check.
+    if (g_notify_handler.frameCount() != g_last_frame_seen) {
+        g_last_frame_seen = g_notify_handler.frameCount();
+        if (g_have_display) g_display.setData(g_notify_handler.lastData(), now);
     }
 
     if (g_have_display) {
-        // Back to Scanning — the indicator only fills for real during the
-        // M2-M6b block above, while a connection actually exists. Any BmsData
-        // pushed there stays cached in BmsDisplay and keeps rendering (fresh,
-        // then dashed out after kStaleAfterMs) across the plain scan sweeps
-        // that follow, since there's no persistent connection yet (M7).
-        g_display.setLink(LinkState::Scanning, rssi, rssi != 0);
-        g_display.render(millis());
+        g_display.setLink(LinkState::Connected, g_transport.rssi(), true);
+        g_display.render(now);
+    }
+
+    delay(200);   // keep the loop responsive without hammering the CPU
+}
+
+void loop() {
+    switch (g_state) {
+        case ConnState::Scanning:
+            loopScanning();
+            break;
+        case ConnState::Polling:
+            loopPolling();
+            break;
     }
 }

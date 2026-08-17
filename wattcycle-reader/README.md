@@ -10,7 +10,7 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M6b
+## Status: M7
 
 | Milestone | State |
 |---|---|
@@ -22,7 +22,8 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | M4 — reassembly + CRC | **confirmed on hardware** — notify bytes reassembled, CRC validated |
 | M5 — decode 0x8C | **confirmed on hardware** — full field-by-field decode, values sane |
 | M6 — alarms (0x8D) | deliberately not decoded — see below |
-| **M6b — display live data** | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
+| M6b — display live data | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
+| **M7 — poll loop + resilience** | **confirmed on hardware** — polls every 5 s, survived a real out-of-range/back-in-range cycle, zero leaks |
 
 The protocol layer got built ahead of the radio layer on purpose: it is testable
 on the laptop against captured frames, so there is no reason to debug it over a
@@ -176,11 +177,52 @@ the host-test suite's captured-frame coverage held on live hardware.
 **M6b** rides on the same block: once connected, `BmsDisplay::setLink()` fills
 the link indicator for real (rather than waiting for the next scan-driven
 render), and once a frame decodes, `BmsDisplay::setData()` pushes it straight
-to the OLED. Confirmed on hardware: real SOC/pack voltage/current/temp
-appeared, the dot filled while connected and went hollow again after
-disconnect, and the numbers dashed back out ~15 s later (`kStaleAfterMs`) with
-no persistent connection to keep refreshing them — the exact staleness
-behaviour M0b built and M7's poll loop will keep exercising for real.
+to the OLED. Confirmed on hardware, at the time this ran as a one-shot probe
+(before M7 replaced it with a persistent connection below): real SOC/pack
+voltage/current/temp appeared, the dot filled while connected and went hollow
+again after disconnect, and the numbers dashed back out ~15 s later
+(`kStaleAfterMs`) with nothing refreshing them.
+
+## Poll loop + resilience (M7)
+
+`loop()` is a small state machine, `Scanning <-> Polling` (`src/main.cpp`):
+
+- **Scanning** — the M1 active-scan sweeps, unchanged; the display's aiming
+  behaviour still works exactly as before. When the target is seen,
+  `connectAndHandshake()` runs the M2+M3 sequence. Success moves to Polling;
+  failure stays in Scanning and counts against a `g_consecutive_failures`
+  total.
+- **Polling** — the connection is held open per §5.6 ("a persistent
+  connection is viable"), rather than connect/round-trip/disconnect each
+  time. Every 5 s it sends `0x8C`; `BmsNotifyHandler` decodes whatever comes
+  back the same way as M4/M5, and only a genuinely *new* frame is pushed to
+  the display, so `BmsDisplay`'s staleness timer isn't re-stamped by nothing.
+  If `NimBleTransport::isConnected()` ever goes false, that's the drop
+  detector — it falls back to Scanning, which reconnects once the target is
+  seen again.
+
+Confirmed on hardware with a real out-of-range/back-in-range cycle, battery
+walked away and back:
+
+```
+--- poll: 0x8C sent=OK  rssi=-92 dBm  heap=284348  failures=0 ---
+--- link dropped, resuming scan ---
+  target XDZN_001_49A1 NOT seen this sweep      (repeated ~21 s while away)
+  TARGET FOUND: XDZN_001_49A1 @ -89 dBm
+--- connect + discover ---
+  HiLink -> FFFA: read-back 0x01 (ACK)
+  subscribe FFF1: OK — polling
+--- poll: 0x8C sent=OK  rssi=-87 dBm  heap=284348  failures=0 ---
+--- poll: 0x8C sent=OK  rssi=-59 dBm  heap=284328  failures=0 ---
+```
+
+RSSI degraded as the battery moved away (down to -92 dBm), the link dropped
+and was logged, Scanning correctly reported "NOT seen" the whole time it was
+gone, reconnect fired automatically the moment it was seen again, and
+`consecutive_failures` reset to 0 on that successful reconnect. Free heap held
+flat (284348 -> 284328, a one-time ~20-byte NimBLE bookkeeping shift on
+reconnect, not a leak trend) across seven pre-drop poll cycles, the drop, and
+six more after reconnecting.
 
 ## Display (M0b)
 
