@@ -31,16 +31,7 @@ const char* kDegC = "C";
 }  // namespace
 
 BmsDisplay::BmsDisplay()
-    : display_(kOledAddr, kPinOledSda, kPinOledScl),
-      link_(LinkState::Idle),
-      rssi_(0),
-      rssi_valid_(false),
-      last_data_ms_(0),
-      have_data_(false),
-      on_(false) {
-    data_.clear();
-    name_[0] = '\0';
-}
+    : display_(kOledAddr, kPinOledSda, kPinOledScl) {}
 
 bool BmsDisplay::begin(const char* title) {
     // Bring-up order matters (§9). The OLED is powered through Vext, not
@@ -80,32 +71,6 @@ void BmsDisplay::displayOn() {
 void BmsDisplay::displayOff() {
     display_.displayOff();
     on_ = false;
-}
-
-void BmsDisplay::setDeviceName(const char* name) {
-    if (name == nullptr) {
-        name_[0] = '\0';
-        return;
-    }
-    strncpy(name_, name, sizeof(name_) - 1);
-    name_[sizeof(name_) - 1] = '\0';
-}
-
-void BmsDisplay::setLink(LinkState state, int rssi_dBm, bool rssi_valid) {
-    link_ = state;
-    rssi_ = rssi_dBm;
-    rssi_valid_ = rssi_valid;
-}
-
-void BmsDisplay::setData(const bms::BmsData& data, uint32_t now_ms) {
-    data_ = data;
-    last_data_ms_ = now_ms;
-    have_data_ = data.valid;
-}
-
-bool BmsDisplay::dataFresh(uint32_t now_ms) const {
-    if (!have_data_) return false;
-    return (uint32_t)(now_ms - last_data_ms_) < kStaleAfterMs;
 }
 
 void BmsDisplay::drawLinkIndicator(bool live) {

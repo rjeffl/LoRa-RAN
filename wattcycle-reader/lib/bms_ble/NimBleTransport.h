@@ -1,11 +1,11 @@
-// NimBleTransport.h — the only file allowed to include NimBLE headers
-// (§7 rule 2). Implements bms::BmsTransport against service 0xFFF0 (§4).
+// NimBleTransport.h — the only file in lib/bms_ble/ allowed to include
+// NimBLE headers (§7 rule 2; see BmsTransport.h's scope note — this covers
+// post-connection I/O, not scanning). Implements bms::BmsTransport against
+// service 0xFFF0 (§4).
 //
-// M2 (this milestone) exercises connect() and logDiscovery() only: connect,
-// resolve FFF1/FFF2/FFFA, print their handles, disconnect. write()/read()/
-// subscribe() are implemented here because BmsTransport is a pure interface
-// and this class must be concrete to compile, but they go untested until M3
-// (handshake) actually calls them.
+// connect() + logDiscovery() confirm the GATT layout (M2); write()/read()/
+// subscribe() carry the handshake, poll requests and notifications (M3+).
+// All confirmed on hardware on both the Heltec V3 and the StamPLC.
 #ifndef WATTCYCLE_NIMBLE_TRANSPORT_H
 #define WATTCYCLE_NIMBLE_TRANSPORT_H
 

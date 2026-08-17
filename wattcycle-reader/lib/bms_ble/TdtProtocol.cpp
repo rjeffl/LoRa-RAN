@@ -5,6 +5,13 @@ namespace tdt {
 
 const char kHandshakeMagic[] = "HiLink";   // 48 69 4C 69 6E 6B -> FFFA (§5.1)
 
+// kHandshakeMagicLen (TdtProtocol.h) is hand-maintained separately, since
+// it's declared alongside the `extern` before this definition's array size
+// is visible there. Catch drift at compile time instead of letting an edit
+// to one silently desync from the other.
+static_assert(sizeof(kHandshakeMagic) - 1 == kHandshakeMagicLen,
+              "kHandshakeMagicLen must match strlen(kHandshakeMagic)");
+
 namespace {
 
 inline uint16_t be16(const uint8_t* p) {

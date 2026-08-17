@@ -1,14 +1,19 @@
 // BmsTransport.h — the seam between the protocol and the radio (§7 rule 2).
 //
-// TdtBmsClient (M2+) drives the state machine through this interface and never
-// names NimBLE. NimBleTransport is the only file allowed to include NimBLE
-// headers; GateLink can substitute its own transport and inherit the state
-// machine and decode for free.
+// NimBleTransport (lib/bms_ble/NimBleTransport.h/.cpp) is the only file in
+// this library that includes NimBLE headers; GateLink can substitute its own
+// transport and inherit the reassembler/decoder for free.
 //
 // Header-only, abstract, no Arduino types — so it compiles on the host too.
 //
-// STATUS: interface only. No implementation exists yet; M1 is scan-and-print
-// (see src/main.cpp), and the first implementer lands at M2/M3.
+// SCOPE NOTE: this interface covers what happens *after* a connection exists
+// (write/read/subscribe/rssi) — everything M2 onward. Scanning and the
+// connect/reconnect state machine (M1, M7) still talk to NimBLE directly in
+// src/main.cpp, not through this interface: main.cpp is this PoC's wiring,
+// written to be replaced by GateLink's own client, not dropped in verbatim
+// the way lib/bms_ble/ is. A GateLink-side state machine wanting to swap
+// transports would need to abstract scanning/connecting too — this
+// interface alone doesn't cover that.
 #ifndef BMS_BLE_BMSTRANSPORT_H
 #define BMS_BLE_BMSTRANSPORT_H
 
@@ -70,6 +75,14 @@ class BmsTransport {
 
     // Link quality — exposed as a diagnostic because it is the early-warning
     // signal for a mount degrading from moisture or corrosion (§5.8).
+    //
+    // KNOWN LIMITATION: 0 doubles as "not connected" / "read failed" in this
+    // implementation and in src/main.cpp's scan-result handling, rather than
+    // a distinct sentinel. A real 0 dBm reading would be misread as "no
+    // signal" — not a practical concern at BLE ranges (would mean the
+    // antennas are essentially touching), but a caller relying on this for
+    // something other than the diagnostic/aiming use case here should be
+    // aware the interface doesn't distinguish the two.
     virtual int rssi() const = 0;
 };
 

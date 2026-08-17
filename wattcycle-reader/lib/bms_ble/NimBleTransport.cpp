@@ -93,7 +93,13 @@ int NimBleTransport::read(GattChar ch, uint8_t* out, size_t out_size) {
     if (c == nullptr) return -1;
 
     NimBLEAttValue value = c->readValue();
-    if (value.size() > out_size) return -1;
+    // BmsTransport.h documents "-1 on error"; NimBLE's readValue() has no
+    // separate error signal, it just returns empty on failure. None of this
+    // transport's characteristics (§5.1's FFFA ack, §5.3's command replies)
+    // ever legitimately reads back zero bytes, so treat empty as failure
+    // too rather than returning 0 and leaving a real failure
+    // indistinguishable from "read succeeded with no data."
+    if (value.size() == 0 || value.size() > out_size) return -1;
     memcpy(out, value.data(), value.size());
     return (int)value.size();
 }

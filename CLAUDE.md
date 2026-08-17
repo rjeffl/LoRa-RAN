@@ -75,27 +75,49 @@ and `BmsData.h` must never include `Arduino.h` or NimBLE headers — they compil
 standalone on the host, which is what lets `test/test_tdt_protocol` run 21
 tests against captured protocol frames with no board attached. The `native`
 PlatformIO env enforces this: if a dependency creeps in, that env stops
-compiling. `NimBleTransport.h/.cpp` is the *only* file allowed to include
-NimBLE headers — it's the concrete implementation of the abstract
-`BmsTransport` interface, and is guarded `#ifdef ARDUINO` so the native env's
-library scan (which picks up the whole `lib/bms_ble/` folder) doesn't choke on
-it.
+compiling. `NimBleTransport.h/.cpp` is the *only file in `lib/bms_ble/`*
+allowed to include NimBLE headers — it's the concrete implementation of the
+abstract `BmsTransport` interface, and is guarded `#ifdef ARDUINO` so the
+native env's library scan (which picks up the whole `lib/bms_ble/` folder)
+doesn't choke on it.
+
+That rule stops at the library boundary, though: `src/main.cpp` also
+includes NimBLE headers directly, for scanning and connection-state
+management. This is intentional and documented (`BmsTransport.h`'s scope
+note) — `BmsTransport` only covers post-connection I/O (write/read/
+subscribe/rssi); `main.cpp` is this PoC's wiring, meant to be replaced by
+GateLink's own client, not dropped into GateLink verbatim the way
+`lib/bms_ble/` is.
 
 ```
 lib/bms_ble/
-  BmsData.h            decoded record — integers in fixed units, no floats
-  TdtProtocol.h/.cpp   CRC, frame build, reassembly, decode — HOST-COMPILABLE
-  BmsTransport.h       abstract BLE seam (write/read/subscribe/rssi)
-  NimBleTransport.h/.cpp   the only file allowed to touch NimBLE
+  BmsData.h              decoded record — integers in fixed units, no floats
+  TdtProtocol.h/.cpp     CRC, frame build, reassembly, decode — HOST-COMPILABLE
+  BmsTransport.h         abstract BLE seam (write/read/subscribe/rssi)
+  NimBleTransport.h/.cpp the only file allowed to touch NimBLE
 src/
-  main.cpp             state machine (Scanning <-> Polling) + serial wiring
-  BmsDisplay.h/.cpp     SSD1306 OLED presentation (Heltec V3 only so far)
+  main.cpp               state machine (Scanning <-> Polling) + serial wiring
+  DisplayBase.h/.cpp     state/setters shared by both display implementations
+  BmsDisplay.h/.cpp      Heltec V3: SSD1306 OLED presentation
+  TftDisplay.h/.cpp      StamPLC: ST7789 TFT presentation, via m5stack/M5StamPLC
 ```
 
 Decode produces a plain struct (`BmsData`); presentation layers (serial
-printer, `BmsDisplay`) consume it and know nothing about BLE or the wire
-protocol. This split is deliberate so GateLink can reuse `lib/bms_ble/`
-regardless of what UI it ends up with.
+printer, `BmsDisplay`/`TftDisplay`) consume it and know nothing about BLE or
+the wire protocol. This split is deliberate so GateLink can reuse
+`lib/bms_ble/` regardless of what UI it ends up with. `BmsDisplay` and
+`TftDisplay` both derive from `DisplayBase`, which owns the state/staleness
+logic they'd otherwise duplicate; each subclass owns only what's genuinely
+hardware-specific (`begin()`, `render()`, `showMessage()`, the link-indicator
+shape). `src/main.cpp` picks between them via a type alias behind
+`#if defined(BOARD_STAMPLC)` — no other call sites change between boards.
+
+`BmsNotifyHandler` (in `main.cpp`) feeds BLE notifications into the
+reassembler from `onNotify()`, which NimBLE calls on its own host task — a
+different FreeRTOS task from the one running `loop()`. Every touch point of
+its shared state (the reassembler, the last decoded frame, the frame
+counter) is behind a `portMUX_TYPE` critical section for exactly that reason;
+don't add a new field there without extending the lock to cover it.
 
 `src/main.cpp`'s `loop()` is a small state machine, not a linear script:
 `Scanning` (active BLE scan, same as a plain central-scanner sketch) hands off

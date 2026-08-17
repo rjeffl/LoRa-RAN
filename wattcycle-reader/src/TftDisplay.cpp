@@ -13,17 +13,7 @@ const int32_t kIndicatorR = 4;
 
 }  // namespace
 
-TftDisplay::TftDisplay()
-    : canvas_(nullptr),
-      link_(LinkState::Idle),
-      rssi_(0),
-      rssi_valid_(false),
-      last_data_ms_(0),
-      have_data_(false),
-      on_(false) {
-    data_.clear();
-    name_[0] = '\0';
-}
+TftDisplay::TftDisplay() : canvas_(nullptr) {}
 
 TftDisplay::~TftDisplay() {
     delete canvas_;   // LGFX_Sprite::~LGFX_Sprite() frees the pixel buffer
@@ -36,18 +26,26 @@ bool TftDisplay::begin(const char* title) {
     // here touches the RS485/CAN transceivers or a relay.
     M5StamPLC.begin();
     M5StamPLC.setBacklight(true);
-    on_ = true;
 
     Serial.printf("TFT: %dx%d rotation=%d\n", M5StamPLC.Display.width(),
                   M5StamPLC.Display.height(), M5StamPLC.Display.getRotation());
 
     // Full-screen back-buffer (see canvas_ in TftDisplay.h) — every
-    // subsequent draw call targets this, not the panel directly.
+    // subsequent draw call targets this, not the panel directly. ~63 KB on
+    // this board's heap (no PSRAM); if it's fragmented or short right after
+    // M5StamPLC.begin()'s sensor/IO-expander bring-up, createSprite() can
+    // fail and return null. This *is* this board's "not found" case — the
+    // panel itself is always present, but the back-buffer it needs isn't
+    // guaranteed.
     canvas_ = new LGFX_Sprite(&M5StamPLC.Display);
-    canvas_->createSprite(M5StamPLC.Display.width(), M5StamPLC.Display.height());
+    if (canvas_->createSprite(M5StamPLC.Display.width(), M5StamPLC.Display.height()) == nullptr) {
+        Serial.println(F("TFT: createSprite FAILED (out of heap?)"));
+        return false;
+    }
 
+    on_ = true;
     showMessage(title, "starting...");
-    return true;   // integrated panel — no "not found" case like the OLED's I2C probe
+    return true;
 }
 
 void TftDisplay::displayOn() {
@@ -58,32 +56,6 @@ void TftDisplay::displayOn() {
 void TftDisplay::displayOff() {
     M5StamPLC.setBacklight(false);
     on_ = false;
-}
-
-void TftDisplay::setDeviceName(const char* name) {
-    if (name == nullptr) {
-        name_[0] = '\0';
-        return;
-    }
-    strncpy(name_, name, sizeof(name_) - 1);
-    name_[sizeof(name_) - 1] = '\0';
-}
-
-void TftDisplay::setLink(LinkState state, int rssi_dBm, bool rssi_valid) {
-    link_ = state;
-    rssi_ = rssi_dBm;
-    rssi_valid_ = rssi_valid;
-}
-
-void TftDisplay::setData(const bms::BmsData& data, uint32_t now_ms) {
-    data_ = data;
-    last_data_ms_ = now_ms;
-    have_data_ = data.valid;
-}
-
-bool TftDisplay::dataFresh(uint32_t now_ms) const {
-    if (!have_data_) return false;
-    return (uint32_t)(now_ms - last_data_ms_) < kStaleAfterMs;
 }
 
 void TftDisplay::drawLinkIndicator(bool live) {

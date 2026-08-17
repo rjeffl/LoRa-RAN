@@ -13,7 +13,7 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M7a
+## Status: M8
 
 | Milestone | State |
 |---|---|
@@ -27,7 +27,8 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | M6 — alarms (0x8D) | deliberately not decoded — see below |
 | M6b — display live data | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
 | M7 — poll loop + resilience | **confirmed on hardware** — polls every 5 s, survived a real out-of-range/back-in-range cycle, zero leaks |
-| **M7a — StamPLC display port** | **confirmed on hardware** — same live data on the StamPLC's TFT via a second `TftDisplay` implementation |
+| M7a — StamPLC display port | **confirmed on hardware** — same live data on the StamPLC's TFT via a second `TftDisplay` implementation |
+| **M8 — library extraction** | protocol under test (21 host tests), transport abstracted, code-reviewed and fixed, both boards re-confirmed — see [Ready to merge (M8)](#ready-to-merge-m8) |
 
 M0-M7 above were all run on the Heltec V3. M7 (scan, connect, handshake,
 subscribe, poll, decode) was then **also confirmed on the StamPLC** — see
@@ -62,6 +63,7 @@ lib/bms_ble/
 src/
   main.cpp                   Scanning<->Polling state machine, serial wiring
   LinkState.h                connection-state enum shared by both displays
+  DisplayBase.h/.cpp         shared display state/setters (M8)
   BmsDisplay.h/.cpp          Heltec V3: SSD1306 OLED presentation
   TftDisplay.h/.cpp          StamPLC: ST7789 TFT presentation (M7a)
 test/test_tdt_protocol/      21 host tests against the §5.7 captured frames
@@ -420,6 +422,70 @@ the discharge flag with zero magnitude — which cannot disambiguate charge from
 discharge. `BmsData::discharging` carries the raw flag; `current_mA` applies the
 assumed convention. Capture `0x8C` under charge and again under load before
 trusting the polarity.
+
+## Ready to merge (M8)
+
+M8's criteria (§11): protocol code under test (21 host tests, unchanged
+throughout M2-M7a — the reassembler/decoder never needed a fix once real
+hardware started exercising them), transport abstracted (`BmsTransport` +
+`NimBleTransport`), README written. What was still open going into M8 was the
+review pass the design doc calls out as part of "ready to merge" (§12):
+"review the diff yourself... it's the last time you'll see the whole change
+at once." A full-branch code review turned up seven findings; all were
+triaged, and the ones inside the actual merge boundary were fixed:
+
+**Fixed, in `lib/bms_ble/` (the library GateLink drops in unchanged):**
+- `NimBleTransport::read()` returned `0` on a genuine read failure instead of
+  the `-1` `BmsTransport.h` documents — indistinguishable from "read
+  succeeded with zero bytes," a case this protocol never actually produces.
+  Now returns `-1` for empty reads too.
+- `kHandshakeMagicLen` (`6`) was hand-maintained separately from
+  `kHandshakeMagic` (`"HiLink"`), with nothing catching the two drifting
+  apart if either is ever edited alone. Added a `static_assert` next to the
+  definition.
+
+**Fixed, in `src/` (PoC wiring/presentation — not part of the library
+boundary, but real bugs in code this session hardware-tested extensively):**
+- `BmsNotifyHandler`'s reassembler and decoded-frame state were touched from
+  two different FreeRTOS tasks (NimBLE's host task via `onNotify()`, the
+  Arduino loop task via `tick()`/`frameCount()`/`lastData()`) with no
+  synchronization — a real race, just one that never happened to manifest
+  during this session's testing. Added a `portMUX_TYPE` critical section
+  around every touch point; `lastData()` now returns a copy rather than a
+  reference, since a reference into locked state defeats the lock the moment
+  the caller keeps reading through it afterward.
+- `TftDisplay::begin()` discarded `createSprite()`'s return value and always
+  reported success; a heap-allocation failure for the ~63 KB back-buffer
+  (this board has no PSRAM) would have left `canvas_` with no pixel buffer
+  while `main.cpp` still logged `display: OK`. Now checks the return value
+  and fails `begin()` properly — this board's actual "not found" case, since
+  the panel itself can't fail an I2C probe the way the OLED can.
+- `BmsDisplay` and `TftDisplay` independently declared the same eight fields
+  and byte-for-byte identical `setDeviceName()`/`setLink()`/`setData()`/
+  `dataFresh()` bodies — exactly the kind of duplication that drifts silently
+  when one gets edited and the other doesn't. Extracted into `DisplayBase`
+  (`src/DisplayBase.h/.cpp`); each subclass now owns only what's genuinely
+  hardware-specific (`begin()`, `displayOn()`/`Off()`, `render()`,
+  `showMessage()`, the link-indicator shape).
+
+**Documented, not restructured (real, but outside what "ready to merge"
+needs to touch):**
+- `src/main.cpp` talks to NimBLE directly for scanning/connecting, not just
+  through `BmsTransport` — `BmsTransport.h`'s scope note now says explicitly
+  that this interface covers post-connection I/O only, and `main.cpp` is PoC
+  wiring meant to be replaced by GateLink's own client, not part of the
+  library boundary. Building a scan-aware `TdtBmsClient` behind the
+  transport interface is real future work, not a fix owed by this PoC.
+- RSSI `0` doubles as "not connected"/"read failed" rather than a distinct
+  sentinel, in `NimBleTransport::rssi()` and `src/main.cpp`'s scan handling.
+  Documented on `BmsTransport::rssi()` — a real 0 dBm reading would be
+  misread as "no signal," but that's not a practical concern at BLE ranges.
+
+**Re-confirmed on hardware after the fixes**, both boards: full
+scan→connect→handshake→poll→decode cycle, no crashes, heap flat across
+repeated poll cycles, StamPLC's `createSprite` succeeding and the OLED
+rendering unchanged (the refactor moved *where* state lives, not the
+drawing code itself).
 
 ## Reference implementation
 

@@ -48,7 +48,10 @@
 // battery's antenna appears shielded by the BMS heat sink.
 
 #include <Arduino.h>
-#include <NimBLEDevice.h>
+#include <NimBLEDevice.h>   // scanning/connecting — see BmsTransport.h's scope note:
+                            // this file is PoC wiring, meant to be replaced by
+                            // GateLink's own client, not part of the lib/bms_ble/
+                            // boundary that's meant to drop in unchanged.
 
 #include "BmsData.h"
 #include "BmsTransport.h"
@@ -92,20 +95,56 @@ static uint32_t g_last_poll_ms = 0;
 static uint32_t g_last_frame_seen = 0;   // last BmsNotifyHandler::frameCount() consumed
 
 // Feeds notifications through the reassembler (M4) and decodes complete
-// 0x8C frames (M5). onNotify() runs on NimBLE's host task (§7: "keep it
-// short — feed the reassembler, no more"), so decode/print happens there
-// too rather than posting to a queue — acceptable at this poll cadence;
-// revisit if a tighter interval ever makes onNotify() a bottleneck.
+// 0x8C frames (M5). onNotify() runs on NimBLE's host task, a different
+// FreeRTOS task from the Arduino loop() task that calls tick()/frameCount()/
+// lastData() (§7: "keep it short — feed the reassembler, no more"), so
+// reassembler_/last_data_/frame_count_ are genuinely shared across tasks —
+// mux_ guards every touch point. Frame::payload (from reassembler_.frame())
+// points straight into the reassembler's own buffer and is only valid until
+// the next feed()/reset() on it, so the decode has to happen while still
+// holding the lock, not just the feed() call — otherwise a tick() landing
+// between "frame complete" and "finished reading payload" could overwrite
+// the bytes mid-decode. Everything that doesn't need the lock (Serial
+// printing) happens after it's released.
 class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
   public:
     void onNotify(const uint8_t* data, size_t len) override {
         size_t off = 0;
         while (off < len) {
             bms::tdt::FrameReassembler::Status status;
+            uint8_t frame_cmd = 0;
+            uint8_t frame_payload_len = 0;
+            bool decode_attempted = false;
+            bool decode_ok = false;
+            bms::BmsData decoded;
+
+            portENTER_CRITICAL(&mux_);
             off += reassembler_.feed(data + off, len - off, status, millis());
+            if (status == bms::tdt::FrameReassembler::STATUS_COMPLETE) {
+                const bms::tdt::Frame& frame = reassembler_.frame();
+                frame_cmd = frame.cmd;
+                frame_payload_len = frame.payload_len;
+                if (frame_cmd == bms::tdt::CMD_CELLS_PACK) {
+                    decode_attempted = true;
+                    decode_ok = bms::tdt::decodeCellsAndPack(frame, decoded);
+                    if (decode_ok) {
+                        last_data_ = decoded;
+                        ++frame_count_;
+                    }
+                }
+            }
+            portEXIT_CRITICAL(&mux_);
+
             switch (status) {
                 case bms::tdt::FrameReassembler::STATUS_COMPLETE:
-                    handleFrame(reassembler_.frame());
+                    if (!decode_attempted) {
+                        Serial.printf("  frame: cmd 0x%02x, %u bytes (not 0x8C, not decoded)\n",
+                                      frame_cmd, frame_payload_len);
+                    } else if (!decode_ok) {
+                        Serial.println(F("  decode 0x8C: FAILED"));
+                    } else {
+                        logDecoded(decoded);
+                    }
                     break;
                 case bms::tdt::FrameReassembler::STATUS_CRC_ERROR:
                     Serial.println(F("  reassembler: CRC ERROR"));
@@ -122,7 +161,11 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
     // Call regularly while a request may be outstanding, so a partial frame
     // (fragmentation, MTU refusal) still times out per §5.5 rule 5 instead
     // of wedging the reassembler for the next poll.
-    void tick(uint32_t now_ms) { reassembler_.tick(now_ms); }
+    void tick(uint32_t now_ms) {
+        portENTER_CRITICAL(&mux_);
+        reassembler_.tick(now_ms);
+        portEXIT_CRITICAL(&mux_);
+    }
 
     // M6b/M7: lets main.cpp push a newly decoded frame to the OLED without
     // BmsNotifyHandler knowing BmsDisplay exists (§9's rule: decode produces
@@ -130,25 +173,25 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
     // monotonic counter rather than a bool so the caller can tell a *new*
     // frame from the same one already pushed — needed now that Polling
     // checks in every loop() iteration instead of once per probe.
-    uint32_t frameCount() const { return frame_count_; }
-    const bms::BmsData& lastData() const { return last_data_; }
+    uint32_t frameCount() const {
+        portENTER_CRITICAL(&mux_);
+        const uint32_t n = frame_count_;
+        portEXIT_CRITICAL(&mux_);
+        return n;
+    }
+
+    // Returns a copy, not a reference: last_data_ is written from the BLE
+    // task, so a reference would let the caller keep reading through it
+    // after the lock (and the only protection it provided) is gone.
+    bms::BmsData lastData() const {
+        portENTER_CRITICAL(&mux_);
+        bms::BmsData copy = last_data_;
+        portEXIT_CRITICAL(&mux_);
+        return copy;
+    }
 
   private:
-    void handleFrame(const bms::tdt::Frame& frame) {
-        if (frame.cmd != bms::tdt::CMD_CELLS_PACK) {
-            Serial.printf("  frame: cmd 0x%02x, %u bytes (not 0x8C, not decoded)\n",
-                          frame.cmd, frame.payload_len);
-            return;
-        }
-
-        bms::BmsData data;
-        if (!bms::tdt::decodeCellsAndPack(frame, data)) {
-            Serial.println(F("  decode 0x8C: FAILED"));
-            return;
-        }
-        last_data_ = data;
-        ++frame_count_;
-
+    void logDecoded(const bms::BmsData& data) {
         Serial.printf("  decode 0x8C: OK — %u cells, %u temps\n",
                       data.cell_count, data.temp_count);
         Serial.print(F("    cells (mV):"));
@@ -169,6 +212,7 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
                       data.remaining_dAh, data.nominal_dAh, data.cycles, data.soh_dpct);
     }
 
+    mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
     bms::tdt::FrameReassembler reassembler_;
     bms::BmsData last_data_;
     uint32_t frame_count_ = 0;

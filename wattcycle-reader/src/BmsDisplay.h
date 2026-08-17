@@ -1,8 +1,9 @@
 // BmsDisplay.h — SSD1306 rendering for the Heltec V3's onboard OLED.
 //
-// Takes a BmsData and a link state. Knows nothing about BLE or the TDT
-// protocol (§9): decode produces a struct, presentation layers consume it.
-// Same rule as the serial printer, so both can change independently.
+// Shared state (data/link/staleness) lives in DisplayBase, which TftDisplay
+// (StamPLC) also derives from — see that header for the full rationale.
+// This class only owns what's genuinely SSD1306/Heltec-specific: the pin
+// map, the panel object, and the actual drawing.
 //
 // Layout (128x64):
 //
@@ -15,11 +16,9 @@
 #ifndef BMS_DISPLAY_H
 #define BMS_DISPLAY_H
 
-#include <Arduino.h>
 #include <SSD1306Wire.h>
 
-#include "BmsData.h"
-#include "LinkState.h"
+#include "DisplayBase.h"
 
 // Heltec WiFi LoRa 32 V3 pin map (§9) — the part that trips everyone up.
 static const int kPinOledSda = 17;
@@ -28,7 +27,7 @@ static const int kPinOledRst = 21;
 static const int kPinVext = 36;          // ACTIVE LOW: LOW = Vext ON
 static const uint8_t kOledAddr = 0x3c;
 
-class BmsDisplay {
+class BmsDisplay : public DisplayBase {
   public:
     BmsDisplay();
 
@@ -41,13 +40,6 @@ class BmsDisplay {
     // behaviour is inherited rather than retrofitted.
     void displayOn();
     void displayOff();
-    bool isOn() const { return on_; }
-
-    void setDeviceName(const char* name);
-    void setLink(LinkState state, int rssi_dBm, bool rssi_valid);
-
-    // Records the frame and stamps it, which drives the staleness rule.
-    void setData(const bms::BmsData& data, uint32_t now_ms);
 
     void render(uint32_t now_ms);
 
@@ -55,18 +47,9 @@ class BmsDisplay {
     void showMessage(const char* line1, const char* line2);
 
   private:
-    bool dataFresh(uint32_t now_ms) const;
     void drawLinkIndicator(bool live);
 
     SSD1306Wire display_;
-    bms::BmsData data_;
-    char name_[24];
-    LinkState link_;
-    int rssi_;
-    bool rssi_valid_;
-    uint32_t last_data_ms_;
-    bool have_data_;
-    bool on_;
 };
 
 #endif  // BMS_DISPLAY_H
