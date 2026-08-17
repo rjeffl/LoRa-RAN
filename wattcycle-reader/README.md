@@ -1,7 +1,10 @@
 # WattCycle BLE BMS Reader
 
-Reads a WattCycle 12V 100 Ah Mini LiFePO4 battery's TDT smart BMS over BLE from
-a Heltec WiFi LoRa 32 V3, and prints decoded values over USB serial.
+Reads a WattCycle 12V 100 Ah Mini LiFePO4 battery's TDT smart BMS over BLE, and
+prints decoded values over USB serial. Builds for two boards: the Heltec WiFi
+LoRa 32 V3 this PoC was developed on, and the M5Stack StamPLC — the board
+actually chosen for GateLink after the PoC was already under way (see
+[Second board: M5Stack StamPLC](#second-board-m5stack-stamplc)).
 
 Sub-project of the LoRa Remote Automation Network (LRAN). The `lib/bms_ble/`
 directory is designed to drop into the GateLink node firmware unchanged.
@@ -25,6 +28,13 @@ is the source of truth; section references below (§5.4 etc.) point into it.
 | M6b — display live data | **confirmed on hardware** — real SOC/V/A/temp on the OLED, link dot fills, staleness verified |
 | **M7 — poll loop + resilience** | **confirmed on hardware** — polls every 5 s, survived a real out-of-range/back-in-range cycle, zero leaks |
 
+M0-M7 above were all run on the Heltec V3. M7 (scan, connect, handshake,
+subscribe, poll, decode) was then **also confirmed on the StamPLC** — see
+[Second board: M5Stack StamPLC](#second-board-m5stack-stamplc) — with no
+changes to any file under `lib/bms_ble/` and no code changes to `src/main.cpp`
+either; only `platformio.ini` gained a second env. The display (M0b/M6b) is
+still Heltec-OLED-only; the StamPLC's screen is unwired follow-up work.
+
 The protocol layer got built ahead of the radio layer on purpose: it is testable
 on the laptop against captured frames, so there is no reason to debug it over a
 serial cable. Wiring the already-tested reassembler and decoder onto the notify
@@ -40,7 +50,7 @@ framing and CRC are already covered by tests.
 ## Layout
 
 ```
-platformio.ini              two envs: heltec_wifi_lora_32_V3, native
+platformio.ini               three envs: heltec_wifi_lora_32_V3, m5stack_stamplc, native
 lib/bms_ble/
   BmsData.h                 decoded record — integers in fixed units, no floats
   TdtProtocol.h/.cpp        CRC, frame build, reassembly, decode. HOST-COMPILABLE
@@ -60,10 +70,11 @@ Tests first — they need no hardware and take about a second:
 
 ```bash
 cd wattcycle-reader
-pio test -e native          # 21 tests against the captured frames
-pio run                     # build firmware for the Heltec V3
-pio run -t upload           # flash
-pio device monitor          # 115200 baud
+pio test -e native                        # 21 tests against the captured frames
+pio run                                   # build for the default env (Heltec V3)
+pio run -t upload                         # flash the default env
+pio run -e m5stack_stamplc -t upload      # flash the StamPLC instead
+pio device monitor                        # 115200 baud
 ```
 
 If `pio` isn't on your PATH, it's at `~/.platformio/penv/bin/pio`.
@@ -223,6 +234,55 @@ gone, reconnect fired automatically the moment it was seen again, and
 flat (284348 -> 284328, a one-time ~20-byte NimBLE bookkeeping shift on
 reconnect, not a leak trend) across seven pre-drop poll cycles, the drop, and
 six more after reconnecting.
+
+## Second board: M5Stack StamPLC
+
+GateLink's actual node hardware was decided to be the [M5Stack
+StamPLC](https://docs.m5stack.com/en/core/StamPLC) after this PoC's Heltec V3
+was already in hand and M0-M7 already confirmed on it. StamPLC is built
+around a Stamp-S3A module — same ESP32-S3 chip family — so none of
+`lib/bms_ble/` or `src/main.cpp` needed to change; only `platformio.ini`
+gained an `[env:m5stack_stamplc]`.
+
+**Board id:** `esp32-s3-devkitc-1`. There's no StamPLC-specific board JSON in
+this platform version; StamPLC's SoC is an ESP32-S3FN8 (8 MB flash, no
+PSRAM), and `esp32-s3-devkitc-1` ("8 MB QD, No PSRAM") is an exact match —
+also what M5Stack's own Arduino docs point to.
+
+**No external USB-UART bridge — the ESP32-S3's native USB *is* the serial
+port.** It enumerates as `/dev/cu.usbmodemXXXX`, not `/dev/cu.usbserial-XXXX`
+like the Heltec V3's CP2102/CH9102 bridge. This has a real consequence: the
+board default sets `ARDUINO_USB_MODE=1` but not `ARDUINO_USB_CDC_ON_BOOT`, so
+without adding that flag, Arduino's `Serial` silently binds to UART0 — pins
+that go nowhere on this board — instead of the native USB CDC everyone is
+actually listening on. **Confirmed on hardware**: without the flag, the boot
+ROM lines and NimBLE's internal `ESP_LOG` output (a separate console path)
+still arrive, so it looks like it's working, but every `Serial.print()` /
+`printf()` in this codebase is silently lost — the exact kind of "half the
+output is there" symptom that wastes an hour before you check the flag. Fixed
+with `-DARDUINO_USB_CDC_ON_BOOT=1` in `m5stack_stamplc`'s `build_flags`.
+
+**M7 (scan -> connect -> handshake -> subscribe -> poll -> decode) confirmed
+on hardware**, same as the Heltec V3: target found, connected, MTU 512
+negotiated, HiLink ACKed, subscribed, then polling every ~5 s with stable
+RSSI (-55 to -60 dBm at bench range) and flat heap (285884 bytes) across
+repeated cycles. `BmsDisplay::begin()` correctly reported `OLED at 0x3c: NOT
+FOUND` and the program continued normally — expected, since `kPinOledSda`
+(17), `kPinOledScl` (18) and `kPinVext` (36) aren't wired to anything on this
+board and the I2C probe just fails cleanly.
+
+**The display is the one real gap.** StamPLC's screen is a 1.14" 135x240 SPI
+ST7789v2 TFT (MOSI G8, SCK G7, CS G12, RS G6, RST G3), not an I2C SSD1306 —
+different bus, different driver, and the backlight sits behind a
+PI4IOE5V6408 IO expander (P7) rather than a plain GPIO. `BmsDisplay` still
+only targets the SSD1306; porting M0b/M6b to the StamPLC's TFT (new driver
+library, IO-expander-gated backlight, re-laying-out the 135x240 portrait
+panel) is unscoped follow-up work, not done in this session.
+
+StamPLC's onboard I2C bus (SCL G15, SDA G13) carries an LM75B temp sensor
+(0x48), INA226 voltage/current sensor (0x40), and an RX8130CE RTC (0x32) —
+none of which this firmware touches, but worth knowing before wiring
+anything else onto that bus later.
 
 ## Display (M0b)
 
