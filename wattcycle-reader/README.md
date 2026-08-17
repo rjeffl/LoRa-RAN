@@ -10,14 +10,14 @@ directory is designed to drop into the GateLink node firmware unchanged.
 [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
 is the source of truth; section references below (§5.4 etc.) point into it.
 
-## Status: M1
+## Status: M2
 
 | Milestone | State |
 |---|---|
 | M0 — toolchain up | builds clean |
 | M0b — display alive | **confirmed on hardware** — panel ACKs at 0x3C, layout renders |
-| **M1 — BLE scan** | **confirmed on hardware** — target found; see RSSI below |
-| M2 — connect + discover | not started |
+| M1 — BLE scan | **confirmed on hardware** — target found; see RSSI below |
+| **M2 — connect + discover** | **confirmed on hardware** — connects, FFF0 enumerated, FFF1/FFF2/FFFA handles confirmed |
 | M3 — handshake + raw | not started |
 | M4 — reassembly + CRC | **decoder done and host-tested**, not yet run on hardware |
 | M5 — decode 0x8C | **decoder done and host-tested**, not yet run on hardware |
@@ -126,6 +126,33 @@ enclosure is built.
 
 Keep publishing RSSI as a diagnostic regardless (§5.8): it is the early-warning
 signal for a mount degrading from moisture, corrosion, or a shifted bracket.
+
+## Connect + discover (M2)
+
+`NimBleTransport` (`lib/bms_ble/NimBleTransport.h/.cpp`) is the only file that
+includes NimBLE headers (§7 rule 2) — it implements `BmsTransport` against
+service `0xFFF0`, and is guarded `#ifdef ARDUINO` so `pio test -e native`
+still builds without it.
+
+M2 runs once per boot, on the first sweep that finds the target: stop
+scanning, connect, resolve `FFF1`/`FFF2`/`FFFA`, log their handles, then
+disconnect and resume scanning. It is a capability check, not the persistent
+connection — that starts at M3.
+
+```
+--- M2: connect + discover ---
+  MTU negotiated: 512
+  FFF1 (rx/notify)   handle 0x0011  read=1 write=0 writeNR=0 notify=1
+  FFF2 (tx)          handle 0x0013  read=1 write=1 writeNR=1 notify=0
+  FFFA (handshake)   handle 0x001c  read=1 write=1 writeNR=1 notify=0
+--- M2: OK, disconnected ---
+```
+
+Confirmed on hardware: handles resolve and properties match the §4 GATT
+layout table. A device missing any of the three characteristics is treated as
+"not this BMS" even if it shares the JBD-style `FFF0`/`FFF1`/`FFF2` service
+topology (§4 note) — connect() logs `FFF1/FFF2/FFFA incomplete` and bails
+rather than proceeding on a guess.
 
 ## Display (M0b)
 
