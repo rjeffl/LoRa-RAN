@@ -11,10 +11,12 @@ void Counters::bump(Status s) {
   switch (s) {
     case Status::Ok:                return;
     case Status::Runt:              ++rx_runt; return;
+    case Status::Oversize:          ++rx_oversize; return;
     case Status::BadCrc:            ++rx_bad_crc; return;
     case Status::BadVersion:        ++rx_bad_ver; return;
     case Status::NotAddressed:      ++rx_not_addressed; return;
     case Status::UnknownHdrExt:     ++rx_unknown_hdr_ext; return;
+    case Status::BadFrag:           ++rx_bad_frag; return;
     case Status::UnknownType:       ++rx_unknown_type; return;
     case Status::UnknownSchema:     ++rx_unknown_schema; return;
     case Status::BadLength:         ++rx_bad_length; return;
@@ -26,14 +28,16 @@ void Counters::bump(Status s) {
     // Caller errors, not wire conditions. Nothing on the link caused them and no
     // spec 14 stage owns them, so they are not counted as drops.
     case Status::BufferTooSmall:    return;
+    case Status::MissingMac:        return;
     case Status::NotImplemented:    return;
   }
 }
 
 uint32_t Counters::total_dropped() const {
-  return rx_crc_err + rx_runt + rx_bad_crc + rx_bad_ver + rx_not_addressed +
-         rx_unknown_hdr_ext + rx_unknown_type + rx_unknown_schema + rx_bad_length +
-         rx_bad_mac + rx_ctx_mismatch + reassembly_timeout + fragment_overflow;
+  return rx_crc_err + rx_runt + rx_oversize + rx_bad_crc + rx_bad_ver +
+         rx_not_addressed + rx_unknown_hdr_ext + rx_bad_frag + rx_unknown_type +
+         rx_unknown_schema + rx_bad_length + rx_bad_mac + rx_ctx_mismatch +
+         reassembly_timeout + fragment_overflow;
 }
 
 void Counters::reset() { *this = Counters{}; }

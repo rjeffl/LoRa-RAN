@@ -100,6 +100,52 @@ void test_schema_lengths_match_registry() {
   TEST_ASSERT_EQUAL_UINT32(22, frame_len(4, false));   // ERROR
 }
 
+// spec 7.1 - the carrying-type column is NORMATIVE in v0.4: the (type, schema) pair
+// is the unit of validation, not schema membership. Every accepted pair in the
+// registry, and the pairs that look plausible and are not.
+void test_schema_type_pairing_matches_registry() {
+  // 0x10 GateLink status v1 -> STATUS
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaGateLinkStatusV1));
+  // 0x11 GateLink event v1 -> EVENT
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Event, kSchemaGateLinkEventV1));
+  // 0x12 GateLink config v1 -> CONFIG and CONFIG_ACK, both
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Config, kSchemaGateLinkConfigV1));
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::ConfigAck, kSchemaGateLinkConfigV1));
+  // 0xF0 generic node health -> STATUS. v0.3 left this undefined: §7.5 said "emitted
+  // by every node type" without naming a type and §19 listed it as though it were
+  // one. It is a STATUS schema, not a message type.
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaNodeHealthV1));
+  // 0xFE simnode synthetic status -> STATUS, mirroring 0x10
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaSimnodeStatusV1));
+
+  // Rejected at §14 stage 7 with ERROR(UNKNOWN_SCHEMA) rather than misparsed at
+  // stage 8, which is the whole point of validating the pair.
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaGateLinkEventV1));   // 0x11
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaGateLinkStatusV1));   // 0x10
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaGateLinkConfigV1));  // 0x12
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaNodeHealthV1));       // 0xF0
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::ConfigAck, kSchemaGateLinkStatusV1));
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Config, kSchemaNodeHealthV1));
+
+  // 0x20 / 0x21 are reserved and NOT DEFINED. Reserved is not implemented: a frame
+  // announcing one is rejected until WellLink's schemas exist.
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, 0x20));
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, 0x21));
+
+  // 0x00 is "not applicable" and belongs to the types that carry no schema. A
+  // schema-bearing type announcing 0x00 has named no schema at all.
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaNone));
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaNone));
+
+  // spec 5.7 - written 0x00 and IGNORED for every other type. Not validated as zero:
+  // spec 4.3 forbids that, and it would break the forward compatibility the ignore
+  // rule exists to provide.
+  TEST_ASSERT_FALSE(type_carries_schema(MsgType::Poll));
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Poll, 0x77));
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Ping, 0x10));
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Command, 0xFF));
+}
+
 // spec 7.2 - every offset in the table, checked against the serialized bytes.
 void test_gatelink_status_offsets() {
   uint8_t buf[kGateLinkStatusV1Len] = {};
@@ -354,6 +400,7 @@ void test_schema_serialize_rejects_small_buffer() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_schema_lengths_match_registry);
+  RUN_TEST(test_schema_type_pairing_matches_registry);
   RUN_TEST(test_gatelink_status_offsets);
   RUN_TEST(test_gatelink_status_roundtrip);
   RUN_TEST(test_status_defaults_are_sentinels);

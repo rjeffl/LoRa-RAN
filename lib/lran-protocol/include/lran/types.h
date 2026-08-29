@@ -77,10 +77,12 @@ inline constexpr uint8_t kHexReqFlagWriteClass = 0x01;
 enum class Status : uint8_t {
   Ok = 0,
   Runt,               // spec 14 stage 2
+  Oversize,           // stage 2a - spec 3, longer than kMaxFrame
   BadCrc,             // stage 3
   BadVersion,         // stage 4
   NotAddressed,       // stage 5
   UnknownHdrExt,      // stage 5a - spec 5.8
+  BadFrag,            // stage 5b - spec 5.6, a `frag` total of 0
   UnknownType,        // stage 6
   UnknownSchema,      // stage 7
   BadLength,          // stage 8
@@ -89,6 +91,15 @@ enum class Status : uint8_t {
   BadMac,             // spec 9.4 step 3
   CtxMismatch,        // spec 10.1, checked at spec 9.4 step 2
   BufferTooSmall,     // caller error, not a wire condition
+
+  // spec 9.2 - an authenticated type was encoded with no IMac or no key. A
+  // MISCONFIGURATION: the caller wired the library up wrong or shipped without key
+  // material. Held apart from NotImplemented because a field log cannot tell a
+  // library gap from a build that is about to be unable to command the gate, and
+  // this is the more serious of the two and the less visible.
+  MissingMac,
+
+  // A genuine gap in this library, not a caller error and not a wire condition.
   NotImplemented,
 };
 

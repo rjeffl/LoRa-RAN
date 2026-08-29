@@ -206,16 +206,20 @@ void test_ping_uses_the_plain_cap() {
   TEST_ASSERT_EQUAL_UINT32(204, r.len());  // exactly the cap
 }
 
+// spec 5.6 / 14 stage 5b - the two malformed `frag` bytes have different diagnoses
+// and land on different counters. A total of 0 means the sender's framing is broken;
+// an index at or past the total means one fragment has nowhere to land.
 void test_bad_fragment_nibbles_rejected() {
   Counters c;
   Reassembler r(&c);
   const uint8_t a[] = {1};
   Frame f = make_fragment(a, 1, 0, 1);
   f.hdr.frag = 0x00;  // total = 0
-  TEST_ASSERT_EQUAL(Status::FragmentOverflow, r.accept(f, 0));
+  TEST_ASSERT_EQUAL(Status::BadFrag, r.accept(f, 0));
   f.hdr.frag = 0x32;  // index 3 of 2
   TEST_ASSERT_EQUAL(Status::FragmentOverflow, r.accept(f, 0));
-  TEST_ASSERT_EQUAL_UINT32(2, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_frag);
+  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
 }
 
 // Only one set is held. A new key abandons the old one, and the abandonment is

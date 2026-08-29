@@ -112,10 +112,11 @@ Status decode_header(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Frame
   // spec 14 stage 2 - a frame shorter than header + CRC cannot be parsed at all.
   if (len < kMinFrame) return fail(ctx, Status::Runt);
 
-  // spec 3 - "any frame exceeding LRAN_MAX_FRAME is a programming error, not a
-  // runtime condition." The PHY can hand up 255 bytes, so the condition is
-  // reachable from a foreign transmitter and must still be counted, not asserted.
-  if (len > kMaxFrame) return fail(ctx, Status::BadLength);
+  // spec 14 stage 2a - the PHY can hand up 255 bytes, so an oversize frame is a
+  // counted runtime discard, not an assertion. rx_oversize is deliberately separate
+  // from rx_bad_length: this says a foreign transmitter or a misconfigured PHY, that
+  // says a peer's encoder is wrong (spec 14).
+  if (len > kMaxFrame) return fail(ctx, Status::Oversize);
 
   // spec 14 stage 3 - the application CRC16, over header || payload || mac, stored
   // little-endian in the final two bytes. This is rx_bad_crc, NOT rx_crc_err.
@@ -142,6 +143,22 @@ Status decode_header(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Frame
   // extension this build cannot implement, and best-effort parsing is forbidden.
   if (out->hdr.critical_ext()) return fail(ctx, Status::UnknownHdrExt);
 
+  // spec 5.6 stage 5b - a declared total of 0 is a malformed header, NOT a
+  // single-frame marker (0x01 is). Checked here, before stage 6, so a frame that is
+  // malformed in both its `frag` byte and its `type` reports the earlier stage.
+  //
+  // The wire answer is ERROR(BAD_LENGTH) per spec 14 stage 5b, but the counter is
+  // rx_bad_frag: the two do not have to agree, and the counter is the diagnosis.
+  if (out->hdr.frag_total() == 0) return fail(ctx, Status::BadFrag);
+
+  // spec 11.2 - an index at or past the declared total keeps ERROR(FRAGMENT_OVERFLOW)
+  // rather than joining the stage-5b bucket. A total of 0 means the sender's framing
+  // is broken; an out-of-range index means one fragment of an otherwise plausible set
+  // has nowhere to land.
+  if (out->hdr.frag_index() >= out->hdr.frag_total()) {
+    return fail(ctx, Status::FragmentOverflow);
+  }
+
   // spec 6 stage 6
   if (!type_is_known(static_cast<uint8_t>(out->hdr.type))) {
     return fail(ctx, Status::UnknownType);
@@ -160,11 +177,13 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
 
   const Header& h = inout->hdr;
 
-  // spec 5.6 / 11 - a total of 0 is not a frame, and an index at or past the total
-  // has no place to land. Checked before any length arithmetic trusts the nibbles.
+  // spec 14 stage 5b - decode_header has already rejected both of these, but phase 2
+  // subtracts from `len` using the nibbles below and a caller that skipped phase 1
+  // would read off the end of the buffer rather than get an error.
   const uint8_t frag_total = h.frag_total();
   const uint8_t frag_index = h.frag_index();
-  if (frag_total == 0 || frag_total > kMaxFragments || frag_index >= frag_total) {
+  if (frag_total == 0) return fail(ctx, Status::BadFrag);
+  if (frag_total > kMaxFragments || frag_index >= frag_total) {
     return fail(ctx, Status::FragmentOverflow);
   }
 
@@ -257,9 +276,12 @@ Status encode(const Header& hdr, const uint8_t* payload, size_t payload_len,
 
   if (!type_is_known(static_cast<uint8_t>(hdr.type))) return Status::UnknownType;
 
+  // spec 5.6 - the same split the receive path makes at stage 5b, so a sender bug
+  // and the receiver's report of it name the same condition.
   const uint8_t frag_total = hdr.frag_total();
   const uint8_t frag_index = hdr.frag_index();
-  if (frag_total == 0 || frag_total > kMaxFragments || frag_index >= frag_total) {
+  if (frag_total == 0) return Status::BadFrag;
+  if (frag_total > kMaxFragments || frag_index >= frag_total) {
     return Status::FragmentOverflow;
   }
 
@@ -282,10 +304,13 @@ Status encode(const Header& hdr, const uint8_t* payload, size_t payload_len,
   if (total == 0) return Status::BadLength;         // exceeds LRAN_MAX_FRAME
   if (total > buf_cap) return Status::BufferTooSmall;
 
-  // An authenticated type with no IMac would otherwise go out unauthenticated -
-  // a relay pulse anyone can forge. Refuse instead.
+  // spec 9.2 - "An encoder MUST NOT emit an authenticated type without a MAC." A
+  // build with no key material fails the send; it does not fall back. MissingMac
+  // rather than NotImplemented because this is a MISCONFIGURATION - the caller wired
+  // the library up wrong or shipped without key material - and a field log has to be
+  // able to tell it from a library gap.
   if (mac_present && (ctx.mac == nullptr || ctx.node_key == nullptr)) {
-    return Status::NotImplemented;
+    return Status::MissingMac;
   }
 
   ByteWriter w(buf, buf_cap);

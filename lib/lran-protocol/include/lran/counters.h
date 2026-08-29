@@ -26,10 +26,18 @@ struct Counters {
   uint32_t rx_crc_err = 0;
 
   uint32_t rx_runt            = 0;  // stage 2
+
+  // spec 14 stage 2a. Deliberately NOT folded into rx_bad_length: oversize means a
+  // foreign transmitter on the band or a misconfigured PHY, bad length means a
+  // peer's encoder is wrong. Different faults, different fixes, and at the gate the
+  // counter is the entire diagnosis.
+  uint32_t rx_oversize        = 0;
+
   uint32_t rx_bad_crc         = 0;  // stage 3 - the APPLICATION CRC16
   uint32_t rx_bad_ver         = 0;  // stage 4
   uint32_t rx_not_addressed   = 0;  // stage 5
   uint32_t rx_unknown_hdr_ext = 0;  // stage 5a
+  uint32_t rx_bad_frag        = 0;  // stage 5b - spec 5.6, a `frag` total of 0
   uint32_t rx_unknown_type    = 0;  // stage 6
   uint32_t rx_unknown_schema  = 0;  // stage 7
   uint32_t rx_bad_length      = 0;  // stage 8

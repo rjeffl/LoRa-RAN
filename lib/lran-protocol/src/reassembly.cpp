@@ -69,9 +69,13 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   tick(now_ms);
   if (complete_) reset();  // the previous set was consumed; this frame starts anew
 
+  // spec 14 stage 5b - the decode path rejects a total of 0 before a frame ever
+  // reaches here, but the Reassembler is also driven directly by the bench and by
+  // the vector suite, and the two paths must name the same condition.
   const uint8_t total = f.hdr.frag_total();
   const uint8_t index = f.hdr.frag_index();
-  if (total == 0 || total > kMaxFragments || index >= total) {
+  if (total == 0) return count(counters_, Status::BadFrag);
+  if (total > kMaxFragments || index >= total) {
     return count(counters_, Status::FragmentOverflow);
   }
 

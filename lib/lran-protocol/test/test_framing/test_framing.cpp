@@ -168,12 +168,109 @@ void test_stage2_runt() {
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_runt);
 }
 
+// spec 14 stage 2a - a frame longer than kMaxFrame is a counted runtime discard,
+// not an assertion: the SX126x PHY hands up as much as 255 bytes and a foreign
+// transmitter on the band can produce one at any time.
 void test_oversize_frame_is_counted_not_asserted() {
   Counters c;
   Frame f;
-  uint8_t buf[kMaxFrame + 1] = {};
-  TEST_ASSERT_EQUAL(Status::BadLength, decode_header(buf, sizeof(buf), node_ctx(&c), &f));
+  uint8_t buf[255] = {};
+  TEST_ASSERT_EQUAL(Status::Oversize, decode_header(buf, sizeof(buf), node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_oversize);
+  // Nothing else moved. rx_oversize says "foreign transmitter or misconfigured PHY";
+  // rx_bad_length says "a peer's encoder is wrong". Folding the two together at the
+  // gate would cost the entire diagnosis (spec 14).
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_length);
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+}
+
+// The other half of the split: a correctly sized frame whose payload length does not
+// match its (type, schema) lands on rx_bad_length and nowhere near rx_oversize.
+void test_bad_payload_length_is_not_oversize() {
+  Header h = poll_header();
+  h.type   = MsgType::Status;
+  h.schema = kSchemaGateLinkStatusV1;
+
+  // encode refuses the wrong length too, so the frame is built from a valid 78-byte
+  // STATUS with one payload byte trimmed off and the CRC recomputed - which is what a
+  // peer with a wrong encoder actually puts on the air.
+  uint8_t payload[78] = {};
+  uint8_t buf[kMaxFrame];
+  size_t  n = 0;
+  EncodeCtx ec;
+  TEST_ASSERT_EQUAL(Status::Ok,
+                    encode(h, payload, sizeof(payload), ec, buf, sizeof(buf), &n));
+
+  const size_t shortened = n - 1;
+  const uint16_t crc = crc16_ccitt_false(buf, shortened - kCrcLen);
+  buf[shortened - 2] = static_cast<uint8_t>(crc & 0xFF);
+  buf[shortened - 1] = static_cast<uint8_t>(crc >> 8);
+
+  Counters c;
+  Frame f;
+  TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, shortened, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL(Status::BadLength, decode_payload(buf, shortened, node_ctx(&c), &f));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_length);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_oversize);
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+}
+
+// --- spec 5.6 / 14 stage 5b: the `frag` byte is validated in the header -----
+
+// A declared total of 0 is a malformed header, not a single-frame marker (0x01 is).
+void test_stage5b_frag_total_zero() {
+  uint8_t buf[kMaxFrame];
+  size_t  n = 0;
+  const uint8_t payload[1] = {0};
+  EncodeCtx ec;
+  TEST_ASSERT_EQUAL(Status::Ok, encode(poll_header(), payload, 1, ec, buf, sizeof(buf), &n));
+  buf[10] = 0x00;  // frag: index 0, total 0
+  const uint16_t crc = crc16_ccitt_false(buf, n - kCrcLen);
+  buf[n - 2] = static_cast<uint8_t>(crc & 0xFF);
+  buf[n - 1] = static_cast<uint8_t>(crc >> 8);
+
+  Counters c;
+  Frame f;
+  TEST_ASSERT_EQUAL(Status::BadFrag, decode_header(buf, n, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_frag);
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+}
+
+// spec 11.2 - an index at or past the declared total keeps FRAGMENT_OVERFLOW. The
+// two conditions have different diagnoses and must not share a counter.
+void test_stage5b_index_past_total() {
+  uint8_t buf[kMaxFrame];
+  size_t  n = 0;
+  const uint8_t payload[1] = {0};
+  EncodeCtx ec;
+  TEST_ASSERT_EQUAL(Status::Ok, encode(poll_header(), payload, 1, ec, buf, sizeof(buf), &n));
+  buf[10] = 0xF1;  // frag: index 15, total 1
+  const uint16_t crc = crc16_ccitt_false(buf, n - kCrcLen);
+  buf[n - 2] = static_cast<uint8_t>(crc & 0xFF);
+  buf[n - 1] = static_cast<uint8_t>(crc >> 8);
+
+  Counters c;
+  Frame f;
+  TEST_ASSERT_EQUAL(Status::FragmentOverflow, decode_header(buf, n, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_frag);
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+}
+
+// The control: frag = 0x01 is a valid single unfragmented frame and moves nothing.
+void test_stage5b_single_frame_frag_is_valid() {
+  uint8_t buf[kMaxFrame];
+  size_t  n = 0;
+  const uint8_t payload[1] = {0};
+  EncodeCtx ec;
+  TEST_ASSERT_EQUAL(Status::Ok, encode(poll_header(), payload, 1, ec, buf, sizeof(buf), &n));
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf[10]);
+
+  Counters c;
+  Frame f;
+  TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL(Status::Ok, decode_payload(buf, n, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
 }
 
 void test_stage3_bad_crc() {
@@ -461,10 +558,12 @@ void test_seq_newer_across_wrap() {
 void test_counter_mapping_is_total() {
   Counters c;
   c.bump(Status::Runt);
+  c.bump(Status::Oversize);
   c.bump(Status::BadCrc);
   c.bump(Status::BadVersion);
   c.bump(Status::NotAddressed);
   c.bump(Status::UnknownHdrExt);
+  c.bump(Status::BadFrag);
   c.bump(Status::UnknownType);
   c.bump(Status::UnknownSchema);
   c.bump(Status::BadLength);
@@ -472,17 +571,18 @@ void test_counter_mapping_is_total() {
   c.bump(Status::FragmentOverflow);
   c.bump(Status::BadMac);
   c.bump(Status::CtxMismatch);
-  TEST_ASSERT_EQUAL_UINT32(12, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(14, c.total_dropped());
 
   // Not wire conditions: no spec 14 stage owns them, so they are not drops.
   c.bump(Status::Ok);
   c.bump(Status::BufferTooSmall);
+  c.bump(Status::MissingMac);
   c.bump(Status::NotImplemented);
-  TEST_ASSERT_EQUAL_UINT32(12, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(14, c.total_dropped());
 
   // spec 14 stage 1 belongs to the radio driver but still counts as a drop.
   c.rx_crc_err = 5;
-  TEST_ASSERT_EQUAL_UINT32(17, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(19, c.total_dropped());
 }
 
 void test_status_strings_present() {
@@ -539,6 +639,46 @@ void test_hex_rsp_is_two_plus_n() {
   EncodeCtx ec;
   TEST_ASSERT_EQUAL(Status::Ok, encode(h, payload, plen, ec, buf, sizeof(buf), &n));
   TEST_ASSERT_EQUAL_UINT32(kHdrLen + 2 + sizeof(hex) + kCrcLen, n);
+}
+
+// spec 6 / 7.6 / 19 - HEX_RSP is status(1) + n(1) + hex[n] = 2 + N, giving a
+// 20 + N byte frame. v0.3's §6 said 3 + N and its §19 said 21 + N; v0.4 corrects both
+// to match §7.6, which was right. Asserted as an exact frame length rather than only
+// round-tripped so an off-by-one in EITHER direction fails loudly.
+void test_hex_rsp_frame_length_is_twenty_plus_n() {
+  struct Case { uint8_t n; };
+  const Case cases[] = {{0}, {10}};
+
+  for (const Case& tc : cases) {
+    uint8_t hex[16] = {};
+    for (uint8_t i = 0; i < tc.n; ++i) hex[i] = static_cast<uint8_t>('0' + (i % 10));
+
+    uint8_t payload[64];
+    size_t  plen = 0;
+    msg::HexRsp rsp;
+    rsp.status = static_cast<uint8_t>(HexStatus::Ok);
+    rsp.n      = tc.n;
+    rsp.hex    = hex;
+    TEST_ASSERT_EQUAL(Status::Ok, msg::serialize(rsp, payload, sizeof(payload), &plen));
+    TEST_ASSERT_EQUAL_UINT32(2u + tc.n, plen);  // NOT 3 + n
+
+    uint8_t buf[kMaxFrame];
+    size_t  n = 0;
+    Header h = poll_header();
+    h.type = MsgType::HexRsp;
+    EncodeCtx ec;
+    TEST_ASSERT_EQUAL(Status::Ok, encode(h, payload, plen, ec, buf, sizeof(buf), &n));
+    TEST_ASSERT_EQUAL_UINT32(20u + tc.n, n);  // NOT 21 + n
+
+    // ...and the decoder agrees on the same boundary.
+    Counters c;
+    Frame f;
+    TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, node_ctx(&c), &f));
+    TEST_ASSERT_EQUAL(Status::Ok, decode_payload(buf, n, node_ctx(&c), &f));
+    TEST_ASSERT_EQUAL_UINT32(2u + tc.n, f.payload_len);
+    TEST_ASSERT_NULL(f.mac);
+    TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+  }
 }
 
 // --- spec 7.6 / 9.2: the HEX_REQ authentication rule -------------------------
@@ -653,6 +793,10 @@ void test_config_payload_structure_validated() {
 
 // --- encode-side guards ------------------------------------------------------
 
+// spec 9.2 - "An encoder MUST NOT emit an authenticated type without a MAC." The
+// refusal is unchanged from P1-P5; only the reporting is. MissingMac says the caller
+// wired the library up wrong or shipped without key material, which NotImplemented
+// (a genuine library gap) could not be distinguished from in a field log.
 void test_encode_refuses_unauthenticated_command() {
   msg::Command cmd{static_cast<uint8_t>(Cmd::Open), 0, 0};
   uint8_t payload[4];
@@ -664,7 +808,13 @@ void test_encode_refuses_unauthenticated_command() {
   Header h = poll_header();
   h.type = MsgType::Command;
   EncodeCtx ec;  // no IMac
-  TEST_ASSERT_EQUAL(Status::NotImplemented,
+  TEST_ASSERT_EQUAL(Status::MissingMac,
+                    encode(h, payload, plen, ec, buf, sizeof(buf), &n));
+  TEST_ASSERT_EQUAL_UINT32(0, n);  // and no frame on the wire
+
+  // An IMac with no key is the same misconfiguration by another route.
+  ec.mac = &g_mac;
+  TEST_ASSERT_EQUAL(Status::MissingMac,
                     encode(h, payload, plen, ec, buf, sizeof(buf), &n));
   TEST_ASSERT_EQUAL_UINT32(0, n);
 }
@@ -688,6 +838,10 @@ int main() {
   RUN_TEST(test_roundtrip_poll);
   RUN_TEST(test_stage2_runt);
   RUN_TEST(test_oversize_frame_is_counted_not_asserted);
+  RUN_TEST(test_bad_payload_length_is_not_oversize);
+  RUN_TEST(test_stage5b_frag_total_zero);
+  RUN_TEST(test_stage5b_index_past_total);
+  RUN_TEST(test_stage5b_single_frame_frag_is_valid);
   RUN_TEST(test_stage3_bad_crc);
   RUN_TEST(test_stage4_bad_version);
   RUN_TEST(test_bridge_accepts_n_minus_1);
@@ -707,6 +861,7 @@ int main() {
   RUN_TEST(test_status_strings_present);
   RUN_TEST(test_message_payload_roundtrips);
   RUN_TEST(test_hex_rsp_is_two_plus_n);
+  RUN_TEST(test_hex_rsp_frame_length_is_twenty_plus_n);
   RUN_TEST(test_hex_req_write_class_detection);
   RUN_TEST(test_hex_req_write_without_mac_is_rejected);
   RUN_TEST(test_hex_req_read_needs_no_mac);
