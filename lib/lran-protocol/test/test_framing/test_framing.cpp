@@ -3,6 +3,10 @@
 //
 // P2 - framing, CRC and the spec 14 receive ladder.
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 #include <unity.h>
 
 #include <cstring>
@@ -829,8 +833,28 @@ void test_encode_buffer_too_small() {
                     encode(poll_header(), payload, 1, ec, buf, sizeof(buf), &n));
 }
 
-int main() {
+
+// P7.4 - the static footprint, measured where it matters. Sizes differ between the
+// host (x86-64, 8-byte pointers) and the ESP32-S3 (xtensa, 4-byte), so the figures
+// that constrain a node are the ones printed here.
+void test_report_footprint() {
+  printf("\n--- LRAN static footprint ---\n");
+  printf("Header             %4u B\n", (unsigned)sizeof(Header));
+  printf("Frame              %4u B\n", (unsigned)sizeof(Frame));
+  printf("Counters           %4u B\n", (unsigned)sizeof(Counters));
+  printf("Reassembler        %4u B  <- one per peer (spec 11.3)\n",
+         (unsigned)sizeof(Reassembler));
+  printf("  bridge, 5 nodes  %4u B\n", (unsigned)(sizeof(Reassembler) * 5));
+  printf("GateLinkStatusV1   %4u B\n", (unsigned)sizeof(schema::GateLinkStatusV1));
+  printf("GateLinkEventV1    %4u B\n", (unsigned)sizeof(schema::GateLinkEventV1));
+  printf("NodeHealthV1       %4u B\n", (unsigned)sizeof(schema::NodeHealthV1));
+  printf("-----------------------------\n");
+  TEST_ASSERT_TRUE(true);
+}
+
+int run_all() {
   UNITY_BEGIN();
+  RUN_TEST(test_report_footprint);
   RUN_TEST(test_derived_size_constants);
   RUN_TEST(test_crc16_known_answer);
   RUN_TEST(test_bytewriter_little_endian);
@@ -871,3 +895,18 @@ int main() {
   RUN_TEST(test_encode_buffer_too_small);
   return UNITY_END();
 }
+
+// PlatformIO runs the same suites on the host and on the ESP32-S3. The host entry
+// point is main(); Arduino's is setup()/loop(). Unity's own setUp/tearDown are
+// distinct names and do not collide.
+#ifdef ARDUINO
+void setup() {
+  // The USB-serial link needs a moment before the first report, or the opening
+  // lines are lost and a passing run looks like a hang.
+  delay(2000);
+  run_all();
+}
+void loop() {}
+#else
+int main() { return run_all(); }
+#endif

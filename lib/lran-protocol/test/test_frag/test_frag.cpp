@@ -7,6 +7,10 @@
 // reassembly-timeout test that had to wait five real seconds would not get written,
 // and so the path would ship untested on hardware with no OTA.
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 #include <unity.h>
 
 #include "lran/lran.h"
@@ -493,7 +497,7 @@ void test_fragmented_hex_req_rejected() {
   TEST_ASSERT_FALSE(r.active());
 }
 
-int main() {
+int run_all() {
   UNITY_BEGIN();
   RUN_TEST(test_frag_nibble_packing);
   RUN_TEST(test_single_frame_completes_immediately);
@@ -519,3 +523,18 @@ int main() {
   RUN_TEST(test_fragmented_hex_req_rejected);
   return UNITY_END();
 }
+
+// PlatformIO runs the same suites on the host and on the ESP32-S3. The host entry
+// point is main(); Arduino's is setup()/loop(). Unity's own setUp/tearDown are
+// distinct names and do not collide.
+#ifdef ARDUINO
+void setup() {
+  // The USB-serial link needs a moment before the first report, or the opening
+  // lines are lost and a passing run looks like a hang.
+  delay(2000);
+  run_all();
+}
+void loop() {}
+#else
+int main() { return run_all(); }
+#endif
