@@ -471,10 +471,18 @@ EXPECTED_FRAME_LEN = {
     ("ERROR", 0x00): 22,
 }
 
-# §14 - discard stages. `status` and `counter` for stages 1-5b are the names the
-# specification itself uses; §14 names no counter for stages 6 onward and names
-# no Status value anywhere, so those are this generator's reading (see report).
-STAGE_1_PHY_CRC = "1"
+# §14 - discard stages. §14 names a counter for stages 1-5b only, and names no
+# Status value anywhere. The names for stages 6-9 are the convention fixed in the
+# README ("Counter names") and shared with the C++ consumer:
+#   6 rx_unknown_type · 7 rx_unknown_schema · 8 rx_bad_length ·
+#   8a rx_not_fragmentable · 9 rx_ctx_mismatch, rx_bad_mac
+# Stage 10's overflow counter is `rx_fragment_overflow`: §11.3 writes the sibling
+# counters `rx_reassembly_abandoned` and `rx_reassembly_timeout` with the prefix, and
+# it is a discard, so it is summed into `rx_dropped` in schema 0xF0 (§14). Only
+# `rx_frag_duplicate` is excluded, because it counts an overwrite, not a discard.
+# A Status name and the wire ERROR code it maps to need not match: a
+# `frag` total of 0 is counted rx_bad_frag but reports ERROR(BAD_LENGTH) (§5.6), and
+# stage 8a is counted rx_not_fragmentable but likewise reports BAD_LENGTH (§11.4).
 
 # ---------------------------------------------------------------------------
 # vector assembly helpers
@@ -496,7 +504,14 @@ def header_json(*, type_name, src, dst, seq, ctx_id, frag, schema, hdr_flags, ve
 
 def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
            schema=0x00, frag=0x01, hdr_flags=0x00, ver=WIRE_VER, mac_node=None,
-           self_id, expect_ctx_id=0, note=None, status="Ok"):
+           self_id, expect_ctx_id=0, note=None, status="Ok", decode_only=False):
+    # §5.8 - bits 6:0 of hdr_flags are "write 0, ignore on receive". The sender
+    # half and the receiver half are deliberately asymmetric, so a frame that
+    # exercises the receiver rule is one no conforming encoder emits: it must be
+    # marked `decode_only` (README) and cannot double as an encode vector.
+    sender_rule_broken = bool(hdr_flags & 0x7F)
+    assert sender_rule_broken == decode_only, (
+        "%s: hdr_flags reserved bits and decode_only must agree (§5.8)" % name)
     frame = build_frame(ver=ver, type_id=MSG_TYPE[type_name], src=src, dst=dst, seq=seq,
                         ctx_id=ctx_id, frag=frag, schema=schema, hdr_flags=hdr_flags,
                         payload=payload, mac_node=mac_node)
@@ -506,6 +521,8 @@ def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
             type_name, schema, expected, len(frame))
     assert len(frame) <= LRAN_MAX_FRAME, "§3 caps a frame at %d, built %d" % (LRAN_MAX_FRAME, len(frame))
     vec = {"name": name, "spec_ref": spec_ref}
+    if decode_only:
+        vec["decode_only"] = True
     if note:
         vec["note"] = note
     vec["header"] = header_json(type_name=type_name, src=src, dst=dst, seq=seq, ctx_id=ctx_id,
@@ -690,11 +707,11 @@ def build_single():
                     type_name="POLL", src=NODE_BRIDGE, dst=NODE_BROADCAST, seq=4662,
                     ctx_id=GATE_CTX, payload=p_poll(0x01), self_id=NODE_GATELINK,
                     note="dst 0xFF is accepted by every node (§5.3)."))
-    v.append(single("poll_reserved_hdr_flags_ignored", "§4.3, §5.8",
+    v.append(single("poll_reserved_hdr_flags_ignored", "§5.8, §4.3",
                     type_name="POLL", src=NODE_BRIDGE, dst=NODE_GATELINK, seq=4663,
                     ctx_id=GATE_CTX, payload=p_poll(0x01), hdr_flags=0x40,
-                    self_id=NODE_GATELINK,
-                    note="hdr_flags bits 6:0 are reserved: ignored on receive, NOT validated as zero."))
+                    self_id=NODE_GATELINK, decode_only=True,
+                    note="hdr_flags bit 6 set. §5.8 requires a sender write 0 here, so no encoder emits this frame; a receiver must ignore it, not validate it as zero."))
 
     # --- COMMAND (§6.2, §9.2, §19: 30 B) ----------------------------------
     v.append(single("command_open", "§6.2, §8.1, §9.3, §19",
@@ -900,10 +917,14 @@ def build_frag():
     shuffled = [7, 0, 14, 3, 11, 1, 9, 2, 13, 5, 8, 4, 12, 6, 10]
     v.append(frag_set("ping_chunk14_shuffled", "§11.2", **dict(common, delivery_order=shuffled),
                       note="Same bytes out. A receiver must not place a fragment before every lower index has arrived."))
-    dup = list(range(15)) + [4, 4]
+    # §11.2 - "a duplicate index within a LIVE set overwrites the stored fragment".
+    # The repeats therefore arrive before index 14 completes the set. A fragment
+    # arriving AFTER completion is not covered by §11.2 (which defines expiry only
+    # for incomplete sets) and is deliberately not tested here.
+    dup = [0, 1, 2, 3, 4, 4, 5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14]
     v.append(frag_set("ping_chunk14_duplicate_index", "§11.2", **dict(common, delivery_order=dup),
                       counter="rx_frag_duplicate",
-                      note="A repeated index overwrites and is counted; it is not an error and does not change the result."))
+                      note="Index 4 arrives three times while the set is still live: each repeat overwrites and is counted, and none of them changes the reassembled bytes."))
 
     # A two-fragment PING, the smallest interesting set.
     small_seq = 801
@@ -1012,16 +1033,25 @@ def build_negative():
     v.append(negative("frag_total_zero", "§5.6, §14 stage 5b", frame=reseal(bytes(frag_zero)),
                       self_id=NODE_GATELINK, status="BadFrag", counter="rx_bad_frag", stage="5b",
                       note="0x00 is a malformed header, NOT a single-frame marker; 0x01 is the single-frame value."))
-    frag_idx = bytearray(good_poll(seq=4676))
-    frag_idx[10] = 0x31                              # index 3, total 1
-    v.append(negative("frag_index_ge_total", "§5.6, §14 stage 5b", frame=reseal(bytes(frag_idx)),
-                      self_id=NODE_GATELINK, status="BadFrag", counter="rx_bad_frag", stage="5b",
-                      note="index 3 of total 1. AMBIGUITY: §11.2 calls index >= total FRAGMENT_OVERFLOW at stage 10, but §14 stage 5b tests index < total and runs first. Taken at 5b."))
-    frag_idx2 = bytearray(good_poll(seq=4677))
-    frag_idx2[10] = 0x22                             # index 2, total 2 - off by one, the likely real bug
-    v.append(negative("frag_index_equals_total", "§5.6, §14 stage 5b", frame=reseal(bytes(frag_idx2)),
-                      self_id=NODE_GATELINK, status="BadFrag", counter="rx_bad_frag", stage="5b",
-                      note="A 0-based index equal to the 1-based total is the off-by-one an encoder actually makes."))
+    # stage 10 - §11.2: "a fragment index >= the declared total ... is discarded
+    # with ERROR(FRAGMENT_OVERFLOW)". §14 stage 5b's wording ("frag well formed -
+    # total >= 1, index < total") reads the other way and runs first; the two
+    # sections contradict each other. The v0.4 implementation task list settles it
+    # for §11.2 and reserves stage 5b for total == 0 alone. Both frames below are
+    # PING, which §11.4 makes fragmentable, so the index is the only fault in them
+    # and stage 8a cannot claim them first.
+    over_idx = build_frame(type_id=MSG_TYPE["PING"], src=NODE_BRIDGE, dst=NODE_GATELINK,
+                           seq=4676, ctx_id=GATE_CTX, frag=0x53, payload=pattern_fill(4676, 14))
+    v.append(negative("frag_index_ge_total", "§11.2, §14 stage 10", frame=over_idx,
+                      self_id=NODE_GATELINK, status="FragmentOverflow", counter="rx_fragment_overflow",
+                      stage="10",
+                      note="frag 0x53: index 5 of a declared total of 3. Wire error is ERROR(FRAGMENT_OVERFLOW) (§11.2)."))
+    eq_idx = build_frame(type_id=MSG_TYPE["PING"], src=NODE_BRIDGE, dst=NODE_GATELINK,
+                         seq=4677, ctx_id=GATE_CTX, frag=0x22, payload=pattern_fill(4677, 14))
+    v.append(negative("frag_index_equals_total", "§11.2, §14 stage 10", frame=eq_idx,
+                      self_id=NODE_GATELINK, status="FragmentOverflow", counter="rx_fragment_overflow",
+                      stage="10",
+                      note="frag 0x22: a 0-based index equal to the 1-based total is the off-by-one an encoder actually makes."))
 
     # stage 6 - type known
     unk_type = bytearray(good_poll(seq=4678))
@@ -1067,14 +1097,14 @@ def build_negative():
                            ctx_id=GATE_CTX, frag=frag_byte(0, 2), payload=p_hex_req(0x00, b":7F0ED0071"))
     v.append(negative("fragmented_hex_req", "§11.4, §14 stage 8a", frame=frag_hex,
                       self_id=NODE_GATELINK, status="NotFragmentable", counter="rx_not_fragmentable", stage="8a",
-                      note="HEX_REQ is single-frame in v1: `n` lives only in fragment 0 and the MAC requirement depends on a nibble inside the payload (§11.4). ERROR(BAD_LENGTH)."))
+                      note="HEX_REQ is single-frame in v1: `n` lives only in fragment 0 and the MAC requirement depends on a nibble inside the payload (§11.4). Wire error is ERROR(BAD_LENGTH); the counter is its own, because a peer fragmenting an unfragmentable type is a different fault from a bad length."))
     frag_cmd = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK, seq=4684,
                            ctx_id=GATE_CTX, frag=frag_byte(0, 2), payload=p_command(0x01),
                            mac_node=NODE_GATELINK)
     v.append(negative("fragmented_command", "§11.4, §14 stage 8a", frame=frag_cmd,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="NotFragmentable",
                       counter="rx_not_fragmentable", stage="8a",
-                      note="A 4-byte COMMAND is never fragmentable. The MAC is valid, so stage 8a must reject it before stage 9 accepts it."))
+                      note="A 4-byte COMMAND is never fragmentable. The MAC is valid, so stage 8a must reject it before stage 9 accepts it. Wire error is ERROR(BAD_LENGTH) (§11.4), counter rx_not_fragmentable."))
 
     # stage 9 - per-frame authentication (§9.4 steps 2 and 3)
     ctx_bad = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK, seq=5,

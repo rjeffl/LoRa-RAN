@@ -252,7 +252,7 @@ void test_stage5b_index_past_total() {
   Counters c;
   Frame f;
   TEST_ASSERT_EQUAL(Status::FragmentOverflow, decode_header(buf, n, node_ctx(&c), &f));
-  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_fragment_overflow);
   TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_frag);
   TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
 }

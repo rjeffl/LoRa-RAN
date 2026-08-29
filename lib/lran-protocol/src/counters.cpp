@@ -21,9 +21,9 @@ void Counters::bump(Status s) {
     case Status::UnknownSchema:     ++rx_unknown_schema; return;
     case Status::BadLength:         ++rx_bad_length; return;
     case Status::NotFragmentable:   ++rx_not_fragmentable; return;
-    case Status::ReassemblyTimeout: ++reassembly_timeout; return;
+    case Status::ReassemblyTimeout: ++rx_reassembly_timeout; return;
     case Status::ReassemblyAbandoned: ++rx_reassembly_abandoned; return;
-    case Status::FragmentOverflow:  ++fragment_overflow; return;
+    case Status::FragmentOverflow:  ++rx_fragment_overflow; return;
     case Status::BadMac:            ++rx_bad_mac; return;
     case Status::CtxMismatch:       ++rx_ctx_mismatch; return;
 
@@ -43,7 +43,7 @@ uint32_t Counters::total_dropped() const {
          rx_not_addressed + rx_unknown_hdr_ext + rx_bad_frag + rx_unknown_type +
          rx_unknown_schema + rx_bad_length + rx_not_fragmentable + rx_bad_mac +
          rx_ctx_mismatch +
-         reassembly_timeout + rx_reassembly_abandoned + fragment_overflow;
+         rx_reassembly_timeout + rx_reassembly_abandoned + rx_fragment_overflow;
 }
 
 void Counters::reset() { *this = Counters{}; }

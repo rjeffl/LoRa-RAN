@@ -137,11 +137,11 @@ void test_reassembly_timeout_expires_and_counts() {
 
   r.tick(5999);
   TEST_ASSERT_TRUE(r.active());
-  TEST_ASSERT_EQUAL_UINT32(0, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_timeout);
 
   r.tick(6000);  // exactly at the boundary
   TEST_ASSERT_FALSE(r.active());
-  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
   TEST_ASSERT_FALSE(r.complete());
 }
 
@@ -157,7 +157,7 @@ void test_timeout_is_runtime_configurable() {
   TEST_ASSERT_TRUE(r.active());
   r.tick(250);
   TEST_ASSERT_FALSE(r.active());
-  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
 }
 
 // The millisecond counter wraps through zero after ~49 days of uptime. Unsigned
@@ -172,7 +172,7 @@ void test_timeout_survives_millis_wrap() {
   TEST_ASSERT_TRUE(r.active());
   r.tick(near_wrap + 5000);  // wrapped past zero
   TEST_ASSERT_FALSE(r.active());
-  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
 }
 
 // spec 11 - a set exceeding LRAN_MAX_SCHEMA_PAYLOAD on reassembly is discarded with
@@ -187,7 +187,7 @@ void test_fragment_overflow_on_schema_cap() {
   TEST_ASSERT_EQUAL(Status::FragmentOverflow,
                     r.accept(make_fragment(big, 150, 1, 2, MsgType::Status,
                                            kSchemaGateLinkStatusV1), 1));
-  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_fragment_overflow);
   TEST_ASSERT_FALSE(r.active());
 }
 
@@ -219,11 +219,11 @@ void test_bad_fragment_nibbles_rejected() {
   f.hdr.frag = 0x32;  // index 3 of 2
   TEST_ASSERT_EQUAL(Status::FragmentOverflow, r.accept(f, 0));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_frag);
-  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_fragment_overflow);
 }
 
 // spec 11.3 - only one set is held, so a new key displaces the old one. The
-// displacement is counted rx_reassembly_abandoned, NOT reassembly_timeout: a timeout
+// displacement is counted rx_reassembly_abandoned, NOT rx_reassembly_timeout: a timeout
 // means the RF path dropped a fragment, an abandonment means the receiver is
 // undersized or a peer is interleaving sets. Two diagnoses, two counters. Never a
 // silent discard.
@@ -237,7 +237,7 @@ void test_displaced_set_counts_abandoned_not_timeout() {
   other.hdr.seq = 0x9999;  // a different set from the same peer
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(other, 1));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_abandoned);
-  TEST_ASSERT_EQUAL_UINT32(0, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_timeout);
   TEST_ASSERT_EQUAL_HEX16(0x9999, r.seq());
   TEST_ASSERT_FALSE(r.complete());
 
@@ -252,7 +252,7 @@ void test_expired_set_counts_timeout_not_abandoned() {
   const uint8_t a[] = {1, 2};
   r.accept(make_fragment(a, 2, 0, 2), 1000);
   r.tick(1000 + kDefaultFragTimeoutMs);
-  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
   TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
   TEST_ASSERT_FALSE(r.active());
 }
@@ -265,7 +265,7 @@ void test_inconsistent_total_rejected() {
   r.accept(make_fragment(a, 2, 0, 3), 0);
   Frame f = make_fragment(a, 2, 1, 2);  // same key, different total
   TEST_ASSERT_EQUAL(Status::FragmentOverflow, r.accept(f, 0));
-  TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_fragment_overflow);
 }
 
 // End to end: a PING payload split, encoded, decoded and reassembled, with the

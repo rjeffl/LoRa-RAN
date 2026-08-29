@@ -123,18 +123,20 @@ const CounterRef kCounters[] = {
     {"rx_unknown_type", &Counters::rx_unknown_type},
     {"rx_unknown_schema", &Counters::rx_unknown_schema},
     {"rx_bad_length", &Counters::rx_bad_length},
+    {"rx_not_fragmentable", &Counters::rx_not_fragmentable},
     {"rx_bad_mac", &Counters::rx_bad_mac},
     {"rx_ctx_mismatch", &Counters::rx_ctx_mismatch},
-    {"reassembly_timeout", &Counters::reassembly_timeout},
+    {"rx_reassembly_timeout", &Counters::rx_reassembly_timeout},
     {"rx_reassembly_abandoned", &Counters::rx_reassembly_abandoned},
-    {"fragment_overflow", &Counters::fragment_overflow},
+    {"rx_fragment_overflow", &Counters::rx_fragment_overflow},
     {"rx_frag_duplicate", &Counters::rx_frag_duplicate},
 };
 
 // Asserts `want` is the only counter that moved. Returns false if the name is one
 // this build does not have - a naming disagreement, reported by the caller rather
 // than silently passing.
-bool assert_only_counter(const Counters& c, const char* want, const char* vec_name) {
+bool assert_only_counter(const Counters& c, const char* want, const char* vec_name,
+                         bool exactly_one) {
   bool known = false;
   for (const CounterRef& r : kCounters) {
     if (strcmp(r.name, want) == 0) known = true;
@@ -144,9 +146,13 @@ bool assert_only_counter(const Counters& c, const char* want, const char* vec_na
     const uint32_t v = c.*(r.field);
     const bool     is_target = (strcmp(r.name, want) == 0);
     if (is_target) {
-      if (v != 1) {
+      // A negative vector is one frame and so exactly one discard. A fragmentation
+      // vector delivers a whole set, and a counter may legitimately move once per
+      // fragment - there, what matters is that no OTHER counter moved.
+      if (exactly_one ? (v != 1) : (v == 0)) {
         char msg[192];
-        snprintf(msg, sizeof(msg), "%s should be 1, was %u", r.name, v);
+        snprintf(msg, sizeof(msg), "%s should be %s, was %u", r.name,
+                 exactly_one ? "1" : "non-zero", v);
         report("counter", vec_name, msg);
       }
     } else if (v != 0) {
@@ -555,7 +561,7 @@ void test_vectors_fragmentation() {
 
     char want_counter[64];
     if (d.str(d.get(dn, "counter"), want_counter, sizeof(want_counter))) {
-      if (!assert_only_counter(c, want_counter, name)) {
+      if (!assert_only_counter(c, want_counter, name, false)) {
         report("frag", name, "vector names a counter this build has no field for");
       }
     }
@@ -613,7 +619,7 @@ void test_vectors_negative() {
 
     char want_counter[64];
     if (d.str(d.get(dn, "counter"), want_counter, sizeof(want_counter))) {
-      if (!assert_only_counter(c, want_counter, name)) {
+      if (!assert_only_counter(c, want_counter, name, true)) {
         report("negative", name, "vector names a counter this build has no field for");
       }
     }

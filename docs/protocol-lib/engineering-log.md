@@ -292,3 +292,161 @@ second caller.
   compiled.
 - **§9.4 steps 4–6.** Out of this library's scope by the Implementation Plan; needs a
   home. See F1.
+
+---
+
+## 2026-08-29 — P6 / W4: the framing gets an independent witness
+
+`/tools/vectors/` now exists: a Python generator, a self-check, and 69 vectors in
+four groups (kdf 6, single 34, frag 9, negative 20), consumed by a new `test_vectors`
+Unity suite under `native`.
+
+### Method, because the result is only worth what the method was
+
+The generator was written by a party working from `LRAN-Protocol-Specification-v0_4.md`
+**alone**, with `/lib/` off limits — not the headers, not the sources, not the tests,
+not this log, not the implementation plan or the task list, and not v0.3. It shares no
+code with the C++ codec: its CRC-16, header serializer, fragmenter and payload
+builders are all written from the prose. Only `hashlib` and `hmac` are shared ground,
+and those are independent implementations of published primitives, cross-checked
+against RFC 5869 HKDF cases 1 and 3 and CRC-16/CCITT-FALSE `"123456789"` → `0x29B1`
+before anything else was built.
+
+This matters because by the time P6 started, the codec had been read closely enough
+that anyone who had done E1–E5 and F1–F8 could no longer write an independent
+generator. A generator written by reading the codec reproduces that codec's reading of
+the spec, misreadings included, and agrees on the first run for the wrong reason.
+
+**Disagreements were the deliverable, and there were four.** Recorded below with the
+section that settled each.
+
+### Finding 1 — reserved `hdr_flags` bits: the codec was right, the FORMAT was wrong
+
+The generator emitted a `POLL` with `hdr_flags = 0x40`. §5.8's table is explicit —
+bits 6:0 are "Reserved — **write `0`**, ignore on receive" — so a conforming encoder
+writes zero and the codec's masking is correct.
+
+But the vector's intent was right and valuable: a receiver **must** accept those bits
+set. The two halves are deliberately asymmetric and cannot be witnessed by one
+encode-and-compare vector. The vector format had no way to say "no encoder emits this,
+a receiver must accept it", which was a defect in the format — mine — not in the
+generator. Fixed by adding `decode_only` to `/tools/vectors/README.md`; the generator
+now asserts at generation time that `decode_only` and "sets reserved bits" imply each
+other in both directions.
+
+### Finding 2 — a fragment arriving AFTER its set completed is undefined
+
+The duplicate-index vector delivered indices `0..14` — completing the set — and then
+index 4 twice more. §11.2 defines the overwrite for "a duplicate index within a
+**live** set", and a completed set is not live; §11.2 defines expiry only for
+*incomplete* sets. **The specification says nothing about a fragment arriving after
+its set completed.**
+
+The codec starts a new set (`accept` resets on a completed set before beginning). The
+vector assumed the duplicate was absorbed into the completed one. Both are defensible
+readings of silence, so the vector was moved to deliver its duplicates mid-set, which
+is the case §11.2 actually describes.
+
+**This needs a v0.5 decision.** It is not exotic: an RF echo of a late fragment and
+the bridge's own retry both produce it. A receiver today may plausibly start a bogus
+new set, resurrect a completed one, or drop the frame silently — and the third
+violates repo rule 4. Whatever v0.5 chooses wants a counter.
+
+### Finding 3 — `index ≥ total`: §14 stage 5b and §11.2 flatly contradict each other
+
+- §14 stage 5b: "`frag` well formed — total ≥ 1, **index < total** (§5.6)" →
+  `rx_bad_frag`, `ERROR(BAD_LENGTH)`
+- §11.2: "A fragment index ≥ the declared total ... is discarded with
+  `ERROR(FRAGMENT_OVERFLOW)`"
+
+The codec follows §11.2, because task E3 says so explicitly. The generator followed
+§14, reasoning that the ladder is ordered and stage 5b names the exact condition.
+
+**The value here is that the disagreement was reproduced independently.** The §14
+stage 5b wording was already flagged as suspect during E3 from reading it alone. An
+implementer who read that section cold, with no access to the codec, landed on the
+opposite answer. That is about as strong as evidence gets that the wording actively
+misleads, and it is the failure class §11.2's own note calls out — two conformant
+implementations disagreeing, with a valid CRC on every frame.
+
+**Proposed errata:** stage 5b's row should read "`frag` well formed — total ≥ 1" and
+drop "index < total" entirely. A summary table that contradicts the section it
+summarises is the summary's bug.
+
+### Finding 4 — stage 8a's counter: the CODEC was wrong
+
+§14 stage 8a names the wire error `ERROR(BAD_LENGTH)` but names **no counter**, and
+the codec folded it into `rx_bad_length`. The generator split it out as
+`rx_not_fragmentable`, arguing that "a peer fragmented a type that may not be
+fragmented" and "a peer's encoder got a length wrong" are different faults with
+different fixes.
+
+That is precisely the reasoning v0.4 itself used to split `rx_oversize` out of
+`rx_bad_length` (§14 stage 2a) and `rx_reassembly_abandoned` out of
+`rx_reassembly_timeout` (§11.3). **The codec changed.** `Status::NotFragmentable` now
+serves both directions and maps to a new `rx_not_fragmentable`; the wire answer stays
+`ERROR(BAD_LENGTH)` per §11.4, the same status/error asymmetry §5.6 already uses for
+`BadFrag`. `encode()` never touches `Counters`, so the sender's use of the status
+costs nothing.
+
+### Finding 5 — two counters were missing their `rx_` prefix, and one contradicts §11.3
+
+Raised by the generator while checking names. §11.3 names the counter
+`rx_reassembly_timeout` in prose ("counted `rx_reassembly_abandoned`, **not**
+`rx_reassembly_timeout`"). The codec had `reassembly_timeout`, unprefixed — a
+**code-versus-spec disagreement**, and the specification wins. `fragment_overflow` was
+unprefixed too, and v0.4's new `rx_reassembly_abandoned` had been sitting directly
+beside its unprefixed sibling without anyone noticing.
+
+Renamed to `rx_reassembly_timeout` and `rx_fragment_overflow`. A P1–P5 slip that
+survived every review because nothing had ever compared the counter names against the
+spec text. Cheap to fix now; it would have been a breaking rename once the bridge
+published these to MQTT.
+
+### What agreed on the first run
+
+Everything else, byte for byte: all six derived keys, every §19 single-frame length
+including the 222-byte maximum `PING` and both `HEX_REQ` sizes, and all nine
+fragmentation sets — in-order, reversed, shuffled and duplicate delivery — reassembling
+to the pre-fragmentation bytes exactly.
+
+The key derivation agreeing matters most. §9.1's `info` is `"node-" || <raw byte>`,
+and HKDF's output length `L` is **never stated in §9.1**; the generator inferred 32
+from the key feeding HMAC-SHA256. Had either differed, every authenticated frame would
+have failed its MAC with no counter pointing at key derivation. **§9.1 should state
+`L = 32` explicitly.**
+
+### Convergence
+
+Three rounds. After the four findings above plus the counter rename were applied, the
+two implementations agree on **all 69 vectors**: `check.py` passes and `test_vectors`
+passes with zero disagreements. Total suite: **94 tests** under `native`, from 71 at
+the start of v0.4 work.
+
+Adjudication was necessarily joint — the generator was told what the *spec* said, in
+citations it could check itself (§5.8, §11.2, §11.3), never what the codec did. Two
+items reached it as external authority it could not have derived: the stage-10
+adjudication for `index ≥ total` (task E3) and the `rx_` prefix renames (§11.3 line
+1437). Both are on the record here because a reader assessing how much the agreement
+is worth needs to know which parts were independent and which were handed over.
+
+### Notes for the C++ suite
+
+- It reports **every** disagreement rather than aborting at the first. Unity stops a
+  test function on its first failed assertion, which surfaced one finding and hid
+  eleven. The complete inventory is the product of this milestone.
+- Negative vectors assert **exactly one** counter moved — one frame, one discard.
+  Fragmentation vectors assert only that the named counter moved and no other did: a
+  set delivers many frames, and a counter can legitimately move once per fragment.
+- The JSON reader is test-only, fixed-arena, and nothing in `/lib/` may include it.
+
+### Still open
+
+- **P7 target build.** `platform/esp32/mbedtls_mac.cpp` is still UNVERIFIED and has
+  still never been compiled. The `espressif32` platform is installed locally, so the
+  compile itself (P7.1) is reachable without hardware; `firmware/bridge/` is an empty
+  shell and needs a build harness first. **P7.2–P7.4 need a board on USB** — the point
+  of that file is that the target uses mbedTLS where the host uses the portable
+  implementation, and agreement is the thing being tested.
+- The vector suite reads JSON from disk, which works under `native`. **P7.3 will need
+  the vectors embedded** as a generated header, since the target has no filesystem.

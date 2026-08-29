@@ -98,28 +98,28 @@
     },
     {
       "name": "frag_index_ge_total",
-      "spec_ref": "§5.6, §14 stage 5b",
-      "note": "index 3 of total 1. AMBIGUITY: §11.2 calls index >= total FRAGMENT_OVERFLOW at stage 10, but §14 stage 5b tests index < total and runs first. Taken at 5b.",
-      "frame": "020300014412efcdab893100000000000150a0",
+      "spec_ref": "§11.2, §14 stage 10",
+      "note": "frag 0x53: index 5 of a declared total of 3. Wire error is ERROR(FRAGMENT_OVERFLOW) (§11.2).",
+      "frame": "020700014412efcdab895300000000004445464748494a4b4c4d4e4f50511631",
       "decode": {
         "self": 1,
         "expect_ctx_id": 0,
-        "status": "BadFrag",
-        "counter": "rx_bad_frag",
-        "stage": "5b"
+        "status": "FragmentOverflow",
+        "counter": "rx_fragment_overflow",
+        "stage": "10"
       }
     },
     {
       "name": "frag_index_equals_total",
-      "spec_ref": "§5.6, §14 stage 5b",
-      "note": "A 0-based index equal to the 1-based total is the off-by-one an encoder actually makes.",
-      "frame": "020300014512efcdab8922000000000001ca0a",
+      "spec_ref": "§11.2, §14 stage 10",
+      "note": "frag 0x22: a 0-based index equal to the 1-based total is the off-by-one an encoder actually makes.",
+      "frame": "020700014512efcdab8922000000000045464748494a4b4c4d4e4f5051528e39",
       "decode": {
         "self": 1,
         "expect_ctx_id": 0,
-        "status": "BadFrag",
-        "counter": "rx_bad_frag",
-        "stage": "5b"
+        "status": "FragmentOverflow",
+        "counter": "rx_fragment_overflow",
+        "stage": "10"
       }
     },
     {
@@ -190,7 +190,7 @@
     {
       "name": "fragmented_hex_req",
       "spec_ref": "§11.4, §14 stage 8a",
-      "note": "HEX_REQ is single-frame in v1: `n` lives only in fragment 0 and the MAC requirement depends on a nibble inside the payload (§11.4). ERROR(BAD_LENGTH).",
+      "note": "HEX_REQ is single-frame in v1: `n` lives only in fragment 0 and the MAC requirement depends on a nibble inside the payload (§11.4). Wire error is ERROR(BAD_LENGTH); the counter is its own, because a peer fragmenting an unfragmentable type is a different fault from a bad length.",
       "frame": "020800014b12efcdab89020000000000000a3a374630454430303731cacb",
       "decode": {
         "self": 1,
@@ -203,7 +203,7 @@
     {
       "name": "fragmented_command",
       "spec_ref": "§11.4, §14 stage 8a",
-      "note": "A 4-byte COMMAND is never fragmentable. The MAC is valid, so stage 8a must reject it before stage 9 accepts it.",
+      "note": "A 4-byte COMMAND is never fragmentable. The MAC is valid, so stage 8a must reject it before stage 9 accepts it. Wire error is ERROR(BAD_LENGTH) (§11.4), counter rx_not_fragmentable.",
       "frame": "020100014c12efcdab890200000000000100000099a60f4538cbf433c8ec",
       "decode": {
         "self": 1,

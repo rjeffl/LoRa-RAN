@@ -248,6 +248,11 @@ the first place.
 
 `stage` is the §14 row, for the human reading a failure.
 
+**Every counter is `rx_*`.** §11.3 names `rx_reassembly_timeout` explicitly, and the
+codec's `reassembly_timeout` / `fragment_overflow` were renamed to match — a naming
+inconsistency the generator caught. `rx_fragment_overflow` is a discard and IS summed
+into `rx_dropped`; `rx_frag_duplicate` counts an overwrite and is not (§14).
+
 **Counter names.** §14 names a counter for stages 1–5b but not for stages 6 through 9.
 The names used across these vectors and the C++ consumer are `rx_unknown_type` (6),
 `rx_unknown_schema` (7), `rx_bad_length` (8), `rx_not_fragmentable` (8a),

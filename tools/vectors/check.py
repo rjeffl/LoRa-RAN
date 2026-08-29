@@ -199,7 +199,10 @@ def receive(frame: bytes, self_id: int, expect_ctx_id: int):
         raise Reject("UnknownHdrExt", "rx_unknown_hdr_ext", "5a")             # stage 5a
     total = h["frag"] & 0x0F                                                  # §5.6
     index = (h["frag"] >> 4) & 0x0F
-    if total == 0 or index >= total:
+    # §14 stage 5b reads "total >= 1, index < total", but §11.2 gives index >= total
+    # to ERROR(FRAGMENT_OVERFLOW), which is stage 10. Adjudicated for §11.2: stage 5b
+    # is a total of 0 and nothing else.
+    if total == 0:
         raise Reject("BadFrag", "rx_bad_frag", "5b")                          # stage 5b
     if h["type_id"] not in TYPE_NAME:
         raise Reject("UnknownType", "rx_unknown_type", "6")                   # stage 6
@@ -258,6 +261,11 @@ def receive(frame: bytes, self_id: int, expect_ctx_id: int):
         want = hmac.new(key, frame[:LRAN_HDR_LEN] + payload, hashlib.sha256).digest()[:LRAN_MAC_LEN]
         if not hmac.compare_digest(want, mac):
             raise Reject("BadMac", "rx_bad_mac", "9")
+
+    if index >= total:             # §11.2, §14 stage 10 - ERROR(FRAGMENT_OVERFLOW)
+        # §11.3 spells the sibling reassembly counters with the rx_ prefix, and this
+        # one is a discard, so it is summed into rx_dropped (§14, schema 0xF0).
+        raise Reject("FragmentOverflow", "rx_fragment_overflow", "10")
     return "Ok", payload, mac_present
 
 
@@ -338,6 +346,14 @@ def check_single():
         if sizes_key in EXPECTED_FRAME_LEN and key is None:
             expect(len(built) == EXPECTED_FRAME_LEN[sizes_key], w,
                    "§19 says %d B, frame is %d B" % (EXPECTED_FRAME_LEN[sizes_key], len(built)))
+        # §5.8 - a frame with reserved hdr_flags bits or non-zero reserved bytes
+        # is one no conforming encoder emits, and must be marked decode_only
+        # (README). The converse holds too: decode_only must not hide a frame the
+        # generator simply got wrong.
+        sender_rule_broken = bool(hdr_flags & 0x7F) or built[13:16] != b"\x00\x00\x00"
+        expect(bool(v.get("decode_only", False)) == sender_rule_broken, w,
+               "decode_only is %r but the frame %s a §5.8/§5.9 sender rule"
+               % (v.get("decode_only", False), "breaks" if sender_rule_broken else "obeys"))
         d = v["decode"]
         expect(d["mac_present"] == (key is not None), w, "mac_present disagrees with key")
         try:
@@ -398,10 +414,22 @@ def check_frag():
                "delivery_order %r does not cover 0..%d" % (order, total - 1))
         store = {}
         duplicates = 0
-        for i in order:
+        late_duplicates = 0
+        completed_at = None
+        for position, i in enumerate(order):
             if i in store:
                 duplicates += 1
+                # §11.2 defines an overwrite only "within a LIVE set". A repeat
+                # arriving after the set completed is not covered by v0.4 at all,
+                # so a vector must not assert an outcome for it.
+                if completed_at is not None:
+                    late_duplicates += 1
             store[i] = chunks[i]
+            if completed_at is None and len(store) == total:
+                completed_at = position
+        expect(late_duplicates == 0, w,
+               "delivery_order repeats an index after the set completed; §11.2 covers "
+               "duplicates within a live set only")
         reassembled = b"".join(store[i] for i in range(total))
         expect(reassembled.hex() == d["reassembled"], w, "reassembled bytes differ")
         expect(reassembled == payload, w, "reassembly does not reproduce the declared payload")
