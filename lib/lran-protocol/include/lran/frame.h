@@ -56,6 +56,17 @@ struct Frame {
   // Set by decode_payload for authenticated types; nullptr when the frame carries
   // no MAC. Points at the 8 MAC bytes inside the same caller-owned buffer.
   const uint8_t* mac = nullptr;
+
+  // True only when decode_payload actually COMPUTED the MAC and it matched. A frame
+  // decoded with DecodeCtx::mac == nullptr carries `mac` but not this flag: the
+  // bytes are present and were never checked.
+  //
+  // It exists so spec 14's "stage 9 precedes stage 10" is a property the library
+  // enforces rather than one every caller has to remember. Reassembler::accept
+  // refuses to buffer a fragment of an authenticated type without it - see spec 9.4,
+  // which is what keeps an attacker holding no key from occupying every reassembly
+  // slot on the bridge with forged fragment-0 frames.
+  bool mac_verified = false;
 };
 
 }  // namespace lran

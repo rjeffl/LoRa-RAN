@@ -41,11 +41,31 @@ struct Counters {
   uint32_t rx_unknown_type    = 0;  // stage 6
   uint32_t rx_unknown_schema  = 0;  // stage 7
   uint32_t rx_bad_length      = 0;  // stage 8
+
+  // spec 14 stage 8a - a fragmented type spec 11.4 rules out. Stage 8a shares
+  // stage 8's wire error, ERROR(BAD_LENGTH), but not its counter: one says a peer
+  // fragmented something it may not fragment, the other says a peer's encoder got
+  // a length wrong. Different faults, different fixes.
+  uint32_t rx_not_fragmentable = 0;
   uint32_t rx_bad_mac         = 0;  // spec 9.4 step 3
   uint32_t rx_ctx_mismatch    = 0;  // spec 10.1
 
-  uint32_t reassembly_timeout = 0;  // stage 9, spec 11
-  uint32_t fragment_overflow  = 0;  // stage 9, spec 11
+  uint32_t rx_reassembly_timeout = 0;  // stage 10, spec 11.2
+
+  // spec 11.3 - a new (src, ctx_id, seq, schema) displaced a live set with no slot
+  // free. Held apart from rx_reassembly_timeout because the two have different
+  // diagnoses: a timeout means the RF path dropped a fragment, an abandonment means
+  // the receiver is undersized or a peer is interleaving sets. Neither may be silent.
+  uint32_t rx_reassembly_abandoned = 0;
+
+  uint32_t rx_fragment_overflow  = 0;  // stage 10, spec 11.2
+
+  // spec 11.2 - a duplicate index within a live set OVERWRITES the stored fragment.
+  // Retransmission and RF echo both produce it, so it is not an error and not a
+  // discard: it counts an overwrite, and is deliberately NOT summed into
+  // total_dropped / schema 0xF0's rx_dropped. No Status maps to it for that reason -
+  // the Reassembler increments it directly.
+  uint32_t rx_frag_duplicate = 0;
 
   uint32_t cad_backoffs = 0;  // spec 12.3 - bumped by the radio driver, not a discard
 

@@ -1,0 +1,926 @@
+{
+  "format": "lran-test-vectors/1",
+  "spec": "LRAN-Protocol-Specification v0.4",
+  "wire_ver": 2,
+  "group": "single",
+  "generated_by": "tools/vectors/generate.py",
+  "vectors": [
+    {
+      "name": "poll_full_status",
+      "spec_ref": "§6.4, §19",
+      "note": "poll_flags bit 0 - request full status.",
+      "header": {
+        "ver": 2,
+        "type": "POLL",
+        "src": 0,
+        "dst": 1,
+        "seq": 4660,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01",
+      "key": null,
+      "frame": "020300013412efcdab8901000000000001d198",
+      "frame_len": 19,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "poll_config_readback",
+      "spec_ref": "§6.4, §7.4",
+      "note": "poll_flags bit 1 - config readback, the §7.4 recovery for a lost CONFIG_ACK.",
+      "header": {
+        "ver": 2,
+        "type": "POLL",
+        "src": 0,
+        "dst": 1,
+        "seq": 4661,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "02",
+      "key": null,
+      "frame": "020300013512efcdab8901000000000002d1ed",
+      "frame_len": 19,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "02",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "poll_broadcast_dst",
+      "spec_ref": "§5.3, §14 stage 5",
+      "note": "dst 0xFF is accepted by every node (§5.3).",
+      "header": {
+        "ver": 2,
+        "type": "POLL",
+        "src": 0,
+        "dst": 255,
+        "seq": 4662,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01",
+      "key": null,
+      "frame": "020300ff3612efcdab8901000000000001e2d5",
+      "frame_len": 19,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "poll_reserved_hdr_flags_ignored",
+      "spec_ref": "§5.8, §4.3",
+      "decode_only": true,
+      "note": "hdr_flags bit 6 set. §5.8 requires a sender write 0 here, so no encoder emits this frame; a receiver must ignore it, not validate it as zero.",
+      "header": {
+        "ver": 2,
+        "type": "POLL",
+        "src": 0,
+        "dst": 1,
+        "seq": 4663,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x40"
+      },
+      "payload": "01",
+      "key": null,
+      "frame": "020300013712efcdab89010040000000011c46",
+      "frame_len": 19,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "command_open",
+      "spec_ref": "§6.2, §8.1, §9.3, §19",
+      "note": "OPEN. MAC over the whole 16-byte header plus payload (§9.3).",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 1,
+        "seq": 1,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01000000",
+      "key": "node:0x01",
+      "frame": "020100010100efcdab8901000000000001000000c41d17e554cf3c07727e",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "01000000",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "command_close_immediate",
+      "spec_ref": "§6.2, §8.1",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 1,
+        "seq": 2,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "02010000",
+      "key": "node:0x01",
+      "frame": "020100010200efcdab89010000000000020100009b7879d4daf4992d2b76",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "02010000",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "command_set_debug_mode",
+      "spec_ref": "§6.2, §8.1",
+      "note": "arg2 is a little-endian uint16 bitmask (§4.1).",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 1,
+        "seq": 3,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "20000501",
+      "key": "node:0x01",
+      "frame": "020100010300efcdab8901000000000020000501d417379a389beff37eac",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "20000501",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "command_reboot_guarded",
+      "spec_ref": "§6.2, §8.1",
+      "note": "REBOOT requires arg = 0xA5 as a confirmation guard.",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 1,
+        "seq": 4,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "7fa50000",
+      "key": "node:0x01",
+      "frame": "020100010400efcdab890100000000007fa50000dd6f74d10cbc735b81c8",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "7fa50000",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "command_to_simnode0",
+      "spec_ref": "§5.3, §9.1",
+      "note": "Same command bytes as GateLink would see, different key: §9.1 keys follow the address.",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 240,
+        "seq": 7,
+        "ctx_id": 195936478,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "10000000",
+      "key": "node:0xf0",
+      "frame": "020100f00700dec0ad0b01000000000010000000b8cecafbe18aec46b88b",
+      "frame_len": 30,
+      "decode": {
+        "self": 240,
+        "expect_ctx_id": 195936478,
+        "status": "Ok",
+        "payload": "10000000",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "command_ack_accepted",
+      "spec_ref": "§6.3, §8.2, §19",
+      "note": "ACCEPTED means dispatched, not that the gate moved (§6.3).",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 1,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "010000000000",
+      "key": null,
+      "frame": "020201000100efcdab8901000000000001000000000039fc",
+      "frame_len": 24,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "010000000000",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "command_ack_duplicate_cached",
+      "spec_ref": "§6.3, §10.4",
+      "note": "A retry reuses the COMMAND's seq, so the node returns the cached ACK - not a second pulse.",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 2,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "010007000000",
+      "key": null,
+      "frame": "020201000200efcdab8901000000000001000700000066ad",
+      "frame_len": 24,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "010007000000",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "command_ack_rejected_ctx",
+      "spec_ref": "§6.3, §10.3",
+      "note": "Carries the node's OWN ctx_id in the header - that is what the bridge adopts (§10.3).",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 3,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "090003000000",
+      "key": null,
+      "frame": "020201000300efcdab89010000000000090003000000e49a",
+      "frame_len": 24,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "090003000000",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_gatelink_0x10_nominal",
+      "spec_ref": "§7.2, §7.1, §19",
+      "note": "96-byte frame: the largest real frame the system emits.",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 1,
+        "dst": 0,
+        "seq": 100,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x10",
+        "hdr_flags": "0x00"
+      },
+      "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b00",
+      "key": null,
+      "frame": "020401006400efcdab89011000000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b00aeb8",
+      "frame_len": 96,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b00",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_gatelink_0x10_all_unavailable",
+      "spec_ref": "§4.6, §7.2, §7.2.9",
+      "note": "Sentinels, not zero: UINT32_MAX traversal age, INT16_MIN load_ma, 0xFF SOC, 0 RSSI.",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 1,
+        "dst": 0,
+        "seq": 101,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x10",
+        "hdr_flags": "0x00"
+      },
+      "payload": "000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffff000000020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff008000804009",
+      "key": null,
+      "frame": "020401006500efcdab89011000000000000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffff000000020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff0080008040091f97",
+      "frame_len": 96,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffff000000020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff008000804009",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_health_0xf0",
+      "spec_ref": "§7.5, §7.1, §19",
+      "note": "0xF0 is a schema carried by STATUS, never a message type (§7.5).",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 1,
+        "dst": 0,
+        "seq": 102,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0xf0",
+        "hdr_flags": "0x00"
+      },
+      "payload": "100e000007000004e80303000c009fff55000200",
+      "key": null,
+      "frame": "020401006600efcdab8901f000000000100e000007000004e80303000c009fff550002008ddc",
+      "frame_len": 38,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "100e000007000004e80303000c009fff55000200",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_bridge_self_report_0xf0",
+      "spec_ref": "§7.5",
+      "note": "§7.5 - the bridge self-reports under src 0x00. Negative SNR is two's complement (§4.5).",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 0,
+        "dst": 0,
+        "seq": 1,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0xf0",
+        "hdr_flags": "0x00"
+      },
+      "payload": "00a302000200409c204e00000000acfff1ff0201",
+      "key": null,
+      "frame": "020400000100efcdab8901f00000000000a302000200409c204e00000000acfff1ff0201101d",
+      "frame_len": 38,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "00a302000200409c204e00000000acfff1ff0201",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_simnode_0xfe",
+      "spec_ref": "§7.1, §17.3",
+      "note": "Bench schema mirroring 0x10; status_reason DEBUG_SYNTHETIC must reach MQTT (§8.7).",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 240,
+        "dst": 0,
+        "seq": 5,
+        "ctx_id": 195936478,
+        "frag": "0x01",
+        "schema": "0xfe",
+        "hdr_flags": "0x00"
+      },
+      "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010bff",
+      "key": null,
+      "frame": "0204f0000500dec0ad0b01fe00000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010bffda48",
+      "frame_len": 96,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010bff",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "event_vehicle_while_held_open",
+      "spec_ref": "§7.3, §8.9, §19",
+      "note": "direction UNDETERMINED: alert on the first edge, refine later (§7.3).",
+      "header": {
+        "ver": 2,
+        "type": "EVENT",
+        "src": 1,
+        "dst": 0,
+        "seq": 200,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x11",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01000103040100002a00000080510100",
+      "key": null,
+      "frame": "02050100c800efcdab8901110000000001000103040100002a0000008051010067fb",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01000103040100002a00000080510100",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "event_followup_direction_resolved",
+      "spec_ref": "§7.3",
+      "note": "Same event_id, event_flags bit 0 set - the follow-up that resolves direction.",
+      "header": {
+        "ver": 2,
+        "type": "EVENT",
+        "src": 1,
+        "dst": 0,
+        "seq": 201,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x11",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01010101040500002a00000082510100",
+      "key": null,
+      "frame": "02050100c900efcdab8901110000000001010101040500002a00000082510100e647",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01010101040500002a00000082510100",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "event_fire_asserted",
+      "spec_ref": "§7.3, §8.9",
+      "header": {
+        "ver": 2,
+        "type": "EVENT",
+        "src": 1,
+        "dst": 0,
+        "seq": 202,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x11",
+        "hdr_flags": "0x00"
+      },
+      "payload": "02000300021200002b000000e4510100",
+      "key": null,
+      "frame": "02050100ca00efcdab8901110000000002000300021200002b000000e45101006c91",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "02000300021200002b000000e4510100",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "error_bad_length",
+      "spec_ref": "§6.5, §8.8, §19",
+      "note": "ref_seq is the offending frame's seq, or 0.",
+      "header": {
+        "ver": 2,
+        "type": "ERROR",
+        "src": 1,
+        "dst": 0,
+        "seq": 300,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "02003412",
+      "key": null,
+      "frame": "020601002c01efcdab8901000000000002003412837e",
+      "frame_len": 22,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "02003412",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "error_unknown_hdr_ext",
+      "spec_ref": "§5.8, §8.8, §14 stage 5a",
+      "note": "The reply a node owes for a CRITICAL_EXT it does not implement.",
+      "header": {
+        "ver": 2,
+        "type": "ERROR",
+        "src": 1,
+        "dst": 0,
+        "seq": 301,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0a803512",
+      "key": null,
+      "frame": "020601002d01efcdab890100000000000a8035120f5b",
+      "frame_len": 22,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0a803512",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "ping_empty_echo",
+      "spec_ref": "§6.6, §19",
+      "note": "n = 0: the 20-byte floor of the 20+N line.",
+      "header": {
+        "ver": 2,
+        "type": "PING",
+        "src": 0,
+        "dst": 1,
+        "seq": 500,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0000",
+      "key": null,
+      "frame": "02070001f401efcdab890100000000000000d806",
+      "frame_len": 20,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0000",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "ping_pattern_fill_8",
+      "spec_ref": "§6.6.3",
+      "note": "data[i] = (seq & 0xFF) + i, so seq 501 -> 0xF5, 0xF6, ... wrapping at 0xFF.",
+      "header": {
+        "ver": 2,
+        "type": "PING",
+        "src": 0,
+        "dst": 1,
+        "seq": 501,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0108f5f6f7f8f9fafbfc",
+      "key": null,
+      "frame": "02070001f501efcdab890100000000000108f5f6f7f8f9fafbfc633f",
+      "frame_len": 28,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0108f5f6f7f8f9fafbfc",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "ping_max_222_bytes",
+      "spec_ref": "§6.6.1, §3.1, §19",
+      "note": "n = 202 gives a frame of exactly LRAN_MAX_FRAME = 222 bytes.",
+      "header": {
+        "ver": 2,
+        "type": "PING",
+        "src": 0,
+        "dst": 1,
+        "seq": 502,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01caf6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+      "key": null,
+      "frame": "02070001f601efcdab8901000000000001caf6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf7ec1",
+      "frame_len": 222,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01caf6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "ping_echo_reply_swapped",
+      "spec_ref": "§6.6, §17.3",
+      "note": "The responder swaps src/dst and preserves seq, ping_flags and the echo bytes.",
+      "header": {
+        "ver": 2,
+        "type": "PING",
+        "src": 1,
+        "dst": 0,
+        "seq": 501,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0108f5f6f7f8f9fafbfc",
+      "key": null,
+      "frame": "02070100f501efcdab890100000000000108f5f6f7f8f9fafbfc6b6d",
+      "frame_len": 28,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0108f5f6f7f8f9fafbfc",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "hex_req_get_plain",
+      "spec_ref": "§7.6, §9.2, §19",
+      "note": "Command nibble '7' (Get) - read-only, no MAC (§7.6). Frame is 20+N.",
+      "header": {
+        "ver": 2,
+        "type": "HEX_REQ",
+        "src": 0,
+        "dst": 1,
+        "seq": 600,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "000a3a374630454430303731",
+      "key": null,
+      "frame": "020800015802efcdab89010000000000000a3a37463045443030373198e2",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "000a3a374630454430303731",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "hex_req_set_authenticated",
+      "spec_ref": "§7.6, §9.2, §19",
+      "note": "Command nibble '8' (Set) MUST carry a MAC: frame is 28+N, N=13 -> 41 B.",
+      "header": {
+        "ver": 2,
+        "type": "HEX_REQ",
+        "src": 0,
+        "dst": 1,
+        "seq": 601,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "010d3a384630454430304338303038",
+      "key": "node:0x01",
+      "frame": "020800015902efcdab89010000000000010d3a3846304544303043383030383b677af3de3b85501781",
+      "frame_len": 41,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "010d3a384630454430304338303038",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "hex_req_restart_authenticated",
+      "spec_ref": "§7.6, §9.2",
+      "note": "Command nibble '6' (Restart) is write-class too.",
+      "header": {
+        "ver": 2,
+        "type": "HEX_REQ",
+        "src": 0,
+        "dst": 1,
+        "seq": 602,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01043a363446",
+      "key": "node:0x01",
+      "frame": "020800015a02efcdab8901000000000001043a36344650adb76aa62753025dd8",
+      "frame_len": 32,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "01043a363446",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "hex_rsp_ok",
+      "spec_ref": "§7.6, §8.13, §19",
+      "note": "§19 errata: HEX_RSP is 20+N, not 21+N - the payload is 2+N like HEX_REQ.",
+      "header": {
+        "ver": 2,
+        "type": "HEX_RSP",
+        "src": 1,
+        "dst": 0,
+        "seq": 603,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "000e3a37463045443030433830304539",
+      "key": null,
+      "frame": "020901005b02efcdab89010000000000000e3a374630454430304338303045398a6e",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "000e3a37463045443030433830304539",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "hex_rsp_timeout",
+      "spec_ref": "§7.6, §8.13",
+      "note": "n = 0 on error; a timeout is reported, never answered with silence.",
+      "header": {
+        "ver": 2,
+        "type": "HEX_RSP",
+        "src": 1,
+        "dst": 0,
+        "seq": 604,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0100",
+      "key": null,
+      "frame": "020901005c02efcdab8901000000000001001238",
+      "frame_len": 20,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0100",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "config_set_two_entries",
+      "spec_ref": "§7.4, §8.10, §9.2, §19",
+      "note": "op = SET; entries are param_id/ptype/len/value, value little-endian.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG",
+        "src": 0,
+        "dst": 1,
+        "seq": 700,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "010201010202dc050201060101",
+      "key": "node:0x01",
+      "frame": "020a0001bc02efcdab89011200000000010201010202dc0502010601018a8d791641edacdb1892",
+      "frame_len": 39,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "010201010202dc050201060101",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "config_get_all",
+      "spec_ref": "§7.4, §8.10",
+      "note": "GET_ALL carries count = 0 and no entries: a 2-byte payload.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG",
+        "src": 0,
+        "dst": 1,
+        "seq": 701,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0300",
+      "key": "node:0x01",
+      "frame": "020a0001bd02efcdab8901120000000003000794b2a853be262d46b6",
+      "frame_len": 28,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "0300",
+        "mac_present": true
+      }
+    },
+    {
+      "name": "config_ack_clamped_not_persisted",
+      "spec_ref": "§7.4, §8.11, §8.12",
+      "note": "CLAMPED entry carries the EFFECTIVE value (1200), persist_status = APPLIED_NOT_PERSISTED.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 702,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0101020101020202b004020100060101",
+      "key": null,
+      "frame": "020b0100be02efcdab890112000000000101020101020202b004020100060101682e",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0101020101020202b004020100060101",
+        "mac_present": false
+      }
+    }
+  ]
+}

@@ -113,6 +113,44 @@ bool type_requires_mac(MsgType type) {
   return false;
 }
 
+bool type_is_fragmentable(MsgType type) {
+  switch (type) {
+    // spec 11.4 - CONFIG exceeds one frame at 24 uint32 entries and CONFIG_ACK at 21
+    // results (spec 7.4), which is what moved fragmentation from insurance onto the
+    // production path. PING is the bench vehicle (spec 6.6.2).
+    case MsgType::Config:
+    case MsgType::ConfigAck:
+    case MsgType::Ping:
+      return true;
+
+    // Permitted but unused in v1: every defined schema is fixed and fits.
+    case MsgType::Status:
+    case MsgType::Event:
+      return true;
+
+    // Fixed and small. A 4-byte COMMAND kept to one frame is what keeps the
+    // authentication and replay logic simple.
+    case MsgType::Command:
+    case MsgType::CommandAck:
+    case MsgType::Poll:
+    case MsgType::Error:
+      return false;
+
+    // Ruled out in v1 - see the header.
+    case MsgType::HexReq:
+    case MsgType::HexRsp:
+      return false;
+  }
+  return false;
+}
+
+size_t default_frag_chunk(MsgType type) {
+  // spec 11.1 - stated as the maximum payload for the type, and taken literally. A
+  // clamp to the reassembly cap here would be a second implementation's chance to
+  // disagree, which is the whole failure W4 exists to catch.
+  return type_requires_mac(type) ? kMaxPayloadAuth : kMaxPayloadPlain;
+}
+
 bool hex_req_is_write_class(const uint8_t* payload, size_t payload_len) {
   // [flags][n][hex:n]; the nibble is the character after the leading ':'.
   //

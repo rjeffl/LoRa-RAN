@@ -3,6 +3,7 @@
 
 #include "lran/reassembly.h"
 
+#include "lran/codec.h"
 #include "lran/wire.h"
 
 namespace lran {
@@ -18,6 +19,7 @@ void Reassembler::reset() {
   complete_   = false;
   got_mask_   = 0;
   stage_used_ = 0;
+  set_len_    = 0;
   out_len_    = 0;
   total_      = 0;
 }
@@ -79,6 +81,23 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
     return count(counters_, Status::FragmentOverflow);
   }
 
+  // spec 11.4 - HEX_REQ and HEX_RSP are single-frame in v1. A fragmented one is
+  // discarded at spec 14 stage 8a; the decode path rejects it first, this is the
+  // same rule enforced for a caller driving the Reassembler directly.
+  if (total > 1 && !type_is_fragmentable(f.hdr.type)) {
+    return count(counters_, Status::NotFragmentable);
+  }
+
+  // spec 9.4 / 14 - stage 9 precedes stage 10. A fragment of an authenticated type
+  // that was never verified must not occupy a slot: under v0.3's ordering the
+  // forgery would be detected only once the set completed, which an attacker simply
+  // never allows. Single-frame frames are exempt - nothing is held, and the caller
+  // has the frame in hand either way.
+  if (total > 1 && frame_has_mac(f.hdr.type, f.payload, f.payload_len) &&
+      !f.mac_verified) {
+    return count(counters_, Status::BadMac);
+  }
+
   const size_t cap = reassembly_cap(f.hdr.type);
 
   // spec 5.6 - 0x01 is a single unfragmented frame. Handled here so a caller can
@@ -97,11 +116,14 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   }
 
   if (active_ && !same_set(f)) {
-    // A different set arrived while this one was still incomplete. Only one set is
-    // held, so the old one is abandoned - counted under reassembly_timeout because
-    // from that set's point of view it never completed within its window. Never
-    // silent (repo rule 4).
-    count(counters_, Status::ReassemblyTimeout);
+    // spec 11.3 - a different set arrived while this one was still incomplete and
+    // this object holds one set. The displaced set is ABANDONED, which is a
+    // different diagnosis from a timeout: a timeout means the RF path dropped a
+    // fragment, an abandonment means the receiver is undersized or a peer is
+    // interleaving sets. A bridge holding one Reassembler per provisioned node
+    // (spec 11.3) should see this counter stay at zero; if it rises, the fix is
+    // capacity, not RF.
+    count(counters_, Status::ReassemblyAbandoned);
     reset();
   }
   if (!active_) begin(f, now_ms);
@@ -114,14 +136,46 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
     return Status::FragmentOverflow;
   }
 
-  // A retransmit after a CAD backoff (spec 12.3) is ordinary traffic, not an error.
-  if (got_mask_ & static_cast<uint16_t>(1u << index)) return Status::Ok;
+  const bool     duplicate = (got_mask_ & static_cast<uint16_t>(1u << index)) != 0;
+  const uint16_t old_len   = duplicate ? frag_len_[index] : 0;
 
-  // spec 11 - a set exceeding its cap on reassembly is ERROR(FRAGMENT_OVERFLOW).
-  // Checked incrementally so an oversized set is rejected at the fragment that
-  // overruns rather than after the buffer has already been overrun.
+  // spec 11.2 - the reassembled length is the sum of the fragment payload lengths,
+  // and a set exceeding its cap is ERROR(FRAGMENT_OVERFLOW). Checked incrementally so
+  // an oversized set is rejected at the fragment that overruns it rather than after
+  // the buffer has been overrun. `set_len_` is the set's true length and is NOT
+  // stage_used_: an overwrite of differing length leaves dead bytes in staging, and
+  // charging those against the cap would reject a set that fits.
+  if (static_cast<size_t>(set_len_) - old_len + f.payload_len > cap) {
+    count(counters_, Status::FragmentOverflow);
+    reset();
+    return Status::FragmentOverflow;
+  }
+
+  if (duplicate) {
+    // spec 11.2 - a duplicate index within a live set OVERWRITES the stored fragment
+    // and is counted rx_frag_duplicate. Retransmission after a CAD backoff
+    // (spec 12.3) and RF echo both produce it, so it is ordinary traffic rather than
+    // an error, and the counter records an overwrite rather than a discard.
+    if (counters_ != nullptr) ++counters_->rx_frag_duplicate;
+
+    // Same length is the case that actually occurs and overwrites in place. A
+    // different length means the peer has contradicted itself about a fragment it
+    // already sent; the new bytes still win, but they must be appended because
+    // staging holds fragments at arrival-order offsets, and the old copy is left as
+    // dead space.
+    if (f.payload_len == old_len) {
+      for (size_t i = 0; i < f.payload_len; ++i) {
+        stage_[frag_off_[index] + i] = f.payload[i];
+      }
+      return Status::Ok;
+    }
+  }
+
+  // The staging buffer is a separate resource from the cap: it also holds whatever
+  // dead space earlier overwrites left behind. Exhausting it fails loudly rather
+  // than misassembling.
   if (f.payload_len > sizeof(stage_) ||
-      static_cast<size_t>(stage_used_) + f.payload_len > cap) {
+      static_cast<size_t>(stage_used_) + f.payload_len > sizeof(stage_)) {
     count(counters_, Status::FragmentOverflow);
     reset();
     return Status::FragmentOverflow;
@@ -131,6 +185,8 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   frag_len_[index] = static_cast<uint16_t>(f.payload_len);
   for (size_t i = 0; i < f.payload_len; ++i) stage_[stage_used_ + i] = f.payload[i];
   stage_used_ = static_cast<uint16_t>(stage_used_ + f.payload_len);
+  set_len_ =
+      static_cast<uint16_t>(static_cast<size_t>(set_len_) - old_len + f.payload_len);
   got_mask_ |= static_cast<uint16_t>(1u << index);
 
   const uint16_t want_mask = static_cast<uint16_t>((1u << total_) - 1u);

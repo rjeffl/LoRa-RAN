@@ -1,0 +1,66 @@
+{
+  "format": "lran-test-vectors/1",
+  "spec": "LRAN-Protocol-Specification v0.4",
+  "wire_ver": 2,
+  "group": "kdf",
+  "generated_by": "tools/vectors/generate.py",
+  "vectors": [
+    {
+      "name": "node_key_gatelink",
+      "spec_ref": "§9.1",
+      "note": "GateLink. §9.1 prints these six info bytes literally.",
+      "node_id": "0x01",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652d01",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "096128ad38492166bf1dfaee7f66a419cee8dc1bf91b8686fe6f8b16fa88571a"
+    },
+    {
+      "name": "node_key_welllink",
+      "spec_ref": "§9.1",
+      "note": "WellLink, reserved address, provisionable today.",
+      "node_id": "0x02",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652d02",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "16f5f9bb677983c56fd689f6aca30a1219ee397c29f5cc47df85b271fdfae50a"
+    },
+    {
+      "name": "node_key_simnode0",
+      "spec_ref": "§9.1",
+      "note": "Bench node 0. §5.3 enumerates bench IDs because keys are per ID.",
+      "node_id": "0xf0",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652df0",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "511c9c03b98c128220ff1f45749fe224fd5cfa9f5418399b942f31d998de68b1"
+    },
+    {
+      "name": "node_key_simnode1",
+      "spec_ref": "§9.1",
+      "node_id": "0xf1",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652df1",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "dcd11b9d434b4236c13fdd88305284b7be7b8ad342f2dbc621a037194fd25b79"
+    },
+    {
+      "name": "node_key_simnode2",
+      "spec_ref": "§9.1",
+      "node_id": "0xf2",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652df2",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "027bee82977beef59939964c8a202db5dcd83b55241171a2da1b6d225bb198f6"
+    },
+    {
+      "name": "node_key_simnode3",
+      "spec_ref": "§9.1",
+      "node_id": "0xf3",
+      "salt": "6c72616e2d7631",
+      "info": "6e6f64652df3",
+      "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+      "node_key": "385075d3a46b6f7632078314dceeccd33151dc62a5906bee6f8b0c1b69872ed9"
+    }
+  ]
+}

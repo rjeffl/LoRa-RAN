@@ -20,8 +20,10 @@ void Counters::bump(Status s) {
     case Status::UnknownType:       ++rx_unknown_type; return;
     case Status::UnknownSchema:     ++rx_unknown_schema; return;
     case Status::BadLength:         ++rx_bad_length; return;
-    case Status::ReassemblyTimeout: ++reassembly_timeout; return;
-    case Status::FragmentOverflow:  ++fragment_overflow; return;
+    case Status::NotFragmentable:   ++rx_not_fragmentable; return;
+    case Status::ReassemblyTimeout: ++rx_reassembly_timeout; return;
+    case Status::ReassemblyAbandoned: ++rx_reassembly_abandoned; return;
+    case Status::FragmentOverflow:  ++rx_fragment_overflow; return;
     case Status::BadMac:            ++rx_bad_mac; return;
     case Status::CtxMismatch:       ++rx_ctx_mismatch; return;
 
@@ -34,10 +36,14 @@ void Counters::bump(Status s) {
 }
 
 uint32_t Counters::total_dropped() const {
+  // rx_frag_duplicate is deliberately absent: spec 11.2 makes a duplicate index an
+  // overwrite, not a discard, and summing it here would inflate rx_dropped every
+  // time the RF path echoed a fragment that was then used successfully.
   return rx_crc_err + rx_runt + rx_oversize + rx_bad_crc + rx_bad_ver +
          rx_not_addressed + rx_unknown_hdr_ext + rx_bad_frag + rx_unknown_type +
-         rx_unknown_schema + rx_bad_length + rx_bad_mac + rx_ctx_mismatch +
-         reassembly_timeout + fragment_overflow;
+         rx_unknown_schema + rx_bad_length + rx_not_fragmentable + rx_bad_mac +
+         rx_ctx_mismatch +
+         rx_reassembly_timeout + rx_reassembly_abandoned + rx_fragment_overflow;
 }
 
 void Counters::reset() { *this = Counters{}; }

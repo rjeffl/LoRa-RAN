@@ -86,8 +86,23 @@ enum class Status : uint8_t {
   UnknownType,        // stage 6
   UnknownSchema,      // stage 7
   BadLength,          // stage 8
-  ReassemblyTimeout,  // stage 9, spec 11
-  FragmentOverflow,   // stage 9, spec 11
+  ReassemblyTimeout,  // stage 10, spec 11.2 - the set's window expired
+  ReassemblyAbandoned,  // spec 11.3 - a new set displaced a live one
+  FragmentOverflow,   // stage 10, spec 11.2
+
+  // spec 11.4 / 14 stage 8a - a type v1 rules out was fragmented. Serves BOTH
+  // directions: the sender's refusal to emit one (a spec violation the encoder
+  // declined to commit) and the receiver's discard of one.
+  //
+  // The WIRE answer stays ERROR(BAD_LENGTH), which is what spec 11.4 and stage 8a
+  // require; the COUNTER is rx_not_fragmentable. The two do not have to agree - the
+  // same split spec 5.6 makes for BadFrag - and the counter is the diagnosis. "A peer
+  // fragmented a type that may not be fragmented" and "a peer's encoder got a length
+  // wrong" have different fixes, and folding them together would repeat exactly what
+  // v0.4 split apart in stage 2a and spec 11.3.
+  //
+  // encode() never touches Counters, so the sender's use of this value costs nothing.
+  NotFragmentable,
   BadMac,             // spec 9.4 step 3
   CtxMismatch,        // spec 10.1, checked at spec 9.4 step 2
   BufferTooSmall,     // caller error, not a wire condition

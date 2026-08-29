@@ -41,9 +41,22 @@ class Reassembler {
   void set_timeout_ms(uint32_t ms) { timeout_ms_ = ms; }
   uint32_t timeout_ms() const { return timeout_ms_; }
 
+  // PRECONDITION: `f` has been through decode_header and decode_payload. spec 14
+  // puts per-frame authentication at stage 9 and reassembly at stage 10, in that
+  // order and deliberately (spec 9.4): a fragment of an authenticated type that has
+  // not had its own MAC verified is REFUSED here with Status::BadMac rather than
+  // buffered, so an attacker holding no key cannot occupy a reassembly slot with a
+  // forged fragment 0 and hold it for frag_reassembly_timeout_ms.
+  //
   // now_ms is PASSED IN. This class never calls millis(): a timeout test that had to
   // wait five real seconds would not get written, and so the path would not be
   // tested.
+  //
+  // PRECONDITION: now_ms is MONOTONIC. The age arithmetic is deliberately unsigned
+  // so a millisecond counter wrapping through zero at ~49 days does not resurrect an
+  // expired set; the cost is that a clock running backwards underflows to ~4.29e9 and
+  // expires every set on arrival. An hour was lost to a test that fed `1000 + i`
+  // while delivering fragments 14 -> 0. The bridge's lora_task is the second caller.
   //
   // A frag_total of 1 is accepted as a complete single-frame set, so a caller can
   // route every frame through here without branching.
@@ -52,6 +65,8 @@ class Reassembler {
   // Expires a stale set. Call from the receive loop's periodic tick, not only on
   // arrival - otherwise a set whose remaining fragments never arrive is never
   // counted, and the peer's silence looks like nothing happened.
+  //
+  // PRECONDITION: now_ms is monotonic, as for accept().
   void tick(uint32_t now_ms);
 
   bool complete() const { return complete_; }
@@ -90,7 +105,13 @@ class Reassembler {
   uint16_t got_mask_ = 0;  // one bit per fragment index
 
   uint8_t  stage_[kMaxPayloadPlain];  // fragment bytes, arrival order
-  uint16_t stage_used_ = 0;
+  uint16_t stage_used_ = 0;          // staging bytes consumed, dead space included
+
+  // The set's true reassembled length: the sum of the CURRENT fragment lengths.
+  // Distinct from stage_used_ because a spec 11.2 overwrite of differing length
+  // leaves the superseded copy behind in staging, and charging those dead bytes
+  // against the spec 11.2 reassembly cap would reject a set that fits.
+  uint16_t set_len_ = 0;
   uint16_t frag_off_[kMaxFragments] = {};
   uint16_t frag_len_[kMaxFragments] = {};
 
