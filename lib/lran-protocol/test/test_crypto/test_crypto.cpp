@@ -295,6 +295,268 @@ void test_wrong_node_key_fails_verification() {
   TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(buf, n, d, &f));
 }
 
+// --- F2 / F3: spec 9.4's split across the reassembly boundary ---------------
+//
+// AUTHENTICATION IS PER FRAME, REPLAY PROTECTION IS PER SET. Neither of v0.3's two
+// orderings worked whole: verifying after reassembly leaves no MAC to check, since
+// spec 11 gives every fragment its own; running all six steps per fragment means
+// fragment 0 sets rx_high_water and fragment 1 - which shares the set's seq per
+// spec 11.1 - is rejected as a replay of itself.
+//
+// Steps 4-6 (dedup, seq comparison, high-water) are NODE BEHAVIOUR and live outside
+// this library by its Implementation Plan section 1. What is testable here is the
+// half the library owns: steps 1-3 run per fragment, before the fragment is
+// buffered, and nothing in the reassembly path consults seq to reject.
+
+namespace {
+
+// A 3-fragment authenticated CONFIG set, built with the real KDF and MAC.
+struct FragSet {
+  uint8_t frames[3][kMaxFrame];
+  size_t  lens[3];
+  uint8_t key[32];
+  uint8_t payload[90];
+};
+
+void build_authenticated_config_set(FragSet* fs) {
+  refimpl::RefKdf kdf;
+  kdf.derive_node_key(kMaster, kNodeGateLink, fs->key);
+
+  // spec 7.4 - [op][count][ entries... ]; the bytes only have to survive the trip.
+  for (size_t i = 0; i < sizeof(fs->payload); ++i) {
+    fs->payload[i] = static_cast<uint8_t>(0xA0 + i);
+  }
+
+  Header h;
+  h.type   = MsgType::Config;
+  h.src    = kNodeBridge;
+  h.dst    = kNodeGateLink;
+  h.seq    = 0x0101;  // spec 11.1 - ONE seq, shared by every fragment of the set
+  h.ctx_id = 0xDEADBEEFu;
+  h.schema = kSchemaGateLinkConfigV1;
+
+  EncodeCtx ec;
+  ec.mac      = &g_mac;
+  ec.node_key = fs->key;
+
+  TEST_ASSERT_EQUAL_UINT8(3, fragment_count(sizeof(fs->payload), 30));
+  for (uint8_t i = 0; i < 3; ++i) {
+    TEST_ASSERT_EQUAL(Status::Ok,
+                      encode_fragment(h, fs->payload, sizeof(fs->payload), i, 30, ec,
+                                      fs->frames[i], kMaxFrame, &fs->lens[i]));
+  }
+}
+
+DecodeCtx gate_ctx(const FragSet& fs, Counters* c) {
+  DecodeCtx d;
+  d.self          = kNodeGateLink;
+  d.mac           = &g_mac;
+  d.node_key      = fs.key;
+  d.expect_ctx_id = 0xDEADBEEFu;
+  d.counters      = c;
+  return d;
+}
+
+// The full spec 14 ladder for one frame: stages 2-8a, then stage 9 (per-frame
+// authentication), then stage 10 (reassembly). Stage 9 before stage 10, deliberately.
+Status receive(const FragSet& fs, const uint8_t* buf, size_t len, DecodeCtx& d,
+               Reassembler* r, uint32_t now_ms) {
+  (void)fs;
+  Frame f;
+  Status st = decode_header(buf, len, d, &f);
+  if (st != Status::Ok) return st;
+  st = decode_payload(buf, len, d, &f);
+  if (st != Status::Ok) return st;
+  return r->accept(f, now_ms);
+}
+
+}  // namespace
+
+// A 3-fragment authenticated CONFIG reassembles and dispatches once.
+void test_fragmented_config_authenticated_roundtrip() {
+  FragSet fs;
+  build_authenticated_config_set(&fs);
+
+  Counters c;
+  Reassembler r(&c);
+  DecodeCtx d = gate_ctx(fs, &c);
+
+  for (uint8_t i = 0; i < 3; ++i) {
+    TEST_ASSERT_EQUAL(Status::Ok,
+                      receive(fs, fs.frames[i], fs.lens[i], d, &r, 100u + i));
+    TEST_ASSERT_EQUAL(i == 2, r.complete());
+  }
+  TEST_ASSERT_EQUAL_UINT32(sizeof(fs.payload), r.len());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(fs.payload, r.data(), sizeof(fs.payload));
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+}
+
+// THE TEST THAT WOULD HAVE CAUGHT THE v0.3 CONFLICT. Every fragment of a set shares
+// one seq (spec 11.1). Running spec 9.4 steps 4-6 per fragment would have fragment 0
+// set the high-water mark and fragment 1 rejected as a replay of itself, with the
+// dedup cache flagging it as a duplicate first.
+void test_fragment_one_not_rejected_as_replay() {
+  FragSet fs;
+  build_authenticated_config_set(&fs);
+
+  Counters c;
+  Reassembler r(&c);
+  DecodeCtx d = gate_ctx(fs, &c);
+
+  Frame f0, f1;
+  TEST_ASSERT_EQUAL(Status::Ok, decode_header(fs.frames[0], fs.lens[0], d, &f0));
+  TEST_ASSERT_EQUAL(Status::Ok, decode_header(fs.frames[1], fs.lens[1], d, &f1));
+  TEST_ASSERT_EQUAL_HEX16(f0.hdr.seq, f1.hdr.seq);   // one seq for the whole set
+  TEST_ASSERT_EQUAL_UINT8(0, f0.hdr.frag_index());
+  TEST_ASSERT_EQUAL_UINT8(1, f1.hdr.frag_index());
+
+  TEST_ASSERT_EQUAL(Status::Ok, receive(fs, fs.frames[0], fs.lens[0], d, &r, 100));
+  TEST_ASSERT_EQUAL(Status::Ok, receive(fs, fs.frames[1], fs.lens[1], d, &r, 101));
+  TEST_ASSERT_EQUAL(Status::Ok, receive(fs, fs.frames[2], fs.lens[2], d, &r, 102));
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+}
+
+// A fragment with a corrupt MAC is rejected at stage 9 and the reassembly slot is
+// observably untouched - asserted on state, not merely on the return code.
+void test_bad_mac_fragment_never_buffered() {
+  FragSet fs;
+  build_authenticated_config_set(&fs);
+
+  Counters c;
+  Reassembler r(&c);
+  DecodeCtx d = gate_ctx(fs, &c);
+
+  // Flip a payload byte and repair the CRC16, so the frame is well formed all the
+  // way to stage 9 and fails only there.
+  uint8_t bad[kMaxFrame];
+  const size_t n = fs.lens[0];
+  for (size_t i = 0; i < n; ++i) bad[i] = fs.frames[0][i];
+  bad[kHdrLen] ^= 0x01;
+  const uint16_t crc = crc16_ccitt_false(bad, n - kCrcLen);
+  bad[n - 2] = static_cast<uint8_t>(crc & 0xFF);
+  bad[n - 1] = static_cast<uint8_t>(crc >> 8);
+
+  TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, bad, n, d, &r, 100));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_mac);
+  TEST_ASSERT_FALSE(r.active());     // no slot taken
+  TEST_ASSERT_FALSE(r.complete());
+  TEST_ASSERT_EQUAL_UINT32(0, r.len());
+
+  // The legitimate set still completes afterwards.
+  for (uint8_t i = 0; i < 3; ++i) {
+    TEST_ASSERT_EQUAL(Status::Ok,
+                      receive(fs, fs.frames[i], fs.lens[i], d, &r, 200u + i));
+  }
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(fs.payload, r.data(), sizeof(fs.payload));
+}
+
+// F3 - a SECURITY property, not a correctness one. Under v0.3's ordering an attacker
+// with no key could fill every reassembly slot on the bridge with forged fragment-0
+// frames and hold each for frag_reassembly_timeout_ms, never completing the set: the
+// forgery was detected only on completion, which the attacker simply never allows.
+void test_forged_fragment_zero_does_not_occupy_slot() {
+  FragSet fs;
+  build_authenticated_config_set(&fs);
+
+  Counters c;
+  Reassembler r(&c);
+  DecodeCtx d = gate_ctx(fs, &c);
+
+  for (uint16_t attempt = 0; attempt < 8; ++attempt) {
+    uint8_t forged[kMaxFrame];
+    const size_t n = fs.lens[0];
+    for (size_t i = 0; i < n; ++i) forged[i] = fs.frames[0][i];
+    // A different seq each time, so each forgery looks like a NEW set - which is what
+    // would consume a fresh slot if the MAC were checked after reassembly. Offset
+    // clear of the genuine set's seq low byte: colliding with it would reproduce the
+    // real frame, MAC and all, and the attempt would legitimately verify.
+    forged[4] = static_cast<uint8_t>(0x40 + attempt);
+    const uint16_t crc = crc16_ccitt_false(forged, n - kCrcLen);
+    forged[n - 2] = static_cast<uint8_t>(crc & 0xFF);
+    forged[n - 1] = static_cast<uint8_t>(crc >> 8);
+
+    TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, forged, n, d, &r, 10u + attempt));
+    TEST_ASSERT_FALSE(r.active());
+  }
+  TEST_ASSERT_EQUAL_UINT32(8, c.rx_bad_mac);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);  // nothing was ever held
+
+  // The legitimate set completes normally, unimpeded.
+  for (uint8_t i = 0; i < 3; ++i) {
+    TEST_ASSERT_EQUAL(Status::Ok,
+                      receive(fs, fs.frames[i], fs.lens[i], d, &r, 100u + i));
+  }
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(fs.payload, r.data(), sizeof(fs.payload));
+}
+
+// The backstop: even a caller that skips stage 9 cannot buffer an unverified
+// fragment of an authenticated type. spec 14 orders stage 9 before stage 10, and the
+// library enforces the order rather than trusting four firmwares to remember it.
+void test_unverified_fragment_refused_by_reassembler() {
+  FragSet fs;
+  build_authenticated_config_set(&fs);
+
+  Counters c;
+  Reassembler r(&c);
+  DecodeCtx d = gate_ctx(fs, &c);
+  d.mac = nullptr;  // a caller that never verifies
+
+  Frame f;
+  TEST_ASSERT_EQUAL(Status::Ok, decode_header(fs.frames[0], fs.lens[0], d, &f));
+  TEST_ASSERT_EQUAL(Status::Ok, decode_payload(fs.frames[0], fs.lens[0], d, &f));
+  TEST_ASSERT_NOT_NULL(f.mac);        // the bytes are there...
+  TEST_ASSERT_FALSE(f.mac_verified);  // ...and were never checked
+
+  TEST_ASSERT_EQUAL(Status::BadMac, r.accept(f, 0));
+  TEST_ASSERT_FALSE(r.active());
+}
+
+// --- F8 / spec 9.4: expect_ctx_id semantics ---------------------------------
+
+// "No expected context" means SKIP, never "expect zero". 0x00000000 means unknown
+// (spec 5.5) and no node ever sends it; a bridge holds no context of its own
+// (spec 10.1) and is the party that tracks everyone else's.
+void test_zero_expect_ctx_skips_check() {
+  refimpl::RefKdf kdf;
+  uint8_t key[32];
+  kdf.derive_node_key(kMaster, kNodeGateLink, key);
+
+  const CtxId ctxs[] = {0x00000001u, 0x33333333u, 0x89ABCDEFu, 0xFFFFFFFFu};
+  for (CtxId ctx : ctxs) {
+    uint8_t payload[4] = {static_cast<uint8_t>(Cmd::Open), 0, 0, 0};
+    Header h;
+    h.type   = MsgType::Command;
+    h.src    = kNodeBridge;
+    h.dst    = kNodeGateLink;
+    h.ctx_id = ctx;
+    h.set_frag(0, 1);
+
+    EncodeCtx ec;
+    ec.mac      = &g_mac;
+    ec.node_key = key;
+    uint8_t buf[kMaxFrame];
+    size_t  n = 0;
+    TEST_ASSERT_EQUAL(Status::Ok, encode(h, payload, 4, ec, buf, sizeof(buf), &n));
+
+    Counters c;
+    DecodeCtx d;
+    d.self     = kNodeGateLink;
+    d.mac      = &g_mac;
+    d.node_key = key;
+    d.counters = &c;
+    TEST_ASSERT_EQUAL_UINT32(0, d.expect_ctx_id);  // the default IS "skip"
+
+    Frame f;
+    TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, d, &f));
+    TEST_ASSERT_EQUAL(Status::Ok, decode_payload(buf, n, d, &f));
+    TEST_ASSERT_TRUE(f.mac_verified);
+    TEST_ASSERT_EQUAL_UINT32(0, c.rx_ctx_mismatch);
+  }
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_sha256_known_answer);
@@ -309,5 +571,11 @@ int main() {
   RUN_TEST(test_ctx_mismatch_precedes_mac_check);
   RUN_TEST(test_bridge_does_not_check_ctx);
   RUN_TEST(test_wrong_node_key_fails_verification);
+  RUN_TEST(test_fragmented_config_authenticated_roundtrip);
+  RUN_TEST(test_fragment_one_not_rejected_as_replay);
+  RUN_TEST(test_bad_mac_fragment_never_buffered);
+  RUN_TEST(test_forged_fragment_zero_does_not_occupy_slot);
+  RUN_TEST(test_unverified_fragment_refused_by_reassembler);
+  RUN_TEST(test_zero_expect_ctx_skips_check);
   return UNITY_END();
 }

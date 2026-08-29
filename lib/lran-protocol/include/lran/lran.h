@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
 //
-// Umbrella header. Binding specification: LRAN-Protocol-Specification v0.3, ver = 2.
+// Umbrella header. Binding specification: LRAN-Protocol-Specification v0.4, ver = 2.
 //
 // This library moves bytes and validates them. It decides nothing: no radio, no
 // MQTT, no scheduling, no publication policy, no node behaviour.

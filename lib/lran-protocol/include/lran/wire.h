@@ -52,6 +52,28 @@ bool type_requires_mac(MsgType type);
 // including its leading ':'. The nibble is the character after the colon.
 bool hex_req_is_write_class(const uint8_t* payload, size_t payload_len);
 
+// spec 11.4 - the types a sender may fragment. Checked at spec 14 stage 8a, which
+// discards a fragmented non-fragmentable type with ERROR(BAD_LENGTH).
+//
+// HEX_REQ and HEX_RSP are excluded in v1 rather than left undefined: `n` lives only
+// in fragment 0 and HEX_REQ's MAC requirement is content-dependent on the command
+// nibble inside the payload (spec 7.6), so a receiver holding fragments 1..N can
+// determine neither the payload boundary nor whether the set should have been
+// authenticated at all. The case does not arise in practice - a VE.Direct HEX string
+// is tens of bytes against a 194-byte authenticated single-frame cap - and lifting
+// the restriction would need a length or authentication marker hoisted into the
+// header, which is a `ver` bump (spec 13.2).
+bool type_is_fragmentable(MsgType type);
+
+// spec 11.1 - the sender's default chunk size: the maximum payload for the type,
+// LRAN_MAX_PAYLOAD_AUTH (196) authenticated and LRAN_MAX_PAYLOAD_PLAIN (204) plain.
+//
+// A LOCAL SENDER PARAMETER, NOT A WIRE FIELD. Nothing in the header carries it and a
+// receiver cannot distinguish a bench-driven split (spec 6.6.2's frag_chunk
+// override) from a necessary one - which is exactly what makes the override a valid
+// test of the reassembly path.
+size_t default_frag_chunk(MsgType type);
+
 // spec 3.1 - the reassembly cap for a completed set. Schema-bearing and fragmented
 // payloads are held to LRAN_MAX_SCHEMA_PAYLOAD so a schema can later gain a MAC
 // without any schema exceeding a frame. PING carries no schema and never a MAC, so

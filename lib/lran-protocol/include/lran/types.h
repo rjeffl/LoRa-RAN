@@ -86,8 +86,17 @@ enum class Status : uint8_t {
   UnknownType,        // stage 6
   UnknownSchema,      // stage 7
   BadLength,          // stage 8
-  ReassemblyTimeout,  // stage 9, spec 11
-  FragmentOverflow,   // stage 9, spec 11
+  ReassemblyTimeout,  // stage 10, spec 11.2 - the set's window expired
+  ReassemblyAbandoned,  // spec 11.3 - a new set displaced a live one
+  FragmentOverflow,   // stage 10, spec 11.2
+
+  // spec 11.4 - the sender refused to fragment a type v1 rules out. A SPEC
+  // VIOLATION the encoder declined to commit, not a gap in this library: HEX_REQ's
+  // `n` lives only in fragment 0 and its MAC requirement is content-dependent on the
+  // command nibble inside the payload, so a receiver holding fragments 1..N can
+  // determine neither the payload boundary nor whether the set should have been
+  // authenticated. The receive side answers ERROR(BAD_LENGTH) at stage 8a instead.
+  NotFragmentable,
   BadMac,             // spec 9.4 step 3
   CtxMismatch,        // spec 10.1, checked at spec 9.4 step 2
   BufferTooSmall,     // caller error, not a wire condition

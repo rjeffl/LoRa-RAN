@@ -71,11 +71,44 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
 // fails verification intermittently depending on stack contents. Do not optimize the
 // zeroing away.
 //
-// An authenticated type encoded with ctx.mac == nullptr returns NotImplemented
-// rather than emitting an unauthenticated frame. Silently dropping the MAC from a
-// COMMAND would put an unauthenticated relay pulse on the wire.
+// An authenticated type encoded with ctx.mac == nullptr returns MissingMac rather
+// than emitting an unauthenticated frame. Silently dropping the MAC from a COMMAND
+// would put an unauthenticated relay pulse on the wire (spec 9.2).
+//
+// A `hdr.frag` declaring a total > 1 on a type spec 11.4 rules out returns
+// NotFragmentable. That is a refusal to violate the specification, distinct from
+// MissingMac (a misconfiguration) and from NotImplemented (a gap in this library).
 Status encode(const Header& hdr, const uint8_t* payload, size_t payload_len,
               const EncodeCtx& ctx, uint8_t* buf, size_t buf_cap, size_t* out_len);
+
+// spec 11.1 - the number of fragments a payload splits into: ceil(payload_len /
+// chunk), and 1 for an empty payload. Returns 0 if the split would need more than
+// kMaxFragments, or if `chunk` is 0.
+//
+// Fragmentation is a PURE FUNCTION of (payload, type, chunk). It has to be: if a
+// sender may choose fragment boundaries freely, the Python vector generator and this
+// codec can both be conformant and still emit different byte streams for the same
+// payload, and the W4 vectors cannot be compared byte for byte (spec 11.1).
+uint8_t fragment_count(size_t payload_len, size_t chunk);
+
+// Encodes fragment `index` of the set that `payload` splits into. The caller loops
+// index 0 .. fragment_count()-1, so nothing here allocates and the caller owns every
+// buffer.
+//
+// `frag_chunk` of 0 selects default_frag_chunk(hdr.type), which is the maximum
+// payload for the type. A smaller value is the spec 6.6.2 bench override that drives
+// a PING to fragment; it is a local sender parameter and appears nowhere on the wire.
+//
+// `hdr.frag` is IGNORED and overwritten - the set's index and total are computed
+// here, which is what keeps every fragment of a set consistent. Every other header
+// field is shared across the set unchanged (spec 11.1).
+//
+// spec 11.1 - every fragment except the highest index carries the same payload
+// length; the final one carries the remainder, may be shorter, must not be longer,
+// and must not be empty unless the whole payload is.
+Status encode_fragment(const Header& hdr, const uint8_t* payload, size_t payload_len,
+                       uint8_t index, size_t frag_chunk, const EncodeCtx& ctx,
+                       uint8_t* buf, size_t buf_cap, size_t* out_len);
 
 // True when a frame of this type and payload carries a MAC. Payload may be null for
 // every type except HEX_REQ, whose requirement is content-dependent (spec 7.6).

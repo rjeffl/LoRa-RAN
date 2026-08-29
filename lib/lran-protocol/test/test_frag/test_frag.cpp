@@ -222,9 +222,12 @@ void test_bad_fragment_nibbles_rejected() {
   TEST_ASSERT_EQUAL_UINT32(1, c.fragment_overflow);
 }
 
-// Only one set is held. A new key abandons the old one, and the abandonment is
-// counted - never a silent discard.
-void test_new_set_abandons_incomplete_one() {
+// spec 11.3 - only one set is held, so a new key displaces the old one. The
+// displacement is counted rx_reassembly_abandoned, NOT reassembly_timeout: a timeout
+// means the RF path dropped a fragment, an abandonment means the receiver is
+// undersized or a peer is interleaving sets. Two diagnoses, two counters. Never a
+// silent discard.
+void test_displaced_set_counts_abandoned_not_timeout() {
   Counters c;
   Reassembler r(&c);
   const uint8_t a[] = {1, 2};
@@ -233,9 +236,25 @@ void test_new_set_abandons_incomplete_one() {
   Frame other = make_fragment(a, 2, 0, 2);
   other.hdr.seq = 0x9999;  // a different set from the same peer
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(other, 1));
-  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_abandoned);
+  TEST_ASSERT_EQUAL_UINT32(0, c.reassembly_timeout);
   TEST_ASSERT_EQUAL_HEX16(0x9999, r.seq());
   TEST_ASSERT_FALSE(r.complete());
+
+  // Both are drops, so both reach schema 0xF0's rx_dropped.
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+}
+
+// The other half of the split: a set nobody displaced, that simply ran out of time.
+void test_expired_set_counts_timeout_not_abandoned() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {1, 2};
+  r.accept(make_fragment(a, 2, 0, 2), 1000);
+  r.tick(1000 + kDefaultFragTimeoutMs);
+  TEST_ASSERT_EQUAL_UINT32(1, c.reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
+  TEST_ASSERT_FALSE(r.active());
 }
 
 // spec 11 - all fragments of a set share the total.
@@ -301,6 +320,174 @@ void test_fragmented_ping_end_to_end() {
   TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
 }
 
+// --- F4 / spec 11.1: sender-side fragmentation is deterministic -------------
+
+// Every fragment except the highest index carries the SAME payload length. The rule
+// buys the receiver nothing - spec 11.2 accepts any placement - it buys W4
+// everything: without it the Python generator and this codec can both be conformant
+// and still emit different bytes for the same payload.
+void test_fragment_sizes_uniform_except_last() {
+  uint8_t payload[202];
+  for (size_t i = 0; i < sizeof(payload); ++i) payload[i] = static_cast<uint8_t>(i);
+
+  // spec 6.6.2 - a 202-byte echo with frag_chunk = 14 is the full 15-fragment set.
+  TEST_ASSERT_EQUAL_UINT8(15, fragment_count(sizeof(payload), 14));
+
+  Header h;
+  h.type = MsgType::Ping;
+  h.src  = kNodeBridge;
+  h.dst  = kNodeGateLink;
+  EncodeCtx ec;
+
+  size_t lens[15];
+  for (uint8_t i = 0; i < 15; ++i) {
+    uint8_t buf[kMaxFrame];
+    size_t  n = 0;
+    TEST_ASSERT_EQUAL(Status::Ok,
+                      encode_fragment(h, payload, sizeof(payload), i, 14, ec, buf,
+                                      sizeof(buf), &n));
+    lens[i] = n - kHdrLen - kCrcLen;  // PING never carries a MAC
+    // The set's index and total are computed by encode_fragment, not by the caller.
+    TEST_ASSERT_EQUAL_UINT8(i, static_cast<uint8_t>(buf[10] >> 4));
+    TEST_ASSERT_EQUAL_UINT8(15, static_cast<uint8_t>(buf[10] & 0x0F));
+  }
+  for (uint8_t i = 0; i < 14; ++i) TEST_ASSERT_EQUAL_UINT32(14, lens[i]);
+  TEST_ASSERT_EQUAL_UINT32(202 - 14 * 14, lens[14]);  // the remainder, 6 bytes
+}
+
+// Fragmentation is a pure function of (payload, type, chunk): the same input twice
+// produces identical bytes. This is the property the W4 vectors are compared under.
+void test_fragmentation_is_deterministic() {
+  uint8_t payload[100];
+  for (size_t i = 0; i < sizeof(payload); ++i) payload[i] = static_cast<uint8_t>(i * 7);
+
+  Header h;
+  h.type = MsgType::Ping;
+  h.src  = kNodeBridge;
+  h.dst  = kNodeGateLink;
+  h.seq  = 0x1234;
+  EncodeCtx ec;
+
+  const uint8_t total = fragment_count(sizeof(payload), 30);
+  TEST_ASSERT_EQUAL_UINT8(4, total);  // ceil(100 / 30)
+  for (uint8_t i = 0; i < total; ++i) {
+    uint8_t a[kMaxFrame], b[kMaxFrame];
+    size_t  na = 0, nb = 0;
+    TEST_ASSERT_EQUAL(Status::Ok, encode_fragment(h, payload, sizeof(payload), i, 30,
+                                                  ec, a, sizeof(a), &na));
+    TEST_ASSERT_EQUAL(Status::Ok, encode_fragment(h, payload, sizeof(payload), i, 30,
+                                                  ec, b, sizeof(b), &nb));
+    TEST_ASSERT_EQUAL_UINT32(na, nb);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY(a, b, na);
+  }
+}
+
+// spec 11.1 - the default chunk is the maximum payload for the type, so a payload
+// that fits one frame produces exactly one fragment.
+void test_default_chunk_is_the_type_maximum() {
+  TEST_ASSERT_EQUAL_UINT32(kMaxPayloadAuth, default_frag_chunk(MsgType::Config));
+  TEST_ASSERT_EQUAL_UINT32(kMaxPayloadPlain, default_frag_chunk(MsgType::Ping));
+  TEST_ASSERT_EQUAL_UINT8(1, fragment_count(0, kMaxPayloadPlain));    // empty is one
+  TEST_ASSERT_EQUAL_UINT8(1, fragment_count(204, kMaxPayloadPlain));
+  TEST_ASSERT_EQUAL_UINT8(2, fragment_count(205, kMaxPayloadPlain));
+  TEST_ASSERT_EQUAL_UINT8(15, fragment_count(15, 1));
+  TEST_ASSERT_EQUAL_UINT8(0, fragment_count(16, 1));  // past the 15-fragment ceiling
+  TEST_ASSERT_EQUAL_UINT8(0, fragment_count(10, 0));  // a chunk of 0 is meaningless
+}
+
+// --- F5 / spec 11.2: a duplicate index overwrites ---------------------------
+
+// Retransmission after a CAD backoff and RF echo both produce a duplicate index. It
+// is not an error and not a discard: the stored fragment is overwritten and
+// rx_frag_duplicate counts the overwrite.
+void test_duplicate_fragment_index_overwrites() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t first[]  = {0xAA, 0xAA};
+  const uint8_t second[] = {0xBB, 0xBB};
+  const uint8_t tail[]   = {0xCC};
+
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(first, 2, 0, 2), 0));
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(second, 2, 0, 2), 1));
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(tail, 1, 1, 2), 2));
+  TEST_ASSERT_TRUE(r.complete());
+
+  const uint8_t want[] = {0xBB, 0xBB, 0xCC};  // the LATER copy wins
+  TEST_ASSERT_EQUAL_UINT32(3, r.len());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, r.data(), 3);
+
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_frag_duplicate);
+  // spec 11.2 / 14 - an overwrite is not a discard, so it is NOT summed into
+  // rx_dropped. Summing it would inflate the drop count every time the RF path
+  // echoed a fragment that was then used successfully.
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+}
+
+// A duplicate of DIFFERING length still overwrites: the peer has contradicted itself
+// about a fragment it already sent, and the later bytes win. The reassembled length
+// follows the new fragment, not the old one.
+void test_duplicate_fragment_of_different_length_overwrites() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t first[]  = {0x11, 0x22, 0x33};
+  const uint8_t second[] = {0x44};
+  const uint8_t tail[]   = {0x99};
+
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(first, 3, 0, 2), 0));
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(second, 1, 0, 2), 1));
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(tail, 1, 1, 2), 2));
+  TEST_ASSERT_TRUE(r.complete());
+
+  const uint8_t want[] = {0x44, 0x99};
+  TEST_ASSERT_EQUAL_UINT32(2, r.len());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, r.data(), 2);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_frag_duplicate);
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+}
+
+// --- F7 / spec 11.4: HEX_REQ and HEX_RSP are single-frame in v1 -------------
+
+void test_fragmented_hex_req_rejected() {
+  TEST_ASSERT_FALSE(type_is_fragmentable(MsgType::HexReq));
+  TEST_ASSERT_FALSE(type_is_fragmentable(MsgType::HexRsp));
+  TEST_ASSERT_FALSE(type_is_fragmentable(MsgType::Command));
+  TEST_ASSERT_TRUE(type_is_fragmentable(MsgType::Config));
+  TEST_ASSERT_TRUE(type_is_fragmentable(MsgType::Ping));
+
+  // Sender: a refusal to violate spec 11.4, distinct from NotImplemented (a gap in
+  // this library) and from MissingMac (a misconfiguration).
+  uint8_t payload[8] = {0, 6, ':', '7', 'F', '0', 'E', 'D'};
+  Header h;
+  h.type = MsgType::HexReq;
+  h.src  = kNodeBridge;
+  h.dst  = kNodeGateLink;
+  h.set_frag(0, 2);
+  EncodeCtx ec;
+  uint8_t buf[kMaxFrame];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::NotFragmentable,
+                    encode(h, payload, sizeof(payload), ec, buf, sizeof(buf), &n));
+  TEST_ASSERT_EQUAL_UINT32(0, n);
+
+  h.type = MsgType::HexRsp;
+  TEST_ASSERT_EQUAL(Status::NotFragmentable,
+                    encode(h, payload, sizeof(payload), ec, buf, sizeof(buf), &n));
+
+  // encode_fragment refuses the same case before laying out any bytes.
+  uint8_t big[300] = {};
+  h.type = MsgType::HexReq;
+  TEST_ASSERT_EQUAL(Status::NotFragmentable,
+                    encode_fragment(h, big, 250, 0, 128, ec, buf, sizeof(buf), &n));
+
+  // Receiver: a fragmented HEX set never reaches the reassembly buffers.
+  Counters c;
+  Reassembler r(&c);
+  Frame f = make_fragment(payload, 8, 0, 2, MsgType::HexReq);
+  TEST_ASSERT_EQUAL(Status::BadLength, r.accept(f, 0));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_length);
+  TEST_ASSERT_FALSE(r.active());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_frag_nibble_packing);
@@ -315,8 +502,15 @@ int main() {
   RUN_TEST(test_fragment_overflow_on_schema_cap);
   RUN_TEST(test_ping_uses_the_plain_cap);
   RUN_TEST(test_bad_fragment_nibbles_rejected);
-  RUN_TEST(test_new_set_abandons_incomplete_one);
+  RUN_TEST(test_displaced_set_counts_abandoned_not_timeout);
+  RUN_TEST(test_expired_set_counts_timeout_not_abandoned);
   RUN_TEST(test_inconsistent_total_rejected);
   RUN_TEST(test_fragmented_ping_end_to_end);
+  RUN_TEST(test_fragment_sizes_uniform_except_last);
+  RUN_TEST(test_fragmentation_is_deterministic);
+  RUN_TEST(test_default_chunk_is_the_type_maximum);
+  RUN_TEST(test_duplicate_fragment_index_overwrites);
+  RUN_TEST(test_duplicate_fragment_of_different_length_overwrites);
+  RUN_TEST(test_fragmented_hex_req_rejected);
   return UNITY_END();
 }

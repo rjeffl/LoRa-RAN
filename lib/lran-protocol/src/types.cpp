@@ -19,6 +19,8 @@ const char* to_string(Status s) {
     case Status::UnknownSchema:     return "UnknownSchema";
     case Status::BadLength:         return "BadLength";
     case Status::ReassemblyTimeout: return "ReassemblyTimeout";
+    case Status::ReassemblyAbandoned: return "ReassemblyAbandoned";
+    case Status::NotFragmentable:   return "NotFragmentable";
     case Status::FragmentOverflow:  return "FragmentOverflow";
     case Status::BadMac:            return "BadMac";
     case Status::CtxMismatch:       return "CtxMismatch";

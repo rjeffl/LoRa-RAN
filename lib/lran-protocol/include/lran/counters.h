@@ -44,8 +44,22 @@ struct Counters {
   uint32_t rx_bad_mac         = 0;  // spec 9.4 step 3
   uint32_t rx_ctx_mismatch    = 0;  // spec 10.1
 
-  uint32_t reassembly_timeout = 0;  // stage 9, spec 11
-  uint32_t fragment_overflow  = 0;  // stage 9, spec 11
+  uint32_t reassembly_timeout = 0;  // stage 10, spec 11.2
+
+  // spec 11.3 - a new (src, ctx_id, seq, schema) displaced a live set with no slot
+  // free. Held apart from reassembly_timeout because the two have different
+  // diagnoses: a timeout means the RF path dropped a fragment, an abandonment means
+  // the receiver is undersized or a peer is interleaving sets. Neither may be silent.
+  uint32_t rx_reassembly_abandoned = 0;
+
+  uint32_t fragment_overflow  = 0;  // stage 10, spec 11.2
+
+  // spec 11.2 - a duplicate index within a live set OVERWRITES the stored fragment.
+  // Retransmission and RF echo both produce it, so it is not an error and not a
+  // discard: it counts an overwrite, and is deliberately NOT summed into
+  // total_dropped / schema 0xF0's rx_dropped. No Status maps to it for that reason -
+  // the Reassembler increments it directly.
+  uint32_t rx_frag_duplicate = 0;
 
   uint32_t cad_backoffs = 0;  // spec 12.3 - bumped by the radio driver, not a discard
 

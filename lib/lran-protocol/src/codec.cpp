@@ -197,13 +197,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
   if (h.type == MsgType::HexReq) {
     // spec 7.6 - MAC presence is content-dependent, so the payload's own `n` field
     // fixes the boundary and whatever remains must be exactly a MAC or nothing.
-    if (frag_total > 1) {
-      // TODO(spec-11): spec 11 does not say how a receiver infers MAC presence for a
-      // fragmented HEX_REQ, whose `n` lives only in fragment 0. Unreachable in
-      // practice - a VE.Direct HEX string is tens of bytes and the single-frame cap
-      // is 194 authenticated - so this is reported rather than guessed at.
-      return fail(ctx, Status::NotImplemented);
-    }
+    if (frag_total > 1) return fail(ctx, Status::BadLength);  // spec 14 stage 8a
     if (body_len < 2) return fail(ctx, Status::BadLength);
     payload_len = static_cast<size_t>(2) + buf[kHdrLen + 1];
     if (payload_len > body_len) return fail(ctx, Status::BadLength);
@@ -217,6 +211,14 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
 
   // spec 7.1 stage 7
   if (!schema_is_known(h.type, h.schema)) return fail(ctx, Status::UnknownSchema);
+
+  // spec 14 stage 8a - the type must be fragmentable if `frag` declares a total > 1.
+  // spec 11.4 rules HEX_REQ and HEX_RSP out in v1 rather than leaving them undefined,
+  // and keeps COMMAND and the other fixed small types single-frame. Counted
+  // rx_bad_length, which is the counter for a peer's encoder being wrong.
+  if (frag_total > 1 && !type_is_fragmentable(h.type)) {
+    return fail(ctx, Status::BadLength);
+  }
 
   // spec 14 stage 8. A fragment is a piece of a payload, so the (type, schema)
   // length belongs to the reassembled set; here only the per-frame cap applies.
@@ -263,6 +265,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
     ctx.mac->hmac_sha256_trunc(ctx.node_key, kNodeKeyLen, buf, kHdrLen + payload_len,
                                want_mac);
     if (!ct_equal(want_mac, inout->mac, kMacLen)) return fail(ctx, Status::BadMac);
+    inout->mac_verified = true;
   }
 
   return Status::Ok;
@@ -284,6 +287,10 @@ Status encode(const Header& hdr, const uint8_t* payload, size_t payload_len,
   if (frag_total > kMaxFragments || frag_index >= frag_total) {
     return Status::FragmentOverflow;
   }
+
+  // spec 11.4 - "A sender MUST NOT fragment these types." A refusal to emit a frame
+  // the specification rules out, not a gap in this library.
+  if (frag_total > 1 && !type_is_fragmentable(hdr.type)) return Status::NotFragmentable;
 
   if (!schema_is_known(hdr.type, hdr.schema)) return Status::UnknownSchema;
 
@@ -332,6 +339,43 @@ Status encode(const Header& hdr, const uint8_t* payload, size_t payload_len,
 
   *out_len = w.written();
   return Status::Ok;
+}
+
+uint8_t fragment_count(size_t payload_len, size_t chunk) {
+  if (chunk == 0) return 0;
+  // spec 11.1 - the final fragment "MUST NOT be empty unless the entire payload is",
+  // so an empty payload is one empty fragment rather than none.
+  if (payload_len == 0) return 1;
+  const size_t n = (payload_len + chunk - 1) / chunk;  // ceil
+  return n > kMaxFragments ? 0 : static_cast<uint8_t>(n);
+}
+
+Status encode_fragment(const Header& hdr, const uint8_t* payload, size_t payload_len,
+                       uint8_t index, size_t frag_chunk, const EncodeCtx& ctx,
+                       uint8_t* buf, size_t buf_cap, size_t* out_len) {
+  if (out_len == nullptr) return Status::BufferTooSmall;
+  *out_len = 0;
+  if (payload_len > 0 && payload == nullptr) return Status::BufferTooSmall;
+
+  if (!type_is_known(static_cast<uint8_t>(hdr.type))) return Status::UnknownType;
+
+  const size_t chunk = (frag_chunk == 0) ? default_frag_chunk(hdr.type) : frag_chunk;
+  const uint8_t total = fragment_count(payload_len, chunk);
+  if (total == 0) return Status::FragmentOverflow;  // more than kMaxFragments
+  if (index >= total) return Status::FragmentOverflow;
+
+  // spec 11.4, checked before any bytes are laid out so the refusal is unambiguous.
+  if (total > 1 && !type_is_fragmentable(hdr.type)) return Status::NotFragmentable;
+
+  // spec 11.1 - uniform chunks, the remainder in the highest index. The offset is
+  // index * chunk precisely because the SENDER is the party constrained to uniform
+  // chunking; spec 11.2 forbids the RECEIVER computing a placement this way.
+  const size_t off  = static_cast<size_t>(index) * chunk;
+  const size_t here = (payload_len - off < chunk) ? payload_len - off : chunk;
+
+  Header h = hdr;
+  h.set_frag(index, total);
+  return encode(h, payload + off, here, ctx, buf, buf_cap, out_len);
 }
 
 }  // namespace lran
