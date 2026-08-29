@@ -1,0 +1,9 @@
+# PlatformIO build output and resolved dependencies
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Secrets are never committed. secrets.h.example documents every field.
+secrets.h
+
+.DS_Store
