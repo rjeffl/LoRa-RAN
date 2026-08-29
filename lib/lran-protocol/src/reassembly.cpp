@@ -85,7 +85,7 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   // discarded at spec 14 stage 8a; the decode path rejects it first, this is the
   // same rule enforced for a caller driving the Reassembler directly.
   if (total > 1 && !type_is_fragmentable(f.hdr.type)) {
-    return count(counters_, Status::BadLength);
+    return count(counters_, Status::NotFragmentable);
   }
 
   // spec 9.4 / 14 - stage 9 precedes stage 10. A fragment of an authenticated type

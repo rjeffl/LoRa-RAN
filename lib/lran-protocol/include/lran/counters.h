@@ -41,6 +41,12 @@ struct Counters {
   uint32_t rx_unknown_type    = 0;  // stage 6
   uint32_t rx_unknown_schema  = 0;  // stage 7
   uint32_t rx_bad_length      = 0;  // stage 8
+
+  // spec 14 stage 8a - a fragmented type spec 11.4 rules out. Stage 8a shares
+  // stage 8's wire error, ERROR(BAD_LENGTH), but not its counter: one says a peer
+  // fragmented something it may not fragment, the other says a peer's encoder got
+  // a length wrong. Different faults, different fixes.
+  uint32_t rx_not_fragmentable = 0;
   uint32_t rx_bad_mac         = 0;  // spec 9.4 step 3
   uint32_t rx_ctx_mismatch    = 0;  // spec 10.1
 

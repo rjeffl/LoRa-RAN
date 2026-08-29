@@ -567,22 +567,23 @@ void test_counter_mapping_is_total() {
   c.bump(Status::UnknownType);
   c.bump(Status::UnknownSchema);
   c.bump(Status::BadLength);
+  c.bump(Status::NotFragmentable);
   c.bump(Status::ReassemblyTimeout);
   c.bump(Status::FragmentOverflow);
   c.bump(Status::BadMac);
   c.bump(Status::CtxMismatch);
-  TEST_ASSERT_EQUAL_UINT32(14, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(15, c.total_dropped());
 
   // Not wire conditions: no spec 14 stage owns them, so they are not drops.
   c.bump(Status::Ok);
   c.bump(Status::BufferTooSmall);
   c.bump(Status::MissingMac);
   c.bump(Status::NotImplemented);
-  TEST_ASSERT_EQUAL_UINT32(14, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(15, c.total_dropped());
 
   // spec 14 stage 1 belongs to the radio driver but still counts as a drop.
   c.rx_crc_err = 5;
-  TEST_ASSERT_EQUAL_UINT32(19, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(20, c.total_dropped());
 }
 
 void test_status_strings_present() {

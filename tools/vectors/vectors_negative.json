@@ -1,0 +1,269 @@
+{
+  "format": "lran-test-vectors/1",
+  "spec": "LRAN-Protocol-Specification v0.4",
+  "wire_ver": 2,
+  "group": "negative",
+  "generated_by": "tools/vectors/generate.py",
+  "vectors": [
+    {
+      "name": "runt_17_bytes",
+      "spec_ref": "§14 stage 2, §3.1",
+      "note": "17 bytes cannot hold a 16-byte header plus a CRC16. The CRC over the truncated buffer is valid, so only the length can catch it.",
+      "frame": "020300013412efcdab8901000000009553",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Runt",
+        "counter": "rx_runt",
+        "stage": "2"
+      }
+    },
+    {
+      "name": "oversize_223_bytes",
+      "spec_ref": "§3, §14 stage 2a",
+      "note": "Emitting this is a sender bug; receiving it is a counted runtime discard, never an assertion (§3).",
+      "frame": "020700013e12efcdab8901000000000000cb000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9ca84f8",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "Oversize",
+        "counter": "rx_oversize",
+        "stage": "2a"
+      }
+    },
+    {
+      "name": "bad_app_crc16",
+      "spec_ref": "§2.1, §14 stage 3",
+      "note": "High CRC byte inverted. This is the one vector whose CRC is deliberately NOT repaired.",
+      "frame": "020300013f12efcdab89010000000000012ea3",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadCrc",
+        "counter": "rx_bad_crc",
+        "stage": "3"
+      }
+    },
+    {
+      "name": "unknown_ver_3",
+      "spec_ref": "§5.1, §13.1, §14 stage 4",
+      "note": "A node accepts only its own ver; only the bridge accepts N-1 (§13.1). CRC repaired.",
+      "frame": "030300014012efcdab890100000000000192ec",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadVersion",
+        "counter": "rx_bad_ver",
+        "stage": "4"
+      }
+    },
+    {
+      "name": "wrong_dst_not_addressed",
+      "spec_ref": "§5.3, §14 stage 5",
+      "note": "Addressed to WellLink. Discarded silently by GateLink - no ERROR reply is owed (§14).",
+      "frame": "020300024112efcdab8901000000000001b034",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "NotAddressed",
+        "counter": "rx_not_addressed",
+        "stage": "5"
+      }
+    },
+    {
+      "name": "critical_ext_unimplemented",
+      "spec_ref": "§5.8, §14 stage 5a",
+      "note": "No extension is defined yet (W8), so every receiver must discard loudly with ERROR(UNKNOWN_HDR_EXT).",
+      "frame": "020300014212efcdab89010080000000016654",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "UnknownHdrExt",
+        "counter": "rx_unknown_hdr_ext",
+        "stage": "5a"
+      }
+    },
+    {
+      "name": "frag_total_zero",
+      "spec_ref": "§5.6, §14 stage 5b",
+      "note": "0x00 is a malformed header, NOT a single-frame marker; 0x01 is the single-frame value.",
+      "frame": "020300014312efcdab8900000000000001b48b",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadFrag",
+        "counter": "rx_bad_frag",
+        "stage": "5b"
+      }
+    },
+    {
+      "name": "frag_index_ge_total",
+      "spec_ref": "§5.6, §14 stage 5b",
+      "note": "index 3 of total 1. AMBIGUITY: §11.2 calls index >= total FRAGMENT_OVERFLOW at stage 10, but §14 stage 5b tests index < total and runs first. Taken at 5b.",
+      "frame": "020300014412efcdab893100000000000150a0",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadFrag",
+        "counter": "rx_bad_frag",
+        "stage": "5b"
+      }
+    },
+    {
+      "name": "frag_index_equals_total",
+      "spec_ref": "§5.6, §14 stage 5b",
+      "note": "A 0-based index equal to the 1-based total is the off-by-one an encoder actually makes.",
+      "frame": "020300014512efcdab8922000000000001ca0a",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadFrag",
+        "counter": "rx_bad_frag",
+        "stage": "5b"
+      }
+    },
+    {
+      "name": "unknown_type_0x0c",
+      "spec_ref": "§6, §13.2, §14 stage 6",
+      "note": "Adding a type needs no ver bump precisely because this discard exists (§13.2).",
+      "frame": "020c00014612efcdab890100000000001e22",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "UnknownType",
+        "counter": "rx_unknown_type",
+        "stage": "6"
+      }
+    },
+    {
+      "name": "status_carrying_event_schema",
+      "spec_ref": "§7.1, §14 stage 7",
+      "note": "Schema 0x11 is well known but is an EVENT schema. The (type, schema) PAIR is the unit of validation, so this fails at 7, not 8.",
+      "frame": "020401004712efcdab89011100000000010000000000000001000000010000000097",
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "UnknownSchema",
+        "counter": "rx_unknown_schema",
+        "stage": "7"
+      }
+    },
+    {
+      "name": "unknown_schema_0x99",
+      "spec_ref": "§7.1, §14 stage 7",
+      "note": "0x99 is unassigned in §7.1 and §17.2.",
+      "frame": "020401004812efcdab8901990000000001000000000000000000000000000000000002003512",
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "UnknownSchema",
+        "counter": "rx_unknown_schema",
+        "stage": "7"
+      }
+    },
+    {
+      "name": "poll_payload_two_bytes",
+      "spec_ref": "§4.4, §14 stage 8",
+      "note": "POLL is fixed at 1 byte (§6.4). A length mismatch is discarded, never parsed best-effort.",
+      "frame": "020300014912efcdab89010000000000010099ce",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "BadLength",
+        "counter": "rx_bad_length",
+        "stage": "8"
+      }
+    },
+    {
+      "name": "status_0x10_76_bytes",
+      "spec_ref": "§7.2, §14 stage 8",
+      "note": "76 bytes is v0.2's status length. Schema 0x10 is 78 B in v0.3+ (§7.2.9), so the old size must be rejected, not truncated-parsed.",
+      "frame": "020401004a12efcdab89011000000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b018ab6",
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "BadLength",
+        "counter": "rx_bad_length",
+        "stage": "8"
+      }
+    },
+    {
+      "name": "fragmented_hex_req",
+      "spec_ref": "§11.4, §14 stage 8a",
+      "note": "HEX_REQ is single-frame in v1: `n` lives only in fragment 0 and the MAC requirement depends on a nibble inside the payload (§11.4). ERROR(BAD_LENGTH).",
+      "frame": "020800014b12efcdab89020000000000000a3a374630454430303731cacb",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 0,
+        "status": "NotFragmentable",
+        "counter": "rx_not_fragmentable",
+        "stage": "8a"
+      }
+    },
+    {
+      "name": "fragmented_command",
+      "spec_ref": "§11.4, §14 stage 8a",
+      "note": "A 4-byte COMMAND is never fragmentable. The MAC is valid, so stage 8a must reject it before stage 9 accepts it.",
+      "frame": "020100014c12efcdab890200000000000100000099a60f4538cbf433c8ec",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "NotFragmentable",
+        "counter": "rx_not_fragmentable",
+        "stage": "8a"
+      }
+    },
+    {
+      "name": "command_ctx_mismatch",
+      "spec_ref": "§9.4 step 2, §10.3, §14 stage 9",
+      "note": "MAC is valid over this header, so only the ctx check can fail: the node replies COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id.",
+      "frame": "020100010500eecdab8901000000000001000000a769a9cd99cc074ce84d",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "CtxMismatch",
+        "counter": "rx_ctx_mismatch",
+        "stage": "9"
+      }
+    },
+    {
+      "name": "command_corrupt_mac",
+      "spec_ref": "§9.3, §9.4 step 3, §14 stage 9",
+      "note": "One MAC byte inverted, CRC repaired. Verification must be constant time (§9.4).",
+      "frame": "020100010600efcdab890100000000000100000089446d1431eacd1c06c7",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "BadMac",
+        "counter": "rx_bad_mac",
+        "stage": "9"
+      }
+    },
+    {
+      "name": "command_signed_with_wrong_node_key",
+      "spec_ref": "§9.1, §14 stage 9",
+      "note": "Signed with simnode-0's key but addressed to GateLink. This is the property §5.3 relies on: a bench node cannot forge a HOLD_OPEN to the gate.",
+      "frame": "020100010800efcdab890100000000000300000065dc4b91afd93b580745",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "BadMac",
+        "counter": "rx_bad_mac",
+        "stage": "9"
+      }
+    },
+    {
+      "name": "command_with_no_mac",
+      "spec_ref": "§9.2, §14 stage 8",
+      "note": "An authenticated type with the MAC omitted is 8 bytes short, so the length check catches it first. §9.2 forbids ever emitting one.",
+      "frame": "020100010900efcdab8901000000000001000000af04",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "BadLength",
+        "counter": "rx_bad_length",
+        "stage": "8"
+      }
+    }
+  ]
+}

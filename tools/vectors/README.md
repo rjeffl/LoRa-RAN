@@ -155,6 +155,33 @@ authenticated frame fails its MAC, and no counter points at key derivation. It i
 }
 ```
 
+### `decode_only` — a frame no conforming encoder emits
+
+Some receive-side rules can only be witnessed with a frame a **conforming sender would
+never produce**. §5.8 makes `hdr_flags` bits 6:0 "write `0`, ignore on receive": a
+receiver must accept them set, and an encoder must never set them. Both halves are
+normative and they cannot be exercised by the same encode-and-compare vector.
+
+Add `"decode_only": true` to such a vector. The C++ consumer skips the encode
+comparison and checks only the decode outcome. Use it **only** where the spec makes
+the sender rule and the receiver rule deliberately asymmetric — never to paper over a
+frame the generator got wrong.
+
+```json
+{
+  "name": "poll_reserved_hdr_flags_ignored",
+  "spec_ref": "§5.8, §4.3",
+  "decode_only": true,
+  "note": "hdr_flags bit 6 set. §5.8 requires a sender write 0 here, so no encoder emits this frame; a receiver must ignore it.",
+  "header": { "...": "..." },
+  "payload": "01",
+  "key": null,
+  "frame": "...",
+  "frame_len": 19,
+  "decode": { "...": "..." }
+}
+```
+
 `frame_len` is redundant against `frame` and is present on purpose: §19's length table
 is exactly where v0.3's `HEX_RSP` errata lived, and an explicit length makes an
 off-by-one fail as a length mismatch rather than as an opaque byte diff.
@@ -220,6 +247,13 @@ out of `rx_bad_length` and `rx_reassembly_abandoned` out of `rx_reassembly_timeo
 the first place.
 
 `stage` is the §14 row, for the human reading a failure.
+
+**Counter names.** §14 names a counter for stages 1–5b but not for stages 6 through 9.
+The names used across these vectors and the C++ consumer are `rx_unknown_type` (6),
+`rx_unknown_schema` (7), `rx_bad_length` (8), `rx_not_fragmentable` (8a),
+`rx_ctx_mismatch` and `rx_bad_mac` (9). **§14 should name these**; until it does they
+are a convention held in two places, which is exactly the kind of thing W4 exists to
+catch.
 
 A negative vector is built by constructing a **well-formed frame and then breaking
 exactly one thing**, repairing the CRC16 unless the CRC is what is under test. A frame

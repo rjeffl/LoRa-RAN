@@ -482,9 +482,14 @@ void test_fragmented_hex_req_rejected() {
   // Receiver: a fragmented HEX set never reaches the reassembly buffers.
   Counters c;
   Reassembler r(&c);
+  // spec 14 stage 8a - the wire answer is ERROR(BAD_LENGTH) per spec 11.4, but the
+  // counter is rx_not_fragmentable. "A peer fragmented a type that may not be
+  // fragmented" and "a peer's encoder got a length wrong" have different fixes, and
+  // at the gate the counter is the whole diagnosis.
   Frame f = make_fragment(payload, 8, 0, 2, MsgType::HexReq);
-  TEST_ASSERT_EQUAL(Status::BadLength, r.accept(f, 0));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_length);
+  TEST_ASSERT_EQUAL(Status::NotFragmentable, r.accept(f, 0));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_not_fragmentable);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_length);
   TEST_ASSERT_FALSE(r.active());
 }
 

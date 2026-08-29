@@ -90,12 +90,18 @@ enum class Status : uint8_t {
   ReassemblyAbandoned,  // spec 11.3 - a new set displaced a live one
   FragmentOverflow,   // stage 10, spec 11.2
 
-  // spec 11.4 - the sender refused to fragment a type v1 rules out. A SPEC
-  // VIOLATION the encoder declined to commit, not a gap in this library: HEX_REQ's
-  // `n` lives only in fragment 0 and its MAC requirement is content-dependent on the
-  // command nibble inside the payload, so a receiver holding fragments 1..N can
-  // determine neither the payload boundary nor whether the set should have been
-  // authenticated. The receive side answers ERROR(BAD_LENGTH) at stage 8a instead.
+  // spec 11.4 / 14 stage 8a - a type v1 rules out was fragmented. Serves BOTH
+  // directions: the sender's refusal to emit one (a spec violation the encoder
+  // declined to commit) and the receiver's discard of one.
+  //
+  // The WIRE answer stays ERROR(BAD_LENGTH), which is what spec 11.4 and stage 8a
+  // require; the COUNTER is rx_not_fragmentable. The two do not have to agree - the
+  // same split spec 5.6 makes for BadFrag - and the counter is the diagnosis. "A peer
+  // fragmented a type that may not be fragmented" and "a peer's encoder got a length
+  // wrong" have different fixes, and folding them together would repeat exactly what
+  // v0.4 split apart in stage 2a and spec 11.3.
+  //
+  // encode() never touches Counters, so the sender's use of this value costs nothing.
   NotFragmentable,
   BadMac,             // spec 9.4 step 3
   CtxMismatch,        // spec 10.1, checked at spec 9.4 step 2

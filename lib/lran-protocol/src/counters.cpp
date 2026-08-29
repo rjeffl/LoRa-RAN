@@ -20,6 +20,7 @@ void Counters::bump(Status s) {
     case Status::UnknownType:       ++rx_unknown_type; return;
     case Status::UnknownSchema:     ++rx_unknown_schema; return;
     case Status::BadLength:         ++rx_bad_length; return;
+    case Status::NotFragmentable:   ++rx_not_fragmentable; return;
     case Status::ReassemblyTimeout: ++reassembly_timeout; return;
     case Status::ReassemblyAbandoned: ++rx_reassembly_abandoned; return;
     case Status::FragmentOverflow:  ++fragment_overflow; return;
@@ -30,7 +31,6 @@ void Counters::bump(Status s) {
     // spec 14 stage owns them, so they are not counted as drops.
     case Status::BufferTooSmall:    return;
     case Status::MissingMac:        return;
-    case Status::NotFragmentable:   return;
     case Status::NotImplemented:    return;
   }
 }
@@ -41,7 +41,8 @@ uint32_t Counters::total_dropped() const {
   // time the RF path echoed a fragment that was then used successfully.
   return rx_crc_err + rx_runt + rx_oversize + rx_bad_crc + rx_bad_ver +
          rx_not_addressed + rx_unknown_hdr_ext + rx_bad_frag + rx_unknown_type +
-         rx_unknown_schema + rx_bad_length + rx_bad_mac + rx_ctx_mismatch +
+         rx_unknown_schema + rx_bad_length + rx_not_fragmentable + rx_bad_mac +
+         rx_ctx_mismatch +
          reassembly_timeout + rx_reassembly_abandoned + fragment_overflow;
 }
 

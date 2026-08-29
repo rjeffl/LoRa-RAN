@@ -197,7 +197,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
   if (h.type == MsgType::HexReq) {
     // spec 7.6 - MAC presence is content-dependent, so the payload's own `n` field
     // fixes the boundary and whatever remains must be exactly a MAC or nothing.
-    if (frag_total > 1) return fail(ctx, Status::BadLength);  // spec 14 stage 8a
+    if (frag_total > 1) return fail(ctx, Status::NotFragmentable);  // spec 14 stage 8a
     if (body_len < 2) return fail(ctx, Status::BadLength);
     payload_len = static_cast<size_t>(2) + buf[kHdrLen + 1];
     if (payload_len > body_len) return fail(ctx, Status::BadLength);
@@ -214,10 +214,10 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
 
   // spec 14 stage 8a - the type must be fragmentable if `frag` declares a total > 1.
   // spec 11.4 rules HEX_REQ and HEX_RSP out in v1 rather than leaving them undefined,
-  // and keeps COMMAND and the other fixed small types single-frame. Counted
-  // rx_bad_length, which is the counter for a peer's encoder being wrong.
+  // and keeps COMMAND and the other fixed small types single-frame. The wire answer
+  // is ERROR(BAD_LENGTH) per spec 11.4; the counter is rx_not_fragmentable.
   if (frag_total > 1 && !type_is_fragmentable(h.type)) {
-    return fail(ctx, Status::BadLength);
+    return fail(ctx, Status::NotFragmentable);
   }
 
   // spec 14 stage 8. A fragment is a piece of a payload, so the (type, schema)
