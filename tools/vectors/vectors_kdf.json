@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.4",
+  "spec": "LRAN-Protocol-Specification v0.5",
   "wire_ver": 2,
   "group": "kdf",
   "generated_by": "tools/vectors/generate.py",
@@ -8,6 +8,7 @@
     {
       "name": "node_key_gatelink",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "note": "GateLink. §9.1 prints these six info bytes literally.",
       "node_id": "0x01",
       "salt": "6c72616e2d7631",
@@ -18,6 +19,7 @@
     {
       "name": "node_key_welllink",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "note": "WellLink, reserved address, provisionable today.",
       "node_id": "0x02",
       "salt": "6c72616e2d7631",
@@ -28,6 +30,7 @@
     {
       "name": "node_key_simnode0",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "note": "Bench node 0. §5.3 enumerates bench IDs because keys are per ID.",
       "node_id": "0xf0",
       "salt": "6c72616e2d7631",
@@ -38,6 +41,7 @@
     {
       "name": "node_key_simnode1",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "node_id": "0xf1",
       "salt": "6c72616e2d7631",
       "info": "6e6f64652df1",
@@ -47,6 +51,7 @@
     {
       "name": "node_key_simnode2",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "node_id": "0xf2",
       "salt": "6c72616e2d7631",
       "info": "6e6f64652df2",
@@ -56,6 +61,7 @@
     {
       "name": "node_key_simnode3",
       "spec_ref": "§9.1",
+      "origin": "derived",
       "node_id": "0xf3",
       "salt": "6c72616e2d7631",
       "info": "6e6f64652df3",

@@ -3,8 +3,8 @@
 # Copyright (c) 2026 <copyright holder - D31, still open>
 """LRAN protocol test-vector generator - open item W4, milestone P6.
 
-Derived from the prose of `LRAN-Protocol-Specification` v0.4 and from nothing
-else. This file deliberately shares no code with /lib/lran-protocol/: the CRC-16,
+Derived from the prose of `LRAN-Protocol-Specification` v0.5 and from nothing
+else, except where a vector is marked `"origin": "adjudicated"` - see below. This file deliberately shares no code with /lib/lran-protocol/: the CRC-16,
 the header serializer, the payload builders and the fragmenter are all written
 here from the specification text. Only `hashlib` and `hmac` are borrowed, and
 those are independent implementations of published primitives (§9.1, README).
@@ -16,6 +16,18 @@ Running it rewrites the four vector files in place:
 Every constant, offset and rule below cites the section that fixes it. Where the
 specification is ambiguous the reading taken is marked `AMBIGUITY:` in a comment
 so the choice is visible at the point it is made.
+
+**Provenance.** Every vector carries `origin`:
+
+  "derived"     - worked out from the specification prose alone. This is the only
+                  kind of vector that independently witnesses anything.
+  "adjudicated" - encodes a resolution that reached this generator from outside the
+                  prose: from the C++ codec's behaviour, or from a ruling on a v0.4
+                  contradiction. v0.5 states these rules now, so a reader starting
+                  today would derive them - but this generator did not, and
+                  agreement on them is therefore much weaker evidence than
+                  agreement on a derived vector. The field is bookkeeping about
+                  what a vector witnesses, not about whether it is correct.
 """
 
 from __future__ import annotations
@@ -29,8 +41,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.4"
-WIRE_VER = 2                            # §5.1 - `ver` = 2 for this document
+SPEC = "LRAN-Protocol-Specification v0.5"
+WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
+
+DERIVED = "derived"
+ADJUDICATED = "adjudicated"
 
 # ---------------------------------------------------------------------------
 # §3.1 - derived size constants. LRAN_MAX_FRAME is the only hand-chosen number.
@@ -89,9 +104,9 @@ CTX = {
 # ---------------------------------------------------------------------------
 KDF_SALT = b"lran-v1"        # §9.1 - domain separator, stable across `ver` bumps
 KDF_INFO_PREFIX = b"node-"   # §9.1 - five ASCII bytes, then the RAW address byte
-# AMBIGUITY (K1): §9.1 does not state HKDF's output length L. 32 is taken: the
-# key is an HMAC-SHA256 key, master_key is 32 bytes, and one SHA-256 block is the
-# natural HKDF output. See the report.
+# §9.1 - "L = 32", stated outright in v0.5. v0.4 never gave the output length and
+# this generator inferred it from the key width HMAC-SHA256 consumes; it is no
+# longer an inference. One SHA-256 block, so a single HKDF expand iteration.
 KDF_LEN = 32
 
 
@@ -471,18 +486,38 @@ EXPECTED_FRAME_LEN = {
     ("ERROR", 0x00): 22,
 }
 
-# §14 - discard stages. §14 names a counter for stages 1-5b only, and names no
-# Status value anywhere. The names for stages 6-9 are the convention fixed in the
-# README ("Counter names") and shared with the C++ consumer:
-#   6 rx_unknown_type · 7 rx_unknown_schema · 8 rx_bad_length ·
-#   8a rx_not_fragmentable · 9 rx_rejected_ctx, rx_rejected_mac
-# Stage 10's overflow counter is `rx_fragment_overflow`: §11.3 writes the sibling
-# counters `rx_reassembly_abandoned` and `rx_reassembly_timeout` with the prefix, and
-# it is a discard, so it is summed into `rx_dropped` in schema 0xF0 (§14). Only
-# `rx_frag_duplicate` is excluded, because it counts an overwrite, not a discard.
-# A Status name and the wire ERROR code it maps to need not match: a
-# `frag` total of 0 is counted rx_bad_frag but reports ERROR(BAD_LENGTH) (§5.6), and
-# stage 8a is counted rx_not_fragmentable but likewise reports BAD_LENGTH (§11.4).
+# §14.1 - the counter registry, normative as of v0.5: every counter, the stage that
+# raises it, and whether it sums into `rx_dropped`. A vector may name nothing else.
+COUNTERS = {
+    "rx_crc_err": ("1", True),
+    "rx_runt": ("2", True),
+    "rx_oversize": ("2a", True),
+    "rx_bad_crc": ("3", True),
+    "rx_bad_ver": ("4", True),
+    "rx_not_addressed": ("5", True),
+    "rx_unknown_hdr_ext": ("5a", True),
+    "rx_bad_frag": ("5b", True),
+    "rx_unknown_type": ("6", True),
+    "rx_unknown_schema": ("7", True),
+    "rx_bad_length": ("8", True),
+    "rx_not_fragmentable": ("8a", True),
+    "rx_rejected_ctx": ("9", True),
+    "rx_rejected_mac": ("9", True),
+    "rx_reassembly_timeout": ("10", True),
+    "rx_fragment_overflow": ("10", True),
+    "rx_reassembly_abandoned": ("10", True),
+    "rx_rejected_seq": ("11", True),
+    # Counted, NOT summed into rx_dropped (§14.1): each is normal traffic, and a
+    # health metric that climbs during correct operation is worse than none.
+    "rx_frag_duplicate": ("10", False),
+    "rx_frag_late": ("10", False),
+    "rx_dup_command": ("11", False),
+}
+# §14.1 names counters; it still names no `Status` value, so the status strings in
+# these vectors remain a convention shared with the C++ consumer. A Status name and
+# the wire ERROR code it maps to need not match: a `frag` total of 0 is counted
+# rx_bad_frag but reports ERROR(BAD_LENGTH) (§5.6), and stage 8a is counted
+# rx_not_fragmentable but likewise reports BAD_LENGTH (§11.4).
 
 # ---------------------------------------------------------------------------
 # vector assembly helpers
@@ -504,7 +539,8 @@ def header_json(*, type_name, src, dst, seq, ctx_id, frag, schema, hdr_flags, ve
 
 def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
            schema=0x00, frag=0x01, hdr_flags=0x00, ver=WIRE_VER, mac_node=None,
-           self_id, expect_ctx_id=0, note=None, status="Ok", decode_only=False):
+           self_id, expect_ctx_id=0, note=None, status="Ok", decode_only=False,
+           origin=DERIVED):
     # §5.8 - bits 6:0 of hdr_flags are "write 0, ignore on receive". The sender
     # half and the receiver half are deliberately asymmetric, so a frame that
     # exercises the receiver rule is one no conforming encoder emits: it must be
@@ -520,7 +556,8 @@ def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
         assert len(frame) == expected, "§19 says %s/0x%02x is %d B, built %d" % (
             type_name, schema, expected, len(frame))
     assert len(frame) <= LRAN_MAX_FRAME, "§3 caps a frame at %d, built %d" % (LRAN_MAX_FRAME, len(frame))
-    vec = {"name": name, "spec_ref": spec_ref}
+    assert origin in (DERIVED, ADJUDICATED)
+    vec = {"name": name, "spec_ref": spec_ref, "origin": origin}
     if decode_only:
         vec["decode_only"] = True
     if note:
@@ -543,7 +580,7 @@ def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
 
 def frag_set(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload, frag_chunk,
              schema=0x00, hdr_flags=0x00, mac_node=None, self_id, expect_ctx_id=0,
-             delivery_order=None, note=None, counter=None, status="Ok"):
+             delivery_order=None, note=None, counter=None, status="Ok", origin=DERIVED):
     chunks = split_payload(payload, frag_chunk)
     total = len(chunks)
     frames = []
@@ -561,13 +598,35 @@ def frag_set(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload, frag_
     assert len(payload) <= cap, "§11.2 reassembly cap is %d, payload is %d" % (cap, len(payload))
     # §11.2 - reassembly is concatenation in ascending index order, whatever the
     # arrival order was. Rebuild it that way rather than trusting `payload`.
+    # A repeat before the set completes is an overwrite (rx_frag_duplicate); one
+    # after it completes matches the retained key of the last completed set and is
+    # discarded (rx_frag_late). The two are different rules with different counters,
+    # so a vector must exercise one or the other, never both.
     store: dict[int, bytes] = {}
-    for i in delivery_order:
+    completed_at = None
+    dup_live = dup_late = 0
+    for position, i in enumerate(delivery_order):
+        if completed_at is not None:
+            dup_late += 1            # §11.2 - discarded, the set is not reopened
+            continue
+        if i in store:
+            dup_live += 1            # §11.2 - overwrite within a live set
         store[i] = chunks[i]
+        if len(store) == total:
+            completed_at = position
+    assert completed_at is not None, "the set never completes"
     reassembled = b"".join(store[i] for i in range(total))
     assert reassembled == payload
+    if counter == "rx_frag_duplicate":
+        assert dup_live > 0 and dup_late == 0, (name, dup_live, dup_late)
+    elif counter == "rx_frag_late":
+        assert dup_late > 0 and dup_live == 0, (name, dup_live, dup_late)
+    else:
+        assert dup_live == 0 and dup_late == 0, (
+            "%s: delivery_order repeats an index but names no counter" % name)
 
-    vec = {"name": name, "spec_ref": spec_ref}
+    assert origin in (DERIVED, ADJUDICATED)
+    vec = {"name": name, "spec_ref": spec_ref, "origin": origin}
     if note:
         vec["note"] = note
     vec["header"] = header_json(type_name=type_name, src=src, dst=dst, seq=seq, ctx_id=ctx_id,
@@ -584,17 +643,30 @@ def frag_set(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload, frag_
         "status": status,
         "reassembled": reassembled.hex(),
     }
+    # §11.2 - the set completed, and nothing a late fragment does may reopen it or
+    # start a new one. 0 for every vector here; it is the assertion that gives the
+    # late-fragment case something to fail on.
+    decode["live_sets_after"] = 0
     if counter:
-        # §11.2 - a repeated index is an overwrite, counted rx_frag_duplicate,
-        # and does not change `reassembled`. Carried as an extra key; see report.
+        # §11.2, §14.1 - the counter that must move. rx_frag_duplicate and
+        # rx_frag_late are both excluded from rx_dropped: neither is a fault.
+        assert counter in COUNTERS, counter
         decode["counter"] = counter
     vec["decode"] = decode
     return vec
 
 
 def negative(name, spec_ref, *, frame: bytes, self_id, status, counter, stage,
-             expect_ctx_id=0, note=None):
-    vec = {"name": name, "spec_ref": spec_ref}
+             expect_ctx_id=0, note=None, origin=DERIVED):
+    # §14.1 fixes the counter for every stage, so every negative vector traces to it.
+    if "§14.1" not in spec_ref:
+        spec_ref += ", §14.1"
+    assert origin in (DERIVED, ADJUDICATED)
+    assert counter in COUNTERS, "%s: %r is not in the §14.1 registry" % (name, counter)
+    assert COUNTERS[counter][0] == stage, (
+        "%s: §14.1 raises %s at stage %s, vector says stage %s"
+        % (name, counter, COUNTERS[counter][0], stage))
+    vec = {"name": name, "spec_ref": spec_ref, "origin": origin}
     if note:
         vec["note"] = note
     vec["frame"] = frame.hex()
@@ -624,7 +696,7 @@ def build_kdf():
     for node_id, name, note in named:
         info = kdf_info(node_id)
         assert len(info) == 6                     # §9.1 - six bytes, always
-        vec = {"name": name, "spec_ref": "§9.1"}
+        vec = {"name": name, "spec_ref": "§9.1", "origin": DERIVED}
         if note:
             vec["note"] = note
         vec["node_id"] = "0x%02x" % node_id
@@ -926,6 +998,17 @@ def build_frag():
                       counter="rx_frag_duplicate",
                       note="Index 4 arrives three times while the set is still live: each repeat overwrites and is counted, and none of them changes the reassembled bytes."))
 
+    # §11.2 (new in v0.5) - a fragment matching the most recently completed set is
+    # discarded and counted rx_frag_late, with no ERROR returned and no new set
+    # started. ADJUDICATED: v0.4 was silent here, this generator reported the
+    # silence rather than guessing, and the rule was chosen against the codec's
+    # prior behaviour before v0.5 wrote it down.
+    late = list(range(15)) + [4, 14]
+    v.append(frag_set("ping_chunk14_late_fragment", "§11.2, §14.1",
+                      **dict(common, delivery_order=late), counter="rx_frag_late",
+                      origin=ADJUDICATED,
+                      note="Index 4 and index 14 arrive again after index 14 completed the set: both match the retained key, both are discarded and counted, no ERROR is returned, and live_sets_after stays 0 - one echoed fragment must not open a set that can never complete."))
+
     # A two-fragment PING, the smallest interesting set.
     small_seq = 801
     small_payload = p_ping(0x00, bytes(range(0x40, 0x40 + 30)))
@@ -1042,15 +1125,15 @@ def build_negative():
     # and stage 8a cannot claim them first.
     over_idx = build_frame(type_id=MSG_TYPE["PING"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                            seq=4676, ctx_id=GATE_CTX, frag=0x53, payload=pattern_fill(4676, 14))
-    v.append(negative("frag_index_ge_total", "§11.2, §14 stage 10", frame=over_idx,
+    v.append(negative("frag_index_ge_total", "§5.6, §11.2, §14 stage 10", frame=over_idx,
                       self_id=NODE_GATELINK, status="FragmentOverflow", counter="rx_fragment_overflow",
-                      stage="10",
+                      stage="10", origin=ADJUDICATED,
                       note="frag 0x53: index 5 of a declared total of 3. Wire error is ERROR(FRAGMENT_OVERFLOW) (§11.2)."))
     eq_idx = build_frame(type_id=MSG_TYPE["PING"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                          seq=4677, ctx_id=GATE_CTX, frag=0x22, payload=pattern_fill(4677, 14))
-    v.append(negative("frag_index_equals_total", "§11.2, §14 stage 10", frame=eq_idx,
+    v.append(negative("frag_index_equals_total", "§5.6, §11.2, §14 stage 10", frame=eq_idx,
                       self_id=NODE_GATELINK, status="FragmentOverflow", counter="rx_fragment_overflow",
-                      stage="10",
+                      stage="10", origin=ADJUDICATED,
                       note="frag 0x22: a 0-based index equal to the 1-based total is the off-by-one an encoder actually makes."))
 
     # stage 6 - type known
@@ -1060,6 +1143,13 @@ def build_negative():
     v.append(negative("unknown_type_0x0c", "§6, §13.2, §14 stage 6", frame=reseal(bytes(unk_type)),
                       self_id=NODE_GATELINK, status="UnknownType", counter="rx_unknown_type", stage="6",
                       note="Adding a type needs no ver bump precisely because this discard exists (§13.2)."))
+
+    reserved_type = bytearray(good_poll(seq=4685))
+    reserved_type[1] = 0x00                          # §6 - 0x00 is *reserved*, not a type
+    reserved_type = reserved_type[:LRAN_HDR_LEN] + reserved_type[-2:]
+    v.append(negative("reserved_type_0x00", "§6, §14 stage 6", frame=reseal(bytes(reserved_type)),
+                      self_id=NODE_GATELINK, status="UnknownType", counter="rx_unknown_type", stage="6",
+                      note="§6 reserves 0x00; a zeroed type byte is the shape a truncated or zero-filled buffer takes, so it must be rejected as unknown rather than treated as a default."))
 
     # stage 7 - (type, schema) pair
     pair = build_frame(type_id=MSG_TYPE["STATUS"], src=NODE_GATELINK, dst=NODE_BRIDGE, seq=4679,
@@ -1112,7 +1202,7 @@ def build_negative():
                           mac_node=NODE_GATELINK)
     v.append(negative("command_ctx_mismatch", "§9.4 step 2, §10.3, §14 stage 9", frame=ctx_bad,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="CtxMismatch",
-                      counter="rx_rejected_ctx", stage="9",
+                      counter="rx_rejected_ctx", stage="9", origin=ADJUDICATED,
                       note="MAC is valid over this header, so only the ctx check can fail: the node replies COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id."))
     forged = bytearray(build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                                    seq=6, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x01),
@@ -1121,14 +1211,14 @@ def build_negative():
     forged = reseal(bytes(forged))
     v.append(negative("command_corrupt_mac", "§9.3, §9.4 step 3, §14 stage 9", frame=forged,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
-                      counter="rx_rejected_mac", stage="9",
+                      counter="rx_rejected_mac", stage="9", origin=ADJUDICATED,
                       note="One MAC byte inverted, CRC repaired. Verification must be constant time (§9.4)."))
     swapped_key = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                               seq=8, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x03),
                               mac_node=NODE_SIMNODE0)
     v.append(negative("command_signed_with_wrong_node_key", "§9.1, §14 stage 9", frame=swapped_key,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
-                      counter="rx_rejected_mac", stage="9",
+                      counter="rx_rejected_mac", stage="9", origin=ADJUDICATED,
                       note="Signed with simnode-0's key but addressed to GateLink. This is the property §5.3 relies on: a bench node cannot forge a HOLD_OPEN to the gate."))
     unsigned = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                            seq=9, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x01))
@@ -1171,14 +1261,48 @@ def write(group: str, filename: str, vectors: list) -> None:
     print("%-24s %2d vectors -> %s" % (group, len(vectors), path.relative_to(HERE.parents[1])))
 
 
+def assert_no_negative_reproduces_a_valid_frame(single_v, frag_v, negative_v) -> int:
+    """A "corrupted" frame that happens to reproduce a valid one verifies
+    legitimately and passes as a false negative, silently. Checked at generation
+    time because that is where a one-byte edit to a builder introduces it."""
+    valid = {}
+    for vec in single_v:
+        valid[vec["frame"]] = vec["name"]
+    for vec in frag_v:
+        for index, frame in enumerate(vec["frames"]):
+            valid.setdefault(frame, "%s[%d]" % (vec["name"], index))
+    seen = {}
+    for vec in negative_v:
+        frame = vec["frame"]
+        assert frame not in valid, (
+            "%s reproduces the valid frame of %s byte for byte: it would verify "
+            "legitimately and pass as a false negative" % (vec["name"], valid[frame]))
+        assert frame not in seen, (
+            "%s and %s are the same bytes, so one of them proves nothing about the "
+            "stage it names" % (vec["name"], seen[frame]))
+        seen[frame] = vec["name"]
+    return len(valid)
+
+
 def main() -> None:
     # §9.1 first: if key derivation is wrong every authenticated vector below is
     # wrong in a way no counter points at.
     kdf = build_kdf()
+    single_v = build_single()
+    frag_v = build_frag()
+    negative_v = build_negative()
+    valid_frames = assert_no_negative_reproduces_a_valid_frame(single_v, frag_v, negative_v)
     write("kdf", "vectors_kdf.json", kdf)
-    write("single", "vectors_single.json", build_single())
-    write("frag", "vectors_frag.json", build_frag())
-    write("negative", "vectors_negative.json", build_negative())
+    write("single", "vectors_single.json", single_v)
+    write("frag", "vectors_frag.json", frag_v)
+    write("negative", "vectors_negative.json", negative_v)
+    every = kdf + single_v + frag_v + negative_v
+    adjudicated = [v["name"] for v in every if v.get("origin") == ADJUDICATED]
+    print("%-24s %2d distinct valid frames, none reproduced by a negative vector"
+          % ("cross-check", valid_frames))
+    print("%-24s %2d derived, %d adjudicated (%s)"
+          % ("provenance", len(every) - len(adjudicated), len(adjudicated),
+             ", ".join(adjudicated)))
 
 
 if __name__ == "__main__":
