@@ -24,6 +24,13 @@ void Reassembler::reset() {
   total_      = 0;
 }
 
+// spec 11.2 - the retained key of the last completed set in this slot.
+bool Reassembler::same_completed(const Frame& f) const {
+  return have_last_ && f.hdr.src == last_src_ && f.hdr.ctx_id == last_ctx_id_ &&
+         f.hdr.seq == last_seq_ && f.hdr.schema == last_schema_ &&
+         f.hdr.type == last_type_;
+}
+
 bool Reassembler::same_set(const Frame& f) const {
   // spec 11 - the receiver reassembles by (src, ctx_id, seq, schema). `type` is
   // included because a PING set and a STATUS set are capped differently and must
@@ -53,6 +60,17 @@ void Reassembler::assemble() {
   out_len_  = off;
   complete_ = true;
   active_   = false;
+
+  // spec 11.2 - retain this set's key so a late echo of it is recognised rather
+  // than started as a new set. Only COMPLETION sets this: a timed-out or abandoned
+  // set never completed, and a fragment of one is a legitimate retry that should be
+  // allowed to open a fresh set.
+  have_last_   = true;
+  last_src_    = src_;
+  last_ctx_id_ = ctx_id_;
+  last_seq_    = seq_;
+  last_schema_ = schema_;
+  last_type_   = type_;
 }
 
 void Reassembler::tick(uint32_t now_ms) {
@@ -69,7 +87,6 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   if (f.payload == nullptr) return count(counters_, Status::BufferTooSmall);
 
   tick(now_ms);
-  if (complete_) reset();  // the previous set was consumed; this frame starts anew
 
   // spec 14 stage 5b - the decode path rejects a total of 0 before a frame ever
   // reaches here, but the Reassembler is also driven directly by the bench and by
@@ -102,11 +119,33 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
 
   // spec 5.6 - 0x01 is a single unfragmented frame. Handled here so a caller can
   // route everything through the reassembler without branching on frag first.
+  //
+  // spec 11.2's retained-key check is deliberately NOT applied to these: a
+  // single-frame frame never joins a set, and a legitimately retransmitted
+  // CONFIG_ACK must not be swallowed as a late fragment.
   if (total == 1) {
     if (f.payload_len > sizeof(out_) || f.payload_len > cap) {
       return count(counters_, Status::FragmentOverflow);
     }
+    // A live multi-fragment set would otherwise be wiped by begin() with nothing
+    // counted, which repo rule 4 forbids. From that set's point of view the slot was
+    // taken, which is spec 11.3's abandonment.
+    if (active_) count(counters_, Status::ReassemblyAbandoned);
+    const bool  had_last   = have_last_;
+    const NodeId   ls = last_src_;
+    const CtxId    lc = last_ctx_id_;
+    const Seq      lq = last_seq_;
+    const SchemaId lm = last_schema_;
+    const MsgType  lt = last_type_;
     begin(f, now_ms);
+    // begin() resets the slot; a single frame must not disturb the retained key of
+    // the last fragmented set, which belongs to a different conversation.
+    have_last_   = had_last;
+    last_src_    = ls;
+    last_ctx_id_ = lc;
+    last_seq_    = lq;
+    last_schema_ = lm;
+    last_type_   = lt;
     for (size_t i = 0; i < f.payload_len; ++i) out_[i] = f.payload[i];
     out_len_  = f.payload_len;
     got_mask_ = 1;
@@ -114,6 +153,27 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
     active_   = false;
     return Status::Ok;
   }
+
+  // spec 11.2 - the check order is: live set, then last completed set, then new set.
+  //
+  // A fragment matching the most recently completed set is a late RF echo or a
+  // sender retry, and is discarded rather than started as a new set. No ERROR is
+  // returned, exactly as for a mid-set duplicate.
+  //
+  // This leans on `seq` not being reused: a genuinely NEW set sharing a completed
+  // set's full key would need the sender to repeat a seq, which spec 10.2 forbids in
+  // the command space and which in the status space takes a full 2^16 wrap. Where
+  // the assumption fails, the retained key is displaced by the slot's next
+  // completion anyway, so the exposure is one set.
+  if (!(active_ && same_set(f)) && same_completed(f)) {
+    if (counters_ != nullptr) ++counters_->rx_frag_late;
+    return Status::FragLate;
+  }
+
+  // The previous set was completed and is not being echoed, so the slot is free.
+  // Done here rather than at the top so a late fragment cannot destroy a completed
+  // payload the caller has not read yet.
+  if (complete_) reset();
 
   if (active_ && !same_set(f)) {
     // spec 11.3 - a different set arrived while this one was still incomplete and

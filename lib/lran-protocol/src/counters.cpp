@@ -55,6 +55,7 @@ void Counters::bump(Status s) {
     case Status::ReassemblyTimeout:   ++rx_reassembly_timeout; return;
     case Status::ReassemblyAbandoned: ++rx_reassembly_abandoned; return;
     case Status::FragmentOverflow:    ++rx_fragment_overflow; return;
+    case Status::FragLate:            ++rx_frag_late; return;
 
     // spec 14 stage 9. The counter names follow spec 14.1 and the COMMAND_ACK results
     // of spec 8.2; the Status names predate both and are the library's own.

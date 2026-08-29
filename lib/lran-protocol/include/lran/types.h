@@ -88,6 +88,12 @@ enum class Status : uint8_t {
   BadLength,          // stage 8
   ReassemblyTimeout,  // stage 10, spec 11.2 - the set's window expired
   ReassemblyAbandoned,  // spec 11.3 - a new set displaced a live one
+
+  // spec 11.2 - a fragment matching the most recently COMPLETED set. Discarded
+  // rather than started as a new set, and counted rx_frag_late. NOT an error and
+  // no ERROR is returned: a late RF echo and a sender retry both produce it
+  // legitimately, exactly as a mid-set duplicate does.
+  FragLate,
   FragmentOverflow,   // stage 10, spec 11.2
 
   // spec 11.4 / 14 stage 8a - a type v1 rules out was fragmented. Serves BOTH
