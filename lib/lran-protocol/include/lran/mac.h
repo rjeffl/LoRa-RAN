@@ -47,6 +47,14 @@ inline constexpr size_t  kKdfInfoLen      = kKdfInfoPrefixLen + 1;
 inline constexpr size_t  kMasterKeyLen    = 32;
 inline constexpr size_t  kNodeKeyLen      = 32;
 
+// spec 9.1 states the HKDF output length explicitly: L = 32. v0.4 never did, and the
+// independent W4 generator had to infer it from the width HMAC-SHA256 consumes. It
+// inferred correctly, but getting it wrong is undetectable by inspection - the two
+// sides derive different keys, every authenticated frame fails its MAC, and no
+// counter points at key derivation.
+static_assert(kNodeKeyLen == 32, "spec 9.1 - HKDF output length L is 32");
+static_assert(kMasterKeyLen == 32, "spec 9.1 - master key is 32 bytes");
+
 // Constant-time equality. spec 9.4 step 3 requires the MAC comparison itself be
 // constant time; a short-circuiting memcmp leaks the length of the matching prefix.
 bool ct_equal(const uint8_t* a, const uint8_t* b, size_t len);
