@@ -255,12 +255,12 @@ def receive(frame: bytes, self_id: int, expect_ctx_id: int):
     if mac_present or tname in ("COMMAND", "CONFIG"):                         # stage 9
         # §9.4 step 2 - ctx check; expect_ctx_id 0 means SKIP, never "expect zero"
         if expect_ctx_id != 0 and h["ctx_id"] != expect_ctx_id:
-            raise Reject("CtxMismatch", "rx_ctx_mismatch", "9")
+            raise Reject("CtxMismatch", "rx_rejected_ctx", "9")
         # §9.4 step 3 - MAC over this frame's own header and its own payload
         key = derive(peer_of(h["src"], h["dst"]))
         want = hmac.new(key, frame[:LRAN_HDR_LEN] + payload, hashlib.sha256).digest()[:LRAN_MAC_LEN]
         if not hmac.compare_digest(want, mac):
-            raise Reject("BadMac", "rx_bad_mac", "9")
+            raise Reject("BadMac", "rx_rejected_mac", "9")
 
     if index >= total:             # §11.2, §14 stage 10 - ERROR(FRAGMENT_OVERFLOW)
         # §11.3 spells the sibling reassembly counters with the rx_ prefix, and this

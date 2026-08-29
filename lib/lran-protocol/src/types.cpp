@@ -20,6 +20,7 @@ const char* to_string(Status s) {
     case Status::BadLength:         return "BadLength";
     case Status::ReassemblyTimeout: return "ReassemblyTimeout";
     case Status::ReassemblyAbandoned: return "ReassemblyAbandoned";
+    case Status::FragLate:          return "FragLate";
     case Status::NotFragmentable:   return "NotFragmentable";
     case Status::FragmentOverflow:  return "FragmentOverflow";
     case Status::BadMac:            return "BadMac";

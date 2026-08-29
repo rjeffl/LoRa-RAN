@@ -1899,9 +1899,9 @@ inline constexpr NegVec kNegative[] = {
     {"status_0x10_76_bytes", n13_frame, 94, 0, 0u, "BadLength", "rx_bad_length", -1},
     {"fragmented_hex_req", n14_frame, 30, 1, 0u, "NotFragmentable", "rx_not_fragmentable", -1},
     {"fragmented_command", n15_frame, 30, 1, 2309737967u, "NotFragmentable", "rx_not_fragmentable", -1},
-    {"command_ctx_mismatch", n16_frame, 30, 1, 2309737967u, "CtxMismatch", "rx_ctx_mismatch", -1},
-    {"command_corrupt_mac", n17_frame, 30, 1, 2309737967u, "BadMac", "rx_bad_mac", -1},
-    {"command_signed_with_wrong_node_key", n18_frame, 30, 1, 2309737967u, "BadMac", "rx_bad_mac", -1},
+    {"command_ctx_mismatch", n16_frame, 30, 1, 2309737967u, "CtxMismatch", "rx_rejected_ctx", -1},
+    {"command_corrupt_mac", n17_frame, 30, 1, 2309737967u, "BadMac", "rx_rejected_mac", -1},
+    {"command_signed_with_wrong_node_key", n18_frame, 30, 1, 2309737967u, "BadMac", "rx_rejected_mac", -1},
     {"command_with_no_mac", n19_frame, 22, 1, 2309737967u, "BadLength", "rx_bad_length", -1},
 };
 

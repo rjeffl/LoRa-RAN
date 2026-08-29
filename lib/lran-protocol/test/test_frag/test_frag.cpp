@@ -497,6 +497,178 @@ void test_fragmented_hex_req_rejected() {
   TEST_ASSERT_FALSE(r.active());
 }
 
+
+// --- L1 / spec 11.2: a fragment matching the last completed set -------------
+
+namespace {
+// Delivers a complete 2-fragment set with the given seq. Returns the reassembler's
+// state ready for the next case.
+void deliver_set(Reassembler* r, Seq seq, const uint8_t* a, const uint8_t* b,
+                 uint32_t* now) {
+  Frame f0 = make_fragment(a, 2, 0, 2);
+  Frame f1 = make_fragment(b, 2, 1, 2);
+  f0.hdr.seq = seq;
+  f1.hdr.seq = seq;
+  *now += 10;
+  r->accept(f0, *now);
+  *now += 10;
+  r->accept(f1, *now);
+}
+}  // namespace
+
+// A late echo is discarded, counted, and does NOT open a set.
+void test_late_fragment_after_completion_counted() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x10, 0x11};
+  const uint8_t b[] = {0x20, 0x21};
+  uint32_t now = 1000;
+
+  deliver_set(&r, 0x4242, a, b, &now);
+  TEST_ASSERT_TRUE(r.complete());
+
+  // The echo: index 0 of the set that just completed.
+  Frame late = make_fragment(a, 2, 0, 2);
+  late.hdr.seq = 0x4242;
+  now += 10;
+  TEST_ASSERT_EQUAL(Status::FragLate, r.accept(late, now));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_frag_late);
+  TEST_ASSERT_FALSE(r.active());  // no set was opened
+
+  // spec 14.1 - a late fragment is normal traffic, not a drop.
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+
+  // The completed payload is still intact: an echo must not destroy it.
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_UINT32(4, r.len());
+
+  // ...and a genuinely new set is accepted immediately afterwards.
+  const uint8_t c0[] = {0x30, 0x31};
+  const uint8_t c1[] = {0x40, 0x41};
+  deliver_set(&r, 0x4243, c0, c1, &now);
+  TEST_ASSERT_TRUE(r.complete());
+  const uint8_t want[] = {0x30, 0x31, 0x40, 0x41};
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, r.data(), 4);
+}
+
+// THE CASE THE RULE EXISTS FOR. Under the old behaviour the echo opened a set that
+// could never complete, held the slot for frag_reassembly_timeout_ms, blocked the
+// next set behind it, and then reported rx_reassembly_timeout - a counter naming a
+// fault that did not occur.
+void test_late_fragment_does_not_block_slot() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x01, 0x02};
+  const uint8_t b[] = {0x03, 0x04};
+  uint32_t now = 1000;
+
+  deliver_set(&r, 0x0501, a, b, &now);
+
+  Frame late = make_fragment(b, 2, 1, 2);
+  late.hdr.seq = 0x0501;
+  now += 10;
+  TEST_ASSERT_EQUAL(Status::FragLate, r.accept(late, now));
+
+  // The new set completes WITHOUT waiting out any timeout: the clock advances by far
+  // less than frag_reassembly_timeout_ms across the whole exchange.
+  const uint8_t d0[] = {0xAA, 0xBB};
+  const uint8_t d1[] = {0xCC, 0xDD};
+  deliver_set(&r, 0x0502, d0, d1, &now);
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_LESS_THAN_UINT32(kDefaultFragTimeoutMs, now - 1000);
+
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_frag_late);
+}
+
+// Only COMPLETION retains a key. A set that expired never completed, so a fragment
+// carrying its key is a legitimate retry and must be allowed to open a fresh set.
+void test_timed_out_set_does_not_retain_key() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x77, 0x88};
+
+  Frame f0 = make_fragment(a, 2, 0, 2);
+  f0.hdr.seq = 0x1234;
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f0, 1000));
+  r.tick(1000 + kDefaultFragTimeoutMs);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
+  TEST_ASSERT_FALSE(r.active());
+
+  // Same key again - a retry, not a late echo.
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f0, 1000 + kDefaultFragTimeoutMs + 10));
+  TEST_ASSERT_TRUE(r.active());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_late);
+}
+
+// The retained key holds ONE set. spec 11.2 - displaced by the next completion.
+void test_retained_key_displaced_by_next_completion() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x01, 0x02};
+  const uint8_t b[] = {0x03, 0x04};
+  uint32_t now = 1000;
+
+  deliver_set(&r, 0xA000, a, b, &now);  // set A
+  deliver_set(&r, 0xB000, a, b, &now);  // set B displaces A's key
+  TEST_ASSERT_TRUE(r.complete());
+
+  // A fragment of A is no longer recognised as late, so it opens a new set.
+  Frame old_a = make_fragment(a, 2, 0, 2);
+  old_a.hdr.seq = 0xA000;
+  now += 10;
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(old_a, now));
+  TEST_ASSERT_TRUE(r.active());
+  TEST_ASSERT_EQUAL_HEX16(0xA000, r.seq());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_late);
+
+  // B's key is still the retained one, so B's echo is still recognised as late -
+  // even though a different set (A) is now live. The retained-key check sits after
+  // the live-set check and before starting anything new (spec 11.2).
+  Frame echo_b = make_fragment(b, 2, 1, 2);
+  echo_b.hdr.seq = 0xB000;
+  now += 10;
+  TEST_ASSERT_EQUAL(Status::FragLate, r.accept(echo_b, now));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_frag_late);
+  TEST_ASSERT_TRUE(r.active());              // A's set survived the echo
+  TEST_ASSERT_EQUAL_HEX16(0xA000, r.seq());
+}
+
+// --- L2 / spec 11.2: single-frame frames are untouched by the rule ----------
+
+// A retransmitted unfragmented CONFIG_ACK must not be eaten as a late fragment: it
+// never joined a set in the first place.
+void test_single_frame_retransmit_not_late() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t p[] = {0x01, 0x00, 0x00};
+
+  Frame f = make_fragment(p, 3, 0, 1, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f, 100));
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f, 110));  // the retransmit
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_late);
+  TEST_ASSERT_EQUAL_UINT32(3, r.len());
+}
+
+// A single frame arriving mid-set takes the slot. That was previously silent, which
+// repo rule 4 forbids; spec 11.3 names the counter for a displaced live set.
+void test_single_frame_displacing_live_set_is_counted() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x01, 0x02};
+  Frame f0 = make_fragment(a, 2, 0, 2);
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f0, 100));
+  TEST_ASSERT_TRUE(r.active());
+
+  const uint8_t p[] = {0x01};
+  Frame single = make_fragment(p, 1, 0, 1, MsgType::Poll);
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(single, 110));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_abandoned);
+}
+
 int run_all() {
   UNITY_BEGIN();
   RUN_TEST(test_frag_nibble_packing);
@@ -521,6 +693,12 @@ int run_all() {
   RUN_TEST(test_duplicate_fragment_index_overwrites);
   RUN_TEST(test_duplicate_fragment_of_different_length_overwrites);
   RUN_TEST(test_fragmented_hex_req_rejected);
+  RUN_TEST(test_late_fragment_after_completion_counted);
+  RUN_TEST(test_late_fragment_does_not_block_slot);
+  RUN_TEST(test_timed_out_set_does_not_retain_key);
+  RUN_TEST(test_retained_key_displaced_by_next_completion);
+  RUN_TEST(test_single_frame_retransmit_not_late);
+  RUN_TEST(test_single_frame_displacing_live_set_is_counted);
   return UNITY_END();
 }
 

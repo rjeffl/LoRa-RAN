@@ -222,7 +222,7 @@
         "self": 1,
         "expect_ctx_id": 2309737967,
         "status": "CtxMismatch",
-        "counter": "rx_ctx_mismatch",
+        "counter": "rx_rejected_ctx",
         "stage": "9"
       }
     },
@@ -235,7 +235,7 @@
         "self": 1,
         "expect_ctx_id": 2309737967,
         "status": "BadMac",
-        "counter": "rx_bad_mac",
+        "counter": "rx_rejected_mac",
         "stage": "9"
       }
     },
@@ -248,7 +248,7 @@
         "self": 1,
         "expect_ctx_id": 2309737967,
         "status": "BadMac",
-        "counter": "rx_bad_mac",
+        "counter": "rx_rejected_mac",
         "stage": "9"
       }
     },

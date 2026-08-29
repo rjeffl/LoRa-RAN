@@ -81,11 +81,17 @@ class Reassembler {
   MsgType  type() const { return type_; }
 
   bool active() const { return active_; }
+
+  // Clears the live set. Does NOT clear the retained completed key (spec 11.2) -
+  // use forget_completed() for that, which exists for tests and for a peer that has
+  // demonstrably restarted.
   void reset();
+  void forget_completed() { have_last_ = false; }
 
  private:
   void begin(const Frame& f, uint32_t now_ms);
   bool same_set(const Frame& f) const;
+  bool same_completed(const Frame& f) const;
   void assemble();
 
   Counters* counters_;
@@ -117,6 +123,22 @@ class Reassembler {
 
   uint8_t  out_[kMaxPayloadPlain];
   size_t   out_len_ = 0;
+
+  // spec 11.2 - the key of the last MULTI-FRAGMENT set completed in this slot.
+  // Survives reset(): a fragment matching it is a late echo of work already done,
+  // not the start of something new. Displaced only by the next completion, so a
+  // timed-out or abandoned set never sets it.
+  //
+  // Ten bytes to remove a case where one echoed fragment opened a set that could
+  // never complete, held the slot for frag_reassembly_timeout_ms, blocked a
+  // legitimate set behind it, and then reported rx_reassembly_timeout - a counter
+  // naming a fault that did not occur.
+  bool     have_last_   = false;
+  NodeId   last_src_    = 0;
+  CtxId    last_ctx_id_ = 0;
+  Seq      last_seq_    = 0;
+  SchemaId last_schema_ = kSchemaNone;
+  MsgType  last_type_   = MsgType::Poll;
 };
 
 }  // namespace lran

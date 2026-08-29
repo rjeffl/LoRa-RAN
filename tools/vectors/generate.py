@@ -475,7 +475,7 @@ EXPECTED_FRAME_LEN = {
 # Status value anywhere. The names for stages 6-9 are the convention fixed in the
 # README ("Counter names") and shared with the C++ consumer:
 #   6 rx_unknown_type · 7 rx_unknown_schema · 8 rx_bad_length ·
-#   8a rx_not_fragmentable · 9 rx_ctx_mismatch, rx_bad_mac
+#   8a rx_not_fragmentable · 9 rx_rejected_ctx, rx_rejected_mac
 # Stage 10's overflow counter is `rx_fragment_overflow`: §11.3 writes the sibling
 # counters `rx_reassembly_abandoned` and `rx_reassembly_timeout` with the prefix, and
 # it is a discard, so it is summed into `rx_dropped` in schema 0xF0 (§14). Only
@@ -1112,7 +1112,7 @@ def build_negative():
                           mac_node=NODE_GATELINK)
     v.append(negative("command_ctx_mismatch", "§9.4 step 2, §10.3, §14 stage 9", frame=ctx_bad,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="CtxMismatch",
-                      counter="rx_ctx_mismatch", stage="9",
+                      counter="rx_rejected_ctx", stage="9",
                       note="MAC is valid over this header, so only the ctx check can fail: the node replies COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id."))
     forged = bytearray(build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                                    seq=6, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x01),
@@ -1121,14 +1121,14 @@ def build_negative():
     forged = reseal(bytes(forged))
     v.append(negative("command_corrupt_mac", "§9.3, §9.4 step 3, §14 stage 9", frame=forged,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
-                      counter="rx_bad_mac", stage="9",
+                      counter="rx_rejected_mac", stage="9",
                       note="One MAC byte inverted, CRC repaired. Verification must be constant time (§9.4)."))
     swapped_key = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                               seq=8, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x03),
                               mac_node=NODE_SIMNODE0)
     v.append(negative("command_signed_with_wrong_node_key", "§9.1, §14 stage 9", frame=swapped_key,
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
-                      counter="rx_bad_mac", stage="9",
+                      counter="rx_rejected_mac", stage="9",
                       note="Signed with simnode-0's key but addressed to GateLink. This is the property §5.3 relies on: a bench node cannot forge a HOLD_OPEN to the gate."))
     unsigned = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                            seq=9, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x01))
