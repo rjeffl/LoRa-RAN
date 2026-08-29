@@ -9,6 +9,7 @@
 
 #include <unity.h>
 
+#include <cstdio>
 #include <cstring>
 
 #include "lran/lran.h"
