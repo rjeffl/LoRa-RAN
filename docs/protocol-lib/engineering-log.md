@@ -450,3 +450,116 @@ is worth needs to know which parts were independent and which were handed over.
   implementation, and agreement is the thing being tested.
 - The vector suite reads JSON from disk, which works under `native`. **P7.3 will need
   the vectors embedded** as a generated header, since the target has no filesystem.
+
+---
+
+## 2026-08-29 — P7: target build on Heltec WiFi LoRa 32 V3 (ESP32-S3)
+
+All five suites now run on hardware. **97 tests pass on target**, including all 69 W4
+vectors. Board: `heltec_wifi_lora_32_V3`, CP2102 at `/dev/cu.usbserial-0001`.
+
+### The finding — `mbedtls_hkdf` does not exist on this platform
+
+`platform/esp32/mbedtls_mac.cpp` compiled cleanly and then **failed at link**:
+
+```
+undefined reference to `mbedtls_hkdf'
+```
+
+`<mbedtls/hkdf.h>` is present in the Arduino-ESP32 headers, so the file compiles; but
+`MBEDTLS_HKDF_C` is not enabled in the prebuilt mbedTLS the Arduino framework ships,
+so the symbol is absent. `mbedtls_md_hmac` links fine — only HKDF is missing.
+
+**This is exactly the class of defect P7 exists to catch, and it is unreachable from
+the host.** The file had been written, reviewed and marked UNVERIFIED for precisely
+this reason; a compile-only check would have passed it.
+
+Fixed by building HKDF-SHA256 out of `mbedtls_md_hmac` per RFC 5869 §2 — extract then
+expand — rather than depending on an optional mbedTLS module. That keeps the
+derivation working under any future `sdkconfig`, and still runs the actual hashing
+through the platform's vetted HMAC. `kNodeKeyLen` is exactly one SHA-256 block so a
+single expand iteration suffices, but the loop is written out so a longer key length
+cannot silently truncate.
+
+Enabling `MBEDTLS_HKDF_C` was the alternative and was rejected: it needs a rebuilt
+mbedTLS, which is not available under `framework = arduino` with precompiled
+libraries, and it would make key derivation depend on a build-config flag that a
+future framework bump could silently flip. On a fleet with no OTA, a key-derivation
+dependency that can vanish in a dependency update is not worth the twenty lines it
+saves.
+
+### P7.2 — mbedTLS agrees with the portable implementation
+
+Three new target-only tests in `test_crypto`, all passing on hardware:
+
+- `test_mbedtls_hmac_matches_refimpl` — message sizes 0, 1, 16, 63, 64, 65, 128 and
+  222, chosen to straddle the SHA-256 block boundary. A backend that mishandles the
+  final block passes a short case and fails here.
+- `test_mbedtls_hkdf_matches_refimpl` — every provisioned address and the whole bench
+  range. One wrong key per node is one node that silently cannot be commanded.
+- `test_mbedtls_hmac_rfc4231_case1` — the published KAT recomputed through mbedTLS, so
+  the target is checked against the standard and not merely against its neighbour.
+
+**The UNVERIFIED marker is removed.** Per P7.2 it came off only after these passed on
+target, not on the host.
+
+One self-inflicted failure worth recording: the RFC 4231 constant was first entered as
+`b0 03 44 c6...` by mis-splitting the hex string `b0344c61...`, whose correct first
+eight bytes are `b0 34 4c 61 d8 db 38 53`. The test caught it immediately, but it is
+the same failure mode §9.1 warns about for `info` — a hand-transcribed byte string
+that looks plausible and is wrong.
+
+### P7.3 — the vector suite on hardware
+
+**Zero host/target divergence.** All 69 vectors produce identical bytes on x86-64 and
+xtensa. That is what §4's serialization rules exist to guarantee, and a divergence
+would have meant something was reading struct layout somewhere.
+
+Getting there required a change the host never forced: the suite read its vectors from
+JSON through a fixed-arena parser costing **945 KB of static RAM**, against the
+Heltec's 320 KB. It would not have linked. `tools/vectors/embed.py` now emits
+`vectors_data.h`, a generated header of `const` arrays that live in flash (89 KB
+against 8 MB) and cost essentially no RAM. The JSON remains the source of truth and
+`check.py` still validates it; the header is a build artifact. Native and target now
+consume byte-identical data, which is stronger than the arrangement it replaced.
+
+The suites also needed dual entry points — `main()` on the host, `setup()`/`loop()`
+under Arduino. Unity's `setUp`/`tearDown` are distinct names and do not collide.
+
+### P7.4 — static footprint, ESP32-S3
+
+Measured on target. These replace the host x86-64 table above, which was marked
+indicative only.
+
+| | ESP32-S3 (xtensa) | host (x86-64) |
+|---|---|---|
+| `Header` | 20 B | 20 B |
+| `Frame` | 36 B | 56 B |
+| `Counters` | 84 B | 80 B |
+| `Reassembler` | **508 B** | 520 B |
+| `GateLinkStatusV1` | 84 B | 84 B |
+| `GateLinkEventV1` | 16 B | 16 B |
+| `NodeHealthV1` | 20 B | 20 B |
+| `GateLinkConfigV1` | 306 B | 306 B |
+
+`Frame` is smaller on target (4-byte pointers); `Counters` grew by 4 B with the v0.4
+additions.
+
+**Per-peer reassembly cost (§11.3):** **508 B per set.** A bridge holding one set per
+provisioned node costs **2,540 B for five nodes** — 0.8 % of the ESP32-S3's 320 KB.
+The capacity rule §11.3 requires is cheap; there is no reason for the bridge to share
+one `Reassembler` across peers, and if it does, `rx_reassembly_abandoned` is the
+counter that will say so.
+
+Whole test firmware, for scale: **RAM 18,544 B (5.7 %), flash 285,317 B (8.5 %)** —
+and that includes all 69 embedded vectors and the Unity harness, neither of which
+ships in node firmware.
+
+### Still open
+
+- **W9 bench runs** — the 222-byte `PING` and the fragmented `PING` over real RF, both
+  before GateLink is installed at the gate. Needs two boards and an antenna; nothing
+  in P7 exercises the SX1262 at all.
+- `firmware/bridge/` and `firmware/simnode/` remain empty shells. The `esp32s3`
+  environment added here is a **test** environment, deliberately: it needs no WiFi, no
+  MQTT and no `secrets.h`, and it should not grow into firmware.

@@ -4,6 +4,10 @@
 // P4 - schemas. Offsets are asserted against the spec 7 tables FIELD BY FIELD, not
 // merely round-tripped: a symmetric encoder and decoder agree on a wrong offset.
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 #include <unity.h>
 
 #include "lran/lran.h"
@@ -397,7 +401,7 @@ void test_schema_serialize_rejects_small_buffer() {
   TEST_ASSERT_EQUAL(Status::BufferTooSmall, serialize(s, small, sizeof(small), &n));
 }
 
-int main() {
+int run_all() {
   UNITY_BEGIN();
   RUN_TEST(test_schema_lengths_match_registry);
   RUN_TEST(test_schema_type_pairing_matches_registry);
@@ -413,3 +417,18 @@ int main() {
   RUN_TEST(test_schema_serialize_rejects_small_buffer);
   return UNITY_END();
 }
+
+// PlatformIO runs the same suites on the host and on the ESP32-S3. The host entry
+// point is main(); Arduino's is setup()/loop(). Unity's own setUp/tearDown are
+// distinct names and do not collide.
+#ifdef ARDUINO
+void setup() {
+  // The USB-serial link needs a moment before the first report, or the opening
+  // lines are lost and a passing run looks like a hang.
+  delay(2000);
+  run_all();
+}
+void loop() {}
+#else
+int main() { return run_all(); }
+#endif

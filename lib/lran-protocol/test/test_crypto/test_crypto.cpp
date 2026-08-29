@@ -3,10 +3,18 @@
 //
 // P3 - MAC and keying. Spec 9.
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 #include <unity.h>
 
 #include "lran/lran.h"
 #include "refimpl_mac.h"
+
+#ifdef ARDUINO
+#include "mbedtls_mac.h"
+#endif
 
 using namespace lran;
 
@@ -557,7 +565,74 @@ void test_zero_expect_ctx_skips_check() {
   }
 }
 
-int main() {
+
+#ifdef ARDUINO
+// --- P7.2: mbedTLS against the portable reference, ON TARGET ----------------
+//
+// The whole reason platform/esp32/mbedtls_mac.cpp exists is that the target uses
+// the ESP-IDF mbedTLS component where the host uses the portable implementation.
+// AGREEMENT IS THE THING BEING TESTED - this cannot be run on the host, and until
+// it passes here the file stays marked UNVERIFIED.
+//
+// A divergence would mean the bridge and the node derive different keys from the
+// same master, or compute different MACs over the same frame: every authenticated
+// COMMAND rejected, with no counter pointing at the cause (spec 9.1).
+void test_mbedtls_hmac_matches_refimpl() {
+  esp32::MbedtlsMac mbed;
+  refimpl::RefMac   ref;
+
+  const uint8_t key[kNodeKeyLen] = {
+      0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
+      0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
+      0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f};
+
+  // Sizes that straddle the SHA-256 block boundary: an empty message, a short one,
+  // exactly 64 bytes, and one spanning two blocks. A backend that mishandles the
+  // final block passes the short case and fails here.
+  const size_t sizes[] = {0, 1, 16, 63, 64, 65, 128, kMaxFrame};
+  uint8_t data[kMaxFrame];
+  for (size_t i = 0; i < sizeof(data); ++i) data[i] = static_cast<uint8_t>(i * 31 + 7);
+
+  for (size_t n : sizes) {
+    uint8_t a[kMacLen], b[kMacLen];
+    ref.hmac_sha256_trunc(key, kNodeKeyLen, data, n, a);
+    mbed.hmac_sha256_trunc(key, kNodeKeyLen, data, n, b);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY_MESSAGE(a, b, kMacLen, "mbedTLS HMAC != refimpl");
+  }
+}
+
+void test_mbedtls_hkdf_matches_refimpl() {
+  esp32::MbedtlsKdf mbed;
+  refimpl::RefKdf   ref;
+
+  // Every provisioned address, plus the bench range: one wrong key per node is one
+  // node that silently cannot be commanded.
+  const NodeId ids[] = {kNodeGateLink, kNodeWellLink, kNodeSim0, kNodeSim1,
+                        kNodeSim2,     kNodeSim3};
+  for (NodeId id : ids) {
+    uint8_t a[32], b[32];
+    ref.derive_node_key(kMaster, id, a);
+    mbed.derive_node_key(kMaster, id, b);
+    TEST_ASSERT_EQUAL_HEX8_ARRAY_MESSAGE(a, b, 32, "mbedTLS HKDF != refimpl");
+  }
+}
+
+// The published KATs, recomputed through mbedTLS rather than the portable code, so
+// the target is checked against the standard and not merely against its neighbour.
+void test_mbedtls_hmac_rfc4231_case1() {
+  esp32::MbedtlsMac mbed;
+  uint8_t key[20];
+  for (uint8_t& k : key) k = 0x0b;
+  const uint8_t msg[] = {'H', 'i', ' ', 'T', 'h', 'e', 'r', 'e'};
+  // RFC 4231 case 1, first 8 bytes of b0344c61d8db38535ca8afceaf0bf12b...
+  const uint8_t want[kMacLen] = {0xb0, 0x34, 0x4c, 0x61, 0xd8, 0xdb, 0x38, 0x53};
+  uint8_t got[kMacLen];
+  mbed.hmac_sha256_trunc(key, sizeof(key), msg, sizeof(msg), got);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, got, kMacLen);
+}
+#endif  // ARDUINO
+
+int run_all() {
   UNITY_BEGIN();
   RUN_TEST(test_sha256_known_answer);
   RUN_TEST(test_sha256_multiblock);
@@ -577,5 +652,25 @@ int main() {
   RUN_TEST(test_forged_fragment_zero_does_not_occupy_slot);
   RUN_TEST(test_unverified_fragment_refused_by_reassembler);
   RUN_TEST(test_zero_expect_ctx_skips_check);
+#ifdef ARDUINO
+  RUN_TEST(test_mbedtls_hmac_matches_refimpl);
+  RUN_TEST(test_mbedtls_hkdf_matches_refimpl);
+  RUN_TEST(test_mbedtls_hmac_rfc4231_case1);
+#endif
   return UNITY_END();
 }
+
+// PlatformIO runs the same suites on the host and on the ESP32-S3. The host entry
+// point is main(); Arduino's is setup()/loop(). Unity's own setUp/tearDown are
+// distinct names and do not collide.
+#ifdef ARDUINO
+void setup() {
+  // The USB-serial link needs a moment before the first report, or the opening
+  // lines are lost and a passing run looks like a hang.
+  delay(2000);
+  run_all();
+}
+void loop() {}
+#else
+int main() { return run_all(); }
+#endif
