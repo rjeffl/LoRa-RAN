@@ -91,39 +91,17 @@ bool status_from_name(const char* s, Status* out) {
 // rx_bad_length and rx_reassembly_abandoned out of rx_reassembly_timeout.
 void report(const char* group, const char* vec, const char* what);
 
-struct CounterRef { const char* name; uint32_t Counters::* field; };
-
-const CounterRef kCounters[] = {
-    {"rx_runt", &Counters::rx_runt},
-    {"rx_oversize", &Counters::rx_oversize},
-    {"rx_bad_crc", &Counters::rx_bad_crc},
-    {"rx_bad_ver", &Counters::rx_bad_ver},
-    {"rx_not_addressed", &Counters::rx_not_addressed},
-    {"rx_unknown_hdr_ext", &Counters::rx_unknown_hdr_ext},
-    {"rx_bad_frag", &Counters::rx_bad_frag},
-    {"rx_unknown_type", &Counters::rx_unknown_type},
-    {"rx_unknown_schema", &Counters::rx_unknown_schema},
-    {"rx_bad_length", &Counters::rx_bad_length},
-    {"rx_not_fragmentable", &Counters::rx_not_fragmentable},
-    {"rx_bad_mac", &Counters::rx_bad_mac},
-    {"rx_ctx_mismatch", &Counters::rx_ctx_mismatch},
-    {"rx_reassembly_timeout", &Counters::rx_reassembly_timeout},
-    {"rx_reassembly_abandoned", &Counters::rx_reassembly_abandoned},
-    {"rx_fragment_overflow", &Counters::rx_fragment_overflow},
-    {"rx_frag_duplicate", &Counters::rx_frag_duplicate},
-};
-
-// Asserts `want` is the only counter that moved. Returns false if the name is one
-// this build does not have - a naming disagreement, reported by the caller rather
-// than silently passing.
+// The name -> field mapping comes from lran::kCounterRegistry (spec 14.1) rather
+// than a copy kept here. A counter renamed in the library then fails these vectors
+// by name instead of silently matching a stale local table.
 bool assert_only_counter(const Counters& c, const char* want, const char* vec_name,
                          bool exactly_one) {
   bool known = false;
-  for (const CounterRef& r : kCounters) {
+  for (const CounterField& r : kCounterRegistry) {
     if (strcmp(r.name, want) == 0) known = true;
   }
   if (!known) return false;
-  for (const CounterRef& r : kCounters) {
+  for (const CounterField& r : kCounterRegistry) {
     const uint32_t v = c.*(r.field);
     const bool     is_target = (strcmp(r.name, want) == 0);
     if (is_target) {

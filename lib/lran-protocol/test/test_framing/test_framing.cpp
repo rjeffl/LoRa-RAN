@@ -238,7 +238,11 @@ void test_stage5b_frag_total_zero() {
   Frame f;
   TEST_ASSERT_EQUAL(Status::BadFrag, decode_header(buf, n, node_ctx(&c), &f));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_frag);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_fragment_overflow);  // the other stage-5b path
   TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+  // spec 14 stage 5b - the wire answer. Status and err_code differ on purpose; the
+  // library returns the Status and the caller emits the ERROR.
+  TEST_ASSERT_EQUAL_HEX8(0x02, static_cast<uint8_t>(ErrCode::BadLength));
 }
 
 // spec 11.2 - an index at or past the declared total keeps FRAGMENT_OVERFLOW. The
@@ -258,8 +262,10 @@ void test_stage5b_index_past_total() {
   Frame f;
   TEST_ASSERT_EQUAL(Status::FragmentOverflow, decode_header(buf, n, node_ctx(&c), &f));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_fragment_overflow);
-  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_frag);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_frag);  // NOT the stage-5b bucket, per spec 11.2
   TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
+  // spec 11.2 - a different wire error from the frag-total-zero path above.
+  TEST_ASSERT_EQUAL_HEX8(0x09, static_cast<uint8_t>(ErrCode::FragmentOverflow));
 }
 
 // The control: frag = 0x01 is a valid single unfragmented frame and moves nothing.
@@ -728,7 +734,7 @@ void test_hex_req_write_without_mac_is_rejected() {
   Frame f;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(raw, total, node_ctx(&c), &f));
   TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(raw, total, node_ctx(&c), &f));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_mac);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
 }
 
 void test_hex_req_read_needs_no_mac() {
@@ -853,6 +859,100 @@ void test_report_footprint() {
   TEST_ASSERT_TRUE(true);
 }
 
+
+// --- spec 14.1: the counter registry ----------------------------------------
+
+// Every name in spec 14.1, spelled out here independently of the library's own table.
+// Duplicating the list is the POINT: this is the test that would have caught
+// rx_reassembly_timeout and rx_fragment_overflow shipping without their `rx_` prefix
+// through the whole of P1-P5. A registry that checks itself checks nothing.
+void test_counter_registry_matches_spec_14_1() {
+  static const char* const kSpecNames[] = {
+      "rx_crc_err",           "rx_runt",
+      "rx_oversize",          "rx_bad_crc",
+      "rx_bad_ver",           "rx_not_addressed",
+      "rx_unknown_hdr_ext",   "rx_bad_frag",
+      "rx_unknown_type",      "rx_unknown_schema",
+      "rx_bad_length",        "rx_not_fragmentable",
+      "rx_rejected_ctx",      "rx_rejected_mac",
+      "rx_reassembly_timeout", "rx_fragment_overflow",
+      "rx_reassembly_abandoned", "rx_rejected_seq",
+      "rx_frag_duplicate",    "rx_frag_late",
+      "rx_dup_command",
+  };
+  const size_t n = sizeof(kSpecNames) / sizeof(kSpecNames[0]);
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(21, n, "spec 14.1 lists 21 counters");
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(n, kCounterRegistryLen, "registry size");
+
+  // Every spec name present in the registry...
+  for (size_t i = 0; i < n; ++i) {
+    bool found = false;
+    for (const CounterField& f : kCounterRegistry) {
+      if (strcmp(f.name, kSpecNames[i]) == 0) found = true;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(found, kSpecNames[i]);
+  }
+  // ...and no extras in the registry that spec 14.1 does not name.
+  for (const CounterField& f : kCounterRegistry) {
+    bool found = false;
+    for (size_t i = 0; i < n; ++i) {
+      if (strcmp(f.name, kSpecNames[i]) == 0) found = true;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(found, f.name);
+  }
+}
+
+// spec 14.1's third column: 18 counters sum into rx_dropped, 3 do not.
+void test_registry_dropped_column_matches_spec() {
+  static const char* const kExcluded[] = {"rx_frag_duplicate", "rx_frag_late",
+                                          "rx_dup_command"};
+  size_t in = 0, out = 0;
+  for (const CounterField& f : kCounterRegistry) {
+    bool should_exclude = false;
+    for (const char* e : kExcluded) {
+      if (strcmp(f.name, e) == 0) should_exclude = true;
+    }
+    TEST_ASSERT_EQUAL_MESSAGE(!should_exclude, f.in_dropped, f.name);
+    if (f.in_dropped) ++in; else ++out;
+  }
+  TEST_ASSERT_EQUAL_UINT32(18, in);
+  TEST_ASSERT_EQUAL_UINT32(3, out);
+}
+
+// spec 7.5 / 14.1 - checked BY CONSTRUCTION rather than by re-listing the fields:
+// every counter gets a distinct value, so a field wrongly included or omitted changes
+// the sum by an amount that identifies it.
+void test_total_dropped_sums_marked_counters_only() {
+  Counters c;
+  uint32_t expect = 0;
+  uint32_t v = 1;
+  for (const CounterField& f : kCounterRegistry) {
+    c.*(f.field) = v;
+    if (f.in_dropped) expect += v;
+    v *= 2;  // distinct, and no subset sums to another
+  }
+  // Not registry counters, and must not reach rx_dropped.
+  c.rx_frames    = 0xFFFF;
+  c.tx_frames    = 0xFFFF;
+  c.cad_backoffs = 0xFFFF;
+
+  TEST_ASSERT_EQUAL_UINT32(expect, c.total_dropped());
+
+  // The three exclusions, named individually so a failure says which one leaked.
+  Counters d;
+  d.rx_frag_duplicate = 7;
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, d.total_dropped(), "rx_frag_duplicate leaked");
+  d.reset();
+  d.rx_frag_late = 7;
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, d.total_dropped(), "rx_frag_late leaked");
+  d.reset();
+  d.rx_dup_command = 7;
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, d.total_dropped(), "rx_dup_command leaked");
+  d.reset();
+  d.rx_rejected_seq = 7;  // this one DOES count - a replay rejection is a drop
+  TEST_ASSERT_EQUAL_UINT32(7, d.total_dropped());
+}
+
 int run_all() {
   UNITY_BEGIN();
   RUN_TEST(test_report_footprint);
@@ -883,6 +983,9 @@ int run_all() {
   RUN_TEST(test_ping_pattern_reports_offset);
   RUN_TEST(test_ping_zero_length_payload);
   RUN_TEST(test_seq_newer_across_wrap);
+  RUN_TEST(test_counter_registry_matches_spec_14_1);
+  RUN_TEST(test_registry_dropped_column_matches_spec);
+  RUN_TEST(test_total_dropped_sums_marked_counters_only);
   RUN_TEST(test_counter_mapping_is_total);
   RUN_TEST(test_status_strings_present);
   RUN_TEST(test_message_payload_roundtrips);

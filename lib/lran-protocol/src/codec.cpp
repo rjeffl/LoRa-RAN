@@ -143,18 +143,23 @@ Status decode_header(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Frame
   // extension this build cannot implement, and best-effort parsing is forbidden.
   if (out->hdr.critical_ext()) return fail(ctx, Status::UnknownHdrExt);
 
-  // spec 5.6 stage 5b - a declared total of 0 is a malformed header, NOT a
-  // single-frame marker (0x01 is). Checked here, before stage 6, so a frame that is
-  // malformed in both its `frag` byte and its `type` reports the earlier stage.
+  // spec 14 stage 5b AND spec 11.2 - READ BOTH BEFORE CHANGING THIS.
   //
-  // The wire answer is ERROR(BAD_LENGTH) per spec 14 stage 5b, but the counter is
-  // rx_bad_frag: the two do not have to agree, and the counter is the diagnosis.
+  // Stage 5b validates the declared TOTAL only: a total of 0 is a malformed header,
+  // not a single-frame marker (0x01 is). It answers ERROR(BAD_LENGTH) and counts
+  // rx_bad_frag - the wire error and the counter deliberately differ, because the
+  // counter is the diagnosis and BAD_LENGTH is the nearest existing err_code.
+  //
+  // An index at or past the total is spec 11.2's condition, not stage 5b's: it
+  // answers ERROR(FRAGMENT_OVERFLOW) and counts rx_fragment_overflow. A total of 0
+  // means the sender's framing is broken; an out-of-range index means one fragment of
+  // an otherwise plausible set has nowhere to land. Two faults, two fixes.
+  //
+  // v0.4's stage 5b row read "total >= 1, index < total", which contradicted §11.2
+  // and led an independent implementation to the other answer. v0.5 corrected the row
+  // to the total alone. Both checks live here so a frame malformed in its `frag` byte
+  // reports that rather than a later stage.
   if (out->hdr.frag_total() == 0) return fail(ctx, Status::BadFrag);
-
-  // spec 11.2 - an index at or past the declared total keeps ERROR(FRAGMENT_OVERFLOW)
-  // rather than joining the stage-5b bucket. A total of 0 means the sender's framing
-  // is broken; an out-of-range index means one fragment of an otherwise plausible set
-  // has nowhere to land.
   if (out->hdr.frag_index() >= out->hdr.frag_total()) {
     return fail(ctx, Status::FragmentOverflow);
   }

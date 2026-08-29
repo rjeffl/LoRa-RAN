@@ -197,7 +197,7 @@ void test_command_mac_roundtrip_and_tamper() {
   Frame tf;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(tampered, n, d, &tf));
   TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(tampered, n, d, &tf));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_mac);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
 }
 
 // spec 9.4 step 2 - ctx before MAC, so a stale context is answered with
@@ -233,8 +233,8 @@ void test_ctx_mismatch_precedes_mac_check() {
   Frame f;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, d, &f));
   TEST_ASSERT_EQUAL(Status::CtxMismatch, decode_payload(buf, n, d, &f));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_ctx_mismatch);
-  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_mac);  // the MAC was never reached
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_ctx);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_rejected_mac);  // the MAC was never reached
 }
 
 // A bridge sets expect_ctx_id = 0: it has no context of its own and is the party
@@ -446,7 +446,7 @@ void test_bad_mac_fragment_never_buffered() {
   bad[n - 1] = static_cast<uint8_t>(crc >> 8);
 
   TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, bad, n, d, &r, 100));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_mac);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
   TEST_ASSERT_FALSE(r.active());     // no slot taken
   TEST_ASSERT_FALSE(r.complete());
   TEST_ASSERT_EQUAL_UINT32(0, r.len());
@@ -488,7 +488,7 @@ void test_forged_fragment_zero_does_not_occupy_slot() {
     TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, forged, n, d, &r, 10u + attempt));
     TEST_ASSERT_FALSE(r.active());
   }
-  TEST_ASSERT_EQUAL_UINT32(8, c.rx_bad_mac);
+  TEST_ASSERT_EQUAL_UINT32(8, c.rx_rejected_mac);
   TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);  // nothing was ever held
 
   // The legitimate set completes normally, unimpeded.
@@ -561,7 +561,7 @@ void test_zero_expect_ctx_skips_check() {
     TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, d, &f));
     TEST_ASSERT_EQUAL(Status::Ok, decode_payload(buf, n, d, &f));
     TEST_ASSERT_TRUE(f.mac_verified);
-    TEST_ASSERT_EQUAL_UINT32(0, c.rx_ctx_mismatch);
+    TEST_ASSERT_EQUAL_UINT32(0, c.rx_rejected_ctx);
   }
 }
 
