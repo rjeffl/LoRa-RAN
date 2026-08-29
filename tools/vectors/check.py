@@ -35,7 +35,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"
-SPEC = "LRAN-Protocol-Specification v0.4"
+SPEC = "LRAN-Protocol-Specification v0.5"
 WIRE_VER = 2
 
 LRAN_MAX_FRAME = 222          # §3
@@ -78,6 +78,21 @@ EXPECTED_FRAME_LEN = {
     ("EVENT", 0x11): 34, ("ERROR", 0x00): 22,
 }
 FRAGMENTABLE = {"CONFIG", "CONFIG_ACK", "PING", "STATUS", "EVENT"}         # §11.4
+
+# §14.1 - counter registry: name -> (stage, summed into rx_dropped)
+COUNTERS = {
+    "rx_crc_err": ("1", True), "rx_runt": ("2", True), "rx_oversize": ("2a", True),
+    "rx_bad_crc": ("3", True), "rx_bad_ver": ("4", True), "rx_not_addressed": ("5", True),
+    "rx_unknown_hdr_ext": ("5a", True), "rx_bad_frag": ("5b", True),
+    "rx_unknown_type": ("6", True), "rx_unknown_schema": ("7", True),
+    "rx_bad_length": ("8", True), "rx_not_fragmentable": ("8a", True),
+    "rx_rejected_ctx": ("9", True), "rx_rejected_mac": ("9", True),
+    "rx_reassembly_timeout": ("10", True), "rx_fragment_overflow": ("10", True),
+    "rx_reassembly_abandoned": ("10", True), "rx_rejected_seq": ("11", True),
+    "rx_frag_duplicate": ("10", False), "rx_frag_late": ("10", False),
+    "rx_dup_command": ("11", False),
+}
+ORIGINS = {"derived", "adjudicated"}
 
 # ---------------------------------------------------------------------------
 # primitives - table-driven CRC, so it is not the generator's loop rewritten
@@ -274,6 +289,8 @@ def receive(frame: bytes, self_id: int, expect_ctx_id: int):
 # ---------------------------------------------------------------------------
 FAILURES: list[str] = []
 COUNT = 0
+VALID_FRAMES: dict[str, str] = {}      # frame hex -> the vector that legitimately emits it
+NEGATIVE_FRAMES: dict[str, str] = {}   # frame hex -> the vector that must be discarded
 
 
 def fail(where: str, msg: str) -> None:
@@ -296,6 +313,10 @@ def load(filename: str, group: str) -> list:
     expect(doc.get("generated_by") == "tools/vectors/generate.py", where, "generated_by is wrong")
     names = [v["name"] for v in doc["vectors"]]
     expect(len(names) == len(set(names)), where, "duplicate vector names")
+    for v in doc["vectors"]:
+        expect(v.get("origin") in ORIGINS, "%s/%s" % (group, v.get("name")),
+               "origin is %r, expected one of %s" % (v.get("origin"), sorted(ORIGINS)))
+        expect("spec_ref" in v, "%s/%s" % (group, v.get("name")), "no spec_ref")
     return doc["vectors"]
 
 
@@ -338,6 +359,7 @@ def check_single():
         built = assemble(header, payload, key)
         expect(built.hex() == v["frame"], w, "frame mismatch\n  stored  %s\n  derived %s"
                % (v["frame"], built.hex()))
+        VALID_FRAMES.setdefault(v["frame"], w)
         expect(v["frame_len"] == len(built), w, "frame_len says %d, frame is %d bytes"
                % (v["frame_len"], len(built)))
         expect(len(built) <= LRAN_MAX_FRAME, w, "frame exceeds LRAN_MAX_FRAME")
@@ -402,6 +424,7 @@ def check_frag():
             expect(built.hex() == v["frames"][index], w,
                    "fragment %d mismatch\n  stored  %s\n  derived %s"
                    % (index, v["frames"][index], built.hex()))
+            VALID_FRAMES.setdefault(v["frames"][index], "%s[%d]" % (w, index))
             expect(len(built) <= LRAN_MAX_FRAME, w, "fragment %d exceeds LRAN_MAX_FRAME" % index)
             try:
                 receive(built, d["self"], d["expect_ctx_id"])
@@ -412,32 +435,49 @@ def check_frag():
         order = d["delivery_order"]
         expect(sorted(set(order)) == list(range(total)), w,
                "delivery_order %r does not cover 0..%d" % (order, total - 1))
+        # §11.2 - a repeat before completion overwrites within the live set
+        # (rx_frag_duplicate); anything after completion matches the retained key of
+        # the last completed set and is DISCARDED (rx_frag_late) - it must not be
+        # stored, must not reopen the set, and must not start a new one.
         store = {}
-        duplicates = 0
-        late_duplicates = 0
+        dup_live = dup_late = 0
         completed_at = None
         for position, i in enumerate(order):
+            if completed_at is not None:
+                dup_late += 1
+                continue
             if i in store:
-                duplicates += 1
-                # §11.2 defines an overwrite only "within a LIVE set". A repeat
-                # arriving after the set completed is not covered by v0.4 at all,
-                # so a vector must not assert an outcome for it.
-                if completed_at is not None:
-                    late_duplicates += 1
+                dup_live += 1
             store[i] = chunks[i]
-            if completed_at is None and len(store) == total:
+            if len(store) == total:
                 completed_at = position
-        expect(late_duplicates == 0, w,
-               "delivery_order repeats an index after the set completed; §11.2 covers "
-               "duplicates within a live set only")
+        expect(completed_at is not None, w, "delivery_order never completes the set")
+        expect(d.get("live_sets_after") == 0, w,
+               "live_sets_after is %r; a completed set leaves nothing live and a late "
+               "fragment must not start a new one (§11.2)" % d.get("live_sets_after"))
         reassembled = b"".join(store[i] for i in range(total))
         expect(reassembled.hex() == d["reassembled"], w, "reassembled bytes differ")
         expect(reassembled == payload, w, "reassembly does not reproduce the declared payload")
         if "counter" in d:
-            expect(d["counter"] == "rx_frag_duplicate" and duplicates > 0, w,
-                   "counter %r declared but delivery_order has %d duplicates" % (d["counter"], duplicates))
+            counter = d["counter"]
+            expect(counter in COUNTERS, w, "counter %r is not in the §14.1 registry" % counter)
+            expect(COUNTERS.get(counter, ("", ""))[1] is False, w,
+                   "%s is summed into rx_dropped; a fragment set that reassembles "
+                   "correctly must not raise a fault counter (§14.1)" % counter)
+            if counter == "rx_frag_duplicate":
+                expect(dup_live > 0 and dup_late == 0, w,
+                       "rx_frag_duplicate needs a repeat inside the LIVE set: "
+                       "%d live, %d late" % (dup_live, dup_late))
+            elif counter == "rx_frag_late":
+                expect(dup_late > 0 and dup_live == 0, w,
+                       "rx_frag_late needs a fragment AFTER completion: "
+                       "%d live, %d late" % (dup_live, dup_late))
+            else:
+                fail(w, "counter %r is not a fragmentation counter" % counter)
         else:
-            expect(duplicates == 0, w, "delivery_order repeats an index but no counter is declared")
+            expect(dup_live == 0 and dup_late == 0, w,
+                   "delivery_order repeats an index (%d live, %d late) but names no counter"
+                   % (dup_live, dup_late))
 
 
 def check_negative():
@@ -447,6 +487,10 @@ def check_negative():
         COUNT += 1
         frame = bytes.fromhex(v["frame"])
         d = v["decode"]
+        if v["frame"] in NEGATIVE_FRAMES:
+            fail(w, "same bytes as %s, so one of the two proves nothing about the "
+                    "stage it names" % NEGATIVE_FRAMES[v["frame"]])
+        NEGATIVE_FRAMES[v["frame"]] = w
         try:
             status, _payload, _mac = receive(frame, d["self"], d["expect_ctx_id"])
             fail(w, "the ladder ACCEPTED a negative vector (status %s); expected %s at stage %s"
@@ -457,6 +501,19 @@ def check_negative():
         expect(status == d["status"], w, "status %r, ladder says %r" % (d["status"], status))
         expect(counter == d["counter"], w, "counter %r, ladder says %r" % (d["counter"], counter))
         expect(stage == d["stage"], w, "stage %r, ladder says %r" % (d["stage"], stage))
+        expect(d["counter"] in COUNTERS, w, "counter %r is not in the §14.1 registry" % d["counter"])
+        expect(COUNTERS.get(d["counter"], (d["stage"],))[0] == d["stage"], w,
+               "§14.1 raises %s at stage %s, vector says stage %s"
+               % (d["counter"], COUNTERS.get(d["counter"], ("?",))[0], d["stage"]))
+
+
+def check_no_negative_reproduces_a_valid_frame() -> None:
+    """The quiet false pass: a "corrupted" frame that happens to reproduce a valid
+    one verifies legitimately and the vector passes without testing anything."""
+    for frame, w in NEGATIVE_FRAMES.items():
+        if frame in VALID_FRAMES:
+            fail(w, "reproduces the valid frame of %s byte for byte - it would verify "
+                    "legitimately and pass as a false negative" % VALID_FRAMES[frame])
 
 
 def main() -> int:
@@ -464,12 +521,14 @@ def main() -> int:
     check_single()
     check_frag()
     check_negative()
+    check_no_negative_reproduces_a_valid_frame()
     if FAILURES:
         print("FAIL - %d problem(s) in %d vectors:\n" % (len(FAILURES), COUNT))
         for f in FAILURES:
             print("  " + f)
         return 1
-    print("OK - %d vectors re-derived and matched" % COUNT)
+    print("OK - %d vectors re-derived and matched (%d distinct valid frames, "
+          "%d negative frames, no overlap)" % (COUNT, len(VALID_FRAMES), len(NEGATIVE_FRAMES)))
     return 0
 
 
