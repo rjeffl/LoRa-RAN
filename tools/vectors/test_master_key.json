@@ -1,0 +1,9 @@
+{
+  "_warning": "TEST-ONLY. NEVER FLASH THIS TO HARDWARE. NOT A SECRET AND NEVER TREAT IT AS ONE.",
+  "_why_committed": "This is a test fixture, not secrets.h. W4 vectors are worthless without a fixed key both implementations derive from, and a key that is not in the repo cannot be one. See LRAN-Protocol-Library-Implementation-Plan §5 and the task list P6.4.",
+  "_readable_on_purpose": "The 32 bytes are the ASCII string below, so the key announces itself in any hex dump or logic-analyser capture rather than looking like real key material.",
+  "name": "LRAN-TEST-ONLY-MASTER-KEY",
+  "master_key_ascii": "LRAN-TEST-ONLY-MASTER-KEY-DO-NOT",
+  "master_key": "4c52414e2d544553542d4f4e4c592d4d41535445522d4b45592d444f2d4e4f54",
+  "master_key_len": 32
+}
