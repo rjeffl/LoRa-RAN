@@ -563,3 +563,132 @@ ships in node firmware.
 - `firmware/bridge/` and `firmware/simnode/` remain empty shells. The `esp32s3`
   environment added here is a **test** environment, deliberately: it needs no WiFi, no
   MQTT and no `secrets.h`, and it should not grow into firmware.
+
+---
+
+## 2026-08-29 — v0.5 conformance revision (C1–C4, L1–L3, V1–V5, T1–T3)
+
+104 tests under `native`, **107 on target**, 71 W4 vectors, zero host/target
+divergence. Heltec WiFi LoRa 32 V3 on `/dev/cu.usbserial-0001`.
+
+### The counter registry (C1–C2)
+
+§14.1 is now normative: 21 counters, each with the stage that raises it and whether it
+sums into `rx_dropped`. Two renames — `rx_bad_mac` → `rx_rejected_mac`,
+`rx_ctx_mismatch` → `rx_rejected_ctx` — and three additions: `rx_rejected_seq`,
+`rx_dup_command` and `rx_frag_late`.
+
+`rx_rejected_seq` and `rx_dup_command` are **carried but never raised here**. They
+belong to §9.4 steps 4–6, which are out of scope by Implementation Plan §1 (W12).
+`Counters` is the aggregate that reaches schema `0xF0`, and an `rx_dropped` missing the
+replay rejections would understate drops on exactly the frames that move a gate.
+
+`kCounterRegistry` now holds the name/field/`in_dropped` table, and `total_dropped()`
+is computed **from** it. The sum can no longer drift from the registry the way the
+names once did. The registry test spells all 21 names out independently of that table —
+duplicating the list is the point, because a registry that checks itself checks
+nothing, and this is the test that would have caught the missing `rx_` prefixes through
+all of P1–P5.
+
+### The late-fragment rule (L1–L3) — the one behaviour change
+
+§11.2 now defines the post-completion case that v0.4 left undefined, and it defines it
+**against** what the codec did. The rule was not overruled: the reasoning holds. Under
+the old behaviour one echoed fragment opened a set that could never complete, held the
+slot for `frag_reassembly_timeout_ms`, blocked a legitimate set behind it, and then
+reported `rx_reassembly_timeout` — a counter naming a fault that did not occur.
+
+The `Reassembler` now retains the key of the last **multi-fragment** set completed in
+each slot and discards matching fragments as `rx_frag_late`, no `ERROR`. Ten bytes.
+Only completion retains a key: a timed-out or abandoned set never completed, so a
+fragment carrying its key is a legitimate retry that opens a fresh set.
+
+### A pre-existing silent discard, found while gating L2
+
+A single-frame frame arriving mid-set called `begin()`, which reset a live
+multi-fragment set **with nothing counted** — a repo rule 4 violation, reachable by any
+bridge routing all frames through one `Reassembler` per peer, where a `STATUS` would
+silently destroy an in-progress fragmented `CONFIG_ACK` from the same node.
+
+Now counted `rx_reassembly_abandoned` (§11.3's counter for a displaced slot). **This is
+the rule-4 fix, not a design decision.** If the intent is that single frames should not
+disturb the slot at all, that needs a spec answer and a second buffer.
+
+### The vectors (V1–V5): 69 → 71, and not one existing frame byte changed
+
+Every frame, fragment set and derived key was diffed against the committed v0.4 set:
+**zero changed, two added.** That is independent confirmation of v0.5's claim to alter
+no header field, no authentication scope and no schema layout — the revision is prose,
+counters and provenance.
+
+New: `ping_chunk14_late_fragment` (the vector relocated during P6 finding 2, back now
+that §11.2 defines the case) and `reserved_type_0x00` (§6 reserves `0x00`, so a zeroed
+type byte is rejected as unknown rather than defaulted).
+
+**Provenance is now explicit per vector: 65 derived, 6 adjudicated.** The adjudicated
+six are the stage 5b resolution, the three stage-9 counter renames, and the
+late-fragment rule — each a case where the expected value reached the generator from
+outside the prose. The stage 6/7/8/8a counter names stay *derived*: the generator
+proposed them from v0.4 before §14.1 existed and the spec adopted them, so the
+direction of travel was generator-to-spec.
+
+**A clean run is weak evidence this round, and the number should be read that way.**
+Three of the four P6 findings are now spec text whose answers were handed over, and
+most groups are unchanged bytes that already agreed in P6 — re-running them witnesses
+that neither side regressed, which is worth having but is not new evidence. The only
+genuinely new independent content is `reserved_type_0x00` and the V4 gates. The most
+interesting new rule, late fragments, is precisely the one that could not be derived.
+
+§14.1 is now **enforced** rather than followed: `generate.py` and `check.py` each carry
+the 21-counter table independently, so a vector naming a counter outside it or at the
+wrong stage fails at generation *and* at check. The `rx_dropped` column is enforced
+too — a fragmentation vector that reassembles correctly may only name a counter §14.1
+marks `no`, so a health metric can never be asserted to climb during correct operation.
+
+V4's hazard is gated at both ends: no negative frame may reproduce any positive frame,
+and no two negative vectors may share bytes. Verified by injection.
+
+### Target re-verification (T1–T3)
+
+107 tests on hardware, zero divergence. The HKDF constraint (§9.1) is now pinned by
+`tools/checks/no_mbedtls_hkdf.py`, which fails on the include, the call or the feature
+macro under `lib/`. It ignores comments deliberately: the first version matched the
+prose in `mbedtls_mac.cpp` explaining why the dependency is absent, and the name of the
+test that verifies the replacement. **A guard that fires on its own documentation gets
+disabled.** Verified in both directions.
+
+`static_assert(kNodeKeyLen == 32)` pins §9.1's now-explicit `L`, and the expand loop
+still cannot truncate for a longer one.
+
+### P7.4 footprint — v0.5 delta, ESP32-S3
+
+| | P7 (v0.4) | v0.5 | Δ |
+|---|---:|---:|---:|
+| `Header` | 20 B | 20 B | — |
+| `Frame` | 36 B | 36 B | — |
+| `Counters` | 84 B | **96 B** | +12 B |
+| `Reassembler` | 508 B | **520 B** | +12 B |
+| bridge, 5 peers | 2,540 B | **2,600 B** | +60 B |
+| `GateLinkStatusV1` | 84 B | 84 B | — |
+
+`Counters` grew 12 B for three new fields (`rx_rejected_seq`, `rx_dup_command`,
+`rx_frag_late`); the two renames cost nothing. `Reassembler` grew 12 B for the retained
+key — §11.2 priced it at ten bytes and it cost twelve after alignment. **A bridge
+holding one set per provisioned node now costs 2,600 B for five nodes, 0.8 % of SRAM.**
+
+Whole test firmware: RAM 18,544 B (5.7 %) unchanged, flash 286,997 B (8.6 %), up
+1,680 B — the two new vectors and the registry table.
+
+### Open
+
+- **W12** — §9.4 steps 4–6 still have no home. Largest open item; a decision, not code.
+- **W9** — needs the second board *and* an SX1262 driver that does not exist. Nothing
+  built so far has touched the radio.
+- **§11.2's dead-space clause has no vector.** A differing-length duplicate exhausting
+  staging is unreachable from the `frag` vector shape, which derives fragments from
+  `(payload, chunk)` and cannot express a non-uniform duplicate. Needs a raw-frames
+  vector form or a C++ unit test. Covered in `test_frag` today but not by W4.
+- **`Status` names diverge from the counters beside them.** `CtxMismatch` sits with
+  `rx_rejected_ctx`, `BadMac` with `rx_rejected_mac`, while §9.4 says `REJECTED_CTX` /
+  `REJECTED_MAC`. C1 scoped the rename to counters, but §14.1 names counters and still
+  names no `Status` anywhere — the same shape of defect §14.1 was created to retire.
