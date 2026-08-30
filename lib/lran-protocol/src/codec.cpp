@@ -250,7 +250,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
   // COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id so the bridge can resync.
   if (ctx.expect_ctx_id != 0 && frame_has_mac(h.type, inout->payload, payload_len) &&
       h.ctx_id != ctx.expect_ctx_id) {
-    return fail(ctx, Status::CtxMismatch);
+    return fail(ctx, Status::RejectedCtx);
   }
 
   // spec 9.4 step 3. Deliberately after the ctx check and before any sequence
@@ -260,7 +260,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
       hex_req_is_write_class(inout->payload, payload_len)) {
     // spec 7.6 - a write-class HEX request with no MAC at all. The node answers
     // HEX_RSP(REJECTED_UNAUTHENTICATED); to the codec it is a failed authentication.
-    return fail(ctx, Status::BadMac);
+    return fail(ctx, Status::RejectedMac);
   }
 
   if (mac_present && ctx.mac != nullptr && ctx.node_key != nullptr) {
@@ -269,7 +269,7 @@ Status decode_payload(const uint8_t* buf, size_t len, const DecodeCtx& ctx, Fram
     // sits after the MAC and is not covered by it.
     ctx.mac->hmac_sha256_trunc(ctx.node_key, kNodeKeyLen, buf, kHdrLen + payload_len,
                                want_mac);
-    if (!ct_equal(want_mac, inout->mac, kMacLen)) return fail(ctx, Status::BadMac);
+    if (!ct_equal(want_mac, inout->mac, kMacLen)) return fail(ctx, Status::RejectedMac);
     inout->mac_verified = true;
   }
 

@@ -35,7 +35,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"
-SPEC = "LRAN-Protocol-Specification v0.5"
+SPEC = "LRAN-Protocol-Specification v0.6"
 WIRE_VER = 2
 
 LRAN_MAX_FRAME = 222          # §3
@@ -270,12 +270,12 @@ def receive(frame: bytes, self_id: int, expect_ctx_id: int):
     if mac_present or tname in ("COMMAND", "CONFIG"):                         # stage 9
         # §9.4 step 2 - ctx check; expect_ctx_id 0 means SKIP, never "expect zero"
         if expect_ctx_id != 0 and h["ctx_id"] != expect_ctx_id:
-            raise Reject("CtxMismatch", "rx_rejected_ctx", "9")
+            raise Reject("RejectedCtx", "rx_rejected_ctx", "9")
         # §9.4 step 3 - MAC over this frame's own header and its own payload
         key = derive(peer_of(h["src"], h["dst"]))
         want = hmac.new(key, frame[:LRAN_HDR_LEN] + payload, hashlib.sha256).digest()[:LRAN_MAC_LEN]
         if not hmac.compare_digest(want, mac):
-            raise Reject("BadMac", "rx_rejected_mac", "9")
+            raise Reject("RejectedMac", "rx_rejected_mac", "9")
 
     if index >= total:             # §11.2, §14 stage 10 - ERROR(FRAGMENT_OVERFLOW)
         # §11.3 spells the sibling reassembly counters with the rx_ prefix, and this
@@ -478,6 +478,62 @@ def check_frag():
             expect(dup_live == 0 and dup_late == 0, w,
                    "delivery_order repeats an index (%d live, %d late) but names no counter"
                    % (dup_live, dup_late))
+        if "interpose" in v:
+            check_interpose(w, v, chunks, completed_at)
+
+
+def check_interpose(w: str, v: dict, chunks: list, completed_at: int | None) -> None:
+    """§11.2 - a frame declaring `frag` total 1, delivered into the middle of a live
+    set. It is not a fragment of anything: it may not begin, join, displace or expire
+    the set, and it is still delivered whole. Re-derived from its own declared header
+    and payload, like every other frame here."""
+    ip = v["interpose"]
+    h = ip["header"]
+    d = v["decode"]
+    frag = int(h["frag"], 16)
+    schema = int(h["schema"], 16)
+    payload = bytes.fromhex(ip["payload"])
+    key = key_from_label(ip["key"])
+    expect((frag >> 4) & 0x0F == 0 and frag & 0x0F == 1, w,
+           "interpose frag is 0x%02x; §11.2's rule is about a total of 1" % frag)
+    header = pack_header(h["ver"], TYPE_VALUE[h["type"]], h["src"], h["dst"], h["seq"],
+                         h["ctx_id"], frag, schema, int(h["hdr_flags"], 16))
+    built = assemble(header, payload, key)
+    expect(built.hex() == ip["frame"], w,
+           "interposed frame mismatch\n  stored  %s\n  derived %s" % (ip["frame"], built.hex()))
+    VALID_FRAMES.setdefault(ip["frame"], w + "[interposed]")
+    expect(ip["frame_len"] == len(built), w,
+           "interpose frame_len says %d, frame is %d bytes" % (ip["frame_len"], len(built)))
+    # It must be a frame in its own right: the ladder accepts it whole, at stage 8,
+    # which is what makes "nothing is held for it" true.
+    try:
+        status, got_payload, _mac = receive(built, d["self"], d["expect_ctx_id"])
+        expect(status == ip["decode"]["status"], w,
+               "interposed status %r, ladder says %r" % (ip["decode"]["status"], status))
+        expect(got_payload == payload, w, "interposed payload differs from the ladder's")
+        expect(got_payload.hex() == ip["decode"]["payload"], w,
+               "interpose decode.payload differs from the declared payload")
+    except Reject as r:
+        fail(w, "the ladder rejected the interposed frame: %s" % r)
+    # It is NOT part of the set. Sharing the set's key would make this a duplicate
+    # fragment case instead, and sharing its bytes would make it a fragment.
+    sh = v["header"]
+    expect((h["seq"], schema, h["type"]) != (sh["seq"], int(sh["schema"], 16), sh["type"]), w,
+           "the interposed frame carries the set's own key")
+    expect(ip["frame"] not in v["frames"], w, "the interposed frame IS one of the fragments")
+    # ...and it lands strictly inside the set, before the set completes. After
+    # completion it would witness §11.2's retained-key rule, which is a different one.
+    after = ip["after"]
+    expect(0 < after < len(d["delivery_order"]), w,
+           "interpose.after is %r; the frame must arrive INSIDE the set" % after)
+    expect(completed_at is None or after <= completed_at, w,
+           "interpose.after is %r, past the position that completes the set (%r)"
+           % (after, completed_at))
+    # §11.2, §14.1 - nothing about this frame is a fault, so the vector may not name a
+    # counter for it. The C++ consumer asserts every counter stayed at zero.
+    expect("counter" not in d, w,
+           "a set with an interposed single frame names counter %r; §11.2 makes it a "
+           "delivery, not a discard" % d.get("counter"))
 
 
 def check_negative():

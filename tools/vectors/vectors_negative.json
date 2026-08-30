@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.5",
+  "spec": "LRAN-Protocol-Specification v0.6",
   "wire_ver": 2,
   "group": "negative",
   "generated_by": "tools/vectors/generate.py",
@@ -252,7 +252,7 @@
       "decode": {
         "self": 1,
         "expect_ctx_id": 2309737967,
-        "status": "CtxMismatch",
+        "status": "RejectedCtx",
         "counter": "rx_rejected_ctx",
         "stage": "9"
       }
@@ -266,7 +266,7 @@
       "decode": {
         "self": 1,
         "expect_ctx_id": 2309737967,
-        "status": "BadMac",
+        "status": "RejectedMac",
         "counter": "rx_rejected_mac",
         "stage": "9"
       }
@@ -280,7 +280,7 @@
       "decode": {
         "self": 1,
         "expect_ctx_id": 2309737967,
-        "status": "BadMac",
+        "status": "RejectedMac",
         "counter": "rx_rejected_mac",
         "stage": "9"
       }

@@ -581,8 +581,8 @@ void test_counter_mapping_is_total() {
   c.bump(Status::NotFragmentable);
   c.bump(Status::ReassemblyTimeout);
   c.bump(Status::FragmentOverflow);
-  c.bump(Status::BadMac);
-  c.bump(Status::CtxMismatch);
+  c.bump(Status::RejectedMac);
+  c.bump(Status::RejectedCtx);
   TEST_ASSERT_EQUAL_UINT32(15, c.total_dropped());
 
   // Not wire conditions: no spec 14 stage owns them, so they are not drops.
@@ -599,8 +599,133 @@ void test_counter_mapping_is_total() {
 
 void test_status_strings_present() {
   TEST_ASSERT_EQUAL_STRING("Ok", to_string(Status::Ok));
-  TEST_ASSERT_EQUAL_STRING("BadMac", to_string(Status::BadMac));
+  TEST_ASSERT_EQUAL_STRING("RejectedMac", to_string(Status::RejectedMac));
   TEST_ASSERT_EQUAL_STRING("UnknownHdrExt", to_string(Status::UnknownHdrExt));
+}
+
+
+// --- G3 / spec 14.1: Status identifiers follow the wire code ----------------
+
+namespace {
+
+// SCREAMING_SNAKE or rx_snake -> PascalCase, with the `rx_` prefix dropped. The
+// convergence rule spelled as a transformation rather than as a second list: a name
+// that drifts fails here without anyone having to notice it drifted.
+void to_pascal(const char* in, char* out, size_t out_len) {
+  size_t o = 0;
+  bool   upper = true;
+  const char* p = in;
+  if (strncmp(p, "rx_", 3) == 0) p += 3;
+  for (; *p != '\0' && o + 1 < out_len; ++p) {
+    if (*p == '_') { upper = true; continue; }
+    const char c = (*p >= 'A' && *p <= 'Z') ? static_cast<char>(*p - 'A' + 'a') : *p;
+    out[o++] = upper ? static_cast<char>(c - 'a' + 'A') : c;
+    upper = false;
+  }
+  out[o] = '\0';
+}
+
+}  // namespace
+
+// spec 14.1's rows, spelled out here independently of every table the library uses
+// to express them - the same shape as the counter registry test above, and for the
+// same reason: duplicating the list is the point.
+//
+// The third column is what v0.6 added. Before it, `CtxMismatch` sat beside
+// `rx_rejected_ctx` while spec 9.4 said `REJECTED_CTX` - three names for one
+// condition, which is the drift spec 14.1 was built to retire reappearing one layer
+// up. The registry named counters and stages and no wire code, so there was nothing
+// to converge on.
+void test_status_identifiers_follow_the_wire_code() {
+  struct Row {
+    Status      s;
+    const char* ident;    // what to_string prints
+    const char* wire;     // spec 14.1 column 3; nullptr where it reads "-"
+    const char* counter;  // spec 14.1 column 1
+  };
+  // Wire codes: spec 9.4 / 8.2 for the COMMAND_ACK results, spec 8.8 for the ERROR
+  // err_codes, spec 14.1's third column for which applies where.
+  static const Row kSpec[] = {
+      {Status::Runt,                "Runt",                nullptr,              "rx_runt"},
+      {Status::Oversize,            "Oversize",            nullptr,              "rx_oversize"},
+      {Status::BadCrc,              "BadCrc",              "BAD_CRC",            "rx_bad_crc"},
+      {Status::BadVersion,          "BadVersion",          "BAD_VERSION",        "rx_bad_ver"},
+      {Status::NotAddressed,        "NotAddressed",        nullptr,              "rx_not_addressed"},
+      {Status::UnknownHdrExt,       "UnknownHdrExt",       "UNKNOWN_HDR_EXT",    "rx_unknown_hdr_ext"},
+      {Status::BadFrag,             "BadFrag",             "BAD_LENGTH",         "rx_bad_frag"},
+      {Status::UnknownType,         "UnknownType",         "UNKNOWN_TYPE",       "rx_unknown_type"},
+      {Status::UnknownSchema,       "UnknownSchema",       "UNKNOWN_SCHEMA",     "rx_unknown_schema"},
+      {Status::BadLength,           "BadLength",           "BAD_LENGTH",         "rx_bad_length"},
+      {Status::NotFragmentable,     "NotFragmentable",     "BAD_LENGTH",         "rx_not_fragmentable"},
+      {Status::RejectedCtx,         "RejectedCtx",         "REJECTED_CTX",       "rx_rejected_ctx"},
+      {Status::RejectedMac,         "RejectedMac",         "REJECTED_MAC",       "rx_rejected_mac"},
+      {Status::ReassemblyTimeout,   "ReassemblyTimeout",   "REASSEMBLY_TIMEOUT", "rx_reassembly_timeout"},
+      {Status::FragmentOverflow,    "FragmentOverflow",    "FRAGMENT_OVERFLOW",  "rx_fragment_overflow"},
+      {Status::ReassemblyAbandoned, "ReassemblyAbandoned", nullptr,              "rx_reassembly_abandoned"},
+      {Status::FragLate,            "FragLate",            nullptr,              "rx_frag_late"},
+  };
+
+  for (const Row& row : kSpec) {
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(row.ident, to_string(row.s), row.counter);
+
+    // The rule, as a transformation. Where one wire code covers several conditions -
+    // BAD_LENGTH is three faults with three different fixes - the code cannot be the
+    // identifier, and the identifier follows the COUNTER, which is the diagnosis.
+    // Where spec 14.1's third column reads "-" there is no code to follow, same
+    // answer. Everywhere else the wire code wins: it is the name that cannot be
+    // changed later.
+    size_t sharing = 0;
+    for (const Row& other : kSpec) {
+      if (row.wire != nullptr && other.wire != nullptr &&
+          strcmp(row.wire, other.wire) == 0) ++sharing;
+    }
+    const char* source = (row.wire != nullptr && sharing == 1) ? row.wire : row.counter;
+    char want[40];
+    to_pascal(source, want, sizeof(want));
+    TEST_ASSERT_EQUAL_STRING_MESSAGE(want, row.ident, source);
+
+    // ...and the counter it names is the one bump() moves, with nothing else moving.
+    Counters c;
+    c.bump(row.s);
+    for (const CounterField& f : kCounterRegistry) {
+      const uint32_t want_v = (strcmp(f.name, row.counter) == 0) ? 1u : 0u;
+      TEST_ASSERT_EQUAL_UINT32_MESSAGE(want_v, c.*(f.field), f.name);
+    }
+  }
+
+  // Closure, in both directions. Every registry counter this library can raise
+  // through a Status is in the table above; the four that are not are the ones with
+  // no Status by design, and naming them here is what keeps a fifth from joining
+  // them silently.
+  static const char* const kUnmapped[] = {
+      "rx_crc_err",        // stage 1 - the radio driver's, never the codec's
+      "rx_frag_duplicate", // spec 11.2 - the Reassembler bumps it directly
+      "rx_rejected_seq",   // stage 11 - outside this library (W12)
+      "rx_dup_command",    // stage 11 - outside this library (W12)
+  };
+  for (const CounterField& f : kCounterRegistry) {
+    bool mapped = false;
+    for (const Row& row : kSpec) {
+      if (strcmp(f.name, row.counter) == 0) mapped = true;
+    }
+    bool excused = false;
+    for (const char* u : kUnmapped) {
+      if (strcmp(f.name, u) == 0) excused = true;
+    }
+    TEST_ASSERT_TRUE_MESSAGE(mapped != excused, f.name);
+  }
+
+  // The library-local values: a caller error is not a wire condition, has no wire
+  // code and no spec 14 stage, and must move nothing.
+  static const Status kLocal[] = {Status::Ok, Status::BufferTooSmall,
+                                  Status::MissingMac, Status::NotImplemented};
+  for (Status s : kLocal) {
+    Counters c;
+    c.bump(s);
+    for (const CounterField& f : kCounterRegistry) {
+      TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, c.*(f.field), to_string(s));
+    }
+  }
 }
 
 // --- spec 6.2-6.6, 7.6: fixed-shape payloads ---------------------------------
@@ -733,7 +858,7 @@ void test_hex_req_write_without_mac_is_rejected() {
   Counters c;
   Frame f;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(raw, total, node_ctx(&c), &f));
-  TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(raw, total, node_ctx(&c), &f));
+  TEST_ASSERT_EQUAL(Status::RejectedMac, decode_payload(raw, total, node_ctx(&c), &f));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
 }
 
@@ -988,6 +1113,7 @@ int run_all() {
   RUN_TEST(test_total_dropped_sums_marked_counters_only);
   RUN_TEST(test_counter_mapping_is_total);
   RUN_TEST(test_status_strings_present);
+  RUN_TEST(test_status_identifiers_follow_the_wire_code);
   RUN_TEST(test_message_payload_roundtrips);
   RUN_TEST(test_hex_rsp_is_two_plus_n);
   RUN_TEST(test_hex_rsp_frame_length_is_twenty_plus_n);

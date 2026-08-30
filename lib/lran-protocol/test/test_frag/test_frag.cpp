@@ -653,9 +653,19 @@ void test_single_frame_retransmit_not_late() {
   TEST_ASSERT_EQUAL_UINT32(3, r.len());
 }
 
-// A single frame arriving mid-set takes the slot. That was previously silent, which
-// repo rule 4 forbids; spec 11.3 names the counter for a displaced live set.
-void test_single_frame_displacing_live_set_is_counted() {
+// G2 / spec 11.3, INVERTED IN v0.6 - this assertion previously read
+// `TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_abandoned)`. Counting the
+// displacement was v0.5's fix for a silent discard and was the right immediate move;
+// spec 11.2 now says the single frame had no business in the slot at all, so there
+// is no displacement left to count. Kept in place rather than deleted: a test that
+// flips is easier to miss than a test that is missing.
+//
+// After this, rx_reassembly_abandoned has exactly ONE caller - one set displacing
+// another with no slot free - which is what makes it worth distinguishing from
+// rx_reassembly_timeout: a timeout means the RF path dropped a fragment, an
+// abandonment means the receiver is undersized or a peer is interleaving sets. A
+// STATUS arriving on schedule is neither.
+void test_single_frame_does_not_abandon_live_set() {
   Counters c;
   Reassembler r(&c);
   const uint8_t a[] = {0x01, 0x02};
@@ -666,7 +676,94 @@ void test_single_frame_displacing_live_set_is_counted() {
   const uint8_t p[] = {0x01};
   Frame single = make_fragment(p, 1, 0, 1, MsgType::Poll);
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(single, 110));
-  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_abandoned);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
+
+  // The set is untouched: still live, still holding the same key, and no counter of
+  // any kind moved.
+  TEST_ASSERT_TRUE(r.active());
+  TEST_ASSERT_EQUAL_HEX16(0x4242, r.seq());
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_duplicate);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_late);
+}
+
+// G1 / spec 11.2 - the whole round trip. A single-frame frame may not begin, join,
+// displace or expire a set, even one sharing (src, ctx_id, schema) with it, AND it
+// must still be delivered: the fix for the displacement is a delivery path that
+// bypasses the slot, not a discard.
+//
+// The case is not exotic. On the bridge this is a node's periodic STATUS or an
+// asynchronous EVENT arriving while that same node's fragmented CONFIG_ACK is still
+// in flight - recoverable by readback, but reliably recurring.
+void test_single_frame_does_not_disturb_live_set() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x10, 0x11, 0x12};
+  const uint8_t b[] = {0x20, 0x21};
+
+  // A live multi-fragment set, one fragment short.
+  Frame f0 = make_fragment(a, 3, 0, 2, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f0, 100));
+  TEST_ASSERT_TRUE(r.active());
+  TEST_ASSERT_FALSE(r.complete());
+
+  // The interloper: same peer, same ctx_id, different conversation. It is delivered
+  // to the caller in full.
+  const uint8_t s[] = {0xF0, 0xF1, 0xF2, 0xF3};
+  Frame single = make_fragment(s, 4, 0, 1, MsgType::Status, kSchemaNodeHealthV1);
+  single.hdr.seq = 0x0007;
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(single, 110));
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_EQUAL_UINT32(4, r.len());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(s, r.data(), 4);
+
+  // ...and the set behind it is still live, still on its own key.
+  TEST_ASSERT_TRUE(r.active());
+  TEST_ASSERT_EQUAL_HEX16(0x4242, r.seq());
+  TEST_ASSERT_EQUAL(MsgType::ConfigAck, r.type());
+
+  // The set completes normally and reassembles to the bytes it would have without
+  // the interloper.
+  Frame f1 = make_fragment(b, 2, 1, 2, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(f1, 120));
+  TEST_ASSERT_TRUE(r.complete());
+  TEST_ASSERT_FALSE(r.active());
+  const uint8_t want[] = {0x10, 0x11, 0x12, 0x20, 0x21};
+  TEST_ASSERT_EQUAL_UINT32(5, r.len());
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(want, r.data(), 5);
+
+  // No reassembly counter moved, in either direction: not abandoned, not timed out,
+  // not overflowed, and not a duplicate or a late fragment either.
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_fragment_overflow);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_duplicate);
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_frag_late);
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+}
+
+// spec 11.2 - the "expire" half of the rule, which is the one an implementation gets
+// wrong by accident: a single frame that runs the slot's clock forward ages out a
+// set it is not part of. tick() from the receive loop is what expires sets.
+void test_single_frame_does_not_expire_live_set() {
+  Counters c;
+  Reassembler r(&c);
+  const uint8_t a[] = {0x01, 0x02};
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(make_fragment(a, 2, 0, 2), 1000));
+
+  const uint8_t p[] = {0x01};
+  Frame single = make_fragment(p, 1, 0, 1, MsgType::Poll);
+  single.hdr.seq = 0x0009;
+  // Well past frag_reassembly_timeout_ms. The set is stale, but this frame is not
+  // what may say so.
+  TEST_ASSERT_EQUAL(Status::Ok, r.accept(single, 1000 + kDefaultFragTimeoutMs + 1));
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_timeout);
+  TEST_ASSERT_TRUE(r.active());
+
+  // The receive loop's tick is what expires it, and then it is counted exactly once.
+  r.tick(1000 + kDefaultFragTimeoutMs + 2);
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
+  TEST_ASSERT_FALSE(r.active());
 }
 
 int run_all() {
@@ -698,7 +795,9 @@ int run_all() {
   RUN_TEST(test_timed_out_set_does_not_retain_key);
   RUN_TEST(test_retained_key_displaced_by_next_completion);
   RUN_TEST(test_single_frame_retransmit_not_late);
-  RUN_TEST(test_single_frame_displacing_live_set_is_counted);
+  RUN_TEST(test_single_frame_does_not_abandon_live_set);
+  RUN_TEST(test_single_frame_does_not_disturb_live_set);
+  RUN_TEST(test_single_frame_does_not_expire_live_set);
   return UNITY_END();
 }
 

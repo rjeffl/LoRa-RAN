@@ -23,8 +23,8 @@ const char* to_string(Status s) {
     case Status::FragLate:          return "FragLate";
     case Status::NotFragmentable:   return "NotFragmentable";
     case Status::FragmentOverflow:  return "FragmentOverflow";
-    case Status::BadMac:            return "BadMac";
-    case Status::CtxMismatch:       return "CtxMismatch";
+    case Status::RejectedMac:       return "RejectedMac";
+    case Status::RejectedCtx:       return "RejectedCtx";
     case Status::BufferTooSmall:    return "BufferTooSmall";
     case Status::MissingMac:        return "MissingMac";
     case Status::NotImplemented:    return "NotImplemented";

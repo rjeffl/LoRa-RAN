@@ -3,7 +3,7 @@
 # Copyright (c) 2026 <copyright holder - D31, still open>
 """LRAN protocol test-vector generator - open item W4, milestone P6.
 
-Derived from the prose of `LRAN-Protocol-Specification` v0.5 and from nothing
+Derived from the prose of `LRAN-Protocol-Specification` v0.6 and from nothing
 else, except where a vector is marked `"origin": "adjudicated"` - see below. This file deliberately shares no code with /lib/lran-protocol/: the CRC-16,
 the header serializer, the payload builders and the fragmenter are all written
 here from the specification text. Only `hashlib` and `hmac` are borrowed, and
@@ -41,7 +41,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.5"
+SPEC = "LRAN-Protocol-Specification v0.6"
 WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
 
 DERIVED = "derived"
@@ -580,7 +580,8 @@ def single(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload,
 
 def frag_set(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload, frag_chunk,
              schema=0x00, hdr_flags=0x00, mac_node=None, self_id, expect_ctx_id=0,
-             delivery_order=None, note=None, counter=None, status="Ok", origin=DERIVED):
+             delivery_order=None, note=None, counter=None, status="Ok", origin=DERIVED,
+             interpose=None):
     chunks = split_payload(payload, frag_chunk)
     total = len(chunks)
     frames = []
@@ -652,6 +653,48 @@ def frag_set(name, spec_ref, *, type_name, src, dst, seq, ctx_id, payload, frag_
         # rx_frag_late are both excluded from rx_dropped: neither is a fault.
         assert counter in COUNTERS, counter
         decode["counter"] = counter
+    # §11.2 - a frame declaring a `frag` total of 1 delivered INTO the middle of this
+    # set. It is not a fragment of anything: it may not begin, join, displace or
+    # expire the set, and it must still be delivered whole to the caller. It is a
+    # complete frame of its own, so it carries its own header, payload and frame
+    # bytes rather than an index into `frames`.
+    if interpose is not None:
+        after = interpose["after"]
+        assert 0 < after < len(delivery_order), (
+            "%s: the interposed frame must land INSIDE the set, not before or after "
+            "it" % name)
+        assert after <= completed_at, (
+            "%s: the interposed frame arrives after the set completed, which "
+            "witnesses the retained-key rule rather than the single-frame rule" % name)
+        i_frame = build_frame(type_id=MSG_TYPE[interpose["type_name"]],
+                              src=interpose["src"], dst=interpose["dst"],
+                              seq=interpose["seq"], ctx_id=interpose["ctx_id"],
+                              frag=frag_byte(0, 1), schema=interpose.get("schema", 0x00),
+                              hdr_flags=0x00, payload=interpose["payload"],
+                              mac_node=interpose.get("mac_node"))
+        # The whole point is that it is NOT part of the set: were it to share the
+        # set's full key the case under test would be a duplicate fragment instead.
+        assert (interpose["seq"], interpose.get("schema", 0x00),
+                interpose["type_name"]) != (seq, schema, type_name), (
+            "%s: the interposed frame shares the set's key" % name)
+        assert i_frame not in frames, "%s: the interposed frame IS a fragment" % name
+        vec["interpose"] = {
+            "after": after,
+            "spec_ref": interpose.get("spec_ref", "§11.2"),
+            "note": interpose.get("note"),
+            "header": header_json(type_name=interpose["type_name"], src=interpose["src"],
+                                  dst=interpose["dst"], seq=interpose["seq"],
+                                  ctx_id=interpose["ctx_id"], frag=frag_byte(0, 1),
+                                  schema=interpose.get("schema", 0x00), hdr_flags=0x00),
+            "payload": interpose["payload"].hex(),
+            "key": key_label(interpose.get("mac_node")),
+            "frame": i_frame.hex(),
+            "frame_len": len(i_frame),
+            "decode": {"status": "Ok", "payload": interpose["payload"].hex()},
+        }
+        if vec["interpose"]["note"] is None:
+            del vec["interpose"]["note"]
+
     vec["decode"] = decode
     return vec
 
@@ -1048,6 +1091,27 @@ def build_frag():
                       ctx_id=GATE_CTX, schema=0x12, payload=ack_payload, frag_chunk=96,
                       self_id=NODE_BRIDGE,
                       note="The readback that recovers a lost ACK is itself fragmented; CONFIG_ACK carries no MAC (§9.2)."))
+
+    # §11.2 - THE SINGLE-FRAME RULE, and the case on the bridge it was written for:
+    # a node's periodic health STATUS arriving while that same node's fragmented
+    # CONFIG_ACK is still in flight. Same src, same ctx_id, a different conversation.
+    # The STATUS must be delivered whole, the set must complete into the same bytes
+    # it would have without it, and no reassembly counter may move - a status frame
+    # arriving on schedule is not an abandonment and not a timeout.
+    v.append(frag_set("config_ack_21_results_single_frame_interposed", "§11.2, §14.1",
+                      type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=903,
+                      ctx_id=GATE_CTX, schema=0x12, payload=ack_payload, frag_chunk=96,
+                      self_id=NODE_BRIDGE,
+                      interpose=dict(
+                          after=1,
+                          type_name="STATUS", src=NODE_GATELINK, dst=NODE_BRIDGE,
+                          seq=904, ctx_id=GATE_CTX, schema=0xF0,
+                          payload=p_status_0xf0(uptime_s=7200, boot_count=3, rx_frames=250,
+                                                tx_frames=249, rx_dropped=0, cad_backoffs=4,
+                                                last_rssi_dbm=-97, last_snr_db10=55,
+                                                proto_ver=WIRE_VER, health_flags=0x00),
+                          note="A health STATUS from the same node, mid-set. Complete on arrival, so nothing is held for it."),
+                      note="§11.2: a frame declaring frag total 1 may not begin, join, displace or expire a set, even one sharing (src, ctx_id) with it - and is still delivered."))
     return v
 
 
@@ -1201,7 +1265,7 @@ def build_negative():
                           ctx_id=GATE_CTX ^ 0x00000001, frag=0x01, payload=p_command(0x01),
                           mac_node=NODE_GATELINK)
     v.append(negative("command_ctx_mismatch", "§9.4 step 2, §10.3, §14 stage 9", frame=ctx_bad,
-                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="CtxMismatch",
+                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="RejectedCtx",
                       counter="rx_rejected_ctx", stage="9", origin=ADJUDICATED,
                       note="MAC is valid over this header, so only the ctx check can fail: the node replies COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id."))
     forged = bytearray(build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
@@ -1210,14 +1274,14 @@ def build_negative():
     forged[-3] ^= 0xFF                               # last MAC byte, guaranteed different
     forged = reseal(bytes(forged))
     v.append(negative("command_corrupt_mac", "§9.3, §9.4 step 3, §14 stage 9", frame=forged,
-                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
+                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="RejectedMac",
                       counter="rx_rejected_mac", stage="9", origin=ADJUDICATED,
                       note="One MAC byte inverted, CRC repaired. Verification must be constant time (§9.4)."))
     swapped_key = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                               seq=8, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x03),
                               mac_node=NODE_SIMNODE0)
     v.append(negative("command_signed_with_wrong_node_key", "§9.1, §14 stage 9", frame=swapped_key,
-                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="BadMac",
+                      self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="RejectedMac",
                       counter="rx_rejected_mac", stage="9", origin=ADJUDICATED,
                       note="Signed with simnode-0's key but addressed to GateLink. This is the property §5.3 relies on: a bench node cannot forge a HOLD_OPEN to the gate."))
     unsigned = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,

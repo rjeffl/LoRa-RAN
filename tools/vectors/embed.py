@@ -126,6 +126,11 @@ def main():
            '  uint32_t              expect_ctx;',
            '  const uint8_t*        reassembled; uint16_t reassembled_len;',
            '  const char*           counter;   // nullptr when the vector names none',
+           '  // spec 11.2 - a single-frame frame delivered after `inter_after`',
+           '  // entries of `order`. nullptr when the vector interposes nothing.',
+           '  const uint8_t*        inter_frame; uint16_t inter_frame_len;',
+           '  const uint8_t*        inter_payload; uint16_t inter_payload_len;',
+           '  uint8_t               inter_after;',
            '};',
            '',
            'struct NegVec {',
@@ -184,12 +189,19 @@ def main():
         out.append(f'inline constexpr uint8_t f{i}_order[] = {{'
                    + ", ".join(str(x) for x in dec["delivery_order"]) + "};\n")
         rs, rn = blob(f"f{i}_reasm", dec["reassembled"]); out.append(rs)
+        ip = v.get("interpose")
+        if ip is None:
+            inter = "nullptr, 0, nullptr, 0, 0"
+        else:
+            ifs, ifn = blob(f"f{i}_inter", ip["frame"]);        out.append(ifs)
+            ips, ipn = blob(f"f{i}_inter_pl", ip["payload"]);   out.append(ips)
+            inter = (f'f{i}_inter, {ifn}, f{i}_inter_pl, {ipn}, {ip["after"]}')
         rows.append(
             f'    {{{cstr(v["name"])}, {hdr_init(v["header"])}, f{i}_payload, {pn}, '
             f'{v["frag_chunk"]}, {key_node(v)}, f{i}_frames, f{i}_frame_lens, '
             f'{len(v["frames"])}, f{i}_frag_lens, f{i}_order, '
             f'{len(dec["delivery_order"])}, {dec["self"]}, {dec["expect_ctx_id"]}u, '
-            f'f{i}_reasm, {rn}, {cstr(dec.get("counter"))}}},')
+            f'f{i}_reasm, {rn}, {cstr(dec.get("counter"))}, {inter}}},')
     out.append("inline constexpr FragVec kFrag[] = {\n" + "\n".join(rows) + "\n};\n")
 
     # ---- negative --------------------------------------------------------

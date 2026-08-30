@@ -74,7 +74,11 @@ void Reassembler::assemble() {
 }
 
 void Reassembler::tick(uint32_t now_ms) {
-  if (!active_ || complete_) return;
+  // Only active_ gates this. complete_ used to imply !active_ and was tested here
+  // as a second guard; since spec 11.2's single-frame rule a delivered single frame
+  // sets complete_ while a set is still live, and reading it here would leave that
+  // set unable to ever expire.
+  if (!active_) return;
   // Unsigned subtraction, so a millisecond counter wrapping through zero does not
   // resurrect an expired set.
   if (now_ms - start_ms_ >= timeout_ms_) {
@@ -86,8 +90,6 @@ void Reassembler::tick(uint32_t now_ms) {
 Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
   if (f.payload == nullptr) return count(counters_, Status::BufferTooSmall);
 
-  tick(now_ms);
-
   // spec 14 stage 5b - the decode path rejects a total of 0 before a frame ever
   // reaches here, but the Reassembler is also driven directly by the bench and by
   // the vector suite, and the two paths must name the same condition.
@@ -98,61 +100,56 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
     return count(counters_, Status::FragmentOverflow);
   }
 
+  // spec 11.2 - A SINGLE-FRAME FRAME NEVER TOUCHES REASSEMBLY STATE. It is not a
+  // fragment of anything: its payload is complete on arrival, and it may not begin,
+  // join, displace or expire a set even when it shares (src, ctx_id, schema) with a
+  // live one. Handled here, ahead of tick() and of every read of the slot, because
+  // "expire" is the half of that rule the ladder below would otherwise break: a
+  // periodic STATUS arriving on schedule would age out a set it has nothing to do
+  // with. tick() from the receive loop is what expires sets, as its contract says.
+  //
+  // The payload is copied into the DELIVERY buffer, which the caller reads through
+  // complete()/data()/len(). That is not the staging buffer and not the slot -
+  // active_, got_mask_, stage_, start_ms_ and the set key are all left alone, so a
+  // live set survives this untouched and completes into out_ afterwards. Nothing is
+  // held for a single frame, so no second buffer is needed to hold it.
+  //
+  // spec 11.2's retained-key check is deliberately NOT applied to these either: a
+  // single-frame frame never joins a set, and a legitimately retransmitted
+  // CONFIG_ACK must not be swallowed as a late fragment.
+  if (total == 1) {
+    const size_t single_cap = reassembly_cap(f.hdr.type);
+    if (f.payload_len > sizeof(out_) || f.payload_len > single_cap) {
+      return count(counters_, Status::FragmentOverflow);
+    }
+    for (size_t i = 0; i < f.payload_len; ++i) out_[i] = f.payload[i];
+    out_len_  = f.payload_len;
+    complete_ = true;
+    return Status::Ok;
+  }
+
+  tick(now_ms);
+
   // spec 11.4 - HEX_REQ and HEX_RSP are single-frame in v1. A fragmented one is
   // discarded at spec 14 stage 8a; the decode path rejects it first, this is the
   // same rule enforced for a caller driving the Reassembler directly.
-  if (total > 1 && !type_is_fragmentable(f.hdr.type)) {
+  if (!type_is_fragmentable(f.hdr.type)) {
     return count(counters_, Status::NotFragmentable);
   }
 
   // spec 9.4 / 14 - stage 9 precedes stage 10. A fragment of an authenticated type
   // that was never verified must not occupy a slot: under v0.3's ordering the
   // forgery would be detected only once the set completed, which an attacker simply
-  // never allows. Single-frame frames are exempt - nothing is held, and the caller
+  // never allows.
+  //
+  // Every frame reaching here declares a total > 1 - the single-frame case returned
+  // above - which is spec 11.3's exemption: nothing is held for one, and the caller
   // has the frame in hand either way.
-  if (total > 1 && frame_has_mac(f.hdr.type, f.payload, f.payload_len) &&
-      !f.mac_verified) {
-    return count(counters_, Status::BadMac);
+  if (frame_has_mac(f.hdr.type, f.payload, f.payload_len) && !f.mac_verified) {
+    return count(counters_, Status::RejectedMac);
   }
 
   const size_t cap = reassembly_cap(f.hdr.type);
-
-  // spec 5.6 - 0x01 is a single unfragmented frame. Handled here so a caller can
-  // route everything through the reassembler without branching on frag first.
-  //
-  // spec 11.2's retained-key check is deliberately NOT applied to these: a
-  // single-frame frame never joins a set, and a legitimately retransmitted
-  // CONFIG_ACK must not be swallowed as a late fragment.
-  if (total == 1) {
-    if (f.payload_len > sizeof(out_) || f.payload_len > cap) {
-      return count(counters_, Status::FragmentOverflow);
-    }
-    // A live multi-fragment set would otherwise be wiped by begin() with nothing
-    // counted, which repo rule 4 forbids. From that set's point of view the slot was
-    // taken, which is spec 11.3's abandonment.
-    if (active_) count(counters_, Status::ReassemblyAbandoned);
-    const bool  had_last   = have_last_;
-    const NodeId   ls = last_src_;
-    const CtxId    lc = last_ctx_id_;
-    const Seq      lq = last_seq_;
-    const SchemaId lm = last_schema_;
-    const MsgType  lt = last_type_;
-    begin(f, now_ms);
-    // begin() resets the slot; a single frame must not disturb the retained key of
-    // the last fragmented set, which belongs to a different conversation.
-    have_last_   = had_last;
-    last_src_    = ls;
-    last_ctx_id_ = lc;
-    last_seq_    = lq;
-    last_schema_ = lm;
-    last_type_   = lt;
-    for (size_t i = 0; i < f.payload_len; ++i) out_[i] = f.payload[i];
-    out_len_  = f.payload_len;
-    got_mask_ = 1;
-    complete_ = true;
-    active_   = false;
-    return Status::Ok;
-  }
 
   // spec 11.2 - the check order is: live set, then last completed set, then new set.
   //
@@ -172,8 +169,10 @@ Status Reassembler::accept(const Frame& f, uint32_t now_ms) {
 
   // The previous set was completed and is not being echoed, so the slot is free.
   // Done here rather than at the top so a late fragment cannot destroy a completed
-  // payload the caller has not read yet.
-  if (complete_) reset();
+  // payload the caller has not read yet. Gated on !active_ as well: complete_ may
+  // now be a single frame's delivery sitting alongside a LIVE set (spec 11.2), and
+  // resetting on that would discard the set this fragment belongs to.
+  if (complete_ && !active_) reset();
 
   if (active_ && !same_set(f)) {
     // spec 11.3 - a different set arrived while this one was still incomplete and
