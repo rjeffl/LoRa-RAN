@@ -392,7 +392,12 @@ void test_vectors_fragmentation() {
       // Reassembler::accept requires a MONOTONIC now_ms - a decreasing clock
       // underflows the unsigned age arithmetic and expires the set on arrival.
       now += 10;
-      if (!expect_status(Status::Ok, r.accept(f, now), "frag", v.name, "accept")) {
+      // spec 11.2 - a delivery_order may legitimately replay a fragment AFTER the set
+      // completed, which is discarded as FragLate rather than accepted. Both are
+      // non-error outcomes; the vector's `counter` field is what pins which occurred.
+      const Status as = r.accept(f, now);
+      if (as != Status::Ok && as != Status::FragLate) {
+        expect_status(Status::Ok, as, "frag", v.name, "accept");
         delivery_ok = false;
         break;
       }

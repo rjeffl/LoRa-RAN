@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.4",
+  "spec": "LRAN-Protocol-Specification v0.5",
   "wire_ver": 2,
   "group": "single",
   "generated_by": "tools/vectors/generate.py",
@@ -8,6 +8,7 @@
     {
       "name": "poll_full_status",
       "spec_ref": "§6.4, §19",
+      "origin": "derived",
       "note": "poll_flags bit 0 - request full status.",
       "header": {
         "ver": 2,
@@ -35,6 +36,7 @@
     {
       "name": "poll_config_readback",
       "spec_ref": "§6.4, §7.4",
+      "origin": "derived",
       "note": "poll_flags bit 1 - config readback, the §7.4 recovery for a lost CONFIG_ACK.",
       "header": {
         "ver": 2,
@@ -62,6 +64,7 @@
     {
       "name": "poll_broadcast_dst",
       "spec_ref": "§5.3, §14 stage 5",
+      "origin": "derived",
       "note": "dst 0xFF is accepted by every node (§5.3).",
       "header": {
         "ver": 2,
@@ -89,6 +92,7 @@
     {
       "name": "poll_reserved_hdr_flags_ignored",
       "spec_ref": "§5.8, §4.3",
+      "origin": "derived",
       "decode_only": true,
       "note": "hdr_flags bit 6 set. §5.8 requires a sender write 0 here, so no encoder emits this frame; a receiver must ignore it, not validate it as zero.",
       "header": {
@@ -117,6 +121,7 @@
     {
       "name": "command_open",
       "spec_ref": "§6.2, §8.1, §9.3, §19",
+      "origin": "derived",
       "note": "OPEN. MAC over the whole 16-byte header plus payload (§9.3).",
       "header": {
         "ver": 2,
@@ -144,6 +149,7 @@
     {
       "name": "command_close_immediate",
       "spec_ref": "§6.2, §8.1",
+      "origin": "derived",
       "header": {
         "ver": 2,
         "type": "COMMAND",
@@ -170,6 +176,7 @@
     {
       "name": "command_set_debug_mode",
       "spec_ref": "§6.2, §8.1",
+      "origin": "derived",
       "note": "arg2 is a little-endian uint16 bitmask (§4.1).",
       "header": {
         "ver": 2,
@@ -197,6 +204,7 @@
     {
       "name": "command_reboot_guarded",
       "spec_ref": "§6.2, §8.1",
+      "origin": "derived",
       "note": "REBOOT requires arg = 0xA5 as a confirmation guard.",
       "header": {
         "ver": 2,
@@ -224,6 +232,7 @@
     {
       "name": "command_to_simnode0",
       "spec_ref": "§5.3, §9.1",
+      "origin": "derived",
       "note": "Same command bytes as GateLink would see, different key: §9.1 keys follow the address.",
       "header": {
         "ver": 2,
@@ -251,6 +260,7 @@
     {
       "name": "command_ack_accepted",
       "spec_ref": "§6.3, §8.2, §19",
+      "origin": "derived",
       "note": "ACCEPTED means dispatched, not that the gate moved (§6.3).",
       "header": {
         "ver": 2,
@@ -278,6 +288,7 @@
     {
       "name": "command_ack_duplicate_cached",
       "spec_ref": "§6.3, §10.4",
+      "origin": "derived",
       "note": "A retry reuses the COMMAND's seq, so the node returns the cached ACK - not a second pulse.",
       "header": {
         "ver": 2,
@@ -305,6 +316,7 @@
     {
       "name": "command_ack_rejected_ctx",
       "spec_ref": "§6.3, §10.3",
+      "origin": "derived",
       "note": "Carries the node's OWN ctx_id in the header - that is what the bridge adopts (§10.3).",
       "header": {
         "ver": 2,
@@ -332,6 +344,7 @@
     {
       "name": "status_gatelink_0x10_nominal",
       "spec_ref": "§7.2, §7.1, §19",
+      "origin": "derived",
       "note": "96-byte frame: the largest real frame the system emits.",
       "header": {
         "ver": 2,
@@ -359,6 +372,7 @@
     {
       "name": "status_gatelink_0x10_all_unavailable",
       "spec_ref": "§4.6, §7.2, §7.2.9",
+      "origin": "derived",
       "note": "Sentinels, not zero: UINT32_MAX traversal age, INT16_MIN load_ma, 0xFF SOC, 0 RSSI.",
       "header": {
         "ver": 2,
@@ -386,6 +400,7 @@
     {
       "name": "status_health_0xf0",
       "spec_ref": "§7.5, §7.1, §19",
+      "origin": "derived",
       "note": "0xF0 is a schema carried by STATUS, never a message type (§7.5).",
       "header": {
         "ver": 2,
@@ -413,6 +428,7 @@
     {
       "name": "status_bridge_self_report_0xf0",
       "spec_ref": "§7.5",
+      "origin": "derived",
       "note": "§7.5 - the bridge self-reports under src 0x00. Negative SNR is two's complement (§4.5).",
       "header": {
         "ver": 2,
@@ -440,6 +456,7 @@
     {
       "name": "status_simnode_0xfe",
       "spec_ref": "§7.1, §17.3",
+      "origin": "derived",
       "note": "Bench schema mirroring 0x10; status_reason DEBUG_SYNTHETIC must reach MQTT (§8.7).",
       "header": {
         "ver": 2,
@@ -467,6 +484,7 @@
     {
       "name": "event_vehicle_while_held_open",
       "spec_ref": "§7.3, §8.9, §19",
+      "origin": "derived",
       "note": "direction UNDETERMINED: alert on the first edge, refine later (§7.3).",
       "header": {
         "ver": 2,
@@ -494,6 +512,7 @@
     {
       "name": "event_followup_direction_resolved",
       "spec_ref": "§7.3",
+      "origin": "derived",
       "note": "Same event_id, event_flags bit 0 set - the follow-up that resolves direction.",
       "header": {
         "ver": 2,
@@ -521,6 +540,7 @@
     {
       "name": "event_fire_asserted",
       "spec_ref": "§7.3, §8.9",
+      "origin": "derived",
       "header": {
         "ver": 2,
         "type": "EVENT",
@@ -547,6 +567,7 @@
     {
       "name": "error_bad_length",
       "spec_ref": "§6.5, §8.8, §19",
+      "origin": "derived",
       "note": "ref_seq is the offending frame's seq, or 0.",
       "header": {
         "ver": 2,
@@ -574,6 +595,7 @@
     {
       "name": "error_unknown_hdr_ext",
       "spec_ref": "§5.8, §8.8, §14 stage 5a",
+      "origin": "derived",
       "note": "The reply a node owes for a CRITICAL_EXT it does not implement.",
       "header": {
         "ver": 2,
@@ -601,6 +623,7 @@
     {
       "name": "ping_empty_echo",
       "spec_ref": "§6.6, §19",
+      "origin": "derived",
       "note": "n = 0: the 20-byte floor of the 20+N line.",
       "header": {
         "ver": 2,
@@ -628,6 +651,7 @@
     {
       "name": "ping_pattern_fill_8",
       "spec_ref": "§6.6.3",
+      "origin": "derived",
       "note": "data[i] = (seq & 0xFF) + i, so seq 501 -> 0xF5, 0xF6, ... wrapping at 0xFF.",
       "header": {
         "ver": 2,
@@ -655,6 +679,7 @@
     {
       "name": "ping_max_222_bytes",
       "spec_ref": "§6.6.1, §3.1, §19",
+      "origin": "derived",
       "note": "n = 202 gives a frame of exactly LRAN_MAX_FRAME = 222 bytes.",
       "header": {
         "ver": 2,
@@ -682,6 +707,7 @@
     {
       "name": "ping_echo_reply_swapped",
       "spec_ref": "§6.6, §17.3",
+      "origin": "derived",
       "note": "The responder swaps src/dst and preserves seq, ping_flags and the echo bytes.",
       "header": {
         "ver": 2,
@@ -709,6 +735,7 @@
     {
       "name": "hex_req_get_plain",
       "spec_ref": "§7.6, §9.2, §19",
+      "origin": "derived",
       "note": "Command nibble '7' (Get) - read-only, no MAC (§7.6). Frame is 20+N.",
       "header": {
         "ver": 2,
@@ -736,6 +763,7 @@
     {
       "name": "hex_req_set_authenticated",
       "spec_ref": "§7.6, §9.2, §19",
+      "origin": "derived",
       "note": "Command nibble '8' (Set) MUST carry a MAC: frame is 28+N, N=13 -> 41 B.",
       "header": {
         "ver": 2,
@@ -763,6 +791,7 @@
     {
       "name": "hex_req_restart_authenticated",
       "spec_ref": "§7.6, §9.2",
+      "origin": "derived",
       "note": "Command nibble '6' (Restart) is write-class too.",
       "header": {
         "ver": 2,
@@ -790,6 +819,7 @@
     {
       "name": "hex_rsp_ok",
       "spec_ref": "§7.6, §8.13, §19",
+      "origin": "derived",
       "note": "§19 errata: HEX_RSP is 20+N, not 21+N - the payload is 2+N like HEX_REQ.",
       "header": {
         "ver": 2,
@@ -817,6 +847,7 @@
     {
       "name": "hex_rsp_timeout",
       "spec_ref": "§7.6, §8.13",
+      "origin": "derived",
       "note": "n = 0 on error; a timeout is reported, never answered with silence.",
       "header": {
         "ver": 2,
@@ -844,6 +875,7 @@
     {
       "name": "config_set_two_entries",
       "spec_ref": "§7.4, §8.10, §9.2, §19",
+      "origin": "derived",
       "note": "op = SET; entries are param_id/ptype/len/value, value little-endian.",
       "header": {
         "ver": 2,
@@ -871,6 +903,7 @@
     {
       "name": "config_get_all",
       "spec_ref": "§7.4, §8.10",
+      "origin": "derived",
       "note": "GET_ALL carries count = 0 and no entries: a 2-byte payload.",
       "header": {
         "ver": 2,
@@ -898,6 +931,7 @@
     {
       "name": "config_ack_clamped_not_persisted",
       "spec_ref": "§7.4, §8.11, §8.12",
+      "origin": "derived",
       "note": "CLAMPED entry carries the EFFECTIVE value (1200), persist_status = APPLIED_NOT_PERSISTED.",
       "header": {
         "ver": 2,
