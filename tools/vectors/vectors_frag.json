@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.5",
+  "spec": "LRAN-Protocol-Specification v0.6",
   "wire_ver": 2,
   "group": "frag",
   "generated_by": "tools/vectors/generate.py",
@@ -397,6 +397,63 @@
         "020b01008603efcdab891212000000000304f20300000b02000304f30300000c02000304f40300000d02000304f50300000e02000304f60300000f02000304f70300001002000304f80300001102000304f90300001202000304fa0300001302000304fb0300001402000304fc030000bacc"
       ],
       "fragment_lens": [96, 96],
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "delivery_order": [0, 1],
+        "status": "Ok",
+        "reassembled": "0300150002000304e80300000102000304e90300000202000304ea0300000302000304eb0300000402000304ec0300000502000304ed0300000602000304ee0300000702000304ef0300000802000304f00300000902000304f10300000a02000304f20300000b02000304f30300000c02000304f40300000d02000304f50300000e02000304f60300000f02000304f70300001002000304f80300001102000304f90300001202000304fa0300001302000304fb0300001402000304fc030000",
+        "live_sets_after": 0
+      }
+    },
+    {
+      "name": "config_ack_21_results_single_frame_interposed",
+      "spec_ref": "§11.2, §14.1",
+      "origin": "derived",
+      "note": "§11.2: a frame declaring frag total 1 may not begin, join, displace or expire a set, even one sharing (src, ctx_id) with it - and is still delivered.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 903,
+        "ctx_id": 2309737967,
+        "frag": "0x02",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0300150002000304e80300000102000304e90300000202000304ea0300000302000304eb0300000402000304ec0300000502000304ed0300000602000304ee0300000702000304ef0300000802000304f00300000902000304f10300000a02000304f20300000b02000304f30300000c02000304f40300000d02000304f50300000e02000304f60300000f02000304f70300001002000304f80300001102000304f90300001202000304fa0300001302000304fb0300001402000304fc030000",
+      "frag_chunk": 96,
+      "key": null,
+      "frames": [
+        "020b01008703efcdab890212000000000300150002000304e80300000102000304e90300000202000304ea0300000302000304eb0300000402000304ec0300000502000304ed0300000602000304ee0300000702000304ef0300000802000304f00300000902000304f10300000a020030a0",
+        "020b01008703efcdab891212000000000304f20300000b02000304f30300000c02000304f40300000d02000304f50300000e02000304f60300000f02000304f70300001002000304f80300001102000304f90300001202000304fa0300001302000304fb0300001402000304fc0300000d7a"
+      ],
+      "fragment_lens": [96, 96],
+      "interpose": {
+        "after": 1,
+        "spec_ref": "§11.2",
+        "note": "A health STATUS from the same node, mid-set. Complete on arrival, so nothing is held for it.",
+        "header": {
+          "ver": 2,
+          "type": "STATUS",
+          "src": 1,
+          "dst": 0,
+          "seq": 904,
+          "ctx_id": 2309737967,
+          "frag": "0x01",
+          "schema": "0xf0",
+          "hdr_flags": "0x00"
+        },
+        "payload": "201c00000300fa00f900000004009fff37000200",
+        "key": null,
+        "frame": "020401008803efcdab8901f000000000201c00000300fa00f900000004009fff37000200ca46",
+        "frame_len": 38,
+        "decode": {
+          "status": "Ok",
+          "payload": "201c00000300fa00f900000004009fff37000200"
+        }
+      },
       "decode": {
         "self": 0,
         "expect_ctx_id": 0,

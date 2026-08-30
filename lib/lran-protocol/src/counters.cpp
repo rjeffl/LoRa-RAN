@@ -57,10 +57,11 @@ void Counters::bump(Status s) {
     case Status::FragmentOverflow:    ++rx_fragment_overflow; return;
     case Status::FragLate:            ++rx_frag_late; return;
 
-    // spec 14 stage 9. The counter names follow spec 14.1 and the COMMAND_ACK results
-    // of spec 8.2; the Status names predate both and are the library's own.
-    case Status::BadMac:              ++rx_rejected_mac; return;
-    case Status::CtxMismatch:         ++rx_rejected_ctx; return;
+    // spec 14 stage 9. Since v0.6 the Status name, the counter and spec 9.4's wire
+    // code are one vocabulary rather than three - these two rows used to read
+    // BadMac and CtxMismatch.
+    case Status::RejectedMac:         ++rx_rejected_mac; return;
+    case Status::RejectedCtx:         ++rx_rejected_ctx; return;
 
     // Caller errors, not wire conditions. Nothing on the link caused them and no
     // spec 14 stage owns them, so they are not counted as drops.

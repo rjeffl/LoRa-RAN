@@ -196,7 +196,7 @@ void test_command_mac_roundtrip_and_tamper() {
   tampered[n - 1] = static_cast<uint8_t>(crc >> 8);
   Frame tf;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(tampered, n, d, &tf));
-  TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(tampered, n, d, &tf));
+  TEST_ASSERT_EQUAL(Status::RejectedMac, decode_payload(tampered, n, d, &tf));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
 }
 
@@ -232,7 +232,7 @@ void test_ctx_mismatch_precedes_mac_check() {
 
   Frame f;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, d, &f));
-  TEST_ASSERT_EQUAL(Status::CtxMismatch, decode_payload(buf, n, d, &f));
+  TEST_ASSERT_EQUAL(Status::RejectedCtx, decode_payload(buf, n, d, &f));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_ctx);
   TEST_ASSERT_EQUAL_UINT32(0, c.rx_rejected_mac);  // the MAC was never reached
 }
@@ -300,7 +300,7 @@ void test_wrong_node_key_fails_verification() {
   d.counters = &c;
   Frame f;
   TEST_ASSERT_EQUAL(Status::Ok, decode_header(buf, n, d, &f));
-  TEST_ASSERT_EQUAL(Status::BadMac, decode_payload(buf, n, d, &f));
+  TEST_ASSERT_EQUAL(Status::RejectedMac, decode_payload(buf, n, d, &f));
 }
 
 // --- F2 / F3: spec 9.4's split across the reassembly boundary ---------------
@@ -445,7 +445,7 @@ void test_bad_mac_fragment_never_buffered() {
   bad[n - 2] = static_cast<uint8_t>(crc & 0xFF);
   bad[n - 1] = static_cast<uint8_t>(crc >> 8);
 
-  TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, bad, n, d, &r, 100));
+  TEST_ASSERT_EQUAL(Status::RejectedMac, receive(fs, bad, n, d, &r, 100));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_rejected_mac);
   TEST_ASSERT_FALSE(r.active());     // no slot taken
   TEST_ASSERT_FALSE(r.complete());
@@ -485,7 +485,7 @@ void test_forged_fragment_zero_does_not_occupy_slot() {
     forged[n - 2] = static_cast<uint8_t>(crc & 0xFF);
     forged[n - 1] = static_cast<uint8_t>(crc >> 8);
 
-    TEST_ASSERT_EQUAL(Status::BadMac, receive(fs, forged, n, d, &r, 10u + attempt));
+    TEST_ASSERT_EQUAL(Status::RejectedMac, receive(fs, forged, n, d, &r, 10u + attempt));
     TEST_ASSERT_FALSE(r.active());
   }
   TEST_ASSERT_EQUAL_UINT32(8, c.rx_rejected_mac);
@@ -518,7 +518,7 @@ void test_unverified_fragment_refused_by_reassembler() {
   TEST_ASSERT_NOT_NULL(f.mac);        // the bytes are there...
   TEST_ASSERT_FALSE(f.mac_verified);  // ...and were never checked
 
-  TEST_ASSERT_EQUAL(Status::BadMac, r.accept(f, 0));
+  TEST_ASSERT_EQUAL(Status::RejectedMac, r.accept(f, 0));
   TEST_ASSERT_FALSE(r.active());
 }
 

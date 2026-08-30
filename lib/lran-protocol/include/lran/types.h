@@ -70,10 +70,20 @@ inline constexpr uint8_t kPingFlagPatternFill = 0x01;
 inline constexpr uint8_t kHexReqFlagWriteClass = 0x01;
 
 // One value per failure. Maps 1:1 onto the spec 14 stages and the counter set, so a
-// discard always has a name (repo rule 4). Adding an enumerator makes every switch
-// over it a -Werror diagnostic until the new case is handled - including
-// Counters::bump and the bridge's diagnostic publication. That is the mechanism that
-// keeps "discard silently" from ever being the default.
+// discard always has a name (repo rule 4).
+//
+// spec 14.1 - an identifier here follows the WIRE CODE of the condition it names,
+// where the condition has one. Where spec 14.1's wire-code column reads "-", or
+// where one wire code covers several conditions - BAD_LENGTH is BadFrag, BadLength
+// and NotFragmentable, three faults with three different fixes - the name follows
+// the COUNTER instead, which is the diagnosis. The rule is spec 14.1's SHOULD: the
+// specification does not dictate C++ identifiers, but the wire code is the one name
+// that cannot be changed later, so it is the one to converge on.
+//
+// Adding an enumerator makes every switch over it a -Werror diagnostic until the new
+// case is handled - including Counters::bump and the bridge's diagnostic
+// publication. That is the mechanism that keeps "discard silently" from ever being
+// the default.
 enum class Status : uint8_t {
   Ok = 0,
   Runt,               // spec 14 stage 2
@@ -109,8 +119,20 @@ enum class Status : uint8_t {
   //
   // encode() never touches Counters, so the sender's use of this value costs nothing.
   NotFragmentable,
-  BadMac,             // spec 9.4 step 3
-  CtxMismatch,        // spec 10.1, checked at spec 9.4 step 2
+
+  // spec 14.1 - NAMED AFTER THE WIRE CODE, which is the name that cannot be changed
+  // later. These were BadMac and CtxMismatch until v0.6: a third vocabulary beside
+  // the counter (rx_rejected_mac / rx_rejected_ctx) and spec 9.4's REJECTED_MAC /
+  // REJECTED_CTX, which is the same drift spec 14.1 exists to retire, one layer up.
+  // They now agree with spec 8.2's AckResult::RejectedMac / RejectedCtx too, which
+  // is what a node actually puts on the wire in answer.
+  //
+  // NOT to be confused with ErrCode::CtxMismatch below: spec 8.8's err_code 0x04 IS
+  // spelled CTX_MISMATCH and keeps that name. The ERROR enumeration and the
+  // COMMAND_ACK result are different wire vocabularies for different frames, and
+  // each identifier follows its own.
+  RejectedMac,        // stage 9, spec 9.4 step 3
+  RejectedCtx,        // stage 9, spec 9.4 step 2 - spec 10.1's ctx_id check
   BufferTooSmall,     // caller error, not a wire condition
 
   // spec 9.2 - an authenticated type was encoded with no IMac or no key. A

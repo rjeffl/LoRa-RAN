@@ -1,6 +1,6 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.4 (`ver = 2`)
+**Binding specification:** `LRAN-Protocol-Specification` v0.6 (`ver = 2`)
 **Consumed by:** `/lib/lran-protocol/test/test_vectors/` (C++, Unity, `native`)
 **Produced by:** `generate.py` (Python 3, this directory)
 
@@ -93,7 +93,7 @@ Every generated file has this shape:
 ```json
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.4",
+  "spec": "LRAN-Protocol-Specification v0.6",
   "wire_ver": 2,
   "group": "single",
   "generated_by": "tools/vectors/generate.py",
@@ -223,6 +223,40 @@ step 2 check — the bridge's position — and never "expect zero" (§9.4, §5.5
   is a §11.2 duplicate and must land on `rx_frag_duplicate` without changing
   `reassembled`.
 
+#### `interpose` — a single-frame frame delivered into a live set
+
+Optional, and the one thing in a `frag` vector that is **not** a fragment of the set.
+§11.2 says a frame declaring `frag` total 1 may not begin, join, displace or expire a
+set, even one it shares `(src, ctx_id, schema)` with, and must still be delivered
+whole. Witnessing that needs a complete second frame, so `interpose` carries its own
+header, payload and frame bytes rather than an index into `frames`:
+
+```json
+"interpose": {
+  "after": 1,
+  "spec_ref": "§11.2",
+  "note": "A health STATUS from the same node, mid-set.",
+  "header": { "...": "...", "frag": "0x01" },
+  "payload": "<hex>",
+  "key": null,
+  "frame": "<complete frame bytes, hex>",
+  "frame_len": 38,
+  "decode": { "status": "Ok", "payload": "<hex>" }
+}
+```
+
+`after` is a position in `delivery_order`: the frame arrives once that many
+fragments have been delivered, and must land **inside** the set — after at least one
+fragment and no later than the fragment that completes it. Past completion it would
+witness §11.2's retained-key rule instead, which is a different one.
+
+Its key must differ from the set's, or the case under test is a duplicate fragment.
+The vector names **no** counter: nothing here is a fault, and the consumer asserts
+every counter stayed at zero. That assertion is the vector — before v0.6 a single
+frame arriving mid-set displaced the set and moved `rx_reassembly_abandoned`, which
+on a bridge is a node's periodic `STATUS` destroying that node's in-flight
+`CONFIG_ACK`.
+
 ### `negative` — a discard, and the counter that must move
 
 ```json
@@ -240,6 +274,10 @@ step 2 check — the bridge's position — and never "expect zero" (§9.4, §5.5
 }
 ```
 
+`status` is the decode outcome by the name the consuming implementation uses for it.
+Since v0.6 those follow §14.1's wire-code column — `RejectedCtx`, not `CtxMismatch`;
+`RejectedMac`, not `BadMac` — which is the same convergence §14.1 asks of the code.
+
 `counter` names the **single** counter that must increment, and the C++ consumer
 asserts that every other counter stayed put. That is the assertion that keeps two
 different faults from quietly sharing one bucket — the reason v0.4 split `rx_oversize`
@@ -253,12 +291,16 @@ codec's `reassembly_timeout` / `fragment_overflow` were renamed to match — a n
 inconsistency the generator caught. `rx_fragment_overflow` is a discard and IS summed
 into `rx_dropped`; `rx_frag_duplicate` counts an overwrite and is not (§14).
 
-**Counter names.** §14 names a counter for stages 1–5b but not for stages 6 through 9.
-The names used across these vectors and the C++ consumer are `rx_unknown_type` (6),
-`rx_unknown_schema` (7), `rx_bad_length` (8), `rx_not_fragmentable` (8a),
-`rx_ctx_mismatch` and `rx_bad_mac` (9). **§14 should name these**; until it does they
-are a convention held in two places, which is exactly the kind of thing W4 exists to
-catch.
+**Counter names.** §14.1 is now the registry and names every counter for every
+stage, so a vector's `counter` traces to the specification rather than to a
+convention held in two places. It exists because of this paragraph: through v0.4 §14
+named counters for stages 1–5b and nothing for stages 6 through 9, these vectors and
+the C++ consumer agreed on names the specification did not state, and two of them —
+`rx_reassembly_timeout` and `rx_fragment_overflow` — had shipped in code without the
+`rx_` prefix. The two stage 9 names settled as `rx_rejected_ctx` and
+`rx_rejected_mac`, after §9.4's wire codes rather than after the `rx_ctx_mismatch` /
+`rx_bad_mac` this file used to propose. `generate.py` and `check.py` each hold their
+own copy of §14.1 and assert against it.
 
 A negative vector is built by constructing a **well-formed frame and then breaking
 exactly one thing**, repairing the CRC16 unless the CRC is what is under test. A frame
@@ -291,6 +333,8 @@ Everything downstream is meaningless if key derivation is wrong.
 - An authenticated multi-fragment `CONFIG` — each fragment carries its own MAC.
 - The same set delivered reversed and shuffled, reassembling to identical bytes.
 - A set with a duplicated index.
+- A set with a single-frame frame interposed mid-delivery (§11.2), reassembling to
+  identical bytes with no counter moved.
 
 **`negative`** — each naming the counter that must move.
 - Bad application CRC16 · unknown `ver` · wrong `dst` · `frag = 0x00` ·

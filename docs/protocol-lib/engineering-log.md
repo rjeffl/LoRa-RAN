@@ -1,7 +1,7 @@
 # `/lib/lran-protocol/` — engineering log
 
 Dated entries. Measurements, surprises, and things that cost an hour.
-Binding specification: `LRAN-Protocol-Specification` v0.3 (`ver = 2`).
+Binding specification: `LRAN-Protocol-Specification` v0.6 (`ver = 2`).
 
 ---
 
@@ -692,3 +692,199 @@ Whole test firmware: RAM 18,544 B (5.7 %) unchanged, flash 286,997 B (8.6 %), up
   `rx_rejected_ctx`, `BadMac` with `rx_rejected_mac`, while §9.4 says `REJECTED_CTX` /
   `REJECTED_MAC`. C1 scoped the rename to counters, but §14.1 names counters and still
   names no `Status` anywhere — the same shape of defect §14.1 was created to retire.
+
+---
+
+## 2026-08-30 — spec v0.6 cleanup: G1–G6
+
+`LRAN-Protocol-v0_6-Library-Tasks`, branch `spec/v0.6-cleanup`. Two of the four items
+the v0.5 entry closed with, now that v0.6 answers them; one decision recorded; and the
+log header, which has read "v0.3" since the first entry and was missed by V6 in the
+v0.5 list.
+
+`ver` stays at `2`. No header field, authentication scope or schema layout is touched,
+and the regenerated vectors confirm it independently — see G4.
+
+### G1 — a single-frame frame never touches reassembly state
+
+The v0.5 entry found the defect and counted the discard under
+`rx_reassembly_abandoned`. §11.2 now says the frame had no business in the slot at
+all: a frame declaring `frag` total 1 may not **begin, join, displace or expire** a
+set, even one it shares `(src, ctx_id, schema)` with, and is delivered directly.
+
+**The second buffer was not needed, and the reason is worth stating.** The v0.5 entry
+expected one. Checking the assumption first, as the task asked: a `frag` total of 1
+needs no staging, so what was missing was a *delivery path that bypasses the slot*,
+not *storage that duplicates it*. `Reassembler` already has a delivery buffer — `out_`,
+written when a set assembles — and it is not set state. The single-frame path copies
+into `out_`, sets `complete_`, and returns. `active_`, `got_mask_`, `stage_`,
+`start_ms_` and the set key are untouched, so the live set behind it completes into
+`out_` afterwards exactly as it would have. **Footprint delta: zero** (below).
+
+Two consequences fell out that were not obvious from the rule:
+
+- **`complete_` and `active_` are no longer mutually exclusive.** A delivered single
+  frame sets `complete_` while a set is still live. `tick()` read `if (!active_ ||
+  complete_) return;` as a belt-and-braces guard, and under the new state combination
+  that would have left the live set unable to *ever* expire. It now gates on `active_`
+  alone. `accept()`'s `if (complete_) reset()` — which frees the slot after a
+  completed set — gained the same `&& !active_`, or the fragment arriving next would
+  have destroyed the set it belongs to. Both are cases where the old code was correct
+  only because of an invariant this change removes, which is the kind of thing that
+  survives review by looking untouched.
+- **"Expire" needed the single-frame case handled before `tick()`, not after.**
+  `accept()` ticked the clock on entry. A `STATUS` arriving on schedule would then age
+  out a set it has nothing to do with — a discard the frame caused while being, by
+  rule, unable to cause one. The single-frame path now returns above the `tick()`
+  call. `tick()` from the receive loop is what expires sets, which is what its
+  contract already said.
+
+Three tests: `test_single_frame_does_not_disturb_live_set` (the round trip — the
+single frame is delivered in full, the set completes to the same bytes, no counter
+moves), `test_single_frame_does_not_expire_live_set` (the half above), and G2's
+inversion.
+
+### G2 — `rx_reassembly_abandoned` loses one of its callers
+
+`test_single_frame_displacing_live_set_is_counted` asserted the counter moved; it is
+now `test_single_frame_does_not_abandon_live_set` and asserts it does not. Inverted in
+place rather than deleted, per the task: a test that flips is easier to miss than a
+test that is missing.
+
+The counter now has exactly one caller — one set displacing another with no slot free
+— which restores what it was for. `rx_reassembly_abandoned` means the receiver is
+undersized or a peer is interleaving sets; `rx_reassembly_timeout` means the RF path
+dropped a fragment. A node's periodic status frame is neither, and while it could
+raise the first, the counter could not be read as either.
+
+### G3 — `Status` identifiers follow the wire code
+
+`CtxMismatch` → `RejectedCtx`, `BadMac` → `RejectedMac`, and the rest of the enum
+walked against §14.1's new third column. The rest was already converged; these two
+were the drift, and they now agree with `AckResult::RejectedCtx` / `RejectedMac` — the
+values a node actually puts on the wire in answer — as well as with the counters.
+
+**`ErrCode::CtxMismatch` stays as it is.** §8.8's `err_code` 0x04 *is* spelled
+`CTX_MISMATCH`; §14.1's third column names the stage 9 `COMMAND_ACK` result, which is
+`REJECTED_CTX`. Two wire vocabularies, two frames, and each identifier follows its
+own. Converging them would be the same error in the other direction.
+
+`test_status_identifiers_follow_the_wire_code` spells §14.1 out independently, in the
+same shape as C1's registry test. It checks the rule as a *transformation* rather than
+as a second list: the wire code (or, where §14.1's column reads "—" or one code covers
+several conditions, the counter) is mechanically converted to PascalCase and compared
+against `to_string`. A name that drifts fails without anyone having to notice it
+drifted. Verified by mutation — reverting `to_string(RejectedCtx)` to `"CtxMismatch"`
+fails it. It also closes both ways: every registry counter is either mapped from a
+`Status` or listed among the four that deliberately have none.
+
+Where a wire code covers three conditions — `BAD_LENGTH` is `BadFrag`, `BadLength` and
+`NotFragmentable` — the identifier follows the **counter**, because the counter is the
+diagnosis and the three have three different fixes. §14.1's rule is a SHOULD about
+vocabulary, not an instruction to collapse distinctions the registry keeps.
+
+### G4 — vectors regenerated
+
+72 vectors (71 + 1). `check.py`, `embed.py` and `test_vectors` pass on host; the target
+suites build clean.
+
+**No existing frame byte changed.** Checked mechanically rather than by reading the
+diff: every `frame`, `frames`, `payload`, `fragment_lens` and `node_key` in all four
+files compared against `main` — 65 vectors' frame bytes, zero changed, one added. That
+is the independent confirmation that v0.6 altered no header field, authentication scope
+or schema layout, and it is the same result the v0.5 regeneration produced.
+
+The new vector, `config_ack_21_results_single_frame_interposed`, is **derived, not
+adjudicated** — the first materially new derived vector since W4 closed, which is worth
+having after a round where most of the new material was handed over. It needed a shape
+extension: the `frag` group delivers fragments of one set by index, and the frame under
+test here is *not a fragment of anything*, so `interpose` carries a complete frame of
+its own — header, payload, frame bytes, `after` position. It is a fragmented
+`CONFIG_ACK` from GateLink with a health `STATUS` from the same node landing between
+its two fragments, which is the bridge case §11.2's v0.6 note describes.
+
+Two assertions make it bite, and both were verified by mutation:
+
+- The C++ consumer now treats **a frag vector naming no counter as asserting that no
+  counter moved at all**, rather than asserting nothing. Reinstating v0.5's behaviour
+  in `Reassembler::accept` fails the vector on `rx_reassembly_abandoned`.
+- `check.py` re-derives the interposed frame from its own declared header and payload,
+  runs it through the receive ladder, and refuses it if it shares the set's key, if it
+  is one of the fragments, if its `frag` total is not 1, if `after` falls outside the
+  set, or if the vector names a counter. Corrupting a byte of the stored frame fails
+  it.
+
+The two negative vectors carrying a decode-outcome name were renamed with G3
+(`CtxMismatch` → `RejectedCtx`, `BadMac` → `RejectedMac`); `check.py`'s own ladder
+raises the new names. `tools/vectors/README.md` documents `interpose`, and its
+"Counter names" paragraph — which proposed `rx_ctx_mismatch` / `rx_bad_mac` and asked
+that §14 name them — is rewritten to record that §14.1 now does, and settled on
+`rx_rejected_ctx` / `rx_rejected_mac` instead.
+
+### G5 — W13: unit-test coverage is the answer
+
+**Decision: accept `test_frag`'s coverage as sufficient; no raw-frames vector form.**
+Written into W13's note in §18, which now reads closed.
+
+The reasoning, since the decision is the deliverable. §11.2's dead-space clause — a
+duplicate fragment of differing length leaving the superseded copy in staging — is
+reachable only from a non-conforming sender, because §11.1 fixes every non-final
+fragment to one length. W4's generator emits conforming senders by construction. That
+makes it a **boundary of the method rather than a gap in it**: the vector shape
+witnesses two independent implementations of a conforming sender against each other,
+and a frame no conforming sender emits has no second implementation to be witnessed
+against. A raw-frames form would compare the codec against a frame someone wrote by
+hand — which is a unit test with a JSON file in front of it, and most of what makes W4
+worth having is that it is not that.
+
+`test_duplicate_fragment_of_different_length_overwrites` covers both halves today: the
+new bytes win, and the dead copy is charged against staging rather than against the
+reassembly cap (charging it against the cap would reject a set that fits — the reason
+`set_len_` is tracked separately from `stage_used_` at all).
+
+Revisit if a second non-conforming-sender clause appears. One such clause is a unit
+test; several are a vector form, and at that point the tooling has something to
+amortise against.
+
+### Footprint — ESP32-S3, v0.6 delta
+
+| | v0.5 | v0.6 | Δ |
+|---|---:|---:|---:|
+| `Reassembler` | 520 B | **520 B** | — |
+| `Counters` | 96 B | **96 B** | — |
+| bridge, 5 peers | 2,600 B | **2,600 B** | — |
+| test firmware RAM | 18,544 B | **18,544 B** | — |
+| test firmware flash | — | — | **+1,468 B** |
+
+Type sizes are the board's own report from `test_report_footprint`, and agree with a
+probe TU compiled against both trees with `xtensa-esp32s3-elf-g++` — which is how the
+v0.5 side of the column was obtained without rebuilding it. The firmware figures are
+`xtensa-esp32s3-elf-size` on the `test_vectors` ELF built from each tree.
+**G1 cost nothing**, which is what reusing the delivery buffer instead of adding a
+second one was for; §11.3's 520 B / 2,600 B figures stand as written. The flash
+growth is the 72nd vector's frames and payloads, and nothing else.
+
+The flash delta is a like-for-like comparison of two ELFs, *not* comparable to the
+286,997 B the v0.5 entry quotes — that is PlatformIO's own reported figure, which
+sums a different set of sections. Compare deltas here, not absolutes across entries.
+
+### Result
+
+**107 tests under `native`**, up from 104, and **110 on the Heltec V3**, up from 107:
+G1's two, G2's inversion in place, and G3's mapping test. The +3 gap between host and
+target is unchanged from v0.5 and is the three `#ifdef ARDUINO` tests in `test_crypto`
+that compare mbedTLS against the portable reference — target-only by construction, not
+a divergence. **Zero host/target divergence**, as at every round so far. Clean under `-Wall
+-Wextra`, with `-Werror` on `native`. 72 W4 vectors pass on host and on target.
+
+Worth stating since G3 touched it: the vectors carry decode-outcome names as strings,
+so the rename had to move in the JSON, in `check.py`'s ladder and in the C++
+consumer's name table together. Any one of the three left behind fails as an unknown
+status name rather than as a silent pass — checked, not assumed.
+
+### Open
+
+- **W12** — §9.4 steps 4–6 still have no home. Unchanged by v0.6, and the largest open
+  item. It wants settling before the second firmware is written, not after.
+- **W9** — needs the second board *and* an SX1262 driver, both arriving with the range
+  test firmware. Nothing built so far has touched the radio.

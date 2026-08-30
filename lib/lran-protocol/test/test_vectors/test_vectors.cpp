@@ -73,8 +73,8 @@ bool status_from_name(const char* s, Status* out) {
       {"ReassemblyTimeout", Status::ReassemblyTimeout},
       {"ReassemblyAbandoned", Status::ReassemblyAbandoned},
       {"FragmentOverflow", Status::FragmentOverflow},
-      {"BadMac", Status::BadMac},
-      {"CtxMismatch", Status::CtxMismatch},
+      {"RejectedMac", Status::RejectedMac},
+      {"RejectedCtx", Status::RejectedCtx},
   };
   for (const Row& r : kRows) {
     if (strcmp(s, r.name) == 0) {
@@ -121,6 +121,23 @@ bool assert_only_counter(const Counters& c, const char* want, const char* vec_na
     }
   }
   return true;
+}
+
+// spec 14.1 - the other half of assert_only_counter: a vector that names no counter
+// is asserting that no counter moved at all. A clean set reassembles without a
+// discard, a duplicate or a late fragment, and the frag vector that interposes a
+// single frame (spec 11.2) depends on exactly this being checked - the defect it
+// pins showed up as rx_reassembly_abandoned moving on a status frame.
+void assert_no_counter_moved(const Counters& c, const char* vec_name) {
+  for (const CounterField& r : kCounterRegistry) {
+    const uint32_t v = c.*(r.field);
+    if (v != 0) {
+      char msg[192];
+      snprintf(msg, sizeof(msg), "%s moved (%u); this vector names no counter",
+               r.name, v);
+      report("counter", vec_name, msg);
+    }
+  }
 }
 
 // Builds a Header from a vector's declared header.
@@ -381,6 +398,36 @@ void test_vectors_fragmentation() {
     uint32_t    now = 1000;
     bool        delivery_ok = true;
     for (uint8_t s = 0; s < v.order_len; ++s) {
+      // spec 11.2 - a frame declaring `frag` total 1, arriving mid-set. It is not a
+      // fragment of anything: it may not begin, join, displace or expire the set,
+      // and it must still be delivered whole. On the bridge this is a node's
+      // periodic STATUS landing in the middle of that node's fragmented CONFIG_ACK.
+      if (v.inter_frame != nullptr && s == v.inter_after) {
+        Frame  itf;
+        Status is = decode_header(v.inter_frame, v.inter_frame_len, dc, &itf);
+        if (is == Status::Ok) {
+          is = decode_payload(v.inter_frame, v.inter_frame_len, dc, &itf);
+        }
+        if (!expect_status(Status::Ok, is, "frag", v.name, "interposed frame decode")) {
+          delivery_ok = false;
+          break;
+        }
+        now += 10;
+        if (!expect_status(Status::Ok, r.accept(itf, now), "frag", v.name,
+                           "interposed frame accept")) {
+          delivery_ok = false;
+          break;
+        }
+        // Delivered, in full, rather than dropped: the fix for the displacement is a
+        // delivery path that bypasses the slot, not a discard.
+        if (expect_true(r.complete(), "frag", v.name,
+                        "interposed single frame was not delivered") &&
+            expect_u32(v.inter_payload_len, static_cast<uint32_t>(r.len()), "frag",
+                       v.name, "interposed payload length")) {
+          expect_bytes(v.inter_payload, r.data(), v.inter_payload_len, "frag", v.name,
+                       "interposed payload bytes");
+        }
+      }
       const uint8_t fi = v.order[s];
       Frame  f;
       Status ds = decode_header(v.frames[fi], v.frame_lens[fi], dc, &f);
@@ -420,8 +467,12 @@ void test_vectors_fragmentation() {
                    "round-trip bytes");
     }
 
-    if (v.counter != nullptr && !assert_only_counter(c, v.counter, v.name, false)) {
-      report("frag", v.name, "vector names a counter this build has no field for");
+    if (v.counter != nullptr) {
+      if (!assert_only_counter(c, v.counter, v.name, false)) {
+        report("frag", v.name, "vector names a counter this build has no field for");
+      }
+    } else {
+      assert_no_counter_moved(c, v.name);
     }
   }
   TEST_ASSERT_EQUAL_INT_MESSAGE(before, g_disagreements,
