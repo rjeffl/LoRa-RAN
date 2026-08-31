@@ -3,7 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `LRAN-Bridge_Node-Implementation-Plan` §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.6 §10.
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.7** (`ver = 2`).
+**Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 
 ## What this is
 
@@ -114,6 +116,41 @@ The entries most likely to be skipped by hand are the ones whose correct result 
 **nothing happens** — `hdr_rsv` accepted, `seq_wrap` accepted, `wrong_dst` discarded with
 no `ERROR`. Those are the forward-compatibility rules, and they break quietly. Commit them
 as `simctl` scripts so a regression run is one command.
+
+## The fault catalogue is 27 entries, and 6 of them are new
+
+Impl Plan §10.5 was written against spec v0.3 and has been brought up to the current
+receive path. The six added entries are the ones nothing has ever produced:
+`oversize` (stage 2a), `frag_zero` (5b), `frag_command` (8a), `set_displaced` (§11.3),
+and the two whose correct result is that **`rx_dropped` does not move** — `frag_dup` and
+`frag_late`.
+
+**`single_frame_interleave` is the one to build first.** It is the only test of spec
+v0.6's sole behavioural change (§11.2: a single frame never begins, joins, displaces or
+expires a set), the simnode is the only thing that can produce the sequence, and the
+defect it catches — a node's periodic `STATUS` destroying that node's in-progress
+fragmented `CONFIG_ACK` on the bridge — is **silent by construction**. Expected result is
+a set that completes and a counter that stays still.
+
+**§10.5's counter column comes from Protocol Spec §14.1**, not from the table. A row whose
+counter is not in `kCounterRegistry` is a defect in the table — report it rather than
+adding a name.
+
+**§10.5.2: `/lib/lran-sim/` needs a patch-after-encode primitive** before B0.
+`oversize`, `frag_zero` and `frag_command` all need a frame `encode()` refuses to emit.
+A narrow patch surface keeps rule 2 above intact; discovering the need mid-milestone is
+how a second serializer gets written.
+
+## Two faults arrive with P8, and they point the other way
+
+**D34** puts `CommandGate` (spec §9.4 steps 4–5) in `/lib/lran-protocol/`, and **P8 gates
+B0** alongside P6. Per §9.2 every authenticated type is bridge → node, so `cmd_replay`
+and `cmd_stale_seq` (Impl Plan §10.5.1) test **this node's own gate**, driven from
+`simctl`. `cmd_replay` is the one that matters: `ack_suppress` already exercises dedup
+from the bridge's side, but `cmd_replay` asserts it **at the end that pulses a relay**,
+which is what root rule 2 and **BS-3** are about. A second pulse at a driveway gate is the
+failure the whole mechanism exists to prevent, and it has never been tested where it
+happens.
 
 ## Milestone
 

@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.6
+**Version:** 0.7
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
-**Last updated:** 2026-08-30
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
+**Last updated:** 2026-08-31
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -54,7 +54,7 @@ and retention rules.
 **Out of scope:** the VE.Direct text and HEX protocols themselves (Victron-owned —
 LRAN transports HEX verbatim, §7.6), the TDT BLE BMS protocol
 (`/docs/bms-protocol.md`), 1050 accessory-I/O semantics
-([`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md)), and HA entity definitions
+([`LRAN-GateLink_Node-PRD`](../gatelink/LRAN-GateLink_Node-PRD.md)), and HA entity definitions
 (node PRDs).
 
 ### 1.1 Design constraints
@@ -944,7 +944,7 @@ writes, or interpret register semantics.
 
 This is the first of three independent gates on MPPT writes. The other two — an armed
 write-enable switch with auto-expiry, and a retained audit trail — are enforced on the
-bridge and specified in [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md).
+bridge and specified in [`LRAN-Bridge_Node-PRD`](../bridge/LRAN-Bridge_Node-PRD.md).
 
 > Writing MPPT charge parameters under LiFePO4 is a **battery-damage path**.
 > Re-enabling temperature compensation or equalization on a lithium pack is exactly
@@ -952,7 +952,7 @@ bridge and specified in [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md).
 
 **On-node UART multiplexing** — interleaving HEX responses with the ~1 Hz text stream
 on one UART — is a node implementation matter and is specified in
-[`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md).
+[`LRAN-GateLink_Node-Implementation-Plan`](../gatelink/LRAN-GateLink_Node-Implementation-Plan.md).
 
 ---
 
@@ -1333,8 +1333,29 @@ framing — and a protocol library that stops at the frame boundary will not con
 them. They remain mandatory, and they are **the same logic on every side**: the bridge
 needs them, and so does each of GateLink, WellLink and any simnode that accepts a
 command. Four independent implementations of a replay check is three too many, and
-§10.4 is not advisory — a relay pulse is not idempotent. Placement is tracked as open
-item **W12**.
+§10.4 is not advisory — a relay pulse is not idempotent.
+
+**Settled in v0.7 as D34, and the answer is a split.** Steps 4, 5 and the high-water
+update in step 6 are *validation against receiver state* — the same logic on every
+side, with no allocation, no I/O and an injected clock — and live in
+`/lib/lran-protocol/` as `CommandGate`, one instance per peer, immediately after
+reassembly. **Dispatch remains the application's**, which is what keeps the library
+from deciding anything: the gate returns a verdict, the caller acts on it. The premise
+corrected here is this section's own — that a protocol library stopping at the frame
+boundary cannot contain any of steps 4–6. Two of the three are the shape `Reassembler`
+already has, and their counters (`rx_rejected_seq`, `rx_dup_command`) already live in
+the same `Counters` that §7.5's `rx_dropped` sums. See the Decision Register §3.2.
+
+**What §9.2 means for the bridge.** Every authenticated type is bridge → node, so
+steps 4–6 apply to an empty set on the bridge today. The obligation binds the **first
+firmware that accepts a `COMMAND`**, and it binds it fully.
+
+**One silence remains, recorded rather than closed.** The cached value is the *result*
+of execution, so checking and recording are necessarily two operations, and §10.4 does
+not say what a retry arriving between them should receive — there is no cached ACK
+yet, and the `seq` check has already failed. It is unreachable on a single-threaded
+receive loop, which is what both sides use, so it is stated as a receiver precondition
+rather than given a wire answer. Revisit if a receiver ever dispatches asynchronously.
 
 ### 9.5 Accepted limitations — stated plainly
 
@@ -1404,7 +1425,14 @@ For a fragmented authenticated frame the key is the `(ctx_id, seq)` shared by th
 §9.4.
 
 The cache is RAM-only and is lost on reboot, which is correct: a reboot changes
-`ctx_id`, so no pre-reboot `seq` can match anyway.
+`ctx_id`, so no pre-reboot `seq` can match anyway. A receiver holding one `ctx_id` per
+peer therefore stores only `(seq, result, detail)` per entry, and clearing the cache on
+a context change (§10.3) falls out of the same fact.
+
+**Checking and recording are two operations**, because the cached value is the result
+of execution and no single call can produce it. §9.4 records what this section does not
+say — what a retry arriving between them receives — and why it is a receiver
+precondition rather than a wire answer.
 
 ### 10.5 Wrap behavior
 
@@ -2109,7 +2137,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W9 | **Full-size and fragmented `PING` bench runs** | §6.6.1, §6.6.2 | The 222-byte frame path and the fragmented-`PING` reassembly path are specified but unexercised on hardware. v0.4 makes the second reachable, via the `frag_chunk` override rather than an unsatisfiable `n`. Hosted by the range test firmware, which already needs two boards, an antenna and a link — building a second bench tool for this would be waste. Note that nothing built so far has touched the radio at all: W9 needs the second board **and** an SX1262 driver that does not yet exist, and both arrive with that firmware. Both belong in the bring-up sequence **before** GateLink is installed at the gate, since neither is fixable remotely |
 | W10 | **Config entry count vs. one frame** | §7.4, §11 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. Confirm the count once it does: past 21 `uint32` entries the readback fragments, which makes §11 a production path on the first config read rather than a bench feature, and moves W4's fragmentation vectors onto the critical path |
 | W13 | ~~No vector reaches §11.2's dead-space clause~~ | — | **Closed. Unit-test coverage is sufficient and no raw-frames vector form will be built.** A duplicate fragment of differing length exhausting staging is a **non-conforming-sender** path: §11.1 fixes every non-final fragment to one length, so a conforming sender cannot produce it, and W4's generator emits conforming senders by construction. That is a **boundary of the method, not a gap in it** — the vector shape witnesses two implementations of a conforming sender against each other, and a frame no conforming sender emits has no second implementation to be witnessed against. `test_duplicate_fragment_of_different_length_overwrites` drives the receiver directly and covers both halves: the overwrite wins, and the superseded copy is charged against staging rather than against the reassembly cap. A raw-frames vector form is a meaningful amount of tooling for one clause, and it would compare the codec against a hand-written frame rather than against an independent reading, which is most of what makes W4 worth having. Revisit if a second non-conforming-sender clause appears: one is a unit test, several are a vector form |
-| W12 | **A home for §9.4 steps 4–6** | §9.4, §10.4 | Dedup cache, `seq` high-water and the dispatch decision are receiver-application state, outside a framing library, and are currently implemented nowhere. Identical on the bridge and on every commandable node, so they want one shared component rather than four. Decide the home before the second firmware is written, not after |
+| W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 
 ### 18.1 W5, resolved — fixed channel at low power
@@ -2209,6 +2237,28 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
+- **v0.7** — Decision capture. `ver` stays at `2`; **no frame layout, header field,
+  authentication scope or schema length changes**, and no vector regenerates.
+  **W12 closes as D34, by correcting this document's own premise.** §9.4 said steps 4–6
+  are receiver-application obligations that "a protocol library that stops at the frame
+  boundary will not contain" — true of dispatch, false of the other two. The dedup check
+  and the `seq` high-water mark are *validation against receiver state*: per peer,
+  stateful, no allocation, no I/O, clock injected — which is precisely the shape §11's
+  `Reassembler` already has inside the library, and their counters `rx_rejected_seq` and
+  `rx_dup_command` already sit in the same `Counters` that §7.5's `rx_dropped` sums.
+  Splitting the obligation puts steps 4, 5 and step 6's state update in
+  `/lib/lran-protocol/` as `CommandGate`, one per peer after reassembly, and leaves
+  **dispatch in the application** — so the library still decides nothing, it returns a
+  verdict. §9.4 also draws out a consequence of §9.2 that had gone unstated: **every
+  authenticated type is bridge → node**, so steps 4–6 apply to an empty set on the
+  bridge today and the obligation binds the first firmware that accepts a `COMMAND`,
+  which is a node. **One silence is recorded rather than closed** — §10.4 does not say
+  what a retry arriving between the check and the record receives, since the cached
+  result does not exist yet and the `seq` check has already failed. It is unreachable on
+  a single-threaded receive loop and is stated as a receiver precondition, in the manner
+  of §11's monotonic-clock precondition, rather than given a wire answer that a
+  conforming sender cannot reach. §10.4 gains the entry shape and the cache-clearing
+  consequence of a context change.
 - **v0.6** — Decision capture, plus three findings from the v0.5 implementation.
   `ver` stays at `2`. One **behavioural change**: §11.2 states that **a single-frame
   frame never touches reassembly state** — it may not begin, join, displace or expire a

@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.1
+**Version:** 0.3
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.1
-**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2
-**Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md)
-**Last updated:** 2026-08-18
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
+**Last updated:** 2026-08-31
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -379,7 +379,7 @@ unlock path — it moves to OPEN+LOCK, which is the operation that should requir
 ### 4.1 LoRa
 
 Framing, addressing, authentication, sequencing, fragmentation and media access are
-defined in [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) and are not
+defined in [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) and are not
 restated. Implementation obligations for this node:
 
 | Item | Value |
@@ -1015,7 +1015,7 @@ the BMS heat sink. GateLink will sit ~12 in from the pack, which should be comfo
 **but the host's 2.4 GHz antenna is internal to its DIN case with no external option** —
 hence **D28** and **M5**.
 
-The full record of dead ends is in [`LRAN-Research-Archive`](./LRAN-Research-Archive.md).
+The full record of dead ends is in [`LRAN-Research-Archive`](../archive/LRAN-Research-Archive.md).
 
 ### 9.7 Power budget — the working table
 
@@ -1082,6 +1082,15 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. §4.1's obligations are unchanged; the dedup cache §4.1 assumes now has a named home and a `dedup_cache_depth` parameter in `/lib/lran-config/`.
+- **v0.2** — Housekeeping revision; **no change to the build or the firmware
+  architecture**. Binding protocol citation moves **v0.2 → v0.6**; §4.1's obligations
+  table was checked against v0.3–v0.6 and **nothing was found to conflict**. The
+  RadioLib line in §4.1 is now backed by a decision — **D32** — which also makes the
+  injected TCXO voltage and DIO2-as-RF-switch settings a day-one requirement of the
+  carrier's board config rather than a bring-up discovery, and requires the RadioLib
+  version to be **pinned** in this node's `platformio.ini`. Cross-document links
+  repaired for the `docs/` reorganization.
 - **v0.1** — Initial release. Assembled from `lran-prd-v0_8` §1.4, §1.5, §4.1.2, §4.2,
   §4.4–4.7, §5 (implementation-level content), §8.2/§8.5/§8.7/§8.8, §9.2, §9.3 and §14.
   **Restructured around the build rather than the specification**: BOM, interconnect,
@@ -1089,8 +1098,8 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
   observations, so that a section can be handed to Claude Code as a coherent unit of work.
   All requirements moved to [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) and
   referenced by identifier; all frame and enumeration detail replaced by references to
-  [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md); decision statuses
-  replaced by references to [`LRAN-Decision-Register`](./LRAN-Decision-Register.md).
+  [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md); decision statuses
+  replaced by references to [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md).
   **Added:** §5.2 explicit task structure with priorities and I²C ownership, which v0.8
   implied as a constraint but never laid out; §5.3 module map; §8 nine milestones with
   written acceptance criteria and a stated critical path, replacing v0.8's numbered bring-up

@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.1
+**Version:** 0.3
 **Status:** Living document. Updated whenever a decision changes state.
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
-**Last updated:** 2026-08-18
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
+**Last updated:** 2026-08-31
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D31**.
+**Adding a decision.** New numbers continue from the highest issued, currently **D34**.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -49,12 +49,35 @@ than one section, or when it is blocking work.
 
 | # | Decision | Owner | Notes | Gate |
 |---|---|---|---|---|
-| **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | Pick after the range test at ~500 ft **on both bearings**. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. Settle the FCC Part 15 operating mode (Protocol Spec §18.1, W5) *before* fixing a TX power, not after | Phase 1 |
+| **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | **Open, but bounded** — see §2.1. Pick after the range test at ~500 ft **on both bearings**. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. **TX power is capped by D33**; the **frequency requires the ambient survey (M20)** first. Range test results alone do not close this | Phase 1 |
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
 | **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor | Phase 5 |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
 | **D31** | **Copyright holder name** | System PRD §11.2 | MIT text and the 2026 year are settled; the name on the copyright line is not. Personal name or a project/entity name. **Blocks the first public push, nothing else** | Before first public push |
+
+### 2.1 D1 — what bounds it (2026-08-30)
+
+D1 remains open pending range test results, but it is no longer unbounded. Three
+constraints now apply, and **range test results do not close D1 on their own**:
+
+- **TX power is capped** by **D33** at the §15.249 EIRP ceiling. The range test sweep
+  starts at the bottom of the SX1262's range and climbs only if the link fails. A
+  working point chosen at a power that cannot be used is a result that has to be
+  thrown away.
+- **The frequency requires an ambient survey first.** Per Protocol Spec §12.1, D1 shall
+  not fix a frequency until an RSSI sweep of 902–928 MHz has been run at **both** the
+  bridge location and the most distant node location (**M20**). The two do not see the
+  same picture, and it is the node's noise floor that sets its margin.
+- **The site has known occupants.** Four YoLink temperature sensors plus a switch talk
+  to a YoLink hub inside the dwelling. YoLink uses LoRa at 915 MHz and a hub teardown
+  found a Semtech SX1276, so this is real CSS modulation and CAD will see it. Whether
+  it is LoRaWAN band-plan or proprietary is **unconfirmed** — a consumer star network
+  to a vendor hub is more likely proprietary. M20 settles it empirically, which is
+  better evidence than a datasheet either way.
+- **The power figure also needs the grant conditions** recorded under D33.
+
+**W7 still follows.** The airtime table regenerates once SF/BW/CR are fixed (**M19**).
 
 ---
 
@@ -84,6 +107,104 @@ than one section, or when it is blocking work.
 | **D26** | StamPLC 3.3 V rail | **No 3.3 V rail is exposed.** Bus power pins are VIN, GND and EXT_5V only, and EXT_5V sits near 4.76 V under load. The carrier LDO stays in the BOM, and an AMS1117 is excluded on dropout | GateLink Impl Plan |
 | **D27** | Carrier board fabrication | **Perfboard populated with prefabricated modules**; regulator and discretes mounted directly. Preserves the "no hand-built discrete circuits" property. Remaining sub-item: pick a DIN-rail carrier and cut the board to it | GateLink Impl Plan |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
+| **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
+| **D33** | FCC Part 15 operating mode (**closes W5**) | **A single fixed channel, no frequency hopping, transmitting at or below the Part 15.249 power provisions.** Reasoning, link budget and standing conditions in Protocol Spec §18.1; it constrains §12.1 and §12.3 and **bounds D1** (§2.1). See §3.1 | Protocol Spec §18.1 |
+| **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2 | Protocol Library Impl Plan §3, §6 (**P8**) |
+
+
+### 3.1 Notes on D32 and D33
+
+Both were settled on **2026-08-30**. Their outcomes are written up in the owning
+documents; what follows is the part that has no other home.
+
+**D32 — RadioLib.** Rejected alternatives: Heltec's own library, convenient on one
+board, useless on the StamPLC carrier, and it would have forced a second driver for
+GateLink; a raw Semtech HAL, more control than this project needs plus CAD, calibration
+and TCXO handling to write from scratch.
+
+*Consequences, and they are standing ones.* **Pin the RadioLib version in every
+`platformio.ini`** — a driver shared by four firmwares is not a thing to let float. The
+two settings that fail silently on the Heltec V3, **TCXO reference voltage** and
+**DIO2-as-RF-switch**, belong in the injected board config (Protocol Spec §12.2) from
+the first commit, not discovered per firmware.
+
+**D33 — fixed channel at §15.249 power.** Status is *settled, with standing conditions*.
+Losing any one of the three reopens it:
+
+1. TX power stays at or below the 15.249 ceiling. This is **EIRP**: conducted power plus
+   antenna gain. With a 2 dBi antenna the conducted figure is around −3 dBm. **Record
+   conducted power and antenna gain separately** or the number cannot be audited.
+2. Aggregate channel occupancy stays low — a handful of nodes at status cadence.
+3. The ambient survey (**M20**) finds no co-channel occupant on the chosen frequency.
+
+**This is not a compliance determination.** Confirm the radio modules' own FCC grant
+conditions — antenna type and gain, and what each grant assumes about power and hopping
+— **before D1 fixes a number**.
+
+**On the site's existing 915 MHz equipment** (four YoLink temperature sensors and a
+switch, on a YoLink hub, all inside the dwelling): this has **no bearing on the
+operating mode**. Part 15 compliance is per device; a certified product nearby
+establishes that *some* compliant mode exists, not that this one is it. It bears on
+channel selection and CAD tuning instead — see §2.1 and Protocol Spec §12.3.
+
+### 3.2 D34 — why a split, and why it lands in the protocol library
+
+Settled **2026-08-31**, closing **W12**. The specification asked "where do steps 4–6
+live" as one question; it is two, and asking it as one is why it stayed open.
+
+**Steps 4, 5 and the high-water update in step 6 are validation against receiver
+state** — the same logic on every side, no allocation, no I/O, clock injected.
+**Dispatch is node behaviour** and stays in the application. `CommandGate::check()`
+returns `Execute` / `ReturnCached` / `Reject`; it never executes anything.
+
+*Why `/lib/lran-protocol/` rather than a new library or four applications.*
+
+1. **`Counters` already owns `rx_rejected_seq` and `rx_dup_command`**, and
+   `total_dropped()` already sums the first. Until the incrementer shares that
+   `Counters` instance, schema `0xF0`'s `rx_dropped` under-reports on exactly the
+   frames that move a gate. An incrementer in a different library from the counter
+   struct recreates the split that produced the v0.5 naming drift.
+2. **`Reassembler` is the precedent and settles the scope question**: per-peer,
+   stateful, `now_ms` injected, no allocation, returns a `Status`. `CommandGate` is
+   the same shape. If reassembly is in scope, this is.
+3. **`Status` must gain `DuplicateCached` and `RejectedSeq`** so `Counters::bump()`
+   stays the single mapping point — its `-Werror=switch` guard only works if the
+   values are in the enum, which they cannot be from outside the library.
+4. A separate `/lib/lran-rx/` would need `Frame`, `Status`, `Counters`, `AckResult`
+   and `seq_newer`. A library whose entire surface is another library's types is a
+   header with a build system attached.
+
+**Rejected:** leaving it to each application. §10.4 is not advisory — a relay pulse is
+not idempotent — and four independent implementations of a replay check is three too
+many.
+
+**Consequences.**
+
+- **`check` and `record` are two calls.** The cached value is the *result of
+  execution*, so one call cannot produce it, and caching before execution would
+  return a success ACK for a command that then failed.
+- **`check → execute → record` must be atomic with respect to frame arrival**, and is
+  recorded as a documented precondition in the manner of `Reassembler`'s monotonic
+  clock rather than engineered around. A retry landing inside that window finds no
+  cache entry *and* fails the `seq` check, answering `REJECTED_SEQ` where §10.4
+  requires the cached ACK. Unreachable on a single-threaded receive loop, which is
+  what both sides use. **§10.4 is silent on this window** — a specification gap
+  recorded rather than patched locally.
+- `dedup_cache_depth` (§10.4, default 8) becomes a `/lib/lran-config/` parameter,
+  runtime-settable.
+- Cost is **32 B per peer** — the gate holds one `ctx_id` and entries store
+  `(seq, result, detail)`. 32 B on a node, 160 B on a five-node bridge.
+  `reset_context()` clearing the cache then falls out for free, which is exactly
+  §10.4's "lost on reboot, which is correct."
+
+**The deadline is later than the specification implied, and this is the useful part.**
+§9.2 makes **every authenticated type bridge → node** — `COMMAND`, `CONFIG` and
+write-class `HEX_REQ`. Nodes emit only unauthenticated frames, so **on the bridge
+steps 4–6 apply to an empty set today**. The deadline is therefore not "before the
+second firmware is written" but **before the first firmware that accepts a
+`COMMAND`**: simnode `ROLE_GATELINK` at **B0**, and GateLink **M3**. `ROLE_RANGE`
+echoes unauthenticated `PING`, so **W12 does not block the range test firmware**.
+Land `CommandGate` as library milestone **P8**, before B0.
 
 ---
 
@@ -115,7 +236,8 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert | GateLink Impl Plan |
 | M4 | **MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope | **D25**, carrier BOM | GateLink Impl Plan |
 | M5 | **BLE RSSI to the BMS from the final StamPLC mounting position** | **D28** | GateLink Impl Plan |
-| M6 | **Range and RSSI at ~500 ft on both bearings** | **D1**, bridge antenna siting | Bridge Impl Plan |
+| M6 | **Range and RSSI at ~500 ft on both bearings** | **D1**, bridge antenna siting | Range Test Tasks |
+| M20 | **Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3**. The two locations do not see the same picture, and it is the node's noise floor that sets its margin. Also settles empirically whether the site's YoLink network is on a LoRaWAN band plan or proprietary | Range Test Tasks |
 | M7 | **BMS pack-current sign convention**, captured once under charge and once under load | Last open item in the BMS protocol (Protocol Spec §18, W6). Bit `0x4000` is believed to be the discharge flag but has only been observed at 0.0 A | GateLink Impl Plan |
 
 ### 5.2 Informative
@@ -137,13 +259,39 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | # | Item | Blocks |
 |---|---|---|
 | M17 | **Copyright holder name for the LICENSE file** | **D31**, first public push |
-| M18 | Protocol test vectors — fixed key, known frames, expected MACs and CRCs | Independent development of the node and bridge firmwares (Protocol Spec §18, W4) |
+| M21 | **Confirm the SX1262 modules' own FCC grant conditions** — antenna type and gain, and what each grant assumes about power and hopping | **D33's "not a compliance determination" caveat**, and D1's TX power figure |
+| M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
 | M19 | Airtime table regeneration once D1 fixes SF/BW/CR | Protocol Spec §15.1 (W7) |
 
 ---
 
 ## 6. Changelog
 
+- **v0.3** — **D34 added, closing Protocol Spec W12**: §9.4 steps 4–6 are **split**
+  rather than placed whole — steps 4, 5 and the state half of 6 become
+  `lran::CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application.
+  Reasoning in **§3.2**, including the finding that changes the schedule: §9.2 makes
+  every authenticated type bridge → node, so **steps 4–6 apply to nothing on the
+  bridge today** and the real deadline is the first firmware that accepts a `COMMAND`
+  — simnode B0 and GateLink M3, **not** the range test. Two consequences worth
+  carrying: `dedup_cache_depth` becomes a `lran-config` parameter, and §10.4 is
+  **silent on the check/execute/record window**, recorded here as a specification gap
+  rather than patched locally.
+- **v0.2** — **D32 and D33 merged in** from a standalone entries file, which is now
+  deleted; a second file holding decisions is exactly the split this register exists to
+  prevent. **D32** fixes RadioLib as the SX1262 driver for every firmware in the repo.
+  **D33** closes Protocol Spec **W5** — a single fixed channel, no hopping, at or below
+  the §15.249 power provisions — and is recorded as *settled with standing conditions*
+  rather than as a bare outcome, because the power ceiling is **EIRP** and a later move
+  to higher conducted power, a larger fleet, or a co-channel occupant each reopens it.
+  Their rationale beyond a table cell is in **§3.1**. **D1 is amended, not closed**: new
+  **§2.1** records the three things that now bound it, the most consequential being that
+  **range test results do not close D1 on their own** — the frequency needs the ambient
+  survey and the power needs D33's grant conditions. Backlog gains **M20** (ambient RSSI
+  sweep at both ends, blocking D1's frequency and D33's third standing condition) and
+  **M21** (module FCC grant conditions); **M18 is marked done** with W4's closure; M6's
+  owner moves to the range test tasks document. Parent link repaired for the `docs/`
+  reorganization.
 - **v0.1** — Initial release. Extracted from `lran-prd-v0_8` §13 and §13.1 so that
   decision churn no longer requires editing the system overview, and so that a single
   status is authoritative rather than restated across six documents. Content carried

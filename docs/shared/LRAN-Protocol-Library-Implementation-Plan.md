@@ -1,12 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.1
+**Version:** 0.3
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.3
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.7**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
-**Status:** Ready for build. **This is the first code written in the project.**
-**Last updated:** 2026-08-19
+**Status:** **Built — P1 through P7 complete.** The record is
+[`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
+remains the owning specification for the API and its tests.
+**Last updated:** 2026-08-31
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -32,10 +34,17 @@
 
 **In scope:** frame encode/decode, header handling, CRC16, MAC computation and
 verification, sequence arithmetic, fragmentation and reassembly, typed payload schemas,
-enumerations, discard counters.
+enumerations, discard counters, and — since **D34** — the per-peer replay and
+deduplication gate of Protocol Spec §9.4 steps 4–5.
 
 **Out of scope:** radio drivers, MQTT, scheduling, publication policy, node behaviour.
-The library moves bytes and validates them. It does not decide anything.
+The library moves bytes and validates them. **It does not decide anything** — and D34
+does not change that. `CommandGate` returns a *verdict*; executing a command, and
+choosing what to do when one is refused, stay with the caller. The test for whether
+something belongs here is not "is it framing" but **"is it validation against receiver
+state, with no allocation, no I/O and an injected clock"** — which is what `Reassembler`
+already is, and what put steps 4–5 on this side of the line while dispatch stayed on
+the other.
 
 ### 1.1 Six rules, each with a consequence
 
@@ -321,20 +330,38 @@ namespace lran {
 
 struct Counters {
   uint32_t rx_frames, tx_frames;
-  uint32_t rx_crc_err, rx_runt, rx_bad_crc, rx_bad_ver, rx_not_addressed;
-  uint32_t rx_unknown_hdr_ext, rx_unknown_type, rx_unknown_schema;
-  uint32_t rx_bad_length, rx_bad_mac, rx_ctx_mismatch;
-  uint32_t reassembly_timeout, fragment_overflow, cad_backoffs;
+  uint32_t rx_crc_err, rx_runt, rx_oversize, rx_bad_crc, rx_bad_ver;
+  uint32_t rx_not_addressed, rx_unknown_hdr_ext, rx_bad_frag;
+  uint32_t rx_unknown_type, rx_unknown_schema, rx_bad_length, rx_not_fragmentable;
+  uint32_t rx_rejected_ctx, rx_rejected_mac;
+  uint32_t rx_reassembly_timeout, rx_fragment_overflow, rx_reassembly_abandoned;
+  uint32_t rx_rejected_seq, rx_dup_command;      // D34 - raised by CommandGate
+  uint32_t rx_frag_duplicate, rx_frag_late;      // counted, NOT in rx_dropped
+  uint32_t cad_backoffs;
 
   void bump(Status);                 // the single mapping point
   uint32_t total_dropped() const;    // feeds schema 0xF0 rx_dropped
 };
 
+// spec 14.1 - the registry, in the specification's own order. The bridge publishes
+// by these names, so this table is the single place a name is written down.
+extern const CounterField kCounterRegistry[kCounterRegistryLen];
+
 }  // namespace lran
 ```
 
+**Field names are normative** — Protocol Spec §14.1 is the registry and this struct
+mirrors it in order. The v0.5 revision exists because `rx_reassembly_timeout` and
+`rx_fragment_overflow` shipped through P1–P5 without the `rx_` prefix the prose used and
+nothing anywhere listed the names together; `kCounterRegistry` is that list, and a
+`static_assert` on `sizeof(Counters)` fails the build if a field is added without one.
+`total_dropped()` sums only the registry rows §14.1 marks — `rx_frag_duplicate`,
+`rx_frag_late` and `rx_dup_command` are normal traffic and must not make a health metric
+climb during correct operation.
+
 `bump(Status)` being the only place the mapping exists is what guarantees the bridge and
-every node report the same thing under the same name. `rx_crc_err` is the PHY CRC and is
+every node report the same thing under the same name. It carries **no `default:` label**,
+so adding a `Status` enumerator without a counter is a `-Werror=switch` build failure. `rx_crc_err` is the PHY CRC and is
 bumped by the radio driver, not by the codec — it is the one counter the library cannot
 own, and Bridge Impl Plan §10.5 records that it is also the one discard path that cannot
 be tested at a desk.
@@ -429,6 +456,73 @@ class ByteReader { /* symmetric, bounds-checked */ };
 **Each schema header carries the spec section number in a comment**, so a field's meaning
 is one search away and the document stays the authority rather than the code.
 
+### 3.10 `lran/command_gate.h` — replay and dedup (**D34**)
+
+Protocol Spec §9.4 **steps 4 and 5, and step 6's high-water update**. One instance per
+peer, called once per *completed set*, immediately after `Reassembler` and on
+authenticated types only.
+
+```cpp
+namespace lran {
+
+enum class Verdict : uint8_t { Execute, ReturnCached, Reject };
+
+struct GateResult {
+  Verdict   verdict;
+  Status    status;         // Ok | DuplicateCached | RejectedSeq
+  AckResult cached_result;  // valid ONLY when verdict == ReturnCached
+  uint8_t   cached_detail;
+};
+
+class CommandGate {
+ public:
+  explicit CommandGate(Counters* counters = nullptr);
+
+  // spec 10.4 - default 8. Runtime-settable: no timing or sizing constant is fixed
+  // at compile time in a node that cannot be reflashed without a walk to the gate.
+  void set_cache_depth(uint8_t n);
+
+  // spec 9.4 steps 4-5. Step 4 BEFORE step 5, and the order is load-bearing: a
+  // retry carries seq == high_water, which step 5 rejects. Checking seq first
+  // answers REJECTED_SEQ to a frame that must receive the cached ACK.
+  GateResult check(Seq seq);
+
+  // spec 9.4 step 6, state half. Called by the application AFTER executing, with
+  // the result it is about to ACK. Advances the high-water mark and stores the
+  // entry.
+  void record(Seq seq, AckResult result, uint8_t detail);
+
+  // spec 10.1, 10.3 - a new context invalidates every cached entry, because the
+  // cache is keyed within a context and a reboot changes it.
+  void reset_context(CtxId new_ctx);
+};
+
+}  // namespace lran
+```
+
+**Two calls, not one.** The cached value is the *result of execution*, so no single
+call can produce it, and caching before execution would return a success ACK for a
+command that then failed.
+
+> **PRECONDITION: `check → execute → record` is atomic with respect to frame arrival.**
+> Stated in the manner of `Reassembler`'s monotonic-clock precondition, and for the same
+> reason — it is cheaper to require than to engineer around. A retry landing inside that
+> window finds no cache entry *and* fails the `seq` check, so it would answer
+> `REJECTED_SEQ` where §10.4 requires the cached ACK. Unreachable on a single-threaded
+> receive loop, which is what both the bridge's `lora_task` and every node use.
+> Protocol Spec §9.4 records the silence; do not close it locally.
+
+**Cost is 32 B per peer.** The gate holds one `ctx_id`; entries store
+`(seq, result, detail)`. 32 B on a node, 160 B on a five-node bridge.
+
+**Two new `Status` values**, `DuplicateCached` and `RejectedSeq`, named after the wire
+code per §14.1 and matching `AckResult`. They exist so `Counters::bump()` stays the
+single mapping point — its missing `default:` label is a `-Werror=switch` guard that
+only works if every discard reason is in the enum. `rx_rejected_seq` counts into
+`rx_dropped`; `rx_dup_command` does not.
+
+**`dedup_cache_depth`** joins `/lib/lran-config/` (§4) as a node parameter.
+
 ---
 
 ## 4. Companion library: `/lib/lran-config/`
@@ -461,6 +555,14 @@ inline constexpr ParamDef kBridgeParams[] = {
   {0x0005, "republish_interval_s",   PType::U16,  60, 86400,  900,"s",  "Heartbeat republish"},
   {0x0006, "mppt_write_arm_timeout_s",PType::U16, 30,  3600,  300,"s",  "HEX write arm expiry"},
   {0x0007, "simnode_diag_enable",    PType::Bool,  0,     1,    0, nullptr, "Publish bench nodes (Bridge Impl 4.2a)"},
+};
+
+// Node parameters shared by every commandable node. dedup_cache_depth is D34's,
+// and is runtime-settable because a node that cannot be reflashed without a walk
+// to the gate may not carry a fixed sizing constant either (root rule 8).
+inline constexpr ParamDef kNodeCommonParams[] = {
+  {0x0100, "dedup_cache_depth",       PType::U8,    1,    32,    8, nullptr, "Cached command results, spec 10.4"},
+  {0x0101, "frag_reassembly_timeout_ms", PType::U16, 500, 30000, 5000, "ms", "Fragment set window, spec 11.2"},
 };
 
 constexpr const ParamDef* find(uint16_t id);   // constexpr - no runtime table build
@@ -529,7 +631,19 @@ widened to provide.
 | **P6** | **W4 vectors committed** | Every vector in §5 passes. **The vector generator and the library disagree nowhere.** Test run wired into CI |
 | **P7** | **Target build** | Compiles for ESP32-S3 under the Arduino framework with the mbedTLS `IMac`. Flash and RAM footprint recorded in `/docs/protocol-lib/engineering-log.md` |
 
-**P6 gates simnode B0. P7 gates bridge B2.**
+| **P8** | **`CommandGate` — D34** | §9.4 steps 4–5 and step 6's high-water update, per peer. Dedup returns the **cached** ACK without re-executing; `seq` below the high-water mark is refused; the step-4-before-step-5 order is asserted by a test that would fail if reversed. `reset_context()` clears the cache. Exhaustive `seq` tests near the wrap, as P5. `rx_rejected_seq` and `rx_dup_command` move, and `total_dropped()` includes the first and not the second |
+
+**P6 gates simnode B0. P7 gates bridge B2. P8 gates simnode B0 as well** — `ROLE_GATELINK`
+accepts `COMMAND` and must deduplicate it.
+
+**P1–P7 are met** as of 2026-08-30, against specification **v0.6**: 107 tests under
+`native` and 110 on the Heltec V3, 72 W4 vectors passing on host and on target with zero
+divergence, and the ESP32-S3 footprint recorded in the engineering log. **W4 is closed**
+(Protocol Spec §18). **P8 is outstanding**, and is the only library work between here and
+simnode B0. **W12 is closed** — D34 placed §9.4 steps 4–5 here rather than outside, which
+is what P8 builds; §9.2 makes every authenticated type bridge → node, so the obligation
+binds the first firmware that accepts a `COMMAND`, not the range test. **W9** remains, and
+needs the second board and an SX1262 driver — both arrive with the range test firmware.
 
 ---
 
@@ -563,6 +677,28 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.3** — **`CommandGate` specified and P8 added**, implementing **D34**, which
+  closes Protocol Spec **W12**. New **§3.10**. §1's scope gains the gate and, more
+  usefully, states the *test* that put it here: not "is it framing" but **"is it
+  validation against receiver state, with no allocation, no I/O and an injected clock"**
+  — which `Reassembler` already satisfies, and which is what splits steps 4–5 from
+  dispatch. §1's "it does not decide anything" is unchanged and now explicitly survives:
+  the gate returns a verdict. **§3.6's `Counters` was three revisions stale** — it still
+  listed `rx_bad_mac`, `rx_ctx_mismatch` and the unprefixed `reassembly_timeout` /
+  `fragment_overflow` that v0.5 renamed and v0.6 renamed again, in a document whose whole
+  claim is to be the API's owner. Corrected against §14.1 and `kCounterRegistry`, with
+  the `-Werror=switch` and `static_assert` guards written down. §6 records **P1–P7 met,
+  P8 outstanding**, and P8 gating simnode B0 alongside P6.
+- **v0.2** — Status revision; **the API and the design rules are unchanged**. Binding
+  specification moves **v0.3 → v0.6**, which is the version the library was actually
+  built and tested against — the v0.4 errata and auth/fragmentation split, the v0.5
+  counter registry and HKDF-from-HMAC requirement, and the v0.6 single-frame
+  reassembly rule all landed in `/lib/lran-protocol/` while this document still cited
+  v0.3. **§6 now records that P1–P7 are met**, so the header no longer reads "ready for
+  build" for a library with 107 passing tests and a recorded target footprint, and
+  names the two open items (**W12**, **W9**) that are the library's consumers' problem
+  rather than the library's. Cross-document links repaired for the `docs/`
+  reorganization.
 - **v0.1** — Initial release. Created in response to the observation that
   `/lib/lran-protocol/` had three dependent consumers and no owning document, and that an
   API invented while writing the bridge would be inherited unreviewed by the simnode,

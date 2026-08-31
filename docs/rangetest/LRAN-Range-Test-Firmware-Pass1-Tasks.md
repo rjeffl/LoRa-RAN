@@ -1,9 +1,12 @@
 # LRAN range test firmware — pass 1 tasks (two Heltec V3 boards)
 
 **For:** Claude Code, working in a new `firmware/range-test/`
-**Binding specification:** `LRAN-Protocol-Specification` v0.6
-**Depends on:** the v0.5 code updates landing first — this firmware links
-`/lib/lran-protocol/` and W9 runs against it
+**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
+**Depends on:** `/lib/lran-protocol/` — **satisfied.** P1–P7 are complete against v0.6
+(107 host tests, 110 on target, 72 W4 vectors, zero divergence); W9 runs against it
+**Closes / advances:** **D1** (bounded by D33 — see register §2.1), **M6**, **M20**,
+**W9**. Driver is **RadioLib** per **D32**, version pinned in `platformio.ini`
 **Hardware, pass 1:** two Heltec WiFi LoRa 32 V3 boards, matched antennas
 **Pass 2, later:** the XIAO ESP32S3 + Wio-SX1262 configuration. Not in scope here, but
 task R2 exists to make pass 2 a config addition rather than a refactor
@@ -20,9 +23,9 @@ an antenna and a link, and building a second bench tool for that would be waste.
 
 | Document | Sections |
 |---|---|
-| `LRAN-Protocol-Specification` v0.6 | §12 (radio config, injected pin map, CAD/backoff), §15 (airtime), §6.6 (`PING`, `PATTERN_FILL`, `frag_chunk`), §18 + §18.1 (W5 closed, W7, W9) |
-| Decision register | **D32** (RadioLib), **D33** (fixed channel at 15.249), **D1** as amended |
-| `LRAN-Bridge_Node-implementation-plan` v0.2 | Repo layout and board-count guidance |
+| `LRAN-Protocol-Specification` v0.7 | §12 (radio config, injected pin map, CAD/backoff), §15 (airtime), §6.6 (`PING`, `PATTERN_FILL`, `frag_chunk`), §18 + §18.1 (W5 closed, W7, W9) |
+| Decision register | **D32** (RadioLib), **D33** (fixed channel at 15.249), **D1** as amended (§2.1). **D34 does not apply here** — `CommandGate` binds firmware that accepts a `COMMAND`, and this one echoes unauthenticated `PING` |
+| [`LRAN-Bridge_Node-Implementation-Plan`](../bridge/LRAN-Bridge_Node-Implementation-Plan.md) v0.6 | Repo layout and board-count guidance |
 | `gatelink-expansion-board.md` rev 0.3 | The Wio-SX1262 net assignment — for R2's second board config, not for pass 1 wiring |
 | `/lib/lran-protocol/` plan + engineering log | The API this consumes; the P7 entry for what the target build already does |
 
@@ -248,3 +251,13 @@ saying so in the log rather than absorbing it quietly.
 Worth noting when it comes: the Wio-SX1262 carrier drives its RF switch from a dedicated
 `LORA_RFSW` GPIO rather than from DIO2, which is exactly the divergence §12.2 anticipates
 and the first real test of the seam.
+
+
+---
+
+## Record
+
+Findings, measurements and surprises go in
+[`/docs/rangetest/engineering-log.md`](./engineering-log.md) as they happen, dated. The
+sweep CSV (R7) and the survey output (R8) are committed alongside it — a range figure
+with no record of antenna height, bearing and TX power is not a result anyone can reuse.
