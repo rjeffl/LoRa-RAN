@@ -14,14 +14,20 @@ USB reflash in the field.
 
 ## Document set — read before writing code
 
-| Document | Authority over |
-|---|---|
-| `LRAN-System-PRD` | Architecture, node roles |
-| `LRAN-Protocol-Specification` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic |
-| `LRAN-Protocol-Library-Implementation-Plan` | `/lib/lran-protocol/` API and tests |
-| `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | Bridge requirements and build |
-| `LRAN-GateLink_Node-PRD` / `-Implementation-Plan` | GateLink requirements and build |
-| `LRAN-Decision-Register` | D-numbers referenced throughout |
+| Document | Path | Authority over |
+|---|---|---|
+| `LRAN-System-PRD` | `docs/` | Architecture, node roles, repo layout |
+| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.6, `ver = 2`** |
+| `LRAN-Decision-Register` | `docs/shared/` | **D1–D33** and measurement backlog **M1–M21**. The **only** place a decision's status is recorded |
+| `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
+| `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
+| `LRAN-GateLink_Node-PRD` / `-Implementation-Plan` | `docs/gatelink/` | GateLink requirements and build |
+| `LRAN-WellLink_Node-PRD` | `docs/welllink/` | Placeholder — reserved allocations only |
+| `LRAN-Range-Test-Firmware-Pass1-Tasks` | `docs/rangetest/` | **The next firmware target.** Answers D1; hosts W9, M6, M20 |
+
+**Check the version.** A node document citing an older protocol version than
+`LRAN-Protocol-Specification`'s own header has not been reconciled with the intervening
+revisions — say so rather than building against it.
 
 Requirement identifiers (`R-*`, `BG-*`, `BS-*`, `V-B*`, `D*`, `W*`, `M*`) refer to those
 documents. **Cite them in commits and PR descriptions.**
@@ -51,15 +57,34 @@ discrepancy rather than adjusting the spec to match the code.
    If the native build breaks, that is a defect to fix now, not a nuisance to route around.
 8. **Anything timing-related is runtime-configurable.** No timing constant is fixed at
    compile time in a node that cannot be reflashed without a walk to the gate.
+9. **RadioLib is the SX1262 driver everywhere** (**D32**), and **its version is pinned in
+   every `platformio.ini`.** A driver shared by four firmwares is not a thing to let
+   float. The radio pin map, TCXO reference voltage and DIO2-as-RF-switch flag are
+   **injected as a config struct**, never `#define`d (spec §12.2) — the two voltage/switch
+   settings fail *silently* on the Heltec V3, presenting as a radio that will not
+   calibrate rather than as an error.
+10. **TX power is capped by D33**, at or below the FCC §15.249 EIRP ceiling (~−1 dBm EIRP;
+   roughly −3 dBm conducted with a 2 dBi antenna). Single fixed channel, no hopping.
+   **Record conducted power and antenna gain separately** — the ceiling is EIRP and a
+   combined figure cannot be audited.
 
 ## Layout
 
+What exists today is marked; the rest is planned. **Do not assume a path is there.**
+
 ```
-lib/        lran-protocol, lran-config, lran-sim, vedirect   (shared)
-firmware/   bridge, simnode, gatelink, rangetest             (separate PIO projects)
-tools/      simctl, vectors                                  (Python 3)
-docs/       <node>/engineering-log.md
-ha/         example discovery payloads
+lib/        lran-protocol  [built: P1-P7, 107 host tests, 72 W4 vectors]
+            lran-config, lran-sim, vedirect, bms-ble        [planned]
+firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
+            range-test/                            [next target — docs/rangetest/]
+            gatelink/, welllink/                   [planned]
+tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
+docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
+            <node>/engineering-log.md — protocol-lib and rangetest have one
+ha/         example discovery payloads                       [planned]
+wattcycle-reader/  BMS BLE proof of concept. Complete, self-contained, its own
+            CLAUDE.md. Not part of the LRAN build; the TDT protocol write-up still
+            needs lifting out of it into docs/gatelink/bms-protocol.md
 ```
 
 Each firmware is its own PlatformIO project and reaches shared code via
@@ -68,13 +93,28 @@ Each firmware is its own PlatformIO project and reaches shared code via
 
 ## Build and test
 
+These work today:
+
 ```bash
-pio run -d firmware/bridge -e bridge          # build
-pio run -d firmware/bridge -e bridge -t upload
-pio test -d firmware/bridge -e native         # host tests
-python tools/vectors/check.py                 # W4 vectors
-python tools/simctl/simctl.py --port /dev/ttyUSB0
+pio test -d lib/lran-protocol -e native       # 107 Unity tests, host
+pio test -d lib/lran-protocol -e esp32s3      # 110 on a Heltec V3
+python3 tools/vectors/check.py                # W4 vectors, self-check
+python3 tools/vectors/generate.py             # regenerate after any protocol change
 ```
+
+These are the shape the firmware targets take once they exist:
+
+```bash
+pio run  -d firmware/<node> -e <env>          # build
+pio run  -d firmware/<node> -e <env> -t upload
+pio test -d firmware/<node> -e native         # host tests
+python3 tools/simctl/simctl.py --port /dev/ttyUSB0
+```
+
+**Regenerating the W4 vectors is not optional after a protocol change** (spec §13.2). The
+generator is written from the specification with the codec off limits; that independence
+is the entire value, so never "fix" a vector to match the codec — investigate which one is
+wrong.
 
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
 before merge.

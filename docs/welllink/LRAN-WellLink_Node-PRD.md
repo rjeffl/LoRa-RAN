@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.1
+**Version:** 0.2
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2
-**Last updated:** 2026-08-18
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Last updated:** 2026-08-30
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -132,7 +132,7 @@ them:
 
 **LoRa.** WellLink is a standard LRAN endpoint. Framing, addressing, authentication,
 sequencing, fragmentation, media access and version tolerance are defined in
-[`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) and require **no
+[`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) and require **no
 WellLink-specific extension** beyond defining schema `0x20`.
 
 **Schema `0x20`** is reserved and undefined. It must carry level and, if **D19** goes that
@@ -225,6 +225,11 @@ choices that look over-engineered against a one-node system:
 
 ## 10. Changelog
 
+- **v0.2** — Housekeeping revision; **still a placeholder, no design work done**.
+  Binding protocol citation moves **v0.2 → v0.6**; §9's reserved-allocation table cites
+  spec sections that all still exist and still say what the table claims, so **nothing
+  was found to conflict**. **D32** now fixes RadioLib as this node's SX1262 driver too,
+  ahead of its design. Cross-document links repaired for the `docs/` reorganization.
 - **v0.1** — Initial release, **as a placeholder**. Extracted from `lran-prd-v0_8` §1.7,
   §7.6 and the WellLink-relevant parts of §3.1 and D19. **Added:** §3, the reserved
   allocations gathered into one table so they are visible as reservations rather than

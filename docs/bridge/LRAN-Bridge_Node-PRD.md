@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.1
+**Version:** 0.2
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-18
+**Last updated:** 2026-08-30
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -108,7 +108,7 @@ concern rather than a bridge implementation detail (§4.3).
 
 Framing, addressing, authentication, sequencing, fragmentation, media access and version
 tolerance are defined in
-[`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md). Bridge-specific
+[`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md). Bridge-specific
 obligations:
 
 - **R-3.1a.** The bridge is node `0x00` and is the **only node that initiates polls.**
@@ -405,12 +405,21 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 ## 9. Changelog
 
+- **v0.2** — Housekeeping revision; **no requirement changed**. The binding protocol
+  citation moves **v0.2 → v0.6**. The body was reconciled against the v0.3–v0.6 changes
+  before the citation was moved: this document states no frame layout, header size,
+  counter name or schema length of its own, so the 16-byte header (v0.3), the
+  `HEALTH 0xF0` → `STATUS 0xF0` rename (v0.4), the §14.1 counter registry (v0.5) and the
+  §11.2 single-frame rule (v0.6) reach it only through references that are already
+  correct. **Nothing was found to conflict.** Cross-document links repaired for the
+  `docs/` reorganization into `shared/`, `bridge/`, `gatelink/`, `welllink/` and
+  `rangetest/` — every relative link in this document previously resolved to nothing.
 - **v0.1** — Initial release. Extracted from `lran-prd-v0_8` §3.1, §6.1–6.3, §6.6.3–6.6.5,
   §7.5 and the bridge-relevant parts of §6.4.5, §6.4.6 and §6.7. **Restated as
   requirements**, with library selection, OTA mechanics and task structure moved to
   [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md), and
   all frame, enumeration and topic detail replaced by references to
-  [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2. **Added:**
+  [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) v0.2. **Added:**
   §1.2, stating explicitly why the bridge carries the fleet's complexity — the
   does-this-need-a-site-visit test was implicit throughout v0.8 but never written down as
   the governing principle; §5.2, publication policy as bridge requirements rather than

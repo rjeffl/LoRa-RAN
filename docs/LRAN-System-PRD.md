@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.1
+**Version:** 0.2
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
-**Last updated:** 2026-08-18
+**Last updated:** 2026-08-30
 
 ---
 
@@ -80,7 +80,7 @@ One house-side bridge and N remote nodes, in a star topology.
 | Node IDs | `0x00` bridge, `0x01` gatelink, `0x02` welllink, `0xF0`–`0xFE` bench, `0xFF` broadcast |
 
 Node ID assignments are normative in
-[`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) §5.3; the table above
+[`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §5.3; the table above
 is a convenience copy.
 
 ---
@@ -113,9 +113,9 @@ summary:
 
 | Node | Goal summary | Document |
 |---|---|---|
-| **LoRaBridge** | General-purpose LoRa↔MQTT gateway; per-node poll scheduling, discovery publication, availability watchdog, VE.Direct HEX proxy, OTA | [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) |
-| **GateLink** | Gate command and state, vehicle detection and direction, held-open alerting, MPPT telemetry and configuration transport, battery SOC over BLE, full runtime configurability | [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) |
-| **WellLink** | Well level monitoring with battery telemetry | [`LRAN-WellLink_Node-PRD`](./LRAN-WellLink_Node-PRD.md) |
+| **LoRaBridge** | General-purpose LoRa↔MQTT gateway; per-node poll scheduling, discovery publication, availability watchdog, VE.Direct HEX proxy, OTA | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) |
+| **GateLink** | Gate command and state, vehicle detection and direction, held-open alerting, MPPT telemetry and configuration transport, battery SOC over BLE, full runtime configurability | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) |
+| **WellLink** | Well level monitoring with battery telemetry | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) |
 
 ### 2.3 Non-goals (v1)
 
@@ -130,7 +130,7 @@ summary:
   explicitly in scope; multiple instances of the same peripheral behind one node are
   not.
 - **BusT4.** The Nice/Apollo protocol bus is not used in v1. See
-  [`LRAN-Research-Archive`](./LRAN-Research-Archive.md) for the full bench findings and
+  [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) for the full bench findings and
   the optional Phase 2 design.
 - **Replacing or modifying any operator's own safety logic.** §10.
 
@@ -244,8 +244,8 @@ It owns everything the fleet needs to be told once rather than N times: the poll
 schedule, discovery publication, per-node availability, publication policy, VE.Direct
 HEX register interpretation and write authorization, and link diagnostics.
 
-Detail: [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) ·
-[`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
+Detail: [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) ·
+[`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md)
 
 ### 4.2 GateLink (`0x01`)
 
@@ -261,8 +261,8 @@ enclosure. An **M5Stack StamPLC** with an external **SX1262** radio on a carrier
 - Powered **directly** from the 12 V **100 Ah LiFePO4** pack — no intermediate adapter.
 - Every timing interval, window and threshold is **runtime-configurable from HA**.
 
-Detail: [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) ·
-[`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
+Detail: [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) ·
+[`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md)
 
 ### 4.3 WellLink (`0x02`, planned)
 
@@ -286,7 +286,7 @@ Two design consequences are already carried:
 - Payload schemas are **per-node and versioned**, so WellLink can define its own
   payload without touching GateLink's.
 
-Detail: [`LRAN-WellLink_Node-PRD`](./LRAN-WellLink_Node-PRD.md) *(placeholder)*
+Detail: [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) *(placeholder)*
 
 ### 4.4 simnode (`0xF0`–`0xFE`, bench only)
 
@@ -302,10 +302,10 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
 
 | Protocol | Between | Owned by | Specified in |
 |---|---|---|---|
-| **LRAN LoRa frame format** | bridge ↔ any node | **LRAN** | [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) §3–§15 |
+| **LRAN LoRa frame format** | bridge ↔ any node | **LRAN** | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §3–§15 |
 | **LRAN MQTT interface** | bridge ↔ HA | **LRAN** | Protocol Spec §16 |
 | **VE.Direct** (text + HEX) | GateLink ↔ MPPT 75/15 | Victron | Vendor documentation; transported verbatim |
-| **TDT BLE BMS** | GateLink ↔ battery pack | Pack vendor | `/docs/bms-protocol.md` |
+| **TDT BLE BMS** | GateLink ↔ battery pack | Pack vendor | `/docs/gatelink/bms-protocol.md` — **still to be written up** from the PoC workspace (`/wattcycle-reader/`) |
 | **1050 accessory I/O** | GateLink ↔ gate controller | Nice/Apollo | Vendor manual; GateLink PRD |
 
 ### 5.1 LoRa link — system-level parameters
@@ -388,14 +388,16 @@ protocol?
 
 **Outcome — resolved.** The pack is a **TDT** BMS (advertising `XDZN_001_xxxx`), not
 the JBD/Xiaoxiang or Daly families originally assumed. The access sequence is
-documented, an independent client was written and validated over **32 consecutive polls
-with zero CRC failures**, and the protocol spec and reference captures live in
-`/docs/bms-protocol.md`. The C++ client for GateLink is a port of that implementation,
+documented, and an independent client was written and validated over **32 consecutive
+polls with zero CRC failures**, in the `/wattcycle-reader/` PoC workspace. **The protocol
+write-up and reference captures have not yet been lifted out of that workspace into
+`/docs/gatelink/bms-protocol.md`** — doing so is a prerequisite for the GateLink BMS
+port, since the PoC workspace is not part of the LRAN build. The C++ client for GateLink is a port of that implementation,
 testable offline against the same captures.
 
 The dead ends — the 20-combination JBD/Daly sweep, the wrong-characteristic writes, the
 hypothesis matrix — are preserved in
-[`LRAN-Research-Archive`](./LRAN-Research-Archive.md), because they are the reason the
+[`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md), because they are the reason the
 final answer is trusted.
 
 **Residual open item:** the pack-current sign convention, which needs one capture under
@@ -406,7 +408,7 @@ charge and one under load.
 **Question:** does an external SX1262 module on a perfboard carrier work on the
 StamPLC's pin budget and 5 V-only rail?
 
-Scoped in [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md).
+Scoped in [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md).
 Until it passes, GateLink has no radio — and failure here is one of three documented
 triggers for reconsidering a LoRa/BLE co-processor.
 
@@ -459,35 +461,44 @@ sequential.
 ### 9.1 Layout
 
 ```
-/firmware/bridge/        # LoRaBridge PlatformIO project
-    CLAUDE.md            #   subproject context for Claude Code
-/firmware/gatelink/      # GateLink PlatformIO project
+/firmware/bridge/        # LoRaBridge PlatformIO project             [planned]
+    CLAUDE.md            #   subproject context for Claude Code       [exists]
+/firmware/gatelink/      # GateLink PlatformIO project                [planned]
     CLAUDE.md
-/firmware/welllink/      # WellLink (future)
+/firmware/welllink/      # WellLink                                   [planned]
 /firmware/simnode/       # simulated node for multi-node bench testing
+    CLAUDE.md            #                                            [exists]
+/firmware/range-test/    # D1 / M6 / M20 / W9 — the next target       [next]
+    CLAUDE.md
 /lib/lran-platform/      # host HAL: relays, inputs, display, buttons, INA226,
                          #   LM75, RTC, SD. Shared with AquaLink
-/lib/lran-protocol/      # shared framing/addressing/HMAC/CRC/fragmentation
-    /schemas/            #   versioned per-node payload schemas
-    /test/               #   test vectors: fixed key, known frames, expected MACs
+/lib/lran-protocol/      # shared framing/addressing/HMAC/CRC/fragmentation [built]
+    /src/schema/         #   versioned per-node payload schemas
+    /test/               #   Unity suites; W4 vectors embedded from /tools/vectors/
 /lib/lran-config/        # runtime config: parameter table, SD persistence,
                          #   CONFIG frame handling
 /lib/vedirect/           # VE.Direct text + HEX (osh-labs port) [MIT]
 /lib/bms-ble/            # TDT BLE BMS client
-/tools/                  # bench scripts, simulators, MQTT helpers; includes
-                         #   bms_probe.py and instrument.py from the BLE PoC
+/tools/                  # bench scripts, simulators, MQTT helpers
+    /vectors/            #   W4 generator, checker and vector JSON      [built]
+    /checks/             #   build-time guards (e.g. no_mbedtls_hkdf.py) [built]
+    /simctl/             #   simnode console scripting                 [planned]
 /ha/                     # example discovery payloads + automations
 /hardware/carrier/       # GateLink carrier: perfboard layout, module list, BOM
-/docs/                   # this document set, plus:
+/docs/                   # this document set, organized by owner:
+    /shared/             #   Protocol Specification, Decision Register,
+                         #     Protocol Library Implementation Plan
+    /bridge/  /gatelink/  /welllink/  /rangetest/     #   per-node documents
+    /protocol-lib/       #   engineering log for the shared codec
+    /archive/            #   superseded revisions and the Research Archive
+                         # planned, not yet written:
     1050-config.md       #   as-programmed gate controller settings
     bms-protocol.md      #   TDT BLE protocol + reference captures
     mppt-config.md       #   as-configured MPPT settings
     gatelink-config.md   #   generated parameter reference
-    protocol-changelog.md
-    /bridge/engineering-log.md
-    /gatelink/engineering-log.md
-LICENSE                  # MIT — holder name pending D31
-THIRD_PARTY_NOTICES.md
+    /<node>/engineering-log.md   # one per node, created at its bring-up
+LICENSE                  # MIT — holder name pending D31   [not yet created]
+THIRD_PARTY_NOTICES.md                                    [not yet created]
 ```
 
 ### 9.2 Per-subproject context files
@@ -616,15 +627,23 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.1 |
-| [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | v0.2 |
-| [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) | D1–D31 and the measurement backlog. Single source of truth for decision status | v0.1 |
-| [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.1 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones | v0.1 |
-| [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.1 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.1 |
-| [`LRAN-WellLink_Node-PRD`](./LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.1 |
-| [`LRAN-Research-Archive`](./LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.2 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.6** (`ver = 2`) |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D33** and the measurement backlog **M1–M21**. Single source of truth for decision status | v0.2 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete** | v0.2 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.2 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.5 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.2 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.2 |
+| [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.2 |
+| [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list — **the next firmware target**. Answers D1, hosts W9, M6 and M20 | pass 1 |
+| [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
+
+> **Document versions are the reader's staleness check.** A node document citing a
+> protocol version older than the specification's own means its body has not been
+> reconciled with the intervening revisions — which was true of every node document
+> until v0.2 of this one.
 
 ### 12.1 Document conventions
 
@@ -643,6 +662,23 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.2** — Synchronization revision; **no architectural change**. The `docs/`
+  reorganization into `shared/`, `bridge/`, `gatelink/`, `welllink/`, `rangetest/`,
+  `protocol-lib/` and `archive/` had left **every relative link in this document
+  resolving to nothing**; all are repaired, here and in every other live document.
+  **§12's document set table was three revisions behind** — it listed the protocol
+  specification at v0.2 against an actual v0.6 and omitted the Protocol Library
+  Implementation Plan, the carrier board document and the range test tasks entirely —
+  and now carries current versions plus a note on how to read them. Decision range
+  updated to **D1–D33** and the backlog to **M1–M21** (see the register's own v0.2
+  entry for D32, RadioLib, and D33, the fixed channel at §15.249 power). **§9.1's
+  layout is marked with what exists, what is planned and what is next**, since it was
+  read as a description of the repo rather than as a target and several of its paths
+  have never existed. §5 and §7.1 corrected: the BMS protocol write-up is still in the
+  `/wattcycle-reader/` PoC workspace and has **not** been lifted into `/docs/`, which
+  the previous text asserted as done — that lift is a prerequisite for the GateLink BMS
+  port.
 
 - **v0.1** — Initial release. Created by compartmentalizing `lran-prd-v0_8`, which had
   grown to cover three nodes, two protocols, a hardware platform selection, a power

@@ -1,12 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.1
+**Version:** 0.2
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.3
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.6**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
-**Status:** Ready for build. **This is the first code written in the project.**
-**Last updated:** 2026-08-19
+**Status:** **Built — P1 through P7 complete.** The record is
+[`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
+remains the owning specification for the API and its tests.
+**Last updated:** 2026-08-30
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -531,6 +533,14 @@ widened to provide.
 
 **P6 gates simnode B0. P7 gates bridge B2.**
 
+**All seven are met** as of 2026-08-30, against specification **v0.6**: 107 tests under
+`native` and 110 on the Heltec V3, 72 W4 vectors passing on host and on target with zero
+divergence, and the ESP32-S3 footprint recorded in the engineering log. **W4 is closed**
+(Protocol Spec §18). Two items remain open against the library's consumers rather than
+against the library: **W12**, the home for §9.4 steps 4–6, which wants settling *before*
+the second firmware is written; and **W9**, which needs the second board and an SX1262
+driver and arrives with the range test firmware.
+
 ---
 
 ## 7. Implementation notes and traps
@@ -563,6 +573,16 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.2** — Status revision; **the API and the design rules are unchanged**. Binding
+  specification moves **v0.3 → v0.6**, which is the version the library was actually
+  built and tested against — the v0.4 errata and auth/fragmentation split, the v0.5
+  counter registry and HKDF-from-HMAC requirement, and the v0.6 single-frame
+  reassembly rule all landed in `/lib/lran-protocol/` while this document still cited
+  v0.3. **§6 now records that P1–P7 are met**, so the header no longer reads "ready for
+  build" for a library with 107 passing tests and a recorded target footprint, and
+  names the two open items (**W12**, **W9**) that are the library's consumers' problem
+  rather than the library's. Cross-document links repaired for the `docs/`
+  reorganization.
 - **v0.1** — Initial release. Created in response to the observation that
   `/lib/lran-protocol/` had three dependent consumers and no owning document, and that an
   API invented while writing the bridge would be inherited unreviewed by the simnode,

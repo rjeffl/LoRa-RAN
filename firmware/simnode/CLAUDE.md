@@ -3,7 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `LRAN-Bridge_Node-Implementation-Plan` §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.5 §10.
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.6** (`ver = 2`).
+**Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 
 ## What this is
 
@@ -114,6 +116,18 @@ The entries most likely to be skipped by hand are the ones whose correct result 
 **nothing happens** — `hdr_rsv` accepted, `seq_wrap` accepted, `wrong_dst` discarded with
 no `ERROR`. Those are the forward-compatibility rules, and they break quietly. Commit them
 as `simctl` scripts so a regression run is one command.
+
+## The fault catalogue predates the current receive path
+
+Impl Plan §10.5's 21 entries were written against spec v0.3. Spec v0.4–v0.6 added stages
+and rules with no fault behind them — **stage 2a** (`rx_oversize`), **stage 5b**
+(`rx_bad_frag`), **stage 8a** (`rx_not_fragmentable`, a fragmented `COMMAND` violating
+§11.4), and the v0.6 rule that **a single frame never touches reassembly state** (§11.2).
+That last one is the highest-value addition: the defect it fixes is a node's periodic
+`STATUS` silently destroying that same node's in-progress fragmented `CONFIG_ACK` on the
+bridge, and the simnode is the only thing that can produce the sequence. **Report the gap
+against the Impl Plan rather than quietly extending the catalogue** — §10.5 is the
+document of record for what the bridge's counters are verified against.
 
 ## Milestone
 

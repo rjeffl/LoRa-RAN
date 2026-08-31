@@ -3,8 +3,10 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `LRAN-Bridge_Node-PRD` (requirements, `R-*`/`BG-*`/`BS-*`/`V-B*`)
-and `LRAN-Bridge_Node-Implementation-Plan` (build).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.2 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.5
+(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.6**
+(`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only.
@@ -25,6 +27,9 @@ only.
 
 ## Board gotchas
 
+- **RadioLib, version pinned in `platformio.ini`** (**D32**). Every firmware in the repo
+  uses the same driver; letting the version float in one of four is how a fleet-wide
+  regression arrives without a commit to blame.
 - **Radio pins come from `RadioPins`, not from `#define`s.** The bridge's values are the
   `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8 rst=12 busy=13 dio1=14
   sck=9 miso=11 mosi=10`, `rf_sw=RADIOLIB_NC`, TCXO `1.8f`, `dio2_as_rf_switch=true`.
@@ -65,6 +70,19 @@ nodes exercise a different code path from real ones, which defeats having them.
 Dev HA VM and dev broker until B6; production only after discovery payloads are stable.
 HA's entity registry remembers every `unique_id` it has ever seen, and a retained
 discovery config survives a reflash. Broker address lives in `secrets.h`.
+
+## Counter names come from spec §14.1
+
+§14.1 is a **normative registry** with a wire-code column, and the bridge publishes these
+names to MQTT where Home Assistant will chart them — a rename after that is breaking.
+Take the names from §14.1, not from the Impl Plan §10.5 fault catalogue, which predates
+the registry and does not cover stages 2a, 5b or 8a. **`rx_dropped` is the sum of the
+counters §14.1 marks `yes` and only those**: `rx_frag_duplicate`, `rx_frag_late` and
+`rx_dup_command` are normal traffic and must not make a health metric climb during
+correct operation.
+
+Name internal identifiers after the **wire code** (§14.1's SHOULD). `REJECTED_CTX`, not
+`CtxMismatch` — the wire code is the name that cannot be changed later.
 
 ## Milestones
 

@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.1
+**Version:** 0.2
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-18
+**Last updated:** 2026-08-30
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -113,7 +113,7 @@ Four consequences shape requirements elsewhere in this document:
 ### 2.4 Non-goals (v1)
 
 - **BusT4.** The controller's protocol bus is not used. See
-  [`LRAN-Research-Archive`](./LRAN-Research-Archive.md).
+  [`LRAN-Research-Archive`](../archive/LRAN-Research-Archive.md).
 - **OTA.** GateLink is USB-only. This constrains the protocol (Protocol Spec §13.1) and
   is the reason G-13 exists.
 - **Gate position reporting** (percentage open). Discrete states only — §7.3.
@@ -382,7 +382,7 @@ hold the gate open understates it.
 
 GateLink is a LoRa endpoint. All framing, addressing, authentication, sequencing,
 fragmentation and media-access behaviour is defined in
-[`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) and is **not restated
+[`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) and is **not restated
 here**. Node-specific obligations:
 
 - **R-3.5a.** GateLink is node `0x01` and emits status schema `0x10`, event schema
@@ -899,6 +899,11 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.2** — Housekeeping revision; **no requirement changed**. Binding protocol
+  citation moves **v0.2 → v0.6**. Reconciled first: this document names schema IDs
+  (`0x10`, `0x11`, `0x12`, `0xF0`) and nothing else about the wire, and none of those
+  IDs changed across v0.3–v0.6, so **nothing was found to conflict**. Cross-document
+  links repaired for the `docs/` reorganization.
 - **v0.1** — Initial release. Extracted from `lran-prd-v0_8` §1.4, the gate-specific
   parts of §2, §4.2, §4.5–4.7, §5, §7.2–7.4, §8.1/§8.3/§8.4, §11 and §14. **Restated as
   requirements throughout**: v0.8 interleaved requirements with wiring detail, part
@@ -909,10 +914,10 @@ implementation plan.*
   load inventory and monitoring plan moved there, with §6 keeping the source, the
   findings and the low-temperature requirements. All frame, enumeration and topic detail
   removed in favour of references to
-  [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) v0.2. Decision
+  [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) v0.2. Decision
   statuses removed in favour of references to
-  [`LRAN-Decision-Register`](./LRAN-Decision-Register.md). BusT4 material moved to
-  [`LRAN-Research-Archive`](./LRAN-Research-Archive.md). **Added:** numbered requirement
+  [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md). BusT4 material moved to
+  [`LRAN-Research-Archive`](../archive/LRAN-Research-Archive.md). **Added:** numbered requirement
   identifiers (R-*, G-*, S-*, V-*) so implementation and test artifacts can cite them;
   §9 restructured from a procedure into twelve verification requirements plus the staged
   and bench-reachable constraints. **No design change.**

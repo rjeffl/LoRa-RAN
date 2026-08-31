@@ -5,7 +5,7 @@
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
-**Parent document:** [`LRAN-System-PRD`](./LRAN-System-PRD.md)
+**Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-08-30
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
@@ -54,7 +54,7 @@ and retention rules.
 **Out of scope:** the VE.Direct text and HEX protocols themselves (Victron-owned —
 LRAN transports HEX verbatim, §7.6), the TDT BLE BMS protocol
 (`/docs/bms-protocol.md`), 1050 accessory-I/O semantics
-([`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md)), and HA entity definitions
+([`LRAN-GateLink_Node-PRD`](../gatelink/LRAN-GateLink_Node-PRD.md)), and HA entity definitions
 (node PRDs).
 
 ### 1.1 Design constraints
@@ -944,7 +944,7 @@ writes, or interpret register semantics.
 
 This is the first of three independent gates on MPPT writes. The other two — an armed
 write-enable switch with auto-expiry, and a retained audit trail — are enforced on the
-bridge and specified in [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md).
+bridge and specified in [`LRAN-Bridge_Node-PRD`](../bridge/LRAN-Bridge_Node-PRD.md).
 
 > Writing MPPT charge parameters under LiFePO4 is a **battery-damage path**.
 > Re-enabling temperature compensation or equalization on a lithium pack is exactly
@@ -952,7 +952,7 @@ bridge and specified in [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md).
 
 **On-node UART multiplexing** — interleaving HEX responses with the ~1 Hz text stream
 on one UART — is a node implementation matter and is specified in
-[`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md).
+[`LRAN-GateLink_Node-Implementation-Plan`](../gatelink/LRAN-GateLink_Node-Implementation-Plan.md).
 
 ---
 
