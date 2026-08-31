@@ -25,18 +25,19 @@ an antenna and a link, and building a second bench tool for that would be waste.
 |---|---|
 | `LRAN-Protocol-Specification` v0.7 | §12 (radio config, injected pin map, CAD/backoff), §15 (airtime), §6.6 (`PING`, `PATTERN_FILL`, `frag_chunk`), §18 + §18.1 (W5 closed, W7, W9) |
 | Decision register | **D32** (RadioLib), **D33** (fixed channel at 15.249), **D1** as amended (§2.1). **D34 does not apply here** — `CommandGate` binds firmware that accepts a `COMMAND`, and this one echoes unauthenticated `PING` |
-| [`LRAN-Bridge_Node-Implementation-Plan`](../bridge/LRAN-Bridge_Node-Implementation-Plan.md) v0.6 | Repo layout and board-count guidance |
+| [`LRAN-Bridge_Node-Implementation-Plan`](../bridge/LRAN-Bridge_Node-Implementation-Plan.md) v0.7 | Repo layout and board-count guidance |
 | `gatelink-expansion-board.md` rev 0.3 | The Wio-SX1262 net assignment — for R2's second board config, not for pass 1 wiring |
 | `/lib/lran-protocol/` plan + engineering log | The API this consumes; the P7 entry for what the target build already does |
 
 The GateLink and Bridge **PRDs** are not needed. This is bench work against the radio and
 the protocol, not against node requirements.
 
+Leverage wattcycle-reader code elements as needed for access to heltec OLED, etc.
 ### Guardrails
 
 1. **This firmware never ships and is not the seed of bridge firmware.** Its own
    PlatformIO project, its own directory, and a `CLAUDE.md` in it saying so. Bridge and
-   simnode remain empty shells; do not fill them from here.
+   simnode remain empty shells; do not fill them from here. That said, coding should be done in a modular fashion so that applicable portions could be leveraged, referenced, or reused for subsequent firmware tasks without reinventing. 
 2. **No WiFi, no MQTT, no `secrets.h`, no Home Assistant.** If a task seems to need any
    of them, it is the wrong task.
 3. **TX power is clamped at the D33 ceiling in code**, not by operator discipline. The
@@ -48,6 +49,7 @@ the protocol, not against node requirements.
 5. Pin RadioLib to an exact version (D32). Four firmwares will share this driver.
 6. Standing: no changes to `/lib/lran-protocol/`. If the range test needs something the
    library does not expose, report it rather than reaching in.
+7. Stop and ask questions if directions are ambiguous, cause conflicts, or do not anticipate any requirements to complete the tasks. Suggest changes to plan where appropriate.
 
 ### Branch plan
 
@@ -73,7 +75,7 @@ Create `firmware/range-test/` as a standalone PlatformIO project with its own
 OLED at startup and is not persisted — a power cycle re-asks.
 
 - **INITIATOR** — the fixed end. Tethered to the field laptop, drives the sweep, owns
-  the CSV. Sits at the house or the gate and does not move.
+  the CSV. Sits at the house or the gate and does not move. Echo working status and live link quality on the OLED.
 - **RESPONDER** — the walking end. Untethered, battery or power bank, echoes probes and
   shows live link quality on the OLED.
 
@@ -81,8 +83,7 @@ OLED at startup and is not persisted — a power cycle re-asks.
 log, which means it needs the laptop; the walking unit only needs to echo and display.
 Making the *walking* unit the responder is what allows one person to run the test.
 
-**Do not hardcode `upload_port` or `monitor_port`.** The Kubuntu field machine and the
-Mac enumerate the CP2102 differently, and this firmware gets flashed from both.
+**Do not hardcode `upload_port` or `monitor_port`.** The Kubuntu field machine (old intel mac) and the macos build machine (M5 mac) enumerate the CP2102 differently. Though the initial plan is to use the M5 mac tethered to the initiator and to use resonder untethered, we may want the option of connecting the field mac to the respondor if the need arises.
 
 ### R2 — SX1262 bring-up via RadioLib, with the pin map injected
 
@@ -161,13 +162,13 @@ survives the walk out and back.
 
 ### R6 — display and logging
 
-**Initiator:** CSV to serial — one row per test point per position, with position ID,
-frequency, SF, CR, conducted power, antenna gain, payload size, probes sent, echoes
-received, PER, and mean/min/max RSSI and SNR.
-
 **Responder:** OLED shows live RX RSSI, SNR, current position ID and echo count, in text
 large enough to read outdoors at arm's length in sunlight. It also keeps a local running
 summary of what *it* received, which is the reverse-direction data R4 gave up.
+
+**Initiator:** CSV to serial — one row per test point per position, with position ID,
+frequency, SF, CR, conducted power, antenna gain, payload size, probes sent, echoes
+received, PER, and mean/min/max RSSI and SNR. OLED echos similar data as responder to provide visual feedback that devices are communicating.
 
 The responder has no SD card. If retaining its local log matters, a small NVS ring of
 per-position summaries dumped over serial on reconnect is enough — do not build anything
@@ -251,7 +252,6 @@ saying so in the log rather than absorbing it quietly.
 Worth noting when it comes: the Wio-SX1262 carrier drives its RF switch from a dedicated
 `LORA_RFSW` GPIO rather than from DIO2, which is exactly the divergence §12.2 anticipates
 and the first real test of the seam.
-
 
 ---
 

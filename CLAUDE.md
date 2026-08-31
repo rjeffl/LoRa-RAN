@@ -76,7 +76,7 @@ What exists today is marked; the rest is planned. **Do not assume a path is ther
 lib/        lran-protocol  [built: P1-P7, 107 host tests, 72 W4 vectors]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
 firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
-            range-test/                            [next target — docs/rangetest/]
+            range-test/    [R1-R3 built: builds, 17 host tests, NOT yet on hardware]
             gatelink/, welllink/                   [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
@@ -100,6 +100,9 @@ pio test -d lib/lran-protocol -e native       # 107 Unity tests, host
 pio test -d lib/lran-protocol -e esp32s3      # 110 on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
+
+pio test -d firmware/range-test -e native     # 17 Unity tests, host (D33 clamp, R3 dump)
+pio run  -d firmware/range-test -e heltec     # range test target build
 ```
 
 These are the shape the firmware targets take once they exist:

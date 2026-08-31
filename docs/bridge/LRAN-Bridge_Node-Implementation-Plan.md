@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.6
+**Version:** 0.7
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1032,6 +1032,20 @@ config for this pairing combined with the published XIAO ESP32S3 D-pad → GPIO 
 arrival and correct this table in place** — it is the reference every subsequent document
 will copy from, and a wrong entry here propagates silently.
 
+> **The Heltec column is now confirmed, 2026-08-31.** Range test R2 transcribed it from
+> the vendor board definition shipped with the Arduino core —
+> `framework-arduinoespressif32/variants/heltec_wifi_lora_32_V3/pins_arduino.h` at
+> `3.20017.241212`, the version `espressif32@6.13.0` resolves — and every value above
+> matches: `SS 8`, `SCK 9`, `MISO 11`, `MOSI 10`, `RST_LoRa 12`, `BUSY_LoRa 13`. It is no
+> longer "the community-standard assignment"; it is the vendor's.
+>
+> **One trap the vendor header sets.** It calls GPIO 14 **`DIO0`** — the SX127x name. On
+> the SX1262 that line is **DIO1**, which is what RadioLib wants as its IRQ pin. The
+> number in the table above is right and the vendor's label is legacy; anyone who trusts
+> the symbol over the number will go hunting for a GPIO that does not exist.
+>
+> **The XIAO column is still unrung** and the instruction above still applies to it.
+
 **`rf_sw` is deliberately present in the Heltec entry as `RADIOLIB_NC`, not absent.** The
 struct shape is fixed across profiles so the driver has no conditional compilation in it.
 A profile that omits fields is a profile that will grow an `#ifdef` in the role code, which
@@ -1096,6 +1110,34 @@ Two things move off the critical path here. The range walk needs no shared code 
 selection.
 
 ### 11.2 `lran-rangetest` — starting the RF work today
+
+> **Superseded as of 2026-08-31. This section no longer describes the range test
+> firmware.** The owning document is
+> [`LRAN-Range-Test-Firmware-Pass1-Tasks`](../rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md),
+> and the target lives at **`firmware/range-test/`** — the path root `CLAUDE.md` uses,
+> not the `/firmware/rangetest/` this section wrote. Three of the requirements below
+> have been overtaken and are recorded here so the change is visible rather than
+> silent:
+>
+> - **"No `/lib/` dependency whatsoever — not even `lran-protocol`" no longer holds.**
+>   It was right when it was written: the range walk was item 0 in §11.1's build order
+>   and the library did not exist, so every line of protocol logic in the path was a
+>   line that could imitate poor link margin. The library is now built (P1–P7), and
+>   Protocol Spec v0.7 §18 assigns **W9** — the 222-byte and fragmented `PING` bench
+>   runs — to this firmware, which cannot be done without the codec. The tasks document
+>   keeps the two apart by branch instead: **R4–R8 use raw RadioLib frames and touch no
+>   `/lib/`**, and only **R9** links the codec. The isolation this section wanted is
+>   preserved where it matters and dropped where it would block W9.
+> - **Mode selection is the PRG button, not a serial keypress** — the walking end is
+>   untethered, so a keypress needs a laptop it does not have. (Implemented as a
+>   post-boot window; PRG is the BOOT strapping pin and cannot be held through reset.
+>   See `docs/rangetest/engineering-log.md`, 2026-08-31.)
+> - **The roles are `INITIATOR` / `RESPONDER`, not beacon / listen**, and the sweep is
+>   automated over a test-point table rather than driven by hand over serial.
+>
+> Everything else below still stands, and the last two paragraphs — that this is a
+> permanent instrument, and that **B1a is deliberately not conclusive** — are load
+> bearing. Read them.
 
 **The range walk should not wait for the protocol library.** B1a asks what the radio and
 the path do; every line of protocol logic in the way is a line that can produce a symptom
@@ -1206,6 +1248,19 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.7** — **§11.2 superseded and §10.8.1's Heltec column confirmed**, both from the
+  range test firmware's R1–R3 build (`docs/rangetest/engineering-log.md`, 2026-08-31).
+  §11.2 described a `lran-rangetest` with **no `/lib/` dependency whatsoever**, written
+  when the range walk was item 0 in §11.1's build order and the protocol library did not
+  exist. The library is built and Protocol Spec v0.7 §18 assigns **W9** to that firmware,
+  which needs the codec; the tasks document keeps the isolation per branch instead
+  (R4–R8 raw, R9 against `/lib/`). The path, the mode-selection mechanism and the role
+  names had all moved too. Marked superseded in place rather than deleted, so the
+  divergence is visible. §10.8.1's Heltec pin map, which described itself as *derived*
+  and "the community-standard V3 assignment", now matches the vendor variant value for
+  value and is recorded as **confirmed** — with the vendor header's `DIO0` label for the
+  SX1262's DIO1 line called out, because the number is right and the name is not. **The
+  XIAO column remains unrung.**
 - **v0.6** — **§10.5's fault catalogue brought up to the current receive path**, 21
   entries to 27, and given a **counter column** taken from Protocol Spec §14.1 rather
   than restated — the same defect §14.1's own wire-code column was created to retire,
