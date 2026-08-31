@@ -32,6 +32,15 @@ class RadioLink {
   // Re-applies the swept parameters (R4). The fixed settings do not change.
   int16_t apply(const TestPoint& tp);
 
+  // Output power alone, without disturbing frequency, SF or CR.
+  //
+  // Exists for the responder's echo. Round-trip PER is only a measurement of the link
+  // if both legs run at the same power - echoing at the ceiling while the probe went
+  // out at the SX1262 floor makes the return leg 6 dB stronger and flatters the
+  // metric at exactly the low-power points the D33 ceiling forces the sweep to care
+  // about. The value must still come from the clamp; this only applies it.
+  int16_t set_power(int8_t conducted_dbm);
+
   // Blocking transmit. Returns 0 on success.
   int16_t transmit(const uint8_t* data, size_t len);
 

@@ -234,6 +234,12 @@ findings did.
   turn on antenna gain, and a swapped antenna invalidates the power figure.
 - **Height matters more than you expect** at 915 MHz over 150 m of ground. Record it.
   Two runs at different heights are worth more than one careful run at an unrecorded one.
+- **Shade the OLED with a hand.** Confirmed outdoors 2026-08-31: the display does not
+  power through direct sunlight, and is comfortably readable with minimal shading. This
+  is procedure, not a defect — a 128×64 monochrome OLED at maximum contrast is
+  outmatched by direct sun and no layout change fixes it. The measurement never depends
+  on it: the CSV over serial is the record, and the responder's NVS log covers the
+  untethered end.
 - **Watch the neighbours.** A full-size `PING` at SF9 holds the channel for over a second
   and R9 repeats it. If a YoLink sensor stops reporting during a run, that is worth
   knowing before concluding the link is fine.

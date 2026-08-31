@@ -302,3 +302,343 @@ Reflashed both boards after the truncation fixes, and again after the SNR units:
 initiator receives, 15 responder receives, **0 tx errors, 0 PHY CRC errors** on both
 runs, RSSI −49/−50 dBm, SNR ~12 dB. Unchanged from the gate run. The display edits
 touched nothing on the radio path, and this confirms it.
+
+## 2026-08-31 — R4: the sweep runs, and three methodology bugs hardware found
+
+Branch `range/sweep`. The sweep enumerates 24 test points and emits one row each.
+Bench run: **all 24 points 8/8 echoes, 0% PER**, both legs symmetric within 1.6 dB.
+
+New modules, all Arduino-free and host tested: `airtime`, `bench_frame`, `sweep`,
+`sentinels`. 76 host tests.
+
+### The airtime formula reproduces spec §15.1 exactly — W7 has its instrument
+
+All **twenty-one** figures in §15.1 are asserted as tests and all pass: 19/24/30/34/38/
+96/222 bytes at SF7/8/9. §15.1 says the table "should be regenerated once **D1** fixes
+SF", which is **W7**; an implementation that reproduces the existing table value for
+value is the thing to regenerate it with, not merely a convenience for the sweep.
+
+The 4.25-symbol sync interval §15.1 records v0.2 having omitted is pinned by its own
+test, so that ~4% understatement cannot come back.
+
+Two derived uses: the echo timeout is `2 × airtime + margin` per test point (a fixed
+timeout is either absurd at SF7 or scores every SF12 probe lost), and the sweep reports
+its own duration — **nominal 368 s, worst case 416 s** per position on the default plan.
+Both figures, because the spread is what the operator needs: worst case is what a dead
+position costs, and that is exactly where the data is wanted.
+
+### Bug 1 — the responder never followed the initiator
+
+First sweep run: **all eight SF7 points at 0% PER, all sixteen SF9 and SF12 points at
+100%.** Not a link result. The initiator retunes per test point; the responder stayed
+where it booted, and two radios on different spreading factors cannot hear each other
+at all.
+
+**A sweep in that state can only ever measure its first radio configuration and reports
+every other one as a dead link** — which at 500 ft is indistinguishable from a real
+result, and would have gone straight into D1.
+
+The responder cannot be told to retune out of band: the only channel is the one whose
+configuration is changing. So it hunts — dwell on a configuration, and on silence step
+to the next one **cyclically**. Stepping cyclically from the last configuration heard
+is both the fast path and the recovery path, so there is no separate scan mode: in plan
+order the next configuration is almost always right.
+
+Only freq/SF/CR affect reception, so it tracks **six** configurations, not 24 points.
+Dwell is two worst-case probe periods **at that configuration** — one probe period is
+0.5 s at SF7 and 8.4 s at SF12, so a fixed dwell abandons SF12 mid-probe.
+
+### Bug 2 — the echo ran at the wrong power, flattering PER
+
+With bug 1 fixed the data showed a systematic gap: at −9 dBm test points the initiator
+measured ~−41 dBm while the responder measured ~−48. **Exactly the 6 dB between −9 and
+−3.** The responder was echoing at its clamped ceiling regardless of test point, so the
+return leg was 6 dB stronger than the outbound one.
+
+Round-trip PER stops being a measurement of the link when its two legs run at different
+powers, and it biases *optimistic* at precisely the low-power points the D33 ceiling
+forces this sweep to care about. The probe names its test point, so the echo now
+transmits at the probe's own power — still via the clamp; nothing bypasses D33.
+
+After the fix both legs agree within 1.6 dB across all 24 points.
+
+### Bug 3 — reacquisition time was charged to the link as packet loss
+
+Losses then appeared **only on the first test point after a configuration change**:
+2 of 8 entering SF9, 1 of 8 entering SF12. The counts matched
+`dwell(previous config) / probe_period(new config)` exactly — the responder's hunt time,
+scored as lost packets, on 5 of 24 points, biasing them *pessimistic*.
+
+The initiator knows the plan, so it knows how long the responder needs. It now sends
+**uncounted warmup probes** on a configuration change — transmitted normally, excluded
+from the statistics — sized from the previous configuration's dwell and capped at 6. A
+warmup longer than the measurement it protects would be a worse trade than the bias.
+
+Zero when the configuration is unchanged, which is three points in four.
+
+### Worth noting about all three
+
+None of these is visible in review. Each produces a plausible-looking CSV: bug 1 gives
+a clean 0% at SF7 and an honest-looking total failure elsewhere; bug 2 gives slightly
+better numbers than the truth; bug 3 slightly worse, only at boundaries. **Two of the
+three bias PER in opposite directions**, so an average would have hidden both.
+
+They were found by reading a bench sweep of a link known to be good — a 1 m desk link
+where every point *must* read 0% PER. That is the value of running the sweep somewhere
+the answer is already known before walking anywhere.
+
+### Not done in R4
+
+- **R5** position marking — `position_id` is plumbed through the frame and the CSV but
+  is still 0; the responder's PRG button does not yet increment it.
+- **R6** the responder's own local summary, and the real CSV.
+- **R7** committing traces to `docs/rangetest/data/`. The serial format is a first cut
+  and R7 owns the committed schema.
+- **Frequency is a single-entry axis.** §12.1 forbids fixing one before M20, so
+  sweeping frequencies now would produce numbers nobody can interpret. R8 fills it.
+- **Nothing about range.** Still a 1 m bench link. M6 untouched, D1 open.
+
+## 2026-08-31 — R5: one sweep per position, PRG starts the next
+
+The initiator is now a two-state machine. It sweeps once, **ARMS**, and waits; the
+operator walks, presses PRG on the responder, and the next sweep begins. Verified end
+to end on the bench across two positions, 0% PER throughout both.
+
+A free-running loop was the wrong shape: it re-measures a position the operator has
+already left, and each wrap costs the responder a reacquisition it need not pay.
+
+### The button is on the walking end, so its press has to travel in band
+
+There is no second channel — the only link is the one whose configuration the sweep
+keeps changing. So the **responder owns `position_id`**, increments it on a press, and
+stamps it into every echo; the initiator learns it from there and never writes it. One
+writer, so the two ends cannot disagree about where the operator is standing.
+
+That has a consequence worth stating: **an armed initiator must keep talking.** If it
+went silent between sweeps there would be no echo to carry the new position, and the
+press would never arrive. It beacons on configuration 0 once a second — a header-only
+frame at the sweep floor, counted in nothing.
+
+The R4 draft had this backwards: the responder took `position_id` from the probe, which
+made the *initiator* authoritative about a fact only the walking end knows.
+
+### Press-to-start latency: 15 s, then 0.67 s
+
+First end-to-end walk measured **15 seconds** between the press and the next sweep
+starting. Cause: a sweep ends on the slowest configuration (SF12, CR 4/8) whose dwell is
+~17 s, and the responder was waiting that out before cycling to find the beacon.
+
+Nothing needs discovering there. Both ends already know a new sweep starts on
+configuration 0 and that an armed initiator beacons on it, so the press now tunes the
+responder straight to configuration 0 rather than letting a timer expire.
+
+| | Press → sweep start |
+|---|---|
+| Before | 15.0 s |
+| After | **0.67 s** |
+
+The operator stands still once per position and again per sweep; fifteen seconds of
+each of those, across a walk with a dozen positions, is several minutes of standing in
+a field for nothing.
+
+### Bench aids, clearly not the field flow
+
+`p` on the responder's console increments the position exactly as PRG does; `s` on the
+initiator's forces a sweep; `n` advances the position locally. They exist so the walk
+can be driven with both boards on a desk — which is how the 15 s latency was found
+before anyone walked anywhere. The physical button is the field mechanism and is
+confirmed working (2026-08-31 entry above).
+
+### R5 acceptance
+
+| Criterion | Status |
+|---|---|
+| Position ID appears correctly in the CSV | **Met** — `pos=1` rows after the transition |
+| Increments once per press | **Met** — debounced falling edge, non-blocking |
+| Survives the walk out and back | **Not tested** — needs an actual walk |
+
+The debounce is deliberately non-blocking: the responder has to keep echoing while the
+operator is pressing, and a blocking debounce would drop probes at exactly the moment a
+new position begins.
+
+### Still open
+
+- **R6** — the responder's own local summary of what *it* received, and the real CSV.
+- **R7** — committing traces to `docs/rangetest/data/`.
+- Nothing about range. M6 untouched, D1 open pending M20 and M21.
+
+## 2026-08-31 — R6: the real CSV, the responder's own log, and last-heard age
+
+Initiator CSV is now a shared formatter; the responder keeps and persists its own
+record; both displays say something useful when nothing is arriving. 99 host tests.
+
+### The CSV header and its columns cannot drift apart
+
+One schema string produces both, and a host test asserts they have the same field
+count. A CSV whose header stops matching its columns **parses, plots, and misattributes
+every value**, and nothing downstream can detect it. 27 columns; R7 commits these
+traces to `docs/rangetest/data/` as D1's evidence, so a reader in eighteen months has
+to be able to interpret them.
+
+Everything is integer tenths with a `10` suffix in the column name — no decimal points
+and no floats, so there is no rounding step between the measurement and the file.
+Conducted power and antenna gain stay separate columns (D33 standing condition 1).
+
+**The refuse-to-truncate rule caught its own bug.** `kCsvMaxLine` was first sized for
+the widest row (~200 chars) at 320. The *header* is the long line — 27 column names run
+to 349 — so `csv_header()` correctly returned 0 rather than emitting a short header, and
+the test failed immediately. Now 448, with a test pinning the header against it.
+
+### What the responder's local log adds, given the echo already carries its readings
+
+The echo carries `resp_rssi`/`resp_snr`, so the initiator already has the downlink
+signal level — **but only when the echo arrives.** A probe the responder *heard* whose
+*echo* was lost is invisible to the initiator: it sees a missing echo and cannot tell
+which leg failed. That is exactly the direction R4 gives up by making round-trip PER
+primary.
+
+Three numbers separate them completely:
+
+```
+probes_sent  (initiator)  vs  probes_heard (responder)  ->  DOWNLINK loss
+probes_heard (responder)  vs  echoes_recv  (initiator)  ->  UPLINK loss
+```
+
+So the echo also carries `resp_heard`, the responder's tally for that test point. That
+makes **the initiator's CSV self-sufficient** — the disambiguation is in the row itself,
+rather than requiring the responder's NVS log to be recovered and merged afterwards.
+The log remains the record for probes whose echo never made it back at all.
+
+Per-position ring of 16, persisted to NVS on each position change, dumped over serial
+at boot — R6's "small NVS ring of per-position summaries dumped over serial on
+reconnect", and nothing larger. Ring overflow is **reported**, because a dumped log
+that has quietly dropped its earliest positions is worse than one that says so.
+
+### Two counting bugs the bench found, both in the same place
+
+`resp_heard` must be comparable to `probes_sent` or the arithmetic above is meaningless.
+Twice it was not:
+
+| Symptom | Cause |
+|---|---|
+| `resp_heard=12` vs `sent=8` | The responder counted the **warmup probes** the initiator excludes |
+| `resp_heard=9` vs `sent=8`, first point of position 1 only | The **armed beacon** used `kind=Probe` with `tp_index=0`, so beacons were tallied against real test point 0 |
+
+Both fixed by making the distinction explicit **on the wire** rather than locally:
+`BenchKind::WarmupProbe`. It is echoed exactly like a probe — that is how the responder
+proves it has found the configuration — and counted by neither end. Carried in the
+existing `kind` byte, so the frame layout is unchanged.
+
+Warmup was already excluded locally by the initiator; the lesson is that a local
+exclusion is not enough when **both** ends are counting. After the fix, all 38 rows of a
+two-position run show `resp_heard == probes_sent` exactly.
+
+### Last-heard age — "out of range" is not "crashed"
+
+Flagged as a refinement during the R2 bench and built now. A display frozen on its last
+good reading makes a responder that has walked out of range look identical to one that
+has locked up, and on a walk that is the difference between carrying on and turning
+back.
+
+After 12 s of silence the responder shows a **counting** age instead — visibly alive —
+with the last RSSI it did hear, or "no contact yet" if it never heard anything, which is
+a different situation worth distinguishing. The threshold is above one SF12 probe period
+(~8.4 s) so it does not flicker between probes at the slowest configuration.
+
+### R6 acceptance
+
+| Criterion | Status |
+|---|---|
+| Responder OLED: live RSSI, SNR, position, echo count, large text | **Met** |
+| Responder keeps a local running summary of what it received | **Met**, persisted and dumped |
+| Initiator CSV: one row per test point per position, all listed columns | **Met**, 27 columns |
+| Initiator OLED echoes similar data | **Met** |
+| Readable outdoors at arm's length in sunlight | **Not tested** — needs daylight |
+
+### Still open
+
+- **R7** — committing traces to `docs/rangetest/data/`.
+- Nothing about range. M6 untouched, D1 open pending M20 and M21.
+
+## 2026-08-31 — sunlight legibility: passes with a hand, not without
+
+Checked outdoors. **The OLED does not power through direct sunlight**; with minimal
+shading from a hand it is comfortably readable.
+
+That closes R6's last acceptance criterion, but as a **qualified pass, not a clean
+one**. R6 asked for "text large enough to read outdoors at arm's length in sunlight"
+and the honest answer is that font size was never the binding constraint — a 128×64
+monochrome OLED at maximum contrast is simply outmatched by direct sun, and no layout
+change fixes that. Contrast is already at 255.
+
+### What follows from it
+
+- **It is an operating procedure, not a defect.** Shade the display with a hand at each
+  position. Recorded in R10's fieldwork notes so it reaches whoever walks the bearing.
+- **The glance is brief, so the layout matters more than it did.** RSSI is already the
+  largest element and stays that way; the role badge, position and counts are secondary
+  and small. Nothing to change, but worth stating as a constraint on future edits: a
+  hand-shaded glance is not the moment to add a fourth line.
+- **The display is not the record.** The CSV over serial is, and the responder's NVS log
+  covers the untethered end. Nothing about the measurement depends on reading a screen
+  in a field.
+
+### One cheap thing worth trying, untested
+
+The SSD1306 can invert — mostly-lit field with dark glyphs instead of the reverse. On an
+emissive panel that raises total emitted light and *may* read better against bright
+ambient, at some cost in power and possible bloom. **Not implemented and not
+recommended on evidence** — it is a five-minute experiment for whoever is next outside
+with both boards, and if it helps it is a one-line change. Recording it so the idea is
+not rediscovered from scratch.
+
+## 2026-08-31 — R7: traces land in the repo
+
+`tools/rangetest/capture.py` writes a committed trace; `docs/rangetest/data/README.md`
+documents the 27 columns; `2026-08-31-bench.csv` is the first one.
+
+**The committed trace is a FORMAT PROOF, not range data.** Both boards ~1 m apart on the
+desk. Every point reads 0% PER, and that is the assertion: on a link that good, anything
+else is a firmware fault rather than a link finding. It exists so the schema, the
+tooling and the README's reading guide are exercised end to end before anyone walks a
+bearing with them. **M6 is untouched.**
+
+Validated after capture: 27 columns, 24 rows, `tp_index` 0–23 with no gap, no ragged
+rows, 0% PER throughout, `resp_heard == probes_sent` on every row, and zero
+`phy_crc_err` / `foreign` / `filler_err`. Legs agree within 0.9 dB.
+
+The README's column table is checked against the firmware's own schema string rather
+than by eye — 27 columns, none missing.
+
+### Two bugs in the capture tool, both found by using it
+
+**A stray row from the previous sweep.** The first capture wrote **25 rows for a
+24-point plan**: a `tp_index=8` row was still in the serial buffer from an earlier run
+when capture started, and it landed at the top of the file ahead of `tp_index=0`. A
+trace with a duplicated point and a row belonging to a different sweep would have been
+believed. Fixed by discarding any data row seen before the CSV header — the header is
+printed once per boot, so anything earlier belongs to a previous run.
+
+**Then that fix broke the settings block.** Clearing accumulated state at the header
+also cleared the settings dump, which the firmware prints *before* it — so the second
+capture produced a trace with an **empty configuration block**, which is precisely what
+this tool exists to prevent. R3 prints that dump so a CSV can be correlated with the
+configuration that produced it; a trace without it is a table of numbers with no idea
+what radio made them. Fixed by resetting the settings on the `--- settings` marker and
+the rows on the header, which are different events.
+
+Worth noting the shape: the second bug was **caused by the fix for the first**, and it
+was silent — 24 correct rows, a clean validation, and a missing header block that no
+row-level check would ever notice. It was caught by reading the file.
+
+A third, smaller one on the way past: the settings filter was "contains `=` and no
+comma", which swallowed an ESP-IDF log line (`i2cInit(): ... sda=17 scl=18`) into the
+configuration block. Now a strict `key=value` pattern.
+
+### R7 acceptance
+
+| Criterion | Status |
+|---|---|
+| Sweep output goes to a versioned directory, not a scratch file | **Met** — `docs/rangetest/data/` |
+| Traces are committed | **Met** — one, labelled as a format proof |
+| Usable as D1 evidence | **Not yet** — this is a bench link. Needs the walk, plus M20 and M21 |

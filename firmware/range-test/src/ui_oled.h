@@ -47,11 +47,23 @@ class Ui {
 
   void show_message(const char* line1, const char* line2);
 
+  // R5 - the initiator between sweeps, and the responder between positions. The
+  // operator is at the far end looking at the walking unit, so "what position am I,
+  // and did the last sweep finish" has to be readable without the laptop.
+  void show_armed(Role r, uint16_t position_id, uint16_t sweeps_done);
+
   // R1 / R6 - live link quality. Shown by BOTH roles: R1 asks the initiator to echo
   // working status and live link quality, and R6 asks the responder for the same
   // figures, so one renderer serves both.
   void show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
                  uint32_t ok_count, uint32_t total_count);
+
+  // R6 - nothing heard for a while. A display frozen on its last good reading makes
+  // "walked out of range" and "the board has crashed" look identical, and on a walk
+  // that is the difference between carrying on and turning back. The age is what
+  // separates them: it keeps counting, so the display is visibly alive.
+  void show_stale(Role r, uint16_t position_id, uint32_t silent_ms,
+                  float last_rssi_dbm, bool ever_heard);
 
   bool ok() const { return ok_; }
 

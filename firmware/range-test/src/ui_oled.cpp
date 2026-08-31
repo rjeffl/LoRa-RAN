@@ -114,6 +114,73 @@ void Ui::show_role(Role r, const char* board_name) {
   display_.display();
 }
 
+void Ui::show_armed(Role r, uint16_t position_id, uint16_t sweeps_done) {
+  if (!ok_) return;
+
+  char pos[16];
+  char foot[32];
+  std::snprintf(pos, sizeof(pos), "P%u", static_cast<unsigned>(position_id));
+  std::snprintf(foot, sizeof(foot), "%u sweep%s done",
+                static_cast<unsigned>(sweeps_done), sweeps_done == 1 ? "" : "s");
+
+  display_.clear();
+  draw_role_badge(r);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, "PRG = next");
+
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.setFont(ArialMT_Plain_24);
+  display_.drawString(0, kRowBig, pos);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
+void Ui::show_stale(Role r, uint16_t position_id, uint32_t silent_ms,
+                    float last_rssi_dbm, bool ever_heard) {
+  if (!ok_) return;
+
+  char age[20];
+  char foot[32];
+  const uint32_t s_whole = silent_ms / 1000;
+  if (s_whole < 60) {
+    std::snprintf(age, sizeof(age), "%lus", static_cast<unsigned long>(s_whole));
+  } else {
+    std::snprintf(age, sizeof(age), "%lum%02lus",
+                  static_cast<unsigned long>(s_whole / 60),
+                  static_cast<unsigned long>(s_whole % 60));
+  }
+
+  if (ever_heard) {
+    std::snprintf(foot, sizeof(foot), "P%u  last %d dBm",
+                  static_cast<unsigned>(position_id),
+                  static_cast<int>(last_rssi_dbm));
+  } else {
+    // Never heard anything at all - a different situation from having lost contact,
+    // and worth saying so rather than showing a last reading that does not exist.
+    std::snprintf(foot, sizeof(foot), "P%u  no contact yet",
+                  static_cast<unsigned>(position_id));
+  }
+
+  display_.clear();
+  draw_role_badge(r);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, "SILENT");
+
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.setFont(ArialMT_Plain_24);
+  display_.drawString(0, kRowBig, age);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
 void Ui::show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
                    uint32_t ok_count, uint32_t total_count) {
   if (!ok_) return;
