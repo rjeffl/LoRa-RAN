@@ -37,6 +37,21 @@ static_assert(kSyncWord == 0x1424, "spec 12.1 sync word changed - recheck the ma
 
 float bandwidth_khz() { return static_cast<float>(kBandwidthKhz10) / 10.0f; }
 
+// Set from the DIO1 interrupt when a packet lands.
+//
+// THIS IS NOT DECORATION. The first version of poll() asked getPacketLength()
+// whether a frame had arrived. That register holds the length of the LAST packet
+// received and is not cleared by reading it, so with no new traffic poll() kept
+// returning the same buffered frame - on the bench, a probe sent every 2 s was
+// reported ~15 times a second, every report carrying identical RSSI and SNR, and the
+// responder echoed each one. Caught on the R2 bench run; see the engineering log.
+//
+// It would have been quietly fatal to R4: round-trip PER is echoes-received over
+// probes-sent, and both counters were being inflated by re-reads of one packet.
+volatile bool g_rx_flag = false;
+
+void IRAM_ATTR on_dio1_rx() { g_rx_flag = true; }
+
 }  // namespace
 
 int16_t RadioLink::begin(const BoardRadioConfig& board, const TestPoint& tp) {
@@ -81,6 +96,8 @@ int16_t RadioLink::begin(const BoardRadioConfig& board, const TestPoint& tp) {
   static_assert(kExplicitHeader, "spec 2.1 requires explicit header; implicit mode "
                                  "would need setHeaderType() here");
 
+  g_radio->setPacketReceivedAction(on_dio1_rx);
+
   ready_ = true;
   return RADIOLIB_ERR_NONE;
 }
@@ -113,12 +130,24 @@ int16_t RadioLink::transmit(const uint8_t* data, size_t len) {
 
 int16_t RadioLink::start_receive() {
   if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
+
+  // Cleared HERE, and this is load bearing. DIO1 is shared: RadioLib's blocking
+  // transmit() leaves the TxDone interrupt to fire through the same line and the same
+  // action, which would set the flag with no packet to read. Every transmit path in
+  // main() calls start_receive() afterwards, so clearing on the way into receive
+  // discards that spurious set at the one point it can be identified as spurious.
+  g_rx_flag = false;
   return g_radio->startReceive();
 }
 
 bool RadioLink::poll(uint8_t* buf, size_t cap, size_t* out_len, bool* out_crc_error) {
   if (out_crc_error != nullptr) *out_crc_error = false;
   if (!ready_ || g_radio == nullptr || buf == nullptr) return false;
+
+  // The interrupt is the arrival signal. getPacketLength() below is only asked HOW
+  // BIG the frame is, never WHETHER one came.
+  if (!g_rx_flag) return false;
+  g_rx_flag = false;
 
   const size_t avail = g_radio->getPacketLength();
   if (avail == 0) return false;

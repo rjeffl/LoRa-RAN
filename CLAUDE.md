@@ -76,7 +76,7 @@ What exists today is marked; the rest is planned. **Do not assume a path is ther
 lib/        lran-protocol  [built: P1-P7, 107 host tests, 72 W4 vectors]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
 firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
-            range-test/    [R1-R3 built: builds, 17 host tests, NOT yet on hardware]
+            range-test/    [R1-R3 built; R2 gate passed on hardware 2026-08-31]
             gatelink/, welllink/                   [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/

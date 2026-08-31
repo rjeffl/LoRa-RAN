@@ -14,6 +14,9 @@ namespace {
 constexpr int16_t kWidth = 128;
 
 // ArialMT_Plain_10 advances 13 px, _16 about 19, _24 about 28.
+constexpr int16_t kBadgeW = 30;
+constexpr int16_t kBadgeH = 13;
+
 constexpr int16_t kRowTop  = 0;
 constexpr int16_t kRowBig  = 14;
 constexpr int16_t kRowFoot = 51;
@@ -21,6 +24,20 @@ constexpr int16_t kRowFoot = 51;
 }  // namespace
 
 Ui::Ui() : display_(kOledAddr, kPinOledSda, kPinOledScl) {}
+
+void Ui::draw_role_badge(Role r) {
+  // Four characters so the tag is a fixed width and the eye finds it in the same
+  // place on both boards.
+  const char* tag = (r == Role::Initiator) ? "INIT" : "RESP";
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.setColor(WHITE);
+  display_.fillRect(0, 0, kBadgeW, kBadgeH);
+  display_.setColor(BLACK);
+  display_.drawString(3, 0, tag);
+  display_.setColor(WHITE);  // restore, or everything drawn after this is invisible
+}
 
 bool Ui::begin() {
   // Order matters. The OLED is powered THROUGH Vext, not directly - skip this and
@@ -80,9 +97,10 @@ void Ui::show_role_prompt(uint32_t ms_remaining) {
 void Ui::show_role(Role r, const char* board_name) {
   if (!ok_) return;
   display_.clear();
+  draw_role_badge(r);
   display_.setTextAlignment(TEXT_ALIGN_LEFT);
   display_.setFont(ArialMT_Plain_10);
-  display_.drawString(0, kRowTop, "LRAN range test");
+  display_.drawString(kBadgeW + 4, kRowTop, "LRAN range test");
   display_.setFont(ArialMT_Plain_24);
   display_.drawString(0, kRowBig, to_string(r));
   display_.setFont(ArialMT_Plain_10);
@@ -107,10 +125,9 @@ void Ui::show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
                 static_cast<unsigned long>(total_count));
 
   display_.clear();
-  display_.setTextAlignment(TEXT_ALIGN_LEFT);
-  display_.setFont(ArialMT_Plain_10);
-  display_.drawString(0, kRowTop, to_string(r));
+  draw_role_badge(r);
 
+  display_.setFont(ArialMT_Plain_10);
   display_.setTextAlignment(TEXT_ALIGN_RIGHT);
   display_.drawString(kWidth, kRowTop, snr);
 

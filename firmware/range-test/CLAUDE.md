@@ -62,6 +62,14 @@ and is correct in this one.
   A dark panel is usually Vext, not the driver. The sequence is lifted from
   `/wattcycle-reader/src/BmsDisplay.cpp`, where it is verified on this board.
 - **The PRG button is the BOOT strapping pin.** See below.
+- **Never ask `getPacketLength()` whether a packet arrived.** It holds the length of the
+  *last* packet and is not cleared by reading, so a poll built on it re-reports one
+  buffered frame forever. Gate on the DIO1 interrupt. This cost a bench run to find and
+  would have silently zeroed R4's PER — see the engineering log, 2026-08-31. **Any
+  firmware here that polls RadioLib has the same trap available to it.**
+- **Both CP2102 bridges report `SER=0001`.** The boards are not distinguishable by USB
+  serial number, only by enumerated device node, which is not stable across replug. Do
+  not write a port name into anything durable; the OLED badge is the reliable identifier.
 
 ## Role selection deviates from R1, deliberately
 
@@ -77,6 +85,14 @@ the walking end. Reasoning is in `src/role.h`.
 
 `INITIATOR` is the no-press default because it is the tethered end: if the default is ever
 wrong, the operator is sitting at the laptop that shows it.
+
+**A serial selector sits alongside PRG.** Sending `i` or `r` during the same window picks
+the role directly — needed because R2's gate is worked with both boards tethered to one
+machine, where a thumb cannot reach two buttons in two 3-second windows. Additive, still
+inside the window, still not persisted.
+
+**The button path has not been exercised on hardware.** Both boards were selected over
+serial for the R2 run, and GPIO 0 is still inferred rather than read off the schematic.
 
 ## TX power is clamped in code, not by discipline
 

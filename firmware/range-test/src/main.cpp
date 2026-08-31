@@ -56,9 +56,12 @@ uint32_t g_crc_errors = 0;
 uint32_t g_next_tx_ms = 0;
 
 // R1 - the selection window. See role.h for why this is a post-boot window rather
-// than a hold through reset.
+// than a hold through reset, and why serial is a second selector alongside PRG.
 Role select_role() {
   pinMode(kPinPrgButton, INPUT_PULLUP);
+
+  Serial.println(F("role select: press PRG for RESPONDER, or send 'i'/'r' "
+                   "(3s, default INITIATOR)"));
 
   const uint32_t start = millis();
   uint32_t       last_draw = 0;
@@ -72,6 +75,15 @@ Role select_role() {
         return Role::Responder;
       }
     }
+
+    // The tethered-bench selector. Both boards on one machine cannot both be
+    // reached by a thumb.
+    while (Serial.available() > 0) {
+      const int c = Serial.read();
+      if (c == kSerialSelectResponder || c == 'R') return Role::Responder;
+      if (c == kSerialSelectInitiator || c == 'I') return Role::Initiator;
+    }
+
     const uint32_t elapsed = millis() - start;
     if (elapsed - last_draw >= 200) {
       last_draw = elapsed;

@@ -128,3 +128,101 @@ never run on an SX1262.
 
 `range/skeleton`'s gate is "both boards flash, radio inits, link established at one test
 point". **That gate is not passed.**
+
+## 2026-08-31 — R2 gate PASSED on hardware, and the bug it caught
+
+Both Heltec V3 boards flashed and run against each other on the build-machine bench.
+**R2's acceptance criterion is met:** both boards initialise and packets cross with
+plausible RSSI.
+
+| | |
+|---|---|
+| Test point | 915.000 MHz, SF7, BW 125 kHz, CR 4/5 — **provisional, not D1** |
+| TX | −9 dBm conducted (sweep floor) + 2.0 dBi → **−7 dBm EIRP**, inside the D33 ceiling |
+| Payload | 17 B (`LRAN-RANGETEST-R2`) |
+| Separation | bench, both boards on the build machine, ~1 m, stock whips |
+| Round trips | **11 complete**, 0 tx errors, **0 PHY CRC errors** |
+| Initiator RX | −48.4 dBm mean (−48 / −49), SNR 12.77 dB mean |
+| Responder RX | −49.0 dBm mean (−49 / −49), SNR 12.15 dB mean |
+| Echo latency | 50 / 76 / 100 ms (min / mean / max) |
+
+Both directions are within 1 dB of each other, which is what identical hardware at each
+end should give and is a cheap check that neither PA is misbehaving. Free-space at 1 m
+and 915 MHz is ~31.7 dB, so ideal received power would be about −36.7 dBm; the observed
+−49 sits ~12 dB under that, which is unremarkable for stock whips at arbitrary
+orientation on a desk. **Nothing here is a range figure** — it is a bench link.
+
+`--- settings (R3) ---` printed correctly on both boards at boot, with `conducted_dbm`
+and `antenna_gain_dbi` as separate fields (D33 standing condition 1). Neither board
+logged an OLED warning, so the panel ACKed at 0x3C on both and the Vext sequence lifted
+from wattcycle-reader is right on this board too.
+
+### The bug the gate caught: `poll()` re-read one packet forever
+
+**First bench run looked wrong immediately.** The initiator transmits every 2 s; the
+responder was reporting a receive roughly **15 times a second**, every one with
+byte-identical RSSI and SNR, and echoing each.
+
+`RadioLink::poll()` was asking `getPacketLength()` whether a frame had arrived. That
+register holds the length of the **last** packet received and **is not cleared by
+reading it**. With no new traffic it keeps returning the same non-zero value, so `poll()`
+kept re-reading the same buffered frame and reporting it as a fresh arrival.
+
+**This would have been quietly fatal to R4.** Round-trip PER is echoes-received over
+probes-sent, and both counters were being inflated by re-reads of a single packet — by a
+factor that depends on loop timing, not on the link. It would have produced a PER of
+approximately zero at every test point, including the ones where the link was failing,
+and the number would have looked plausible enough to walk 500 ft on.
+
+Fixed by gating on the **DIO1 interrupt** (`setPacketReceivedAction`), with the flag
+cleared inside `start_receive()`. That clear is load bearing: DIO1 is shared, and
+RadioLib's blocking `transmit()` lets TxDone fire through the same line and the same
+action, which would set the flag with no packet to read. Every transmit path calls
+`start_receive()` afterwards, so the spurious set is discarded at the one point it can be
+identified as spurious. `getPacketLength()` is now only asked *how big* a frame is, never
+*whether* one came.
+
+After the fix: one receive per board per 2 s probe, alternating initiator → responder →
+echo → initiator, exactly as designed.
+
+**Worth generalising.** Any firmware in this repo that polls RadioLib for arrival has
+this trap available to it. The bridge and simnode should use the interrupt from the
+start rather than rediscovering this.
+
+### Both CP2102 bridges report the same USB serial number
+
+```
+/dev/cu.usbserial-0001   USB VID:PID=10C4:EA60 SER=0001 LOCATION=0-1
+/dev/cu.usbserial-3      USB VID:PID=10C4:EA60 SER=0001 LOCATION=2-1
+```
+
+`SER=0001` on both. **The boards cannot be told apart by USB serial number** — only by
+device node, which depends on enumeration order and is not stable across replug. Two
+consequences:
+
+- Scripted flashing must address boards by the port it just enumerated, not by a
+  remembered name. Do not write `/dev/cu.usbserial-3` into anything durable.
+- The OLED role badge is the only reliable way to tell which physical board is which
+  once they are off the bench. That is now an inverted `INIT` / `RESP` tag drawn in a
+  fixed position on every screen, not just at startup.
+
+### A serial role selector, alongside PRG
+
+R2's gate is worked with **both boards tethered to one machine**, where a thumb cannot
+reach two PRG buttons in two 3-second windows. Sending `i` or `r` during the same
+selection window now picks the role directly.
+
+The button remains the primary selector — the walking end is untethered by definition and
+PRG is all it has. This is additive, still inside the window, and still not persisted: a
+power cycle re-asks (R1). Bridge Impl Plan §11.2's original design selected modes by
+serial keypress, so the mechanism is not foreign to this firmware.
+
+### Still not verified
+
+- **Nothing about range.** M6 is untouched; this is a 1 m bench link.
+- **D1 remains open.** The frequency needs M20 (R8); the power figure needs M21.
+- **GPIO 0 as PRG is still inferred**, not confirmed against the V3 schematic — the
+  serial selector was used for both boards on this run, so the button path has **not**
+  been exercised on hardware. `TODO(R2)` in `src/role.h` stands.
+- **The OLED badge has not been read by a human.** Both panels initialise and the code
+  path runs; that the tag renders legibly is unconfirmed.

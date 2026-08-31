@@ -56,6 +56,12 @@ class Ui {
   bool ok() const { return ok_; }
 
  private:
+  // The two boards are physically identical and their USB bridges even report the
+  // same serial string, so the display is the ONLY thing that says which is which.
+  // Drawn as an inverted tag rather than plain text: it survives being glanced at
+  // across a bench and, later, at arm's length in sunlight on a fence post.
+  void draw_role_badge(Role r);
+
   SSD1306Wire display_;
   bool        ok_ = false;
 };

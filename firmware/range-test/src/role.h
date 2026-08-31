@@ -56,4 +56,19 @@ inline constexpr int kPinPrgButton = 0;
 
 inline constexpr uint32_t kRoleSelectWindowMs = 3000;
 
+// A SECOND selector, for the case the button cannot serve: both boards tethered to
+// one build machine during bench bring-up (R2's acceptance criterion). Sending 'i'
+// or 'r' on the serial console during the same window picks the role directly.
+//
+// Not a replacement for the button - the walking end is untethered by definition and
+// PRG is the only selector it has. This exists because R2's gate is worked with both
+// boards on a desk, and because R1 itself anticipates the field machine being
+// connected to the responder "if the need arises". Bridge Impl Plan 11.2's original
+// design selected modes by serial keypress, so the mechanism is not alien to it.
+//
+// Deliberately inside the same window rather than a persistent console command: the
+// role must still not be persisted, and a power cycle must still re-ask (R1).
+inline constexpr char kSerialSelectInitiator = 'i';
+inline constexpr char kSerialSelectResponder = 'r';
+
 }  // namespace rangetest
