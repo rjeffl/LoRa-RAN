@@ -101,8 +101,14 @@ void Ui::show_role(Role r, const char* board_name) {
   display_.setTextAlignment(TEXT_ALIGN_LEFT);
   display_.setFont(ArialMT_Plain_10);
   display_.drawString(kBadgeW + 4, kRowTop, "LRAN range test");
-  display_.setFont(ArialMT_Plain_24);
+
+  // ArialMT_Plain_16, NOT _24. Both role words are nine characters and at _24 the
+  // last one runs off a 128 px panel - observed on hardware as "RESPONDE". A role
+  // label that silently drops a character is worse than a smaller one, and the
+  // inverted badge above already carries the at-a-glance version.
+  display_.setFont(ArialMT_Plain_16);
   display_.drawString(0, kRowBig, to_string(r));
+
   display_.setFont(ArialMT_Plain_10);
   display_.drawString(0, kRowFoot, (board_name != nullptr) ? board_name : "");
   display_.display();

@@ -183,6 +183,25 @@ static void test_heltec_pin_map_matches_the_vendor_variant() {
   TEST_ASSERT_EQUAL_INT8(14, kHeltecV3.dio1);
 }
 
+// The OLED is 128 px and ArialMT_Plain_10 averages a little over 5 px per character,
+// so a name past ~16 characters starts clipping. The full board name did exactly that
+// on hardware ("heltec_wifi_lora_32_3"), which is why short_name exists.
+//
+// A character budget is a crude proxy for a rendered width, and it is the only one a
+// host test can check. Its job is to stop pass 2 pasting another 22-character name
+// into the XIAO entry and rediscovering this on a bench.
+static void test_short_board_name_fits_the_panel() {
+  TEST_ASSERT_NOT_NULL(kHeltecV3.short_name);
+  TEST_ASSERT_LESS_OR_EQUAL_size_t(16u, std::strlen(kHeltecV3.short_name));
+  TEST_ASSERT_GREATER_THAN_size_t(0u, std::strlen(kHeltecV3.short_name));
+}
+
+// The full name is what the R3 dump prints and what a CSV is correlated against, so
+// it must stay the unambiguous one - not quietly replaced by the short form.
+static void test_full_board_name_is_still_the_unambiguous_one() {
+  TEST_ASSERT_EQUAL_STRING("heltec_wifi_lora_32_V3", kHeltecV3.name);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -206,6 +225,8 @@ int main(int, char**) {
   RUN_TEST(test_heltec_tcxo_is_1v8);
   RUN_TEST(test_heltec_switches_rf_from_dio2);
   RUN_TEST(test_heltec_pin_map_matches_the_vendor_variant);
+  RUN_TEST(test_short_board_name_fits_the_panel);
+  RUN_TEST(test_full_board_name_is_still_the_unambiguous_one);
 
   return UNITY_END();
 }

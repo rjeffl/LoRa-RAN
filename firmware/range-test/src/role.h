@@ -50,8 +50,10 @@ const char* to_string(Role r);
 // from the board definition. GPIO 0 is the ESP32-S3 BOOT strapping pin and the
 // button wired to it on this board.
 //
-// TODO(R2): confirm against the V3 schematic on first bring-up and record the
-// result in docs/rangetest/engineering-log.md.
+// CONFIRMED ON HARDWARE 2026-08-31: reset followed by a PRG press inside the window
+// selects RESPONDER on both boards, and no press yields INITIATOR. Confirmed
+// behaviourally rather than against the schematic, which is the stronger check of
+// the two - what matters is that the button reaches this GPIO, and it does.
 inline constexpr int kPinPrgButton = 0;
 
 inline constexpr uint32_t kRoleSelectWindowMs = 3000;

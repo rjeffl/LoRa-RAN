@@ -91,8 +91,10 @@ the role directly — needed because R2's gate is worked with both boards tether
 machine, where a thumb cannot reach two buttons in two 3-second windows. Additive, still
 inside the window, still not persisted.
 
-**The button path has not been exercised on hardware.** Both boards were selected over
-serial for the R2 run, and GPIO 0 is still inferred rather than read off the schematic.
+**Both selectors are confirmed on hardware** (2026-08-31): reset then PRG inside the
+window gives `RESPONDER`, no press gives `INITIATOR`, and the serial characters do the
+same. GPIO 0 is confirmed behaviourally rather than off the schematic — the stronger of
+the two checks, since what matters is that the button reaches that GPIO.
 
 ## TX power is clamped in code, not by discipline
 

@@ -226,3 +226,64 @@ serial keypress, so the mechanism is not foreign to this firmware.
   been exercised on hardware. `TODO(R2)` in `src/role.h` stands.
 - **The OLED badge has not been read by a human.** Both panels initialise and the code
   path runs; that the tag renders legibly is unconfirmed.
+
+## 2026-08-31 — bench observations: PRG confirmed, display truncation fixed
+
+Operator observations from the R2 bench, and the fixes they produced.
+
+### Both role selectors confirmed on hardware — `TODO(R2)` closed
+
+- Reset, then PRG inside the 3 s window → `RESPONDER`, on **both** boards.
+- No press → `INITIATOR`, on both boards.
+- Reboot of the second board alone, PRG inside the window → that board `RESP`, the
+  other still `INIT`.
+
+**GPIO 0 is confirmed as the PRG button.** Behaviourally rather than off the schematic,
+which is the stronger of the two checks: what matters is that the button reaches that
+GPIO under the post-boot window, and it does. The `TODO(R2)` in `src/role.h` is closed.
+
+This also confirms the workaround for the strapping-pin problem works in the operator's
+hands, not just in the code — the whole reason R1's "hold PRG at boot" had to be
+reinterpreted.
+
+### The "locked" display was not a fault
+
+Both boards sat on the role screen until traffic appeared. **That is correct behaviour
+with no initiator present** — `show_link()` is only called on a receive, so the role
+screen is what a board shows while nothing is arriving. Worth stating plainly because it
+looks like a hang, and during the walk a responder that has gone out of range will do
+exactly the same thing.
+
+**A refinement worth making in R6:** with no traffic there is currently no way to tell
+"out of range" from "crashed". A last-heard age on the responder screen would separate
+them and costs nothing. Noted for R6 rather than done here.
+
+### Two silent truncations on the OLED, both fixed
+
+The panel is 128 px and neither string fit:
+
+| Rendered | Should read | Fix |
+|---|---|---|
+| `RESPONDE` | `RESPONDER` | role word `ArialMT_Plain_24` → `_16` |
+| `heltec_wifi_lora_32_3` | `heltec_wifi_lora_32_V3` | new `short_name` field, `"Heltec V3"` |
+
+**Both role words are nine characters**, so `INITIATOR` was clipping too — it just reads
+as a plausible word when it loses its last letter, which is worse. A label that silently
+drops a character is worse than a smaller one, and the inverted badge already carries the
+at-a-glance version.
+
+`short_name` is a field on `BoardRadioConfig` rather than a trim at the draw site, so the
+128 px limit lives with the board it belongs to and **pass 2's XIAO entry has to answer
+the same question**. The full `name` is unchanged and still what the R3 settings dump
+prints — that is what a CSV is correlated against, and there width does not matter.
+
+Two host tests added (19 now): `short_name` is within a 16-character budget, and the full
+name is still the unambiguous one. A character count is a crude proxy for a rendered
+width and the only one a host test can check; its job is to stop pass 2 pasting another
+22-character name into the XIAO entry and rediscovering this on a bench.
+
+### Link re-verified after the change
+
+Reflashed both boards: 13 initiator receives, 15 responder receives, **0 tx errors, 0 PHY
+CRC errors**, RSSI −49/−50 dBm, SNR ~12 dB. Unchanged from the gate run. The display
+edit touched nothing on the radio path, and this confirms it.

@@ -132,7 +132,7 @@ void setup() {
   }
 
   g_role = select_role();
-  g_ui.show_role(g_role, kHeltecV3.name);
+  g_ui.show_role(g_role, kHeltecV3.short_name);
   Serial.print(F("role="));
   Serial.println(to_string(g_role));
 

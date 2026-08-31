@@ -26,7 +26,16 @@ inline constexpr int8_t kPinNone = -1;
 // in the settings dump (R3) and a float that prints as "1.8" but compares unequal to
 // 1.8f is a debugging session nobody needs. spec 12.2's own figure is 1.8 V.
 struct BoardRadioConfig {
+  // Full name. Goes in the R3 serial settings dump, which is what a CSV is
+  // correlated against, so it is spelled out in full and width does not matter.
   const char* name;
+
+  // OLED name. The panel is 128 px and the full board name does not fit - it
+  // rendered as "heltec_wifi_lora_32_3" on hardware, one character clipped, which is
+  // the kind of silent truncation that makes a display untrustworthy. Kept as a
+  // separate field rather than trimmed at the draw site so the limit lives with the
+  // board it belongs to, and pass 2's entry has to answer the same question.
+  const char* short_name;
 
   int8_t nss;
   int8_t rst;
@@ -79,6 +88,7 @@ struct BoardRadioConfig {
 //     PA is never connected to the antenna.
 inline constexpr BoardRadioConfig kHeltecV3 = {
     /* name              */ "heltec_wifi_lora_32_V3",
+    /* short_name        */ "Heltec V3",
     /* nss               */ 8,
     /* rst               */ 12,
     /* busy              */ 13,
