@@ -7,3 +7,7 @@
 secrets.h
 
 .DS_Store
+
+# Personal per-machine Claude Code settings. Project-wide settings, if any,
+# belong in .claude/settings.json, which is committed.
+.claude/settings.local.json
