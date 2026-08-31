@@ -124,7 +124,13 @@ void Ui::show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
 
   // RSSI large: it is the number being read at arm's length on a fence post (R6).
   std::snprintf(rssi, sizeof(rssi), "%d", static_cast<int>(rssi_dbm));
-  std::snprintf(snr, sizeof(snr), "SNR %.1f", static_cast<double>(snr_db));
+  // Units spelled out. RSSI carries a "dBm" label beside it, and an SNR figure with
+  // no unit next to one that has one reads as an oversight - which is what it was.
+  //
+  // Width, since this panel has already truncated two strings: right-aligned at 128
+  // px, "SNR -20.5 dB" is the widest realistic case at roughly 66 px, so it starts
+  // near x=62 and clears the 30 px role badge with room to spare.
+  std::snprintf(snr, sizeof(snr), "SNR %.1f dB", static_cast<double>(snr_db));
   std::snprintf(foot, sizeof(foot), "P%u  %lu/%lu",
                 static_cast<unsigned>(position_id),
                 static_cast<unsigned long>(ok_count),

@@ -282,8 +282,23 @@ name is still the unambiguous one. A character count is a crude proxy for a rend
 width and the only one a host test can check; its job is to stop pass 2 pasting another
 22-character name into the XIAO entry and rediscovering this on a bench.
 
-### Link re-verified after the change
+### SNR was missing its units — not truncated, just absent
 
-Reflashed both boards: 13 initiator receives, 15 responder receives, **0 tx errors, 0 PHY
-CRC errors**, RSSI −49/−50 dBm, SNR ~12 dB. Unchanged from the gate run. The display
-edit touched nothing on the radio path, and this confirms it.
+Operator asked whether `SNR 12.2` was being cut off. It was not: the format string was
+`"SNR %.1f"` into a 24-byte buffer for an 8-character result. **The units were simply
+never written.** Now `"SNR %.1f dB"`.
+
+Worth separating from the two truncations above, because the symptom looked identical
+and the cause was not. One is a panel too narrow for the string; the other is a string
+that was never complete. The tell is the inconsistency: RSSI has an explicit `dBm` label
+drawn beside it, so SNR having no unit was an oversight rather than a width decision.
+
+Right-aligned at 128 px, `SNR -20.5 dB` is the widest realistic case at roughly 66 px, so
+it starts near x=62 and clears the 30 px role badge.
+
+### Link re-verified after the changes
+
+Reflashed both boards after the truncation fixes, and again after the SNR units: 13
+initiator receives, 15 responder receives, **0 tx errors, 0 PHY CRC errors** on both
+runs, RSSI −49/−50 dBm, SNR ~12 dB. Unchanged from the gate run. The display edits
+touched nothing on the radio path, and this confirms it.
