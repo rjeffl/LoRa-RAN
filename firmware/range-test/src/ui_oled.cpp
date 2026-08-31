@@ -114,6 +114,31 @@ void Ui::show_role(Role r, const char* board_name) {
   display_.display();
 }
 
+void Ui::show_armed(Role r, uint16_t position_id, uint16_t sweeps_done) {
+  if (!ok_) return;
+
+  char pos[16];
+  char foot[32];
+  std::snprintf(pos, sizeof(pos), "P%u", static_cast<unsigned>(position_id));
+  std::snprintf(foot, sizeof(foot), "%u sweep%s done",
+                static_cast<unsigned>(sweeps_done), sweeps_done == 1 ? "" : "s");
+
+  display_.clear();
+  draw_role_badge(r);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, "PRG = next");
+
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.setFont(ArialMT_Plain_24);
+  display_.drawString(0, kRowBig, pos);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
 void Ui::show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
                    uint32_t ok_count, uint32_t total_count) {
   if (!ok_) return;

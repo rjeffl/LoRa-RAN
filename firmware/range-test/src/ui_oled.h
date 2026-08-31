@@ -47,6 +47,11 @@ class Ui {
 
   void show_message(const char* line1, const char* line2);
 
+  // R5 - the initiator between sweeps, and the responder between positions. The
+  // operator is at the far end looking at the walking unit, so "what position am I,
+  // and did the last sweep finish" has to be readable without the laptop.
+  void show_armed(Role r, uint16_t position_id, uint16_t sweeps_done);
+
   // R1 / R6 - live link quality. Shown by BOTH roles: R1 asks the initiator to echo
   // working status and live link quality, and R6 asks the responder for the same
   // figures, so one renderer serves both.

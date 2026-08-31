@@ -51,13 +51,39 @@ SweepPlan      g_plan;
 TestPoint      g_tp;
 TestPointStats g_stats;
 
+// R5 - one sweep per position. The initiator sweeps, then ARMS and waits; the
+// operator walks, presses PRG on the responder, and the next sweep starts.
+//
+// The button is on the WALKING end, so its press has to reach the initiator in band -
+// there is no other channel. The responder owns `position_id` and stamps it into
+// every echo; the initiator learns it from there. Which means the initiator has to
+// keep talking while it is idle, or it would never hear that the operator has moved.
+enum class InitState : uint8_t { Sweeping, Armed };
+
+InitState g_init_state = InitState::Sweeping;
+
+// Position the CURRENT sweep is being run at, versus the latest the responder has
+// reported. A difference between them is the signal to start the next sweep.
+uint16_t g_swept_position   = 0;
+uint16_t g_heard_position   = 0;
+uint16_t g_sweeps_completed = 0;
+
+// While armed the initiator beacons on configuration 0 so the responder's hunt can
+// find it and its echoes can carry the position forward. Not counted in anything.
+constexpr uint32_t kArmedBeaconMs = 1000;
+uint32_t g_next_beacon_ms = 0;
+
 size_t   g_tp_index    = 0;   // which test point
 size_t   g_prev_config = 0;   // radio config of the point just finished
 bool     g_have_prev_config = false;
 uint16_t g_warmup_left = 0;   // uncounted probes still owed to responder reacquisition
 uint16_t g_probe_index = 0;   // which probe within it
 uint16_t g_probe_seq   = 0;   // monotonic, identifies an echo with its probe
-uint16_t g_position_id = 0;   // R5 will drive this from the responder's PRG button
+// RESPONDER-OWNED. The walking end increments this on a PRG press and stamps it into
+// every echo; the initiator never writes it and learns the value from the echo into
+// g_heard_position instead. One writer, so the two ends cannot disagree about where
+// the operator is standing.
+uint16_t g_position_id = 0;
 
 // Set when a probe is in flight and we are waiting for its echo.
 bool     g_awaiting_echo  = false;
@@ -139,6 +165,27 @@ void dump_settings() {
   Serial.print(F("role="));
   Serial.println(to_string(g_role));
   Serial.println(F("--- end settings ---"));
+}
+
+// R5 - a debounced falling edge on PRG. Non-blocking: the responder has to keep
+// echoing while the operator is pressing it, and a blocking debounce would drop
+// probes at exactly the moment a new position starts.
+//
+// The same GPIO the role selector used at boot (role.h), confirmed on hardware. It is
+// re-read here as an ordinary input; nothing about the strapping-pin behaviour
+// matters once the application is running.
+bool prg_edge() {
+  static bool     down        = false;
+  static uint32_t last_change = 0;
+  constexpr uint32_t kDebounceMs = 40;
+
+  const bool now = (digitalRead(kPinPrgButton) == LOW);
+  if (now == down) return false;
+  if (millis() - last_change < kDebounceMs) return false;
+
+  last_change = millis();
+  down        = now;
+  return now;   // report the press, not the release
 }
 
 // RESPONDER: tune to radio configuration `index` and restart the dwell clock.
@@ -237,7 +284,7 @@ bool begin_test_point() {
 // antenna gain as separate columns (D33 standing condition 1).
 void report_test_point() {
   Serial.print(F("TP,"));
-  Serial.print(g_position_id);                       Serial.print(',');
+  Serial.print(g_swept_position);                    Serial.print(',');
   Serial.print(static_cast<unsigned>(g_tp_index));   Serial.print(',');
   Serial.print(g_tp.freq_hz);                        Serial.print(',');
   Serial.print(g_tp.sf);                             Serial.print(',');
@@ -355,7 +402,7 @@ int16_t to_tenths(float v) {
 void send_probe() {
   BenchFrame f{};
   f.kind        = BenchKind::Probe;
-  f.position_id = g_position_id;
+  f.position_id = g_swept_position;
   f.tp_index    = static_cast<uint16_t>(g_tp_index);
   f.probe_seq   = g_probe_seq;
   // resp_* stay kI16NotAvailable: a probe has no responder measurement in it yet.
@@ -415,8 +462,23 @@ void finish_probe() {
 
   report_test_point();
 
-  g_tp_index = (g_tp_index + 1) % sweep_point_count(g_plan);
-  if (g_tp_index == 0) Serial.println(F("# sweep complete, restarting"));
+  ++g_tp_index;
+  if (g_tp_index >= sweep_point_count(g_plan)) {
+    // R5 - ONE SWEEP PER POSITION. Stop here rather than wrapping. A free-running
+    // loop re-measures a position the operator has already left, and the wrap costs
+    // the responder a reacquisition it does not need to pay.
+    g_tp_index = 0;
+    ++g_sweeps_completed;
+    g_init_state    = InitState::Armed;
+    g_awaiting_echo = false;
+    g_next_beacon_ms = millis();
+
+    Serial.print(F("# sweep complete at position "));
+    Serial.print(g_swept_position);
+    Serial.println(F(" - ARMED, press PRG on the responder for the next position"));
+    g_ui.show_armed(g_role, g_swept_position, g_sweeps_completed);
+    return;
+  }
 
   if (!begin_test_point()) {
     Serial.println(F("FATAL: could not load next test point"));
@@ -424,11 +486,61 @@ void finish_probe() {
   }
 }
 
+// INITIATOR: begin a sweep at `position`.
+void start_sweep(uint16_t position) {
+  g_swept_position = position;
+  g_tp_index       = 0;
+  g_probe_index    = 0;
+  g_awaiting_echo  = false;
+
+  // The next sweep starts on configuration 0 while the responder may be anywhere in
+  // its hunt, so the configuration is deliberately treated as changed - that is what
+  // buys the warmup probes that keep reacquisition out of the statistics.
+  g_have_prev_config = false;
+
+  Serial.print(F("# sweep start, position "));
+  Serial.println(position);
+
+  if (!begin_test_point()) {
+    Serial.println(F("FATAL: could not load test point 0"));
+    while (true) delay(1000);
+  }
+  g_init_state = InitState::Sweeping;
+}
+
+// INITIATOR, ARMED: a cheap probe on configuration 0, purely so the responder's hunt
+// can find us and its echo can tell us where the operator now is.
+void send_beacon() {
+  RadioConfigKey cfg{};
+  if (!sweep_config_at(g_plan, 0, &cfg)) return;
+
+  TestPoint tp{};
+  tp.freq_hz     = cfg.freq_hz;
+  tp.sf          = cfg.sf;
+  tp.cr_denom    = cfg.cr_denom;
+  tp.payload_len = static_cast<uint8_t>(kBenchHeaderLen);
+  if (clamp_conducted(kSx1262MinDbm, kAntennaGainDbi10, &tp.power) ==
+      ClampResult::BelowRadioFloor) {
+    return;
+  }
+  g_radio.apply(tp);
+
+  BenchFrame f{};
+  f.kind        = BenchKind::Probe;
+  f.position_id = g_swept_position;
+  f.tp_index    = 0;
+  f.probe_seq   = g_probe_seq++;
+
+  const size_t n = bench_serialize(f, g_buf, sizeof(g_buf), tp.payload_len);
+  if (n > 0) g_radio.transmit(g_buf, n);
+  g_radio.start_receive();
+}
+
 // RESPONDER: echo a probe back with our own measurement of it attached.
 void echo_probe(const BenchFrame& probe_in, size_t rx_len) {
   BenchFrame f{};
   f.kind        = BenchKind::Echo;
-  f.position_id = probe_in.position_id;
+  f.position_id = g_position_id;   // R5 - ours, not the probe's
   f.tp_index    = probe_in.tp_index;
   f.probe_seq   = probe_in.probe_seq;
 
@@ -479,7 +591,10 @@ void loop() {
         // foreign frame as an echo would flatter the link.
         ++g_stats.foreign_frames;
       } else if (g_role == Role::Responder && f.kind == BenchKind::Probe) {
-        g_position_id = f.position_id;   // R5 will drive this locally instead
+        // R5 - the RESPONDER owns the position. It is the walking end and the only
+        // one that knows it has moved, so the number originates here and rides out
+        // in the echo. Taking it from the probe (as the R4 draft did) would have made
+        // the initiator authoritative about where the operator was standing.
 
         // The probe names its test point, so the responder knows exactly where the
         // sweep is. Echo first, then retune if the sweep has moved on - retuning
@@ -504,6 +619,11 @@ void loop() {
       } else if (g_role == Role::Initiator && f.kind == BenchKind::Echo) {
         // Match the echo to the probe in flight. A stale echo from an earlier probe
         // must not be credited to this one, or PER reads better than the link is.
+        // R5 - the position travels in every echo, sweeping or armed. Learned
+        // unconditionally, because an armed beacon's echo is the ONLY way the
+        // initiator finds out the operator has moved.
+        g_heard_position = f.position_id;
+
         if (g_awaiting_echo && f.probe_seq == g_probe_seq) {
           size_t bad = 0;
           if (!bench_check_filler(rx, len, f.probe_seq, &bad)) {
@@ -514,7 +634,7 @@ void loop() {
           }
           record_echo(f);
           g_ui.show_link(g_role, g_radio.last_rssi_dbm(), g_radio.last_snr_db(),
-                         g_position_id, g_stats.echoes_received,
+                         g_swept_position, g_stats.echoes_received,
                          g_stats.probes_sent);
           finish_probe();
         }
@@ -524,12 +644,63 @@ void loop() {
   }
 
   if (g_role != Role::Initiator) {
+    // R5 - the press that marks a new position. Takes effect on the next echo.
+    // Bench aid alongside it: 'p' on the serial console does the same thing, so the
+    // walk flow can be exercised with both boards on a desk.
+    bool advance = prg_edge();
+    while (Serial.available() > 0) {
+      const int c = Serial.read();
+      if (c == 'p' || c == 'P') advance = true;
+    }
+    if (advance) {
+      ++g_position_id;
+      Serial.print(F("# position -> "));
+      Serial.println(g_position_id);
+      g_ui.show_armed(g_role, g_position_id, 0);
+
+      // Jump straight to configuration 0 rather than waiting out the current dwell.
+      //
+      // Measured: without this the press-to-sweep-start latency was 15 s, because a
+      // sweep ends on the slowest configuration and its dwell is ~17 s. Both ends
+      // already know a new sweep begins on configuration 0 and that the armed
+      // initiator beacons there, so there is nothing to discover - only a timer to
+      // stop waiting on. The operator stands still once per position; fifteen
+      // seconds of it is worth removing.
+      resp_tune_to(0);
+    }
+
     // Dwell expired with nothing heard: step to the next configuration. In plan order
     // that is almost always where the initiator just went, so a normal sweep advance
     // costs one dwell rather than a search.
     if (static_cast<int32_t>(millis() - g_resp_dwell_until) >= 0) {
       const size_t n = sweep_config_count(g_plan);
       if (n > 0) resp_tune_to((g_resp_config + 1) % n);
+    }
+    delay(2);
+    return;
+  }
+
+  // Bench aid: 's' forces the next sweep without waiting for a position change, and
+  // 'n' advances the position locally. Both exist so the walk flow can be driven from
+  // the build machine; neither is how the field test works.
+  while (Serial.available() > 0) {
+    const int c = Serial.read();
+    if ((c == 's' || c == 'S') && g_init_state == InitState::Armed) {
+      start_sweep(g_swept_position);
+    } else if (c == 'n' || c == 'N') {
+      g_heard_position = static_cast<uint16_t>(g_swept_position + 1);
+    }
+  }
+
+  if (g_init_state == InitState::Armed) {
+    // The operator has moved and the responder has told us so.
+    if (g_heard_position != g_swept_position) {
+      start_sweep(g_heard_position);
+      return;
+    }
+    if (static_cast<int32_t>(millis() - g_next_beacon_ms) >= 0) {
+      g_next_beacon_ms = millis() + kArmedBeaconMs;
+      send_beacon();
     }
     delay(2);
     return;

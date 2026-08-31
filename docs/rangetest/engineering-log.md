@@ -397,3 +397,72 @@ the answer is already known before walking anywhere.
 - **Frequency is a single-entry axis.** §12.1 forbids fixing one before M20, so
   sweeping frequencies now would produce numbers nobody can interpret. R8 fills it.
 - **Nothing about range.** Still a 1 m bench link. M6 untouched, D1 open.
+
+## 2026-08-31 — R5: one sweep per position, PRG starts the next
+
+The initiator is now a two-state machine. It sweeps once, **ARMS**, and waits; the
+operator walks, presses PRG on the responder, and the next sweep begins. Verified end
+to end on the bench across two positions, 0% PER throughout both.
+
+A free-running loop was the wrong shape: it re-measures a position the operator has
+already left, and each wrap costs the responder a reacquisition it need not pay.
+
+### The button is on the walking end, so its press has to travel in band
+
+There is no second channel — the only link is the one whose configuration the sweep
+keeps changing. So the **responder owns `position_id`**, increments it on a press, and
+stamps it into every echo; the initiator learns it from there and never writes it. One
+writer, so the two ends cannot disagree about where the operator is standing.
+
+That has a consequence worth stating: **an armed initiator must keep talking.** If it
+went silent between sweeps there would be no echo to carry the new position, and the
+press would never arrive. It beacons on configuration 0 once a second — a header-only
+frame at the sweep floor, counted in nothing.
+
+The R4 draft had this backwards: the responder took `position_id` from the probe, which
+made the *initiator* authoritative about a fact only the walking end knows.
+
+### Press-to-start latency: 15 s, then 0.67 s
+
+First end-to-end walk measured **15 seconds** between the press and the next sweep
+starting. Cause: a sweep ends on the slowest configuration (SF12, CR 4/8) whose dwell is
+~17 s, and the responder was waiting that out before cycling to find the beacon.
+
+Nothing needs discovering there. Both ends already know a new sweep starts on
+configuration 0 and that an armed initiator beacons on it, so the press now tunes the
+responder straight to configuration 0 rather than letting a timer expire.
+
+| | Press → sweep start |
+|---|---|
+| Before | 15.0 s |
+| After | **0.67 s** |
+
+The operator stands still once per position and again per sweep; fifteen seconds of
+each of those, across a walk with a dozen positions, is several minutes of standing in
+a field for nothing.
+
+### Bench aids, clearly not the field flow
+
+`p` on the responder's console increments the position exactly as PRG does; `s` on the
+initiator's forces a sweep; `n` advances the position locally. They exist so the walk
+can be driven with both boards on a desk — which is how the 15 s latency was found
+before anyone walked anywhere. The physical button is the field mechanism and is
+confirmed working (2026-08-31 entry above).
+
+### R5 acceptance
+
+| Criterion | Status |
+|---|---|
+| Position ID appears correctly in the CSV | **Met** — `pos=1` rows after the transition |
+| Increments once per press | **Met** — debounced falling edge, non-blocking |
+| Survives the walk out and back | **Not tested** — needs an actual walk |
+
+The debounce is deliberately non-blocking: the responder has to keep echoing while the
+operator is pressing, and a blocking debounce would drop probes at exactly the moment a
+new position begins.
+
+### Still open
+
+- **R6** — the responder's own local summary of what *it* received, and the real CSV.
+- **R7** — committing traces to `docs/rangetest/data/`.
+- Nothing about range. M6 untouched, D1 open pending M20 and M21.
