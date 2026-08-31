@@ -16,14 +16,17 @@
 // to 4 and are not started here.
 
 #include <Arduino.h>
+#include <Preferences.h>
 
 #include <cstdio>
 
 #include "airtime.h"
 #include "bench_frame.h"
 #include "board_config.h"
+#include "csv.h"
 #include "phy_params.h"
 #include "radio_link.h"
+#include "resp_log.h"
 #include "role.h"
 #include "sweep.h"
 #include "ui_oled.h"
@@ -89,8 +92,31 @@ uint16_t g_position_id = 0;
 bool     g_awaiting_echo  = false;
 uint32_t g_echo_deadline  = 0;
 
-// Responder side. Counts only; its own summary is R6.
+// Responder side.
 uint32_t g_resp_echoes = 0;
+
+// R6 - what the responder itself heard, per position. Recovers the direction that
+// round-trip PER conflates: a probe heard whose echo was lost is invisible to the
+// initiator, and this is the only record it ever existed.
+PositionLog g_resp_log;
+Preferences g_prefs;
+
+// Per-test-point tally, reset when the sweep moves on. Rides back in every echo so
+// the initiator's CSV resolves downlink from uplink on its own, without this log
+// having to be recovered and merged afterwards.
+uint16_t g_resp_tp_index = 0xFFFF;
+uint16_t g_resp_tp_heard = 0;
+
+// R6 - last-heard age. Out of range and crashed look identical on a display showing
+// only the last reading; on a walk that is the difference between carrying on and
+// turning back.
+uint32_t g_resp_last_heard_ms = 0;
+bool     g_resp_ever_heard    = false;
+float    g_resp_last_rssi_dbm = 0.0f;
+
+// Long enough not to flicker between probes at SF12 - where one probe period is over
+// 8 s - and short enough to notice on a walk.
+constexpr uint32_t kStaleAfterMs = 12000;
 
 // RESPONDER FOLLOWS THE INITIATOR. The initiator retunes for every test point; a
 // responder that stays put can only hear the first radio configuration and reports
@@ -279,31 +305,88 @@ bool begin_test_point() {
   return true;
 }
 
-// One CSV-ish line per completed test point. R6 owns the real CSV; this is the
-// minimum that makes R4 observable, and deliberately carries conducted power and
-// antenna gain as separate columns (D33 standing condition 1).
+// R6/R7 - one CSV row per test point per position, via the shared formatter so the
+// header and the columns cannot drift apart.
 void report_test_point() {
-  Serial.print(F("TP,"));
-  Serial.print(g_swept_position);                    Serial.print(',');
-  Serial.print(static_cast<unsigned>(g_tp_index));   Serial.print(',');
-  Serial.print(g_tp.freq_hz);                        Serial.print(',');
-  Serial.print(g_tp.sf);                             Serial.print(',');
-  Serial.print(g_tp.cr_denom);                       Serial.print(',');
-  Serial.print(g_tp.power.conducted_dbm);            Serial.print(',');
-  Serial.print(g_tp.power.antenna_gain_dbi10);       Serial.print(',');
-  Serial.print(g_tp.payload_len);                    Serial.print(',');
-  Serial.print(g_stats.probes_sent);                 Serial.print(',');
-  Serial.print(g_stats.echoes_received);             Serial.print(',');
-  Serial.print(g_stats.per_pct100());                Serial.print(',');
-  Serial.print(g_stats.init_rssi_dbm10.mean());      Serial.print(',');
-  Serial.print(g_stats.init_rssi_dbm10.min);         Serial.print(',');
-  Serial.print(g_stats.init_rssi_dbm10.max);         Serial.print(',');
-  Serial.print(g_stats.init_snr_db10.mean());        Serial.print(',');
-  Serial.print(g_stats.resp_rssi_dbm10.mean());      Serial.print(',');
-  Serial.print(g_stats.resp_snr_db10.mean());        Serial.print(',');
-  Serial.print(g_stats.phy_crc_errors);              Serial.print(',');
-  Serial.print(g_stats.foreign_frames);              Serial.print(',');
-  Serial.println(g_stats.filler_mismatch);
+  CsvRow row{};
+  row.position_id       = g_swept_position;
+  row.tp_index          = static_cast<uint16_t>(g_tp_index);
+  row.tp                = g_tp;
+  row.stats             = g_stats;
+  row.resp_probes_heard = g_stats.resp_heard;
+
+  char line[kCsvMaxLine];
+  if (csv_row(row, line, sizeof(line)) == 0) {
+    // Never a truncated row - one that still parses and is wrong is worse than a
+    // missing one - so say which point was lost instead.
+    Serial.print(F("# ERROR: CSV row did not fit for tp "));
+    Serial.println(static_cast<unsigned>(g_tp_index));
+    return;
+  }
+  Serial.println(line);
+}
+
+// R6 - persistence. The responder is untethered and battery powered; a brown-out on
+// the walk back would otherwise take the whole log with it.
+//
+// NVS holds one opaque blob. All the structure lives in PositionLog::serialize, which
+// is host tested - the part that can be silently wrong is the byte layout, not the
+// key-value store.
+constexpr char kNvsNamespace[] = "lran-rt";
+constexpr char kNvsLogKey[]    = "poslog";
+
+void resp_log_save() {
+  uint8_t      blob[PositionLog::kBlobMaxLen];
+  const size_t n = g_resp_log.serialize(blob, sizeof(blob));
+  if (n == 0) return;
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) return;
+  g_prefs.putBytes(kNvsLogKey, blob, n);
+  g_prefs.end();
+}
+
+void resp_log_load() {
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ true)) return;
+  uint8_t      blob[PositionLog::kBlobMaxLen];
+  const size_t n = g_prefs.getBytesLength(kNvsLogKey);
+  if (n > 0 && n <= sizeof(blob)) {
+    g_prefs.getBytes(kNvsLogKey, blob, n);
+    // A failed load leaves the log cleared rather than half-populated, so a corrupt
+    // blob cannot masquerade as short data.
+    if (!g_resp_log.deserialize(blob, n)) {
+      Serial.println(F("# stored position log was unreadable - discarded"));
+    }
+  }
+  g_prefs.end();
+}
+
+// R6 - "dumped over serial on reconnect". The board comes back from the walk with
+// this in it and a laptop attached.
+void resp_log_dump() {
+  Serial.println(F("--- responder position log (R6) ---"));
+  if (g_resp_log.overflowed()) {
+    Serial.println(F("# WARNING: ring wrapped - earliest positions were displaced"));
+  }
+  Serial.println(F("RESP,position,probes_heard,echoes_sent,"
+                   "rssi_mean10,rssi_min10,rssi_max10,"
+                   "snr_mean10,snr_min10,snr_max10"));
+  for (size_t i = 0; i < g_resp_log.count(); ++i) {
+    const PositionSummary* e = g_resp_log.at(i);
+    if (e == nullptr || !e->used) continue;
+    Serial.print(F("RESP,"));
+    Serial.print(e->position_id);       Serial.print(',');
+    Serial.print(e->probes_heard);      Serial.print(',');
+    Serial.print(e->echoes_sent);       Serial.print(',');
+    Serial.print(e->rssi_dbm10.mean()); Serial.print(',');
+    Serial.print(e->rssi_dbm10.empty() ? kI16NotAvailable : e->rssi_dbm10.min);
+    Serial.print(',');
+    Serial.print(e->rssi_dbm10.empty() ? kI16NotAvailable : e->rssi_dbm10.max);
+    Serial.print(',');
+    Serial.print(e->snr_db10.mean());   Serial.print(',');
+    Serial.print(e->snr_db10.empty() ? kI16NotAvailable : e->snr_db10.min);
+    Serial.print(',');
+    Serial.println(e->snr_db10.empty() ? kI16NotAvailable : e->snr_db10.max);
+  }
+  Serial.println(F("--- end responder log ---"));
 }
 
 }  // namespace
@@ -370,6 +453,11 @@ void setup() {
   }
 
   if (g_role == Role::Responder) {
+    // R6 - the board comes back from the walk with a log in it and a laptop
+    // attached, so it is read out at boot before anything overwrites it.
+    resp_log_load();
+    if (g_resp_log.count() > 0) resp_log_dump();
+
     // Start the hunt at configuration 0 and let the dwell clock carry it forward.
     resp_tune_to(0);
   }
@@ -379,13 +467,10 @@ void setup() {
       Serial.println(F("FATAL: could not load test point 0"));
       while (true) delay(1000);
     }
-    // The CSV header. R7 moves this into a committed file under
-    // docs/rangetest/data/; here it is what makes the serial log self-describing.
-    Serial.println(F("TP,position,tp_index,freq_hz,sf,cr_denom,conducted_dbm,"
-                     "antenna_gain_dbi10,payload_len,probes,echoes,per_pct100,"
-                     "init_rssi_mean10,init_rssi_min10,init_rssi_max10,"
-                     "init_snr_mean10,resp_rssi_mean10,resp_snr_mean10,"
-                     "phy_crc_err,foreign,filler_err"));
+    // From the same schema string the rows are built from, so the two cannot drift.
+    // R7 moves these traces into committed files under docs/rangetest/data/.
+    char hdr[kCsvMaxLine];
+    if (csv_header(hdr, sizeof(hdr)) > 0) Serial.println(hdr);
   }
 }
 
@@ -401,7 +486,10 @@ int16_t to_tenths(float v) {
 // INITIATOR: send probe `g_probe_index` of the current test point.
 void send_probe() {
   BenchFrame f{};
-  f.kind        = BenchKind::Probe;
+  // Marked on the wire, not just locally: the responder must exclude these too, or
+  // its resp_heard tally exceeds the initiator's probes_sent and the downlink/uplink
+  // comparison stops working.
+  f.kind        = (g_warmup_left > 0) ? BenchKind::WarmupProbe : BenchKind::Probe;
   f.position_id = g_swept_position;
   f.tp_index    = static_cast<uint16_t>(g_tp_index);
   f.probe_seq   = g_probe_seq;
@@ -444,6 +532,8 @@ void record_echo(const BenchFrame& f) {
   if (f.resp_snr_db10 != kI16NotAvailable) {
     g_stats.resp_snr_db10.add(f.resp_snr_db10);
   }
+  // Cumulative for this test point, so the latest echo carries the fullest count.
+  if (f.resp_heard != kU16NotAvailable) g_stats.resp_heard = f.resp_heard;
   ++g_stats.echoes_received;
 }
 
@@ -526,7 +616,12 @@ void send_beacon() {
   g_radio.apply(tp);
 
   BenchFrame f{};
-  f.kind        = BenchKind::Probe;
+  // WarmupProbe, not Probe. A beacon is scaffolding: it exists so the responder's
+  // hunt can find us and its echo can carry the position forward, and it must not be
+  // counted by either end. Sent as a plain Probe it was tallied against real test
+  // point 0 - the bench showed resp_heard=9 against probes_sent=8 on the first point
+  // of the second position, which is the beacons the responder heard while armed.
+  f.kind        = BenchKind::WarmupProbe;
   f.position_id = g_swept_position;
   f.tp_index    = 0;
   f.probe_seq   = g_probe_seq++;
@@ -564,11 +659,14 @@ void echo_probe(const BenchFrame& probe_in, size_t rx_len) {
 
   // Echo at the same length so both legs are the same shape and the round-trip
   // timeout computed from one airtime is right for both.
+  f.resp_heard = g_resp_tp_heard;
+
   const size_t n = bench_serialize(f, g_buf, sizeof(g_buf), rx_len);
   if (n == 0) return;
 
   g_radio.transmit(g_buf, n);
   ++g_resp_echoes;
+  if (bench_is_counted(probe_in.kind)) g_resp_log.record_echo(g_position_id);
   g_radio.start_receive();
 }
 
@@ -590,7 +688,7 @@ void loop() {
         // Not ours. The site has known 915 MHz occupants (D1 notes), and counting a
         // foreign frame as an echo would flatter the link.
         ++g_stats.foreign_frames;
-      } else if (g_role == Role::Responder && f.kind == BenchKind::Probe) {
+      } else if (g_role == Role::Responder && bench_is_probe(f.kind)) {
         // R5 - the RESPONDER owns the position. It is the walking end and the only
         // one that knows it has moved, so the number originates here and rides out
         // in the echo. Taking it from the probe (as the R4 draft did) would have made
@@ -600,9 +698,33 @@ void loop() {
         // sweep is. Echo first, then retune if the sweep has moved on - retuning
         // before the echo would send it on a configuration the initiator has already
         // left, and the probe would be scored lost for no reason.
+        // R6 - fold it into our own record BEFORE echoing. A probe we heard counts
+        // even if the echo never gets out, and that case is precisely the one the
+        // initiator cannot see.
+        const int16_t rssi10 = to_tenths(g_radio.last_rssi_dbm());
+        const int16_t snr10  = to_tenths(g_radio.last_snr_db());
+
+        if (f.tp_index != g_resp_tp_index) {
+          g_resp_tp_index = f.tp_index;
+          g_resp_tp_heard = 0;
+        }
+        // Warmup probes are echoed - that is how the responder proves it has found
+        // the configuration - but they are measurement scaffolding and are counted
+        // by neither end.
+        if (bench_is_counted(f.kind)) {
+          g_resp_log.record_probe(g_position_id, rssi10, snr10);
+          ++g_resp_tp_heard;
+        }
+
+        g_resp_last_heard_ms = millis();
+        g_resp_ever_heard    = true;
+        g_resp_last_rssi_dbm = g_radio.last_rssi_dbm();
+
         echo_probe(f, len);
         g_ui.show_link(g_role, g_radio.last_rssi_dbm(), g_radio.last_snr_db(),
-                       f.position_id, g_resp_echoes, g_resp_echoes);
+                       g_position_id, g_resp_echoes, g_resp_log.find(g_position_id)
+                           ? g_resp_log.find(g_position_id)->probes_heard
+                           : g_resp_echoes);
 
         size_t want = g_resp_config;
         if (sweep_config_index_of(g_plan, f.tp_index, &want) &&
@@ -651,8 +773,15 @@ void loop() {
     while (Serial.available() > 0) {
       const int c = Serial.read();
       if (c == 'p' || c == 'P') advance = true;
+      if (c == 'd' || c == 'D') resp_log_dump();     // R6 - dump on demand
+      if (c == 'x' || c == 'X') { g_resp_log.clear(); resp_log_save();
+                                  Serial.println(F("# position log cleared")); }
     }
     if (advance) {
+      // R6 - persist the position we are leaving before starting a new one. Sixteen
+      // writes across a walk is nothing to NVS, and it means a brown-out costs at
+      // most the position in progress.
+      resp_log_save();
       ++g_position_id;
       Serial.print(F("# position -> "));
       Serial.println(g_position_id);
@@ -667,6 +796,21 @@ void loop() {
       // stop waiting on. The operator stands still once per position; fifteen
       // seconds of it is worth removing.
       resp_tune_to(0);
+    }
+
+    // R6 - show the silence, and keep the age ticking so the display is visibly
+    // alive. Redrawn about once a second; the OLED write is not free and there is
+    // nothing to see faster than that.
+    {
+      static uint32_t last_stale_draw = 0;
+      const uint32_t  silent = g_resp_ever_heard
+                                   ? (millis() - g_resp_last_heard_ms)
+                                   : millis();
+      if (silent > kStaleAfterMs && millis() - last_stale_draw >= 1000) {
+        last_stale_draw = millis();
+        g_ui.show_stale(g_role, g_position_id, silent, g_resp_last_rssi_dbm,
+                        g_resp_ever_heard);
+      }
     }
 
     // Dwell expired with nothing heard: step to the next configuration. In plan order

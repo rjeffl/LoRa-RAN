@@ -181,6 +181,11 @@ struct TestPointStats {
   uint16_t foreign_frames  = 0;
   uint16_t filler_mismatch = 0;
 
+  // R6 - the responder's own tally for this test point, carried back in the echo.
+  // kU16NotAvailable while no echo has arrived, which is itself the reading: nothing
+  // is known about the downlink until the responder has managed to say something.
+  uint16_t resp_heard = kU16NotAvailable;
+
   void reset() { *this = TestPointStats{}; }
 
   // Round-trip packet error rate in hundredths of a percent (0..10000), so it can be

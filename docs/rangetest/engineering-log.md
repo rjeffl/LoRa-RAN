@@ -466,3 +466,96 @@ new position begins.
 - **R6** — the responder's own local summary of what *it* received, and the real CSV.
 - **R7** — committing traces to `docs/rangetest/data/`.
 - Nothing about range. M6 untouched, D1 open pending M20 and M21.
+
+## 2026-08-31 — R6: the real CSV, the responder's own log, and last-heard age
+
+Initiator CSV is now a shared formatter; the responder keeps and persists its own
+record; both displays say something useful when nothing is arriving. 99 host tests.
+
+### The CSV header and its columns cannot drift apart
+
+One schema string produces both, and a host test asserts they have the same field
+count. A CSV whose header stops matching its columns **parses, plots, and misattributes
+every value**, and nothing downstream can detect it. 27 columns; R7 commits these
+traces to `docs/rangetest/data/` as D1's evidence, so a reader in eighteen months has
+to be able to interpret them.
+
+Everything is integer tenths with a `10` suffix in the column name — no decimal points
+and no floats, so there is no rounding step between the measurement and the file.
+Conducted power and antenna gain stay separate columns (D33 standing condition 1).
+
+**The refuse-to-truncate rule caught its own bug.** `kCsvMaxLine` was first sized for
+the widest row (~200 chars) at 320. The *header* is the long line — 27 column names run
+to 349 — so `csv_header()` correctly returned 0 rather than emitting a short header, and
+the test failed immediately. Now 448, with a test pinning the header against it.
+
+### What the responder's local log adds, given the echo already carries its readings
+
+The echo carries `resp_rssi`/`resp_snr`, so the initiator already has the downlink
+signal level — **but only when the echo arrives.** A probe the responder *heard* whose
+*echo* was lost is invisible to the initiator: it sees a missing echo and cannot tell
+which leg failed. That is exactly the direction R4 gives up by making round-trip PER
+primary.
+
+Three numbers separate them completely:
+
+```
+probes_sent  (initiator)  vs  probes_heard (responder)  ->  DOWNLINK loss
+probes_heard (responder)  vs  echoes_recv  (initiator)  ->  UPLINK loss
+```
+
+So the echo also carries `resp_heard`, the responder's tally for that test point. That
+makes **the initiator's CSV self-sufficient** — the disambiguation is in the row itself,
+rather than requiring the responder's NVS log to be recovered and merged afterwards.
+The log remains the record for probes whose echo never made it back at all.
+
+Per-position ring of 16, persisted to NVS on each position change, dumped over serial
+at boot — R6's "small NVS ring of per-position summaries dumped over serial on
+reconnect", and nothing larger. Ring overflow is **reported**, because a dumped log
+that has quietly dropped its earliest positions is worse than one that says so.
+
+### Two counting bugs the bench found, both in the same place
+
+`resp_heard` must be comparable to `probes_sent` or the arithmetic above is meaningless.
+Twice it was not:
+
+| Symptom | Cause |
+|---|---|
+| `resp_heard=12` vs `sent=8` | The responder counted the **warmup probes** the initiator excludes |
+| `resp_heard=9` vs `sent=8`, first point of position 1 only | The **armed beacon** used `kind=Probe` with `tp_index=0`, so beacons were tallied against real test point 0 |
+
+Both fixed by making the distinction explicit **on the wire** rather than locally:
+`BenchKind::WarmupProbe`. It is echoed exactly like a probe — that is how the responder
+proves it has found the configuration — and counted by neither end. Carried in the
+existing `kind` byte, so the frame layout is unchanged.
+
+Warmup was already excluded locally by the initiator; the lesson is that a local
+exclusion is not enough when **both** ends are counting. After the fix, all 38 rows of a
+two-position run show `resp_heard == probes_sent` exactly.
+
+### Last-heard age — "out of range" is not "crashed"
+
+Flagged as a refinement during the R2 bench and built now. A display frozen on its last
+good reading makes a responder that has walked out of range look identical to one that
+has locked up, and on a walk that is the difference between carrying on and turning
+back.
+
+After 12 s of silence the responder shows a **counting** age instead — visibly alive —
+with the last RSSI it did hear, or "no contact yet" if it never heard anything, which is
+a different situation worth distinguishing. The threshold is above one SF12 probe period
+(~8.4 s) so it does not flicker between probes at the slowest configuration.
+
+### R6 acceptance
+
+| Criterion | Status |
+|---|---|
+| Responder OLED: live RSSI, SNR, position, echo count, large text | **Met** |
+| Responder keeps a local running summary of what it received | **Met**, persisted and dumped |
+| Initiator CSV: one row per test point per position, all listed columns | **Met**, 27 columns |
+| Initiator OLED echoes similar data | **Met** |
+| Readable outdoors at arm's length in sunlight | **Not tested** — needs daylight |
+
+### Still open
+
+- **R7** — committing traces to `docs/rangetest/data/`.
+- Nothing about range. M6 untouched, D1 open pending M20 and M21.

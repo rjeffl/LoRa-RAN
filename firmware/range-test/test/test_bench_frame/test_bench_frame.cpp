@@ -37,6 +37,7 @@ static void test_wire_layout_is_explicit_little_endian() {
   f.tp_index        = 0x0102;
   f.resp_rssi_dbm10 = -495;   // -49.5 dBm
   f.resp_snr_db10   = 122;    //  12.2 dB
+  f.resp_heard      = 8;
 
   uint8_t buf[32];
   TEST_ASSERT_EQUAL_size_t(kBenchHeaderLen,
@@ -44,7 +45,7 @@ static void test_wire_layout_is_explicit_little_endian() {
 
   TEST_ASSERT_EQUAL_UINT8(0x52, buf[0]);   // magic 0x4C52, low byte first
   TEST_ASSERT_EQUAL_UINT8(0x4C, buf[1]);
-  TEST_ASSERT_EQUAL_UINT8(1,    buf[2]);   // version
+  TEST_ASSERT_EQUAL_UINT8(2,    buf[2]);   // version
   TEST_ASSERT_EQUAL_UINT8(2,    buf[3]);   // kind = Echo
   TEST_ASSERT_EQUAL_UINT8(0xBB, buf[4]);   // position_id low
   TEST_ASSERT_EQUAL_UINT8(0xAA, buf[5]);
@@ -56,6 +57,8 @@ static void test_wire_layout_is_explicit_little_endian() {
   TEST_ASSERT_EQUAL_UINT8(0xFE, buf[11]);
   TEST_ASSERT_EQUAL_UINT8(0x7A, buf[12]);  //  122 = 0x007A
   TEST_ASSERT_EQUAL_UINT8(0x00, buf[13]);
+  TEST_ASSERT_EQUAL_UINT8(0x08, buf[14]);  // resp_heard = 8
+  TEST_ASSERT_EQUAL_UINT8(0x00, buf[15]);
 }
 
 static void test_round_trip_preserves_every_field() {
@@ -63,6 +66,7 @@ static void test_round_trip_preserves_every_field() {
   f.kind            = BenchKind::Echo;
   f.resp_rssi_dbm10 = -1001;
   f.resp_snr_db10   = -35;
+  f.resp_heard      = 42;
 
   uint8_t buf[64];
   TEST_ASSERT_EQUAL_size_t(64, bench_serialize(f, buf, sizeof(buf), 64));
@@ -75,6 +79,7 @@ static void test_round_trip_preserves_every_field() {
   TEST_ASSERT_EQUAL_UINT16(1000,  g.probe_seq);
   TEST_ASSERT_EQUAL_INT16(-1001,  g.resp_rssi_dbm10);
   TEST_ASSERT_EQUAL_INT16(-35,    g.resp_snr_db10);
+  TEST_ASSERT_EQUAL_UINT16(42,    g.resp_heard);
 }
 
 // spec 4.6 / repo rule 6. A probe has no responder measurement, and that must be
@@ -89,6 +94,9 @@ static void test_probe_carries_the_not_available_sentinel_not_zero() {
   TEST_ASSERT_EQUAL_INT16(kI16NotAvailable, g.resp_rssi_dbm10);
   TEST_ASSERT_EQUAL_INT16(kI16NotAvailable, g.resp_snr_db10);
   TEST_ASSERT_NOT_EQUAL(0, g.resp_rssi_dbm10);
+  // Same rule for the count: a probe carries no responder tally, and "none yet" must
+  // not read as "heard zero".
+  TEST_ASSERT_EQUAL_UINT16(kU16NotAvailable, g.resp_heard);
 }
 
 // A real 0.0 dB SNR must survive as 0 and not be confused with "no reading".
@@ -167,8 +175,38 @@ static void test_header_only_frame_has_no_filler_to_check() {
   TEST_ASSERT_TRUE(bench_check_filler(buf, kBenchHeaderLen, 9, nullptr));
 }
 
+// A warmup probe must be echoed like any other - that is how the responder proves it
+// has found the configuration - but counted by neither end. Without the distinction
+// the responder's resp_heard exceeds the initiator's probes_sent, which is exactly
+// the comparison the column exists for (seen on the bench as 12 against 8).
+static void test_warmup_probe_is_echoed_but_not_counted() {
+  TEST_ASSERT_TRUE(bench_is_probe(BenchKind::WarmupProbe));
+  TEST_ASSERT_TRUE(bench_is_probe(BenchKind::Probe));
+  TEST_ASSERT_FALSE(bench_is_probe(BenchKind::Echo));
+
+  TEST_ASSERT_TRUE(bench_is_counted(BenchKind::Probe));
+  TEST_ASSERT_FALSE(bench_is_counted(BenchKind::WarmupProbe));
+  TEST_ASSERT_FALSE(bench_is_counted(BenchKind::Echo));
+}
+
+static void test_warmup_probe_round_trips_on_the_wire() {
+  BenchFrame f = probe(77);
+  f.kind = BenchKind::WarmupProbe;
+
+  uint8_t buf[32];
+  TEST_ASSERT_EQUAL_size_t(32, bench_serialize(f, buf, sizeof(buf), 32));
+  TEST_ASSERT_EQUAL_UINT8(3, buf[3]);
+
+  BenchFrame g{};
+  TEST_ASSERT_TRUE(bench_parse(buf, 32, &g));
+  TEST_ASSERT_EQUAL(static_cast<int>(BenchKind::WarmupProbe),
+                    static_cast<int>(g.kind));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
+  RUN_TEST(test_warmup_probe_is_echoed_but_not_counted);
+  RUN_TEST(test_warmup_probe_round_trips_on_the_wire);
   RUN_TEST(test_wire_layout_is_explicit_little_endian);
   RUN_TEST(test_round_trip_preserves_every_field);
   RUN_TEST(test_probe_carries_the_not_available_sentinel_not_zero);

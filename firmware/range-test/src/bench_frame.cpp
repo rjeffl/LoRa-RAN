@@ -38,6 +38,7 @@ size_t bench_serialize(const BenchFrame& f, uint8_t* out, size_t cap,
   put_u16(out + 8, f.probe_seq);
   put_i16(out + 10, f.resp_rssi_dbm10);
   put_i16(out + 12, f.resp_snr_db10);
+  put_u16(out + 14, f.resp_heard);
 
   for (size_t i = kBenchHeaderLen; i < total_len; ++i) {
     out[i] = filler_byte(f.probe_seq, i - kBenchHeaderLen);
@@ -53,7 +54,8 @@ bool bench_parse(const uint8_t* in, size_t len, BenchFrame* out) {
 
   const uint8_t kind = in[3];
   if (kind != static_cast<uint8_t>(BenchKind::Probe) &&
-      kind != static_cast<uint8_t>(BenchKind::Echo)) {
+      kind != static_cast<uint8_t>(BenchKind::Echo) &&
+      kind != static_cast<uint8_t>(BenchKind::WarmupProbe)) {
     return false;
   }
 
@@ -63,6 +65,7 @@ bool bench_parse(const uint8_t* in, size_t len, BenchFrame* out) {
   out->probe_seq       = get_u16(in + 8);
   out->resp_rssi_dbm10 = get_i16(in + 10);
   out->resp_snr_db10   = get_i16(in + 12);
+  out->resp_heard      = get_u16(in + 14);
   return true;
 }
 

@@ -34,15 +34,36 @@ namespace rangetest {
 // to pass the PHY CRC and got counted as an echo would inflate the link's apparent
 // quality, which is the one direction of error that matters here.
 inline constexpr uint16_t kBenchMagic   = 0x4C52;  // 'LR'
-inline constexpr uint8_t  kBenchVersion = 1;
+inline constexpr uint8_t  kBenchVersion = 2;   // v2 adds resp_heard
 
 enum class BenchKind : uint8_t {
   Probe = 1,  // initiator -> responder
   Echo  = 2,  // responder -> initiator, carrying the responder's own measurement
+
+  // A probe sent while the responder is still finding this radio configuration
+  // (sweep_warmup_probes). Echoed exactly like a Probe, and counted by NEITHER end.
+  //
+  // It needs to be distinguishable on the wire, not just locally. The initiator
+  // already excludes its own warmup probes; without this the responder would still
+  // count them, and `resp_heard` would exceed `probes_sent` - which is precisely the
+  // comparison that column exists to support. Observed on the bench as
+  // resp_heard=12 against sent=8.
+  //
+  // Carried in `kind` rather than a new flags byte so the frame layout is unchanged.
+  WarmupProbe = 3,
 };
 
-// 2 magic + 1 version + 1 kind + 2 position + 2 tp_index + 2 seq + 2 rssi + 2 snr.
-inline constexpr size_t kBenchHeaderLen = 14;
+// True for anything the responder should echo.
+constexpr bool bench_is_probe(BenchKind k) {
+  return k == BenchKind::Probe || k == BenchKind::WarmupProbe;
+}
+
+// True for anything either end should count. Warmup is measurement scaffolding.
+constexpr bool bench_is_counted(BenchKind k) { return k == BenchKind::Probe; }
+
+// 2 magic + 1 version + 1 kind + 2 position + 2 tp_index + 2 seq + 2 rssi + 2 snr
+// + 2 resp_heard.
+inline constexpr size_t kBenchHeaderLen = 16;
 
 // Largest bench payload the sweep will ask for, and therefore the size of every
 // buffer that holds one. Fixed and caller-owned (repo rule 3 - no dynamic
@@ -68,6 +89,17 @@ struct BenchFrame {
   // the downlink looked like, without waiting for the responder's local log.
   int16_t resp_rssi_dbm10 = kI16NotAvailable;
   int16_t resp_snr_db10   = kI16NotAvailable;
+
+  // How many probes the RESPONDER has heard at this test point, echoed or not.
+  //
+  // Added in v2, and it is what makes the initiator's CSV self-sufficient. Without it
+  // a missing echo is ambiguous - the probe may never have arrived (downlink) or the
+  // echo may have been lost on the way back (uplink) - and resolving that would mean
+  // recovering the responder's NVS log and merging it afterwards. Carrying the count
+  // in the echo answers it in the row itself, for every echo that does arrive.
+  //
+  // kU16NotAvailable in a Probe.
+  uint16_t resp_heard = kU16NotAvailable;
 };
 
 // Writes header + filler to exactly `total_len` bytes. Returns bytes written, or 0 if

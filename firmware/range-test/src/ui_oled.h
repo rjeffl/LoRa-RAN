@@ -58,6 +58,13 @@ class Ui {
   void show_link(Role r, float rssi_dbm, float snr_db, uint16_t position_id,
                  uint32_t ok_count, uint32_t total_count);
 
+  // R6 - nothing heard for a while. A display frozen on its last good reading makes
+  // "walked out of range" and "the board has crashed" look identical, and on a walk
+  // that is the difference between carrying on and turning back. The age is what
+  // separates them: it keeps counting, so the display is visibly alive.
+  void show_stale(Role r, uint16_t position_id, uint32_t silent_ms,
+                  float last_rssi_dbm, bool ever_heard);
+
   bool ok() const { return ok_; }
 
  private:
