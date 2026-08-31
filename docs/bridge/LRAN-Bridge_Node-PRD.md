@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.2
+**Version:** 0.3
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -405,6 +405,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 ## 9. Changelog
 
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **R-3.1e** and §5's counter requirements are unaffected: per §9.2 the bridge receives no authenticated types today, so §9.4 steps 4–6 apply to an empty set here and `rx_rejected_seq` / `rx_dup_command` reading zero on the bridge is correct.
 - **v0.2** — Housekeeping revision; **no requirement changed**. The binding protocol
   citation moves **v0.2 → v0.6**. The body was reconciled against the v0.3–v0.6 changes
   before the citation was moved: this document states no frame layout, header size,

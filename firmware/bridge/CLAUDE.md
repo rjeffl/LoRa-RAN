@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.2 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.5
-(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.6**
+`R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.6
+(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.7**
 (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -83,6 +83,18 @@ correct operation.
 
 Name internal identifiers after the **wire code** (§14.1's SHOULD). `REJECTED_CTX`, not
 `CtxMismatch` — the wire code is the name that cannot be changed later.
+
+## `CommandGate` exists, and on the bridge it does almost nothing
+
+**D34** puts spec §9.4 steps 4–5 in `/lib/lran-protocol/` as `CommandGate`, one per peer,
+immediately after `Reassembler`. Wire it in per node — but know what to expect: **§9.2
+makes every authenticated type bridge → node**, so the bridge receives no authenticated
+frames today and steps 4–6 apply to an empty set here. `rx_rejected_seq` and
+`rx_dup_command` staying at zero on the bridge is **correct**, not a wiring bug.
+
+The counters are still published per node, because §14.1 requires it and because the day a
+node-originated authenticated type appears, the path must already exist. Status `seq` is
+**advisory and MUST NOT reject** (§10.2) — do not route status frames through the gate.
 
 ## Milestones
 

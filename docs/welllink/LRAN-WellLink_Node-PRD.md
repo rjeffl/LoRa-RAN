@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.2
+**Version:** 0.3
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
-**Last updated:** 2026-08-30
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Last updated:** 2026-08-31
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -225,6 +225,7 @@ choices that look over-engineered against a one-node system:
 
 ## 10. Changelog
 
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. Still a placeholder. Recorded because **W-* design questions inherit it**: any WellLink that accepts a command inherits `CommandGate` rather than writing a replay check.
 - **v0.2** — Housekeeping revision; **still a placeholder, no design work done**.
   Binding protocol citation moves **v0.2 → v0.6**; §9's reserved-allocation table cites
   spec sections that all still exist and still say what the table claims, so **nothing

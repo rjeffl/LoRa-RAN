@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.2
+**Version:** 0.3
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -899,6 +899,7 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **This node is a consumer**: GateLink accepts `COMMAND`, so `CommandGate` binds it at **M3**. The requirement it implements — a retried command must not pulse the relay twice — is unchanged and was already stated.
 - **v0.2** — Housekeeping revision; **no requirement changed**. Binding protocol
   citation moves **v0.2 → v0.6**. Reconciled first: this document names schema IDs
   (`0x10`, `0x11`, `0x12`, `0xF0`) and nothing else about the wire, and none of those

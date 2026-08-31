@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.2
+**Version:** 0.3
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D33**.
+**Adding a decision.** New numbers continue from the highest issued, currently **D34**.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -109,6 +109,7 @@ constraints now apply, and **range test results do not close D1 on their own**:
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
 | **D33** | FCC Part 15 operating mode (**closes W5**) | **A single fixed channel, no frequency hopping, transmitting at or below the Part 15.249 power provisions.** Reasoning, link budget and standing conditions in Protocol Spec §18.1; it constrains §12.1 and §12.3 and **bounds D1** (§2.1). See §3.1 | Protocol Spec §18.1 |
+| **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2 | Protocol Library Impl Plan §3, §6 (**P8**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -145,6 +146,65 @@ switch, on a YoLink hub, all inside the dwelling): this has **no bearing on the
 operating mode**. Part 15 compliance is per device; a certified product nearby
 establishes that *some* compliant mode exists, not that this one is it. It bears on
 channel selection and CAD tuning instead — see §2.1 and Protocol Spec §12.3.
+
+### 3.2 D34 — why a split, and why it lands in the protocol library
+
+Settled **2026-08-31**, closing **W12**. The specification asked "where do steps 4–6
+live" as one question; it is two, and asking it as one is why it stayed open.
+
+**Steps 4, 5 and the high-water update in step 6 are validation against receiver
+state** — the same logic on every side, no allocation, no I/O, clock injected.
+**Dispatch is node behaviour** and stays in the application. `CommandGate::check()`
+returns `Execute` / `ReturnCached` / `Reject`; it never executes anything.
+
+*Why `/lib/lran-protocol/` rather than a new library or four applications.*
+
+1. **`Counters` already owns `rx_rejected_seq` and `rx_dup_command`**, and
+   `total_dropped()` already sums the first. Until the incrementer shares that
+   `Counters` instance, schema `0xF0`'s `rx_dropped` under-reports on exactly the
+   frames that move a gate. An incrementer in a different library from the counter
+   struct recreates the split that produced the v0.5 naming drift.
+2. **`Reassembler` is the precedent and settles the scope question**: per-peer,
+   stateful, `now_ms` injected, no allocation, returns a `Status`. `CommandGate` is
+   the same shape. If reassembly is in scope, this is.
+3. **`Status` must gain `DuplicateCached` and `RejectedSeq`** so `Counters::bump()`
+   stays the single mapping point — its `-Werror=switch` guard only works if the
+   values are in the enum, which they cannot be from outside the library.
+4. A separate `/lib/lran-rx/` would need `Frame`, `Status`, `Counters`, `AckResult`
+   and `seq_newer`. A library whose entire surface is another library's types is a
+   header with a build system attached.
+
+**Rejected:** leaving it to each application. §10.4 is not advisory — a relay pulse is
+not idempotent — and four independent implementations of a replay check is three too
+many.
+
+**Consequences.**
+
+- **`check` and `record` are two calls.** The cached value is the *result of
+  execution*, so one call cannot produce it, and caching before execution would
+  return a success ACK for a command that then failed.
+- **`check → execute → record` must be atomic with respect to frame arrival**, and is
+  recorded as a documented precondition in the manner of `Reassembler`'s monotonic
+  clock rather than engineered around. A retry landing inside that window finds no
+  cache entry *and* fails the `seq` check, answering `REJECTED_SEQ` where §10.4
+  requires the cached ACK. Unreachable on a single-threaded receive loop, which is
+  what both sides use. **§10.4 is silent on this window** — a specification gap
+  recorded rather than patched locally.
+- `dedup_cache_depth` (§10.4, default 8) becomes a `/lib/lran-config/` parameter,
+  runtime-settable.
+- Cost is **32 B per peer** — the gate holds one `ctx_id` and entries store
+  `(seq, result, detail)`. 32 B on a node, 160 B on a five-node bridge.
+  `reset_context()` clearing the cache then falls out for free, which is exactly
+  §10.4's "lost on reboot, which is correct."
+
+**The deadline is later than the specification implied, and this is the useful part.**
+§9.2 makes **every authenticated type bridge → node** — `COMMAND`, `CONFIG` and
+write-class `HEX_REQ`. Nodes emit only unauthenticated frames, so **on the bridge
+steps 4–6 apply to an empty set today**. The deadline is therefore not "before the
+second firmware is written" but **before the first firmware that accepts a
+`COMMAND`**: simnode `ROLE_GATELINK` at **B0**, and GateLink **M3**. `ROLE_RANGE`
+echoes unauthenticated `PING`, so **W12 does not block the range test firmware**.
+Land `CommandGate` as library milestone **P8**, before B0.
 
 ---
 
@@ -207,6 +267,16 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 
 ## 6. Changelog
 
+- **v0.3** — **D34 added, closing Protocol Spec W12**: §9.4 steps 4–6 are **split**
+  rather than placed whole — steps 4, 5 and the state half of 6 become
+  `lran::CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application.
+  Reasoning in **§3.2**, including the finding that changes the schedule: §9.2 makes
+  every authenticated type bridge → node, so **steps 4–6 apply to nothing on the
+  bridge today** and the real deadline is the first firmware that accepts a `COMMAND`
+  — simnode B0 and GateLink M3, **not** the range test. Two consequences worth
+  carrying: `dedup_cache_depth` becomes a `lran-config` parameter, and §10.4 is
+  **silent on the check/execute/record window**, recorded here as a specification gap
+  rather than patched locally.
 - **v0.2** — **D32 and D33 merged in** from a standalone entries file, which is now
   deleted; a second file holding decisions is exactly the split this register exists to
   prevent. **D32** fixes RadioLib as the SX1262 driver for every firmware in the repo.

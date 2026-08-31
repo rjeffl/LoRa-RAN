@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.2
+**Version:** 0.3
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.1
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -1082,6 +1082,7 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. §4.1's obligations are unchanged; the dedup cache §4.1 assumes now has a named home and a `dedup_cache_depth` parameter in `/lib/lran-config/`.
 - **v0.2** — Housekeeping revision; **no change to the build or the firmware
   architecture**. Binding protocol citation moves **v0.2 → v0.6**; §4.1's obligations
   table was checked against v0.3–v0.6 and **nothing was found to conflict**. The

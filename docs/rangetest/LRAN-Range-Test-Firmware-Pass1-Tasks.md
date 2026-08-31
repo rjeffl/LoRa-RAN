@@ -1,7 +1,7 @@
 # LRAN range test firmware — pass 1 tasks (two Heltec V3 boards)
 
 **For:** Claude Code, working in a new `firmware/range-test/`
-**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Depends on:** `/lib/lran-protocol/` — **satisfied.** P1–P7 are complete against v0.6
 (107 host tests, 110 on target, 72 W4 vectors, zero divergence); W9 runs against it
@@ -23,9 +23,9 @@ an antenna and a link, and building a second bench tool for that would be waste.
 
 | Document | Sections |
 |---|---|
-| `LRAN-Protocol-Specification` v0.6 | §12 (radio config, injected pin map, CAD/backoff), §15 (airtime), §6.6 (`PING`, `PATTERN_FILL`, `frag_chunk`), §18 + §18.1 (W5 closed, W7, W9) |
-| Decision register | **D32** (RadioLib), **D33** (fixed channel at 15.249), **D1** as amended |
-| `LRAN-Bridge_Node-implementation-plan` v0.2 | Repo layout and board-count guidance |
+| `LRAN-Protocol-Specification` v0.7 | §12 (radio config, injected pin map, CAD/backoff), §15 (airtime), §6.6 (`PING`, `PATTERN_FILL`, `frag_chunk`), §18 + §18.1 (W5 closed, W7, W9) |
+| Decision register | **D32** (RadioLib), **D33** (fixed channel at 15.249), **D1** as amended (§2.1). **D34 does not apply here** — `CommandGate` binds firmware that accepts a `COMMAND`, and this one echoes unauthenticated `PING` |
+| [`LRAN-Bridge_Node-Implementation-Plan`](../bridge/LRAN-Bridge_Node-Implementation-Plan.md) v0.6 | Repo layout and board-count guidance |
 | `gatelink-expansion-board.md` rev 0.3 | The Wio-SX1262 net assignment — for R2's second board config, not for pass 1 wiring |
 | `/lib/lran-protocol/` plan + engineering log | The API this consumes; the P7 entry for what the target build already does |
 

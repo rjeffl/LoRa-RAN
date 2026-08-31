@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.1
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.6**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.1 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-08-30
+**Last updated:** 2026-08-31
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -833,29 +833,81 @@ Each entry drives one stage of Protocol Spec §14 or one rule in §9.4/§10. **T
 only mechanism that produces these frames**, and without it every discard counter in the
 bridge ships unverified.
 
-| `fault` name | Produces | Expected bridge behaviour |
-|---|---|---|
-| `runt` | Frame shorter than `LRAN_HDR_LEN + LRAN_CRC_LEN` | §14 stage 2, `rx_runt` |
-| `bad_crc` | Correct frame, corrupted CRC16 | Stage 3, `rx_bad_crc` |
-| `bad_ver` | `ver` = N−1, then N−2 | Stage 4. N−1 accepted, **N−2 rejected with a distinct reason** (**V-B10**) |
-| `wrong_dst` | `dst` = an unrelated node ID | Stage 5, `rx_not_addressed`, **no ERROR emitted** |
-| `crit_ext` | `hdr_flags` bit 7 set, no extension defined | **Stage 5a**, `ERROR(UNKNOWN_HDR_EXT)`. The only test of Protocol Spec §5.8 |
-| `hdr_rsv` | Non-zero bytes 13–15, bit 7 clear | **Accepted and ignored** — the forward-compatibility rule (§4.3). A discard here is a bug |
-| `unknown_type` | `type` = `0x0C` | Stage 6, `ERROR(UNKNOWN_TYPE)` |
-| `unknown_schema` | `schema` = `0x7F` | Stage 7, `ERROR(UNKNOWN_SCHEMA)` |
-| `bad_length` | Valid schema, payload one byte short and one byte long | Stage 8, `ERROR(BAD_LENGTH)` |
-| `frag_timeout` | Fragment 1 of 3, then silence | Stage 9, expires after `frag_reassembly_timeout_ms`, `ERROR(REASSEMBLY_TIMEOUT)` |
-| `frag_overflow` | Fragment index ≥ declared total | Stage 9, `ERROR(FRAGMENT_OVERFLOW)` |
-| `frag_oversize` | Reassembled set exceeding `LRAN_MAX_SCHEMA_PAYLOAD` | Stage 9, `ERROR(FRAGMENT_OVERFLOW)` |
-| `bad_mac` | Authenticated frame, one MAC byte flipped | §9.4 rejection, counted, **no state change** |
-| `ctx_jump` | New `ctx_id` mid-session with no reboot | Bridge adopts, resets `cmd_seq`, **retries once only** (§6.2) |
-| `seq_jump` | Large forward `seq` step | Accepted — RFC 1982 arithmetic, no lockout |
-| `seq_wrap` | `seq` wrapping through `0xFFFF` | Accepted. **The failure this guards against is a plain `>` comparison rejecting every frame until reboot** |
-| `ack_suppress` | `COMMAND` received, no ACK | Bridge retries with the **same `seq`**; simnode reports a dedup hit (**V-B5**, **BS-3**) |
-| `ack_dup` | Two ACKs for one command | Second ignored, not counted as a second result |
-| `event_replay` | Same `(ctx_id, event_id)` twice | Bridge publishes **once** (Protocol Spec §16.3) |
-| `flood` | Frames at maximum rate | Bridge stays responsive; `lora_task` does not block (§1.3) |
-| `silent` | Identity stops answering | Availability → offline after `missed_poll_threshold` (**V-B3**) |
+**The counter column is normative and comes from Protocol Spec §14.1**, not from this
+table. §14.1 gained a wire-code column in spec v0.6 for exactly the reason this column
+exists here: the bridge publishes these names to MQTT, Home Assistant charts them, and a
+rename after that is breaking. A row whose counter does not appear in
+`kCounterRegistry` is a defect in this table.
+
+| `fault` name | Produces | Counter | Expected bridge behaviour |
+|---|---|---|---|
+| `runt` | Frame shorter than `LRAN_HDR_LEN + LRAN_CRC_LEN` | `rx_runt` | §14 stage 2 |
+| `oversize` | A frame longer than `LRAN_MAX_FRAME` — the PHY hands up 255 bytes | `rx_oversize` | **Stage 2a**, **no ERROR emitted.** Means a foreign transmitter or a misconfigured PHY, which is a different diagnosis from a bad length and is why v0.4 split the counter out |
+| `bad_crc` | Correct frame, corrupted CRC16 | `rx_bad_crc` | Stage 3. **Not** `rx_crc_err`, which is the PHY CRC and belongs to the radio driver |
+| `bad_ver` | `ver` = N−1, then N−2 | `rx_bad_ver` | Stage 4. N−1 accepted, **N−2 rejected with a distinct reason** (**V-B10**) |
+| `wrong_dst` | `dst` = an unrelated node ID | `rx_not_addressed` | Stage 5, **no ERROR emitted** |
+| `crit_ext` | `hdr_flags` bit 7 set, no extension defined | `rx_unknown_hdr_ext` | **Stage 5a**, `ERROR(UNKNOWN_HDR_EXT)`. The only test of Protocol Spec §5.8 |
+| `hdr_rsv` | Non-zero bytes 13–15, bit 7 clear | — | **Accepted and ignored** — the forward-compatibility rule (§4.3). A discard here is a bug |
+| `frag_zero` | A `frag` total of `0` | `rx_bad_frag` | **Stage 5b**, `ERROR(BAD_LENGTH)`. Protocol Spec §5.6 declares it malformed |
+| `unknown_type` | `type` = `0x0C` | `rx_unknown_type` | Stage 6, `ERROR(UNKNOWN_TYPE)` |
+| `unknown_schema` | `schema` = `0x7F` | `rx_unknown_schema` | Stage 7, `ERROR(UNKNOWN_SCHEMA)` |
+| `bad_length` | Valid schema, payload one byte short and one byte long | `rx_bad_length` | Stage 8, `ERROR(BAD_LENGTH)` |
+| `frag_command` | A `COMMAND` carrying a `frag` total > 1 | `rx_not_fragmentable` | **Stage 8a**, `ERROR(BAD_LENGTH)`. Protocol Spec §11.4 rules the type single-frame; the wire answer and the counter deliberately disagree, and **the counter is the diagnosis** |
+| `frag_timeout` | Fragment 1 of 3, then silence | `rx_reassembly_timeout` | Expires after `frag_reassembly_timeout_ms`, `ERROR(REASSEMBLY_TIMEOUT)`. **Must fire from the periodic tick**, not only on the next arrival — otherwise a peer's silence looks like nothing happened |
+| `frag_overflow` | Fragment index ≥ declared total | `rx_fragment_overflow` | `ERROR(FRAGMENT_OVERFLOW)` |
+| `frag_oversize` | Reassembled set exceeding `LRAN_MAX_SCHEMA_PAYLOAD` | `rx_fragment_overflow` | `ERROR(FRAGMENT_OVERFLOW)` |
+| `frag_dup` | A duplicate index within a live set | `rx_frag_duplicate` | **Set still completes.** Counted but **excluded from `rx_dropped`** — assert `rx_dropped` does not move |
+| `frag_late` | A complete set, then a repeat of one of its fragments | `rx_frag_late` | Discarded, **not** started as a new set. Excluded from `rx_dropped`. A late RF echo and a sender retry both produce this legitimately |
+| **`single_frame_interleave`** | Fragment 0 of a set, then a **single-frame** frame sharing `(src, ctx_id, schema)`, then the remaining fragments | **none** | **The set completes normally and `rx_reassembly_abandoned` does not move.** See below |
+| `set_displaced` | A live set, then fragment 0 of a **different** set from the same peer | `rx_reassembly_abandoned` | Protocol Spec §11.3 displacement, scoped to `frag` total > 1 |
+| `bad_mac` | Authenticated frame, one MAC byte flipped | `rx_rejected_mac` | §9.4 step 3 rejection, **no state change**, and the fragment is **not buffered** |
+| `ctx_jump` | New `ctx_id` mid-session with no reboot | `rx_rejected_ctx` on the node side | Bridge adopts, resets `cmd_seq`, **retries once only** (§6.2) |
+| `seq_jump` | Large forward `seq` step | — | Accepted — RFC 1982 arithmetic, no lockout |
+| `seq_wrap` | `seq` wrapping through `0xFFFF` | — | Accepted. **The failure this guards against is a plain `>` comparison rejecting every frame until reboot** |
+| `ack_suppress` | `COMMAND` received, no ACK | — | Bridge retries with the **same `seq`**; simnode reports a dedup hit (**V-B5**, **BS-3**) |
+| `ack_dup` | Two ACKs for one command | — | Second ignored, not counted as a second result |
+| `event_replay` | Same `(ctx_id, event_id)` twice | — | Bridge publishes **once** (Protocol Spec §16.3) |
+| `flood` | Frames at maximum rate | — | Bridge stays responsive; `lora_task` does not block (§1.3) |
+| `silent` | Identity stops answering | — | Availability → offline after `missed_poll_threshold` (**V-B3**) |
+
+**`single_frame_interleave` is the highest-value entry in this table**, and the only test
+of spec v0.6's sole behavioural change. §11.2 states that a single-frame frame never
+begins, joins, displaces or expires a set. The defect it fixes is a receiver routing every
+frame through one slot per peer, where **a node's periodic `STATUS` destroys that same
+node's in-progress fragmented `CONFIG_ACK`** — recoverable by readback, and reliably
+recurring. It is silent by construction: the offending frame belongs to no set, so nothing
+is counted. That is why the expected result is a *set that completes and a counter that
+does not move*, and why no other entry can substitute for it.
+
+### 10.5.1 Two more once **P8** lands — and the direction reverses
+
+**D34**'s `CommandGate` is the receiver of these, so they test the **simnode's own** gate,
+driven from `simctl` rather than from the bridge. They belong here because §10.5 is the
+document of record for what the fleet's discard paths are verified against, and because
+per Protocol Spec §9.2 **every authenticated type is bridge → node** — so these two paths
+exist *only* on a node and would otherwise be verified nowhere.
+
+| `fault` name | Produces | Counter | Expected node behaviour |
+|---|---|---|---|
+| `cmd_replay` | The same `(ctx_id, seq)` `COMMAND` twice, after the first has executed | `rx_dup_command` | The **cached** ACK is returned and **the relay does not pulse a second time**. Excluded from `rx_dropped` — the retry mechanism working as §10.4 requires is not a fault |
+| `cmd_stale_seq` | A `COMMAND` whose `seq` is below the high-water mark | `rx_rejected_seq` | `COMMAND_ACK(REJECTED_SEQ)`, counted **into** `rx_dropped` |
+
+`ack_suppress` above already exercises the dedup path, but it asserts it from the
+bridge's side. `cmd_replay` asserts it **at the gate, where the relay is** — which is the
+assertion root rule 2 and **BS-3** actually care about. A second pulse at a driveway gate
+is the failure this whole mechanism exists to prevent, and it has never been tested at
+the end that pulses.
+
+### 10.5.2 `/lib/lran-sim/` needs a post-encode patch primitive
+
+Three of the new entries cannot be built by post-processing a correct frame the obvious
+way: `oversize` needs a frame longer than `encode()` will emit, `frag_zero` needs a `frag`
+byte the encoder overwrites, and `frag_command` needs a `frag` total on a type
+`encode_fragment()` refuses with `NotFragmentable`. A narrow **patch-after-encode**
+surface — set a header byte, extend or truncate the trailer, recompute or deliberately
+skip the CRC — keeps simnode rule 2 intact (**never a second serializer**) while making
+them reachable. Scope it before B0 rather than during it; discovering it mid-milestone is
+how a second serializer gets written.
 
 **One fault cannot be injected: `bad_phy_crc`.** The SX1262 computes and checks the PHY
 CRC in hardware, so a transmitter cannot emit a frame that fails it. §14 stage 1 is
@@ -1154,6 +1206,26 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.6** — **§10.5's fault catalogue brought up to the current receive path**, 21
+  entries to 27, and given a **counter column** taken from Protocol Spec §14.1 rather
+  than restated — the same defect §14.1's own wire-code column was created to retire,
+  one layer down, and the bridge publishes these names to MQTT where a later rename is
+  breaking. The catalogue was written against spec v0.3 and had no fault for stage 2a
+  (`oversize`), stage 5b (`frag_zero`), stage 8a (`frag_command`), §11.3 displacement
+  (`set_displaced`), or the two §11.2 non-fault paths (`frag_dup`, `frag_late`) whose
+  correct result is that `rx_dropped` does **not** move. **`single_frame_interleave` is
+  the one that matters**: it is the only test of spec v0.6's sole behavioural change,
+  and the defect it catches — a node's periodic `STATUS` destroying that node's
+  in-progress fragmented `CONFIG_ACK` — is silent by construction, so its expected
+  result is a set that completes and a counter that stays still. **New §10.5.1** adds
+  the two faults that arrive with **D34**/**P8**, noting that their direction reverses:
+  per §9.2 every authenticated type is bridge → node, so `cmd_replay` and
+  `cmd_stale_seq` test the *simnode's* gate. `ack_suppress` already touches dedup but
+  asserts it from the bridge; `cmd_replay` asserts it **at the end that pulses a relay**,
+  which is what BS-3 is about. **New §10.5.2** records that `/lib/lran-sim/` needs a
+  patch-after-encode primitive for three of the new entries, to be scoped before B0 —
+  discovering it mid-milestone is how a second serializer gets written. **No change to
+  bridge design.**
 - **v0.5** — Housekeeping revision; **no change to bridge design**. Binding protocol
   citation moves **v0.3 → v0.6**, and the body was reconciled against v0.4–v0.6 first.
   Two things to carry into B3 that the citation bump does not by itself record:

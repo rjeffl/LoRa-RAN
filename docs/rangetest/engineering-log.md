@@ -3,7 +3,7 @@
 Dated entries. Measurements, surprises, and things that cost an hour.
 
 Binding specification: [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md)
-v0.6 (`ver = 2`). Tasks: [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md).
+v0.7 (`ver = 2`). Tasks: [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md).
 
 ## What this firmware is answering
 
