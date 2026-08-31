@@ -302,3 +302,98 @@ Reflashed both boards after the truncation fixes, and again after the SNR units:
 initiator receives, 15 responder receives, **0 tx errors, 0 PHY CRC errors** on both
 runs, RSSI −49/−50 dBm, SNR ~12 dB. Unchanged from the gate run. The display edits
 touched nothing on the radio path, and this confirms it.
+
+## 2026-08-31 — R4: the sweep runs, and three methodology bugs hardware found
+
+Branch `range/sweep`. The sweep enumerates 24 test points and emits one row each.
+Bench run: **all 24 points 8/8 echoes, 0% PER**, both legs symmetric within 1.6 dB.
+
+New modules, all Arduino-free and host tested: `airtime`, `bench_frame`, `sweep`,
+`sentinels`. 76 host tests.
+
+### The airtime formula reproduces spec §15.1 exactly — W7 has its instrument
+
+All **twenty-one** figures in §15.1 are asserted as tests and all pass: 19/24/30/34/38/
+96/222 bytes at SF7/8/9. §15.1 says the table "should be regenerated once **D1** fixes
+SF", which is **W7**; an implementation that reproduces the existing table value for
+value is the thing to regenerate it with, not merely a convenience for the sweep.
+
+The 4.25-symbol sync interval §15.1 records v0.2 having omitted is pinned by its own
+test, so that ~4% understatement cannot come back.
+
+Two derived uses: the echo timeout is `2 × airtime + margin` per test point (a fixed
+timeout is either absurd at SF7 or scores every SF12 probe lost), and the sweep reports
+its own duration — **nominal 368 s, worst case 416 s** per position on the default plan.
+Both figures, because the spread is what the operator needs: worst case is what a dead
+position costs, and that is exactly where the data is wanted.
+
+### Bug 1 — the responder never followed the initiator
+
+First sweep run: **all eight SF7 points at 0% PER, all sixteen SF9 and SF12 points at
+100%.** Not a link result. The initiator retunes per test point; the responder stayed
+where it booted, and two radios on different spreading factors cannot hear each other
+at all.
+
+**A sweep in that state can only ever measure its first radio configuration and reports
+every other one as a dead link** — which at 500 ft is indistinguishable from a real
+result, and would have gone straight into D1.
+
+The responder cannot be told to retune out of band: the only channel is the one whose
+configuration is changing. So it hunts — dwell on a configuration, and on silence step
+to the next one **cyclically**. Stepping cyclically from the last configuration heard
+is both the fast path and the recovery path, so there is no separate scan mode: in plan
+order the next configuration is almost always right.
+
+Only freq/SF/CR affect reception, so it tracks **six** configurations, not 24 points.
+Dwell is two worst-case probe periods **at that configuration** — one probe period is
+0.5 s at SF7 and 8.4 s at SF12, so a fixed dwell abandons SF12 mid-probe.
+
+### Bug 2 — the echo ran at the wrong power, flattering PER
+
+With bug 1 fixed the data showed a systematic gap: at −9 dBm test points the initiator
+measured ~−41 dBm while the responder measured ~−48. **Exactly the 6 dB between −9 and
+−3.** The responder was echoing at its clamped ceiling regardless of test point, so the
+return leg was 6 dB stronger than the outbound one.
+
+Round-trip PER stops being a measurement of the link when its two legs run at different
+powers, and it biases *optimistic* at precisely the low-power points the D33 ceiling
+forces this sweep to care about. The probe names its test point, so the echo now
+transmits at the probe's own power — still via the clamp; nothing bypasses D33.
+
+After the fix both legs agree within 1.6 dB across all 24 points.
+
+### Bug 3 — reacquisition time was charged to the link as packet loss
+
+Losses then appeared **only on the first test point after a configuration change**:
+2 of 8 entering SF9, 1 of 8 entering SF12. The counts matched
+`dwell(previous config) / probe_period(new config)` exactly — the responder's hunt time,
+scored as lost packets, on 5 of 24 points, biasing them *pessimistic*.
+
+The initiator knows the plan, so it knows how long the responder needs. It now sends
+**uncounted warmup probes** on a configuration change — transmitted normally, excluded
+from the statistics — sized from the previous configuration's dwell and capped at 6. A
+warmup longer than the measurement it protects would be a worse trade than the bias.
+
+Zero when the configuration is unchanged, which is three points in four.
+
+### Worth noting about all three
+
+None of these is visible in review. Each produces a plausible-looking CSV: bug 1 gives
+a clean 0% at SF7 and an honest-looking total failure elsewhere; bug 2 gives slightly
+better numbers than the truth; bug 3 slightly worse, only at boundaries. **Two of the
+three bias PER in opposite directions**, so an average would have hidden both.
+
+They were found by reading a bench sweep of a link known to be good — a 1 m desk link
+where every point *must* read 0% PER. That is the value of running the sweep somewhere
+the answer is already known before walking anywhere.
+
+### Not done in R4
+
+- **R5** position marking — `position_id` is plumbed through the frame and the CSV but
+  is still 0; the responder's PRG button does not yet increment it.
+- **R6** the responder's own local summary, and the real CSV.
+- **R7** committing traces to `docs/rangetest/data/`. The serial format is a first cut
+  and R7 owns the committed schema.
+- **Frequency is a single-entry axis.** §12.1 forbids fixing one before M20, so
+  sweeping frequencies now would produce numbers nobody can interpret. R8 fills it.
+- **Nothing about range.** Still a 1 m bench link. M6 untouched, D1 open.

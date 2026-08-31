@@ -123,6 +123,11 @@ int16_t RadioLink::apply(const TestPoint& tp) {
   return RADIOLIB_ERR_NONE;
 }
 
+int16_t RadioLink::set_power(int8_t conducted_dbm) {
+  if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
+  return g_radio->setOutputPower(conducted_dbm);
+}
+
 int16_t RadioLink::transmit(const uint8_t* data, size_t len) {
   if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
   return g_radio->transmit(const_cast<uint8_t*>(data), len);
