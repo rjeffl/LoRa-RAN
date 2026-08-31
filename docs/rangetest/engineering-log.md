@@ -559,3 +559,35 @@ a different situation worth distinguishing. The threshold is above one SF12 prob
 
 - **R7** — committing traces to `docs/rangetest/data/`.
 - Nothing about range. M6 untouched, D1 open pending M20 and M21.
+
+## 2026-08-31 — sunlight legibility: passes with a hand, not without
+
+Checked outdoors. **The OLED does not power through direct sunlight**; with minimal
+shading from a hand it is comfortably readable.
+
+That closes R6's last acceptance criterion, but as a **qualified pass, not a clean
+one**. R6 asked for "text large enough to read outdoors at arm's length in sunlight"
+and the honest answer is that font size was never the binding constraint — a 128×64
+monochrome OLED at maximum contrast is simply outmatched by direct sun, and no layout
+change fixes that. Contrast is already at 255.
+
+### What follows from it
+
+- **It is an operating procedure, not a defect.** Shade the display with a hand at each
+  position. Recorded in R10's fieldwork notes so it reaches whoever walks the bearing.
+- **The glance is brief, so the layout matters more than it did.** RSSI is already the
+  largest element and stays that way; the role badge, position and counts are secondary
+  and small. Nothing to change, but worth stating as a constraint on future edits: a
+  hand-shaded glance is not the moment to add a fourth line.
+- **The display is not the record.** The CSV over serial is, and the responder's NVS log
+  covers the untethered end. Nothing about the measurement depends on reading a screen
+  in a field.
+
+### One cheap thing worth trying, untested
+
+The SSD1306 can invert — mostly-lit field with dark glyphs instead of the reverse. On an
+emissive panel that raises total emitted light and *may* read better against bright
+ambient, at some cost in power and possible bloom. **Not implemented and not
+recommended on evidence** — it is a five-minute experiment for whoever is next outside
+with both boards, and if it helps it is a one-line change. Recording it so the idea is
+not rediscovered from scratch.

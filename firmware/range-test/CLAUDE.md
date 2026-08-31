@@ -58,6 +58,10 @@ and is correct in this one.
 - **TCXO is 1.8 V and DIO2 drives the RF switch.** Both fail *silently* — the radio
   initialises, reports success, and transmits nothing. Both are in the board config and
   both are pinned by host tests.
+- **The OLED needs hand-shading in direct sunlight** (confirmed outdoors, 2026-08-31).
+  Contrast is already maxed; this is a panel limit, not a layout one. Consequence for
+  edits: a hand-shaded glance is brief, so RSSI stays the largest element and the
+  display does not grow a fourth line.
 - **OLED sits behind Vext (active LOW).** Enable Vext, pulse the OLED reset, *then* I2C.
   A dark panel is usually Vext, not the driver. The sequence is lifted from
   `/wattcycle-reader/src/BmsDisplay.cpp`, where it is verified on this board.
