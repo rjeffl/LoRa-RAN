@@ -591,3 +591,54 @@ ambient, at some cost in power and possible bloom. **Not implemented and not
 recommended on evidence** — it is a five-minute experiment for whoever is next outside
 with both boards, and if it helps it is a one-line change. Recording it so the idea is
 not rediscovered from scratch.
+
+## 2026-08-31 — R7: traces land in the repo
+
+`tools/rangetest/capture.py` writes a committed trace; `docs/rangetest/data/README.md`
+documents the 27 columns; `2026-08-31-bench.csv` is the first one.
+
+**The committed trace is a FORMAT PROOF, not range data.** Both boards ~1 m apart on the
+desk. Every point reads 0% PER, and that is the assertion: on a link that good, anything
+else is a firmware fault rather than a link finding. It exists so the schema, the
+tooling and the README's reading guide are exercised end to end before anyone walks a
+bearing with them. **M6 is untouched.**
+
+Validated after capture: 27 columns, 24 rows, `tp_index` 0–23 with no gap, no ragged
+rows, 0% PER throughout, `resp_heard == probes_sent` on every row, and zero
+`phy_crc_err` / `foreign` / `filler_err`. Legs agree within 0.9 dB.
+
+The README's column table is checked against the firmware's own schema string rather
+than by eye — 27 columns, none missing.
+
+### Two bugs in the capture tool, both found by using it
+
+**A stray row from the previous sweep.** The first capture wrote **25 rows for a
+24-point plan**: a `tp_index=8` row was still in the serial buffer from an earlier run
+when capture started, and it landed at the top of the file ahead of `tp_index=0`. A
+trace with a duplicated point and a row belonging to a different sweep would have been
+believed. Fixed by discarding any data row seen before the CSV header — the header is
+printed once per boot, so anything earlier belongs to a previous run.
+
+**Then that fix broke the settings block.** Clearing accumulated state at the header
+also cleared the settings dump, which the firmware prints *before* it — so the second
+capture produced a trace with an **empty configuration block**, which is precisely what
+this tool exists to prevent. R3 prints that dump so a CSV can be correlated with the
+configuration that produced it; a trace without it is a table of numbers with no idea
+what radio made them. Fixed by resetting the settings on the `--- settings` marker and
+the rows on the header, which are different events.
+
+Worth noting the shape: the second bug was **caused by the fix for the first**, and it
+was silent — 24 correct rows, a clean validation, and a missing header block that no
+row-level check would ever notice. It was caught by reading the file.
+
+A third, smaller one on the way past: the settings filter was "contains `=` and no
+comma", which swallowed an ESP-IDF log line (`i2cInit(): ... sda=17 scl=18`) into the
+configuration block. Now a strict `key=value` pattern.
+
+### R7 acceptance
+
+| Criterion | Status |
+|---|---|
+| Sweep output goes to a versioned directory, not a scratch file | **Met** — `docs/rangetest/data/` |
+| Traces are committed | **Met** — one, labelled as a format proof |
+| Usable as D1 evidence | **Not yet** — this is a bench link. Needs the walk, plus M20 and M21 |

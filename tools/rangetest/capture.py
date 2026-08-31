@@ -19,6 +19,7 @@ the partial rows are still valid, they are just fewer.
 """
 
 import argparse
+import re
 import sys
 import time
 
@@ -26,6 +27,12 @@ try:
     import serial
 except ImportError:
     sys.exit("pyserial required: ~/.platformio/penv/bin/python -m pip install pyserial")
+
+
+# A settings-dump line: a bare lower-case key, '=', a value. Deliberately strict -
+# a looser "contains = and no comma" test swallowed an ESP-IDF log line
+# (`i2cInit(): ... sda=17 scl=18`) into the trace's configuration block.
+SETTING_RE = re.compile(r"^[a-z][a-z0-9_]*=\S*$")
 
 
 def main() -> int:
@@ -59,15 +66,26 @@ def main() -> int:
             if not line:
                 continue
 
-            if line.startswith("position,tp_index,"):
-                header = line
+            if line.startswith("--- settings"):
+                # A fresh boot's settings dump starts here. Reset only the settings,
+                # not the rows: the dump is printed BEFORE the CSV header, so clearing
+                # it at the header (as the first fix did) threw away the very block
+                # this tool exists to retain and produced a trace with no
+                # configuration in it.
+                meta = []
+            elif line.startswith("position,tp_index,"):
+                # The header is printed once per boot, so any DATA ROW seen before it
+                # belongs to a previous run still sitting in the serial buffer. The
+                # first capture picked up a stray tp_index=8 row that way and wrote 25
+                # rows for a 24-point plan.
+                header, rows = line, []
             elif line.startswith("#"):
                 if "sweep complete" in line:
                     sweeps += 1
                     print(f"  sweep {sweeps}/{args.sweeps} complete", flush=True)
-            elif "=" in line and "," not in line:
+            elif SETTING_RE.match(line):
                 meta.append(line)          # settings dump: key=value
-            elif line[0].isdigit() and line.count(",") > 20:
+            elif header is not None and line[0].isdigit() and line.count(",") > 20:
                 rows.append(line)
                 print(f"\r  {len(rows)} rows", end="", flush=True)
     ser.close()
