@@ -89,6 +89,7 @@ before merge.
 - Append findings to `docs/<node>/engineering-log.md` as they happen — measurements,
   surprises, things that cost an hour. Dated entries. This is the record that answers
   "why is it like this" in eighteen months.
+- Use docs-as-code workflow with all repository documents. As doc updates are identified, make changes at the repo level for commit along with code or test results that support it.
 
 ## Secrets
 
@@ -116,3 +117,4 @@ Prefer asking to guessing when a requirement is ambiguous — the documents are 
 and a gap in them is worth reporting rather than patching locally. When a document turns
 out to be wrong, say so; several current sections exist because a review caught an error
 rather than working around it.
+
