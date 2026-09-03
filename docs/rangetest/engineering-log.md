@@ -906,3 +906,25 @@ One command, both paths, on boards flashed from this branch:
 - Survey: reset → `SURV` → 25 s scan → dump → **130 rows**, `antenna_gain_dbi=3.0`,
   `role=SURVEY`, clean `# capture ended`.
 - Walk: reset → INITIATOR → sweep header and rows, `antenna_gain_dbi=3.0`.
+
+### A postscript on the erase, and on trusting a separate check
+
+The erase looked broken: `# all stored surveys erased from NVS` on both boards, and a
+follow-up boot reporting `survey campaign complete - 1 site(s)`. Twenty minutes went into
+looking for a spurious store — a stray `prg_edge()`, a role-key repeat landing on a mode
+key, anything.
+
+There was none. Driven in **one process on one open port** — erase, reboot, check, then
+twenty seconds of scanning untouched and check again — both boards go empty and stay
+empty. The fault was in the checking: **every `capture.py --reset` re-enumerates the USB
+bridge**, and with two identical CP2102s both reporting `SER=0001` the two device nodes
+can swap between invocations. The erase and the check were landing on different boards.
+
+This is the `SER=0001` hazard that is already in the notes, showing up in a shape nobody
+had written down: not "you flash the wrong board" but "you verify the wrong board, and
+conclude the firmware is broken". Recorded in the field procedure as: trust the
+confirmation line from the command that did the work, not a separate check afterwards.
+
+`capture.py --key` now echoes the board's `#` lines for exactly this reason — a setup
+command whose confirmation is filtered out is a command you have to verify some other way,
+and the other way is what was wrong.

@@ -20,6 +20,8 @@ Capture with:
 the `python3` first on `PATH` is usually a different install that has never seen it.
 
 `--reset` has the tool drive the board itself (reset, `--role`, `--key`, then capture).
+With `--key` it also echoes the board's own `#` lines, so a setup command shows you its
+confirmation instead of swallowing it.
 Use it: two processes on one serial port open without an exclusive lock on macOS and split
 the incoming bytes between them, which puts holes in the trace and looks like it worked.
 

@@ -148,10 +148,18 @@ def main() -> int:
                     help="console keys to send once the board is up (e.g. 'd' to dump "
                          "the run in progress, 'a' to dump every stored survey site). "
                          "Sent one per second, in order")
+    ap.add_argument("--echo", action="store_true",
+                    help="print the board's own '#' lines as they arrive. On by "
+                         "default when --key is given, because a setup command "
+                         "(erase, store, dump) is only useful if you can see it "
+                         "confirm - the confirmation IS the output")
     ap.add_argument("--note", default="",
                     help="free text recorded in the file header - antenna height, "
                          "bearing, weather, whatever R10 asks for")
     args = ap.parse_args()
+    # A --key run is a command, not a capture: its whole result is a line like
+    # "# all stored surveys erased from NVS", which was being filtered out.
+    echo = args.echo or bool(args.key)
 
     ser = serial.Serial(args.port, args.baud, timeout=0.5)
     trace = Trace(args.out, args.note)
@@ -284,6 +292,8 @@ def main() -> int:
                     # about - the rows that follow are the same schema and keep going.
                     settings_since_header = False
                 elif line.startswith("#"):
+                    if echo:
+                        print(f"\n  {line}", flush=True)
                     if any(m in line for m in COMPLETION_MARKERS):
                         sweeps += 1
                         print(f"\n  sweep {sweeps} complete "

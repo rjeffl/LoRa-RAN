@@ -143,9 +143,25 @@ One command each, no console needed:
     --reset --role responder --key x --out /tmp/erase.csv --idle-timeout 20
 ```
 
-Both will end with "no data rows captured" — that is correct, there is nothing to capture.
-Watch for `# all stored surveys erased from NVS` and `# position log cleared` in the
-output. Repeat for the second board.
+Both end with "no data rows captured" — correct, there is nothing to capture. What you
+are looking for is the board's own confirmation, which `capture.py` echoes whenever
+`--key` is used:
+
+```
+  selected role: survey
+  sent key: z
+  # all stored surveys erased from NVS
+```
+
+and `# position log cleared` for the responder. **If you do not see that line, the erase
+did not happen** — check the role was selected. Repeat for the second board.
+
+> **The port name can change between commands.** Every `capture.py --reset` re-enumerates
+> the USB bridge, and with two identical CP2102s both reporting `SER=0001` the two device
+> nodes can swap. Erasing "0001" and then checking "0001" is not necessarily the same
+> board — that is how this looked like a bug for twenty minutes. **Trust the confirmation
+> line from the command that did the work**, not a separate check afterwards, and finish
+> both erases on one board before moving to the other.
 
 ### Role selection — a 3-second window after boot, not a hold through reset
 
