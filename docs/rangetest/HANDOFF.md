@@ -18,15 +18,23 @@
 
 | | |
 |---|---|
-| Branch | `range/survey` — **R8 complete**, stacked on `range/capture-walk` |
+| Branch | `range/field-prep` — **carries R8**, which never reached `main` (see below) |
 | Merged so far | #13 (`range/sweep`, R4–R7), #12 (`range/skeleton`, R1–R3), #11 |
 | Done | **R1–R7.** Both branch gates passed on hardware. `main` verified green 2026-09-03 |
 | Done | **R8** — survey mode, seven sites, bench-proven on hardware |
 | Not started | **R9** (`range/w9`) |
 | **Next** | **R10 fieldwork.** See [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md). No code needed |
 
+**PR #15 (R8) merged into `range/capture-walk`, not `main`, after #14 had already
+merged — so `main` has no survey mode.** `range/field-prep` is branched from
+`range/capture-walk` and carries R8 forward; merging it to `main` lands both.
+
 `main` as of 2026-09-03: 99 range-test tests, 107 protocol tests, 72 vectors, `heltec`
 builds. `pio` is at `~/.platformio/penv/bin/pio` and is not on `PATH`.
+
+**Antennas are the 3.0 dBi production pair**, set as `-DLRAN_ANTENNA_GAIN_DBI10=30` in
+`platformio.ini`. Changing antennas means changing that flag and reflashing — the gain
+feeds the D33 clamp, not just the CSV.
 
 **XIAO + Wio-SX1262 hardware is not on hand.** Pass 2 stays out of scope; R2's board
 config seam is the only thing pass 1 owes it, and it exists.
@@ -44,11 +52,12 @@ Both boards already carry this firmware; nothing to flash unless you have rebuil
    number. Record height even if it feels arbitrary — R10 says so for a reason.
 2. Reset the **initiator**, leave it as INITIATOR, tether it to the laptop, and leave it
    put. Reset the **responder** and press PRG within 3 s so its badge reads `RESP`.
-3. **Start `capture.py` first, then reset the initiator** — the tool needs the CSV header,
-   printed once at boot, and it discards data rows seen before it.
+3. **`capture.py --reset` drives the board itself** — reset, role, keys, capture, one
+   command. Do not open a separate serial console alongside it.
 
 ```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset \
     --out docs/rangetest/data/2026-09-03-gate-bearing120.csv \
     --note "bearing 120deg, both ends 1.2m, stock whips 2.0dBi, dry, foliage full"
 ```

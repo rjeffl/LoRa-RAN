@@ -9,9 +9,10 @@ The settings dump IS retained - as `#` comment lines at the top of the file - so
 trace carries the configuration that produced it, which is the whole reason R3
 prints it.
 
-Usage:
-    python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \\
-        --out docs/rangetest/data/2026-08-31-bench.csv --sweeps 1
+Usage (PlatformIO's python has pyserial; a bare `python3` usually does not):
+    ~/.platformio/penv/bin/python tools/rangetest/capture.py \\
+        --port /dev/cu.usbserial-0001 --reset \\
+        --out docs/rangetest/data/2026-08-31-bench.csv
 
 A position walk (R10) is one capture spanning many sweeps, so the default is to
 run until you stop it: press Ctrl-C at the end of the walk and the trace is
@@ -21,9 +22,14 @@ Rows are appended to `--out` as they arrive, not held until exit. Nobody is
 watching the laptop during a walk, and a trace that only exists in memory is one
 unplugged USB cable away from a repeated afternoon.
 
-Does NOT reset the board. Point it at a running initiator, or reset the board
-yourself and start this first - a sweep already in progress is joined mid-way and
-the partial rows are still valid, they are just fewer.
+Pass --reset and it drives the board itself: reset, select the role, send any
+console keys, then capture. That is ONE command for the whole job, and it is the
+supported way - two processes on one serial port open without an exclusive lock on
+macOS and then split the incoming bytes between them, quietly punching holes in the
+trace.
+
+Without --reset it only listens. Point it at a running initiator; a sweep already in
+progress is joined mid-way and the partial rows are still valid, just fewer.
 """
 
 import argparse
@@ -34,7 +40,17 @@ import time
 try:
     import serial
 except ImportError:
-    sys.exit("pyserial required: ~/.platformio/penv/bin/python -m pip install pyserial")
+    # Almost always the wrong interpreter rather than a missing package: PlatformIO
+    # ships pyserial inside its own venv, and a bare `python3` on macOS is one of
+    # several framework installs that has never seen it. Installing it again into
+    # whichever python3 is first on PATH "works" here and breaks on the next machine,
+    # so the message names the interpreter already known to have it.
+    sys.exit(
+        "pyserial not found in this interpreter.\n"
+        "Run the script with PlatformIO's python, which already has it:\n"
+        "    ~/.platformio/penv/bin/python tools/rangetest/capture.py ...\n"
+        "Or install it into this one:\n"
+        f"    {sys.executable} -m pip install pyserial")
 
 
 # A settings-dump line: a bare lower-case key, '=', a value. Deliberately strict -
@@ -117,6 +133,21 @@ def main() -> int:
                          "all. Idle, not wall-clock: the initiator is silent for the "
                          "whole gap between positions while you walk, and a "
                          "wall-clock deadline ends the capture mid-walk")
+    # --- driving the board, so one command is the whole job ---------------
+    ap.add_argument("--reset", action="store_true",
+                    help="pulse the board's reset line after opening the port, so the "
+                         "settings dump and CSV header are guaranteed to be seen. "
+                         "Removes the 'start this BEFORE resetting the board' trap")
+    ap.add_argument("--role", choices=["initiator", "responder", "survey"],
+                    help="role to select in the boot window after --reset. Omit for "
+                         "initiator, which is the no-press default")
+    ap.add_argument("--key-after", type=float, default=0.0, metavar="SECONDS",
+                    help="wait this long before sending --key, so a survey can scan "
+                         "for a while and then be told to dump. Default 0")
+    ap.add_argument("--key", default="",
+                    help="console keys to send once the board is up (e.g. 'd' to dump "
+                         "the run in progress, 'a' to dump every stored survey site). "
+                         "Sent one per second, in order")
     ap.add_argument("--note", default="",
                     help="free text recorded in the file header - antenna height, "
                          "bearing, weather, whatever R10 asks for")
@@ -139,6 +170,61 @@ def main() -> int:
     print(f"capturing from {args.port} -> {args.out}", flush=True)
     if args.sweeps == 0:
         print("  running until Ctrl-C", flush=True)
+
+    ROLE_KEYS = {"initiator": b"i", "responder": b"r", "survey": b"v"}
+
+    if args.reset:
+        # RTS drives EN on this carrier and DTR drives IO0. IO0 must stay HIGH or the
+        # chip enters the ROM downloader instead of the application - the same
+        # strapping-pin trap that stops the role being chosen by a hold through reset
+        # (see firmware/range-test/src/role.h).
+        ser.dtr = False
+        ser.rts = True
+        time.sleep(0.15)
+        ser.rts = False
+        print("  reset the board", flush=True)
+
+        if args.role:
+            # SENT REPEATEDLY ACROSS THE WHOLE WINDOW, not once.
+            #
+            # A single write times itself against a boot whose length is not fixed -
+            # ROM bootloader, Serial.begin(), then the OLED bring-up's own delays -
+            # and a byte that lands before the UART is configured is simply gone. The
+            # board then comes up INITIATOR, which on the walking end is a board that
+            # will not echo and in survey mode is a board that transmits. Observed
+            # exactly that way on hardware with a single timed write.
+            #
+            # select_role() drains everything available on each pass and returns on
+            # the first match, so repeats after it has chosen are read by the mode's
+            # own key handler. None of 'i', 'r' or 'v' is a key in any mode.
+            key = ROLE_KEYS[args.role]
+            deadline = time.time() + 3.5
+            while time.time() < deadline:
+                ser.write(key)
+                ser.flush()
+                time.sleep(0.15)
+            print(f"  selected role: {args.role}", flush=True)
+        else:
+            time.sleep(3.5)   # let the role window close before any --key
+    elif args.role:
+        print("--role needs --reset: the role window is only open just after a reset",
+              file=sys.stderr)
+        return 2
+
+    if args.key and args.key_after > 0:
+        # Not a sleep(): the board is talking the whole time, and draining the port
+        # here keeps its output out of the OS buffer, where a long enough wait would
+        # overflow and take the CSV header with it.
+        print(f"  waiting {args.key_after:.0f}s before sending keys", flush=True)
+        wait_end = time.time() + args.key_after
+        while time.time() < wait_end:
+            buf += ser.read(4096)
+
+    for k in args.key:
+        ser.write(k.encode())
+        ser.flush()
+        print(f"  sent key: {k}", flush=True)
+        time.sleep(1.0)
 
     try:
         while not stop:

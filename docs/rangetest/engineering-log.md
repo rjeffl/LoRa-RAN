@@ -811,3 +811,98 @@ The sweep plan is now printed only when a sweep will actually happen.
 | Runs at both required locations | **Exceeded in capability, not yet done** — seven sites supported and bench-proven; no site trace captured yet |
 | Two committed traces | **Not met** — fieldwork |
 | A chosen frequency justified against them | **Not met** — needs the field campaign, and D1 also needs M21 |
+
+---
+
+## 2026-09-03 — field-prep: five questions, three of them defects
+
+All five came from reading `FIELD-PROCEDURE.md` against the actual kit before walking. Three
+were real problems in what had been handed over.
+
+### The antenna is a build setting, and it was buried
+
+The production 3.0 dBi antennas replace the stock 2.0 dBi whips everything was bench-tested
+on. That is not a documentation change: **the gain is an input to the D33 clamp**, because
+the 15.249 ceiling is on EIRP. At 2.0 dBi the conducted ceiling is −3 dBm; at 3.0 dBi it is
+−4 dBm. Fitting the production antenna against a firmware still holding 2.0 dBi is wrong
+twice over — the trace records an antenna that was not fitted, and the clamp permits an
+EIRP 1 dB over the ceiling.
+
+It was `constexpr int16_t kAntennaGainDbi10 = 20;` on line 46 of a 1200-line `main.cpp`.
+It is now `-DLRAN_ANTENNA_GAIN_DBI10=30` in `platformio.ini`, under a comment block that
+gives both antennas and both ceilings, and **there is no default in the code** — a missing
+flag is a `#error`. A default is precisely what silently survives an antenna swap.
+
+No test needed re-running and nothing was invalidated: the committed bench traces are
+format proofs, not range data.
+
+### `capture.py` only listened, so the procedure told the operator to run two things at once
+
+The procedure said "press `z` on the console" and also "run `capture.py`". On one port.
+macOS opens a serial device **without an exclusive lock**, so both processes succeed and
+then split the incoming bytes between them at random — which is how the bench scripts
+appeared to work, and how a field trace would have come home with holes in it and no
+indication anything was wrong.
+
+`capture.py` now drives the board: `--reset` pulses the reset line, `--role` selects
+INITIATOR / RESPONDER / SURVEY, `--key` sends console keys and `--key-after` waits first.
+One command, one process, one port. It also removes the old "start the capture BEFORE
+resetting the board" trap entirely, because the tool now owns both events.
+
+**The role key has to be sent repeatedly, not once.** The first version wrote it 0.8 s
+after reset and the board came up INITIATOR every time — the boot is ROM bootloader, then
+`Serial.begin()`, then the OLED bring-up's own delays, and a byte landing before the UART
+is configured is simply gone. On the walking end that is a board that will not echo; in
+survey mode it is a board that **transmits**. It is now sent every 150 ms across the whole
+window. `select_role()` drains everything available per pass and returns on the first
+match, and none of `i`, `r`, `v` is a key in any mode, so the repeats are inert.
+
+### `pyserial required` was true and the advice was wrong
+
+`python3` on the build machine is one of five framework installs on `PATH`, none of which
+has pyserial; PlatformIO's venv has it. The documented command said `python3`, and
+`pip3 show pyserial` reporting it installed was a *different* interpreter again.
+
+Installing it into whichever `python3` happens to be first would have worked here and
+broken on the Kubuntu field machine. The docs now say
+`~/.platformio/penv/bin/python` everywhere, and the error message names both the
+interpreter known to have it and the one actually running.
+
+### Height above ground is the wrong quantity on this property
+
+The procedure repeated the standard flat-path advice: record antenna height, it matters at
+915 MHz. It does — over flat ground, where height buys Fresnel clearance. **This property
+has 60–80 ft of relief between the bridge and the gate**, and 1.2 m versus 2.0 m of mast is
+noise against that.
+
+The guidance now asks for three things instead: height above local ground (still governs
+near-field clearance, cheap to note), **approximate true elevation** from phone GPS or a
+topo source at ±10 ft, and **whether the path has line of sight** — the last being the most
+predictive thing available and free. The fixed installations are a one-time note rather than
+a per-run measurement, since those heights are already set.
+
+### Two things that were not defects
+
+Reflashing is needed once, for the antenna flag. And the boards were already flashed — but
+from the wrong branch, see below.
+
+### PR #15 merged to the wrong base
+
+**R8 never reached `main`.** #15 was opened against `range/capture-walk` while #14 was still
+open; #14 merged to `main` first, then #15 merged into `range/capture-walk`, leaving the
+survey mode on a branch nobody was building from. It was caught by flashing both boards and
+finding a role prompt that read `send 'i'/'r'` with no `'v'` — while the same board's
+settings dump correctly showed the new `antenna_gain_dbi=3.0`, which is what made the
+mismatch obvious rather than merely confusing.
+
+`range/field-prep` is branched from `range/capture-walk` and carries R8 forward. **Check
+what `main` actually contains before flashing a board from it**; a stacked PR whose base
+merges first does not follow it.
+
+### Verified on hardware after all of the above
+
+One command, both paths, on boards flashed from this branch:
+
+- Survey: reset → `SURV` → 25 s scan → dump → **130 rows**, `antenna_gain_dbi=3.0`,
+  `role=SURVEY`, clean `# capture ended`.
+- Walk: reset → INITIATOR → sweep header and rows, `antenna_gain_dbi=3.0`.

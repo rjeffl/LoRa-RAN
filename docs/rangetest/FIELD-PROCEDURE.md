@@ -45,29 +45,107 @@ the well under `irrigation-pump` is right numbers in the wrong place.
 - Both Heltec V3 boards, **both flashed from the same commit**. They are physically
   identical and their USB bridges both report `SER=0001`; **the OLED badge is the only
   reliable identifier** — `INIT`, `RESP` or `SURV`.
-- **Matched antennas.** Same stock whips at both ends. D33's conditions turn on antenna
-  gain, and a swapped antenna invalidates the power figure.
+- **The 3.0 dBi production antennas, one on each board.** See below — this is a firmware
+  setting as well as a piece of hardware.
 - Power bank for the walking board.
 - The laptop, tethered to the initiator, which stays at the house or the gate.
-- Something to note antenna height and bearing on. **Both go in `--note`**, and a range
-  figure without them is not a result anyone can reuse.
+- Something to note bearing, antenna height and approximate elevation on. **These go in
+  `--note`**, and a range figure without them is not a result anyone can reuse.
 
-### Flash both boards and confirm green
+### The antenna is a build setting, not just hardware
+
+**Changing antennas requires a reflash.** The gain is an *input to the D33 power clamp*,
+not just a column in the CSV: the Part 15.249 ceiling is on **EIRP**, which is conducted
+power plus antenna gain. Fit a 3.0 dBi antenna against a firmware that still believes
+2.0 dBi and two things are wrong together — the trace records an antenna that was not
+fitted, **and the clamp permits an EIRP 1 dB over the ceiling.**
+
+It is set in one visible place, `firmware/range-test/platformio.ini`:
+
+```ini
+-DLRAN_ANTENNA_GAIN_DBI10=30      ; 3.0 dBi production antenna
+```
+
+| Antenna | Flag | Conducted ceiling | EIRP |
+|---|---|---|---|
+| Stock whip | `20` | −3 dBm | −1.0 dBm |
+| **Production (in use)** | **`30`** | **−4 dBm** | −1.0 dBm |
+
+There is no default in the code — the build fails with a message if the flag is missing,
+because a default is exactly what silently survives an antenna change.
+
+**Use the same antenna at both ends.** Matched antennas are what make the two directions
+comparable; the firmware records one gain figure and applies it to both.
+
+> **Nothing else about the procedure changes**, and no test needs re-running. The only
+> visible effect is that the sweep's upper power point is 1 dB lower, so the whole
+> campaign sits 1 dB further from the ceiling. The bench traces taken on stock whips are
+> format proofs, not range data, so nothing is invalidated.
+
+### Reflash both boards — once, for the antenna
+
+Yes, you need to reflash before the test: the boards currently in hand were built for the
+stock 2.0 dBi whips.
 
 ```bash
 ~/.platformio/penv/bin/pio run -d firmware/range-test -e heltec -t upload --upload-port /dev/cu.usbserial-0001
 ```
 
 `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**. On macOS always
-`/dev/cu.*`, never `/dev/tty.*`.
+`/dev/cu.*`, never `/dev/tty.*`. Run it once per board — and note that the two port names
+can swap between plug-ins, so flash one, then the other, and confirm each says `SUCCESS`.
+
+**Confirm the boards agree with the build.** Every trace carries the settings dump at the
+top; check it reads `antenna_gain_dbi=3.0` before you rely on a run.
+
+### There is no separate serial console — `capture.py` drives the board
+
+Short answer to "which console app": **none, and do not open one.** `capture.py` resets
+the board, selects the role, sends console keys and captures, all in one command.
+
+This is not a convenience. Two processes on one serial port open without an exclusive
+lock on macOS and then **split the incoming bytes between them at random** — it looks
+like it works and produces a trace with holes in it. One command, one process, one port.
+
+**Run it with PlatformIO's python**, which is the interpreter that has `pyserial`:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbserial-0001 --reset --out out.csv
+```
+
+A bare `python3` on this machine is one of several framework installs and has never seen
+`pyserial` — `pip3 show pyserial` reporting it "already installed" is a different Python
+than the `python3` first on your `PATH`. Installing it again would work here and break on
+the field laptop. The script's error message now names both options if you hit it.
+
+**On power:** yes, the initiator needs USB for power anyway, so plug it in and let
+`capture.py --reset` do the reset. You do not press the board's reset button, and you no
+longer have to start the capture before resetting — that trap is gone.
+
+If you ever do want a plain console — for poking at a board when you are *not*
+capturing — use `~/.platformio/penv/bin/pio device monitor -p /dev/cu.usbserial-0001 -b 115200`,
+and close it before running `capture.py`.
 
 ### Erase the bench data first
 
 Both boards carry NVS state from bench work: the responder's position log and up to seven
 stored surveys. **Left in place they are dumped at boot and land in your field trace.**
 
-- Responder: boot as `RESP`, press `x` on the console.
-- Survey: boot as `SURV`, press `z` on the console.
+One command each, no console needed:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+    --reset --role survey --key z --out /tmp/erase.csv --idle-timeout 20
+```
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+    --reset --role responder --key x --out /tmp/erase.csv --idle-timeout 20
+```
+
+Both will end with "no data rows captured" — that is correct, there is nothing to capture.
+Watch for `# all stored surveys erased from NVS` and `# position log cleared` in the
+output. Repeat for the second board.
 
 ### Role selection — a 3-second window after boot, not a hold through reset
 
@@ -90,16 +168,21 @@ meaning used untethered in the field. Select `SURV` at the house, where the lapt
 
 One person. The initiator stays put and logs; you carry the responder.
 
-### Start the capture BEFORE resetting the initiator
-
-`capture.py` needs the CSV header, which is printed once at boot, and it discards data
-rows seen before it.
+### Start the capture — one command, it resets the board itself
 
 ```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset \
     --out docs/rangetest/data/2026-09-03-walk-gatelink.csv \
-    --note "bearing 120deg to gate, both ends 1.2m, stock whips 2.0dBi, dry, foliage full"
+    --note "bearing 120deg to gate, both ends 1.2m AGL, gate ~70ft above bridge, 3.0dBi both ends, dry, foliage full"
 ```
+
+No `--role` needed: INITIATOR is the no-press default. The `--reset` makes the settings
+dump and CSV header land *after* the capture is listening, so there is nothing to get the
+order wrong about.
+
+Then reset the **responder** separately and press PRG within 3 s so its badge reads
+`RESP`. It is untethered and has no capture of its own.
 
 **One capture spans the whole walk.** It runs until Ctrl-C by default and appends rows as
 they arrive, so a dropped cable costs the rest of the walk and not the part already done.
@@ -168,11 +251,35 @@ press.
    only copy of it**; the initiator's CSV cannot separate downlink loss from uplink loss
    without it.
 
+### Height, elevation, and what to actually write down
+
+The original advice — "record antenna height, it matters at 915 MHz" — is the standard
+guidance for a **flat** path, where height above local ground buys Fresnel clearance over
+the ground itself. **On this property it is not the quantity that matters.** With the gate
+sitting 60–80 ft above the bridge, the path is dominated by terrain relief, and 1.2 m
+versus 2.0 m of mast is noise against 70 ft of hillside.
+
+So record all three, and do not agonise over precision:
+
+| What | Why | How |
+|---|---|---|
+| **Antenna height above local ground**, each end | Still governs near-field clearance and ground reflection right at the antenna. Cheap to note | Tape measure, ±10 cm is plenty |
+| **Approximate true elevation**, each end | This is what sets the path profile, and it is the number that explains an unexpectedly good or bad link | Phone GPS altitude, or a topo/contour source. **±10 ft is fine** — you are explaining a 70 ft difference, not surveying |
+| **Line of sight — yes, no, or partial** | The single most predictive thing you can write down, and it costs nothing | Look. Note what is in the way: trees, the barn, a rise |
+
+Phone GPS altitude is noisy in the vertical (±10–20 ft is typical) but that is well inside
+what you need here. If you want better later, the fixed installations can be read off a
+contour map once and recorded permanently — **the node heights for the bridge and GateLink
+are already set**, so those two are a one-time note, not a per-run measurement.
+
+> **Two runs at different heights are still worth more than one** — but only where you can
+> actually change the height, and only after the fixed installations are ruled out as the
+> problem. This is not a reason to delay the walk.
+
 ### If the day allows, walk a second bearing
 
 M6 asks for both. The second one is cheap once you are already outside with the boards
-working, and two runs at **different antenna heights** are worth more than one careful run
-at an unrecorded height.
+working.
 
 ---
 
@@ -185,10 +292,19 @@ the hop yard. Select the mode at the house, walk the loop, read all seven out on
 
 ### At the house
 
-1. Reset the board, send **`v`** within 3 s. Badge reads `SURV`.
-2. Press **`z`** once to erase any bench data.
-3. Confirm the plan it prints: 130 bins, 902.0–927.8 MHz in 200 kHz steps, one pass every
-   ~4 seconds.
+The first site (`bridge-house`) is measured here, tethered, so start it with a capture
+running and leave it going while you note the plan:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role survey \
+    --out /tmp/survey-start.csv --idle-timeout 60
+```
+
+Confirm from its output: badge reads `SURV`, 130 bins, 902.0–927.8 MHz in 200 kHz steps,
+one pass every ~4 seconds, and `antenna_gain_dbi=3.0`. Then **Ctrl-C the capture, unplug,
+and walk** — the board keeps scanning on the power bank and stores to NVS. (Erase any
+bench data first, above.)
 
 The OLED shows the **site name** it will file under, the pass count as a large number, and
 the loudest bin found so far.
@@ -219,12 +335,14 @@ Reset the board into `SURV` again with the capture running. It dumps **every sto
 as one table, one header, all seven sites in one file:
 
 ```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
-    --out docs/rangetest/data/2026-09-03-survey-campaign.csv --sweeps 1 \
-    --note "seven-site ambient survey, ~5 min per site, stock whip 2.0dBi at 1.2m"
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role survey --sweeps 1 \
+    --out docs/rangetest/data/2026-09-03-survey-campaign.csv \
+    --note "seven-site ambient survey, ~5 min per site, 3.0dBi at 1.2m"
 ```
 
-Then reset the board and send `v`. Expect **910 rows** — 130 bins × 7 sites — and a
+One command — it resets the board into `SURV`, and the boot dump-all is what it captures.
+Expect **910 rows** (130 bins × 7 sites), one header, and a
 `# survey campaign complete - 7 site(s)` line.
 
 ### Survey console keys
@@ -252,8 +370,9 @@ Then reset the board and send `v`. Expect **910 rows** — 130 bins × 7 sites �
   the link is fine.
 - **Do not write a port name into anything durable.** Both CP2102 bridges report
   `SER=0001`; the enumerated device node is not stable across replug.
-- **Record height.** It matters more than you expect at 915 MHz over 150 m of ground, and
-  it is the one thing that cannot be recovered afterwards.
+- **Record what is actually recoverable about geometry.** See below — height above local
+  ground is not the useful quantity on this property, and it is the one thing that cannot
+  be reconstructed afterwards.
 
 ## What to commit when you get back
 

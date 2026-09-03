@@ -10,10 +10,18 @@ That is what this directory is for.
 Capture with:
 
 ```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset \
     --out docs/rangetest/data/YYYY-MM-DD-<place>.csv \
-    --note "bearing 120deg, 1.2m antenna both ends, dry, foliage full"
+    --note "bearing 120deg, 1.2m AGL both ends, +70ft relief, 3.0dBi, dry, foliage full"
 ```
+
+**PlatformIO's python, not a bare `python3`** — pyserial lives in PlatformIO's venv, and
+the `python3` first on `PATH` is usually a different install that has never seen it.
+
+`--reset` has the tool drive the board itself (reset, `--role`, `--key`, then capture).
+Use it: two processes on one serial port open without an exclusive lock on macOS and split
+the incoming bytes between them, which puts holes in the trace and looks like it worked.
 
 **One capture spans the whole walk.** The default runs until **Ctrl-C**, which is what a
 position walk (R10) wants: start it once, walk the positions, stop it when you come back.

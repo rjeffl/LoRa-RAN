@@ -36,15 +36,23 @@ namespace {
 
 using namespace rangetest;
 
-// D33 standing condition 1, and task R10: "use the antenna supplied with the
-// module", recorded with its gain. 2.0 dBi is spec 18.1's worked figure and the
-// stock whip's nameplate value.
+// D33 standing condition 1: conducted power and antenna gain are recorded separately,
+// and the gain is an INPUT TO THE CLAMP, not just a CSV column. The ceiling is EIRP.
 //
-// It is a CONSTANT AND NOT A GUESS BURIED IN THE CLAMP: change the antenna and this
-// line changes with it, and the settings dump reports the new conducted ceiling.
-// M21 (confirm the modules' own FCC grant conditions - antenna type and gain) is
-// what turns this from a nameplate figure into an audited one, and it is open.
-constexpr int16_t kAntennaGainDbi10 = 20;  // 2.0 dBi
+// SET IN platformio.ini, not here. It moved out of this file when the stock 2.0 dBi
+// whips were replaced by the 3.0 dBi production antennas: an antenna swap has to be a
+// visible one-line decision in the build, because forgetting it is wrong twice over -
+// the trace records an antenna that was not fitted, AND the clamp permits an EIRP over
+// the ceiling by exactly the error.
+//
+//   2.0 dBi (stock whip)  -> conducted ceiling -3 dBm
+//   3.0 dBi (production)  -> conducted ceiling -4 dBm
+//
+// No default here on purpose. A default is what silently survives an antenna change.
+#ifndef LRAN_ANTENNA_GAIN_DBI10
+#error "LRAN_ANTENNA_GAIN_DBI10 must be set in platformio.ini - see the note there."
+#endif
+constexpr int16_t kAntennaGainDbi10 = LRAN_ANTENNA_GAIN_DBI10;
 
 RadioLink g_radio;
 Ui        g_ui;
