@@ -123,6 +123,21 @@ int16_t RadioLink::apply(const TestPoint& tp) {
   return RADIOLIB_ERR_NONE;
 }
 
+int16_t RadioLink::set_frequency(uint32_t freq_hz) {
+  if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
+  // Calibration NOT skipped. RadioLib recalibrates the image rejection when the
+  // frequency crosses a band boundary, and a survey pass deliberately walks 26 MHz -
+  // skipping it would trade a few milliseconds per bin for a systematic gain error
+  // across part of the band, which is exactly the shape of a wrong answer that still
+  // looks like a plausible spectrum.
+  return g_radio->setFrequency(static_cast<float>(freq_hz) / 1000000.0f);
+}
+
+float RadioLink::instant_rssi_dbm() {
+  if (!ready_ || g_radio == nullptr) return 0.0f;
+  return g_radio->getRSSI(/* packet */ false);
+}
+
 int16_t RadioLink::set_power(int8_t conducted_dbm) {
   if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
   return g_radio->setOutputPower(conducted_dbm);

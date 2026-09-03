@@ -1,6 +1,6 @@
 # Range test — session handoff
 
-**Written 2026-09-03, at the start of the field-walk session.**
+**Written 2026-09-03, at the end of the R8 session.**
 
 > **This file goes stale.** It records *session state and next actions*, nothing else.
 > Where it disagrees with the documents below, they win — check the engineering log's
@@ -18,11 +18,12 @@
 
 | | |
 |---|---|
-| Branch | `range/capture-walk` — capture-tool fixes for the walk |
+| Branch | `range/survey` — **R8 complete**, stacked on `range/capture-walk` |
 | Merged so far | #13 (`range/sweep`, R4–R7), #12 (`range/skeleton`, R1–R3), #11 |
 | Done | **R1–R7.** Both branch gates passed on hardware. `main` verified green 2026-09-03 |
-| Not started | **R8** (`range/survey`), **R9** (`range/w9`) |
-| **Next** | **R10 fieldwork — the position walk.** Firmware is ready; no code needed |
+| Done | **R8** — survey mode, seven sites, bench-proven on hardware |
+| Not started | **R9** (`range/w9`) |
+| **Next** | **R10 fieldwork.** See [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md). No code needed |
 
 `main` as of 2026-09-03: 99 range-test tests, 107 protocol tests, 72 vectors, `heltec`
 builds. `pio` is at `~/.platformio/penv/bin/pio` and is not on `PATH`.
@@ -31,6 +32,10 @@ builds. `pio` is at `~/.platformio/penv/bin/pio` and is not on `PATH`.
 config seam is the only thing pass 1 owes it, and it exists.
 
 ## The position walk — field procedure
+
+> **The full procedure now lives in [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md)** —
+> setup, the seven target locations, the position cycle with its start and completion
+> signals, and the survey campaign. What follows is the short form.
 
 Both boards already carry this firmware; nothing to flash unless you have rebuilt since.
 
@@ -48,8 +53,10 @@ python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
     --note "bearing 120deg, both ends 1.2m, stock whips 2.0dBi, dry, foliage full"
 ```
 
-4. Walk out with the responder. At each stop: **press PRG once**, stand still until its
-   OLED stops advancing (~6–7 min, 24 test points), then walk on. One press per position.
+4. Walk out with the responder. At each stop: **press PRG once**, stand still until the
+   OLED shows the inverted **`DONE`** bar, then walk on. One press per position.
+   A sweep is 24 test points, measured at **424 s**; the `DONE` signal arrives about
+   **17 s** after that. **Do not move on a guess** — the display is the only signal.
 5. Back at the laptop, **Ctrl-C** ends the capture and writes the file. Then dump the
    responder's own log over serial with `d` — that is the reverse-direction data and it
    is the only copy.

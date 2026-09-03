@@ -51,15 +51,34 @@ enum class BenchKind : uint8_t {
   //
   // Carried in `kind` rather than a new flags byte so the frame layout is unchanged.
   WarmupProbe = 3,
+
+  // The beacon the initiator sends while ARMED, between sweeps (R5).
+  //
+  // WHY IT IS NOT JUST A WarmupProbe, which is what it used to be: the operator is at
+  // the WALKING end, several hundred feet from the initiator's console and its OLED,
+  // and the only thing that tells them a sweep has finished is the responder's
+  // display. As a WarmupProbe the beacon was indistinguishable from the warmup probes
+  // sent five times DURING a sweep at each configuration change - so the responder
+  // could not say "done, you may move" without saying it five times too early.
+  //
+  // Echoed like any probe, so the position still travels back and the initiator still
+  // learns the operator has moved. Counted by neither end, for the same reason a
+  // warmup probe is not: it is scaffolding, not a measurement.
+  ArmedBeacon = 4,
 };
 
 // True for anything the responder should echo.
 constexpr bool bench_is_probe(BenchKind k) {
-  return k == BenchKind::Probe || k == BenchKind::WarmupProbe;
+  return k == BenchKind::Probe || k == BenchKind::WarmupProbe ||
+         k == BenchKind::ArmedBeacon;
 }
 
-// True for anything either end should count. Warmup is measurement scaffolding.
+// True for anything either end should count. Warmup and beacons are scaffolding.
 constexpr bool bench_is_counted(BenchKind k) { return k == BenchKind::Probe; }
+
+// True when the frame says the initiator has finished a sweep and is waiting. This is
+// the walking operator's "you may move" signal and the only one they can see.
+constexpr bool bench_says_armed(BenchKind k) { return k == BenchKind::ArmedBeacon; }
 
 // 2 magic + 1 version + 1 kind + 2 position + 2 tp_index + 2 seq + 2 rssi + 2 snr
 // + 2 resp_heard.

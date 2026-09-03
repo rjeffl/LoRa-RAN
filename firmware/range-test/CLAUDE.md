@@ -75,6 +75,50 @@ and is correct in this one.
   serial number, only by enumerated device node, which is not stable across replug. Do
   not write a port name into anything durable; the OLED badge is the reliable identifier.
 
+## Three modes, and the survey never transmits
+
+`SURVEY` (R8 / M20) is the third mode on this binary, selected with `v` in the boot window.
+It scans 902.0-927.8 MHz in 200 kHz steps and **listens only** - there is deliberately no
+path from the survey loop to `transmit()` or `set_power()`, and `loop()` returns before the
+frame handling runs. Keep it that way.
+
+- **`getRSSI(false)`, never `getRSSI()`.** The default reads the packet-status register,
+  which holds the *last frame's* RSSI and is not cleared - the same trap `poll()` fell into
+  with `getPacketLength()`. On an empty bin the survey would report a stale reading from a
+  bin scanned minutes ago. **Third occurrence of this register family's bug in this
+  firmware.**
+- **The settle time after each retune is a measurement, not a delay.** The SX1262's RSSI
+  climbs while its AGC settles; sampling through it drags every bin's mean down by the same
+  amount, which looks exactly like a clean, quiet band.
+- **Seven named sites, one stored run each** (`bridge-house`, `gatelink-gate`,
+  `weather-island`, `welllink-well`, `irrigation-pump`, `hopyard-lower`, `propane-tank`).
+  Seven blobs of 1580 bytes in a 20 kB NVS partition - the fit is asserted by a host test,
+  not assumed. A short write is reported and does **not** advance the site.
+- **A campaign dump prints ONE header for all seven sites.** A header reprinted per site is
+  indistinguishable, to anything reading the port, from a board reboot - `capture.py` read
+  it exactly that way and stopped after the first site.
+- **Occupancy detection is probabilistic and the absence of a peak proves nothing.** One
+  radio sees each bin ~1/130 of the time. The floor and mean are solid; a quiet bin is not
+  a proven empty one.
+
+## The walking operator can only see the responder's display
+
+R5 has the operator press PRG, stand still for a ~7 minute sweep, then move on - from
+several hundred feet away, where the initiator's console and OLED are invisible. So
+**`BenchKind::ArmedBeacon` exists purely as their go signal.**
+
+It used to be a `WarmupProbe`, which is also what the initiator sends five times *during* a
+sweep at each configuration change - so the responder could not say "done" without saying
+it five times too early. Echoed like any probe, counted by neither end, and distinguishable.
+
+The responder shows an inverted `DONE` bar. **Measured 2026-09-03: a sweep takes 424 s and
+the go signal reaches the responder 17.2 s after it ends** - the responder is cycling from
+SF12 back round to the beacon's configuration. That lag is expected, documented in
+[`FIELD-PROCEDURE.md`](../../docs/rangetest/FIELD-PROCEDURE.md), and not a defect.
+
+Anything that changes when a sweep ends, or what the responder displays, has to keep this
+signal unambiguous. It is the only thing standing between the operator and a timed guess.
+
 ## Role selection deviates from R1, deliberately
 
 R1 says the role is selected by "holding the PRG button at boot". **On this board that
@@ -146,6 +190,9 @@ analyser is the wrong place to discover a rounding bug.
 | `range/w9` | R9 | 222-byte and fragmented `PING` pass over RF |
 
 R10 is fieldwork, not a branch.
+
+**Field procedure:** [`docs/rangetest/FIELD-PROCEDURE.md`](../../docs/rangetest/FIELD-PROCEDURE.md)
+- setup, the position cycle, and the survey campaign.
 
 **Do not close D1 from range data alone.** The frequency needs R8's survey (**M20**); the
 power needs the grant conditions (**M21**).

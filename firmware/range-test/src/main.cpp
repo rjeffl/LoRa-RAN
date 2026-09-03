@@ -28,6 +28,7 @@
 #include "radio_link.h"
 #include "resp_log.h"
 #include "role.h"
+#include "survey.h"
 #include "sweep.h"
 #include "ui_oled.h"
 
@@ -95,6 +96,12 @@ uint32_t g_echo_deadline  = 0;
 // Responder side.
 uint32_t g_resp_echoes = 0;
 
+// R5/R6 - what the WALKING operator needs to know and can only learn over the air:
+// the initiator has finished the sweep for this position and is waiting. Set by an
+// ArmedBeacon, cleared by any counted probe, so it tracks the far end rather than
+// latching on the first one seen.
+bool g_resp_far_end_armed = false;
+
 // R6 - what the responder itself heard, per position. Recovers the direction that
 // round-trip PER conflates: a probe heard whose echo was lost is invisible to the
 // initiator, and this is the only record it ever existed.
@@ -136,13 +143,35 @@ uint32_t g_resp_dwell_until = 0;
 
 uint8_t g_buf[kMaxBenchPayload];
 
+// R8 / M20 - the ambient survey. Its own state, sharing nothing with the sweep: there
+// is no far end here, no position and no test point, and folding it into the sweep's
+// state machine would put a transmit path one mistaken branch away from a mode whose
+// entire correctness is that it never transmits.
+Survey     g_survey;
+SurveyPlan g_survey_plan;
+size_t     g_survey_bin           = 0;
+uint32_t   g_survey_bin_ends_ms   = 0;   // when this bin's dwell expires
+uint32_t   g_survey_listen_at_ms  = 0;   // when the settle time is up
+uint32_t   g_survey_next_sample   = 0;
+bool       g_survey_saved         = false;
+// Which site the run in progress belongs to. Advanced by PRG, exactly as the
+// responder's position is (R5) - same button, same meaning, same muscle memory.
+size_t     g_survey_site           = 0;
+uint32_t   g_survey_next_draw_ms  = 0;
+
+// Progress to the console every so often. Not decoration: a survey run is minutes of
+// deliberate silence, and capture.py's idle timeout, the operator and the question
+// "is it still alive" are all answered by the same line.
+constexpr uint32_t kSurveyProgressPasses = 10;
+constexpr uint32_t kSurveyDrawIntervalMs = 500;
+
 // R1 - the selection window. See role.h for why this is a post-boot window rather
 // than a hold through reset, and why serial is a second selector alongside PRG.
 Role select_role() {
   pinMode(kPinPrgButton, INPUT_PULLUP);
 
-  Serial.println(F("role select: press PRG for RESPONDER, or send 'i'/'r' "
-                   "(3s, default INITIATOR)"));
+  Serial.println(F("role select: press PRG for RESPONDER, or send 'i'/'r'/'v' "
+                   "(3s, default INITIATOR; v = R8 ambient SURVEY)"));
 
   const uint32_t start = millis();
   uint32_t       last_draw = 0;
@@ -163,6 +192,7 @@ Role select_role() {
       const int c = Serial.read();
       if (c == kSerialSelectResponder || c == 'R') return Role::Responder;
       if (c == kSerialSelectInitiator || c == 'I') return Role::Initiator;
+      if (c == kSerialSelectSurvey || c == 'V') return Role::Survey;
     }
 
     const uint32_t elapsed = millis() - start;
@@ -334,6 +364,14 @@ void report_test_point() {
 // key-value store.
 constexpr char kNvsNamespace[] = "lran-rt";
 constexpr char kNvsLogKey[]    = "poslog";
+// R8 - one key per site, so a run stored at the gate is not overwritten by the run
+// stored at the well. Short keys: NVS caps them at 15 characters.
+constexpr char kNvsSurveyKeyPrefix[] = "surv";
+
+void survey_nvs_key(size_t site, char* out, size_t cap) {
+  std::snprintf(out, cap, "%s%u", kNvsSurveyKeyPrefix,
+                static_cast<unsigned>(site));
+}
 
 void resp_log_save() {
   uint8_t      blob[PositionLog::kBlobMaxLen];
@@ -389,6 +427,326 @@ void resp_log_dump() {
   Serial.println(F("--- end responder log ---"));
 }
 
+
+// dBm/dB as reported by RadioLib, converted to the tenths this firmware carries
+// everywhere. Rounds away from zero so a negative RSSI is never nudged optimistic.
+int16_t to_tenths(float v) {
+  const float scaled = v * 10.0f;
+  return static_cast<int16_t>(scaled >= 0.0f ? (scaled + 0.5f) : (scaled - 0.5f));
+}
+
+// ---------------------------------------------------------------------------
+// R8 / M20 - the ambient survey.
+//
+// NOTHING HERE TRANSMITS. The mode exists to answer what spec 12.1 requires before D1
+// may fix a frequency, and the only radio calls it makes are retune, receive and read
+// RSSI. There is deliberately no path from this code to transmit() or set_power().
+// ---------------------------------------------------------------------------
+
+bool survey_save_site(size_t site) {
+  uint8_t      blob[Survey::kBlobMaxLen];
+  const size_t n = g_survey.serialize(g_survey_plan, blob, sizeof(blob));
+  if (n == 0) {
+    Serial.println(F("# survey serialize failed - NOT stored"));
+    return false;
+  }
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) {
+    Serial.println(F("# NVS open failed - survey NOT stored"));
+    return false;
+  }
+  char key[16];
+  survey_nvs_key(site, key, sizeof(key));
+  const size_t w = g_prefs.putBytes(key, blob, n);
+  g_prefs.end();
+
+  // Reported either way, loudly. A press that silently failed to store is the one
+  // outcome that costs a second trip to that site (repo rule 4's reasoning, applied
+  // to a button rather than a frame). NVS filling up is a REAL possibility here -
+  // seven blobs of 1.6 kB in a 20 kB partition - and it fails by short write.
+  if (w == n) {
+    Serial.print(F("# survey stored: site "));
+    Serial.print(static_cast<unsigned>(site));
+    Serial.print(' ');
+    Serial.print(survey_site_name(site));
+    Serial.print(F(", "));
+    Serial.print(g_survey.passes());
+    Serial.println(F(" passes"));
+    return true;
+  }
+  Serial.print(F("# NVS WRITE FAILED for site "));
+  Serial.print(survey_site_name(site));
+  Serial.println(F(" - survey NOT stored. Read it out with 'd' before moving on."));
+  return false;
+}
+
+// PRG in survey mode: store this site and start the next one. The same gesture the
+// walk uses to mark a position, so the operator learns one button for both jobs.
+void survey_store_and_advance() {
+  g_survey_saved = survey_save_site(g_survey_site);
+  if (!g_survey_saved) return;   // do NOT advance over a run that was not stored
+
+  if (g_survey_site + 1 >= kSurveySiteCount) {
+    Serial.println(F("# all sites stored - staying on the last one. 'a' dumps them "
+                     "all."));
+    return;
+  }
+  ++g_survey_site;
+  g_survey.reset();
+  g_survey_saved = false;
+  Serial.print(F("# survey site -> "));
+  Serial.print(static_cast<unsigned>(g_survey_site));
+  Serial.print(' ');
+  Serial.println(survey_site_name(g_survey_site));
+}
+
+// Loads one site's stored run INTO g_survey, replacing whatever is there. True when
+// a blob was found and parsed.
+bool survey_load_site(size_t site) {
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ true)) return false;
+  uint8_t      blob[Survey::kBlobMaxLen];
+  char         key[16];
+  survey_nvs_key(site, key, sizeof(key));
+  if (!g_prefs.isKey(key)) {          // asking for a missing key logs an ESP-IDF error
+    g_prefs.end();
+    return false;
+  }
+  const size_t n = g_prefs.getBytesLength(key);
+  bool         loaded = false;
+  if (n > 0 && n <= sizeof(blob)) {
+    g_prefs.getBytes(key, blob, n);
+    SurveyPlan stored{};
+    if (g_survey.deserialize(blob, n, &stored)) {
+      g_survey_plan.start_hz = stored.start_hz;
+      g_survey_plan.step_hz  = stored.step_hz;
+      loaded = true;
+    } else {
+      Serial.print(F("# stored survey for site "));
+      Serial.print(survey_site_name(site));
+      Serial.println(F(" was unreadable - discarded"));
+    }
+  }
+  g_prefs.end();
+  return loaded;
+}
+
+void survey_clear_nvs() {
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) return;
+  for (size_t i = 0; i < kSurveySiteCount; ++i) {
+    char key[16];
+    survey_nvs_key(i, key, sizeof(key));
+    g_prefs.remove(key);
+  }
+  g_prefs.end();
+  Serial.println(F("# all stored surveys erased from NVS"));
+}
+
+// R8 acceptance - the trace. Printed in the same schema whether it came from NVS or
+// from the run in progress, because a reader must not have to care which.
+// `standalone` prints the CSV header and the completion marker around the rows. A
+// campaign dump passes false and emits ONE header for all seven sites: a header
+// reprinted per site is indistinguishable, to anything reading the port, from the
+// board having rebooted mid-capture - which is exactly how capture.py first read it.
+void survey_dump(size_t site, bool standalone) {
+  Serial.println(F("--- ambient survey (R8 / M20) ---"));
+  Serial.print(F("# site=")); Serial.print(static_cast<unsigned>(site));
+  Serial.print(' '); Serial.println(survey_site_name(site));
+  Serial.print(F("# passes=")); Serial.println(g_survey.passes());
+  Serial.print(F("# bins_sampled=")); Serial.print(g_survey.bins_sampled());
+  Serial.print(F(" of ")); Serial.println(kSurveyBinCount);
+  Serial.print(F("# dwell_ms=")); Serial.print(g_survey_plan.dwell_ms);
+  Serial.print(F(" settle_ms=")); Serial.print(g_survey_plan.settle_ms);
+  Serial.print(F(" sample_interval_ms="));
+  Serial.println(g_survey_plan.sample_interval_ms);
+
+  char line[kSurveyCsvMaxLine];
+  if (standalone) {
+    if (survey_csv_header(line, sizeof(line)) == 0) {
+      Serial.println(F("# ERROR: survey header did not fit its buffer"));
+      return;
+    }
+    Serial.println(line);
+  }
+
+  for (size_t i = 0; i < kSurveyBinCount; ++i) {
+    SurveyCsvRow row{};
+    row.site      = site;
+    row.bin_index = i;
+    row.freq_hz   = survey_bin_freq_hz(i);
+    row.passes    = g_survey.passes();
+    row.bin       = &g_survey.bin(i);
+    if (survey_csv_row(row, line, sizeof(line)) == 0) {
+      Serial.print(F("# ERROR: survey row did not fit for bin "));
+      Serial.println(static_cast<unsigned>(i));
+      continue;
+    }
+    Serial.println(line);
+  }
+  // capture.py stops on this marker, the way it stops on "sweep complete". A
+  // campaign dump emits it once at the end instead, or a capture asked for one unit
+  // of work would stop after the first of seven sites.
+  if (standalone) Serial.println(F("# survey dump complete"));
+  Serial.println(F("--- end ambient survey ---"));
+}
+
+// R8 acceptance - all seven sites in one listing, so the whole campaign lands in one
+// committed trace. Destroys the in-memory run, so it reloads it afterwards; the
+// operator dumping mid-campaign must not lose the site in progress.
+void survey_dump_all(bool restore_current) {
+  Survey   in_progress = g_survey;
+  uint32_t found = 0;
+
+  char hdr[kSurveyCsvMaxLine];
+  bool header_printed = false;
+
+  for (size_t i = 0; i < kSurveySiteCount; ++i) {
+    if (!survey_load_site(i)) continue;
+    if (!header_printed) {
+      if (survey_csv_header(hdr, sizeof(hdr)) == 0) {
+        Serial.println(F("# ERROR: survey header did not fit its buffer"));
+        break;
+      }
+      Serial.println(hdr);
+      header_printed = true;
+    }
+    survey_dump(i, /* standalone */ false);
+    ++found;
+  }
+
+  if (found == 0) {
+    Serial.println(F("# no stored surveys in NVS"));
+  } else {
+    Serial.print(F("# survey campaign complete - "));
+    Serial.print(found);
+    Serial.println(F(" site(s)"));
+  }
+  if (restore_current) g_survey = in_progress;
+}
+
+// Retunes and re-enters receive for `bin`. Errors are reported and the bin is skipped
+// rather than silently contributing samples taken on the previous frequency, which is
+// the one failure that would put a real occupant in the wrong bin.
+bool survey_enter_bin(size_t bin) {
+  const uint32_t hz = survey_bin_freq_hz(bin);
+  const int16_t  st = g_radio.set_frequency(hz);
+  if (st != 0) {
+    Serial.print(F("# survey retune failed at bin "));
+    Serial.print(static_cast<unsigned>(bin));
+    Serial.print(F(" code ")); Serial.println(st);
+    return false;
+  }
+  const int16_t rx = g_radio.start_receive();
+  if (rx != 0) {
+    Serial.print(F("# survey startReceive failed at bin "));
+    Serial.print(static_cast<unsigned>(bin));
+    Serial.print(F(" code ")); Serial.println(rx);
+    return false;
+  }
+
+  const uint32_t now  = millis();
+  g_survey_listen_at_ms = now + g_survey_plan.settle_ms;
+  g_survey_next_sample  = g_survey_listen_at_ms;
+  g_survey_bin_ends_ms  = now + g_survey_plan.dwell_ms;
+  return true;
+}
+
+void survey_dump_plan() {
+  Serial.println(F("--- survey plan (R8) ---"));
+  Serial.print(F("bins=")); Serial.println(static_cast<unsigned>(kSurveyBinCount));
+  Serial.print(F("start_hz=")); Serial.println(g_survey_plan.start_hz);
+  Serial.print(F("step_hz=")); Serial.println(g_survey_plan.step_hz);
+  Serial.print(F("dwell_ms=")); Serial.println(g_survey_plan.dwell_ms);
+  Serial.print(F("settle_ms=")); Serial.println(g_survey_plan.settle_ms);
+  Serial.print(F("samples_per_dwell="));
+  Serial.println(survey_samples_per_dwell(g_survey_plan));
+  Serial.print(F("pass_duration_s="));
+  Serial.println((survey_pass_duration_ms(g_survey_plan) + 500) / 1000);
+  Serial.println(F("# occupancy detection is PROBABILISTIC - see survey.h. Run for "
+                   "several minutes; a quiet bin is not a proven empty one."));
+  Serial.print(F("sites=")); Serial.println(static_cast<unsigned>(kSurveySiteCount));
+  Serial.println(F("# keys: d=dump this site  a=dump ALL stored  s=store here  "
+                   "p=store+next site (same as PRG)"));
+  Serial.println(F("#       x=clear memory  z=erase all stored  [ ]=dwell -/+ 10ms"));
+  Serial.println(F("--- end survey plan ---"));
+}
+
+void loop_survey() {
+  // PRG stores this site and moves to the next. The sites have no laptop; this is
+  // the whole reason the blob exists.
+  if (prg_edge()) survey_store_and_advance();
+
+  while (Serial.available() > 0) {
+    const int ch = Serial.read();
+    if (ch == 'd' || ch == 'D') {
+      survey_dump(g_survey_site, /* standalone */ true);  // the run in progress
+    } else if (ch == 'a' || ch == 'A') {
+      survey_dump_all(/* restore_current */ true);   // everything stored
+    } else if (ch == 's' || ch == 'S') {
+      g_survey_saved = survey_save_site(g_survey_site);  // store, do not advance
+    } else if (ch == 'p' || ch == 'P') {
+      survey_store_and_advance();          // same as PRG, for the tethered bench
+    } else if (ch == 'x' || ch == 'X') {
+      g_survey.reset();
+      g_survey_saved = false;
+      Serial.println(F("# survey cleared (memory only - NVS untouched)"));
+    } else if (ch == 'z' || ch == 'Z') {
+      survey_clear_nvs();
+    } else if (ch == '[' && g_survey_plan.dwell_ms > 10) {
+      // Rule 8 - the timing is data, adjustable at runtime, not a compile-time
+      // constant. Bounded so the dwell can never fall to or below the settle time,
+      // which would leave every bin with no listening window at all.
+      g_survey_plan.dwell_ms = static_cast<uint16_t>(g_survey_plan.dwell_ms - 10);
+      if (g_survey_plan.dwell_ms <= g_survey_plan.settle_ms) {
+        g_survey_plan.dwell_ms = static_cast<uint16_t>(g_survey_plan.settle_ms + 10);
+      }
+      Serial.print(F("# dwell_ms=")); Serial.println(g_survey_plan.dwell_ms);
+    } else if (ch == ']' && g_survey_plan.dwell_ms < 500) {
+      g_survey_plan.dwell_ms = static_cast<uint16_t>(g_survey_plan.dwell_ms + 10);
+      Serial.print(F("# dwell_ms=")); Serial.println(g_survey_plan.dwell_ms);
+    }
+  }
+
+  const uint32_t now = millis();
+
+  if (static_cast<int32_t>(now - g_survey_bin_ends_ms) >= 0) {
+    ++g_survey_bin;
+    if (g_survey_bin >= kSurveyBinCount) {
+      g_survey_bin = 0;
+      g_survey.note_pass();
+      if (g_survey.passes() % kSurveyProgressPasses == 0) {
+        Serial.print(F("# survey pass "));
+        Serial.print(g_survey.passes());
+        Serial.print(F(", bins sampled "));
+        Serial.println(static_cast<unsigned>(g_survey.bins_sampled()));
+      }
+    }
+    if (!survey_enter_bin(g_survey_bin)) {
+      // Skipped: give the bin its dwell anyway so one bad retune cannot spin the loop.
+      g_survey_bin_ends_ms = now + g_survey_plan.dwell_ms;
+      g_survey_listen_at_ms = g_survey_bin_ends_ms;   // no samples from this bin
+    }
+    return;
+  }
+
+  if (static_cast<int32_t>(now - g_survey_listen_at_ms) >= 0 &&
+      static_cast<int32_t>(now - g_survey_next_sample) >= 0) {
+    g_survey.add_sample(g_survey_bin, to_tenths(g_radio.instant_rssi_dbm()));
+    const uint16_t iv = g_survey_plan.sample_interval_ms > 0
+                            ? g_survey_plan.sample_interval_ms : 1;
+    g_survey_next_sample = now + iv;
+  }
+
+  if (static_cast<int32_t>(now - g_survey_next_draw_ms) >= 0) {
+    g_survey_next_draw_ms = now + kSurveyDrawIntervalMs;
+    const size_t loud = g_survey.loudest_bin();
+    g_ui.show_survey(survey_site_name(g_survey_site),
+                     g_survey.passes(), survey_bin_freq_hz(g_survey_bin),
+                     loud < kSurveyBinCount ? survey_bin_freq_hz(loud) : 0,
+                     loud < kSurveyBinCount ? g_survey.bin(loud).rssi_dbm10.max
+                                            : kI16NotAvailable,
+                     g_survey_saved);
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -430,7 +788,10 @@ void setup() {
   }
 
   dump_settings();
-  dump_sweep_plan();
+  // The sweep plan belongs to R4. In survey mode no sweep runs, and printing its
+  // duration and probe counts into a survey trace would describe a measurement that
+  // never happened - the exact failure the settings dump exists to prevent.
+  if (g_role != Role::Survey) dump_sweep_plan();
 
   const int16_t st = g_radio.begin(kHeltecV3, g_tp);
   if (st != 0) {
@@ -450,6 +811,29 @@ void setup() {
     Serial.print(F("FATAL: startReceive() failed, code "));
     Serial.println(rx);
     while (true) delay(1000);
+  }
+
+  if (g_role == Role::Survey) {
+    // R8. The board comes back from the far point with a stored survey in it, so it
+    // is read out BEFORE the live run resets the accumulator - same reasoning as the
+    // responder's log below, and the same trap if the order were reversed.
+    // Everything stored, before the live run touches anything. The board comes home
+    // from the loop with up to seven sites in it, and reading them out is the whole
+    // point of having stored them.
+    survey_dump_all(/* restore_current */ false);
+    g_survey.reset();
+    g_survey_saved = false;
+    g_survey_site  = 0;
+
+    survey_dump_plan();
+    char shdr[kSurveyCsvMaxLine];
+    if (survey_csv_header(shdr, sizeof(shdr)) > 0) Serial.println(shdr);
+
+    if (!survey_enter_bin(0)) {
+      Serial.println(F("FATAL: could not tune the first survey bin"));
+      g_ui.show_message("SURVEY FAIL", "see serial");
+      while (true) delay(1000);
+    }
   }
 
   if (g_role == Role::Responder) {
@@ -475,13 +859,6 @@ void setup() {
 }
 
 namespace {
-
-// dBm/dB as reported by RadioLib, converted to the tenths this firmware carries
-// everywhere. Rounds away from zero so a negative RSSI is never nudged optimistic.
-int16_t to_tenths(float v) {
-  const float scaled = v * 10.0f;
-  return static_cast<int16_t>(scaled >= 0.0f ? (scaled + 0.5f) : (scaled - 0.5f));
-}
 
 // INITIATOR: send probe `g_probe_index` of the current test point.
 void send_probe() {
@@ -616,12 +993,19 @@ void send_beacon() {
   g_radio.apply(tp);
 
   BenchFrame f{};
-  // WarmupProbe, not Probe. A beacon is scaffolding: it exists so the responder's
-  // hunt can find us and its echo can carry the position forward, and it must not be
-  // counted by either end. Sent as a plain Probe it was tallied against real test
-  // point 0 - the bench showed resp_heard=9 against probes_sent=8 on the first point
-  // of the second position, which is the beacons the responder heard while armed.
-  f.kind        = BenchKind::WarmupProbe;
+  // ArmedBeacon, not Probe and no longer WarmupProbe. A beacon is scaffolding: it
+  // exists so the responder's hunt can find us and its echo can carry the position
+  // forward, and it must not be counted by either end. Sent as a plain Probe it was
+  // tallied against real test point 0 - the bench showed resp_heard=9 against
+  // probes_sent=8 on the first point of the second position, which is the beacons the
+  // responder heard while armed.
+  //
+  // It has its OWN kind because the walking operator, several hundred feet away, can
+  // only see the responder's display: this frame is what tells them the sweep is
+  // finished and they may press PRG and move on. As a WarmupProbe it was
+  // indistinguishable from the warmups sent DURING a sweep at each configuration
+  // change, and the display would have said "done" five times too early.
+  f.kind        = BenchKind::ArmedBeacon;
   f.position_id = g_swept_position;
   f.tp_index    = 0;
   f.probe_seq   = g_probe_seq++;
@@ -673,6 +1057,13 @@ void echo_probe(const BenchFrame& probe_in, size_t rx_len) {
 }  // namespace
 
 void loop() {
+  // R8 - the survey shares no state with the sweep and must not fall through into a
+  // path that can transmit. It returns before the frame handling below ever runs.
+  if (g_role == Role::Survey) {
+    loop_survey();
+    return;
+  }
+
   uint8_t rx[kMaxBenchPayload];
   size_t  len       = 0;
   bool    crc_error = false;
@@ -716,15 +1107,37 @@ void loop() {
           ++g_resp_tp_heard;
         }
 
+        // Tracked, not latched: a counted probe means the far end has started
+        // sweeping again, so the "you may move" state has to go away by itself. An
+        // operator who walks on while a sweep is running produces a trace whose
+        // position column is a lie, and nothing downstream can detect it.
+        const bool was_armed = g_resp_far_end_armed;
+        g_resp_far_end_armed = bench_says_armed(f.kind);
+        if (g_resp_far_end_armed && !was_armed) {
+          // Printed on the TRANSITION, not every beacon. The walking end is normally
+          // untethered and this line is for the bench and for the log; the display is
+          // what the operator in the field actually reads.
+          Serial.print(F("# far end ARMED - sweep complete at position "));
+          Serial.print(g_position_id);
+          Serial.println(F(" - press PRG to move on"));
+        }
+
         g_resp_last_heard_ms = millis();
         g_resp_ever_heard    = true;
         g_resp_last_rssi_dbm = g_radio.last_rssi_dbm();
 
         echo_probe(f, len);
-        g_ui.show_link(g_role, g_radio.last_rssi_dbm(), g_radio.last_snr_db(),
-                       g_position_id, g_resp_echoes, g_resp_log.find(g_position_id)
-                           ? g_resp_log.find(g_position_id)->probes_heard
-                           : g_resp_echoes);
+        if (g_resp_far_end_armed) {
+          // THE WALKING OPERATOR'S GO SIGNAL. This is the only indication they get
+          // that the sweep for this position is finished, and it is the difference
+          // between a timed guess and knowing.
+          g_ui.show_sweep_done(g_position_id, g_radio.last_rssi_dbm());
+        } else {
+          g_ui.show_link(g_role, g_radio.last_rssi_dbm(), g_radio.last_snr_db(),
+                         g_position_id, g_resp_echoes, g_resp_log.find(g_position_id)
+                             ? g_resp_log.find(g_position_id)->probes_heard
+                             : g_resp_echoes);
+        }
 
         size_t want = g_resp_config;
         if (sweep_config_index_of(g_plan, f.tp_index, &want) &&
@@ -783,6 +1196,7 @@ void loop() {
       // most the position in progress.
       resp_log_save();
       ++g_position_id;
+      g_resp_far_end_armed = false;   // the press starts a new sweep; stop saying "go"
       Serial.print(F("# position -> "));
       Serial.println(g_position_id);
       g_ui.show_armed(g_role, g_position_id, 0);

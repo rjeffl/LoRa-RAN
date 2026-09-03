@@ -3,6 +3,8 @@
 
 #include "ui_oled.h"
 
+#include "sentinels.h"
+
 #include <Arduino.h>
 #include <Wire.h>
 
@@ -28,7 +30,9 @@ Ui::Ui() : display_(kOledAddr, kPinOledSda, kPinOledScl) {}
 void Ui::draw_role_badge(Role r) {
   // Four characters so the tag is a fixed width and the eye finds it in the same
   // place on both boards.
-  const char* tag = (r == Role::Initiator) ? "INIT" : "RESP";
+  const char* tag = "RESP";
+  if (r == Role::Initiator) tag = "INIT";
+  else if (r == Role::Survey) tag = "SURV";
 
   display_.setFont(ArialMT_Plain_10);
   display_.setTextAlignment(TEXT_ALIGN_LEFT);
@@ -135,6 +139,95 @@ void Ui::show_armed(Role r, uint16_t position_id, uint16_t sweeps_done) {
   display_.drawString(0, kRowBig, pos);
 
   display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
+void Ui::show_survey(const char* site_name, uint32_t passes, uint32_t freq_hz_now,
+                     uint32_t loudest_freq_hz, int16_t loudest_peak_dbm10,
+                     bool saved) {
+  if (!ok_) return;
+
+  char big[20];
+  char top[24];
+  char foot[32];
+
+  // MHz to one decimal, assembled from integer kHz. Same reasoning as the CSV: the
+  // firmware carries no floats through a measurement path, and 902.0 printed from an
+  // integer cannot drift.
+  const uint32_t khz = freq_hz_now / 1000UL;
+  std::snprintf(top, sizeof(top), "%lu.%lu", 
+                static_cast<unsigned long>(khz / 1000UL),
+                static_cast<unsigned long>((khz % 1000UL) / 100UL));
+
+  // The pass count is the big number because it is the one that proves the board is
+  // alive from arm's length. A frozen scan and a quiet band look identical otherwise.
+  std::snprintf(big, sizeof(big), "%lu", static_cast<unsigned long>(passes));
+
+  if (loudest_peak_dbm10 == kI16NotAvailable) {
+    std::snprintf(foot, sizeof(foot), "%s", saved ? "SAVED - no data" : "scanning...");
+  } else {
+    const uint32_t lkhz = loudest_freq_hz / 1000UL;
+    std::snprintf(foot, sizeof(foot), "%s%lu.%lu %d dBm",
+                  saved ? "SAVED " : "pk ",
+                  static_cast<unsigned long>(lkhz / 1000UL),
+                  static_cast<unsigned long>((lkhz % 1000UL) / 100UL),
+                  static_cast<int>(loudest_peak_dbm10 / 10));
+  }
+
+  display_.clear();
+  draw_role_badge(Role::Survey);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, top);
+
+  // The site the run will be FILED UNDER. Wrong site is the one error that survives
+  // the walk home intact - right numbers, wrong place on the property - so it is on
+  // the display the whole time and not only at the moment of the press.
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.drawString(kBadgeW + 4, kRowTop, site_name);
+
+  display_.setFont(ArialMT_Plain_24);
+  display_.drawString(0, kRowBig, big);
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
+void Ui::show_sweep_done(uint16_t position_id, float last_rssi_dbm) {
+  if (!ok_) return;
+
+  char foot[32];
+  char pos[16];
+  std::snprintf(pos, sizeof(pos), "P%u", static_cast<unsigned>(position_id));
+  std::snprintf(foot, sizeof(foot), "PRG = next  %d dBm",
+                static_cast<int>(last_rssi_dbm));
+
+  display_.clear();
+  draw_role_badge(Role::Responder);
+
+  // INVERTED BAR, not just different text. The operator is glancing at a hand-shaded
+  // panel in sunlight, at arm's length, having stood still for seven minutes - the
+  // difference between "still sweeping" and "you may move" has to survive a glance
+  // that does not read any words at all.
+  display_.setColor(WHITE);
+  display_.fillRect(0, kRowBig - 2, kWidth, 32);
+  display_.setColor(BLACK);
+  display_.setFont(ArialMT_Plain_24);
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.drawString(2, kRowBig, "DONE");
+  display_.setFont(ArialMT_Plain_16);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth - 2, kRowBig + 6, pos);
+  display_.setColor(WHITE);   // restore, or everything after this is invisible
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, "sweep complete");
+
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
   display_.drawString(0, kRowFoot, foot);
   display_.display();
 }

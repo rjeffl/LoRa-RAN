@@ -16,6 +16,7 @@ enum class Role : uint8_t {
   Initiator,  // fixed end. Tethered to the field laptop, drives the sweep, owns the
               // CSV. Sits at the house or the gate and does not move.
   Responder,  // walking end. Untethered, echoes probes, shows live link quality.
+  Survey,     // R8 / M20 - ambient RSSI scan. LISTENS ONLY; never transmits.
 };
 
 const char* to_string(Role r);
@@ -72,5 +73,21 @@ inline constexpr uint32_t kRoleSelectWindowMs = 3000;
 // role must still not be persisted, and a power cycle must still re-ask (R1).
 inline constexpr char kSerialSelectInitiator = 'i';
 inline constexpr char kSerialSelectResponder = 'r';
+
+// R8 - the third mode, on the same binary per the task text.
+//
+// NOT on the PRG button. PRG already means RESPONDER and that meaning is the one the
+// operator uses untethered, in the field, on the walking board - overloading it with
+// a double-press or a hold would put the survey one mistimed thumb away from the
+// walk. A survey run instead starts either from the console with 'v', or by pressing
+// PRG a second time on a board that is ALREADY showing the role prompt having been
+// put into it deliberately - which is to say, it does not, and 'v' is the only
+// selector.
+//
+// That leaves the far-end survey needing a laptop, which is precisely the problem
+// survey.h's NVS blob exists to solve: select the survey at the house where the
+// laptop is, walk out with the board still running it, press PRG at the far point to
+// store, and read it back on return. See the field procedure in HANDOFF.md.
+inline constexpr char kSerialSelectSurvey = 'v';
 
 }  // namespace rangetest

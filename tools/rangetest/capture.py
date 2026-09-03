@@ -42,6 +42,18 @@ except ImportError:
 # (`i2cInit(): ... sda=17 scl=18`) into the trace's configuration block.
 SETTING_RE = re.compile(r"^[a-z][a-z0-9_]*=\S*$")
 
+# The firmware emits TWO schemas, and this tool captures either: R7's sweep trace and
+# R8's ambient survey. They are separate schemas on purpose (see survey.h) - one row
+# is a test point with a link at the far end, the other a frequency bin with no far
+# end at all. A header is recognised by its first fields, and a data row is then
+# validated against THAT header's field count rather than against a hardcoded number,
+# so adding a column to either schema does not silently start dropping rows.
+HEADER_PREFIXES = ("position,tp_index,", "site_index,site_name,")
+
+# A completed unit of work, per schema. Both are counted by --sweeps.
+COMPLETION_MARKERS = ("sweep complete", "survey dump complete",
+                      "survey campaign complete")
+
 
 class Trace:
     """The output file, opened at the CSV header and appended to per row.
@@ -56,10 +68,12 @@ class Trace:
         self.note = note
         self.f = None
         self.header = None
+        self.commas = 0
         self.rows = 0
 
     def open(self, header, meta):
         self.header = header
+        self.commas = header.count(",")
         self.f = open(self.path, "w")
         self.f.write(f"# LRAN range test trace, captured "
                      f"{time.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -113,6 +127,10 @@ def main() -> int:
     meta = []
     sweeps = 0
     pending = []          # data rows seen before this boot's header, see below
+    # A repeated header is only a REBOOT if a fresh settings dump preceded it. The
+    # survey used to reprint its header per site, and calling each of those a reboot
+    # put a false seam in the middle of a perfectly good campaign trace.
+    settings_since_header = False
     idle_deadline = time.time() + args.idle_timeout
     buf = b""
     reason = "sweep count reached"
@@ -150,7 +168,8 @@ def main() -> int:
                     # threw away the very block this tool exists to retain and
                     # produced a trace with no configuration in it.
                     meta = []
-                elif line.startswith("position,tp_index,"):
+                    settings_since_header = True
+                elif line.startswith(HEADER_PREFIXES):
                     # The header is printed once per boot, so any DATA ROW seen
                     # before it belongs to a previous run still sitting in the
                     # serial buffer. The first capture picked up a stray tp_index=8
@@ -158,6 +177,7 @@ def main() -> int:
                     pending = []
                     if trace.f is None:
                         trace.open(line, meta)
+                        print(f"  schema: {line.split(',')[0]}...", flush=True)
                     elif line != trace.header:
                         # Schema changed under us. Appending would produce a file
                         # whose columns mean two different things - refuse.
@@ -165,7 +185,7 @@ def main() -> int:
                         print(f"\n{reason} - stopping", file=sys.stderr)
                         buf, stop = b"", True
                         break
-                    else:
+                    elif settings_since_header:
                         # A mid-walk reboot. The rows already written stay: they are
                         # real measurements of real positions. Mark the seam, because
                         # the responder owns `position` and a reboot there restarts
@@ -173,14 +193,20 @@ def main() -> int:
                         trace.comment("board rebooted here - position numbering "
                                       "may restart, see docs/rangetest/data/README.md")
                         print("\n  board rebooted - trace continues", flush=True)
+                    # Otherwise it is the same header again with no reboot in between:
+                    # a benign section break. Nothing to record and nothing to warn
+                    # about - the rows that follow are the same schema and keep going.
+                    settings_since_header = False
                 elif line.startswith("#"):
-                    if "sweep complete" in line:
+                    if any(m in line for m in COMPLETION_MARKERS):
                         sweeps += 1
                         print(f"\n  sweep {sweeps} complete "
                               f"({trace.rows} rows) - {line.lstrip('# ')}", flush=True)
                 elif SETTING_RE.match(line):
                     meta.append(line)          # settings dump: key=value
-                elif line[0].isdigit() and line.count(",") > 20:
+                elif line[0].isdigit() and (
+                        line.count(",") == trace.commas if trace.header
+                        else line.count(",") > 6):
                     if trace.f is None:
                         pending.append(line)   # pre-header, discarded at the header
                         continue
@@ -203,7 +229,7 @@ def main() -> int:
         print("no data rows captured", file=sys.stderr)
         return 1
 
-    print(f"wrote {rows} rows over {sweeps} sweep(s) to {args.out}")
+    print(f"wrote {rows} rows over {sweeps} completed unit(s) to {args.out}")
     return 0
 
 
