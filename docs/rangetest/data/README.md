@@ -11,9 +11,23 @@ Capture with:
 
 ```bash
 python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
-    --out docs/rangetest/data/YYYY-MM-DD-<place>.csv --sweeps 1 \
+    --out docs/rangetest/data/YYYY-MM-DD-<place>.csv \
     --note "bearing 120deg, 1.2m antenna both ends, dry, foliage full"
 ```
+
+**One capture spans the whole walk.** The default runs until **Ctrl-C**, which is what a
+position walk (R10) wants: start it once, walk the positions, stop it when you come back.
+Rows are appended as they arrive, so an unplugged cable or a sleeping laptop costs you the
+rest of the walk and not the part already done. `--sweeps N` stops on its own after N
+sweeps, for an unattended bench run.
+
+`--idle-timeout` (default 1800 s) is measured from the **last serial byte**, not from the
+start. The initiator is silent for the whole gap between positions while you walk, so a
+wall-clock deadline would end the capture mid-walk.
+
+Every trace ends with a `# capture ended:` line saying how it stopped. A file without one
+was truncated by something that did not get to finish — treat the last sweep in it as
+suspect.
 
 ## File layout
 
@@ -52,6 +66,15 @@ edge of a walk the difference matters.
 | 25 | `phy_crc_err` | Frames that arrived and failed the PHY CRC (§14 stage 1) |
 | 26 | `foreign` | Frames that parsed as LoRa but were not ours |
 | 27 | `filler_err` | Frames that passed CRC but whose payload pattern was wrong |
+
+### A `# board rebooted here` line mid-file
+
+The initiator reset during the capture. Rows before the line are still real measurements
+of real positions and are kept deliberately — an hour of walking is not thrown away
+because the far end browned out. But **`position` is owned by the responder** (R5), so if
+the *responder* was what restarted, its numbering restarts at 0 and positions after the
+seam collide with earlier ones. Renumber from the operator's notes before merging the two
+halves, or treat them as two traces.
 
 ### Columns 6 and 7 are separate on purpose
 

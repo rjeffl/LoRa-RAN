@@ -1,6 +1,6 @@
 # Range test — session handoff
 
-**Written 2026-08-31, at the end of the `range/sweep` session.**
+**Written 2026-09-03, at the start of the field-walk session.**
 
 > **This file goes stale.** It records *session state and next actions*, nothing else.
 > Where it disagrees with the documents below, they win — check the engineering log's
@@ -18,28 +18,53 @@
 
 | | |
 |---|---|
-| Branch | `range/sweep` — **pushed, PR #13 open, NOT merged** |
-| Merged so far | #12 (`range/skeleton`, R1–R3), #11 (gitignore) |
-| Working tree | clean |
-| Done | **R1–R7.** Both branch gates passed on hardware |
-| Not started | **R8** (`range/survey`), **R9** (`range/w9`), R10 (fieldwork, not code) |
+| Branch | `range/capture-walk` — capture-tool fixes for the walk |
+| Merged so far | #13 (`range/sweep`, R4–R7), #12 (`range/skeleton`, R1–R3), #11 |
+| Done | **R1–R7.** Both branch gates passed on hardware. `main` verified green 2026-09-03 |
+| Not started | **R8** (`range/survey`), **R9** (`range/w9`) |
+| **Next** | **R10 fieldwork — the position walk.** Firmware is ready; no code needed |
 
-## First actions next session
+`main` as of 2026-09-03: 99 range-test tests, 107 protocol tests, 72 vectors, `heltec`
+builds. `pio` is at `~/.platformio/penv/bin/pio` and is not on `PATH`.
 
-1. **Merge PR #13** (needs a human — the permission classifier blocks `gh pr merge` here).
-2. `git checkout main && git pull --ff-only`
-3. Confirm `main` is green before branching from it:
+**XIAO + Wio-SX1262 hardware is not on hand.** Pass 2 stays out of scope; R2's board
+config seam is the only thing pass 1 owes it, and it exists.
+
+## The position walk — field procedure
+
+Both boards already carry this firmware; nothing to flash unless you have rebuilt since.
+
+1. **Before leaving:** note antenna gain and height at *both* ends, the bearing, and the
+   weather. They go in `--note` and they are the difference between a measurement and a
+   number. Record height even if it feels arbitrary — R10 says so for a reason.
+2. Reset the **initiator**, leave it as INITIATOR, tether it to the laptop, and leave it
+   put. Reset the **responder** and press PRG within 3 s so its badge reads `RESP`.
+3. **Start `capture.py` first, then reset the initiator** — the tool needs the CSV header,
+   printed once at boot, and it discards data rows seen before it.
 
 ```bash
-pio test -d firmware/range-test -e native   # expect 99 passed
-pio run  -d firmware/range-test -e heltec   # expect SUCCESS
-pio test -d lib/lran-protocol -e native     # expect 107 passed
-python3 tools/vectors/check.py              # expect 72 vectors OK
+python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+    --out docs/rangetest/data/2026-09-03-gate-bearing120.csv \
+    --note "bearing 120deg, both ends 1.2m, stock whips 2.0dBi, dry, foliage full"
 ```
 
-4. `git checkout -b range/survey` and start **R8**.
+4. Walk out with the responder. At each stop: **press PRG once**, stand still until its
+   OLED stops advancing (~6–7 min, 24 test points), then walk on. One press per position.
+5. Back at the laptop, **Ctrl-C** ends the capture and writes the file. Then dump the
+   responder's own log over serial with `d` — that is the reverse-direction data and it
+   is the only copy.
+6. Check the file ends with a `# capture ended:` line before you conclude you have a
+   trace.
 
-`pio` is at `~/.platformio/penv/bin/pio` and is not on `PATH`.
+**One capture spans the whole walk** — do not restart it per position. It runs until
+Ctrl-C by default and appends rows as they arrive, so a dropped cable costs the rest of
+the walk and not the part already done.
+
+Take **two bearings** if the day allows. M6 asks for both, and the second one is cheap
+once you are already outside with the boards working.
+
+**Do not close D1 from this walk.** The frequency still needs R8's survey (M20) and the
+power figure needs M21.
 
 ## Hardware state
 
@@ -66,15 +91,8 @@ serial character. Bench aids, not the field flow:
 | initiator | `s` | force the next sweep while armed |
 | initiator | `n` | advance the position locally |
 
-A full sweep is 24 test points, ~6–7 minutes. Capture a trace with:
-
-```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
-    --out docs/rangetest/data/YYYY-MM-DD-<place>.csv --sweeps 1 --note "..."
-```
-
-**Start `capture.py` *before* resetting the initiator** — it needs the CSV header, which
-is printed once at boot, and it discards data rows seen before it.
+A full sweep is 24 test points, ~6–7 minutes. See the field procedure above for the
+capture command; `--sweeps 1` still does a single unattended bench sweep.
 
 ## R8 — what it actually asks for
 
