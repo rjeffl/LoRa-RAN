@@ -642,3 +642,63 @@ configuration block. Now a strict `key=value` pattern.
 | Sweep output goes to a versioned directory, not a scratch file | **Met** — `docs/rangetest/data/` |
 | Traces are committed | **Met** — one, labelled as a format proof |
 | Usable as D1 evidence | **Not yet** — this is a bench link. Needs the walk, plus M20 and M21 |
+
+---
+
+## 2026-09-03 — the capture tool could not survive the walk it was built for
+
+R7's capture tool was written and proved against a **bench** run: one sweep, six
+minutes, an operator watching the terminal the whole time. R10's position walk is a
+different shape — a dozen sweeps over an hour or more, with the operator at the *far*
+end holding the responder and nobody looking at the laptop — and reading `capture.py`
+against that shape before walking found three ways it loses the afternoon.
+
+**The trace only existed in memory until the tool exited.** Rows accumulated in a list
+and the file was written in one go at the end. Every failure mode of a long unattended
+capture — a closed terminal, a laptop asleep, a nudged USB cable, and most of all
+**Ctrl-C, which is the natural way to end a walk** — landed between the first row and
+the last, and wrote nothing at all. The bench never exposed this because a bench run
+ends by reaching `--sweeps 1` on its own.
+
+Rows are now appended and flushed as they arrive. A capture that dies at position 9
+keeps positions 1–8.
+
+**`--timeout` was wall-clock, and 30 minutes by default.** It bounded the whole session,
+not the silence. A walk spends most of its time with the initiator saying nothing at all
+— it is ARMED, waiting for a PRG press that is several hundred feet away — so the only
+correct reading of "nothing is happening" is **idle time since the last byte**. Renamed
+to `--idle-timeout` with the same 1800 s default, now measured from the last serial data.
+A wall-clock deadline would have ended the capture mid-walk and the operator would have
+found out on the way back.
+
+**`--sweeps` had no "until I say stop".** It was required to be a positive count, so a
+walk needed the number of positions known in advance — which is exactly the thing a walk
+discovers rather than plans. Default is now 0, meaning run until Ctrl-C.
+
+### What a mid-walk reboot does now
+
+The old code discarded every captured row when it saw a second CSV header. That is
+defensible on a bench and indefensible after an hour of walking, so the rows are kept and
+a `# board rebooted here` comment marks the seam. The honest caveat goes in the file and
+in `data/README.md`: **`position` is owned by the responder** (R5), so a *responder*
+reset restarts numbering at 0 and the positions after the seam collide with earlier ones.
+The tool cannot fix that; it can refuse to hide it.
+
+A header whose column list differs from the one already written stops the capture
+outright. Appending would produce a file whose columns mean two different things halfway
+down, which is worse than a short trace.
+
+Every trace now ends with a `# capture ended: <reason> - N rows` line. Its absence is the
+signal that a file was truncated by something that never got to finish.
+
+### Verified without hardware
+
+Exercised against a simulated initiator on a pty — recorded boot banner, settings dump,
+header and rows — in three modes: SIGINT mid-capture, `--sweeps 2` self-terminating, and
+a reboot mid-capture. All three write a well-formed trace. The two R7 regressions are
+still covered by the same fixture: the pre-header row from a previous run is discarded
+(6 rows, not 7), and the `i2cInit(): ... sda=17 scl=18` line stays out of the
+configuration block.
+
+**No firmware change.** The initiator's serial output is what it always was; only the
+tool reading it changed.
