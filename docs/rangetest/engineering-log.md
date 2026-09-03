@@ -702,3 +702,112 @@ configuration block.
 
 **No firmware change.** The initiator's serial output is what it always was; only the
 tool reading it changed.
+
+---
+
+## 2026-09-03 — R8: the ambient survey, and the go signal the walk was missing
+
+Two pieces of work, both driven by the field trip they are for.
+
+### R8 — the survey runs, and it found something in fifteen seconds
+
+`SURVEY` is the third mode on the initiator binary, selected with `v` in the boot window.
+It scans 902.0–927.8 MHz in 200 kHz steps — 130 bins — reading **instantaneous** RSSI, and
+holds a peak, mean and floor per bin across repeated passes. One pass takes ~4.2 s at the
+default 30 ms dwell.
+
+**Nothing in this mode transmits.** There is deliberately no path from the survey loop to
+`transmit()` or `set_power()`, and the mode returns from `loop()` before the frame handling
+runs at all.
+
+**The measurement is `getRSSI(false)`, not `getRSSI()`.** The default reads the packet
+status register, which holds the *last received frame's* RSSI and is not cleared — the
+same trap `poll()` fell into with `getPacketLength()`. On an empty bin there is no frame,
+so the survey would have been a picture of its own memory: a stale reading from a bin
+scanned minutes ago, repeated across the band. This is the third time that register family
+has offered the same bug in this firmware.
+
+First run, indoors, 15 seconds, 6 passes: floor a flat −113 to −114 dBm across the band,
+and **bin 64 (914.8 MHz) peaking at −90.0 dBm against a −110.1 dBm mean**, with 913.8–915.8
+MHz consistently hotter than its neighbours. That is a real occupant sitting on top of the
+provisional 915.0 MHz starting point, found before the boards left the desk. M20 is the
+task that settles what it is; this says the question was worth asking.
+
+**The settle time is not decoration.** The SX1262's RSSI reads low and climbs while its AGC
+settles after a retune, so the first samples after each of 130 retunes per pass are
+measurements of the receiver waking up rather than of the band. Left in, they drag every
+bin's mean down by the same amount — the worst kind of error, because it looks like a
+clean, quiet band. Four milliseconds are discarded per bin.
+
+### Seven sites, not two, and why that changed the design
+
+R8 as written asks for the bridge location and "the most distant node location". The
+property has **seven** places that matter: the bridge, GateLink at the gate, the existing
+front-island weather station, WellLink, the irrigation pump, the lower hop yard and the
+propane tank.
+
+That is not a bigger version of the same job. With one stored run, every site costs a walk
+back to the laptop to read it out before the next one overwrites it — seven walks instead
+of one loop. So the survey stores **one run per site**, keyed by site in NVS and **named**,
+because a trace saying "site 3" and nothing else is a trace nobody can place in eighteen
+months. The site travels in every CSV row, so one file holds the whole campaign.
+
+Seven blobs of 1580 bytes in a 20 kB NVS partition is close enough to the limit to be
+worth checking rather than assuming, so there is a host test asserting the arithmetic and
+a hardware run that filled all seven slots and read them back after a reboot: **910 rows,
+seven sites, no write failures.** A short write is reported loudly and does **not** advance
+the site — advancing over a run that was not stored would lose it silently, and that is the
+one failure that costs a second trip to that site.
+
+### The walking operator had no way to know a sweep had finished
+
+Found by writing the field procedure, not by testing. R5 has the operator press PRG, stand
+still for a sweep, then move on — but **the operator is at the walking end, several hundred
+feet from the initiator's console and its OLED**, and nothing on the responder said the
+sweep was over. The procedure would have read "wait about seven minutes", and a guess that
+is early puts half a sweep at one position under the label of another, undetectably.
+
+The initiator already beacons once a second while ARMED. The problem was that the beacon
+was a `WarmupProbe`, which is **also** what it sends five times *during* a sweep at each
+configuration change — so the responder could not say "done" without saying it five times
+too early.
+
+The beacon now has its own kind, `BenchKind::ArmedBeacon`: echoed like any probe so the
+position still travels back, counted by neither end, and distinguishable. The responder
+shows an inverted `DONE` bar with the position number and `PRG = next`. Inverted rather
+than merely different text, because the glance that reads it is at a hand-shaded panel in
+sunlight after standing still for seven minutes, and it has to survive not reading any
+words at all.
+
+**Measured on hardware, both boards, one full sweep:** the sweep took **424 s** (against a
+382 s nominal / 430 s worst-case estimate — the estimate is good), and the go signal
+reached the responder **17.2 s** after the initiator went ARMED. The lag is real and is
+the responder cycling from the SF12 configuration back round to the beacon's. It is in the
+field procedure as an expected 15–20 s rather than treated as a defect.
+
+### Two things hardware found in the tooling
+
+**The campaign dump looked like seven reboots.** Each site's dump reprinted the CSV header,
+and to anything reading the port a repeated header is exactly what a board reboot looks
+like — `capture.py` duly marked six false "board rebooted" seams and, worse, stopped after
+the first site because it counted the first site's completion marker as the whole job. Now
+a campaign dump prints one header for all seven sites and one completion marker at the end,
+and `capture.py` only calls a repeated header a reboot when a fresh settings dump preceded
+it. Verified: 910 rows, one header, zero seams.
+
+**The survey trace was describing a sweep that never ran.** Boot printed the R4 sweep plan
+— test point count, probe counts, estimated duration — in survey mode too, and it landed in
+the trace's comment block. That is precisely the failure the settings dump exists to
+prevent, pointed the other way: a trace correlated with a configuration that was not used.
+The sweep plan is now printed only when a sweep will actually happen.
+
+### R8 acceptance
+
+| Criterion | Status |
+|---|---|
+| Third mode on the initiator binary | **Met** |
+| 902-928 MHz, 200 kHz steps, 130 bins | **Met**, host tested |
+| Peak and mean per bin over repeated passes | **Met** — peak, mean and floor |
+| Runs at both required locations | **Exceeded in capability, not yet done** — seven sites supported and bench-proven; no site trace captured yet |
+| Two committed traces | **Not met** — fieldwork |
+| A chosen frequency justified against them | **Not met** — needs the field campaign, and D1 also needs M21 |

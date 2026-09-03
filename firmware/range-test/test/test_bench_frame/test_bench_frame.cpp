@@ -203,8 +203,48 @@ static void test_warmup_probe_round_trips_on_the_wire() {
                     static_cast<int>(g.kind));
 }
 
+
+// R5/R10 - the armed beacon has its own kind so the WALKING end can tell "the sweep
+// for this position is finished" from "a configuration change is in progress". As a
+// WarmupProbe those were the same frame, and the responder's go signal would have
+// fired five times per sweep.
+static void test_armed_beacon_is_echoed_but_never_counted() {
+  TEST_ASSERT_TRUE(bench_is_probe(BenchKind::ArmedBeacon));
+  TEST_ASSERT_FALSE(bench_is_counted(BenchKind::ArmedBeacon));
+  TEST_ASSERT_TRUE(bench_says_armed(BenchKind::ArmedBeacon));
+}
+
+// Only the beacon says "armed". A warmup probe mid-sweep must not.
+static void test_no_other_kind_claims_the_far_end_is_armed() {
+  TEST_ASSERT_FALSE(bench_says_armed(BenchKind::Probe));
+  TEST_ASSERT_FALSE(bench_says_armed(BenchKind::WarmupProbe));
+  TEST_ASSERT_FALSE(bench_says_armed(BenchKind::Echo));
+}
+
+static void test_armed_beacon_round_trips_on_the_wire() {
+  BenchFrame f{};
+  f.kind = BenchKind::ArmedBeacon;
+  f.position_id = 4;
+  f.tp_index = 0;
+  f.probe_seq = 91;
+
+  uint8_t buf[kMaxBenchPayload];
+  const size_t n = bench_serialize(f, buf, sizeof(buf), kBenchHeaderLen);
+  TEST_ASSERT_NOT_EQUAL(0, n);
+
+  BenchFrame back{};
+  TEST_ASSERT_TRUE(bench_parse(buf, n, &back));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(BenchKind::ArmedBeacon),
+                          static_cast<uint8_t>(back.kind));
+  TEST_ASSERT_EQUAL_UINT16(4, back.position_id);
+  TEST_ASSERT_EQUAL_UINT16(91, back.probe_seq);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
+  RUN_TEST(test_armed_beacon_is_echoed_but_never_counted);
+  RUN_TEST(test_no_other_kind_claims_the_far_end_is_armed);
+  RUN_TEST(test_armed_beacon_round_trips_on_the_wire);
   RUN_TEST(test_warmup_probe_is_echoed_but_not_counted);
   RUN_TEST(test_warmup_probe_round_trips_on_the_wire);
   RUN_TEST(test_wire_layout_is_explicit_little_endian);

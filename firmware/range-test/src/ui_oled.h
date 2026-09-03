@@ -65,6 +65,29 @@ class Ui {
   void show_stale(Role r, uint16_t position_id, uint32_t silent_ms,
                   float last_rssi_dbm, bool ever_heard);
 
+  // R8 - the ambient survey. Different quantities entirely: there is no far end, no
+  // position and no link, so show_link() has nothing to say here.
+  //
+  // The operator standing at the far point with no laptop needs exactly three things:
+  // that it is still running (the pass count, which keeps climbing), WHICH SITE the
+  // run will be stored under, and whether the last PRG press actually stored it.
+  // Getting the site wrong is the failure that survives the walk home: the numbers
+  // are right and they are filed under the wrong place on the property.
+  void show_survey(const char* site_name, uint32_t passes, uint32_t freq_hz_now,
+                   uint32_t loudest_freq_hz, int16_t loudest_peak_dbm10,
+                   bool saved);
+
+  // R5/R10 - THE WALKING OPERATOR'S GO SIGNAL.
+  //
+  // Shown on the RESPONDER when the initiator's armed beacon says the sweep for this
+  // position has finished. The operator is several hundred feet from the initiator's
+  // console and its OLED; without this they are counting minutes and guessing, and a
+  // guess that is early puts half a sweep at one position under the label of another.
+  //
+  // Deliberately unlike show_link: same panel, completely different picture, so it
+  // reads at a glance in the sun rather than needing a number to be compared.
+  void show_sweep_done(uint16_t position_id, float last_rssi_dbm);
+
   bool ok() const { return ok_; }
 
  private:
