@@ -10,10 +10,20 @@ That is what this directory is for.
 Capture with:
 
 ```bash
-python3 tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset \
     --out docs/rangetest/data/YYYY-MM-DD-<place>.csv \
-    --note "bearing 120deg, 1.2m antenna both ends, dry, foliage full"
+    --note "bearing 120deg, 1.2m AGL both ends, +70ft relief, 3.0dBi, dry, foliage full"
 ```
+
+**PlatformIO's python, not a bare `python3`** — pyserial lives in PlatformIO's venv, and
+the `python3` first on `PATH` is usually a different install that has never seen it.
+
+`--reset` has the tool drive the board itself (reset, `--role`, `--key`, then capture).
+With `--key` it also echoes the board's own `#` lines, so a setup command shows you its
+confirmation instead of swallowing it.
+Use it: two processes on one serial port open without an exclusive lock on macOS and split
+the incoming bytes between them, which puts holes in the trace and looks like it worked.
 
 **One capture spans the whole walk.** The default runs until **Ctrl-C**, which is what a
 position walk (R10) wants: start it once, walk the positions, stop it when you come back.
@@ -28,6 +38,21 @@ wall-clock deadline would end the capture mid-walk.
 Every trace ends with a `# capture ended:` line saying how it stopped. A file without one
 was truncated by something that did not get to finish — treat the last sweep in it as
 suspect.
+
+## Two schemas in this directory
+
+| Trace | First columns | Produced by |
+|---|---|---|
+| **Sweep** (R7) | `position,tp_index,...` | INITIATOR, the position walk |
+| **Survey** (R8) | `site_index,site_name,...` | SURVEY mode, the ambient scan |
+
+Separate schemas on purpose. A sweep row is a test point at a position with a link at the
+far end; a survey row is a frequency bin with no far end at all. Widening one to cover
+both would give every survey row twenty empty sweep columns and vice versa, and a reader
+could not tell a real sentinel from a column that never applied.
+
+`capture.py` recognises either and validates data rows against **that** header's field
+count, so adding a column to one schema cannot silently start dropping rows of the other.
 
 ## File layout
 
@@ -75,6 +100,49 @@ because the far end browned out. But **`position` is owned by the responder** (R
 the *responder* was what restarted, its numbering restarts at 0 and positions after the
 seam collide with earlier ones. Renumber from the operator's notes before merging the two
 halves, or treat them as two traces.
+
+## The survey schema (R8 / M20)
+
+Ten columns. Same conventions as the sweep: **every value suffixed `10` is in tenths**,
+and `-32768` is the "not available" sentinel, never a reading.
+
+| # | Column | Meaning |
+|---:|---|---|
+| 1 | `site_index` | 0-6, the NVS slot the run was stored in |
+| 2 | `site_name` | `bridge-house`, `gatelink-gate`, `weather-island`, `welllink-well`, `irrigation-pump`, `hopyard-lower`, `propane-tank` |
+| 3 | `bin_index` | 0-129 |
+| 4 | `freq_hz` | Bin centre. 902.0 MHz + 200 kHz x `bin_index`, so the top bin is 927.8 |
+| 5 | `passes` | Complete sweeps of all 130 bins in this run |
+| 6 | `samples` | RSSI readings folded into this bin |
+| 7 | `peak_dbm10` | **Peak hold** across every pass |
+| 8 | `mean_dbm10` | Mean over `samples` |
+| 9 | `floor_dbm10` | Minimum — the noise floor |
+| 10 | `dropped` | Samples refused after the 60000-per-bin cap |
+
+The site travels in every row so **one file holds the whole campaign**. Seven separate
+files would have to be correlated by filename, and a filename is not evidence.
+
+### Why there is no bin at 928.0 MHz
+
+Bin 129 is 927.8. A 125 kHz receiver centred on the band edge would be listening half
+outside the band, and the reading would not mean what the column says it means.
+
+### Read the peak and the absence of a peak differently
+
+This is the one thing about a survey trace that is easy to get wrong.
+
+One radio listening to one 125 kHz slice at a time samples each bin roughly **1/130 of the
+time**. So:
+
+- **The floor and the mean are solid.** The noise floor is stationary; any pass sees it,
+  and the mean over hundreds of passes is a good figure. This is what sets a node's
+  margin and what §12.1 actually asks for.
+- **A peak well above the floor is real evidence of an occupant.**
+- **The absence of a peak is NOT evidence of an empty bin.** A sensor keying up for 100 ms
+  every five minutes is missed by most runs.
+
+That asymmetry is why `passes` and `samples` are recorded per bin: a reader has to be able
+to see how hard the survey looked before believing that it found nothing.
 
 ### Columns 6 and 7 are separate on purpose
 

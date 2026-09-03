@@ -702,3 +702,229 @@ configuration block.
 
 **No firmware change.** The initiator's serial output is what it always was; only the
 tool reading it changed.
+
+---
+
+## 2026-09-03 — R8: the ambient survey, and the go signal the walk was missing
+
+Two pieces of work, both driven by the field trip they are for.
+
+### R8 — the survey runs, and it found something in fifteen seconds
+
+`SURVEY` is the third mode on the initiator binary, selected with `v` in the boot window.
+It scans 902.0–927.8 MHz in 200 kHz steps — 130 bins — reading **instantaneous** RSSI, and
+holds a peak, mean and floor per bin across repeated passes. One pass takes ~4.2 s at the
+default 30 ms dwell.
+
+**Nothing in this mode transmits.** There is deliberately no path from the survey loop to
+`transmit()` or `set_power()`, and the mode returns from `loop()` before the frame handling
+runs at all.
+
+**The measurement is `getRSSI(false)`, not `getRSSI()`.** The default reads the packet
+status register, which holds the *last received frame's* RSSI and is not cleared — the
+same trap `poll()` fell into with `getPacketLength()`. On an empty bin there is no frame,
+so the survey would have been a picture of its own memory: a stale reading from a bin
+scanned minutes ago, repeated across the band. This is the third time that register family
+has offered the same bug in this firmware.
+
+First run, indoors, 15 seconds, 6 passes: floor a flat −113 to −114 dBm across the band,
+and **bin 64 (914.8 MHz) peaking at −90.0 dBm against a −110.1 dBm mean**, with 913.8–915.8
+MHz consistently hotter than its neighbours. That is a real occupant sitting on top of the
+provisional 915.0 MHz starting point, found before the boards left the desk. M20 is the
+task that settles what it is; this says the question was worth asking.
+
+**The settle time is not decoration.** The SX1262's RSSI reads low and climbs while its AGC
+settles after a retune, so the first samples after each of 130 retunes per pass are
+measurements of the receiver waking up rather than of the band. Left in, they drag every
+bin's mean down by the same amount — the worst kind of error, because it looks like a
+clean, quiet band. Four milliseconds are discarded per bin.
+
+### Seven sites, not two, and why that changed the design
+
+R8 as written asks for the bridge location and "the most distant node location". The
+property has **seven** places that matter: the bridge, GateLink at the gate, the existing
+front-island weather station, WellLink, the irrigation pump, the lower hop yard and the
+propane tank.
+
+That is not a bigger version of the same job. With one stored run, every site costs a walk
+back to the laptop to read it out before the next one overwrites it — seven walks instead
+of one loop. So the survey stores **one run per site**, keyed by site in NVS and **named**,
+because a trace saying "site 3" and nothing else is a trace nobody can place in eighteen
+months. The site travels in every CSV row, so one file holds the whole campaign.
+
+Seven blobs of 1580 bytes in a 20 kB NVS partition is close enough to the limit to be
+worth checking rather than assuming, so there is a host test asserting the arithmetic and
+a hardware run that filled all seven slots and read them back after a reboot: **910 rows,
+seven sites, no write failures.** A short write is reported loudly and does **not** advance
+the site — advancing over a run that was not stored would lose it silently, and that is the
+one failure that costs a second trip to that site.
+
+### The walking operator had no way to know a sweep had finished
+
+Found by writing the field procedure, not by testing. R5 has the operator press PRG, stand
+still for a sweep, then move on — but **the operator is at the walking end, several hundred
+feet from the initiator's console and its OLED**, and nothing on the responder said the
+sweep was over. The procedure would have read "wait about seven minutes", and a guess that
+is early puts half a sweep at one position under the label of another, undetectably.
+
+The initiator already beacons once a second while ARMED. The problem was that the beacon
+was a `WarmupProbe`, which is **also** what it sends five times *during* a sweep at each
+configuration change — so the responder could not say "done" without saying it five times
+too early.
+
+The beacon now has its own kind, `BenchKind::ArmedBeacon`: echoed like any probe so the
+position still travels back, counted by neither end, and distinguishable. The responder
+shows an inverted `DONE` bar with the position number and `PRG = next`. Inverted rather
+than merely different text, because the glance that reads it is at a hand-shaded panel in
+sunlight after standing still for seven minutes, and it has to survive not reading any
+words at all.
+
+**Measured on hardware, both boards, one full sweep:** the sweep took **424 s** (against a
+382 s nominal / 430 s worst-case estimate — the estimate is good), and the go signal
+reached the responder **17.2 s** after the initiator went ARMED. The lag is real and is
+the responder cycling from the SF12 configuration back round to the beacon's. It is in the
+field procedure as an expected 15–20 s rather than treated as a defect.
+
+### Two things hardware found in the tooling
+
+**The campaign dump looked like seven reboots.** Each site's dump reprinted the CSV header,
+and to anything reading the port a repeated header is exactly what a board reboot looks
+like — `capture.py` duly marked six false "board rebooted" seams and, worse, stopped after
+the first site because it counted the first site's completion marker as the whole job. Now
+a campaign dump prints one header for all seven sites and one completion marker at the end,
+and `capture.py` only calls a repeated header a reboot when a fresh settings dump preceded
+it. Verified: 910 rows, one header, zero seams.
+
+**The survey trace was describing a sweep that never ran.** Boot printed the R4 sweep plan
+— test point count, probe counts, estimated duration — in survey mode too, and it landed in
+the trace's comment block. That is precisely the failure the settings dump exists to
+prevent, pointed the other way: a trace correlated with a configuration that was not used.
+The sweep plan is now printed only when a sweep will actually happen.
+
+### R8 acceptance
+
+| Criterion | Status |
+|---|---|
+| Third mode on the initiator binary | **Met** |
+| 902-928 MHz, 200 kHz steps, 130 bins | **Met**, host tested |
+| Peak and mean per bin over repeated passes | **Met** — peak, mean and floor |
+| Runs at both required locations | **Exceeded in capability, not yet done** — seven sites supported and bench-proven; no site trace captured yet |
+| Two committed traces | **Not met** — fieldwork |
+| A chosen frequency justified against them | **Not met** — needs the field campaign, and D1 also needs M21 |
+
+---
+
+## 2026-09-03 — field-prep: five questions, three of them defects
+
+All five came from reading `FIELD-PROCEDURE.md` against the actual kit before walking. Three
+were real problems in what had been handed over.
+
+### The antenna is a build setting, and it was buried
+
+The production 3.0 dBi antennas replace the stock 2.0 dBi whips everything was bench-tested
+on. That is not a documentation change: **the gain is an input to the D33 clamp**, because
+the 15.249 ceiling is on EIRP. At 2.0 dBi the conducted ceiling is −3 dBm; at 3.0 dBi it is
+−4 dBm. Fitting the production antenna against a firmware still holding 2.0 dBi is wrong
+twice over — the trace records an antenna that was not fitted, and the clamp permits an
+EIRP 1 dB over the ceiling.
+
+It was `constexpr int16_t kAntennaGainDbi10 = 20;` on line 46 of a 1200-line `main.cpp`.
+It is now `-DLRAN_ANTENNA_GAIN_DBI10=30` in `platformio.ini`, under a comment block that
+gives both antennas and both ceilings, and **there is no default in the code** — a missing
+flag is a `#error`. A default is precisely what silently survives an antenna swap.
+
+No test needed re-running and nothing was invalidated: the committed bench traces are
+format proofs, not range data.
+
+### `capture.py` only listened, so the procedure told the operator to run two things at once
+
+The procedure said "press `z` on the console" and also "run `capture.py`". On one port.
+macOS opens a serial device **without an exclusive lock**, so both processes succeed and
+then split the incoming bytes between them at random — which is how the bench scripts
+appeared to work, and how a field trace would have come home with holes in it and no
+indication anything was wrong.
+
+`capture.py` now drives the board: `--reset` pulses the reset line, `--role` selects
+INITIATOR / RESPONDER / SURVEY, `--key` sends console keys and `--key-after` waits first.
+One command, one process, one port. It also removes the old "start the capture BEFORE
+resetting the board" trap entirely, because the tool now owns both events.
+
+**The role key has to be sent repeatedly, not once.** The first version wrote it 0.8 s
+after reset and the board came up INITIATOR every time — the boot is ROM bootloader, then
+`Serial.begin()`, then the OLED bring-up's own delays, and a byte landing before the UART
+is configured is simply gone. On the walking end that is a board that will not echo; in
+survey mode it is a board that **transmits**. It is now sent every 150 ms across the whole
+window. `select_role()` drains everything available per pass and returns on the first
+match, and none of `i`, `r`, `v` is a key in any mode, so the repeats are inert.
+
+### `pyserial required` was true and the advice was wrong
+
+`python3` on the build machine is one of five framework installs on `PATH`, none of which
+has pyserial; PlatformIO's venv has it. The documented command said `python3`, and
+`pip3 show pyserial` reporting it installed was a *different* interpreter again.
+
+Installing it into whichever `python3` happens to be first would have worked here and
+broken on the Kubuntu field machine. The docs now say
+`~/.platformio/penv/bin/python` everywhere, and the error message names both the
+interpreter known to have it and the one actually running.
+
+### Height above ground is the wrong quantity on this property
+
+The procedure repeated the standard flat-path advice: record antenna height, it matters at
+915 MHz. It does — over flat ground, where height buys Fresnel clearance. **This property
+has 60–80 ft of relief between the bridge and the gate**, and 1.2 m versus 2.0 m of mast is
+noise against that.
+
+The guidance now asks for three things instead: height above local ground (still governs
+near-field clearance, cheap to note), **approximate true elevation** from phone GPS or a
+topo source at ±10 ft, and **whether the path has line of sight** — the last being the most
+predictive thing available and free. The fixed installations are a one-time note rather than
+a per-run measurement, since those heights are already set.
+
+### Two things that were not defects
+
+Reflashing is needed once, for the antenna flag. And the boards were already flashed — but
+from the wrong branch, see below.
+
+### PR #15 merged to the wrong base
+
+**R8 never reached `main`.** #15 was opened against `range/capture-walk` while #14 was still
+open; #14 merged to `main` first, then #15 merged into `range/capture-walk`, leaving the
+survey mode on a branch nobody was building from. It was caught by flashing both boards and
+finding a role prompt that read `send 'i'/'r'` with no `'v'` — while the same board's
+settings dump correctly showed the new `antenna_gain_dbi=3.0`, which is what made the
+mismatch obvious rather than merely confusing.
+
+`range/field-prep` is branched from `range/capture-walk` and carries R8 forward. **Check
+what `main` actually contains before flashing a board from it**; a stacked PR whose base
+merges first does not follow it.
+
+### Verified on hardware after all of the above
+
+One command, both paths, on boards flashed from this branch:
+
+- Survey: reset → `SURV` → 25 s scan → dump → **130 rows**, `antenna_gain_dbi=3.0`,
+  `role=SURVEY`, clean `# capture ended`.
+- Walk: reset → INITIATOR → sweep header and rows, `antenna_gain_dbi=3.0`.
+
+### A postscript on the erase, and on trusting a separate check
+
+The erase looked broken: `# all stored surveys erased from NVS` on both boards, and a
+follow-up boot reporting `survey campaign complete - 1 site(s)`. Twenty minutes went into
+looking for a spurious store — a stray `prg_edge()`, a role-key repeat landing on a mode
+key, anything.
+
+There was none. Driven in **one process on one open port** — erase, reboot, check, then
+twenty seconds of scanning untouched and check again — both boards go empty and stay
+empty. The fault was in the checking: **every `capture.py --reset` re-enumerates the USB
+bridge**, and with two identical CP2102s both reporting `SER=0001` the two device nodes
+can swap between invocations. The erase and the check were landing on different boards.
+
+This is the `SER=0001` hazard that is already in the notes, showing up in a shape nobody
+had written down: not "you flash the wrong board" but "you verify the wrong board, and
+conclude the firmware is broken". Recorded in the field procedure as: trust the
+confirmation line from the command that did the work, not a separate check afterwards.
+
+`capture.py --key` now echoes the board's `#` lines for exactly this reason — a setup
+command whose confirmation is filtered out is a command you have to verify some other way,
+and the other way is what was wrong.

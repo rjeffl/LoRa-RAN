@@ -58,6 +58,25 @@ class RadioLink {
   float last_rssi_dbm() const { return last_rssi_; }
   float last_snr_db() const { return last_snr_; }
 
+  // R8 - retune only, leaving SF, CR and power untouched.
+  //
+  // Separate from apply() because the ambient survey walks 130 frequencies and
+  // changes nothing else, and because apply() would re-assert an output power the
+  // survey must never engage: R8 LISTENS. Nothing in survey mode transmits.
+  int16_t set_frequency(uint32_t freq_hz);
+
+  // R8 - INSTANTANEOUS RSSI, not the RSSI of the last packet.
+  //
+  // The distinction is the whole measurement. RadioLib's default getRSSI() reads the
+  // packet-status register, which holds the last *received frame's* RSSI and is not
+  // cleared - the same trap poll() fell into with getPacketLength(). On an empty bin
+  // there is no frame, so it would report a stale reading from a bin scanned minutes
+  // ago, and the survey would be a picture of its own memory.
+  //
+  // Requires the radio to be IN RECEIVE: the SX1262's GET_RSSI_INST is meaningless in
+  // standby. Callers go through start_receive() first and honour the settle time.
+  float instant_rssi_dbm();
+
   // spec 12.3 - CAD. Exposed now because the sweep needs it in R4 and because W9
   // asks for the 222-byte frame to be checked against the CAD/backoff window while
   // the boards are out. The backoff POLICY is not here; this is the primitive.

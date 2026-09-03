@@ -9,6 +9,7 @@ const char* to_string(Role r) {
   switch (r) {
     case Role::Initiator: return "INITIATOR";
     case Role::Responder: return "RESPONDER";
+    case Role::Survey:    return "SURVEY";
   }
   return "?";
 }

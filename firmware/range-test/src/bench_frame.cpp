@@ -55,7 +55,8 @@ bool bench_parse(const uint8_t* in, size_t len, BenchFrame* out) {
   const uint8_t kind = in[3];
   if (kind != static_cast<uint8_t>(BenchKind::Probe) &&
       kind != static_cast<uint8_t>(BenchKind::Echo) &&
-      kind != static_cast<uint8_t>(BenchKind::WarmupProbe)) {
+      kind != static_cast<uint8_t>(BenchKind::WarmupProbe) &&
+      kind != static_cast<uint8_t>(BenchKind::ArmedBeacon)) {
     return false;
   }
 
