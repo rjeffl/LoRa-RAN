@@ -1147,3 +1147,62 @@ truncates captures.
 Extracting the commands from the documentation and executing them is the only check that
 catches a recipe which is *syntactically* fine and *semantically* endless. Reading it would
 not have. Eleven recipes, eleven runs, one of them exposed as unusable.
+
+---
+
+## 2026-09-04 — the erase that "did not stick": opening a serial port pressed the button
+
+Reported from the bench: erase the survey log with the documented recipe, start the Job B
+capture, and the board has already advanced to `gatelink-gate` before PRG is ever touched.
+
+It looked like a synchronisation problem between the two commands. It was not. **GPIO 0 is
+both the PRG button and IO0, and IO0 is driven by the USB bridge's DTR.**
+`serial.Serial(port, ...)` asserts DTR as part of opening, so **merely opening the port
+held the button down**, and the firmware read it as a press. In survey mode a press is
+store-and-advance, so a tethered session stored a bogus run and stepped the campaign
+cursor by one.
+
+The symptom is exactly "the erase does not stick", because it does stick — and then a
+phantom press immediately re-stores site 0 and advances to site 1. Three consecutive
+sessions reproduced it perfectly: 1 site then cursor 1, 2 sites then cursor 2, each open
+adding one.
+
+This is the same GPIO 0 that R1's role selection is built around, and its dual life is
+already documented — PRG cannot be held through reset because IO0 is a strapping pin. What
+had not been noticed is that the *host* can drive that line at any time, not just during
+boot, and that every tool touching the port therefore presses the button.
+
+### Fixed on both sides, because either alone is insufficient
+
+**Host.** `capture.py` now constructs the port unopened, sets `dtr = False`, and only then
+opens — the only ordering that applies the setting *as* the port opens rather than after
+the pulse. It also deasserts on the way out.
+
+**Firmware.** `prg_edge()` was never a debounce. It rate-limited *changes* — accepted the
+first LOW sample it saw, then refused another for 40 ms — so any glitch narrower than the
+poll interval still reported a press. It now requires the line to be **continuously low
+for 50 ms** before reporting, once per press. A human press is over 100 ms; a line glitch
+is far shorter.
+
+The host fix alone left one store in five reset cycles, from the pulse on *close* rather
+than open. The firmware fix is what closes it: **eight consecutive tethered survey
+sessions, opened, reset into SURVEY, left scanning and closed — nothing stored, cursor
+still at `bridge-house`.**
+
+### And a documentation cause, underneath the electrical one
+
+The Job B site-0 recipe was `--key-after 300 --key p`. **`p` *is* the PRG press** — the
+tool stores and advances on its own, five minutes in, while the surrounding procedure tells
+the operator to press PRG. Two mechanisms doing the same thing and no way to tell which
+acted. That is its own contribution to "it advanced before I ever pressed PRG", and it
+would have remained true after the electrical fix.
+
+The recipe no longer automates it; `--key p` is documented as the opt-in variant, with the
+warning that the site name will change with nobody touching the board.
+
+### The shape worth remembering
+
+Two independent causes producing one symptom, one electrical and one editorial, and the
+electrical one was invisible to every test that drove the board *within* a single open
+port. It only appears across sessions — which is precisely what the operator does and what
+none of the bench scripts did.

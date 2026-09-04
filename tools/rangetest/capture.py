@@ -170,7 +170,25 @@ def main() -> int:
     # "# all stored surveys erased from NVS", which was being filtered out.
     echo = args.echo or bool(args.key)
 
-    ser = serial.Serial(args.port, args.baud, timeout=0.5)
+    # OPENED WITH DTR DEASSERTED, AND NOT A LINE OF THIS IS OPTIONAL.
+    #
+    # On this carrier DTR drives IO0, which is GPIO 0, which is the PRG button.
+    # `serial.Serial(port, ...)` asserts DTR as part of opening, so merely opening the
+    # port holds PRG down - and the firmware reads that as a press. In survey mode a
+    # press is store-and-advance, so every tethered capture silently stored a bogus
+    # run and stepped the campaign cursor on by one; on the responder it would
+    # increment the position. It presents as an erase that "does not stick", because
+    # the erase works and the phantom press immediately re-stores site 0.
+    #
+    # Setting dtr before open() applies it AS the port opens, so IO0 is never pulled
+    # low. Constructing unopened is the only way to get that ordering.
+    ser = serial.Serial()
+    ser.port = args.port
+    ser.baudrate = args.baud
+    ser.timeout = 0.5
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
     trace = Trace(args.out, args.note)
     meta = []
     sweeps = 0
@@ -234,20 +252,20 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    if args.key and args.key_after > 0:
-        # Not a sleep(): the board is talking the whole time, and draining the port
-        # here keeps its output out of the OS buffer, where a long enough wait would
-        # overflow and take the CSV header with it.
+    # Keys are sent FROM INSIDE the capture loop, one per second, starting
+    # --key-after seconds in.
+    #
+    # They used to be sent before the loop was entered, with the port merely drained
+    # into a buffer in the meantime. Everything the board said during the wait was
+    # therefore parsed and echoed only afterwards, so "sent key: p" printed ABOVE boot
+    # lines that had arrived long before it. Reading that log, the tool looks like it
+    # pressed a key before the board booted - which is exactly how a perfectly correct
+    # run gets reported as a desync. Rows arriving during the wait are now captured
+    # too, rather than sitting unparsed.
+    pending_keys = list(args.key)
+    next_key_at = (time.time() + args.key_after) if pending_keys else None
+    if pending_keys and args.key_after > 0:
         print(f"  waiting {args.key_after:.0f}s before sending keys", flush=True)
-        wait_end = time.time() + args.key_after
-        while time.time() < wait_end:
-            buf += ser.read(4096)
-
-    for k in args.key:
-        ser.write(k.encode())
-        ser.flush()
-        print(f"  sent key: {k}", flush=True)
-        time.sleep(1.0)
 
     try:
         while not stop:
@@ -261,6 +279,13 @@ def main() -> int:
                 reason = f"no serial data for {args.idle_timeout:.0f}s"
                 print(f"\n{reason}", file=sys.stderr)
                 break
+
+            if next_key_at is not None and time.time() >= next_key_at:
+                k = pending_keys.pop(0)
+                ser.write(k.encode())
+                ser.flush()
+                print(f"\n  sent key: {k}", flush=True)
+                next_key_at = (time.time() + 1.0) if pending_keys else None
 
             chunk = ser.read(4096)
             if not chunk:
@@ -331,6 +356,10 @@ def main() -> int:
         reason = "stopped by operator"
         print("\nstopped by operator", flush=True)
     finally:
+        try:
+            ser.dtr = False      # never leave PRG held on the way out
+        except Exception:
+            pass
         ser.close()
 
     print()

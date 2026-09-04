@@ -355,15 +355,20 @@ this one is free, because the laptop is right there:
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
-    --port /dev/cu.usbserial-0001 --reset --role survey \
-    --key-after 300 --key p --sweeps 1 \
+    --port /dev/cu.usbserial-0001 --reset --role survey --sweeps 1 \
     --out docs/rangetest/data/2026-09-04-survey-bridge.csv \
-    --idle-timeout 60 --note "bridge-house, 5 min, 3.0dBi at 1.2m"
+    --idle-timeout 60 --note "bridge-house, 3.0dBi at 1.2m"
 ```
 
-That scans for five minutes, then `p` stores site 0 and advances to `gatelink-gate`.
 Confirm from the output: badge `SURV`, 130 bins, one pass every ~4 s, and
-`antenna_gain_dbi=3.0`.
+`antenna_gain_dbi=3.0`. Let it scan for five minutes, then **press PRG on the board** —
+same gesture as every other site. That stores `bridge-house` and advances the cursor to
+`gatelink-gate`; the capture stops on the dump and writes the file.
+
+> **If you would rather the tool pressed it for you**, add `--key-after 300 --key p`.
+> `p` *is* the PRG press — the tool will store and advance on its own, five minutes in,
+> and the site name on the OLED will change without you touching anything. That is
+> correct behaviour and it surprises people, so it is opt-in rather than the default.
 
 ### Then unplug and walk — the campaign resumes by itself
 

@@ -121,6 +121,14 @@ empty run in progress over each one.
 **`SURVEY` is reachable by holding PRG** (~1.5 s), not only by serial `v`. `--role survey`
 sends `v`, which is the tethered equivalent.
 
+**The port is opened with DTR deasserted, and that is not cosmetic.** On this carrier DTR
+drives IO0, which is GPIO 0, which is the PRG button — so a naive `serial.Serial(port)`
+holds PRG down just by opening the port. In survey mode a press is store-and-advance, so
+every tethered session used to store a bogus run and step the campaign cursor on by one.
+It presents as an erase that "does not stick": the erase works, and a phantom press
+immediately re-stores site 0. Fixed on both sides — the tool never asserts DTR, and the
+firmware now requires the line to hold low for 50 ms before it counts as a press.
+
 **Completion markers are matched as substrings anywhere in a `#` line.** A new firmware
 message containing one silently truncates a capture — this happened once, when the
 responder's armed line read "sweep complete". Check `COMPLETION_MARKERS` before wording a
@@ -235,8 +243,10 @@ and `# survey campaign complete - N site(s)`.
     --idle-timeout 60 --note "bridge, 5 min, 3.0dBi at 1.2m"
 ```
 
-**`--key p` stores the site to NVS and advances the cursor** — use it when this site is
-part of the seven-site campaign and you want it in the eventual campaign readback too:
+**`--key p` stores the site to NVS and advances the cursor.** `p` **is** the PRG press:
+the tool performs it for you, and the site name on the OLED changes with nobody touching
+the board. That surprises people who are also being told to press PRG themselves — decide
+which of the two is doing it, not both:
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \

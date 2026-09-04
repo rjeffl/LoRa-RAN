@@ -266,18 +266,49 @@ void dump_settings() {
 // re-read here as an ordinary input; nothing about the strapping-pin behaviour
 // matters once the application is running.
 bool prg_edge() {
-  static bool     down        = false;
-  static uint32_t last_change = 0;
-  constexpr uint32_t kDebounceMs = 40;
+  // A press is only a press once the line has been LOW CONTINUOUSLY for
+  // kPressStableMs. The previous version rate-limited *changes* - it accepted the
+  // first LOW sample it saw and then refused another for 40 ms - which is not a
+  // debounce at all: any glitch narrower than the sampling interval still reported a
+  // press.
+  //
+  // That mattered because GPIO 0 is also IO0, driven by the USB bridge's DTR. Opening
+  // the port asserted it (fixed host-side in capture.py) and CLOSING it pulses it, and
+  // a pulse was indistinguishable from a thumb. In survey mode a press is
+  // store-and-advance, so a tethered session ended by storing a bogus run and stepping
+  // the campaign cursor - which presents as an erase that "does not stick", because
+  // the erase works and the phantom press immediately re-stores site 0.
+  //
+  // A human press is over 100 ms; a line glitch is far shorter. Requiring the level to
+  // hold rejects the glitch without making the button feel slow.
+  constexpr uint32_t kPressStableMs = 50;
 
-  const bool now = (digitalRead(kPinPrgButton) == LOW);
-  if (now == down) return false;
-  if (millis() - last_change < kDebounceMs) return false;
+  static bool     reported   = false;   // this press has already been announced
+  static bool     low_seen   = false;   // the line is currently low
+  static uint32_t low_since  = 0;
 
-  last_change = millis();
-  down        = now;
-  return now;   // report the press, not the release
+  const bool low = (digitalRead(kPinPrgButton) == LOW);
+
+  if (!low) {
+    // Released - or the glitch ended before it ever qualified. Either way, re-arm.
+    low_seen = false;
+    reported = false;
+    return false;
+  }
+
+  if (!low_seen) {
+    low_seen  = true;
+    low_since = millis();
+    return false;                 // start the clock, report nothing yet
+  }
+
+  if (!reported && (millis() - low_since) >= kPressStableMs) {
+    reported = true;              // once per press, not once per poll
+    return true;
+  }
+  return false;
 }
+
 
 // RESPONDER: tune to radio configuration `index` and restart the dwell clock.
 void resp_tune_to(size_t index) {
