@@ -33,6 +33,7 @@ progress is joined mid-way and the partial rows are still valid, just fewer.
 """
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -162,6 +163,11 @@ def main() -> int:
                          "default when --key is given, because a setup command "
                          "(erase, store, dump) is only useful if you can see it "
                          "confirm - the confirmation IS the output")
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite --out if it already exists. Without this an "
+                         "existing trace is never touched: these files are the "
+                         "evidence for D1, and re-running a documented recipe names "
+                         "a real trace path")
     ap.add_argument("--note", default="",
                     help="free text recorded in the file header - antenna height, "
                          "bearing, weather, whatever R10 asks for")
@@ -182,6 +188,17 @@ def main() -> int:
     #
     # Setting dtr before open() applies it AS the port opens, so IO0 is never pulled
     # low. Constructing unopened is the only way to get that ordering.
+    # NEVER CLOBBER AN EXISTING TRACE.
+    #
+    # Trace.open() opens with "w", which truncates the moment a CSV header arrives -
+    # BEFORE a single row is known to be coming. So pointing a capture at a path that
+    # already holds a trace destroys it even if the new capture then fails and exits
+    # with "no data rows captured". Re-running a documented recipe does exactly that,
+    # because the recipes name real trace paths; it cost a committed walk once.
+    if os.path.exists(args.out) and not args.force:
+        sys.exit(f"{args.out} already exists - refusing to overwrite a trace.\n"
+                 "Pick another --out, or pass --force if you really mean to replace it.")
+
     ser = serial.Serial()
     ser.port = args.port
     ser.baudrate = args.baud

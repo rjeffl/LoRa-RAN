@@ -1216,3 +1216,41 @@ still selects SURVEY.** 50 ms is comfortably below a real thumb and comfortably 
 line glitch, and both gestures are unaffected.
 
 That closes every verification item that could only be settled by a person at the bench.
+
+---
+
+## 2026-09-04 — re-running a documented recipe destroys the trace it names
+
+Caught while checking what `main` held after PR #17: the two traces from the 2026-09-04
+capture were missing. `git log --name-status` put the deletion in `66081bd`, a commit whose
+subject is about the DTR fix and which had no business touching them.
+
+**No evidence was lost** — that capture turned out to be an indoor process check rather
+than a measurement, and is not committed. But the mechanism is real and would have taken a
+genuine trace just as quietly.
+
+### The mechanism, which is a defect in the tool
+
+`Trace.open()` opens the output with `"w"`, and it does so **the moment a CSV header
+arrives** — before a single data row is known to be coming. So aiming a capture at a path
+that already holds a trace truncates it immediately, and if that capture then fails and
+exits with "no data rows captured", the old trace is gone and nothing says so.
+
+The recipes in `CAPTURE-PY.md` and `FIELD-PROCEDURE.md` **name real trace paths**, because
+that is what makes them copy-pasteable. Auditing those recipes by running them therefore
+pointed live captures at committed evidence. The audit was the right idea — it found the
+recipe that could never terminate — but it needed the tool to be safe against exactly this.
+
+`capture.py` now refuses to write to an existing `--out` unless `--force` is given. The
+files under `docs/rangetest/data/` are the evidence for D1; a tool that quietly replaces
+one with an empty file is not fit to be pointed at them.
+
+### Worth stating plainly
+
+This one was recoverable only because the file had been committed. A trace captured and
+then audited in the same session, before any commit, would have been unrecoverable — and
+the loss would have been **silent**, because "no data rows captured" reads like the *new*
+run failing rather than like the old one being destroyed.
+
+Two habits follow, both now in the docs: **commit a trace as soon as it comes off the
+board**, and never point a capture at a path that already holds one.
