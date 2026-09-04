@@ -66,6 +66,15 @@ and is correct in this one.
   A dark panel is usually Vext, not the driver. The sequence is lifted from
   `/wattcycle-reader/src/BmsDisplay.cpp`, where it is verified on this board.
 - **The PRG button is the BOOT strapping pin.** See below.
+- **A host opening the serial port presses PRG.** GPIO 0 is also IO0, and IO0 is driven by
+  the USB bridge's DTR — `serial.Serial(port, ...)` asserts DTR as it opens, so opening the
+  port holds the button down. In survey mode that is store-and-advance, so every tethered
+  session stored a bogus run and stepped the campaign cursor; it presents as *"the erase
+  does not stick"*. **Any host tool touching these boards must set `dtr = False` before
+  opening** (construct the port unopened — setting it afterwards is too late). `prg_edge()`
+  is the second line of defence: a press must hold the line low for 50 ms, so a pulse on
+  close cannot register. Confirmed on hardware 2026-09-04: tap still advances the position,
+  hold still selects SURVEY.
 - **Never ask `getPacketLength()` whether a packet arrived.** It holds the length of the
   *last* packet and is not cleared by reading, so a poll built on it re-reports one
   buffered frame forever. Gate on the DIO1 interrupt. This cost a bench run to find and
@@ -90,6 +99,14 @@ frame handling runs. Keep it that way.
 - **The settle time after each retune is a measurement, not a delay.** The SX1262's RSSI
   climbs while its AGC settles; sampling through it drags every bin's mean down by the same
   amount, which looks exactly like a clean, quiet band.
+- **The site cursor is persisted, the role is not.** R1 governs the ROLE (a power cycle
+  re-asks); campaign PROGRESS is different and must survive, because this board has no
+  battery and every move between laptop and power bank is a power cycle. Without it the
+  cursor restarted at 0 and the only way forward was to press PRG past the finished
+  sites - which STORES an empty run over each one on the way.
+- **`SURVEY` is reachable by holding PRG**, not only by serial `v`. Serial-only was a
+  field-blocking bug: an unplugged board came back as `INITIATOR`, the mode that
+  transmits. See `src/role.h`.
 - **Seven named sites, one stored run each** (`bridge-house`, `gatelink-gate`,
   `weather-island`, `welllink-well`, `irrigation-pump`, `hopyard-lower`, `propane-tank`).
   Seven blobs of 1580 bytes in a 20 kB NVS partition - the fit is asserted by a host test,

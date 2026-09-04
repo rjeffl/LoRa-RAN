@@ -928,3 +928,291 @@ confirmation line from the command that did the work, not a separate check after
 `capture.py --key` now echoes the board's `#` lines for exactly this reason — a setup
 command whose confirmation is filtered out is a command you have to verify some other way,
 and the other way is what was wrong.
+
+---
+
+## 2026-09-04 — the survey campaign could not actually be run
+
+Three questions about the field procedure, and the second one was a firmware defect that
+would have stopped the campaign at the first site.
+
+### The survey was unreachable on battery, and the failure mode was transmitting
+
+R1 says the role is **not persisted**: a power cycle re-asks. R8 then made `SURVEY`
+selectable **only** by the serial character `v`, on the reasoning that PRG already means
+RESPONDER and overloading it puts the survey one mistimed thumb away from the walk. Select
+it at the house, where the laptop is, and walk out with the board still running.
+
+That silently assumed the board stays powered. **It has no battery fitted**, so moving from
+the laptop to a power bank *is* a power cycle. The board came back up as `INITIATOR` — the
+no-press default, and **the one mode that transmits**. The documented campaign would have
+put a board on the air at every site while measuring nothing.
+
+Fixed with a gesture, not a flag: **tap PRG for RESPONDER, hold ~1.5 s for SURVEY.** The
+OLED names the role a release would choose while the button is still down, so the word
+flips from `RESPONDER` to `SURVEY` under the thumb and the operator releases on the one
+they wanted — a hold whose effect is invisible until the radio does or does not start is
+exactly what R1's selection window exists to avoid. R1's "not persisted, a power cycle
+re-asks" is untouched.
+
+### Then the workaround for it was itself destructive
+
+The first correction told the operator to press PRG past the sites already stored to get
+the cursor back where it belonged. That is `survey_store_and_advance()`, which **stores the
+run in progress into each slot on the way** — an empty run written over every completed
+site. The campaign destroying itself to get back to where it was.
+
+The site cursor is now persisted in NVS next to the runs. **The role is not campaign
+progress**: R1 governs the first, and the second has to survive a power cycle for the same
+reason the stored surveys do. On boot the survey mode prints
+`# resuming campaign at site N <name>` and picks up exactly where it stopped.
+
+Verified on hardware: erase, store two sites, power cycle, and the board resumes at site 2
+`weather-island` with sites 0 and 1 intact.
+
+`n` and `b` move the cursor **without storing**, for a skipped site or a mis-set cursor.
+Correcting a cursor must never go through the store path.
+
+### `capture.py` could not capture the responder's log at all
+
+Asked for the exact command to read the responder's position log after a walk, there
+wasn't one. `capture.py` recognised two header shapes and required data rows to begin with
+a digit; the responder's log is `RESP,position,...` with rows starting `RESP,`. **Every row
+was being discarded**, silently, as not-a-data-row.
+
+This is the reverse-direction data — the only record that a probe was heard whose echo was
+lost — and it is the thing R6 exists to produce. `RESP,position,` is now a recognised
+header, `RESP,` rows are accepted, and the firmware prints `# responder log complete` so a
+capture stops on it like any other unit of work. The `--- end responder log ---` banner is
+for a human; the tool needed a `#` marker it already knew.
+
+Verified: 1 row, `RESP,0,104,104,-232,-270,-190,123,105,135` — 104 probes heard, 104 echoes
+sent, on a 1 m bench link.
+
+### The battery module: nothing to do in firmware
+
+Asked whether charging and USB transition still work off stock Meshtastic. **This firmware
+touches nothing battery-related** — no ADC read, no `VBAT`, no charge control, and the
+vendor variant does not declare a battery pin. Charging and the USB/battery power path are
+onboard hardware and run regardless of firmware; Meshtastic only *reads* the voltage.
+
+What is lost is the readout, and there is none here to lose. What is gained is real: with a
+battery fitted, moving between the laptop and the power bank stops being a power cycle, so
+the role survives and the hold-PRG step goes away. Recorded as a ten-minute bench check to
+do before relying on it, since no code here can tell you.
+
+### And a reference that should have existed
+
+`capture.py`'s behaviour was spread across three documents, its own docstring and the
+argparse help. [`CAPTURE-PY.md`](./CAPTURE-PY.md) is now the single man-page-style
+reference, with a complete command for each field job.
+
+---
+
+## 2026-09-04 — first real position walk: the data is good, and it found two bugs
+
+Two positions on the gate bearing, 3.0 dBi antennas both ends at 1.2 m AGL, dry, foliage
+full. `2026-09-04-walk-gatelink.csv` and `-resplog.csv`.
+
+### What the trace says
+
+| | Position 0 | Position 1 |
+|---|---|---|
+| Test points | 24 | 24 |
+| Probes sent / echoes | 192 / 169 | **192 / 192** |
+| PER | 0% except tp 0-2 | **0% throughout** |
+| Initiator RSSI, median | −44.1 dBm | −72.3 dBm |
+| `phy_crc_err` / `foreign` / `filler_err` | 0 / 0 / 0 | 0 / 0 / 0 |
+
+**The two ends agree to within 0.6 dB on average** (2.0 dB worst) between
+`init_rssi_mean10` and `resp_rssi_mean10` across all 48 rows — the link is symmetric and
+both radios are measuring the same thing.
+
+**The cross-check closes exactly.** Position 0 lost 23 probes by the initiator's count
+(8 + 8 + 7 on test points 0, 1 and 2). 192 − 23 = 169, and the responder's log reports
+**169 probes heard, 169 echoes sent**. Two independent counters, two files, no
+disagreement. That is the strongest evidence yet that the instrumentation is right, and it
+is what made both of the bugs below visible rather than plausible.
+
+28 dB of path loss between the two positions, and still 0% PER at the far one — this link
+has margin in hand at the D33 ceiling.
+
+### Bug 1 — the last position of every walk was never saved
+
+Two positions were walked. **The responder log contains one row.**
+
+`resp_log_save()` was called only when the position ADVANCED — persisting the position
+being left. The final position is never left: the operator walks home and powers the board
+down. Its data, often the most distant point and the entire reason for the walk, was gone.
+
+Now saved on the **armed beacon**, the same signal that raises `DONE`: the initiator has
+finished the sweep for this position, so the tally is complete. Saving on the transition
+writes once per position, not once per beacon.
+
+### Bug 2 — the initiator swept before the responder existed
+
+Position 0 lost its first 23 probes: 100% PER on test points 0 and 1, 87.5% on test point
+2, then clean for the remaining 21. Position 1 was 192 of 192.
+
+That is not the link. The initiator booted straight into `Sweeping`, and the field flow is
+*start the capture* (which resets the initiator) → *walk over* → *boot the responder*. The
+initiator is always several test points ahead of a responder that is not yet listening.
+Every first sweep would have carried the same fake loss, at the position where the boards
+are closest together and the numbers look most trustworthy.
+
+The initiator now boots **ARMED** and runs nothing until the first PRG press — which is
+what R5's "one press, one sweep, one position" already describes. Positions run 1..N and
+every one of them is clean.
+
+Worth naming the shape: **both bugs produced plausible data.** A missing position looks
+like a walk that covered fewer stops, and 100% PER on the first two test points looks like
+a radio warming up. Neither would have been caught by looking at one file. The cross-check
+between the two files is what made them undeniable, and it is now written into
+`data/README.md` as the thing to do with every walk.
+
+### Bug 3, found while verifying bug 1
+
+The responder's armed-transition line read `# far end ARMED - sweep complete at position
+N`. **`sweep complete` is the exact substring `capture.py` stops a capture on**, so reading
+the responder's log while the initiator was still powered and beaconing ended the capture
+on that line instead of on `# responder log complete`. The bench showed it as two
+completion units counted for a two-row log.
+
+It now reads `# far end ARMED - position N measured and saved`. The responder does not run
+sweeps, so saying it did was wrong as well as ambiguous.
+
+Worth noting for anything that adds a marker later: the completion markers are matched as
+**substrings anywhere in a `#` line**, so a new message that happens to contain one silently
+truncates a capture. The markers are listed in `capture.py`'s `COMPLETION_MARKERS`.
+
+### Verified on hardware, both fixes, a full two-position walk
+
+| | Before | After |
+|---|---|---|
+| Rows before the first PRG press | test points 0-2 of position 0 | **0** |
+| Position 1 / 2 probes, echoes | 192 / 169 at position 0 | **192 / 192 and 192 / 192** |
+| Positions in the responder log | 1 of 2 | **2 of 2**, both 192 heard, 192 echoed |
+
+The responder log now closes against the sweep trace on both positions with nothing left
+over, which is the check `data/README.md` asks for.
+
+---
+
+## 2026-09-04 — auditing the docs against the firmware, and the recipe that never ended
+
+Both field documents were brought back in line with the firmware after six behaviour
+changes in two days. The audit was mechanical rather than by eye: extract every
+`capture.py` invocation from both documents, check every flag against `argparse`, check
+every quoted `#` message against the firmware source, and then **run all eleven of them
+against real boards**.
+
+### One documented recipe could never terminate
+
+```
+capture.py --port ... --reset --role responder --key x --out ... --idle-timeout 20
+```
+
+`--idle-timeout` ends a run on **silence**. A responder hunting for an initiator prints
+`# resp tuned to config N` on every dwell expiry, so it is never silent, so the deadline
+never fires. **The documented "erase the position log" command runs forever.** Confirmed by
+running it: still alive after four minutes, no output past the confirmation line.
+
+Silence is the right rule for a walk and the wrong rule for a command. Added `--run-for`, a
+wall-clock deadline that does not care what the board is saying, and switched both erase
+recipes to it. It is rejected if it does not exceed `--key-after`, or the keys would never
+be sent. Verified: 25.5 s for a `--run-for 25`, with `# position log cleared` echoed.
+
+### What the audit found in the documents
+
+- The responder's armed line was still documented as `sweep complete at position N`. It
+  changed to `position N measured and saved` when that substring turned out to stop a
+  capture, and the document had not followed.
+- The survey key table in `CAPTURE-PY.md` was missing `n` and `b` entirely — they were
+  added with the site cursor and only reached `FIELD-PROCEDURE.md`.
+- The erase confirmation gained `, site cursor reset` and neither document said so.
+- Neither document mentioned that **the initiator now boots ARMED and positions start at
+  1**, which is the single most visible change to what a trace looks like.
+
+None of these would have stopped a walk. Together they are how a document stops being
+trusted: each individually small divergence teaches the reader to check the source instead.
+
+`CAPTURE-PY.md` now carries a **"firmware behaviour this tool depends on"** section, so the
+board-side facts a command depends on live next to the commands rather than only in the
+procedure. It also records the trap that produced the marker bug: **completion markers
+match as substrings anywhere in a `#` line**, so wording a new firmware message carelessly
+truncates captures.
+
+### Worth keeping as a habit
+
+Extracting the commands from the documentation and executing them is the only check that
+catches a recipe which is *syntactically* fine and *semantically* endless. Reading it would
+not have. Eleven recipes, eleven runs, one of them exposed as unusable.
+
+---
+
+## 2026-09-04 — the erase that "did not stick": opening a serial port pressed the button
+
+Reported from the bench: erase the survey log with the documented recipe, start the Job B
+capture, and the board has already advanced to `gatelink-gate` before PRG is ever touched.
+
+It looked like a synchronisation problem between the two commands. It was not. **GPIO 0 is
+both the PRG button and IO0, and IO0 is driven by the USB bridge's DTR.**
+`serial.Serial(port, ...)` asserts DTR as part of opening, so **merely opening the port
+held the button down**, and the firmware read it as a press. In survey mode a press is
+store-and-advance, so a tethered session stored a bogus run and stepped the campaign
+cursor by one.
+
+The symptom is exactly "the erase does not stick", because it does stick — and then a
+phantom press immediately re-stores site 0 and advances to site 1. Three consecutive
+sessions reproduced it perfectly: 1 site then cursor 1, 2 sites then cursor 2, each open
+adding one.
+
+This is the same GPIO 0 that R1's role selection is built around, and its dual life is
+already documented — PRG cannot be held through reset because IO0 is a strapping pin. What
+had not been noticed is that the *host* can drive that line at any time, not just during
+boot, and that every tool touching the port therefore presses the button.
+
+### Fixed on both sides, because either alone is insufficient
+
+**Host.** `capture.py` now constructs the port unopened, sets `dtr = False`, and only then
+opens — the only ordering that applies the setting *as* the port opens rather than after
+the pulse. It also deasserts on the way out.
+
+**Firmware.** `prg_edge()` was never a debounce. It rate-limited *changes* — accepted the
+first LOW sample it saw, then refused another for 40 ms — so any glitch narrower than the
+poll interval still reported a press. It now requires the line to be **continuously low
+for 50 ms** before reporting, once per press. A human press is over 100 ms; a line glitch
+is far shorter.
+
+The host fix alone left one store in five reset cycles, from the pulse on *close* rather
+than open. The firmware fix is what closes it: **eight consecutive tethered survey
+sessions, opened, reset into SURVEY, left scanning and closed — nothing stored, cursor
+still at `bridge-house`.**
+
+### And a documentation cause, underneath the electrical one
+
+The Job B site-0 recipe was `--key-after 300 --key p`. **`p` *is* the PRG press** — the
+tool stores and advances on its own, five minutes in, while the surrounding procedure tells
+the operator to press PRG. Two mechanisms doing the same thing and no way to tell which
+acted. That is its own contribution to "it advanced before I ever pressed PRG", and it
+would have remained true after the electrical fix.
+
+The recipe no longer automates it; `--key p` is documented as the opt-in variant, with the
+warning that the site name will change with nobody touching the board.
+
+### The shape worth remembering
+
+Two independent causes producing one symptom, one electrical and one editorial, and the
+electrical one was invisible to every test that drove the board *within* a single open
+port. It only appears across sessions — which is precisely what the operator does and what
+none of the bench scripts did.
+
+### Confirmed on hardware, 2026-09-04
+
+The debounce rewrite risked making the button unresponsive, since it now demands 50 ms of
+continuous low rather than accepting the first sample. Checked on the boards by hand:
+**a short PRG press still selects RESPONDER and still advances the position; a long press
+still selects SURVEY.** 50 ms is comfortably below a real thumb and comfortably above a
+line glitch, and both gestures are unaffected.
+
+That closes every verification item that could only be settled by a person at the bench.

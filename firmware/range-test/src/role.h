@@ -75,19 +75,29 @@ inline constexpr char kSerialSelectInitiator = 'i';
 inline constexpr char kSerialSelectResponder = 'r';
 
 // R8 - the third mode, on the same binary per the task text.
-//
-// NOT on the PRG button. PRG already means RESPONDER and that meaning is the one the
-// operator uses untethered, in the field, on the walking board - overloading it with
-// a double-press or a hold would put the survey one mistimed thumb away from the
-// walk. A survey run instead starts either from the console with 'v', or by pressing
-// PRG a second time on a board that is ALREADY showing the role prompt having been
-// put into it deliberately - which is to say, it does not, and 'v' is the only
-// selector.
-//
-// That leaves the far-end survey needing a laptop, which is precisely the problem
-// survey.h's NVS blob exists to solve: select the survey at the house where the
-// laptop is, walk out with the board still running it, press PRG at the far point to
-// store, and read it back on return. See the field procedure in HANDOFF.md.
 inline constexpr char kSerialSelectSurvey = 'v';
+
+// PRG ALSO SELECTS SURVEY, BY HOLDING IT. A tap is RESPONDER; a hold past
+// kPrgSurveyHoldMs is SURVEY.
+//
+// THIS WAS ORIGINALLY SERIAL-ONLY, AND THAT WAS A FIELD-BLOCKING BUG.
+//
+// The reasoning was that PRG already means RESPONDER, so overloading it puts the
+// survey one mistimed thumb away from the walk; select the survey at the house, where
+// the laptop is, and walk out with the board still running it.
+//
+// That silently assumed the board stays powered. It does not: this Heltec has no
+// battery fitted, so moving from the laptop to a power bank is a POWER CYCLE, and the
+// role is deliberately not persisted (R1 - a power cycle re-asks). The board therefore
+// came back up as INITIATOR, the no-press default - which in this firmware is the mode
+// that TRANSMITS. The survey campaign as documented could not be run at all, and its
+// failure mode was a board quietly putting power on the air at every site.
+//
+// A hold is the right gesture rather than a persisted flag: it keeps R1's "not
+// persisted, a power cycle re-asks" intact, it needs no laptop, and it cannot be hit
+// by accident during the walk because the walk's own gesture is a tap on a board that
+// is not in the role window. The OLED names the role that will be chosen while the
+// button is still down, so the operator sees SURVEY before releasing.
+inline constexpr uint32_t kPrgSurveyHoldMs = 1500;
 
 }  // namespace rangetest
