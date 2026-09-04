@@ -66,6 +66,15 @@ and is correct in this one.
   A dark panel is usually Vext, not the driver. The sequence is lifted from
   `/wattcycle-reader/src/BmsDisplay.cpp`, where it is verified on this board.
 - **The PRG button is the BOOT strapping pin.** See below.
+- **A host opening the serial port presses PRG.** GPIO 0 is also IO0, and IO0 is driven by
+  the USB bridge's DTR — `serial.Serial(port, ...)` asserts DTR as it opens, so opening the
+  port holds the button down. In survey mode that is store-and-advance, so every tethered
+  session stored a bogus run and stepped the campaign cursor; it presents as *"the erase
+  does not stick"*. **Any host tool touching these boards must set `dtr = False` before
+  opening** (construct the port unopened — setting it afterwards is too late). `prg_edge()`
+  is the second line of defence: a press must hold the line low for 50 ms, so a pulse on
+  close cannot register. Confirmed on hardware 2026-09-04: tap still advances the position,
+  hold still selects SURVEY.
 - **Never ask `getPacketLength()` whether a packet arrived.** It holds the length of the
   *last* packet and is not cleared by reading, so a poll built on it re-reports one
   buffered frame forever. Gate on the DIO1 interrupt. This cost a bench run to find and

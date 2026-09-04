@@ -1206,3 +1206,13 @@ Two independent causes producing one symptom, one electrical and one editorial, 
 electrical one was invisible to every test that drove the board *within* a single open
 port. It only appears across sessions — which is precisely what the operator does and what
 none of the bench scripts did.
+
+### Confirmed on hardware, 2026-09-04
+
+The debounce rewrite risked making the button unresponsive, since it now demands 50 ms of
+continuous low rather than accepting the first sample. Checked on the boards by hand:
+**a short PRG press still selects RESPONDER and still advances the position; a long press
+still selects SURVEY.** 50 ms is comfortably below a real thumb and comfortably above a
+line glitch, and both gestures are unaffected.
+
+That closes every verification item that could only be settled by a person at the bench.
