@@ -7,6 +7,8 @@
 | **A. Position walk** | R10 fieldwork, the R4–R7 sweep | **M6** — range and RSSI at the target locations | INITIATOR + RESPONDER |
 | **B. Ambient survey** | **R8** | **M20** — what else is on the band, at every site | SURVEY (one board) |
 
+> `capture.py` option reference and recipes: [`CAPTURE-PY.md`](./CAPTURE-PY.md).
+>
 > Authority: [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md)
 > for what to build, [`engineering-log.md`](./engineering-log.md) for why things are the
 > way they are, [`data/README.md`](./data/README.md) for the trace schemas.
@@ -172,11 +174,19 @@ the OLED shows a countdown:
 | Board | Do this within 3 s of reset | Badge |
 |---|---|---|
 | Initiator | nothing — it is the no-press default | `INIT` |
-| Responder | **press PRG** (or send `r`) | `RESP` |
-| Survey | send **`v`** on the console | `SURV` |
+| Responder | **tap PRG** (or send `r`) | `RESP` |
+| Survey | **hold PRG ~1.5 s** (or send `v`) | `SURV` |
 
-Survey has no button selector on purpose: PRG already means RESPONDER, and that is the
-meaning used untethered in the field. Select `SURV` at the house, where the laptop is.
+**Tap for RESPONDER, hold for SURVEY.** While the button is down the OLED shows the role a
+release would choose right now, and the word flips from `RESPONDER` to `SURVEY` as you
+cross the threshold — watch for the flip rather than counting. Both are reachable with a
+thumb, on a power bank, with no laptop.
+
+> This board has **no battery fitted**, so moving from the laptop to a power bank is a
+> **power cycle**, and the role is deliberately not persisted (R1 — a power cycle re-asks).
+> The survey used to be serial-only, which meant a board unplugged at the house came back
+> up as `INITIATOR` — the mode that **transmits**. The hold is what makes the untethered
+> survey possible at all.
 
 ---
 
@@ -262,10 +272,20 @@ press.
 1. **Ctrl-C** the capture. It writes the file.
 2. Check the file ends with a `# capture ended:` line. Without one it was truncated by
    something that never got to finish, and the last position in it is suspect.
-3. Plug in the **responder** and reset it as `RESP`. It dumps its own per-position log at
-   boot — `RESP,position,probes_heard,...`. **That is the reverse-direction data and the
-   only copy of it**; the initiator's CSV cannot separate downlink loss from uplink loss
-   without it.
+3. Plug in the **responder** and capture its per-position log. **This is the
+   reverse-direction data and the only copy of it** — the initiator's CSV cannot separate
+   downlink loss from uplink loss without it:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role responder --sweeps 1 \
+    --out docs/rangetest/data/2026-09-04-walk-gatelink-resplog.csv \
+    --idle-timeout 60 \
+    --note "responder log, walk of 2026-09-04, bearing 120deg"
+```
+
+   It stops on its own at `# responder log complete`. Expect one `RESP,` row per position
+   visited. Commit it next to the sweep trace — the two are only useful together.
 
 ### Height, elevation, and what to actually write down
 
@@ -306,21 +326,47 @@ One board, seven sites, **one trip**. Nothing transmits in this mode.
 The board stores each site's run to NVS, so you do **not** need the laptop at the gate or
 the hop yard. Select the mode at the house, walk the loop, read all seven out on return.
 
-### At the house
+### Site 0, at the house
 
-The first site (`bridge-house`) is measured here, tethered, so start it with a capture
-running and leave it going while you note the plan:
+Erase any bench data first (above). Measure `bridge-house` tethered, and keep the trace —
+this one is free, because the laptop is right there:
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/cu.usbserial-0001 --reset --role survey \
-    --out /tmp/survey-start.csv --idle-timeout 60
+    --key-after 300 --key p --sweeps 1 \
+    --out docs/rangetest/data/2026-09-04-survey-bridge.csv \
+    --idle-timeout 60 --note "bridge-house, 5 min, 3.0dBi at 1.2m"
 ```
 
-Confirm from its output: badge reads `SURV`, 130 bins, 902.0–927.8 MHz in 200 kHz steps,
-one pass every ~4 seconds, and `antenna_gain_dbi=3.0`. Then **Ctrl-C the capture, unplug,
-and walk** — the board keeps scanning on the power bank and stores to NVS. (Erase any
-bench data first, above.)
+That scans for five minutes, then `p` stores site 0 and advances to `gatelink-gate`.
+Confirm from the output: badge `SURV`, 130 bins, one pass every ~4 s, and
+`antenna_gain_dbi=3.0`.
+
+### Then unplug and walk — the campaign resumes by itself
+
+**Unplugging is a power cycle.** The board forgets its *role* (R1 — a power cycle
+re-asks), but it keeps everything about the campaign: the stored sites **and which site it
+is up to**.
+
+At the power bank, all you do is:
+
+1. Plug in.
+2. **Hold PRG** until the OLED reads `SURVEY`, then release.
+
+That is the whole procedure. The board prints
+`# resuming campaign at site 2 weather-island` and the OLED shows that name. **Nothing is
+stepped past and nothing is overwritten.** Verified on hardware: two sites stored, power
+cycled, resumed at site 2 with both intact.
+
+Power-cycle as often as you like — swapping the power bank between sites is free.
+
+> The site cursor is persisted precisely so you never have to press PRG "past" the sites
+> already done. Doing that would store the empty run in progress over each one on the way,
+> which is a campaign destroying itself to get back to where it was.
+
+**If you need to move the cursor without storing** — a site skipped, or a mis-set cursor —
+`n` advances and `b` steps back, neither of which writes anything. Both need the laptop.
 
 The OLED shows the **site name** it will file under, the pass count as a large number, and
 the loudest bin found so far.
@@ -369,11 +415,42 @@ Expect **910 rows** (130 bins × 7 sites), one header, and a
 | `a` | dump every stored site |
 | `s` | store this site **without** advancing |
 | `p` | store and advance — same as PRG |
+| `n` | next site **without storing** |
+| `b` | previous site **without storing** |
 | `x` | clear the run in memory (NVS untouched) |
 | `z` | **erase every stored survey** |
 | `[` `]` | dwell per bin, −/+ 10 ms |
 
 ---
+
+## Power, and the optional LiFePO4 module
+
+Both field jobs run the walking board off a **USB power bank**. That works today and is
+what the procedure above assumes.
+
+### Fitting a battery is a hardware question, not a firmware one
+
+**This firmware touches nothing battery-related.** No ADC read, no `VBAT` pin, no charge
+control — the vendor board variant does not even declare a battery pin. Charging and the
+USB/battery power path on the Heltec V3 are done by the onboard charger and power-path
+circuitry and are **independent of what firmware is running**. Meshtastic does not enable
+charging either; it only *reads* battery voltage for display.
+
+So fitting the module should behave the same under this firmware as under any other.
+
+**What you give up** is the readout: there is no battery voltage on the OLED and no
+low-battery warning, because nothing here reads it. On a five-minute-per-site survey that
+is not much of a loss, but a board that browns out mid-site loses only the run in
+progress — the stored sites and the site cursor are in NVS and survive.
+
+**What you gain** is worth more than it sounds: with a battery fitted, **moving between
+the laptop and the power bank is no longer a power cycle**, so the role survives the swap
+and the hold-PRG step disappears.
+
+> **Verify it on the bench before relying on it in the field.** Fit the module, plug USB
+> in, confirm it charges; unplug USB, confirm the board keeps running; replug, confirm it
+> does not reset. That is a ten-minute check and it is the only way to know for this board
+> revision — I have not tested it, and nothing in the firmware would tell you.
 
 ## Things that will cost you time in the field
 

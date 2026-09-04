@@ -13,6 +13,7 @@
 > | Firmware-specific rules and gotchas | [`/firmware/range-test/CLAUDE.md`](../../firmware/range-test/CLAUDE.md) |
 > | Repo-wide invariants | [`/CLAUDE.md`](../../CLAUDE.md) — **authoritative, conflicts resolve here** |
 > | Trace schema | [`data/README.md`](./data/README.md) |
+> | `capture.py` usage | [`CAPTURE-PY.md`](./CAPTURE-PY.md) — man-page style, with recipes |
 
 ## Where things stand
 

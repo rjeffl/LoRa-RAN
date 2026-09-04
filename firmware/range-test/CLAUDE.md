@@ -90,6 +90,14 @@ frame handling runs. Keep it that way.
 - **The settle time after each retune is a measurement, not a delay.** The SX1262's RSSI
   climbs while its AGC settles; sampling through it drags every bin's mean down by the same
   amount, which looks exactly like a clean, quiet band.
+- **The site cursor is persisted, the role is not.** R1 governs the ROLE (a power cycle
+  re-asks); campaign PROGRESS is different and must survive, because this board has no
+  battery and every move between laptop and power bank is a power cycle. Without it the
+  cursor restarted at 0 and the only way forward was to press PRG past the finished
+  sites - which STORES an empty run over each one on the way.
+- **`SURVEY` is reachable by holding PRG**, not only by serial `v`. Serial-only was a
+  field-blocking bug: an unplugged board came back as `INITIATOR`, the mode that
+  transmits. See `src/role.h`.
 - **Seven named sites, one stored run each** (`bridge-house`, `gatelink-gate`,
   `weather-island`, `welllink-well`, `irrigation-pump`, `hopyard-lower`, `propane-tank`).
   Seven blobs of 1580 bytes in a 20 kB NVS partition - the fit is asserted by a host test,

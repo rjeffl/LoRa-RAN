@@ -3,6 +3,7 @@
 
 #include "ui_oled.h"
 
+#include "role.h"
 #include "sentinels.h"
 
 #include <Arduino.h>
@@ -84,7 +85,7 @@ void Ui::show_message(const char* line1, const char* line2) {
 void Ui::show_role_prompt(uint32_t ms_remaining) {
   if (!ok_) return;
   char buf[32];
-  std::snprintf(buf, sizeof(buf), "PRG = RESPONDER  %lus",
+  std::snprintf(buf, sizeof(buf), "tap=RESP hold=SURV %lus",
                 static_cast<unsigned long>((ms_remaining + 999) / 1000));
 
   display_.clear();
@@ -95,6 +96,35 @@ void Ui::show_role_prompt(uint32_t ms_remaining) {
   display_.drawString(0, kRowBig, "Select role");
   display_.setFont(ArialMT_Plain_10);
   display_.drawString(0, kRowFoot, buf);
+  display_.display();
+}
+
+void Ui::show_role_hold(uint32_t held_ms, bool survey) {
+  if (!ok_) return;
+
+  char foot[32];
+  if (survey) {
+    std::snprintf(foot, sizeof(foot), "release for SURVEY");
+  } else {
+    const uint32_t left = (kPrgSurveyHoldMs > held_ms)
+                              ? (kPrgSurveyHoldMs - held_ms) : 0;
+    std::snprintf(foot, sizeof(foot), "hold %lu.%lus for SURVEY",
+                  static_cast<unsigned long>(left / 1000),
+                  static_cast<unsigned long>((left % 1000) / 100));
+  }
+
+  display_.clear();
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowTop, "LRAN range test");
+
+  // The role name is the big element, and it CHANGES under the thumb. That change is
+  // the whole signal - the operator is watching for the word to flip, not counting.
+  display_.setFont(ArialMT_Plain_16);
+  display_.drawString(0, kRowBig, survey ? "SURVEY" : "RESPONDER");
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.drawString(0, kRowFoot, foot);
   display_.display();
 }
 

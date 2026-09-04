@@ -16,6 +16,8 @@ Capture with:
     --note "bearing 120deg, 1.2m AGL both ends, +70ft relief, 3.0dBi, dry, foliage full"
 ```
 
+Full option reference and recipes: [`CAPTURE-PY.md`](../CAPTURE-PY.md).
+
 **PlatformIO's python, not a bare `python3`** — pyserial lives in PlatformIO's venv, and
 the `python3` first on `PATH` is usually a different install that has never seen it.
 
@@ -45,6 +47,7 @@ suspect.
 |---|---|---|
 | **Sweep** (R7) | `position,tp_index,...` | INITIATOR, the position walk |
 | **Survey** (R8) | `site_index,site_name,...` | SURVEY mode, the ambient scan |
+| **Responder log** (R6) | `RESP,position,...` | RESPONDER, dumped at boot |
 
 Separate schemas on purpose. A sweep row is a test point at a position with a link at the
 far end; a survey row is a frequency bin with no far end at all. Widening one to cover

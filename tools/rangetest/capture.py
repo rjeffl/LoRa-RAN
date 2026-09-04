@@ -64,11 +64,13 @@ SETTING_RE = re.compile(r"^[a-z][a-z0-9_]*=\S*$")
 # end at all. A header is recognised by its first fields, and a data row is then
 # validated against THAT header's field count rather than against a hardcoded number,
 # so adding a column to either schema does not silently start dropping rows.
-HEADER_PREFIXES = ("position,tp_index,", "site_index,site_name,")
+HEADER_PREFIXES = ("position,tp_index,",      # R7 sweep
+                   "site_index,site_name,",   # R8 ambient survey
+                   "RESP,position,")          # R6 responder position log
 
-# A completed unit of work, per schema. Both are counted by --sweeps.
+# A completed unit of work, per schema. All are counted by --sweeps.
 COMPLETION_MARKERS = ("sweep complete", "survey dump complete",
-                      "survey campaign complete")
+                      "survey campaign complete", "responder log complete")
 
 
 class Trace:
@@ -300,7 +302,7 @@ def main() -> int:
                               f"({trace.rows} rows) - {line.lstrip('# ')}", flush=True)
                 elif SETTING_RE.match(line):
                     meta.append(line)          # settings dump: key=value
-                elif line[0].isdigit() and (
+                elif (line[0].isdigit() or line.startswith("RESP,")) and (
                         line.count(",") == trace.commas if trace.header
                         else line.count(",") > 6):
                     if trace.f is None:

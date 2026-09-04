@@ -178,8 +178,8 @@ constexpr uint32_t kSurveyDrawIntervalMs = 500;
 Role select_role() {
   pinMode(kPinPrgButton, INPUT_PULLUP);
 
-  Serial.println(F("role select: press PRG for RESPONDER, or send 'i'/'r'/'v' "
-                   "(3s, default INITIATOR; v = R8 ambient SURVEY)"));
+  Serial.println(F("role select: tap PRG = RESPONDER, HOLD PRG = SURVEY, or send "
+                   "'i'/'r'/'v' (3s, default INITIATOR)"));
 
   const uint32_t start = millis();
   uint32_t       last_draw = 0;
@@ -189,8 +189,23 @@ Role select_role() {
       // Debounce by confirming the press is still there.
       delay(30);
       if (digitalRead(kPinPrgButton) == LOW) {
-        while (digitalRead(kPinPrgButton) == LOW) delay(10);  // wait for release
-        return Role::Responder;
+        // TAP = RESPONDER, HOLD = SURVEY. The board on a power bank has no other way
+        // to reach the survey; see role.h for why serial-only was a field-blocking
+        // bug rather than a limitation.
+        //
+        // The display is updated WHILE THE BUTTON IS STILL DOWN, so the operator sees
+        // the role cross over to SURVEY and releases on the one they wanted. A hold
+        // whose effect is invisible until the radio does or does not start is exactly
+        // what R1's selection window was written to avoid.
+        const uint32_t pressed_at = millis();
+        bool           survey     = false;
+        while (digitalRead(kPinPrgButton) == LOW) {
+          const uint32_t held = millis() - pressed_at;
+          if (!survey && held >= kPrgSurveyHoldMs) survey = true;
+          g_ui.show_role_hold(held, survey);
+          delay(10);
+        }
+        return survey ? Role::Survey : Role::Responder;
       }
     }
 
@@ -376,6 +391,16 @@ constexpr char kNvsLogKey[]    = "poslog";
 // stored at the well. Short keys: NVS caps them at 15 characters.
 constexpr char kNvsSurveyKeyPrefix[] = "surv";
 
+// R8 - WHICH SITE THE CAMPAIGN IS UP TO, persisted alongside the runs themselves.
+//
+// The ROLE is deliberately not persisted (R1 - a power cycle re-asks). Campaign
+// PROGRESS is a different thing and must be, because this board has no battery and
+// every move between the laptop and a power bank is a power cycle. Without it the
+// cursor restarted at site 0 after every swap, and the only way forward was to press
+// PRG past the sites already done - which STORES an empty run over each one on the
+// way. That is the campaign destroying itself to get back to where it was.
+constexpr char kNvsSurveySiteKey[] = "survsite";
+
 void survey_nvs_key(size_t site, char* out, size_t cap) {
   std::snprintf(out, cap, "%s%u", kNvsSurveyKeyPrefix,
                 static_cast<unsigned>(site));
@@ -432,6 +457,10 @@ void resp_log_dump() {
     Serial.print(',');
     Serial.println(e->snr_db10.empty() ? kI16NotAvailable : e->snr_db10.max);
   }
+  // A '#' marker like the sweep's and the survey's, so capture.py can stop on it.
+  // The "--- end ---" banner is for a human reading the console; the tool needs a
+  // line it already knows how to recognise.
+  Serial.println(F("# responder log complete"));
   Serial.println(F("--- end responder log ---"));
 }
 
@@ -450,6 +479,12 @@ int16_t to_tenths(float v) {
 // may fix a frequency, and the only radio calls it makes are retune, receive and read
 // RSSI. There is deliberately no path from this code to transmit() or set_power().
 // ---------------------------------------------------------------------------
+
+void survey_save_site_cursor() {
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) return;
+  g_prefs.putUShort(kNvsSurveySiteKey, static_cast<uint16_t>(g_survey_site));
+  g_prefs.end();
+}
 
 bool survey_save_site(size_t site) {
   uint8_t      blob[Survey::kBlobMaxLen];
@@ -499,6 +534,7 @@ void survey_store_and_advance() {
     return;
   }
   ++g_survey_site;
+  survey_save_site_cursor();   // survives the next power cycle
   g_survey.reset();
   g_survey_saved = false;
   Serial.print(F("# survey site -> "));
@@ -537,6 +573,17 @@ bool survey_load_site(size_t site) {
   return loaded;
 }
 
+void survey_load_site_cursor() {
+  if (!g_prefs.begin(kNvsNamespace, /* readOnly */ true)) return;
+  if (g_prefs.isKey(kNvsSurveySiteKey)) {
+    const uint16_t v = g_prefs.getUShort(kNvsSurveySiteKey, 0);
+    // Clamped rather than trusted: a stale cursor from a shorter site list would
+    // otherwise index off the end of the name table.
+    g_survey_site = (v < kSurveySiteCount) ? v : kSurveySiteCount - 1;
+  }
+  g_prefs.end();
+}
+
 void survey_clear_nvs() {
   if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) return;
   for (size_t i = 0; i < kSurveySiteCount; ++i) {
@@ -544,8 +591,10 @@ void survey_clear_nvs() {
     survey_nvs_key(i, key, sizeof(key));
     g_prefs.remove(key);
   }
+  if (g_prefs.isKey(kNvsSurveySiteKey)) g_prefs.remove(kNvsSurveySiteKey);
   g_prefs.end();
-  Serial.println(F("# all stored surveys erased from NVS"));
+  g_survey_site = 0;
+  Serial.println(F("# all stored surveys erased from NVS, site cursor reset"));
 }
 
 // R8 acceptance - the trace. Printed in the same schema whether it came from NVS or
@@ -673,6 +722,7 @@ void survey_dump_plan() {
   Serial.print(F("sites=")); Serial.println(static_cast<unsigned>(kSurveySiteCount));
   Serial.println(F("# keys: d=dump this site  a=dump ALL stored  s=store here  "
                    "p=store+next site (same as PRG)"));
+  Serial.println(F("#       n=next site (no store)  b=previous site (no store)"));
   Serial.println(F("#       x=clear memory  z=erase all stored  [ ]=dwell -/+ 10ms"));
   Serial.println(F("--- end survey plan ---"));
 }
@@ -698,6 +748,33 @@ void loop_survey() {
       Serial.println(F("# survey cleared (memory only - NVS untouched)"));
     } else if (ch == 'z' || ch == 'Z') {
       survey_clear_nvs();
+    } else if (ch == 'n' || ch == 'N') {
+      // Advance WITHOUT storing. The store-and-advance path would write the run in
+      // progress over whatever is already in the next slot, so correcting a cursor
+      // must not go through it.
+      if (g_survey_site + 1 < kSurveySiteCount) {
+        ++g_survey_site;
+        survey_save_site_cursor();
+        g_survey.reset();
+        g_survey_saved = false;
+        Serial.print(F("# survey site -> "));
+        Serial.print(static_cast<unsigned>(g_survey_site));
+        Serial.print(' ');
+        Serial.print(survey_site_name(g_survey_site));
+        Serial.println(F(" (skipped, nothing stored)"));
+      }
+    } else if (ch == 'b' || ch == 'B') {
+      if (g_survey_site > 0) {
+        --g_survey_site;
+        survey_save_site_cursor();
+        g_survey.reset();
+        g_survey_saved = false;
+        Serial.print(F("# survey site -> "));
+        Serial.print(static_cast<unsigned>(g_survey_site));
+        Serial.print(' ');
+        Serial.print(survey_site_name(g_survey_site));
+        Serial.println(F(" (stepped back, nothing stored)"));
+      }
     } else if (ch == '[' && g_survey_plan.dwell_ms > 10) {
       // Rule 8 - the timing is data, adjustable at runtime, not a compile-time
       // constant. Bounded so the dwell can never fall to or below the settle time,
@@ -831,7 +908,11 @@ void setup() {
     survey_dump_all(/* restore_current */ false);
     g_survey.reset();
     g_survey_saved = false;
-    g_survey_site  = 0;
+    survey_load_site_cursor();
+    Serial.print(F("# resuming campaign at site "));
+    Serial.print(static_cast<unsigned>(g_survey_site));
+    Serial.print(' ');
+    Serial.println(survey_site_name(g_survey_site));
 
     survey_dump_plan();
     char shdr[kSurveyCsvMaxLine];

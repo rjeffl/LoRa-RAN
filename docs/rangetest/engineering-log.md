@@ -928,3 +928,81 @@ confirmation line from the command that did the work, not a separate check after
 `capture.py --key` now echoes the board's `#` lines for exactly this reason — a setup
 command whose confirmation is filtered out is a command you have to verify some other way,
 and the other way is what was wrong.
+
+---
+
+## 2026-09-04 — the survey campaign could not actually be run
+
+Three questions about the field procedure, and the second one was a firmware defect that
+would have stopped the campaign at the first site.
+
+### The survey was unreachable on battery, and the failure mode was transmitting
+
+R1 says the role is **not persisted**: a power cycle re-asks. R8 then made `SURVEY`
+selectable **only** by the serial character `v`, on the reasoning that PRG already means
+RESPONDER and overloading it puts the survey one mistimed thumb away from the walk. Select
+it at the house, where the laptop is, and walk out with the board still running.
+
+That silently assumed the board stays powered. **It has no battery fitted**, so moving from
+the laptop to a power bank *is* a power cycle. The board came back up as `INITIATOR` — the
+no-press default, and **the one mode that transmits**. The documented campaign would have
+put a board on the air at every site while measuring nothing.
+
+Fixed with a gesture, not a flag: **tap PRG for RESPONDER, hold ~1.5 s for SURVEY.** The
+OLED names the role a release would choose while the button is still down, so the word
+flips from `RESPONDER` to `SURVEY` under the thumb and the operator releases on the one
+they wanted — a hold whose effect is invisible until the radio does or does not start is
+exactly what R1's selection window exists to avoid. R1's "not persisted, a power cycle
+re-asks" is untouched.
+
+### Then the workaround for it was itself destructive
+
+The first correction told the operator to press PRG past the sites already stored to get
+the cursor back where it belonged. That is `survey_store_and_advance()`, which **stores the
+run in progress into each slot on the way** — an empty run written over every completed
+site. The campaign destroying itself to get back to where it was.
+
+The site cursor is now persisted in NVS next to the runs. **The role is not campaign
+progress**: R1 governs the first, and the second has to survive a power cycle for the same
+reason the stored surveys do. On boot the survey mode prints
+`# resuming campaign at site N <name>` and picks up exactly where it stopped.
+
+Verified on hardware: erase, store two sites, power cycle, and the board resumes at site 2
+`weather-island` with sites 0 and 1 intact.
+
+`n` and `b` move the cursor **without storing**, for a skipped site or a mis-set cursor.
+Correcting a cursor must never go through the store path.
+
+### `capture.py` could not capture the responder's log at all
+
+Asked for the exact command to read the responder's position log after a walk, there
+wasn't one. `capture.py` recognised two header shapes and required data rows to begin with
+a digit; the responder's log is `RESP,position,...` with rows starting `RESP,`. **Every row
+was being discarded**, silently, as not-a-data-row.
+
+This is the reverse-direction data — the only record that a probe was heard whose echo was
+lost — and it is the thing R6 exists to produce. `RESP,position,` is now a recognised
+header, `RESP,` rows are accepted, and the firmware prints `# responder log complete` so a
+capture stops on it like any other unit of work. The `--- end responder log ---` banner is
+for a human; the tool needed a `#` marker it already knew.
+
+Verified: 1 row, `RESP,0,104,104,-232,-270,-190,123,105,135` — 104 probes heard, 104 echoes
+sent, on a 1 m bench link.
+
+### The battery module: nothing to do in firmware
+
+Asked whether charging and USB transition still work off stock Meshtastic. **This firmware
+touches nothing battery-related** — no ADC read, no `VBAT`, no charge control, and the
+vendor variant does not declare a battery pin. Charging and the USB/battery power path are
+onboard hardware and run regardless of firmware; Meshtastic only *reads* the voltage.
+
+What is lost is the readout, and there is none here to lose. What is gained is real: with a
+battery fitted, moving between the laptop and the power bank stops being a power cycle, so
+the role survives and the hold-PRG step goes away. Recorded as a ten-minute bench check to
+do before relying on it, since no code here can tell you.
+
+### And a reference that should have existed
+
+`capture.py`'s behaviour was spread across three documents, its own docstring and the
+argparse help. [`CAPTURE-PY.md`](./CAPTURE-PY.md) is now the single man-page-style
+reference, with a complete command for each field job.

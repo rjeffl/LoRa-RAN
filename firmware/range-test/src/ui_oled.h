@@ -42,6 +42,12 @@ class Ui {
   // R1 - the role selection window. Shows the countdown and what a press will do.
   void show_role_prompt(uint32_t ms_remaining);
 
+  // R1/R8 - drawn WHILE PRG IS HELD during the selection window, naming the role a
+  // release would choose right now. The walking board reaches SURVEY only through this
+  // gesture (role.h), and a hold whose effect is invisible until release is how an
+  // operator ends up at a site with a board in the wrong mode.
+  void show_role_hold(uint32_t held_ms, bool survey);
+
   // R1 - the role, shown at startup.
   void show_role(Role r, const char* board_name);
 
