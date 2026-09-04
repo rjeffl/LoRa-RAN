@@ -1006,3 +1006,92 @@ do before relying on it, since no code here can tell you.
 `capture.py`'s behaviour was spread across three documents, its own docstring and the
 argparse help. [`CAPTURE-PY.md`](./CAPTURE-PY.md) is now the single man-page-style
 reference, with a complete command for each field job.
+
+---
+
+## 2026-09-04 — first real position walk: the data is good, and it found two bugs
+
+Two positions on the gate bearing, 3.0 dBi antennas both ends at 1.2 m AGL, dry, foliage
+full. `2026-09-04-walk-gatelink.csv` and `-resplog.csv`.
+
+### What the trace says
+
+| | Position 0 | Position 1 |
+|---|---|---|
+| Test points | 24 | 24 |
+| Probes sent / echoes | 192 / 169 | **192 / 192** |
+| PER | 0% except tp 0-2 | **0% throughout** |
+| Initiator RSSI, median | −44.1 dBm | −72.3 dBm |
+| `phy_crc_err` / `foreign` / `filler_err` | 0 / 0 / 0 | 0 / 0 / 0 |
+
+**The two ends agree to within 0.6 dB on average** (2.0 dB worst) between
+`init_rssi_mean10` and `resp_rssi_mean10` across all 48 rows — the link is symmetric and
+both radios are measuring the same thing.
+
+**The cross-check closes exactly.** Position 0 lost 23 probes by the initiator's count
+(8 + 8 + 7 on test points 0, 1 and 2). 192 − 23 = 169, and the responder's log reports
+**169 probes heard, 169 echoes sent**. Two independent counters, two files, no
+disagreement. That is the strongest evidence yet that the instrumentation is right, and it
+is what made both of the bugs below visible rather than plausible.
+
+28 dB of path loss between the two positions, and still 0% PER at the far one — this link
+has margin in hand at the D33 ceiling.
+
+### Bug 1 — the last position of every walk was never saved
+
+Two positions were walked. **The responder log contains one row.**
+
+`resp_log_save()` was called only when the position ADVANCED — persisting the position
+being left. The final position is never left: the operator walks home and powers the board
+down. Its data, often the most distant point and the entire reason for the walk, was gone.
+
+Now saved on the **armed beacon**, the same signal that raises `DONE`: the initiator has
+finished the sweep for this position, so the tally is complete. Saving on the transition
+writes once per position, not once per beacon.
+
+### Bug 2 — the initiator swept before the responder existed
+
+Position 0 lost its first 23 probes: 100% PER on test points 0 and 1, 87.5% on test point
+2, then clean for the remaining 21. Position 1 was 192 of 192.
+
+That is not the link. The initiator booted straight into `Sweeping`, and the field flow is
+*start the capture* (which resets the initiator) → *walk over* → *boot the responder*. The
+initiator is always several test points ahead of a responder that is not yet listening.
+Every first sweep would have carried the same fake loss, at the position where the boards
+are closest together and the numbers look most trustworthy.
+
+The initiator now boots **ARMED** and runs nothing until the first PRG press — which is
+what R5's "one press, one sweep, one position" already describes. Positions run 1..N and
+every one of them is clean.
+
+Worth naming the shape: **both bugs produced plausible data.** A missing position looks
+like a walk that covered fewer stops, and 100% PER on the first two test points looks like
+a radio warming up. Neither would have been caught by looking at one file. The cross-check
+between the two files is what made them undeniable, and it is now written into
+`data/README.md` as the thing to do with every walk.
+
+### Bug 3, found while verifying bug 1
+
+The responder's armed-transition line read `# far end ARMED - sweep complete at position
+N`. **`sweep complete` is the exact substring `capture.py` stops a capture on**, so reading
+the responder's log while the initiator was still powered and beaconing ended the capture
+on that line instead of on `# responder log complete`. The bench showed it as two
+completion units counted for a two-row log.
+
+It now reads `# far end ARMED - position N measured and saved`. The responder does not run
+sweeps, so saying it did was wrong as well as ambiguous.
+
+Worth noting for anything that adds a marker later: the completion markers are matched as
+**substrings anywhere in a `#` line**, so a new message that happens to contain one silently
+truncates a capture. The markers are listed in `capture.py`'s `COMPLETION_MARKERS`.
+
+### Verified on hardware, both fixes, a full two-position walk
+
+| | Before | After |
+|---|---|---|
+| Rows before the first PRG press | test points 0-2 of position 0 | **0** |
+| Position 1 / 2 probes, echoes | 192 / 169 at position 0 | **192 / 192 and 192 / 192** |
+| Positions in the responder log | 1 of 2 | **2 of 2**, both 192 heard, 192 echoed |
+
+The responder log now closes against the sweep trace on both positions with nothing left
+over, which is the check `data/README.md` asks for.

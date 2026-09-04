@@ -1,0 +1,27 @@
+# LRAN range test trace, captured 2026-09-04 14:52:58
+# note: responder log, walk of 2026-09-04, bearing 120deg
+# schema: docs/rangetest/data/README.md
+#
+# board=heltec_wifi_lora_32_V3
+# freq_hz=915000000
+# sf=7
+# bw_khz=125.0
+# cr=4/5
+# conducted_dbm=-9
+# antenna_gain_dbi=3.0
+# eirp_ceiling_dbm=-1.0
+# sync_word=0x1424
+# explicit_header=1
+# crc=1
+# preamble_symbols=8
+# payload_len=16
+# role=RESPONDER
+# test_points=24
+# probes_per_point=8
+# total_probes=192
+# duration_nominal_s=382
+# duration_worst_s=430
+#
+RESP,position,probes_heard,echoes_sent,rssi_mean10,rssi_min10,rssi_max10,snr_mean10,snr_min10,snr_max10
+RESP,0,169,169,-442,-600,-360,93,43,133
+# capture ended: sweep count reached - 1 rows

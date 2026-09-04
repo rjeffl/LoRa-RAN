@@ -218,6 +218,13 @@ Do not restart it per position.
 
 This is the part to get right. **One press, one sweep, one position.**
 
+**0. The initiator boots ARMED and runs nothing until you ask.**
+
+It prints `# ARMED at boot - press PRG on the responder to start position 1` and waits,
+beaconing once a second so the responder's hunt can find it. **No sweep runs until your
+first press**, so there is no way to lose the start of a sweep to a responder that has not
+been booted yet. Positions therefore run **1, 2, 3…**, not from 0.
+
 **1. Initiation — you press PRG on the responder.**
 
 The responder owns the position number; it is the walking end and the only one that knows
@@ -266,6 +273,11 @@ press PRG to move on`.
 
 **4. Walk to the next position and press PRG again.** The `DONE` display clears on the
 press.
+
+**The responder saves each position as the sweep for it completes** — on the same armed
+beacon that raises `DONE`, not on your next press. So the last position of the walk is
+already stored when you power the board down, and a brown-out costs at most the position
+in progress.
 
 ### Coming back
 

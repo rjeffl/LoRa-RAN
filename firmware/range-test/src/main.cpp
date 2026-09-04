@@ -72,7 +72,19 @@ TestPointStats g_stats;
 // keep talking while it is idle, or it would never hear that the operator has moved.
 enum class InitState : uint8_t { Sweeping, Armed };
 
-InitState g_init_state = InitState::Sweeping;
+// ARMED AT BOOT, NOT SWEEPING.
+//
+// It used to start sweeping the moment it came up, which loses the beginning of the
+// first sweep every time: the field flow is start the capture (which resets the
+// initiator), then walk over and boot the responder, so the initiator is always
+// several test points ahead of a responder that does not exist yet. The first real
+// walk (2026-09-04) shows it exactly - position 0 lost its first 23 probes, 100% PER
+// on test points 0 and 1, while position 1 was a clean 192 of 192.
+//
+// Arming instead means the first sweep starts on the operator's first PRG press, which
+// is what R5's "one press, one sweep, one position" already describes. Positions then
+// run 1..N and every one of them is clean.
+InitState g_init_state = InitState::Armed;
 
 // Position the CURRENT sweep is being run at, versus the latest the responder has
 // reported. A difference between them is the signal to start the next sweep.
@@ -944,6 +956,14 @@ void setup() {
     // R7 moves these traces into committed files under docs/rangetest/data/.
     char hdr[kCsvMaxLine];
     if (csv_header(hdr, sizeof(hdr)) > 0) Serial.println(hdr);
+
+    // Armed from the start, so the first sweep begins on the operator's first PRG
+    // press rather than against a responder that has not been booted yet. Beacon
+    // immediately: the responder's hunt has to be able to find us.
+    g_next_beacon_ms = millis();
+    Serial.println(F("# ARMED at boot - press PRG on the responder to start "
+                     "position 1. No sweep runs until you do."));
+    g_ui.show_armed(g_role, g_swept_position, g_sweeps_completed);
   }
 }
 
@@ -1203,12 +1223,32 @@ void loop() {
         const bool was_armed = g_resp_far_end_armed;
         g_resp_far_end_armed = bench_says_armed(f.kind);
         if (g_resp_far_end_armed && !was_armed) {
+          // PERSIST HERE, NOT ONLY ON THE NEXT PRG PRESS.
+          //
+          // The log used to be written only when the position ADVANCED, which meant
+          // the LAST position of every walk was never saved: the operator walks home
+          // and powers the board down without a further press, and the final
+          // position's data - often the most distant one, the whole point of the walk -
+          // is gone. Seen on the first real walk (2026-09-04): two positions covered,
+          // one row in the log.
+          //
+          // The armed beacon is the right moment. It means the initiator has finished
+          // the sweep for this position, so the position's tally is complete; saving
+          // on the transition writes once per position rather than once per beacon.
+          resp_log_save();
+
           // Printed on the TRANSITION, not every beacon. The walking end is normally
           // untethered and this line is for the bench and for the log; the display is
           // what the operator in the field actually reads.
-          Serial.print(F("# far end ARMED - sweep complete at position "));
+          // WORDING MATTERS HERE. This said "sweep complete", which is the exact
+          // substring capture.py stops a capture on - so reading the responder's log
+          // while the initiator was still beaconing ended the capture on this line
+          // instead of on "# responder log complete". Seen on the bench: 2 completion
+          // units counted for a 2-row log. The responder does not run sweeps; saying
+          // so was wrong as well as ambiguous.
+          Serial.print(F("# far end ARMED - position "));
           Serial.print(g_position_id);
-          Serial.println(F(" - press PRG to move on"));
+          Serial.println(F(" measured and saved, press PRG to move on"));
         }
 
         g_resp_last_heard_ms = millis();
