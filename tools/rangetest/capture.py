@@ -150,6 +150,13 @@ def main() -> int:
                     help="console keys to send once the board is up (e.g. 'd' to dump "
                          "the run in progress, 'a' to dump every stored survey site). "
                          "Sent one per second, in order")
+    ap.add_argument("--run-for", type=float, default=0.0, metavar="SECONDS",
+                    help="stop after this much WALL-CLOCK time, whatever the board is "
+                         "saying. --idle-timeout cannot end a run against a board that "
+                         "never goes quiet - a responder hunting for an initiator "
+                         "prints a tuning line on every dwell - so a setup command "
+                         "(erase, store) needs a deadline that does not depend on "
+                         "silence. 0 (default) means no wall-clock limit")
     ap.add_argument("--echo", action="store_true",
                     help="print the board's own '#' lines as they arrive. On by "
                          "default when --key is given, because a setup command "
@@ -173,6 +180,7 @@ def main() -> int:
     # put a false seam in the middle of a perfectly good campaign trace.
     settings_since_header = False
     idle_deadline = time.time() + args.idle_timeout
+    run_deadline = (time.time() + args.run_for) if args.run_for > 0 else None
     buf = b""
     reason = "sweep count reached"
     stop = False
@@ -221,6 +229,11 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
+    if args.run_for > 0 and args.key_after >= args.run_for:
+        print("--run-for must exceed --key-after, or the keys are never sent",
+              file=sys.stderr)
+        return 2
+
     if args.key and args.key_after > 0:
         # Not a sleep(): the board is talking the whole time, and draining the port
         # here keeps its output out of the OS buffer, where a long enough wait would
@@ -239,6 +252,10 @@ def main() -> int:
     try:
         while not stop:
             if args.sweeps and sweeps >= args.sweeps:
+                break
+            if run_deadline is not None and time.time() >= run_deadline:
+                reason = f"--run-for {args.run_for:.0f}s elapsed"
+                print(f"\n  {reason}", flush=True)
                 break
             if time.time() >= idle_deadline:
                 reason = f"no serial data for {args.idle_timeout:.0f}s"

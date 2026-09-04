@@ -64,6 +64,7 @@ already done. **Ctrl-C ends a capture cleanly and writes the file.**
 | `--key-after S` | `0` | Wait this long before sending `--key` — lets a survey scan a while, then be told to dump |
 | `--sweeps N` | `0` | Stop after N completion markers. **0 means run until Ctrl-C**, which is what a position walk wants |
 | `--idle-timeout S` | `1800` | Give up after this long with **no serial data at all**. Idle, not wall-clock |
+| `--run-for S` | `0` (off) | Stop after this much **wall-clock** time, whatever the board is saying. Required for any command run against a board that never goes quiet — see below |
 | `--echo` | auto | Print the board's own `#` lines. **On automatically whenever `--key` is given** |
 | `--note TEXT` | empty | Free text recorded in the file header — bearing, antenna height, elevation, weather |
 
@@ -79,6 +80,16 @@ and **in survey mode transmits**. Observed exactly that way on hardware.
 the repeats after it has chosen are read by the mode's own key handler. None of `i`, `r`
 or `v` is a key in any mode, so they are inert.
 
+### `--run-for` is for boards that never go quiet
+
+`--idle-timeout` ends a run on **silence**, which is the right rule for a walk. It cannot
+end a run against a board that talks continuously — **a responder hunting for an initiator
+prints a tuning line on every dwell**, so an erase command against one runs forever. That
+is not hypothetical; the documented erase recipe did exactly that.
+
+Use `--run-for` for any setup command: it is a wall-clock deadline that does not care what
+the board is saying. `--run-for` must exceed `--key-after`, or the keys are never sent.
+
 ### `--idle-timeout` is idle, not wall-clock
 
 A walk spends most of its time with the initiator silent — it is ARMED, waiting for a PRG
@@ -88,6 +99,32 @@ on the way back.
 
 At SF12 with every probe timing out, the gap between CSV rows can exceed 30 s. The 1800 s
 default is what makes that safe; do not lower it below a couple of minutes for a real run.
+
+## FIRMWARE BEHAVIOUR THIS TOOL DEPENDS ON
+
+Current as of 2026-09-04. These are the board-side facts that decide what a command does.
+
+**The initiator boots ARMED.** It runs nothing until the first PRG press on the responder,
+so a `--reset` capture can be started at any time without racing a responder that is not
+listening yet — and **positions run 1, 2, 3…, never 0.** A trace whose first position is 0
+came from firmware older than this.
+
+**The responder saves each position as its sweep completes**, on the armed beacon rather
+than on the next PRG press. The last position of a walk is therefore already in NVS when
+the board is powered down; you no longer have to press PRG one extra time to keep it.
+
+**The survey's site cursor is persisted; the role is not.** A power cycle re-asks the role
+(R1) but resumes the campaign — `# resuming campaign at site N <name>`. Use `n`/`b` to move
+the cursor without storing; pressing PRG to "step past" finished sites would write the
+empty run in progress over each one.
+
+**`SURVEY` is reachable by holding PRG** (~1.5 s), not only by serial `v`. `--role survey`
+sends `v`, which is the tethered equivalent.
+
+**Completion markers are matched as substrings anywhere in a `#` line.** A new firmware
+message containing one silently truncates a capture — this happened once, when the
+responder's armed line read "sweep complete". Check `COMPLETION_MARKERS` before wording a
+new `#` message.
 
 ## SCHEMAS RECOGNISED
 
@@ -150,6 +187,13 @@ swap between invocations, so confirm the board by its OLED badge.
 
 One capture for the whole walk. Ctrl-C when you get back.
 
+Nothing is recorded until your first PRG press — the initiator is ARMED and waiting, and
+prints `# ARMED at boot - press PRG on the responder to start position 1`. **Expect the
+first position to be numbered 1.**
+
+A capture stopped before any sweep completes therefore exits **1** with "no data rows
+captured". That is the tool being honest, not a failure — nothing was measured.
+
 ### Read the responder's position log after the walk
 
 The board comes home with the log in it and dumps it at boot. This is the
@@ -179,7 +223,9 @@ Stops on its own at `# responder log complete`. Expect one row per position visi
 The boot dump-all is what gets captured. Expect **130 rows per stored site**, one header,
 and `# survey campaign complete - N site(s)`.
 
-### Scan here for a while, then dump (tethered, one site)
+### Scan here for a while, then capture the site (tethered)
+
+**`--key d` dumps without storing** — use it when you only want the trace in the file:
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
@@ -189,26 +235,43 @@ and `# survey campaign complete - N site(s)`.
     --idle-timeout 60 --note "bridge, 5 min, 3.0dBi at 1.2m"
 ```
 
+**`--key p` stores the site to NVS and advances the cursor** — use it when this site is
+part of the seven-site campaign and you want it in the eventual campaign readback too:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role survey \
+    --key-after 300 --key p --sweeps 1 \
+    --out docs/rangetest/data/2026-09-04-survey-bridge.csv \
+    --idle-timeout 60 --note "bridge-house, 5 min, 3.0dBi at 1.2m"
+```
+
+`p` is the same action as a PRG press. The cursor it leaves behind survives the power
+cycle, so unplugging and walking on resumes at the next site.
+
 ### Erase bench data before a field run
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/cu.usbserial-0001 --reset --role survey --key z \
-    --out /tmp/erase.csv --idle-timeout 20
+    --out /tmp/erase.csv --run-for 20
 ```
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/cu.usbserial-0001 --reset --role responder --key x \
-    --out /tmp/erase.csv --idle-timeout 20
+    --out /tmp/erase.csv --run-for 20
 ```
+
+**`--run-for`, not `--idle-timeout`.** A responder hunting for an initiator never stops
+talking, so an idle deadline never fires and the command runs forever.
 
 Both end with "no data rows captured" — correct, there is nothing to capture. What you
 want is the echoed confirmation:
 
 ```
   sent key: z
-  # all stored surveys erased from NVS
+  # all stored surveys erased from NVS, site cursor reset
 ```
 
 > **Trust the confirmation from the command that did the work**, not a separate check
@@ -229,6 +292,8 @@ Sendable with `--key`, or by thumb on the board.
 | survey | `a` | dump every stored site |
 | survey | `s` | store this site, do **not** advance |
 | survey | `p` | store and advance to the next site (same as PRG) |
+| survey | `n` | next site **without storing** |
+| survey | `b` | previous site **without storing** |
 | survey | `x` | clear the run in memory, NVS untouched |
 | survey | `z` | **erase every stored survey** |
 | survey | `[` `]` | dwell per bin, −/+ 10 ms |
@@ -241,7 +306,11 @@ Sendable with `--key`, or by thumb on the board.
 ## EXIT STATUS
 
 `0` on a written trace, `1` when no header or no data rows were seen, `2` for `--role`
-without `--reset`.
+without `--reset` or `--run-for` not exceeding `--key-after`.
+
+A setup command (`--key z`, `--key x`) exits **1** with "no data rows captured". That is
+correct — there is nothing to capture, and the result you want is the echoed confirmation
+line.
 
 ## SEE ALSO
 

@@ -137,13 +137,16 @@ One command each, no console needed:
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
-    --reset --role survey --key z --out /tmp/erase.csv --idle-timeout 20
+    --reset --role survey --key z --out /tmp/erase.csv --run-for 20
 ```
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbserial-0001 \
-    --reset --role responder --key x --out /tmp/erase.csv --idle-timeout 20
+    --reset --role responder --key x --out /tmp/erase.csv --run-for 20
 ```
+
+**`--run-for`, not `--idle-timeout`:** a responder hunting for an initiator never stops
+talking, so an idle deadline never fires and the command would run forever.
 
 Both end with "no data rows captured" — correct, there is nothing to capture. What you
 are looking for is the board's own confirmation, which `capture.py` echoes whenever
@@ -152,7 +155,7 @@ are looking for is the board's own confirmation, which `capture.py` echoes whene
 ```
   selected role: survey
   sent key: z
-  # all stored surveys erased from NVS
+  # all stored surveys erased from NVS, site cursor reset
 ```
 
 and `# position log cleared` for the responder. **If you do not see that line, the erase
@@ -207,8 +210,12 @@ No `--role` needed: INITIATOR is the no-press default. The `--reset` makes the s
 dump and CSV header land *after* the capture is listening, so there is nothing to get the
 order wrong about.
 
-Then reset the **responder** separately and press PRG within 3 s so its badge reads
-`RESP`. It is untethered and has no capture of its own.
+Then reset the **responder** separately and tap PRG within 3 s so its badge reads `RESP`.
+It is untethered and has no capture of its own.
+
+**The order no longer matters.** The initiator boots ARMED and runs nothing until your
+first press, so it cannot start sweeping against a responder that is not listening yet.
+Boot them in whichever order is convenient.
 
 **One capture spans the whole walk.** It runs until Ctrl-C by default and appends rows as
 they arrive, so a dropped cable costs the rest of the walk and not the part already done.
@@ -268,8 +275,11 @@ The responder then shows an **inverted bar reading `DONE`** with the position nu
 and has to cycle back round to the beacon's configuration to hear it. It is not instant
 and it is not broken.
 
-Tethered, the same transition prints `# far end ARMED - sweep complete at position N -
-press PRG to move on`.
+Tethered, the same transition prints
+`# far end ARMED - position N measured and saved, press PRG to move on`.
+
+(It deliberately does **not** say "sweep complete" — that phrase is what `capture.py` stops
+a capture on, and the responder does not run sweeps.)
 
 **4. Walk to the next position and press PRG again.** The `DONE` display clears on the
 press.

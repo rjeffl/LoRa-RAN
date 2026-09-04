@@ -1095,3 +1095,55 @@ truncates a capture. The markers are listed in `capture.py`'s `COMPLETION_MARKER
 
 The responder log now closes against the sweep trace on both positions with nothing left
 over, which is the check `data/README.md` asks for.
+
+---
+
+## 2026-09-04 — auditing the docs against the firmware, and the recipe that never ended
+
+Both field documents were brought back in line with the firmware after six behaviour
+changes in two days. The audit was mechanical rather than by eye: extract every
+`capture.py` invocation from both documents, check every flag against `argparse`, check
+every quoted `#` message against the firmware source, and then **run all eleven of them
+against real boards**.
+
+### One documented recipe could never terminate
+
+```
+capture.py --port ... --reset --role responder --key x --out ... --idle-timeout 20
+```
+
+`--idle-timeout` ends a run on **silence**. A responder hunting for an initiator prints
+`# resp tuned to config N` on every dwell expiry, so it is never silent, so the deadline
+never fires. **The documented "erase the position log" command runs forever.** Confirmed by
+running it: still alive after four minutes, no output past the confirmation line.
+
+Silence is the right rule for a walk and the wrong rule for a command. Added `--run-for`, a
+wall-clock deadline that does not care what the board is saying, and switched both erase
+recipes to it. It is rejected if it does not exceed `--key-after`, or the keys would never
+be sent. Verified: 25.5 s for a `--run-for 25`, with `# position log cleared` echoed.
+
+### What the audit found in the documents
+
+- The responder's armed line was still documented as `sweep complete at position N`. It
+  changed to `position N measured and saved` when that substring turned out to stop a
+  capture, and the document had not followed.
+- The survey key table in `CAPTURE-PY.md` was missing `n` and `b` entirely — they were
+  added with the site cursor and only reached `FIELD-PROCEDURE.md`.
+- The erase confirmation gained `, site cursor reset` and neither document said so.
+- Neither document mentioned that **the initiator now boots ARMED and positions start at
+  1**, which is the single most visible change to what a trace looks like.
+
+None of these would have stopped a walk. Together they are how a document stops being
+trusted: each individually small divergence teaches the reader to check the source instead.
+
+`CAPTURE-PY.md` now carries a **"firmware behaviour this tool depends on"** section, so the
+board-side facts a command depends on live next to the commands rather than only in the
+procedure. It also records the trap that produced the marker bug: **completion markers
+match as substrings anywhere in a `#` line**, so wording a new firmware message carelessly
+truncates captures.
+
+### Worth keeping as a habit
+
+Extracting the commands from the documentation and executing them is the only check that
+catches a recipe which is *syntactically* fine and *semantically* endless. Reading it would
+not have. Eleven recipes, eleven runs, one of them exposed as unusable.
