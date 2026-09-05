@@ -174,7 +174,8 @@ caught on hardware within an hour. Blob v1 has no flag and is reported as `0`, w
 correct: that firmware did not hold.
 
 `2026-09-05-survey-campaign.csv` predates R11 entirely and has no such line at all. Its
-peak column is caveated in its own header.
+peak column is caveated in its own header. `2026-09-05-survey-campaign-r11.csv` is the
+first trace to carry `1`, at all seven sites.
 
 ### Columns 6 and 7 are separate on purpose
 
@@ -239,23 +240,41 @@ the engineering log, 2026-08-31.
 | `2026-09-04-walk-gatelink.csv` | **R10 position walk, and the first real M6 data.** Six positions on the gate bearing, P0 the fixed initiator at the house. 1152 probes, 2 lost downlink, 7 lost uplink; no dead test points. **Not a clear-field test:** the initiator was indoors at the bridge's target location, so every path crosses at least one framed wall, and P5/P6 cross the house. **Position 7 is not a location.** Height was 2–4 ft, not the 1.2 m the capture note claimed. All three are explained in the file's own header. Read it with the resplog below. |
 | `2026-09-04-walk-gatelink-resplog.csv` | The responder's own log for that walk, six positions. Closes against the sweep trace at every one. |
 | `2026-09-05-survey-campaign.csv` | **R8 / M20, all seven sites, 910 rows.** Re-dumped from NVS after the first capture lost 19184 bytes to a `capture.py` defect; see the engineering log, 2026-09-05. **`peak_dbm10` is not reliably site-attributable in this trace** — the scan ran while walking between sites. Floor and mean are sound. Site 0 `bridge-house` was measured **indoors** at the bridge's target location: its floor matches the outdoor sites, but its peaks are wall-attenuated and not like-for-like. |
+| `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk, all seven sites, 910 rows.** The first trace with `# hold_discipline=1` at every site, so **`peak_dbm10` is site-attributable here** — this is the trace the occupant inventory is built from. 68–74 passes per site, 130 of 130 bins, `dropped=0` throughout. Site 0 `bridge-house` is again indoors at the bridge's target location, by design, and says so in its own note. **Supersedes the row above for peaks;** the pre-R11 trace is kept for its floor and mean, and as the record of what the transit contamination looked like. |
 
 **M6 has data**: the link closes with margin at all six walked positions at the D33
 ceiling. It is not closed — arcsecond GPS cannot support an RSSI-vs-distance curve (see
 the log), so this trace answers "does it work there", not "what is the path loss".
 
-**M20's campaign is captured** but its occupant inventory waits on a survey hold state.
-D1 stays open pending that and M21 (the modules' FCC grant conditions).
+**M20's occupant inventory is closed** by the R11 re-walk: seven sites, attributable
+peaks, a uniform floor, one in-channel occupant confirmed and one retracted. **D1 now waits
+only on M21** — the modules' FCC grant conditions, which is paperwork rather than bench
+work.
 
 ### The channel is not clean everywhere
 
-The in-channel result is the one thing to carry out of the survey. `weather-island` peaks
-at **−81 dBm at 915.0** and `irrigation-pump` at **−77 dBm at 915.2**, against a −116 to
-−118 dBm floor; the other five sites see nothing more than 10 dB over floor. The mean in
-those bins sits at the floor, so they are rare bursts rather than carriers — a collision
-risk at two sites, not a blocked channel, and exactly what §12.1 expects to surface later
-as `cad_backoffs`.
+The in-channel result is the one thing to carry out of the survey. **Read it from
+`2026-09-05-survey-campaign-r11.csv`** — it is the trace whose peaks are attributable.
 
-**Both of those sites were the ones missing from the first capture**, and the first
-analysis concluded from the survivors that the channel was clean everywhere. Worth
+**`weather-island` peaks at −80 dBm at 915.0**, against a −115 dBm median floor. It
+reproduced within 1 dB across both campaigns, the second under hold discipline. The mean
+in that bin sits at the floor, so it is rare bursts rather than a carrier: a collision risk
+at that one site, not a blocked channel, and exactly what §12.1 expects to surface later as
+`cad_backoffs`. `propane-tank` sees −106 at 915.2, also reproducing, also at floor in the
+mean.
+
+**One earlier finding was retracted by the re-walk.** The pre-R11 trace showed
+`irrigation-pump` at −77 dBm at 915.2; under hold discipline that bin reads −112, the
+floor. It was almost certainly picked up walking in, which is the exact failure the pre-R11
+header warned about. **The property has one in-channel occupant site, not two.**
+
+**The strongest near-band neighbour is at the gate:** `gatelink-gate` peaks −66 dBm at
+914.0 MHz, 1 MHz off channel. Not in-channel at 125 kHz, but it is where GateLink will
+live, and it only became visible once the peaks were attributable.
+
+No bin at any site has a mean meaningfully above its own floor. **Every occupant on this
+property is bursty; there is no carrier anywhere in 902–928.**
+
+**Two of the interesting sites were the ones missing from the first, truncated capture**,
+and that analysis concluded from the survivors that the channel was clean everywhere. Worth
 remembering the next time a trace is short.
