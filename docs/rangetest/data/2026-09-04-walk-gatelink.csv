@@ -11,6 +11,33 @@
 # Absolute levels at any one position are unaffected; comparisons across positions
 # carry that uncertainty on top of everything else.
 #
+# SITE CONDITIONS - THIS IS NOT A CLEAR FIELD TEST. Read before comparing any number
+# here to a propagation model or to another site.
+#
+# The INITIATOR sat at the bridge node's target location: INSIDE the house, in the
+# office on the NW side. Every path in this trace therefore crosses at least one 2x4
+# framed exterior wall at the initiator end. There is no free-space leg in this data.
+#
+#   P1, P2, P3, P4   single wall penetration (the NW exterior wall)
+#   P5               faces the SW side of the house - the path crosses the structure
+#   P6               faces the SE side of the house - the path crosses the structure
+#
+# A wood-framed wall costs roughly 4-10 dB at 915 MHz, and much more with foil-faced
+# sheathing or metal siding. NONE OF THAT IS MEASURED HERE - it is bundled into every
+# reading, and it cannot be separated out after the fact.
+#
+# What this means, both ways:
+#
+#   - It is the RIGHT geometry for M6. The bridge really will be in that office, so
+#     these numbers are what the deployed link will see. That is the question M6 asks.
+#   - It is the WRONG data for a path-loss model. The readings cannot be compared to
+#     outdoor propagation curves, and they cannot be extrapolated to another node
+#     location by distance alone.
+#
+# Visible directly in the trace: P2 and P6 are both ~40 m from P0, and P2 is stronger
+# by 18.2 dB, consistently across all 24 matched test points (13.0 to 19.5 dB). P2
+# leaves by the NW wall; P6's path crosses the house. That is too large and too uniform
+# to be height or terrain - it is the structure.
 # OPERATOR POSITION MAP. P0 is the FIXED INITIATOR at the house; the responder walked
 # P1-P6, so trace position N is PN. GPS fixes are to the arcsecond, which at 35N is
 # ~31 m of latitude and ~25 m of longitude: they identify the spots but CANNOT support

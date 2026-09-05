@@ -1697,8 +1697,9 @@ across the walk is worth several dB of the scatter *between* positions. Absolute
 at any one position are unaffected; cross-position comparisons carry that uncertainty on
 top of the ±15 m position uncertainty already recorded.
 
-It plausibly explains part of the P2/P6 gap — both ~40 m from P0, 13 dB apart, with only
-"small shrub" versus "opposite side of house" to separate them.
+I first guessed this explained part of the P2/P6 gap. **It does not** — see the next
+entry. Two-ray caps the height contribution at ~12 dB even at the extremes of the range,
+and the measured gap is 18.2 dB. Height is real but it is not the driver.
 
 The trace header is corrected in place rather than the number quietly changed: a
 committed trace that carried a wrong figure should say so.
@@ -1719,3 +1720,71 @@ worth saying plainly rather than filing as a lesson for someone else.
 **M6 is unaffected by all of this.** It asks whether the link closes where nodes will
 live, and at all six positions it closed with margin at the D33 ceiling. The path-loss
 model is a different, unscheduled question.
+
+---
+
+## 2026-09-05 — the initiator was indoors, and it changes how the walk reads
+
+Operator clarification, and it is the most important piece of site context in the whole
+walk. It arrived last and should have been in the capture note on the day.
+
+**The initiator sat at the bridge node's target location: inside the house, in the office
+on the NW side.** Every path in the trace crosses at least one 2x4 framed exterior wall at
+the initiator end. **There is no free-space leg anywhere in this data.**
+
+| positions | path |
+|---|---|
+| P1, P2, P3, P4 | single wall penetration, the NW exterior wall |
+| P5 | faces the SW side — the path crosses the structure |
+| P6 | faces the SE side — the path crosses the structure |
+
+### It is visible in the trace, cleanly
+
+P2 and P6 are both ~40 m from P0. **P2 is stronger by 18.2 dB, consistently across all 24
+matched test points** (13.0 to 19.5 dB, every configuration). P2 leaves by the NW wall;
+P6's path crosses the house.
+
+That is too large and far too uniform to be terrain or height. The two-ray model caps the
+height contribution at about 12 dB even taking the extremes of the 0.6–1.2 m range at both
+ends, and this is 18.2. **The structure is the driver, and the previous entry's guess that
+height explained the P2/P6 gap is withdrawn.**
+
+Matching test points pairwise rather than comparing medians is what made it clean — the
+same mistake, and the same fix, as the excess-loss table.
+
+### What it does to the excess-loss table
+
+Every figure in it — the 10.4 dB at P4 included — **bundles at least one wall**. So the
+outdoor portion of those paths is *better* than the table suggested: P4's outdoor leg is
+close to free space once a wall's 4–10 dB is taken out of its 10.4 dB.
+
+None of that wall loss is measured here and none of it can be separated out after the
+fact. The table stays useful for ranking the positions against each other and useless as
+an absolute propagation figure.
+
+### The important part: this is the right geometry, and the wrong data
+
+Both are true and neither cancels the other.
+
+- **Right for M6.** The bridge really will be in that office. These numbers are what the
+  deployed link will actually see, walls and all, which is exactly what M6 asks. The
+  result stands: the link closed with margin at all six positions at the D33 ceiling.
+- **Wrong for a path-loss model.** The readings cannot be compared to outdoor propagation
+  curves and cannot be extrapolated to another node location by distance alone. A node
+  sited on the SE face starts ~18 dB down on one sited on the NW face at the same range,
+  and no distance-based estimate will tell you that.
+
+### Open question for the survey
+
+The M20 survey's site 0 is `bridge-house`. **Whether that run was taken indoors at the
+same office location or outside is not recorded**, and it matters: an indoor noise floor
+is the right figure for the bridge's margin, an outdoor one is not. The re-walk should
+record it explicitly. Worth adding to the capture note rather than trusting memory a
+second time.
+
+### Lesson
+
+**Site conditions are part of the measurement.** The capture note carried bearing, height,
+antenna gain, weather and foliage — and omitted that one end was inside a building, which
+turned out to be worth 18 dB between two positions at the same range. The note template in
+`FIELD-PROCEDURE.md` now asks for indoor/outdoor and wall penetrations at each end.
