@@ -30,7 +30,11 @@ const char* const kSiteNames[kSurveySiteCount] = {
 };
 
 constexpr uint32_t kBlobMagic   = 0x4C525338UL;  // "LRS8" - LRAN Range Survey, R8
-constexpr uint16_t kBlobVersion = 1;
+// v2 adds the flags byte. v1 blobs are still READ - the pre-R11 campaign is in NVS on
+// a board with no battery, and rejecting it to add one bit would destroy the only copy
+// of the data that motivated the bit.
+constexpr uint16_t kBlobVersion   = 2;
+constexpr uint16_t kBlobVersionV1 = 1;
 
 void put_u16(uint8_t* p, uint16_t v) {
   p[0] = static_cast<uint8_t>(v & 0xFF);
@@ -117,6 +121,9 @@ uint32_t survey_pass_duration_ms(const SurveyPlan& plan) {
 void Survey::reset() {
   for (size_t i = 0; i < kSurveyBinCount; ++i) bins_[i] = SurveyBin{};
   passes_ = 0;
+  // A fresh run on THIS firmware is collected under the hold discipline; deserialize()
+  // overwrites this for a loaded blob, and it is called after reset().
+  hold_discipline_ = true;
 }
 
 void Survey::add_sample(size_t bin_index, int16_t rssi_dbm10) {
@@ -185,6 +192,10 @@ size_t Survey::serialize(const SurveyPlan& plan, uint8_t* out, size_t cap) const
   put_u32(out + 12, plan.step_hz);
   // One number for the whole run, so it belongs in the header and not in every bin.
   put_u32(out + 16, passes_);
+  out[20] = hold_discipline_ ? kFlagHoldDiscipline : uint8_t{0};
+  out[21] = 0;   // reserved, written zero (repo rule 5)
+  out[22] = 0;
+  out[23] = 0;
 
   uint8_t* p = out + kBlobHeaderLen;
   for (size_t i = 0; i < kSurveyBinCount; ++i) {
@@ -205,9 +216,23 @@ size_t Survey::serialize(const SurveyPlan& plan, uint8_t* out, size_t cap) const
 
 bool Survey::deserialize(const uint8_t* in, size_t len, SurveyPlan* out_plan) {
   reset();
-  if (in == nullptr || len < kBlobMaxLen) return false;
+  if (in == nullptr || len < kBlobMaxLenV1) return false;
   if (get_u32(in + 0) != kBlobMagic) return false;
-  if (get_u16(in + 4) != kBlobVersion) return false;
+
+  const uint16_t ver = get_u16(in + 4);
+  size_t header_len = 0;
+  if (ver == kBlobVersion) {
+    if (len < kBlobMaxLen) return false;
+    header_len = kBlobHeaderLen;
+    hold_discipline_ = (in[20] & kFlagHoldDiscipline) != 0;
+  } else if (ver == kBlobVersionV1) {
+    header_len = kBlobHeaderLenV1;
+    // Pre-R11 firmware scanned continuously between sites. Its peaks may carry
+    // bursts heard in transit, and saying so is the entire point of the flag.
+    hold_discipline_ = false;
+  } else {
+    return false;
+  }
   if (get_u16(in + 6) != static_cast<uint16_t>(kSurveyBinCount)) return false;
 
   if (out_plan != nullptr) {
@@ -217,7 +242,7 @@ bool Survey::deserialize(const uint8_t* in, size_t len, SurveyPlan* out_plan) {
   }
   passes_ = get_u32(in + 16);
 
-  const uint8_t* p = in + kBlobHeaderLen;
+  const uint8_t* p = in + header_len;
   for (size_t i = 0; i < kSurveyBinCount; ++i) {
     SurveyBin& b = bins_[i];
     b.rssi_dbm10.sum   = static_cast<int32_t>(get_u32(p + 0));

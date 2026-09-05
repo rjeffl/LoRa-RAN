@@ -1531,3 +1531,76 @@ The campaign has not been re-walked. The trace in the repo is the contaminated o
 caveat stands, and **M20's occupant inventory is still not evidence** — R11 makes the next
 campaign clean, it does not retroactively clean this one. D1 continues to wait on that
 walk and on M21.
+
+---
+
+## 2026-09-05 — flashing R11 caught R11's own provenance bug within the hour
+
+Both boards flashed from `main` at 5a4c463 (PR #20). Verified on hardware, and the
+verification immediately found a defect in the thing it was verifying.
+
+### What the flash confirmed
+
+- Boot comes up **HELD**: `# resuming campaign at site 6 propane-tank - HELD, press PRG
+  to start the dwell`.
+- **NVS survived the flash.** All seven sites still stored, 910 rows dumped, cursor at 6.
+  Worth knowing explicitly: a PlatformIO upload writes the app partition and leaves NVS
+  alone, so campaign data is not at risk from a reflash. It *is* at risk from `z`.
+- `capture.py` clean: 910 rows, zero malformed.
+
+### The defect: the flag was printed by the wrong firmware
+
+The dump said **`# hold_discipline=1` seven times** — for seven runs collected days
+earlier by pre-R11 firmware, which is exactly the contaminated campaign the flag exists
+to warn about.
+
+The line was a constant in `survey_dump()`. So it asserted a property of **this**
+firmware, while claiming to describe how **that** data was collected. Those are different
+firmwares whenever anything is read back out of NVS, which is the only way survey data is
+ever read.
+
+**A provenance marker that the reader emits is not provenance.** It has to travel with the
+data, because the whole point is that the reader and the writer are not the same.
+
+This is the second time in two days that a "record the instrument's view of its work"
+line was the thing that mattered, and the first time one of them was wrong.
+
+### The fix, and the constraint on it
+
+Blob **version 2**: a flags byte at offset 20, bit 0 = hold discipline, three reserved
+bytes written zero and ignored on receive (repo rule 5). Header 20 → 24 bytes, blob
+1580 → 1584, still comfortably inside the 20 kB partition — the fit assertion was updated,
+not deleted.
+
+**v1 blobs are still read**, and report `hold_discipline=0`. That was the binding
+constraint: the pre-R11 campaign was sitting in NVS on a board with no battery, and
+rejecting v1 to add one bit would have destroyed the only copy of the data that motivated
+the bit. `deserialize()` picks the header length from the version and clears the flag on
+the v1 path — `reset()` sets it true for a live run, so forgetting to clear it would have
+left a stale `true` behind. That has its own test.
+
+### Verified on hardware, same boards, same NVS
+
+```
+# hold_discipline=0     x7
+910 rows, 0 malformed
+# resuming campaign at site 6 propane-tank - HELD
+```
+
+Seven honest zeroes, and the v1 data still fully readable. That is the whole change
+working: old runs readable and correctly labelled, new runs labelled by what they are.
+
+### 7 more tests, 145 → 152
+
+The live run's flag, the round trip, a hand-built v1 blob that still reads, the v1 blob
+that reports `0`, the stale-`true` path, an unknown version still rejected, and the
+reserved bits written zero and ignored rather than validated.
+
+The hand-built v1 blob is worth the twenty lines it costs: it is the only way to test
+backward compatibility once the code that wrote v1 no longer exists.
+
+### Standing lesson
+
+**Provenance belongs in the artefact, not in the tool that reads it.** Both this and
+`bins_sampled` one entry earlier are the same shape of problem, and the difference between
+them is that `bins_sampled` was already coming from the instrument and this one was not.

@@ -268,7 +268,7 @@ static void test_blob_is_explicit_little_endian() {
   TEST_ASSERT_EQUAL_UINT8(0x53, blob[1]);
   TEST_ASSERT_EQUAL_UINT8(0x52, blob[2]);
   TEST_ASSERT_EQUAL_UINT8(0x4C, blob[3]);
-  TEST_ASSERT_EQUAL_UINT8(1,    blob[4]);   // version
+  TEST_ASSERT_EQUAL_UINT8(2,    blob[4]);   // version - 2 since R11's flags word
   TEST_ASSERT_EQUAL_UINT8(0,    blob[5]);
   TEST_ASSERT_EQUAL_UINT8(130,  blob[6]);   // bin count
   TEST_ASSERT_EQUAL_UINT8(0,    blob[7]);
@@ -395,7 +395,7 @@ static void test_site_names_are_csv_safe() {
 // future bin plan breaks it, it breaks here and not at the sixth site.
 static void test_the_whole_campaign_fits_the_nvs_partition() {
   const size_t campaign = kSurveySiteCount * Survey::kBlobMaxLen;
-  TEST_ASSERT_EQUAL_size_t(1580, Survey::kBlobMaxLen);
+  TEST_ASSERT_EQUAL_size_t(1584, Survey::kBlobMaxLen);   // v2, R11 flags word
   // 0x5000 = 20480 bytes, of which one 4 kB page is reserved for compaction.
   TEST_ASSERT_LESS_THAN(20480 - 4096, campaign);
 }
@@ -536,6 +536,118 @@ void test_reset_returns_to_the_boot_state() {
   TEST_ASSERT_TRUE(c.held());
 }
 
+// ---------------------------------------------------------------------------
+// R11 - hold-discipline provenance in the blob.
+//
+// The flag has to travel WITH the data. It was first printed by the dumping firmware,
+// which made a re-dump of the pre-R11 campaign claim a discipline it never had - the
+// exact provenance error the flag exists to prevent, caught on hardware within an hour
+// of flashing. A reader cannot recover this from the numbers, so if the blob does not
+// carry it, nothing does.
+// ---------------------------------------------------------------------------
+
+void test_a_live_run_is_hold_disciplined() {
+  Survey s;
+  s.reset();
+  // The hold is enforced by the firmware, not advised, so any run this build collects
+  // was collected between holds.
+  TEST_ASSERT_TRUE(s.hold_discipline());
+}
+
+void test_hold_discipline_survives_a_blob_round_trip() {
+  Survey s;
+  s.add_sample(3, -1160);
+  SurveyPlan plan;
+  uint8_t blob[Survey::kBlobMaxLen];
+  TEST_ASSERT_EQUAL_size_t(Survey::kBlobMaxLen, s.serialize(plan, blob, sizeof(blob)));
+
+  Survey back;
+  TEST_ASSERT_TRUE(back.deserialize(blob, sizeof(blob), &plan));
+  TEST_ASSERT_TRUE(back.hold_discipline());
+}
+
+// Builds a v1 blob by hand: the pre-R11 layout, 20-byte header, no flags word.
+static size_t make_v1_blob(uint8_t* out, int16_t sample_dbm10) {
+  for (size_t i = 0; i < Survey::kBlobMaxLenV1; ++i) out[i] = 0;
+  // magic "LRS8", little-endian, matching survey.cpp's kBlobMagic 0x4C525338.
+  out[0] = 0x38; out[1] = 0x53; out[2] = 0x52; out[3] = 0x4C;
+  out[4] = 1; out[5] = 0;                                   // version 1
+  out[6] = static_cast<uint8_t>(kSurveyBinCount & 0xFF);
+  out[7] = static_cast<uint8_t>((kSurveyBinCount >> 8) & 0xFF);
+  // start_hz 902000000, step_hz 200000, passes 1 - little-endian, field by field.
+  const uint32_t start = 902000000UL, step = 200000UL, passes = 1;
+  for (int i = 0; i < 4; ++i) out[8 + i]  = static_cast<uint8_t>((start >> (8 * i)) & 0xFF);
+  for (int i = 0; i < 4; ++i) out[12 + i] = static_cast<uint8_t>((step  >> (8 * i)) & 0xFF);
+  for (int i = 0; i < 4; ++i) out[16 + i] = static_cast<uint8_t>((passes >> (8 * i)) & 0xFF);
+  // Bin 0: one sample, so the run is not mistaken for empty.
+  uint8_t* p = out + Survey::kBlobHeaderLenV1;
+  const uint32_t sum = static_cast<uint32_t>(static_cast<int32_t>(sample_dbm10));
+  for (int i = 0; i < 4; ++i) p[i] = static_cast<uint8_t>((sum >> (8 * i)) & 0xFF);
+  p[4] = static_cast<uint8_t>(sample_dbm10 & 0xFF);
+  p[5] = static_cast<uint8_t>((sample_dbm10 >> 8) & 0xFF);
+  p[6] = p[4]; p[7] = p[5];
+  p[8] = 1; p[9] = 0;
+  return Survey::kBlobMaxLenV1;
+}
+
+void test_a_v1_blob_is_still_readable() {
+  uint8_t blob[Survey::kBlobMaxLen];
+  const size_t n = make_v1_blob(blob, -1160);
+  Survey s;
+  SurveyPlan plan;
+  // Rejecting v1 to add one bit would have destroyed the only copy of the campaign
+  // that motivated the bit - it was sitting in NVS on a board with no battery.
+  TEST_ASSERT_TRUE(s.deserialize(blob, n, &plan));
+  TEST_ASSERT_EQUAL_UINT32(1, s.passes());
+  TEST_ASSERT_EQUAL_INT16(-1160, s.bin(0).rssi_dbm10.max);
+}
+
+void test_a_v1_blob_reports_no_hold_discipline() {
+  uint8_t blob[Survey::kBlobMaxLen];
+  const size_t n = make_v1_blob(blob, -1160);
+  Survey s;
+  TEST_ASSERT_TRUE(s.deserialize(blob, n, nullptr));
+  // THE POINT OF THE WHOLE CHANGE.
+  TEST_ASSERT_FALSE(s.hold_discipline());
+}
+
+void test_a_v1_blob_does_not_leave_a_stale_true_behind() {
+  Survey s;
+  s.reset();
+  TEST_ASSERT_TRUE(s.hold_discipline());   // live run
+  uint8_t blob[Survey::kBlobMaxLen];
+  const size_t n = make_v1_blob(blob, -1100);
+  TEST_ASSERT_TRUE(s.deserialize(blob, n, nullptr));
+  // reset() inside deserialize() sets the flag true; the v1 path must clear it again.
+  TEST_ASSERT_FALSE(s.hold_discipline());
+}
+
+void test_an_unknown_blob_version_is_still_rejected() {
+  uint8_t blob[Survey::kBlobMaxLen];
+  make_v1_blob(blob, -1160);
+  blob[4] = 99;                            // a version from the future
+  Survey s;
+  TEST_ASSERT_FALSE(s.deserialize(blob, Survey::kBlobMaxLen, nullptr));
+}
+
+void test_reserved_flag_bits_are_written_zero_and_ignored() {
+  Survey s;
+  SurveyPlan plan;
+  uint8_t blob[Survey::kBlobMaxLen];
+  s.serialize(plan, blob, sizeof(blob));
+  TEST_ASSERT_EQUAL_UINT8(0, blob[21]);    // repo rule 5: written zero
+  TEST_ASSERT_EQUAL_UINT8(0, blob[22]);
+  TEST_ASSERT_EQUAL_UINT8(0, blob[23]);
+
+  blob[21] = 0xFF; blob[22] = 0xFF; blob[23] = 0xFF;
+  blob[20] |= 0xFE;                        // every reserved BIT of the flags byte
+  Survey back;
+  // Ignored on receive, not validated - this is the header extension space, and
+  // validating it closed breaks the next field that needs it.
+  TEST_ASSERT_TRUE(back.deserialize(blob, sizeof(blob), nullptr));
+  TEST_ASSERT_TRUE(back.hold_discipline());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_every_site_has_a_name_and_out_of_range_does_not_read_off_the_end);
@@ -581,5 +693,12 @@ int main(int, char**) {
   RUN_TEST(test_restoring_a_stale_cursor_is_clamped_not_trusted);
   RUN_TEST(test_a_power_cycle_resumes_held);
   RUN_TEST(test_reset_returns_to_the_boot_state);
+  RUN_TEST(test_a_live_run_is_hold_disciplined);
+  RUN_TEST(test_hold_discipline_survives_a_blob_round_trip);
+  RUN_TEST(test_a_v1_blob_is_still_readable);
+  RUN_TEST(test_a_v1_blob_reports_no_hold_discipline);
+  RUN_TEST(test_a_v1_blob_does_not_leave_a_stale_true_behind);
+  RUN_TEST(test_an_unknown_blob_version_is_still_rejected);
+  RUN_TEST(test_reserved_flag_bits_are_written_zero_and_ignored);
   return UNITY_END();
 }

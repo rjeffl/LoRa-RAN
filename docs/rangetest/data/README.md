@@ -153,19 +153,28 @@ time**. So:
 That asymmetry is why `passes` and `samples` are recorded per bin: a reader has to be able
 to see how hard the survey looked before believing that it found nothing.
 
-### `# hold_discipline=1` — whether the peaks mean what they say
+### `# hold_discipline=` — whether the peaks mean what they say
 
-**R11, 2026-09-05.** A survey trace's per-site preamble carries this line when the
-firmware that produced it **held the scan between sites**. Where it appears,
-`peak_dbm10` is site-attributable.
+**R11, 2026-09-05.** Every site in a survey trace carries this line.
 
-**A trace without it predates R11.** That firmware scanned continuously, so everything
-the operator's radio heard while walking to a site was folded into that site's run — and
-because the peak is a *hold*, one burst heard in transit is credited permanently to the
-destination. Floor and mean survive it; the occupant list does not.
+| Value | Means |
+|---|---|
+| `1` | The scan was **held between sites**. `peak_dbm10` is attributable to the site it is filed under. |
+| `0` | The scan ran continuously between sites. Everything the operator's radio heard while walking to a site was folded into that site's run, and because the peak is a *hold*, one burst heard in transit is credited permanently to the destination. |
 
-There is no way to tell the two apart from the numbers, which is exactly why the line
-exists. `2026-09-05-survey-campaign.csv` is the one committed trace without it.
+At `0`, **floor and mean survive; the occupant list does not.** Floor is stationary and
+min-held, and a few minutes of walking against a five-minute dwell hardly moves a mean
+already sitting on the floor.
+
+**The flag is stored in the blob, not printed by the firmware doing the dump.** The
+question a reader asks is how the data was *collected*, and the firmware reading NVS is
+not the firmware that collected it. The first version of this line was a constant in the
+dump path, which made a re-dump of the pre-R11 campaign claim a discipline it never had —
+caught on hardware within an hour. Blob v1 has no flag and is reported as `0`, which is
+correct: that firmware did not hold.
+
+`2026-09-05-survey-campaign.csv` predates R11 entirely and has no such line at all. Its
+peak column is caveated in its own header.
 
 ### Columns 6 and 7 are separate on purpose
 
