@@ -1543,15 +1543,52 @@ void loop_w9_initiator() {
   w9_send_next_ping();
 }
 
+// The responder reports on an idle gap, not per set.
+//
+// WHY IT REPORTS AT ALL: the initiator can only count what happened on the leg coming
+// BACK to it. Whether the INBOUND leg saw a late fragment, a PHY CRC error or a
+// foreign frame is visible only here, and R9 asks whether this link produces late
+// fragments at all - an answer covering one direction is half an answer. Same
+// reasoning that put `resp_heard` in the sweep's echo (see bench_frame.h).
+//
+// An idle gap rather than a count, because the responder is not told where a run ends:
+// the initiator moves from run 1 to run 2 without announcing it, and the gap between
+// runs is the only edge the responder can see.
+uint32_t g_w9_resp_last_rx  = 0;
+bool     g_w9_resp_reported = true;
+
+inline constexpr uint32_t kW9RespIdleReportMs = 5000;
+
+void w9_report_responder() {
+  Serial.print(F("# W9 responder inbound: sets_echoed="));
+  Serial.print(g_w9_stats.pings_sent);
+  Serial.print(F(" frames_sent="));  Serial.print(g_w9_stats.frames_sent);
+  Serial.print(F(" decode="));       Serial.print(g_w9_stats.decode_faults);
+  Serial.print(F(" reasm_fail="));   Serial.print(g_w9_stats.reassembly_fails);
+  Serial.print(F(" frag_late="));    Serial.print(g_w9_stats.late_fragments);
+  Serial.print(F(" phy_crc="));      Serial.print(g_w9_stats.crc_errors);
+  Serial.print(F(" foreign="));      Serial.println(g_w9_stats.foreign_frames);
+}
+
 void loop_w9_responder() {
   uint8_t rx[lran::kMaxFrame];
   size_t  len       = 0;
   bool    crc_error = false;
 
   if (!g_radio.poll(rx, sizeof(rx), &len, &crc_error)) {
+    if (!g_w9_resp_reported && g_w9_resp_last_rx != 0 &&
+        static_cast<int32_t>(millis() - g_w9_resp_last_rx) >=
+            static_cast<int32_t>(kW9RespIdleReportMs)) {
+      w9_report_responder();
+      g_w9_resp_reported = true;
+    }
     delay(2);
     return;
   }
+
+  g_w9_resp_last_rx  = millis();
+  g_w9_resp_reported = false;
+
   if (crc_error) {
     ++g_w9_stats.crc_errors;
     g_radio.start_receive();

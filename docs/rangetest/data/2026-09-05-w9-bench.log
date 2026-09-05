@@ -1,0 +1,35 @@
+# LRAN W9 bench run (R9) - spec 6.6 PING over RF against /lib/lran-protocol/
+# captured 2026-09-05
+#
+# note: two Heltec V3 on the bench, ~1 m apart, 3.0 dBi production antennas, test
+#   point 0 (SF7, BW 125 kHz, CR 4/5, 915.0 MHz, conducted -9 dBm). This is a
+#   PROTOCOL test, not a link test - the path is deliberately trivial so that any
+#   fault is the codec, the fragmentation or the buffers, and not the RF.
+#
+# spec: LRAN-Protocol-Specification v0.7, 6.6 / 6.6.1 / 6.6.2 / 6.6.3 / 11 / 12.3 / 15.1
+# firmware: firmware/range-test, role W9-INIT / W9-RESP (serial w / x)
+#
+# Run 1 is spec 6.6.1: a 202-byte echo, a frame of exactly 222 bytes, unfragmented.
+# Run 2 is spec 6.6.2: the same echo at frag_chunk = 14, the full 15-fragment set.
+#
+# NOT a CSV. W9 emits console lines only, so capture.py reports "no CSV header seen"
+# and exits non-zero on a completely successful run. That is expected here.
+#
+# --- INITIATOR (node 0xF0) ---
+# W9 - spec 6.6 PING over RF, against /lib/lran-protocol/.
+# node ids: initiator 0xF0 responder 0xF1 (spec 5.3 bench range - never a production node)
+# W9 run max-frame: n=202 payload=204 frags=1 chunk=0 pings=32
+# W9 run max-frame PASSED
+# pings=32 frames=32 echoes_ok=32 timeouts=0 pattern=0 decode=0 reasm_fail=0 frag_late=0 phy_crc=0 foreign=0
+# spec 15.1 airtime of a 222-byte frame at SF7 = 348 ms; spec 12.3 max backoff 500 ms - window covers one frame
+# W9 run fragmented: n=202 payload=204 frags=15 chunk=14 pings=32
+# W9 run fragmented PASSED
+# pings=32 frames=480 echoes_ok=32 timeouts=0 pattern=0 decode=0 reasm_fail=0 frag_late=0 phy_crc=0 foreign=0
+# spec 15.1 airtime of a 222-byte frame at SF7 = 348 ms; spec 12.3 max backoff 500 ms - window covers one frame
+# W9 complete - both runs reported above. Record the result in docs/rangetest/engineering-log.md.
+#
+# --- RESPONDER (node 0xF1) ---
+# W9 - spec 6.6 PING over RF, against /lib/lran-protocol/.
+# node ids: initiator 0xF0 responder 0xF1 (spec 5.3 bench range - never a production node)
+# W9 responder: reassembles, verifies, re-fragments the echo (spec 6.6.2). Waiting.
+# W9 responder inbound: sets_echoed=64 frames_sent=512 decode=0 reasm_fail=0 frag_late=0 phy_crc=0 foreign=5

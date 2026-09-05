@@ -209,7 +209,9 @@ def main() -> int:
                     help="pulse the board's reset line after opening the port, so the "
                          "settings dump and CSV header are guaranteed to be seen. "
                          "Removes the 'start this BEFORE resetting the board' trap")
-    ap.add_argument("--role", choices=["initiator", "responder", "survey"],
+    ap.add_argument("--role",
+                    choices=["initiator", "responder", "survey",
+                             "w9-initiator", "w9-responder"],
                     help="role to select in the boot window after --reset. Omit for "
                          "initiator, which is the no-press default")
     ap.add_argument("--key-after", type=float, default=0.0, metavar="SECONDS",
@@ -296,7 +298,10 @@ def main() -> int:
     if args.sweeps == 0:
         print("  running until Ctrl-C", flush=True)
 
-    ROLE_KEYS = {"initiator": b"i", "responder": b"r", "survey": b"v"}
+    # R9 - the two W9 modes are serial-only (see firmware/range-test/src/role.h),
+    # so this table is the ONLY way to reach them from a host.
+    ROLE_KEYS = {"initiator": b"i", "responder": b"r", "survey": b"v",
+                 "w9-initiator": b"w", "w9-responder": b"x"}
 
     if args.reset:
         # RTS drives EN on this carrier and DTR drives IO0. IO0 must stay HIGH or the

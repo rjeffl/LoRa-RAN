@@ -1914,6 +1914,9 @@ two headline findings built on that column did not survive the re-measure.
 
 ## 2026-09-05 — R9 built, host-tested, and NOT yet run over RF
 
+> **Superseded the same day by the entry below: both runs passed on the bench.** Left
+> as written — what the run had to answer is worth reading before what it answered.
+
 `range/w9`. The W9 bench exists and passes at the desk. **The acceptance gate is not
 met**: R9 asks for both runs to pass *over RF*, and no board has transmitted a `PING`
 yet. What follows is what was built and what the bench run still has to answer.
@@ -1999,3 +2002,98 @@ per-fragment fault report that only means anything on one. Adding a fourth and f
 gesture would have put the protocol bench one mistimed thumb away from the walk, on a
 board whose no-press default is the mode that transmits — the same class of mistake the
 survey's hold gesture was introduced to fix.
+
+---
+
+## 2026-09-05 — W9 passed on the bench, and §12.3's backoff window only covers SF7
+
+Both boards on the bench, ~1 m apart, test point 0 (SF7, 125 kHz, CR 4/5, 915.0 MHz,
+conducted −9 dBm, 3.0 dBi). Trace committed as
+[`data/2026-09-05-w9-bench.log`](./data/2026-09-05-w9-bench.log).
+
+**R9's acceptance gate is met. Both runs passed over RF.**
+
+| | run 1 — §6.6.1 | run 2 — §6.6.2 |
+|---|---|---|
+| PINGs | 32 | 32 |
+| frames | 32 | **480** (32 × 15) |
+| echoes ok | **32** | **32** |
+| timeouts, pattern, decode, reassembly | 0 | 0 |
+| `frag_late`, `phy_crc`, foreign | 0 | 0 |
+
+Responder inbound, over both runs: `sets_echoed=64 frames_sent=512 decode=0
+reasm_fail=0 frag_late=0 phy_crc=0 foreign=5`. 512 is 32 + 480, so both ends agree on
+every frame of both runs.
+
+**The 222-byte frame and the 15-fragment set both work.** A full-size frame had never
+been emitted by anything the protocol could actually produce before today — the largest
+real frame is a 96-byte `STATUS` — and reassembly had never run over the air at all.
+Both worked first time, at the maximum on both axes, with zero pattern faults across
+64 round trips.
+
+### The finding: the default backoff window is a SF7 assumption
+
+R9 asked for the 222-byte frame to be checked against the CAD/backoff window, "since
+§12.3's defaults were chosen against an empty channel". The firmware prints the check
+at the end of each run. **At SF7 the window covers a frame, and at nothing above it does:**
+
+| SF | 222-byte airtime (§15.1) | `backoff_max_ms` default 500 | |
+|---|---|---|---|
+| **7** | **348 ms** | 500 ms | covers |
+| 8 | 615 ms | 500 ms | **does not** |
+| 9 | 1107 ms | 500 ms | **does not, by 2×** |
+
+The firmware's own figure at SF7 was 348 ms, which matches §15.1's table exactly — the
+airtime implementation was host-tested against that table, and this is the first time it
+has been checked against a real transmission of that size.
+
+**A backoff window shorter than one frame's airtime cannot outlast the frame it backed
+off for**: the retry lands while the channel is still occupied by the same transmission,
+CAD fires again, and the node burns its `cad_retries` against a single neighbour before
+transmitting regardless. §12.3 already permits that last step, so this is a latency and
+`cad_backoffs` question rather than a correctness one — but `cad_backoffs` is exactly
+the instrument §12.3 nominates to check itself, and it would read high for a reason that
+is not congestion.
+
+**This is D1's problem, not a firmware defect.** D1 has not fixed SF yet. If it lands on
+SF7 the defaults stand as written; at SF8 or above `backoff_max_ms` needs raising above
+the full-frame airtime, and §12.3's note that the defaults "were chosen against an empty
+channel" is the place that records why. Raised rather than patched, per the repo rule.
+
+Worth reading with the survey: the channel is **not** empty at two sites, and
+`weather-island` has a confirmed in-channel occupant.
+
+### The responder was silent, and that was half an answer
+
+The first bench run passed with `frag_late=0` — but the initiator can only count what
+happens on the leg coming *back* to it. Whether the **inbound** leg saw a late fragment
+was invisible, and "does this link produce late fragments at all" is one of the three
+questions R9 exists to answer. A one-direction answer to it is not an answer.
+
+The responder now reports its own inbound tally on an idle gap, and the run was repeated.
+**No late fragments in either direction, across 512 frames.** §11.2's late-fragment rule
+was chosen against a *hypothesised* RF echo; on this link, at this range, echoes do not
+occur. That is a clean negative and it is worth having — but it is a **bench** negative
+at 1 m, and the rule exists for the 500 ft path. It is not evidence about the gate.
+
+The report fires on an idle gap rather than a count because the responder is never told
+where a run ends: the initiator moves from run 1 to run 2 without announcing it, and the
+silence between runs is the only edge the responder can see.
+
+### `foreign=5` at the responder, 0 at the initiator
+
+Five frames reached the responder that decoded far enough to be counted foreign, and none
+reached the initiator. Two candidates and this run cannot separate them: ambient 915 MHz
+traffic that passed the PHY CRC *and* our sync word, or partial frames caught while the
+responder was still coming up. The asymmetry is at least consistent with the second — the
+responder listens continuously while the initiator only opens a window after each set.
+
+Not chased further because nothing depends on it here. Noted because it is the first time
+this firmware has counted foreign traffic through the **real codec** rather than through
+`bench_parse`, and because the survey has since established the band has occupants.
+
+### What R9 leaves open
+
+**W7 still waits on D1**, unchanged: §15.1 regenerates once SF/BW/CR are fixed. The
+airtime implementation is the instrument that will do it and it now agrees with the table
+at the one point a real frame has tested.
