@@ -289,6 +289,14 @@ beacon that raises `DONE`, not on your next press. So the last position of the w
 already stored when you power the board down, and a brown-out costs at most the position
 in progress.
 
+> **So do NOT press PRG after the last position.** It is the natural instinct — one more
+> press to be sure it was written — and it is the wrong move: the press advances the
+> cursor and starts a sweep for a position you are not standing at. The initiator dutifully
+> records ~24 test points of 100% PER against a responder you are about to switch off, and
+> the trace gains a position that looks like the link failing at the far end of the walk.
+> That is exactly what happened on 2026-09-04; see the engineering log and the header of
+> `data/2026-09-04-walk-gatelink.csv`. **Walk away and power down.**
+
 ### Coming back
 
 1. **Ctrl-C** the capture. It writes the file.
@@ -405,6 +413,27 @@ the loudest bin found so far.
 2. **Press PRG once.** It stores this site and advances to the next one, clearing the
    accumulator for a fresh run. The OLED site name changes; that is your confirmation.
 3. Walk to the next site. Repeat.
+
+> **Known limitation: the walk between sites is measured.** The scan never stops, so
+> whatever the radio hears in transit is folded into the next site's run — and because
+> `peak_dbm10` is a peak hold, one burst heard while walking past an emitter is
+> attributed permanently to the site you were heading for.
+>
+> **There is no press pattern that avoids this.** Pressing on arrival instead of on
+> departure only moves the contamination from the destination site to the one you just
+> left; the accumulator is running either way. Every site except the first carries its
+> inbound transit, and that is inherent to the current firmware.
+>
+> What this costs: the **occupant inventory** is not reliably site-attributable. The
+> **floor and the mean are unaffected** — the floor is stationary and min-held, and a few
+> minutes of walking against a five-minute dwell barely moves a mean that sits on the
+> floor anyway — so anything that depends on floor or mean, which is what §12.1 actually
+> asks for, is sound.
+>
+> The 2026-09-05 campaign was run this way and its peak column is caveated in the trace
+> header. **The fix is a survey hold state in the firmware**, filed as the next task; if
+> you are tethered you can approximate it by sending `x` on arrival to clear the transit
+> before the dwell begins.
 
 > **How long is "several minutes"?** Longer than feels necessary. The noise floor settles
 > in seconds, but occupancy detection is **probabilistic**: one radio listening to one

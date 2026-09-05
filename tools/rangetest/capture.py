@@ -82,6 +82,8 @@ class Trace:
     and the last one, which is exactly the window a deferred write loses.
     """
 
+    kFlushInterval = 0.25   # seconds; see row()
+
     def __init__(self, path, note):
         self.path = path
         self.note = note
@@ -89,6 +91,13 @@ class Trace:
         self.header = None
         self.commas = 0
         self.rows = 0
+        self.last_flush = 0.0
+        # Lines that looked like data but did not match the header's field count,
+        # and lines that matched nothing at all. Both used to be dropped in silence.
+        # Repo rule 4 applied to the tool: a discard that increments no counter is
+        # how 325 rows went missing without the trace saying anything was wrong.
+        self.malformed = 0
+        self.unparsed = 0
 
     def open(self, header, meta):
         self.header = header
@@ -104,6 +113,7 @@ class Trace:
         self.f.write("#\n")
         self.f.write(header + "\n")
         self.f.flush()
+        self.last_flush = time.time()
 
     def comment(self, text):
         if self.f:
@@ -112,11 +122,32 @@ class Trace:
 
     def row(self, line):
         self.f.write(line + "\n")
-        self.f.flush()
+        # Flushed per row during a walk, because the failure modes there - a killed
+        # terminal, a sleeping laptop, a tugged cable - all land mid-trace. But a
+        # campaign dump emits ~910 rows in one burst, and a flush plus a console
+        # write per row is slow enough to overrun the kernel's receive buffer: the
+        # 2026-09-05 survey lost 325 consecutive rows that way, including a whole
+        # site. Flush at most every kFlushInterval seconds instead, which bounds the
+        # loss window to a fraction of a second and keeps up with the burst.
+        now = time.time()
+        if now - self.last_flush >= self.kFlushInterval:
+            self.f.flush()
+            self.last_flush = now
         self.rows += 1
 
     def close(self, reason):
         if self.f:
+            # Written into the trace, not just printed, so a reader eighteen months
+            # from now can tell a complete capture from a lossy one without having
+            # the console log that produced it.
+            # Only `malformed` is reported here. `unparsed` counts banner and
+            # separator lines too and is non-zero on every healthy capture, so it
+            # would cry wolf; it goes to the console summary instead. A malformed
+            # DATA row means bytes were lost, and that is always worth a mark in
+            # the evidence file.
+            if self.malformed:
+                self.f.write(f"# WARNING: {self.malformed} malformed data line(s) "
+                             f"DISCARDED - bytes were lost, this trace has holes\n")
             self.f.write(f"# capture ended: {reason} - {self.rows} rows\n")
             self.f.close()
             self.f = None
@@ -217,6 +248,10 @@ def main() -> int:
     idle_deadline = time.time() + args.idle_timeout
     run_deadline = (time.time() + args.run_for) if args.run_for > 0 else None
     buf = b""
+    # Bytes read during the reset/role window, before the main loop is entered.
+    # They are real output - in survey mode, most of a campaign - and are parsed
+    # with everything else rather than thrown away.
+    early = []
     reason = "sweep count reached"
     stop = False
 
@@ -255,10 +290,26 @@ def main() -> int:
             while time.time() < deadline:
                 ser.write(key)
                 ser.flush()
+                # KEEP DRAINING THE PORT WHILE WE DO IT.
+                #
+                # This window used to be a blind time.sleep() loop, and the board is
+                # NOT quiet during it: in survey mode it prints the settings dump and
+                # then a full seven-site campaign at boot - about 55 kB. The tty
+                # buffer holds roughly 17.9 kB of that and silently discards the rest
+                # until something starts reading, so the 2026-09-05 campaign lost
+                # 19184 consecutive bytes - sites 3 and 4 entirely, and the tails and
+                # heads of 2 and 4 - every single time, at the identical byte offset.
+                #
+                # It looked like a firmware fault and it was this loop.
+                early.append(ser.read(65536))
                 time.sleep(0.15)
             print(f"  selected role: {args.role}", flush=True)
         else:
-            time.sleep(3.5)   # let the role window close before any --key
+            # Same hazard with no role to select: drain, do not sleep.
+            deadline = time.time() + 3.5
+            while time.time() < deadline:
+                early.append(ser.read(65536))
+                time.sleep(0.05)
     elif args.role:
         print("--role needs --reset: the role window is only open just after a reset",
               file=sys.stderr)
@@ -279,6 +330,9 @@ def main() -> int:
     # pressed a key before the board booted - which is exactly how a perfectly correct
     # run gets reported as a desync. Rows arriving during the wait are now captured
     # too, rather than sitting unparsed.
+    buf = b"".join(early) + buf
+    early = []
+
     pending_keys = list(args.key)
     next_key_at = (time.time() + args.key_after) if pending_keys else None
     if pending_keys and args.key_after > 0:
@@ -304,11 +358,15 @@ def main() -> int:
                 print(f"\n  sent key: {k}", flush=True)
                 next_key_at = (time.time() + 1.0) if pending_keys else None
 
-            chunk = ser.read(4096)
-            if not chunk:
+            chunk = ser.read(65536)
+            if chunk:
+                idle_deadline = time.time() + args.idle_timeout
+                buf += chunk
+            elif b"\n" not in buf:
+                # Nothing new AND nothing pending. Skipping on `not chunk` alone
+                # would strand whatever the role window pre-buffered until the board
+                # happened to speak again - and in survey mode it scans in silence.
                 continue
-            idle_deadline = time.time() + args.idle_timeout
-            buf += chunk
 
             while b"\n" in buf:
                 raw, buf = buf.split(b"\n", 1)
@@ -355,20 +413,38 @@ def main() -> int:
                 elif line.startswith("#"):
                     if echo:
                         print(f"\n  {line}", flush=True)
+                    # The board's own `#` lines go INTO the trace. The survey's
+                    # per-site preamble carries `bins_sampled`, which is the only
+                    # field that distinguishes a site the radio never finished
+                    # scanning from one the serial link dropped on the way out -
+                    # exactly the question the 2026-09-05 campaign could not answer
+                    # from its own file. Cheap to keep, impossible to reconstruct.
+                    trace.comment(line.lstrip("# "))
                     if any(m in line for m in COMPLETION_MARKERS):
                         sweeps += 1
                         print(f"\n  sweep {sweeps} complete "
                               f"({trace.rows} rows) - {line.lstrip('# ')}", flush=True)
                 elif SETTING_RE.match(line):
                     meta.append(line)          # settings dump: key=value
-                elif (line[0].isdigit() or line.startswith("RESP,")) and (
-                        line.count(",") == trace.commas if trace.header
-                        else line.count(",") > 6):
+                elif line[0].isdigit() or line.startswith("RESP,"):
+                    # Looks like a data row. Whether it IS one is the field count.
+                    ok = (line.count(",") == trace.commas if trace.header
+                          else line.count(",") > 6)
+                    if not ok:
+                        # Almost always a row truncated by a receive-buffer overrun.
+                        # Counted and reported; never silently dropped.
+                        trace.malformed += 1
+                        continue
                     if trace.f is None:
                         pending.append(line)   # pre-header, discarded at the header
                         continue
                     trace.row(line)
-                    print(f"\r  {trace.rows} rows", end="", flush=True)
+                    # Throttled: a console write per row is half the reason a burst
+                    # dump outruns the reader. See Trace.row().
+                    if trace.rows % 25 == 0:
+                        print(f"\r  {trace.rows} rows", end="", flush=True)
+                else:
+                    trace.unparsed += 1
     except KeyboardInterrupt:
         reason = "stopped by operator"
         print("\nstopped by operator", flush=True)
@@ -385,12 +461,20 @@ def main() -> int:
               file=sys.stderr)
         return 1
     rows = trace.rows
+    malformed, unparsed = trace.malformed, trace.unparsed
     trace.close(reason)
     if rows == 0:
         print("no data rows captured", file=sys.stderr)
         return 1
 
     print(f"wrote {rows} rows over {sweeps} completed unit(s) to {args.out}")
+    print(f"  {unparsed} unrecognised line(s) ignored (banners, separators)")
+    if malformed:
+        print(f"\nWARNING: {malformed} malformed data line(s) were discarded.\n"
+              f"Bytes were lost on the way in, so {args.out} HAS HOLES and the\n"
+              f"missing rows are not marked in place. Re-dump before committing it.",
+              file=sys.stderr)
+        return 1
     return 0
 
 
