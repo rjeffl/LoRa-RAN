@@ -71,12 +71,19 @@ procedure.
 | File | What it is |
 |---|---|
 | `2026-08-31-bench.csv` | Format proof, ~1 m bench link. **Not range data** |
-| `2026-09-04-walk-gatelink.csv` | **R10 walk, six positions.** 1152 probes, 2 lost downlink, 7 lost uplink, no dead test points. **Position 7 is not a location** — annotated in the file's own header |
+| `2026-09-04-walk-gatelink.csv` | **R10 walk, six positions.** 1152 probes, 2 lost downlink, 7 lost uplink, no dead test points. **Not a clear-field test** — the initiator was indoors at the bridge's target location, so every path crosses at least one wall. **Position 7 is not a location.** All caveats are in the file's own header |
 | `2026-09-04-walk-gatelink-resplog.csv` | The responder's log for that walk. Closes against the sweep trace at all six positions |
-| `2026-09-05-survey-campaign.csv` | **All seven sites, 910 rows.** Re-dumped from NVS; `peak_dbm10` is caveated, see below |
+| `2026-09-05-survey-campaign.csv` | **All seven sites, 910 rows.** Re-dumped from NVS; `peak_dbm10` is caveated, see below. Site 0 `bridge-house` was measured **indoors** at the bridge's target location |
 
 **The link closes with margin at every walked position at the D33 ceiling.** Both ends
 agree within 0.8 dB, `filler_err` is zero throughout.
+
+**Read the walk as a deployment measurement, not a propagation one.** The initiator sat
+indoors at the bridge's real target location, so every reading bundles at least one framed
+wall and P5/P6 cross the house — P2 and P6 are both ~40 m out and differ by **18.2 dB**
+purely by which face the path leaves by. That is the right geometry for M6 and the wrong
+data for a path-loss model. Arcsecond GPS (±15 m) and a height recorded only as a 2–4 ft
+range compound it.
 
 ### The one result to carry forward
 

@@ -232,8 +232,21 @@ findings did.
 - **Matched antennas, recorded.** Same antennas at both ends, same height, both noted in
   the log with their gain. Use the antenna supplied with the module — D33's conditions
   turn on antenna gain, and a swapped antenna invalidates the power figure.
-- **Height matters more than you expect** at 915 MHz over 150 m of ground. Record it.
-  Two runs at different heights are worth more than one careful run at an unrecorded one.
+- **Height matters more than you expect** at 915 MHz over 150 m of ground. Record it
+  **per end and per position**, not as one figure for the walk — received power scales
+  with the *product* of the two antenna heights. Two runs at different heights are worth
+  more than one careful run at an unrecorded one.
+- **Record indoor/outdoor and wall penetrations at each end.** Added 2026-09-05 after the
+  first walk omitted it. The initiator sat indoors at the bridge's target location, so
+  every reading in that trace bundles at least one framed wall — and two positions at the
+  same 40 m range differ by **18.2 dB** depending on which face of the house the path
+  leaves by. A note carrying bearing to a degree and height to a centimetre, which does
+  not say the radio was indoors, describes the wrong experiment.
+- **Say which question the walk is answering.** A deployment measurement puts the radios
+  where the nodes will actually live, walls included, and answers M6. A propagation
+  measurement needs clear paths, distances to ~1 m and per-position heights. **The first
+  walk was the former**, and its numbers cannot be extrapolated to another node location
+  by distance alone.
 - **Shade the OLED with a hand.** Confirmed outdoors 2026-08-31: the display does not
   power through direct sunlight, and is comfortably readable with minimal shading. This
   is procedure, not a defect — a 128×64 monochrome OLED at maximum contrast is
