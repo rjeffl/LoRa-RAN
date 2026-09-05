@@ -1810,3 +1810,102 @@ with the rest, and the trace header says so.
 antenna gain, weather and foliage — and omitted that one end was inside a building, which
 turned out to be worth 18 dB between two positions at the same range. The note template in
 `FIELD-PROCEDURE.md` now asks for indoor/outdoor and wall penetrations at each end.
+
+---
+
+## 2026-09-05 — the M20 re-walk, and the occupant inventory that comes out of it
+
+`docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. Seven sites, 910 rows, captured
+15:31. **The first trace where every site carries `# hold_discipline=1`** — the peaks are
+site-attributable, which is the whole reason R11 exists.
+
+### The campaign is clean
+
+| | |
+|---|---|
+| Sites | 7, all 130 of 130 bins |
+| Passes per site | **68–74** (pre-R11 campaign: 71–91) |
+| Samples per bin | 591–675 |
+| `dropped` | **0 at every site** |
+
+The pass spread tightening from 20 to 6 is itself the hold state working: every site now
+gets one deliberate ~5 minute dwell instead of a dwell plus however long the walk in took.
+
+### The floor result holds, on attributable data this time
+
+Median floor is **−115.0 dBm at all seven sites**, median mean −114.4 to −114.9. The
+pre-R11 floor minima wandered to −125; here they sit at −117 to −122. Same conclusion as
+before and now better supported: **the floor on this property is receiver-thermal-limited,
+not environment-limited**, and site 0's indoor reading is still not an outlier.
+
+**No bin at any site has a mean meaningfully above its own floor.** Every occupant on the
+property is bursty. There is no carrier anywhere in 902–928, which is what §12.1 assumes
+when it plans to surface contention as `cad_backoffs` rather than as a dead channel.
+
+### In-channel: one occupant site, not two
+
+Peak in the channel and its shoulders (914.8 / 915.0 / 915.2):
+
+| site | pre-R11 | R11 | |
+|---|---|---|---|
+| weather-island | −81.0 | **−80.0** | **reproduces** |
+| propane-tank | −106.0 | −106.0 | reproduces |
+| irrigation-pump | **−77.0** | **−112.0** | **gone** |
+| bridge-house | −113.0 | −112.0 | floor |
+| gatelink-gate | −113.0 | −112.0 | floor |
+| welllink-well | −112.0 | −111.0 | floor |
+| hopyard-lower | −113.0 | −113.0 | floor |
+
+**`weather-island` at 915.0 is a confirmed in-channel occupant.** It reproduced within
+1 dB across two campaigns, the second with the transit mechanism removed. Its mean is at
+the floor, so: rare bursts, a collision risk at that one site.
+
+**`irrigation-pump` at 915.2 did not survive.** −77 dBm became −112, the floor. The
+previous trace's own header warned this column was not site-attributable, and this is what
+that warning was worth: **the property has one in-channel occupant site, not two.**
+
+One honest limit. A single re-walk cannot fully separate "it was picked up in transit"
+from "that source happened to be quiet this afternoon" — the two campaigns are about three
+hours apart. What can be said is that the mechanism that would manufacture the peak is now
+gone and the peak went with it. The transit reading is the better-supported one: the walk
+into irrigation-pump comes from welllink-well, and a path passing nearer the
+weather-island emitter than weather-island itself explains a peak *stronger* than that
+site's own −80 dBm, in an adjacent bin.
+
+### What the hold state newly reveals — activity at the gate
+
+Hot bins per site (peak more than 10 dB over that site's median floor):
+
+| site | pre-R11 | R11 |
+|---|---|---|
+| **gatelink-gate** | 9 | **53** |
+| **welllink-well** | 6 | **29** |
+| weather-island | 19 | 19 |
+| hopyard-lower | 11 | 14 |
+| propane-tank | 10 | 13 |
+| bridge-house | 8 | 9 |
+| irrigation-pump | 13 | 5 |
+
+Two of these went *up*, which hold discipline cannot cause — removing transit peaks can
+only take bins away. So this is real activity at those two sites during their dwell:
+`gatelink-gate` peaking −65 at 903.4, **−66 at 914.0**, −70 at 925.0; `welllink-well` −64
+at 904.4. All means still at floor, so bursts again.
+
+**914.0 MHz at −66 dBm is 1 MHz off channel, at the site GateLink is going to live at.**
+Not in-channel and not a blocker at 125 kHz of bandwidth, but it is the strongest near-band
+neighbour any node site has, and it belongs on the record before D1 fixes a channel.
+
+`bridge-house` still peaks −54 at 916.0 (−51 pre-R11) — reproduces, and being indoors it
+is stronger than that outside.
+
+### Where this leaves M20 and D1
+
+**M20's occupant inventory is closed.** Seven sites, attributable peaks, uniform floor,
+one in-channel occupant identified and one retracted. **D1 now waits only on M21** — the
+modules' FCC grant conditions, which is paperwork, not bench work.
+
+### Lesson
+
+**A caveat on a column is a claim to go back and test, not a footnote to carry forever.**
+The pre-R11 header said the peaks were not site-attributable. It was right, and one of the
+two headline findings built on that column did not survive the re-measure.
