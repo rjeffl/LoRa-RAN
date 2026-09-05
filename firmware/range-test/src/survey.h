@@ -173,11 +173,33 @@ class Survey {
   // stored, so a blob captured under a different plan is detectable rather than
   // silently re-interpreted under the current one.
 
-  // magic(4) version(2) bins(2) start_hz(4) step_hz(4) passes(4)
-  static constexpr size_t kBlobHeaderLen = 20;
-  static constexpr size_t kBlobEntryLen  = 12;
+  // v2: magic(4) version(2) bins(2) start_hz(4) step_hz(4) passes(4) flags(1) rsvd(3)
+  // v1: the same without the trailing flags/reserved word.
+  //
+  // R11 added the flags byte for ONE bit: whether the run was collected by firmware
+  // that holds the scan between sites. It has to live in the BLOB and not in the dump
+  // code, because the question a reader asks is how the data was COLLECTED, and the
+  // firmware doing the dumping is not the firmware that collected it. Printing it from
+  // the dumper made a re-dump of the pre-R11 campaign claim a discipline it never had -
+  // caught on hardware the day it was written.
+  static constexpr size_t kBlobHeaderLenV1 = 20;
+  static constexpr size_t kBlobHeaderLen   = 24;   // v2, 4-byte aligned
+  static constexpr size_t kBlobEntryLen    = 12;
   static constexpr size_t kBlobMaxLen =
       kBlobHeaderLen + kSurveyBinCount * kBlobEntryLen;
+  static constexpr size_t kBlobMaxLenV1 =
+      kBlobHeaderLenV1 + kSurveyBinCount * kBlobEntryLen;
+
+  // Bit 0 of the flags byte. The rest are written zero and ignored on receive
+  // (repo rule 5) - this is the header extension space and validating it closed would
+  // break the next field that needs it.
+  static constexpr uint8_t kFlagHoldDiscipline = 0x01;
+
+  // True when this run was collected between holds, so peak_dbm10 is attributable to
+  // the site it is filed under. False for a v1 blob: that firmware scanned
+  // continuously between sites, so its peaks may carry bursts heard in transit.
+  // A LIVE run on this firmware is always true - the hold is enforced, not advised.
+  bool hold_discipline() const { return hold_discipline_; }
 
   size_t serialize(const SurveyPlan& plan, uint8_t* out, size_t cap) const;
 
@@ -189,6 +211,7 @@ class Survey {
  private:
   SurveyBin bins_[kSurveyBinCount]{};
   uint32_t  passes_ = 0;
+  bool      hold_discipline_ = true;   // a live run on this firmware; see above
 };
 
 // ---------------------------------------------------------------------------

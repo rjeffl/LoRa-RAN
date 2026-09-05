@@ -107,8 +107,13 @@ frame handling runs. Keep it that way.
   phase. `SurveyCampaign` in `survey.h` owns the cursor and the phase and **not** NVS: a
   store fails by short write, and a cursor that advanced over an unwritten site is a site
   silently lost, so the caller reports the outcome back through `note_stored()`.
-  Boot and power cycle come up **Held**. Traces carry `# hold_discipline=1`; ones without
-  it predate R11 and their peak column is caveated.
+  Boot and power cycle come up **Held**.
+- **`hold_discipline` lives in the NVS blob (v2), not in the dump code.** A reader asks how
+  the data was COLLECTED, and the firmware reading NVS is not the firmware that collected
+  it - printing a constant made a re-dump of the pre-R11 campaign claim a discipline it
+  never had, caught on hardware within an hour of flashing. **v1 blobs are still read** and
+  report `hold_discipline=0`: rejecting them to add one bit would have destroyed the only
+  copy of the campaign that motivated the bit. Blob is 1584 bytes now, not 1580.
 - **The site cursor is persisted, the role is not.** R1 governs the ROLE (a power cycle
   re-asks); campaign PROGRESS is different and must survive, because this board has no
   battery and every move between laptop and power bank is a power cycle. Without it the

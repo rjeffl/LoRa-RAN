@@ -434,7 +434,8 @@ measured.
 > **Traces before 2026-09-05 do not have this.** That firmware scanned continuously, so
 > its peak column carries bursts heard in transit and is caveated in the trace header.
 > A trace whose per-site preamble says `# hold_discipline=1` was collected with the hold
-> state and its peaks are site-attributable.
+> state and its peaks are site-attributable. `=0` means it was not, and the flag is stored
+> with the run, so a re-dump on new firmware still tells the truth about old data.
 
 > **How long is "several minutes"?** Longer than feels necessary. The noise floor settles
 > in seconds, but occupancy detection is **probabilistic**: one radio listening to one

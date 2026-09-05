@@ -677,10 +677,13 @@ void survey_dump(size_t site, bool standalone) {
   Serial.print(F("# site=")); Serial.print(static_cast<unsigned>(site));
   Serial.print(' '); Serial.println(survey_site_name(site));
   Serial.print(F("# passes=")); Serial.println(g_survey.passes());
-  // R11 provenance. Pre-R11 firmware scanned continuously between sites, so its
-  // peak column carries bursts heard in transit. A reader cannot tell the two apart
-  // from the numbers, so the trace says which firmware produced it.
-  Serial.println(F("# hold_discipline=1"));
+  // R11 provenance, read from THE BLOB and not assumed from this firmware's version.
+  // Pre-R11 runs scanned continuously between sites, so their peak column carries
+  // bursts heard in transit; a reader cannot tell the two apart from the numbers.
+  // Printing a constant here made a re-dump of the pre-R11 campaign claim a discipline
+  // it never had - which is the exact provenance error the line exists to prevent.
+  Serial.print(F("# hold_discipline="));
+  Serial.println(g_survey.hold_discipline() ? 1 : 0);
   Serial.print(F("# bins_sampled=")); Serial.print(g_survey.bins_sampled());
   Serial.print(F(" of ")); Serial.println(kSurveyBinCount);
   Serial.print(F("# dwell_ms=")); Serial.print(g_survey_plan.dwell_ms);

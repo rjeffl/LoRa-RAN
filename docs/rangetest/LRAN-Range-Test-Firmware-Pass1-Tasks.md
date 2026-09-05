@@ -276,9 +276,13 @@ a phase in which the radio is not accumulating.
 - **The OLED shows an inverted `HELD` bar**, for the same reason `show_sweep_done` has
   one: the difference between "walking, not measuring" and "measuring" has to survive a
   glance at a hand-shaded panel in sunlight.
-- **`# hold_discipline=1` in the per-site preamble.** A reader cannot tell a clean run
-  from a transit-contaminated one from the numbers, so the trace records which firmware
-  produced it. Traces without the line predate R11 and their peak column is caveated.
+- **`hold_discipline` in the NVS blob, reported in the per-site preamble.** A reader
+  cannot tell a clean run from a transit-contaminated one from the numbers, so the run
+  carries it. **In the blob, not the dump path** — the firmware reading NVS is not the
+  firmware that collected the data, and a constant in the dump path made a re-dump of the
+  pre-R11 campaign claim a discipline it never had. Blob version 2; **v1 blobs are still
+  read** and report `0`, because rejecting them to add one bit would have destroyed the
+  only copy of the campaign that motivated it.
 
 **Acceptance:** a campaign walked with the hold state produces a trace whose peaks are
 site-attributable, and `docs/rangetest/data/README.md` drops the caveat for traces
