@@ -6,6 +6,19 @@
 > Where it disagrees with the documents below, they win — check the engineering log's
 > last entry against the date above before trusting anything here.
 
+> ### SUPERSEDED IN PART, 2026-09-05 — pass 2 started
+>
+> This file was written expecting the next session to be **D1**, elsewhere. It was not:
+> the XIAO ESP32S3 + Wio-SX1262 hardware arrived and the next session is **range-test
+> pass 2**, which does start in this directory.
+>
+> Read [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md)
+> **before** acting on the "next actions" below. Two statements here are now wrong:
+> `main` is no longer the only branch, and pass 1's board count of one is no longer true.
+>
+> The routing advice for **D1 itself** still holds — that decision belongs to the Decision
+> Register, and pass 2 supplies measurements toward it rather than making it.
+
 ## Read these, in this order
 
 | # | Document | Why |

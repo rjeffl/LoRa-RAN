@@ -26,7 +26,8 @@ constexpr int16_t kRowFoot = 51;
 
 }  // namespace
 
-Ui::Ui() : display_(kOledAddr, kPinOledSda, kPinOledScl) {}
+Ui::Ui(const BoardUiConfig& cfg)
+    : cfg_(cfg), display_(cfg.addr, cfg.sda, cfg.scl) {}
 
 void Ui::draw_role_badge(Role r) {
   // Four characters so the tag is a fixed width and the eye finds it in the same
@@ -45,27 +46,41 @@ void Ui::draw_role_badge(Role r) {
 }
 
 bool Ui::begin() {
-  // Order matters. The OLED is powered THROUGH Vext, not directly - skip this and
-  // the panel stays dark and the I2C scan finds nothing, which looks exactly like a
-  // dead panel or a wrong address. Confirmed on this board in wattcycle-reader.
-  pinMode(kPinVext, OUTPUT);
-  digitalWrite(kPinVext, LOW);  // LOW = Vext ON
-  delay(100);
+  // Order matters. On the Heltec the OLED is powered THROUGH Vext, not directly - skip
+  // this and the panel stays dark and the I2C scan finds nothing, which looks exactly
+  // like a dead panel or a wrong address. Confirmed on that board in wattcycle-reader.
+  //
+  // The XIAO expansion board powers its panel from the 3V3 rail and brings out no
+  // reset line, so both steps are ABSENT rather than different. kPinNone is what says
+  // so; the delays below belong to the hardware being waited for, so a board without
+  // that hardware must not pay them either.
+  if (cfg_.vext != kPinNone) {
+    pinMode(cfg_.vext, OUTPUT);
+    digitalWrite(cfg_.vext, LOW);  // LOW = Vext ON
+    delay(100);
+  }
 
-  pinMode(kPinOledRst, OUTPUT);
-  digitalWrite(kPinOledRst, LOW);
-  delay(20);
-  digitalWrite(kPinOledRst, HIGH);
-  delay(50);
+  if (cfg_.rst != kPinNone) {
+    pinMode(cfg_.rst, OUTPUT);
+    digitalWrite(cfg_.rst, LOW);
+    delay(20);
+    digitalWrite(cfg_.rst, HIGH);
+    delay(50);
+  }
 
-  Wire.begin(kPinOledSda, kPinOledScl);
+  Wire.begin(cfg_.sda, cfg_.scl);
 
   // Probe before init so a missing panel is reported rather than guessed at.
-  Wire.beginTransmission(kOledAddr);
+  Wire.beginTransmission(cfg_.addr);
   if (Wire.endTransmission() != 0) return false;
 
   display_.init();
-  display_.flipScreenVertically();  // required on the V3 - verified on hardware
+
+  // Required on the V3, where the panel is mounted rotated - verified on hardware. The
+  // XIAO expansion board's is not, and flipping it there would be a display that is
+  // upside down at the far end of a walk.
+  if (cfg_.flip_vertically) display_.flipScreenVertically();
+
   display_.setContrast(255);
   ok_ = true;
   return true;

@@ -59,7 +59,7 @@ using namespace rangetest;
 constexpr int16_t kAntennaGainDbi10 = LRAN_ANTENNA_GAIN_DBI10;
 
 RadioLink g_radio;
-Ui        g_ui;
+Ui        g_ui(kBoardUi);
 Role      g_role = Role::Initiator;
 
 // R4 - the sweep. The plan is data; the state below is where in it we are.
@@ -194,7 +194,7 @@ constexpr uint32_t kSurveyDrawIntervalMs = 500;
 // R1 - the selection window. See role.h for why this is a post-boot window rather
 // than a hold through reset, and why serial is a second selector alongside PRG.
 Role select_role() {
-  pinMode(kPinPrgButton, INPUT_PULLUP);
+  pinMode(kBoardUi.role_button, INPUT_PULLUP);
 
   Serial.println(F("role select: tap PRG = RESPONDER, HOLD PRG = SURVEY, or send "
                    "'i'/'r'/'v' (3s, default INITIATOR)"));
@@ -203,10 +203,10 @@ Role select_role() {
   uint32_t       last_draw = 0;
 
   while (millis() - start < kRoleSelectWindowMs) {
-    if (digitalRead(kPinPrgButton) == LOW) {
+    if (digitalRead(kBoardUi.role_button) == LOW) {
       // Debounce by confirming the press is still there.
       delay(30);
-      if (digitalRead(kPinPrgButton) == LOW) {
+      if (digitalRead(kBoardUi.role_button) == LOW) {
         // TAP = RESPONDER, HOLD = SURVEY. The board on a power bank has no other way
         // to reach the survey; see role.h for why serial-only was a field-blocking
         // bug rather than a limitation.
@@ -217,7 +217,7 @@ Role select_role() {
         // what R1's selection window was written to avoid.
         const uint32_t pressed_at = millis();
         bool           survey     = false;
-        while (digitalRead(kPinPrgButton) == LOW) {
+        while (digitalRead(kBoardUi.role_button) == LOW) {
           const uint32_t held = millis() - pressed_at;
           if (!survey && held >= kPrgSurveyHoldMs) survey = true;
           g_ui.show_role_hold(held, survey);
@@ -252,7 +252,7 @@ Role select_role() {
 // correlated with the configuration that produced it.
 void dump_settings() {
   char buf[512];
-  const size_t n = format_settings(g_tp, kHeltecV3.name, buf, sizeof(buf));
+  const size_t n = format_settings(g_tp, kBoard.name, buf, sizeof(buf));
   Serial.println(F("--- settings (R3) ---"));
   if (n == 0) {
     // format_settings refuses to truncate rather than emit a partial dump that would
@@ -295,7 +295,7 @@ bool prg_edge() {
   static bool     low_seen   = false;   // the line is currently low
   static uint32_t low_since  = 0;
 
-  const bool low = (digitalRead(kPinPrgButton) == LOW);
+  const bool low = (digitalRead(kBoardUi.role_button) == LOW);
 
   if (!low) {
     // Released - or the glitch ended before it ever qualified. Either way, re-arm.
@@ -955,7 +955,7 @@ void setup() {
   }
 
   g_role = select_role();
-  g_ui.show_role(g_role, kHeltecV3.short_name);
+  g_ui.show_role(g_role, kBoard.short_name);
   Serial.print(F("role="));
   Serial.println(to_string(g_role));
 
@@ -984,7 +984,7 @@ void setup() {
   // which is the same failure the survey exclusion exists to prevent.
   if (g_role != Role::Survey && !w9_role(g_role)) dump_sweep_plan();
 
-  const int16_t st = g_radio.begin(kHeltecV3, g_tp);
+  const int16_t st = g_radio.begin(kBoard, g_tp);
   if (st != 0) {
     // Task R2 spends half its text on the two settings that fail SILENTLY on this
     // board. This is the other case - a failure the driver does report - and it is

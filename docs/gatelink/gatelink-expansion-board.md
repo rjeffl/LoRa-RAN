@@ -249,7 +249,7 @@ Treat shared-bus behaviour under load as its own bring-up milestone, not an assu
 ### 7.3 Radio configuration
 
 - **TCXO:** the Wio-SX1262 powers its TCXO from DIO3 at **1.8 V**. Omitting this in `radio.begin()` is the most common "module doesn't respond" failure with this part. The Heltec V3 bridge node uses a different value — this cannot be a shared constant in the protocol library.
-- **RF switch:** Seeed does not tie DIO2 to the RF switch internally. Use `setRfSwitchPins(LORA_RF_SW, RADIOLIB_NC)` alongside `DIO2_AS_RF_SWITCH`.
+- **RF switch:** Seeed does not tie DIO2 to the RF switch internally. Use `setRfSwitchPins(LORA_RF_SW, RADIOLIB_NC)` alongside `DIO2_AS_RF_SWITCH`. **Confirmed 2026-09-05** — both Wio-SX1262 products' board-support definitions set both mechanisms, closing Bridge Impl Plan §2.3.1 finding 1, and `firmware/range-test` now drives the line this way. Parameter order `(rxEn, txEn)` verified against the pinned RadioLib 7.7.1, so `LORA_RF_SW` is the **RX enable** and TX enable is unconnected.
 - **Never transmit without the antenna connected.** +22 dBm into an open connector damages the PA.
 
 ### 7.4 VE.Direct port is asymmetric
@@ -373,7 +373,8 @@ At roughly 5.25 A per leaf: a 20 ft run in 16 AWG drops about 0.84 V, in 18 AWG 
 ## 10. Verify before soldering
 
 - [ ] J1 orientation — continuity-check pin 1 with the boards seated. The right-angle mate mirrors the footprint.
-- [ ] Wio socket pad mapping — ring out each D-pad to its module pin. The D-number mapping is derived from the Meshtastic variant config plus XIAO ESP32S3 numbering, not from a Seeed pin table.
+- [ ] Wio socket pad mapping — ring out each D-pad to its module pin. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
+  - The D-number mapping did gain an **independent corroboration** on 2026-09-05 — meshtastic/firmware issue #8409's header-board map matches §6's Wio pad column value for value (D9 MISO, D8 SCK, D10 MOSI, D3 BUSY, D5 RF_SW, D4 NSS, D1 DIO1, D2 RST). **Two agreeing derivations are not a continuity check.** Ring it out anyway.
 - [ ] **Every non-SPI radio net moved in rev 0.3.** Ring out all five against §6 before power-up: BUSY→Bus 14, RF_SW→Bus 15, NSS→Bus 16, DIO1→PORT.A white, RST→PORT.A yellow. Any rev 0.2 board, harness or firmware header on the bench is now wrong.
 - [ ] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**
 - [ ] R4 fitted (RST → GND).

@@ -56,18 +56,17 @@ constexpr bool w9_role(Role r) {
 // default is ever wrong the operator is sitting at the laptop that can see it.
 // ---------------------------------------------------------------------------
 
-// Heltec V3 PRG / BOOT button. Active LOW, external pull-up on the board.
+// PASS 2: THE BUTTON PIN MOVED TO `BoardUiConfig::role_button` (board_config.h).
 //
-// NOT declared in the vendor variant pins_arduino.h (which stops at the LoRa and
-// OLED pins), so unlike every value in board_config.h this one is not transcribed
-// from the board definition. GPIO 0 is the ESP32-S3 BOOT strapping pin and the
-// button wired to it on this board.
+// It was `kPinPrgButton = 0` here while there was one board. The XIAO deliberately
+// does NOT use GPIO 0 - the reasoning above is exactly why. On the Heltec the strapping
+// pin is survivable because the selection happens in a window AFTER boot, but there is
+// no reason to point a second board at the download-mode strap when it has a plain GPIO
+// (21, on top of the Wio) available.
 //
-// CONFIRMED ON HARDWARE 2026-08-31: reset followed by a PRG press inside the window
-// selects RESPONDER on both boards, and no press yields INITIATOR. Confirmed
-// behaviourally rather than against the schematic, which is the stronger check of
-// the two - what matters is that the button reaches this GPIO, and it does.
-inline constexpr int kPinPrgButton = 0;
+// Active LOW with a pull-up on BOTH boards, so nothing in this file or in the window
+// logic below needs a polarity concept. A third board that inverts it gets a field in
+// BoardUiConfig and an entry in the log - not an #ifdef at the read site.
 
 inline constexpr uint32_t kRoleSelectWindowMs = 3000;
 

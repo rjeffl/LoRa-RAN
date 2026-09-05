@@ -3,14 +3,18 @@
 //
 // R1 / R6 - the onboard SSD1306.
 //
-// The bring-up sequence (Vext, then reset pulse, then I2C, then probe) and the pin
-// numbers are lifted from /wattcycle-reader/src/BmsDisplay.cpp, where they are
-// verified on this exact board. Task "read this first": leverage wattcycle-reader
-// code elements for access to the Heltec OLED. Re-deriving a working Vext sequence
-// would be the definition of reinventing.
+// The bring-up sequence (Vext, then reset pulse, then I2C, then probe) is lifted from
+// /wattcycle-reader/src/BmsDisplay.cpp, where it is verified on the Heltec V3. Task
+// "read this first": leverage wattcycle-reader code elements for access to the Heltec
+// OLED. Re-deriving a working Vext sequence would be the definition of reinventing.
 //
 // R6 wants text large enough to read outdoors at arm's length in sunlight, which is
 // why the link figures use the 24 px font and the labels do not.
+//
+// PASS 2 - THE PINS MOVED OUT, THE SEQUENCE DID NOT. The pin numbers now come from
+// `BoardUiConfig` (board_config.h) because a second board arrived with no Vext rail
+// and no panel reset line. The Heltec's bring-up ORDER is untouched and still runs
+// exactly as it did; the XIAO simply skips the two steps it has no hardware for.
 
 #pragma once
 
@@ -18,21 +22,17 @@
 
 #include <cstdint>
 
+#include "board_config.h"
 #include "role.h"
 
 namespace rangetest {
 
-// Vendor variant pins_arduino.h: SDA_OLED 17, SCL_OLED 18, RST_OLED 21, Vext 36.
-// Identical to the values wattcycle-reader confirmed on hardware.
-inline constexpr int     kPinOledSda = 17;
-inline constexpr int     kPinOledScl = 18;
-inline constexpr int     kPinOledRst = 21;
-inline constexpr int     kPinVext    = 36;  // ACTIVE LOW: LOW = Vext ON
-inline constexpr uint8_t kOledAddr   = 0x3c;
-
 class Ui {
  public:
-  Ui();
+  // The panel description is injected, exactly as the radio's is (spec 12.2's
+  // reasoning, applied to the other peripheral). Held by reference: every instance is
+  // a `constexpr` with static storage duration in board_config.h.
+  explicit Ui(const BoardUiConfig& cfg);
 
   // Powers Vext, pulses the OLED reset, brings up I2C, probes 0x3C. Returns false if
   // the panel does not ACK - reported rather than guessed at, because a dark display
@@ -117,7 +117,8 @@ class Ui {
   // across a bench and, later, at arm's length in sunlight on a fence post.
   void draw_role_badge(Role r);
 
-  SSD1306Wire display_;
+  const BoardUiConfig& cfg_;
+  SSD1306Wire          display_;
   bool        ok_ = false;
 };
 

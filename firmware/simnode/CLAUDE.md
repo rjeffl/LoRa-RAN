@@ -22,7 +22,7 @@ telemetry values are plausible rather than physical.
 | Env | Board | Typical use |
 |---|---|---|
 | `simnode-heltec` | Heltec V3 | `ROLE_FAULT`, `ROLE_HEALTH` at `0xF0`/`0xF2` |
-| `simnode-xiao-wio` | XIAO ESP32S3 + Wio-SX1262 | `ROLE_GATELINK` at `0xF1` — **GateLink's actual radio module** |
+| `simnode-xiao-wio` | XIAO ESP32S3 + Wio-SX1262 **Kit** (B2B) | `ROLE_GATELINK` at `0xF1`. **The same SX1262 module family as GateLink — but NOT the carrier's pad wiring.** See the pin maps below |
 
 A profile supplies exactly one thing: a `RadioPins` struct (NSS, RST, BUSY, DIO1, SPI pins,
 TCXO voltage, DIO2-as-RF-switch, optional RF_SW). Everything above the driver is identical.
@@ -33,15 +33,33 @@ Roles are runtime, assigned per identity. Profiles are compile-time. Do not mix 
 
 ### Pin maps — Impl Plan §10.8.1 is authoritative
 
+**TWO XIAO MAPS, AND ONLY ONE OF THEM IS THE HARDWARE IN HAND.** Seeed sells two
+Wio-SX1262 products that are not pin-compatible outside the three SPI nets. Confirmed
+2026-09-05; see `docs/rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md` §2.1.
+
 ```c
 // LRAN_PROFILE_HELTEC   — Heltec WiFi LoRa 32 V3
   nss=8  rst=12 busy=13 dio1=14  sck=9 miso=11 mosi=10
   rf_sw=RADIOLIB_NC  tcxo=1.8f  dio2_as_rf_switch=true
 
-// LRAN_PROFILE_XIAO_WIO — XIAO ESP32S3 + Wio-SX1262
+// LRAN_PROFILE_XIAO_WIO_KIT  — "Wio-SX1262 with XIAO ESP32S3" (p-5982), B2B connector
+//   THE BOARD IN HAND. Control lines cross the B2B connector, which is why they are
+//   GPIO 38-42 and not D-pad numbers. Transcribed from meshtastic/firmware
+//   variants/esp32s3/seeed_xiao_s3/variant.h.
+  nss=41 rst=42 busy=40 dio1=39  sck=7 miso=8  mosi=9
+  rf_sw=38           tcxo=1.8f  dio2_as_rf_switch=true
+
+// LRAN_PROFILE_XIAO_WIO_HDR  — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers
+//   NOT THE BOARD IN HAND. Listed because it is GATELINK'S module and its pad
+//   assignment is the carrier's (gatelink-expansion-board.md §6). Still not rung out.
   nss=5  rst=3  busy=4  dio1=2   sck=7 miso=8  mosi=9
   rf_sw=6            tcxo=1.8f  dio2_as_rf_switch=true
 ```
+
+**`rf_sw` is a real pin on both XIAO profiles, not `RADIOLIB_NC`.** Seeed does not tie
+DIO2 to the RF switch internally, so the Wio needs **both** `setRfSwitchPins(rf_sw,
+RADIOLIB_NC)` **and** `dio2_as_rf_switch`. This closes Impl Plan §2.3.1 finding 1
+positively and confirms `gatelink-expansion-board.md` §7.3 as written.
 
 Three rules around these:
 
@@ -54,16 +72,25 @@ Three rules around these:
   in `/lib/lran-protocol/`. Wrong TCXO voltage presents as a radio that will not
   calibrate, never as a clear error.
 
-**The XIAO values are derived, not transcribed from a Seeed pin table** — Meshtastic's
-variant config plus the XIAO ESP32S3 D-pad numbering (D0–D10 = GPIO 1, 2, 3, 4, 5, 6, 43,
-44, 7, 8, 9). Ring them out on arrival and correct §10.8.1 in place if they differ.
+**The D-pad numbering is now transcribed**, from the vendor board definition at the
+framework version this repo pins (`espressif32@6.13.0`):
+`variants/XIAO_ESP32S3/pins_arduino.h`, D0–D10 = GPIO 1, 2, 3, 4, 5, 6, 43, 44, 7, 8, 9.
+That caveat is retired.
 
-**Why the XIAO numbers matter beyond this board:** the Wio pad assignment (D4 NSS, D3
-BUSY, D1 DIO1, D2 RST, D5 RF_SW, D8/D9/D10 SPI) is fixed by the module, and GateLink's
-carrier wires those same pads to StamPLC GPIO. Same pads, different GPIO. If the module in
-the XIAO kit turns out to be a different variant from the one already in hand for the
-carrier, this profile stops validating GateLink's radio while still working perfectly —
-see Impl Plan §2.3.1 finding 2, and do the continuity comparison before flashing.
+**§2.3.1 finding 2 is closed, negatively, and it matters here more than anywhere.** The
+kit that arrived is the **B2B variant**, not the carrier's module. This file used to warn
+that a different variant would make this profile "stop validating GateLink's radio while
+still working perfectly" — **that is now the situation**, so read it as a statement rather
+than a risk:
+
+> `simnode-xiao-wio` on the Kit validates the SX1262, the module's RF performance,
+> RadioLib on a second board, and the injected-config seam. **It does not validate the
+> carrier's net list.** XIAO validates the module; only the carrier validates the carrier.
+
+The carrier's pad assignment (D4 NSS, D3 BUSY, D1 DIO1, D2 RST, D5 RF_SW, D8/D9/D10 SPI)
+did gain an *independent corroboration* in the header-board map above — but two agreeing
+derivations are not a continuity check, and **the Kit cannot supply one**, because it does
+not use those pads. `gatelink-expansion-board.md` §11's ring-out checkbox stays open.
 
 ## Multi-identity
 

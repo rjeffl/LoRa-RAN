@@ -58,6 +58,32 @@ and is correct in this one.
 - **TCXO is 1.8 V and DIO2 drives the RF switch.** Both fail *silently* — the radio
   initialises, reports success, and transmits nothing. Both are in the board config and
   both are pinned by host tests.
+
+## Pass 2 — two boards now, and the gotchas doubled
+
+- **There are TWO environments: `heltec` (default) and `xiao`.** One selection point,
+  `kBoard` / `kBoardUi` in `board_config.h`, chosen by `-DLRAN_BOARD_XIAO_WIO_KIT`. The
+  preprocessor picks *which instance* and nothing else — it never reaches into the driver,
+  the role logic or the UI.
+- **A WRONG BOARD SELECTION IS QUIET.** The build still boots, still displays, and writes
+  the wrong pin map and the wrong antenna gain into a CSV that looks entirely normal.
+  **Read the board name off the R3 settings dump before trusting a trace.**
+- **`kXiaoWioKit` is the B2B product (p-5982), not the header board (p-6379).** They are
+  not pin-compatible outside the three SPI nets. The name carries "Kit" for that reason;
+  a constant called `kXiaoWio` would be the wrong map half the time and look right both.
+- **The Wio needs BOTH RF-switch mechanisms** — `dio2_as_rf_switch` *and* a real `rf_sw`
+  pin. The Heltec needs only the first, which is why `rf_sw` was dead code for all of
+  pass 1. This is the *third* silent failure on this board, not the second.
+- **This board does not validate GateLink's carrier.** It validates the module, the driver
+  and the config seam. See Pass 2 Tasks §2.2 before quoting a result from it as a GateLink
+  result.
+- **The XIAO's USB is the ESP32 itself.** A reset tears the port down and the host must
+  re-enumerate. The serial role selector and `capture.py`'s boot window have less margin
+  here than on the Heltec's CP2102; the button selector does not. On macOS it enumerates
+  as `/dev/cu.usbmodem*`, not `/dev/cu.usbserial*`.
+- **Every board profile is checked for pin collisions** by `has_pin_conflict()`, a
+  `static_assert` per profile plus host tests. Not theory: the header-board product would
+  have put NSS and RF_SW straight on top of the expansion board's I2C bus.
 - **The OLED needs hand-shading in direct sunlight** (confirmed outdoors, 2026-08-31).
   Contrast is already maxed; this is a panel limit, not a layout one. Consequence for
   edits: a hand-shaded glance is brief, so RSSI stays the largest element and the

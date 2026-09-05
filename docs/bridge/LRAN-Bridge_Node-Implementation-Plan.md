@@ -153,6 +153,45 @@ XIAO validates the module; only the carrier validates the carrier.**
 
 #### 2.3.1 Two hardware findings to confirm on arrival
 
+> ### BOTH FINDINGS CLOSED 2026-09-05, on the assembled hardware
+>
+> Recorded here because the two closed in opposite directions and the second one changes
+> what the XIAO buys. Full detail in
+> `docs/rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md` §2 and the range-test
+> engineering log for that date.
+>
+> **Finding 1 — CLOSED POSITIVE. The RF switch line is required.** Both Wio-SX1262
+> products' board-support definitions set a discrete RXEN **and** `DIO2_AS_RF_SWITCH`.
+> This confirms `gatelink-expansion-board.md` §7.3 as written and vindicates rev 0.3's
+> decision to treat `RF_SW` as required and route it. `range-test` now drives it —
+> `setRfSwitchPins(rf_sw, RADIOLIB_NC)`, parameter order checked against the pinned
+> RadioLib 7.7.1. **Sub-question (b), the sleep-current cost of holding the line, is
+> still open** and still belongs to B1b.
+>
+> **Finding 2 — CLOSED NEGATIVE. The kit is not the carrier's module.** Seeed sells two
+> Wio-SX1262 products that are **not pin-compatible** outside the three SPI nets:
+>
+> | | Kit, p-5982 (B2B) | Header board, p-6379 (2.54 mm) |
+> |---|---|---|
+> | NSS / RST / BUSY / DIO1 / RF_SW | 41 / 42 / 40 / 39 / 38 | 5 / 3 / 4 / 2 / 6 |
+>
+> **The board that arrived is the Kit.** §2.3's premise is therefore narrowed, exactly as
+> the warning below §10.8.1 anticipated: the XIAO validates the **module** — SX1262
+> silicon, RF performance, RadioLib on a second board, and the injected-config seam — but
+> **not the carrier's net list**. *XIAO validates the module; only the carrier validates
+> the carrier.*
+>
+> The carrier's own pad column did gain an independent corroboration (the header-board map
+> above, from meshtastic/firmware issue #8409) that matches
+> `gatelink-expansion-board.md` §6 value for value. **Two agreeing derivations are not a
+> continuity check**, and the Kit cannot supply one because it does not use those pads.
+> §10's ring-out item stays open.
+>
+> Identification was by **interconnect, not part number** — the stack is zip-tied and the
+> underside is unreachable. B1b's request for "the exact module part number" is answered
+> by variant, which is what it actually needed.
+
+
 **1. The Wio-SX1262 appears to require a host-driven RF switch line.** The module
 datasheet brings out an `RF_SW` pin described as enabling receiver mode on logic high,
 while also stating that TX/RX switching is determined by DIO2. Published Meshtastic
