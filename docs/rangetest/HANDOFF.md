@@ -41,13 +41,18 @@ PlatformIO's python: `~/.platformio/penv/bin/python`.
 
 ## Hardware state
 
-Two Heltec V3 boards, both flashed from `main` as of 2026-09-04.
+Two Heltec V3 boards, **both flashed from `main` at 19e605f (PR #21), 2026-09-05**, and
+**both survey-erased**. Verified on hardware: empty NVS, cursor at site 0, `HELD` at boot.
 
-**The survey board's NVS holds the seven-site campaign** and its site cursor is at 6.
-That data is committed now, so it is no longer irreplaceable — but do not erase it
-casually, and note that a stray PRG press in survey mode calls `survey_save_site()` on
-the current slot **before** anything else, overwriting a stored site with whatever is in
-memory.
+**Ready for the M20 re-walk.** Nothing to prepare.
+
+Note that a stray PRG press in survey mode calls `survey_save_site()` on the current slot
+**before** anything else, so it overwrites that slot with whatever is in memory. That is
+not hypothetical: the second board was found holding two junk runs of 3 and 4 passes
+(against 71–91 for a real one), stored by the DTR-presses-PRG trap during tethered
+sessions. Both were erased and neither was ever committed.
+
+**Site cursors are at 0, so the first PRG press starts the dwell at `bridge-house`.**
 
 **Antennas are the 3.0 dBi production pair**, set as `-DLRAN_ANTENNA_GAIN_DBI10=30` in
 `platformio.ini`. Changing antennas means changing that flag and reflashing — the gain
