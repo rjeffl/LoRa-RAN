@@ -1309,6 +1309,9 @@ cost a phantom position. The procedure now states it.
 
 ### P3 is the one number in the walk that cannot be defended
 
+*(Superseded 2026-09-05 — see "the walk's geometry holds up" below. The claim that
+nothing can obstruct a 6 m path is simply wrong, and the reading is sound.)*
+
 P3's arcsecond fix is identical to P0's, which would make position 3 a ~6 m link reading
 −98.5 dBm with a barn in the path. Nothing can obstruct a 6 m path. At 35N one
 arcsecond is ~31 m of latitude and ~25 m of longitude, so **two spots up to ~30 m apart
@@ -1638,3 +1641,172 @@ believe is the survey board.
 
 Both boards: empty survey NVS, cursor at site 0, `HELD` at boot, `# hold_discipline`
 reported from the blob. The first PRG press starts the dwell at `bridge-house`.
+
+---
+
+## 2026-09-05 — the walk's geometry holds up, and the height was wrong
+
+Two corrections to the 2026-09-04 walk, both from operator questions. One retracts a
+concern I raised; the other fixes a number in a committed trace.
+
+### Retraction: P3 is fine, and "nothing can obstruct a 6 m path" was wrong
+
+I flagged position 3 as indefensible because its arcsecond fix rounds onto P0's, which
+would make it a ~6 m link reading −98.5 dBm with a barn in the path.
+
+**The geometry is perfectly ordinary.** Two points 6 m apart with a barn between them —
+one standing a few metres from each side — puts the structure squarely in the path. That
+is a normal way to end up with an obstructed short link, and I should not have called it
+impossible.
+
+### The excess-loss table, which is the actual check
+
+Comparing positions on their *median* RSSI was a mistake: the 24 test points mix two
+conducted powers, so the medians are not comparable across positions. Comparing one
+fixed configuration — SF7, CR 4/5, −4 dBm, 16-byte payload — against free space at
+915 MHz gives this:
+
+| pos | measured | GPS dist | free-space | excess | obstruction noted |
+|---|---|---|---|---|---|
+| 4 | −80.6 | 106 m | −70.2 | **10.4 dB** | LOS |
+| 2 | −77.8 | 40 m | −61.7 | **16.1 dB** | LOS, small shrub |
+| 5 | −92.0 | 80 m | −67.7 | **24.3 dB** | LOS to back of house |
+| 1 | −96.1 | 85 m | −68.3 | **27.8 dB** | LOS, tree and shrub |
+| 6 | −90.8 | 40 m | −61.7 | **29.1 dB** | LOS to opposite side of house |
+| 3 | −94.8 | 0–30 m | — | ~35–49 dB | **barn in path** |
+
+**The excess loss tracks the obstruction notes.** Clear LOS is cheapest at 10 dB;
+vegetation and houses cost 16–29 dB; the barn costs most. That ordering was not designed
+in — the notes were written in the field and the arithmetic done a day later — and it is
+the strongest evidence yet that the walk is internally consistent.
+
+P3 at ~49 dB (or ~36 dB if the fix is off by the full quantisation) is a heavily
+obstructed path, which is exactly what a metal-clad barn between two nearby points looks
+like. **No retake needed.** What remains unknown is its *distance*, and that is true of
+every position, not just this one.
+
+### The height was recorded wrong
+
+The capture note said **"both ends 1.2m AGL"**. The operator's actual figure is
+**2–4 ft (0.6–1.2 m)**, varying between positions and not recorded per position. 1.2 m
+was the top of the range, not the value.
+
+This is not pedantry. Over ground at 915 MHz the two-ray reflection makes received power
+scale with the **product of the two antenna heights**, so a height that varied by 2×
+across the walk is worth several dB of the scatter *between* positions. Absolute levels
+at any one position are unaffected; cross-position comparisons carry that uncertainty on
+top of the ±15 m position uncertainty already recorded.
+
+I first guessed this explained part of the P2/P6 gap. **It does not** — see the next
+entry. Two-ray caps the height contribution at ~12 dB even at the extremes of the range,
+and the measured gap is 18.2 dB. Height is real but it is not the driver.
+
+The trace header is corrected in place rather than the number quietly changed: a
+committed trace that carried a wrong figure should say so.
+
+### What would actually be needed for a path-loss model
+
+Not a P3 retake. **Better position data for all seven points**, plus per-position height:
+
+- distances to ~1 m (measuring wheel, laser, or a phone GPS logging decimal degrees
+  rather than arcseconds), and
+- antenna height recorded at each position rather than as a range for the walk.
+
+`LRAN-Range-Test-Firmware-Pass1-Tasks.md` R10 already says "height matters more than you
+expect... record it" and "two runs at different heights are worth more than one careful
+run at an unrecorded one." That guidance was right and was not followed closely enough —
+worth saying plainly rather than filing as a lesson for someone else.
+
+**M6 is unaffected by all of this.** It asks whether the link closes where nodes will
+live, and at all six positions it closed with margin at the D33 ceiling. The path-loss
+model is a different, unscheduled question.
+
+---
+
+## 2026-09-05 — the initiator was indoors, and it changes how the walk reads
+
+Operator clarification, and it is the most important piece of site context in the whole
+walk. It arrived last and should have been in the capture note on the day.
+
+**The initiator sat at the bridge node's target location: inside the house, in the office
+on the NW side.** Every path in the trace crosses at least one 2x4 framed exterior wall at
+the initiator end. **There is no free-space leg anywhere in this data.**
+
+| positions | path |
+|---|---|
+| P1, P2, P3, P4 | single wall penetration, the NW exterior wall |
+| P5 | faces the SW side — the path crosses the structure |
+| P6 | faces the SE side — the path crosses the structure |
+
+### It is visible in the trace, cleanly
+
+P2 and P6 are both ~40 m from P0. **P2 is stronger by 18.2 dB, consistently across all 24
+matched test points** (13.0 to 19.5 dB, every configuration). P2 leaves by the NW wall;
+P6's path crosses the house.
+
+That is too large and far too uniform to be terrain or height. The two-ray model caps the
+height contribution at about 12 dB even taking the extremes of the 0.6–1.2 m range at both
+ends, and this is 18.2. **The structure is the driver, and the previous entry's guess that
+height explained the P2/P6 gap is withdrawn.**
+
+Matching test points pairwise rather than comparing medians is what made it clean — the
+same mistake, and the same fix, as the excess-loss table.
+
+### What it does to the excess-loss table
+
+Every figure in it — the 10.4 dB at P4 included — **bundles at least one wall**. So the
+outdoor portion of those paths is *better* than the table suggested: P4's outdoor leg is
+close to free space once a wall's 4–10 dB is taken out of its 10.4 dB.
+
+None of that wall loss is measured here and none of it can be separated out after the
+fact. The table stays useful for ranking the positions against each other and useless as
+an absolute propagation figure.
+
+### The important part: this is the right geometry, and the wrong data
+
+Both are true and neither cancels the other.
+
+- **Right for M6.** The bridge really will be in that office. These numbers are what the
+  deployed link will actually see, walls and all, which is exactly what M6 asks. The
+  result stands: the link closed with margin at all six positions at the D33 ceiling.
+- **Wrong for a path-loss model.** The readings cannot be compared to outdoor propagation
+  curves and cannot be extrapolated to another node location by distance alone. A node
+  sited on the SE face starts ~18 dB down on one sited on the NW face at the same range,
+  and no distance-based estimate will tell you that.
+
+### The survey's site 0 was indoors too — answered, and the answer is useful
+
+Confirmed by the operator: **site 0 `bridge-house` was measured indoors**, survey node at
+the bridge's approximate target location in the office. The other six are at their node
+target locations; whether each was strictly outdoors was not recorded at capture time.
+
+**The noise floor does not care.** −116.0 dBm median indoors, against −116 to −118 across
+the outdoor sites — the indoor site is not an outlier by even 2 dB.
+
+| site | floor med | floor min | mean med |
+|---|---|---|---|
+| **bridge-house (indoors)** | **−116.0** | −125.0 | −114.7 |
+| gatelink-gate | −118.0 | −119.0 | −114.9 |
+| weather-island | −118.0 | −119.0 | −114.9 |
+| welllink-well | −116.0 | −123.0 | −114.9 |
+| irrigation-pump | −116.0 | −125.0 | −114.8 |
+| hopyard-lower | −116.0 | −118.0 | −114.8 |
+| propane-tank | −116.0 | −118.0 | −114.8 |
+
+That is a result, not a null: **the floor across this property is receiver-thermal-limited,
+not environment-limited.** Walls attenuate external noise but the SX1262's own noise floor
+dominates either way, so being indoors neither helped nor hurt. It also means site 0's
+floor is directly usable as the bridge's own margin figure — which is exactly the number
+§12.1 asks for, measured in exactly the right place.
+
+**The peaks are a different story.** An emitter heard through a wall is 4–10 dB stronger
+outside, so 916.0 MHz at −51 dBm is a strong external source, and weak external emitters
+may be masked at site 0 and not at the others. Site 0's occupant list is not like-for-like
+with the rest, and the trace header says so.
+
+### Lesson
+
+**Site conditions are part of the measurement.** The capture note carried bearing, height,
+antenna gain, weather and foliage — and omitted that one end was inside a building, which
+turned out to be worth 18 dB between two positions at the same range. The note template in
+`FIELD-PROCEDURE.md` now asks for indoor/outdoor and wall penetrations at each end.

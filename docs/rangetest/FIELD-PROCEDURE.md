@@ -51,8 +51,23 @@ the well under `irrigation-pump` is right numbers in the wrong place.
   setting as well as a piece of hardware.
 - Power bank for the walking board.
 - The laptop, tethered to the initiator, which stays at the house or the gate.
-- Something to note bearing, antenna height and approximate elevation on. **These go in
-  `--note`**, and a range figure without them is not a result anyone can reuse.
+- Something to note the site conditions on. **These go in `--note`**, and a range figure
+  without them is not a result anyone can reuse.
+
+**What the note must carry.** Bearing, antenna height AGL **at each end**, approximate
+elevation, antenna gain, weather and foliage — and:
+
+> **Indoor or outdoor at each end, and how many wall penetrations the path crosses.**
+>
+> Added 2026-09-05, because the 2026-09-04 walk omitted it. The initiator was inside the
+> office at the bridge's target location, so every path in that trace crosses at least one
+> framed exterior wall, and two positions at the same 40 m range differ by **18.2 dB**
+> depending on which face of the house the path leaves by. A note that records bearing to
+> a degree and height to a centimetre, and does not say the radio was indoors, describes
+> the wrong experiment.
+>
+> Height is **per end and per position**, not one figure for the walk. "2–4 ft" is a range,
+> and over ground at 915 MHz received power scales with the *product* of the two heights.
 
 ### The antenna is a build setting, not just hardware
 
@@ -203,7 +218,7 @@ One person. The initiator stays put and logs; you carry the responder.
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/cu.usbserial-0001 --reset \
     --out docs/rangetest/data/2026-09-03-walk-gatelink.csv \
-    --note "bearing 120deg to gate, both ends 1.2m AGL, gate ~70ft above bridge, 3.0dBi both ends, dry, foliage full"
+    --note "bearing 120deg to gate, initiator INDOORS (office, NW side, 1 wall), responder outdoors 1.0m AGL, gate ~70ft above bridge, 3.0dBi both ends, dry, foliage full"
 ```
 
 No `--role` needed: INITIATOR is the no-press default. The `--reset` makes the settings
@@ -458,7 +473,7 @@ as one table, one header, all seven sites in one file:
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/cu.usbserial-0001 --reset --role survey --sweeps 1 \
     --out docs/rangetest/data/2026-09-03-survey-campaign.csv \
-    --note "seven-site ambient survey, ~5 min per site, 3.0dBi at 1.2m"
+    --note "seven-site ambient survey, ~5 min per site, 3.0dBi at 1.0m, bridge-house site INDOORS at the office location"
 ```
 
 One command — it resets the board into `SURV`, and the boot dump-all is what it captures.

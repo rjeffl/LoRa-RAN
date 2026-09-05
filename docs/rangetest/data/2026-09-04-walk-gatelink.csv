@@ -1,6 +1,43 @@
 # LRAN range test trace, captured 2026-09-04 16:45:18
-# note: bearing 120deg to gate, both ends 1.2m AGL, gate ~70ft above bridge, 3.0dBi both ends, dry, foliage full
+# note: bearing 120deg to gate, gate ~70ft above bridge, 3.0dBi both ends, dry, foliage full
 #
+# CORRECTION 2026-09-05: the capture note said "both ends 1.2m AGL". The operator
+# records the actual height as 2-4 ft (0.6-1.2 m), varying between positions and not
+# recorded per position. 1.2 m was the TOP of the range, not the value.
+#
+# This matters more than it looks. Over ground at 915 MHz the two-ray reflection makes
+# received power scale with the product of the two antenna heights, so a height that
+# varied by 2x across the walk is worth several dB of the scatter BETWEEN positions.
+# Absolute levels at any one position are unaffected; comparisons across positions
+# carry that uncertainty on top of everything else.
+#
+# SITE CONDITIONS - THIS IS NOT A CLEAR FIELD TEST. Read before comparing any number
+# here to a propagation model or to another site.
+#
+# The INITIATOR sat at the bridge node's target location: INSIDE the house, in the
+# office on the NW side. Every path in this trace therefore crosses at least one 2x4
+# framed exterior wall at the initiator end. There is no free-space leg in this data.
+#
+#   P1, P2, P3, P4   single wall penetration (the NW exterior wall)
+#   P5               faces the SW side of the house - the path crosses the structure
+#   P6               faces the SE side of the house - the path crosses the structure
+#
+# A wood-framed wall costs roughly 4-10 dB at 915 MHz, and much more with foil-faced
+# sheathing or metal siding. NONE OF THAT IS MEASURED HERE - it is bundled into every
+# reading, and it cannot be separated out after the fact.
+#
+# What this means, both ways:
+#
+#   - It is the RIGHT geometry for M6. The bridge really will be in that office, so
+#     these numbers are what the deployed link will see. That is the question M6 asks.
+#   - It is the WRONG data for a path-loss model. The readings cannot be compared to
+#     outdoor propagation curves, and they cannot be extrapolated to another node
+#     location by distance alone.
+#
+# Visible directly in the trace: P2 and P6 are both ~40 m from P0, and P2 is stronger
+# by 18.2 dB, consistently across all 24 matched test points (13.0 to 19.5 dB). P2
+# leaves by the NW wall; P6's path crosses the house. That is too large and too uniform
+# to be height or terrain - it is the structure.
 # OPERATOR POSITION MAP. P0 is the FIXED INITIATOR at the house; the responder walked
 # P1-P6, so trace position N is PN. GPS fixes are to the arcsecond, which at 35N is
 # ~31 m of latitude and ~25 m of longitude: they identify the spots but CANNOT support
@@ -9,8 +46,10 @@
 #   P0  35 02 40 N  83 21 41 W  2120 ft   FIXED INITIATOR (house)
 #   P1  35 02 41 N  83 21 38 W  2200 ft   LOS, small tree and shrub in path
 #   P2  35 02 41 N  83 21 40 W  2120 ft   LOS, small shrub
-#   P3  35 02 40 N  83 21 41 W  2100 ft   barn in path. Fix rounds onto P0's; the
-#                                         true separation is unresolved, see the log
+#   P3  35 02 40 N  83 21 41 W  2100 ft   barn in path. Fix rounds onto P0's, so the
+#                                         separation is unresolved (0-30 m). The
+#                                         reading is sound - see the excess-loss table
+#                                         in the log, 2026-09-05
 #   P4  35 02 39 N  83 21 45 W  2100 ft   LOS
 #   P5  35 02 38 N  83 21 43 W  2100 ft   LOS to back of house
 #   P6  35 02 39 N  83 21 40 W  2120 ft   LOS to opposite side of house
