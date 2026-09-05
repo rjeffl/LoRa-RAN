@@ -241,6 +241,23 @@ the engineering log, 2026-08-31.
 | `2026-09-04-walk-gatelink-resplog.csv` | The responder's own log for that walk, six positions. Closes against the sweep trace at every one. |
 | `2026-09-05-survey-campaign.csv` | **R8 / M20, all seven sites, 910 rows.** Re-dumped from NVS after the first capture lost 19184 bytes to a `capture.py` defect; see the engineering log, 2026-09-05. **`peak_dbm10` is not reliably site-attributable in this trace** — the scan ran while walking between sites. Floor and mean are sound. Site 0 `bridge-house` was measured **indoors** at the bridge's target location: its floor matches the outdoor sites, but its peaks are wall-attenuated and not like-for-like. |
 | `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk, all seven sites, 910 rows.** The first trace with `# hold_discipline=1` at every site, so **`peak_dbm10` is site-attributable here** — this is the trace the occupant inventory is built from. 68–74 passes per site, 130 of 130 bins, `dropped=0` throughout. Site 0 `bridge-house` is again indoors at the bridge's target location, by design, and says so in its own note. **Supersedes the row above for peaks;** the pre-R11 trace is kept for its floor and mean, and as the record of what the transit contamination looked like. |
+| `2026-09-05-w9-bench.log` | **W9 / R9, both runs, on the bench (2026-09-05).** §6.6.1's 222-byte maximum frame and §6.6.2's full 15-fragment set, 64 round trips, **zero faults at either end**; responder inbound agrees at 512 frames. **Not a link measurement and not a CSV** — see below. |
+
+### The W9 trace is not a CSV, and not a range measurement
+
+`2026-09-05-w9-bench.log` is the odd one out in this directory and both halves of that
+matter.
+
+**Not a CSV.** W9 emits console lines only — a per-run tally, not a row per observation.
+There is nothing to tabulate: a run is 32 PINGs that either all came back correct or did
+not, and the interesting output is *which byte offset* diverged when one did not (§6.6.3).
+A consequence worth knowing before you think something broke: **`capture.py` prints "no
+CSV header seen" and exits non-zero on a completely successful W9 run.**
+
+**Not a range measurement.** The two boards were ~1 m apart on purpose. W9 measures the
+**protocol** — the codec, fragmentation, reassembly and the buffer path at
+`LRAN_MAX_FRAME` — and the path is made trivial so that any fault is one of those and not
+the RF. Do not read link margin out of it; that is what the sweep and the walk are for.
 
 **M6 has data**: the link closes with margin at all six walked positions at the D33
 ceiling. It is not closed — arcsecond GPS cannot support an RSSI-vs-distance curve (see

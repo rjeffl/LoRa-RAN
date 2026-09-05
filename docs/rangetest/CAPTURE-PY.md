@@ -15,7 +15,8 @@ schemas are in [`data/README.md`](./data/README.md).
 ```
 ~/.platformio/penv/bin/python tools/rangetest/capture.py
         --port PORT --out FILE
-        [--reset] [--role {initiator,responder,survey}]
+        [--reset] [--role {initiator,responder,survey,
+                           w9-initiator,w9-responder}]
         [--key KEYS] [--key-after SECONDS]
         [--sweeps N] [--idle-timeout SECONDS]
         [--echo] [--note TEXT] [--baud BAUD]
@@ -59,7 +60,7 @@ already done. **Ctrl-C ends a capture cleanly and writes the file.**
 | `--out FILE` | *required* | Trace to write. Opened when the CSV header is seen |
 | `--baud BAUD` | `115200` | Console speed. The firmware does not vary it |
 | `--reset` | off | Pulse reset after opening the port, so the settings dump and CSV header land *after* the capture is listening. Retires the old "start this before resetting the board" trap |
-| `--role ROLE` | *initiator* | Role to select in the boot window. Requires `--reset` |
+| `--role ROLE` | *initiator* | Role to select in the boot window. Requires `--reset`. `w9-initiator` / `w9-responder` are **R9** and are reachable **only** this way — the two W9 modes have no PRG gesture |
 | `--key KEYS` | none | Console keys to send once the board is up, one per second, in order |
 | `--key-after S` | `0` | Wait this long before sending `--key` — lets a survey scan a while, then be told to dump |
 | `--sweeps N` | `0` | Stop after N completion markers. **0 means run until Ctrl-C**, which is what a position walk wants |
@@ -327,3 +328,50 @@ line.
 [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) · [`data/README.md`](./data/README.md) ·
 [`engineering-log.md`](./engineering-log.md) ·
 [`../../firmware/range-test/CLAUDE.md`](../../firmware/range-test/CLAUDE.md)
+
+## Job — the W9 protocol bench (R9)
+
+**Two boards, both tethered, ~1 m apart.** W9 measures the protocol, not the link, so the
+short path is deliberate: any fault is then the codec, the fragmentation or the buffers.
+
+**Start the responder first** and leave it running — it is purely reactive and will wait:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-3 --reset --role w9-responder \
+    --echo --out /tmp/w9-resp.csv --run-for 400
+```
+
+Then drive the initiator, which runs both passes back to back and stops on its own:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role w9-initiator \
+    --echo --out /tmp/w9-init.csv --run-for 240
+```
+
+Roughly two minutes: run 1 is 32 full-size frames, run 2 is 32 × 15 fragments each way.
+
+### Expect a non-zero exit and no output file
+
+**Both commands end with `no CSV header seen` and exit 1 on a completely successful run,
+and neither writes its `--out` file.** W9 emits console lines only — there is no CSV and
+nothing to tabulate. **The result is in the `#` lines**, which is why `--echo` is not
+optional here. What you want to see:
+
+```
+  # W9 run max-frame PASSED
+  # pings=32 frames=32 echoes_ok=32 timeouts=0 pattern=0 decode=0 ...
+  # W9 run fragmented PASSED
+  # pings=32 frames=480 echoes_ok=32 timeouts=0 pattern=0 decode=0 ...
+  # W9 responder inbound: sets_echoed=64 frames_sent=512 ... frag_late=0
+```
+
+`frames=480` is 32 × 15 and the responder's `512` is `32 + 480`. **If those two numbers do
+not reconcile, the ends disagree about the run** and that is the first thing to chase.
+
+**`--run-for`, not `--idle-timeout`.** The responder never goes quiet in a way an idle
+deadline can catch, and the initiator's own completion line is not a CSV marker.
+
+**Redirect to a file to keep the result** — the trace committed under `data/` was assembled
+from the two consoles by hand, because there is no file to commit otherwise.

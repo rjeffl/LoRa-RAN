@@ -258,7 +258,7 @@ analyser is the wrong place to discover a rounding bug.
 | `range/skeleton` | R1–R3 | Both boards flash, radio inits, link at one test point |
 | `range/sweep` | R4–R7 | A full automated sweep runs and emits CSV |
 | `range/survey` | R8 | Ambient scan produces a trace at both locations |
-| `range/w9` | R9 | 222-byte and fragmented `PING` pass over RF |
+| `range/w9` | R9 | 222-byte and fragmented `PING` pass over RF — **passed 2026-09-05** |
 | `range/r11-survey-hold` | R11 | A campaign walked with the hold state; peaks site-attributable |
 
 R10 is fieldwork, not a branch.
@@ -266,5 +266,12 @@ R10 is fieldwork, not a branch.
 **Field procedure:** [`docs/rangetest/FIELD-PROCEDURE.md`](../../docs/rangetest/FIELD-PROCEDURE.md)
 - setup, the position cycle, and the survey campaign.
 
-**Do not close D1 from range data alone.** The frequency needs R8's survey (**M20**); the
-power needs the grant conditions (**M21**).
+**Pass 1 is complete** as of 2026-09-05: R1–R11 built, M20 captured and analysed, W9
+passed on the bench. There is no build work queued here.
+
+**Do not close D1 from range data alone.** The frequency needed R8's survey (**M20**) and
+has it; the power needs the grant conditions (**M21**) and does not.
+
+**Before D1 picks an SF, read the W9 backoff finding**: §12.3's default `backoff_max_ms`
+of 500 covers a full-size frame at SF7 (348 ms) and at no SF above it — 615 ms at SF8,
+1107 ms at SF9. Raised in the engineering log, deliberately not patched.

@@ -1,6 +1,6 @@
 # Range test — session handoff
 
-**Written 2026-09-05, after the M20 re-walk was captured and analysed.**
+**Written 2026-09-05, after W9 passed on the bench and Pass 1 closed.**
 
 > **This file goes stale.** It records *session state and next actions*, nothing else.
 > Where it disagrees with the documents below, they win — check the engineering log's
@@ -11,7 +11,7 @@
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) — **the 2026-09-05 entries** | what happened and why. Seven entries that day: the field data, the tool defect that ate a third of the survey, R11, its own provenance bug, the boards being staged, the site conditions that reframe the walk, and **the re-walk that closes M20's occupant inventory** |
+| 2 | [`engineering-log.md`](./engineering-log.md) — **the 2026-09-05 entries** | what happened and why. **Nine entries that day.** If you read two, read the last two: **the re-walk that closes M20's occupant inventory**, and **W9 passing on the bench with a backoff finding for D1** |
 | 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | the two field jobs, start to finish. **Read before going outside** |
 | 4 | [`CAPTURE-PY.md`](./CAPTURE-PY.md) | every `capture.py` option, and a complete command per job |
 | 5 | [`data/README.md`](./data/README.md) | the three trace schemas, and how to read them together |
@@ -23,14 +23,13 @@
 
 | | |
 |---|---|
-| Branch | `docs/handoff-post-r11` off `main`, green **2026-09-05** at f2defc4 |
-| Merged today | **#19** (field data + capture.py), **#20** (R11 hold state), **#21** (blob provenance), **#22** (boards staged), **#23** (site conditions) |
-| Done | **R1–R11, the M20 re-walk, and R9.** All gates passed on hardware |
-| Not started | — **every Pass 1 task is complete** |
-| **Next** | **D1.** Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
+| Branch | `main`, verified green **2026-09-05** at 9c16fb2 |
+| Merged today | **#19**–**#23** (field data, R11, blob provenance, boards staged, site conditions), **#24** (M20 analysis), **#25** (R9 / W9), **#26** (landing R9 on `main`) |
+| Done | **R1–R11 and the M20 re-walk. Every Pass 1 task is complete.** All gates passed on hardware |
+| **Next** | **D1** — and it is a decision, not a build. Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
 
 ```bash
-pio test -d firmware/range-test -e native   # 152 passed
+pio test -d firmware/range-test -e native   # 171 passed
 pio run  -d firmware/range-test -e heltec   # SUCCESS
 pio test -d lib/lran-protocol -e native     # 107 passed
 python3 tools/vectors/check.py              # 72 vectors OK
@@ -42,13 +41,17 @@ PlatformIO's python: `~/.platformio/penv/bin/python`.
 
 ## Hardware state
 
-Two Heltec V3 boards, **both flashed from `main` at 19e605f (PR #21), 2026-09-05**. They
-were survey-erased before the walk; **both now hold the completed seven-site campaign in
-NVS**, cursor at site 6, `HELD` at boot.
+Two Heltec V3 boards, **both flashed from `main` at the R9 build (PR #25), 2026-09-05**,
+and both last used for the W9 bench run.
 
-**The M20 re-walk is done and captured.** Both boards still hold that campaign in NVS —
-it is committed as `data/2026-09-05-survey-campaign-r11.csv`, so they can be erased freely
-whenever the next campaign needs the slots.
+**Both still hold the completed seven-site campaign in NVS**, cursor at site 6, `HELD` at
+boot. Uploading firmware writes the app partition and does not touch NVS, so three
+reflashes today left it intact. The campaign is committed as
+`data/2026-09-05-survey-campaign-r11.csv`, so **the slots can be erased freely** whenever
+the next campaign needs them.
+
+**The role is still not persisted** (R1), so a power cycle re-asks it and neither board
+comes back up in a W9 mode. The no-press default is `INITIATOR`, which transmits.
 
 Note that a stray PRG press in survey mode calls `survey_save_site()` on the current slot
 **before** anything else, so it overwrites that slot with whatever is in memory. That is
@@ -115,13 +118,62 @@ site-attributable and one of its two headline findings did not survive.
 **The pre-R11 trace warned in its own header that the peak column was not attributable, and
 it was right.** A caveat on a column is a claim to go back and test.
 
+### W9 passed, and left one thing for D1
+
+**Both runs passed over RF** on the bench, 2026-09-05 — §6.6.1's 222-byte maximum frame
+and §6.6.2's full 15-fragment set, 64 round trips, **zero faults at either end**. A
+full-size frame had never been emitted by anything the protocol could actually produce,
+and reassembly had never run over the air at all.
+
+**No late fragments in either direction across 512 frames.** §11.2's rule was chosen
+against a *hypothesised* RF echo; on this link there are none. It is a **bench** negative
+at 1 m and is not evidence about the 500 ft path.
+
+**The finding — §12.3's default backoff window is an SF7 assumption:**
+
+| SF | 222-byte airtime (§15.1) | vs. `backoff_max_ms` 500 |
+|---|---|---|
+| **7** | **348 ms** | covers |
+| 8 | 615 ms | **does not** |
+| 9 | 1107 ms | **does not, by 2×** |
+
+A window shorter than one frame's airtime cannot outlast the frame it backed off for. §12.3
+permits transmitting after `cad_retries` regardless, so this is a latency and
+`cad_backoffs` question rather than a correctness one — but `cad_backoffs` is the very
+instrument §12.3 nominates to check itself, and it would read high for a reason that is not
+congestion. **Raised, not patched:** D1 has not fixed SF.
+
+## D1 is the next work, and it is a decision
+
+Everything Pass 1 was built to measure is measured. What D1 has to fix — channel, SF, BW,
+CR, TX power — now meets the data like this:
+
+- **Channel.** `weather-island` has a confirmed in-channel occupant at 915.0, and
+  `gatelink-gate` has the strongest near-band neighbour at 914.0 (−66 dBm), 1 MHz off. Both
+  are bursty, not carriers. Moving off 915.0 is available; the survey covers 902.0–927.8 in
+  200 kHz bins and the other five sites are quiet.
+- **SF.** The backoff table above is the constraint the survey did not supply. SF7 keeps
+  §12.3's defaults valid as written; SF8+ needs `backoff_max_ms` raised above the
+  full-frame airtime.
+- **TX power.** Not a range-data question — it needs **M21**, the modules' FCC grant
+  conditions. Paperwork, not bench work, and the only thing still blocking D1.
+
+**Do not close D1 from range data alone.** The frequency needed M20 and has it; the power
+needs M21 and does not.
+
 ## First actions next session
 
-1. `git checkout main && git pull --ff-only`, then run the checks above.
-2. **Nothing is queued.** Pass 1 is complete: R1–R11 built, M20 captured and analysed,
-   W9 passed on the bench.
-3. **Read the W9 backoff finding before D1 picks an SF** — §12.3's default
-   `backoff_max_ms` of 500 covers a full-size frame at SF7 and at nothing above it.
+1. `git checkout main && git pull --ff-only`, then run the checks above. All branches
+   through **#26** are merged; `main` is at 9c16fb2.
+2. **No build work is queued.** Pass 1 is complete: R1–R11 built, M20 captured and
+   analysed, W9 passed on the bench.
+3. **The next work is D1**, and it is a decision against the data above rather than code.
+   Read the W9 backoff table before picking an SF, and the occupant inventory before
+   picking a channel.
+4. **M21 is the blocker** and nothing in this repo advances it — it is the modules' FCC
+   grant conditions.
+5. Delete the stale local branches if they are still around: `docs/handoff-post-r11` and
+   `range/w9` are both merged.
 
 ## The M20 re-walk — done 2026-09-05
 
