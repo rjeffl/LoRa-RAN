@@ -17,9 +17,21 @@ enum class Role : uint8_t {
               // CSV. Sits at the house or the gate and does not move.
   Responder,  // walking end. Untethered, echoes probes, shows live link quality.
   Survey,     // R8 / M20 - ambient RSSI scan. LISTENS ONLY; never transmits.
+
+  // R9 / W9 - the protocol bench, spec 6.6. Real PING frames through the real codec,
+  // which is the one thing the sweep deliberately does not do: the sweep measures the
+  // RADIO LINK with its own raw frame, W9 measures the PROTOCOL.
+  W9Initiator,
+  W9Responder,
 };
 
 const char* to_string(Role r);
+
+// True for the two R9 modes. They share the radio with the sweep and nothing else,
+// so several places have to exclude them together rather than one at a time.
+constexpr bool w9_role(Role r) {
+  return r == Role::W9Initiator || r == Role::W9Responder;
+}
 
 // ---------------------------------------------------------------------------
 // A DEVIATION FROM THE TASK TEXT, AND WHY.
@@ -76,6 +88,20 @@ inline constexpr char kSerialSelectResponder = 'r';
 
 // R8 - the third mode, on the same binary per the task text.
 inline constexpr char kSerialSelectSurvey = 'v';
+
+// R9 - the two W9 modes, SERIAL ONLY, and deliberately so.
+//
+// The survey needed a button because the walking board is untethered by definition
+// (see below). W9 is the opposite case: the task puts it on the bench "while the
+// boards are out", both ends are reachable from a console, and the run's output is a
+// per-fragment fault report that only means anything on a console anyway.
+//
+// Adding a fourth and fifth PRG gesture would put the protocol bench one mistimed
+// thumb away from the walk, on a board whose default role TRANSMITS - which is the
+// same class of mistake the survey's hold gesture was introduced to fix. A mode that
+// does not need a gesture does not get one.
+inline constexpr char kSerialSelectW9Initiator = 'w';
+inline constexpr char kSerialSelectW9Responder = 'x';
 
 // PRG ALSO SELECTS SURVEY, BY HOLDING IT. A tap is RESPONDER; a hold past
 // kPrgSurveyHoldMs is SURVEY.

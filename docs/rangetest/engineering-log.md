@@ -1909,3 +1909,93 @@ modules' FCC grant conditions, which is paperwork, not bench work.
 **A caveat on a column is a claim to go back and test, not a footnote to carry forever.**
 The pre-R11 header said the peaks were not site-attributable. It was right, and one of the
 two headline findings built on that column did not survive the re-measure.
+
+---
+
+## 2026-09-05 — R9 built, host-tested, and NOT yet run over RF
+
+`range/w9`. The W9 bench exists and passes at the desk. **The acceptance gate is not
+met**: R9 asks for both runs to pass *over RF*, and no board has transmitted a `PING`
+yet. What follows is what was built and what the bench run still has to answer.
+
+### The two runs, and why they are two
+
+- **§6.6.1 — the maximum frame.** A 202-byte echo is a payload of 204 and a frame of
+  exactly **222 bytes**, `LRAN_MAX_FRAME`. Unfragmented. The buffers, the CRC path and
+  the SX1262 FIFO write are all sized for this and nothing the protocol can emit has ever
+  exercised them at it — the largest real frame is a 96-byte `STATUS`.
+- **§6.6.2 — the full fragment set.** The same 202-byte echo with `frag_chunk = 14` is
+  15 fragments, which is `kMaxFragments`. This is the only mechanism in the protocol that
+  exercises reassembly over the air, and §11.5 is explicit that it matters now rather than
+  hypothetically: `CONFIG_ACK` is expected to cross the single-frame boundary on GateLink,
+  and GateLink has no OTA.
+
+### The design decision the specification does not make for you
+
+**`frag_chunk` appears nowhere on the wire.** That is the property §6.6.2 relies on — a
+receiver cannot distinguish a bench-driven split from a necessary one — and it means the
+responder cannot be *told* which chunk the initiator used, while §6.6.2 still requires it
+to "re-fragment the echo on the way back."
+
+It **infers** the chunk from the largest fragment in the received set. §11.1 makes that
+sound: every fragment but the last carries the same length and the last is no longer. The
+inference has to be made *before* the reassembler completes, because the individual
+fragments are gone afterwards — which is a thing to know before editing that loop.
+
+**The responder echoes the reassembled bytes, never a regenerated pattern.** Rebuilding
+the echo from `n` and `seq` would pass this run no matter what the link did to the bytes
+on the way in. That is the one change that would make the whole test worthless while
+leaving it looking green.
+
+### 19 host tests, 152 → 171
+
+The fragmented round trip is exercised at the desk against the real codec: build,
+fragment, reassemble, check — in order, backwards, and with a fragment repeated after
+completion to confirm it reports `FragLate` rather than opening a new set. A 15-fragment
+reassembly fault should be found here, not 500 ft from the house.
+
+Two of them are worth naming:
+
+- **A corrupted byte is asserted to come back as an OFFSET**, not as a failure count.
+  §6.6.3's whole argument is that the CRC says a frame is corrupt and the pattern says
+  where; byte 0 diverging says something very different about the path than byte 168 of a
+  15-fragment set does.
+- **`W9EchoCheck::status` carries the codec's verdict and nothing else.** A pattern
+  divergence is not a decode failure — the frame parsed perfectly and the bytes inside it
+  are wrong — and `lran::Status` is the §14 stage enum, so folding a content fault into it
+  would put a stage number on something that happened at no stage. The first draft used a
+  `BadPayload` that does not exist, which is how this got noticed.
+
+### Guardrail 6 held, and that is a result in itself
+
+Nothing reaches into `/lib/lran-protocol/`. It is consumed through its public headers
+exactly as node firmware will consume it, and **R9 is the first time that API has been
+driven by anything other than its own test suite.** It needed no additions: `encode`,
+`encode_fragment`, `fragment_count`, `Reassembler`, `ping_fill_pattern` and
+`ping_check_pattern` covered the whole bench. Nothing to report back to P1–P7.
+
+The host environment now carries `lib_extra_dirs` too, which is what makes the round trip
+testable at a desk. Repo rule 7 is what makes that possible at all.
+
+### What the bench run still has to answer
+
+1. **Do both runs pass over RF?** If either fails, that is a protocol finding and goes
+   through the same route the P6 findings did — not a firmware tweak.
+2. **Does this link produce late fragments at all?** §11.2's late-fragment rule was chosen
+   against a *hypothesised* RF echo. Whether echoes actually occur here is worth knowing
+   before the rule is relied on at the gate, and a clean "we saw none" is a useful result.
+   The counter is in place, so silence will mean something.
+3. **Does §12.3's backoff window cover a full-size frame?** The firmware prints the §15.1
+   airtime against the default `backoff_max_ms` of 500 at the end of each run. §12.3 says
+   in the same breath that its defaults "were chosen against an empty channel", and the
+   survey has since shown the channel is not empty at two sites. A window shorter than one
+   frame's airtime cannot outlast the frame it backed off for.
+
+### Field note
+
+W9 is selected by serial `w` / `x` in the boot window, **not** by a PRG gesture. Both
+boards are at the bench for this and reachable from a console, and the output is a
+per-fragment fault report that only means anything on one. Adding a fourth and fifth PRG
+gesture would have put the protocol bench one mistimed thumb away from the walk, on a
+board whose no-press default is the mode that transmits — the same class of mistake the
+survey's hold gesture was introduced to fix.

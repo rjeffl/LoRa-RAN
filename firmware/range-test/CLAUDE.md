@@ -84,7 +84,7 @@ and is correct in this one.
   serial number, only by enumerated device node, which is not stable across replug. Do
   not write a port name into anything durable; the OLED badge is the reliable identifier.
 
-## Three modes, and the survey never transmits
+## Five modes, and the survey never transmits
 
 `SURVEY` (R8 / M20) is the third mode on this binary, selected with `v` in the boot window.
 It scans 902.0-927.8 MHz in 200 kHz steps and **listens only** - there is deliberately no
@@ -132,6 +132,40 @@ frame handling runs. Keep it that way.
 - **Occupancy detection is probabilistic and the absence of a peak proves nothing.** One
   radio sees each bin ~1/130 of the time. The floor and mean are solid; a quiet bin is not
   a proven empty one.
+
+## W9 is the only thing here that links `/lib/lran-protocol/`
+
+**R9, `src/w9.{h,cpp}`.** Everything before it deliberately did not: the sweep measures
+the **radio link** with its own raw frame (`bench_frame.h`), W9 measures the **protocol**
+with the real codec and real `PING` frames. Two runs, both over RF:
+
+1. **§6.6.1** — a 202-byte echo, which is a frame of exactly **222 bytes**, `LRAN_MAX_FRAME`.
+2. **§6.6.2** — the same echo with `frag_chunk = 14`, the full **15-fragment** set, and the
+   only mechanism in the protocol that exercises reassembly over the air.
+
+- **Selected by serial `w` / `x` in the boot window, not by PRG.** The survey needed a
+  button because the walking board is untethered by definition; W9 is a bench run with
+  both boards reachable from a console, and its output is a per-fragment fault report that
+  only means anything on one. A fourth and fifth PRG gesture would put the protocol bench
+  one mistimed thumb away from the walk, on a board whose default role transmits.
+- **`frag_chunk` appears nowhere on the wire** (§6.6.2), so the responder cannot be told
+  which one the initiator used — it **infers** it from the largest fragment in the received
+  set. §11.1 makes that sound: every fragment but the last carries the same length. The
+  shape must be read **before** the reassembler completes, because the fragments are gone
+  afterwards.
+- **The responder echoes the REASSEMBLED bytes, never a regenerated pattern.** Rebuilding
+  the echo from `n` would pass the run no matter what the link did to the bytes on the way
+  in, which is the one way to make this test worthless.
+- **`PATTERN_FILL` is not optional here** (§6.6.3). The CRC says a frame is corrupt; the
+  pattern says *which byte*, and that offset is the only thing separating a marginal RF
+  path from a reassembly or buffer-indexing bug. Both are live the first time §6.6.2 runs.
+- **The echo timeout is sized from airtime, not guessed.** The fragmented run puts 15
+  frames on the air in each direction; a timeout that fitted run 1 scores every run-2 PING
+  lost.
+- **Guardrail 6 holds.** Nothing reaches into `/lib/lran-protocol/` — it is consumed
+  through its public headers exactly as node firmware will. R9 is the first time that API
+  is driven by something that is not its own test suite, which is a second thing the run
+  is worth.
 
 ## The walking operator can only see the responder's display
 

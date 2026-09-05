@@ -19,6 +19,7 @@
 #include <Preferences.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "airtime.h"
 #include "bench_frame.h"
@@ -31,6 +32,9 @@
 #include "survey.h"
 #include "sweep.h"
 #include "ui_oled.h"
+#include "w9.h"
+
+#include "lran/reassembly.h"
 
 namespace {
 
@@ -230,6 +234,8 @@ Role select_role() {
       if (c == kSerialSelectResponder || c == 'R') return Role::Responder;
       if (c == kSerialSelectInitiator || c == 'I') return Role::Initiator;
       if (c == kSerialSelectSurvey || c == 'V') return Role::Survey;
+      if (c == kSerialSelectW9Initiator || c == 'W') return Role::W9Initiator;
+      if (c == kSerialSelectW9Responder || c == 'X') return Role::W9Responder;
     }
 
     const uint32_t elapsed = millis() - start;
@@ -925,6 +931,10 @@ void loop_survey() {
   }
 }
 
+// R9 - defined with the rest of the W9 bench below, declared here because setup()
+// starts the first run. Both blocks are the same anonymous namespace.
+void w9_begin_run(W9Run run);
+
 }  // namespace
 
 void setup() {
@@ -969,7 +979,10 @@ void setup() {
   // The sweep plan belongs to R4. In survey mode no sweep runs, and printing its
   // duration and probe counts into a survey trace would describe a measurement that
   // never happened - the exact failure the settings dump exists to prevent.
-  if (g_role != Role::Survey) dump_sweep_plan();
+  // The sweep plan belongs to R4 and describes a measurement none of the other three
+  // modes performs. Printing it into a W9 log would describe probes that never ran,
+  // which is the same failure the survey exclusion exists to prevent.
+  if (g_role != Role::Survey && !w9_role(g_role)) dump_sweep_plan();
 
   const int16_t st = g_radio.begin(kHeltecV3, g_tp);
   if (st != 0) {
@@ -1029,6 +1042,24 @@ void setup() {
 
     // Start the hunt at configuration 0 and let the dwell clock carry it forward.
     resp_tune_to(0);
+  }
+
+  if (w9_role(g_role)) {
+    // R9. Both W9 ends already listen (start_receive above). The initiator drives;
+    // the responder is purely reactive and needs no state beyond its reassembler.
+    Serial.println(F("# W9 - spec 6.6 PING over RF, against /lib/lran-protocol/."));
+    Serial.print(F("# node ids: initiator 0x"));
+    Serial.print(kW9Initiator, HEX);
+    Serial.print(F(" responder 0x"));
+    Serial.print(kW9Responder, HEX);
+    Serial.println(F(" (spec 5.3 bench range - never a production node)"));
+
+    if (g_role == Role::W9Initiator) {
+      w9_begin_run(W9Run::MaxFrame);
+    } else {
+      Serial.println(F("# W9 responder: reassembles, verifies, re-fragments the echo "
+                       "(spec 6.6.2). Waiting."));
+    }
   }
 
   if (g_role == Role::Initiator) {
@@ -1247,6 +1278,332 @@ void echo_probe(const BenchFrame& probe_in, size_t rx_len) {
   g_radio.start_receive();
 }
 
+
+// ---------------------------------------------------------------------------
+// R9 / W9 - the protocol bench. Spec 6.6, 11.
+//
+// Real PING frames through the real codec, which is the one thing the sweep does
+// not do. Two runs: the 222-byte maximum frame (spec 6.6.1), then the 15-fragment
+// set (spec 6.6.2). Both ends use PATTERN_FILL, so a fault comes back as a byte
+// OFFSET rather than as "one of them failed" (spec 6.6.3).
+// ---------------------------------------------------------------------------
+
+// One reassembler per peer (see lran/reassembly.h). Two boards, one peer each.
+lran::Reassembler g_w9_re;
+
+// What the responder inferred about the incoming set's split. Reset per set.
+uint16_t g_w9_largest_frag = 0;
+uint8_t  g_w9_frag_total   = 1;
+
+W9Plan  g_w9_plan;
+W9Stats g_w9_stats;
+W9Run   g_w9_run       = W9Run::MaxFrame;
+bool    g_w9_done      = false;
+
+lran::Seq g_w9_seq      = 1;
+uint16_t  g_w9_sent     = 0;
+bool      g_w9_awaiting = false;
+uint32_t  g_w9_deadline = 0;
+
+// The payload of the PING currently in flight, kept so the echo can be checked
+// against what was actually sent rather than against a rebuild of it.
+uint8_t g_w9_payload[lran::kMaxPayloadPlain];
+size_t  g_w9_payload_len = 0;
+
+// How long to wait for an echo of a set.
+//
+// Sized from AIRTIME, not from a guess: the fragmented run puts 15 frames on the air
+// in each direction, and a timeout that fitted the single-frame run would score every
+// fragmented PING lost. Two legs, every frame of the set, plus the plan's margin.
+uint32_t w9_echo_timeout_ms(const W9Plan& plan) {
+  LoraParams lp{};
+  lp.sf       = g_tp.sf;
+  lp.cr_denom = g_tp.cr_denom;
+
+  const size_t chunk = (plan.frag_chunk == 0) ? plan.payload_len : plan.frag_chunk;
+  const uint32_t per_frame =
+      airtime_ms(lp, static_cast<uint16_t>(lran::frame_len(chunk, false)));
+
+  return 2U * per_frame * plan.expect_frags + g_plan.echo_timeout_margin_ms;
+}
+
+// Transmits one PING, fragmenting it when the run calls for it. Returns false if the
+// codec refused - which is a finding, not a retry: encode() declining to emit a frame
+// means this firmware asked for something the specification does not permit.
+bool w9_transmit_set(const lran::Header& hdr, const uint8_t* payload, size_t payload_len,
+                     size_t frag_chunk, uint8_t frags) {
+  uint8_t frame[lran::kMaxFrame];
+  size_t  frame_len = 0;
+  lran::EncodeCtx enc;  // spec 9.2 - PING carries no MAC, so no key material here
+
+  for (uint8_t i = 0; i < frags; ++i) {
+    const lran::Status st =
+        (frag_chunk == 0)
+            ? lran::encode(hdr, payload, payload_len, enc, frame, sizeof(frame), &frame_len)
+            : lran::encode_fragment(hdr, payload, payload_len, i, frag_chunk, enc, frame,
+                                    sizeof(frame), &frame_len);
+    if (st != lran::Status::Ok) {
+      Serial.print(F("# W9 encode refused, lran::Status "));
+      Serial.println(static_cast<int>(st));
+      return false;
+    }
+    if (g_radio.transmit(frame, frame_len) != 0) return false;
+    ++g_w9_stats.frames_sent;
+  }
+  g_radio.start_receive();
+  return true;
+}
+
+void w9_report_run() {
+  const bool passed = w9_run_passed(g_w9_stats);
+
+  Serial.print(F("# W9 run "));
+  Serial.print(to_string(g_w9_run));
+  Serial.println(passed ? F(" PASSED") : F(" FAILED"));
+
+  Serial.print(F("# pings="));      Serial.print(g_w9_stats.pings_sent);
+  Serial.print(F(" frames="));      Serial.print(g_w9_stats.frames_sent);
+  Serial.print(F(" echoes_ok="));   Serial.print(g_w9_stats.echoes_ok);
+  Serial.print(F(" timeouts="));    Serial.print(g_w9_stats.echo_timeouts);
+  Serial.print(F(" pattern="));     Serial.print(g_w9_stats.pattern_faults);
+  Serial.print(F(" decode="));      Serial.print(g_w9_stats.decode_faults);
+  Serial.print(F(" reasm_fail="));  Serial.print(g_w9_stats.reassembly_fails);
+  Serial.print(F(" frag_late="));   Serial.print(g_w9_stats.late_fragments);
+  Serial.print(F(" phy_crc="));     Serial.print(g_w9_stats.crc_errors);
+  Serial.print(F(" foreign="));     Serial.println(g_w9_stats.foreign_frames);
+
+  // spec 6.6.3 - the offset is the finding. Byte 0 diverging says something very
+  // different about the path than byte 168 of a 15-fragment set does.
+  if (g_w9_stats.any_pattern_fault) {
+    Serial.print(F("# PATTERN FAULT, deepest first-bad offset "));
+    Serial.print(static_cast<unsigned long>(g_w9_stats.first_bad_worst));
+    Serial.print(F(" on seq "));
+    Serial.println(g_w9_stats.first_bad_seq);
+  }
+
+  // R9 - the airtime check, asked for by name: 12.3's backoff defaults were chosen
+  // against an EMPTY channel, and a 222-byte frame is the case that tests it.
+  LoraParams lp{};
+  lp.sf       = g_tp.sf;
+  lp.cr_denom = g_tp.cr_denom;
+  const uint32_t max_frame_ms = airtime_ms(lp, lran::kMaxFrame);
+  const W9AirtimeCheck ac = w9_airtime_check(max_frame_ms, kW9SpecBackoffMaxMs);
+  Serial.print(F("# spec 15.1 airtime of a 222-byte frame at SF"));
+  Serial.print(g_tp.sf);
+  Serial.print(F(" = "));
+  Serial.print(ac.frame_airtime_ms);
+  Serial.print(F(" ms; spec 12.3 max backoff "));
+  Serial.print(ac.backoff_max_ms);
+  Serial.println(ac.backoff_covers
+                     ? F(" ms - window covers one frame")
+                     : F(" ms - WINDOW IS SHORTER THAN ONE FRAME (finding)"));
+}
+
+void w9_begin_run(W9Run run) {
+  g_w9_run  = run;
+  g_w9_plan = w9_plan(run);
+  w9_stats_reset(&g_w9_stats);
+  g_w9_sent     = 0;
+  g_w9_awaiting = false;
+  g_w9_re.reset();
+  g_w9_re.forget_completed();
+
+  Serial.print(F("# W9 run "));
+  Serial.print(to_string(run));
+  Serial.print(F(": n="));
+  Serial.print(g_w9_plan.echo_n);
+  Serial.print(F(" payload="));
+  Serial.print(g_w9_plan.payload_len);
+  Serial.print(F(" frags="));
+  Serial.print(g_w9_plan.expect_frags);
+  Serial.print(F(" chunk="));
+  Serial.print(static_cast<unsigned>(g_w9_plan.frag_chunk));
+  Serial.print(F(" pings="));
+  Serial.println(g_w9_plan.pings);
+}
+
+void w9_send_next_ping() {
+  ++g_w9_seq;
+  if (g_w9_seq == 0) g_w9_seq = 1;  // seq 0 is reserved for "no reference" (spec 6.5)
+
+  if (w9_build_ping(g_w9_seq, g_w9_plan.echo_n, g_w9_payload, sizeof(g_w9_payload),
+                    &g_w9_payload_len) != lran::Status::Ok) {
+    Serial.println(F("FATAL: W9 could not build its own PING"));
+    g_w9_done = true;
+    return;
+  }
+
+  const lran::Header hdr = w9_header(g_w9_seq, kW9Initiator, kW9Responder);
+  g_w9_re.reset();
+
+  ++g_w9_stats.pings_sent;
+  ++g_w9_sent;
+  if (!w9_transmit_set(hdr, g_w9_payload, g_w9_payload_len, g_w9_plan.frag_chunk,
+                       g_w9_plan.expect_frags)) {
+    ++g_w9_stats.decode_faults;
+  }
+
+  g_w9_awaiting = true;
+  g_w9_deadline = millis() + w9_echo_timeout_ms(g_w9_plan);
+}
+
+// Feeds one received frame into the reassembler and reports whether a payload is
+// ready. Shared by both W9 ends: the responder reassembles an incoming PING and the
+// initiator reassembles the echo, and spec 11 makes no distinction between them.
+bool w9_accept_frame(const uint8_t* buf, size_t len, lran::NodeId self, W9Stats* stats) {
+  lran::DecodeCtx dec;
+  dec.self = self;
+  // spec 9.2 - PING is unauthenticated. A production receiver leaving this null
+  // accepts forged COMMANDs; this one never sees a COMMAND. See CLAUDE.md.
+  dec.mac = nullptr;
+
+  lran::Frame f;
+  if (lran::decode_header(buf, len, dec, &f) != lran::Status::Ok) {
+    ++stats->foreign_frames;  // not addressed to us, or not an LRAN frame at all
+    return false;
+  }
+  if (lran::decode_payload(buf, len, dec, &f) != lran::Status::Ok) {
+    ++stats->decode_faults;
+    return false;
+  }
+  if (f.hdr.type != lran::MsgType::Ping) {
+    ++stats->foreign_frames;
+    return false;
+  }
+
+  const lran::Status st = g_w9_re.accept(f, millis());
+  if (st == lran::Status::FragLate) {
+    // spec 11.2 - a fragment of a set already completed. R9 asks whether this link
+    // produces late fragments at all, so this is a RESULT to count, not an error.
+    ++stats->late_fragments;
+    return false;
+  }
+  if (st != lran::Status::Ok) {
+    ++stats->reassembly_fails;
+    return false;
+  }
+  return g_w9_re.complete();
+}
+
+void loop_w9_initiator() {
+  if (g_w9_done) {
+    delay(100);
+    return;
+  }
+
+  uint8_t rx[lran::kMaxFrame];
+  size_t  len       = 0;
+  bool    crc_error = false;
+
+  if (g_radio.poll(rx, sizeof(rx), &len, &crc_error)) {
+    if (crc_error) {
+      ++g_w9_stats.crc_errors;  // spec 14 stage 1
+    } else if (w9_accept_frame(rx, len, kW9Initiator, &g_w9_stats)) {
+      const W9EchoCheck c =
+          w9_check_echo(g_w9_seq, g_w9_plan.echo_n, g_w9_re.data(), g_w9_re.len());
+      if (c.ok()) {
+        ++g_w9_stats.echoes_ok;
+      } else if (!c.pattern_ok) {
+        ++g_w9_stats.pattern_faults;
+        g_w9_stats.any_pattern_fault = true;
+        if (c.first_bad >= g_w9_stats.first_bad_worst) {
+          g_w9_stats.first_bad_worst = c.first_bad;
+          g_w9_stats.first_bad_seq   = g_w9_seq;
+        }
+      } else {
+        ++g_w9_stats.decode_faults;
+      }
+      g_w9_awaiting = false;
+    }
+    g_radio.start_receive();
+  }
+
+  if (g_w9_awaiting) {
+    if (static_cast<int32_t>(millis() - g_w9_deadline) >= 0) {
+      ++g_w9_stats.echo_timeouts;
+      g_w9_awaiting = false;
+    }
+    delay(2);
+    return;
+  }
+
+  if (g_w9_sent >= g_w9_plan.pings) {
+    w9_report_run();
+    if (g_w9_run == W9Run::MaxFrame) {
+      w9_begin_run(W9Run::Fragmented);
+    } else {
+      Serial.println(F("# W9 complete - both runs reported above. "
+                       "Record the result in docs/rangetest/engineering-log.md."));
+      g_w9_done = true;
+      g_ui.show_message("W9 DONE", "see serial");
+    }
+    return;
+  }
+
+  w9_send_next_ping();
+}
+
+void loop_w9_responder() {
+  uint8_t rx[lran::kMaxFrame];
+  size_t  len       = 0;
+  bool    crc_error = false;
+
+  if (!g_radio.poll(rx, sizeof(rx), &len, &crc_error)) {
+    delay(2);
+    return;
+  }
+  if (crc_error) {
+    ++g_w9_stats.crc_errors;
+    g_radio.start_receive();
+    return;
+  }
+
+  // The set's shape has to be read BEFORE it is accepted: once the reassembler
+  // completes, the individual fragments are gone and the chunk to echo with cannot be
+  // recovered. frag_chunk appears nowhere on the wire (spec 6.6.2), so the largest
+  // fragment payload is the only evidence of it there is.
+  lran::DecodeCtx peek;
+  peek.self = kW9Responder;
+  peek.mac  = nullptr;
+  lran::Frame pf;
+  uint16_t frag_payload = 0;
+  uint8_t  frag_total   = 1;
+  if (lran::decode_header(rx, len, peek, &pf) == lran::Status::Ok &&
+      lran::decode_payload(rx, len, peek, &pf) == lran::Status::Ok) {
+    frag_payload = static_cast<uint16_t>(pf.payload_len);
+    frag_total   = pf.hdr.frag_total();
+    if (frag_payload > g_w9_largest_frag) g_w9_largest_frag = frag_payload;
+    if (frag_total > g_w9_frag_total) g_w9_frag_total = frag_total;
+  }
+
+  if (!w9_accept_frame(rx, len, kW9Responder, &g_w9_stats)) {
+    g_radio.start_receive();
+    return;
+  }
+
+  // spec 6.6 - swap src/dst, PRESERVE seq and ping_flags, echo the bytes verbatim.
+  // The echo is built from the reassembled payload rather than rebuilt from `n`,
+  // because echoing a regenerated pattern would pass this test no matter what the
+  // link did to the bytes on the way in.
+  const lran::Seq seq = g_w9_re.seq();
+  memcpy(g_w9_payload, g_w9_re.data(), g_w9_re.len());
+  g_w9_payload_len = g_w9_re.len();
+
+  const lran::Header hdr = w9_header(seq, kW9Responder, kW9Initiator);
+  const size_t chunk = w9_echo_chunk(g_w9_largest_frag, g_w9_frag_total);
+  const uint8_t frags =
+      (chunk == 0) ? 1 : lran::fragment_count(g_w9_payload_len, chunk);
+
+  ++g_w9_stats.pings_sent;
+  w9_transmit_set(hdr, g_w9_payload, g_w9_payload_len, chunk, frags);
+
+  // The next set may be split differently - the initiator moves from run 1 to run 2
+  // without telling anyone - so the inference starts clean for each one.
+  g_w9_largest_frag = 0;
+  g_w9_frag_total   = 1;
+  g_w9_re.reset();
+}
+
 }  // namespace
 
 void loop() {
@@ -1254,6 +1611,18 @@ void loop() {
   // path that can transmit. It returns before the frame handling below ever runs.
   if (g_role == Role::Survey) {
     loop_survey();
+    return;
+  }
+
+  // R9 - W9 shares the radio and nothing else. It runs the real codec against real
+  // PING frames, so it must not fall through into the sweep's raw-frame handling
+  // below, which would parse an LRAN frame as a bench frame and count it foreign.
+  if (g_role == Role::W9Initiator) {
+    loop_w9_initiator();
+    return;
+  }
+  if (g_role == Role::W9Responder) {
+    loop_w9_responder();
     return;
   }
 
