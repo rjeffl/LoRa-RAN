@@ -10,6 +10,8 @@ const char* to_string(Role r) {
     case Role::Initiator: return "INITIATOR";
     case Role::Responder: return "RESPONDER";
     case Role::Survey:    return "SURVEY";
+    case Role::W9Initiator: return "W9-INIT";
+    case Role::W9Responder: return "W9-RESP";
   }
   return "?";
 }

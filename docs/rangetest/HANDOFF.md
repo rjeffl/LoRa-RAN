@@ -25,9 +25,9 @@
 |---|---|
 | Branch | `docs/handoff-post-r11` off `main`, green **2026-09-05** at f2defc4 |
 | Merged today | **#19** (field data + capture.py), **#20** (R11 hold state), **#21** (blob provenance), **#22** (boards staged), **#23** (site conditions) |
-| Done | **R1–R8, R10 fieldwork, R11, and the M20 re-walk.** All gates passed on hardware |
-| Not started | **R9** (`range/w9`) — the only remaining code task |
-| **Next** | **R9.** The fieldwork queue is empty; **M20 is closed and D1 waits only on M21** |
+| Done | **R1–R11, the M20 re-walk, and R9.** All gates passed on hardware |
+| Not started | — **every Pass 1 task is complete** |
+| **Next** | **D1.** Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
 
 ```bash
 pio test -d firmware/range-test -e native   # 152 passed
@@ -80,6 +80,7 @@ procedure.
 | `2026-09-04-walk-gatelink-resplog.csv` | The responder's log for that walk. Closes against the sweep trace at all six positions |
 | `2026-09-05-survey-campaign.csv` | **All seven sites, 910 rows, pre-R11.** Re-dumped from NVS. **Superseded for peaks** by the trace below — its `peak_dbm10` is not site-attributable. Floor and mean are sound. Site 0 `bridge-house` was measured **indoors** at the bridge's target location |
 | `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk. All seven sites, 910 rows, `hold_discipline=1` at every one** — the first trace whose peaks are site-attributable, and the one the occupant inventory is built from. 68–74 passes, 130/130 bins, `dropped=0` |
+| `2026-09-05-w9-bench.log` | **W9 / R9, both runs, on the bench.** The 222-byte frame and the 15-fragment set, 64 round trips, zero faults at either end. **Not a link measurement** — the path is ~1 m on purpose, so a fault would be the codec and not the RF. Not a CSV; W9 emits console lines only |
 
 **The link closes with margin at every walked position at the D33 ceiling.** Both ends
 agree within 0.8 dB, `filler_err` is zero throughout.
@@ -117,9 +118,10 @@ it was right.** A caveat on a column is a claim to go back and test.
 ## First actions next session
 
 1. `git checkout main && git pull --ff-only`, then run the checks above.
-2. **Start R9** (`range/w9`) — the only remaining code task, and the first work here that
-   links `/lib/lran-protocol/`. See the Pass 1 task document for its gates.
-3. **No fieldwork is queued.** The M20 campaign is captured, committed and analysed.
+2. **Nothing is queued.** Pass 1 is complete: R1–R11 built, M20 captured and analysed,
+   W9 passed on the bench.
+3. **Read the W9 backoff finding before D1 picks an SF** — §12.3's default
+   `backoff_max_ms` of 500 covers a full-size frame at SF7 and at nothing above it.
 
 ## The M20 re-walk — done 2026-09-05
 
@@ -178,6 +180,8 @@ The engineering log has the full account; this is the index.
   arcsecond GPS cannot support an RSSI-vs-distance curve. It answers "does it work
   there", not "what is the path loss".
 - **W7** — the §15.1 airtime table regenerates once D1 fixes SF/BW/CR.
-- **W9** — R9's 222-byte and fragmented `PING` runs. **R9 is the first work here that
-  links `/lib/lran-protocol/`.**
+- **W9** — **PASSED on the bench 2026-09-05.** Both runs, 64 round trips, zero faults at
+  either end, no late fragments in either direction. It left one finding for D1:
+  §12.3's default `backoff_max_ms` of 500 covers a full-size frame at SF7 and at no SF
+  above it (615 ms at SF8, 1107 ms at SF9). Raised, not patched.
 - **D31** — copyright holder. Every file carries the `<holder>` placeholder.
