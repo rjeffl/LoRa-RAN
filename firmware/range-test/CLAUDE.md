@@ -4,7 +4,7 @@
 specific to this target.
 
 **Primary document:** `docs/rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md`.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.7** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.8** (`ver = 2`).
 **Record:** `docs/rangetest/engineering-log.md`.
 
 ## This firmware never ships

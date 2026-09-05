@@ -25,6 +25,7 @@
 |---|---|
 | Branch | `main`, verified green **2026-09-05** at 9c16fb2 |
 | Merged today | **#19**–**#23** (field data, R11, blob provenance, boards staged, site conditions), **#24** (M20 analysis), **#25** (R9 / W9), **#26** (landing R9 on `main`) |
+| Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2` unchanged. **W9 closed there**; §12.3 carries the backoff measurement. No vector regenerates |
 | Done | **R1–R11 and the M20 re-walk. Every Pass 1 task is complete.** All gates passed on hardware |
 | **Next** | **D1** — and it is a decision, not a build. Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
 
@@ -232,7 +233,7 @@ The engineering log has the full account; this is the index.
   arcsecond GPS cannot support an RSSI-vs-distance curve. It answers "does it work
   there", not "what is the path loss".
 - **W7** — the §15.1 airtime table regenerates once D1 fixes SF/BW/CR.
-- **W9** — **PASSED on the bench 2026-09-05.** Both runs, 64 round trips, zero faults at
+- **W9** — **CLOSED in spec v0.8.** Passed on the bench 2026-09-05. Both runs, 64 round trips, zero faults at
   either end, no late fragments in either direction. It left one finding for D1:
   §12.3's default `backoff_max_ms` of 500 covers a full-size frame at SF7 and at no SF
   above it (615 ms at SF8, 1107 ms at SF9). Raised, not patched.

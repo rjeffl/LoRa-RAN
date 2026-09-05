@@ -2097,3 +2097,54 @@ this firmware has counted foreign traffic through the **real codec** rather than
 **W7 still waits on D1**, unchanged: §15.1 regenerates once SF/BW/CR are fixed. The
 airtime implementation is the instrument that will do it and it now agrees with the table
 at the one point a real frame has tested.
+
+---
+
+## 2026-09-05 — W9 closed in the specification, v0.7 → v0.8
+
+The bench result is now recorded where it is authoritative rather than only here.
+
+**`LRAN-Protocol-Specification` is v0.8.** `ver` stays at **2**. No frame layout, header
+field, authentication scope or schema length changed, so **§13.2's standing requirement to
+regenerate the W4 vectors is not triggered** — confirmed rather than assumed: 72 vectors
+re-derived and matched, 107 library tests, 171 range-test tests, target build clean, all
+after the edit.
+
+- **§18 W9 closes** with the run's numbers and, deliberately, with two caveats attached so
+  a later reader does not over-read it: the path was ~1 m of bench, so it is a protocol
+  result and not a link one; and the absence of late fragments is a bench negative at 1 m,
+  not evidence about the 500 ft path §11.2's rule exists for.
+- **§12.3 gains the measurement** as a note, not a change. The default `backoff_max_ms` of
+  500 covers a full-size frame at SF7 and at no SF above it. **The defaults are left as
+  written** — they cannot be set sensibly before D1 fixes SF, and the choice is D1's.
+- **§18 W7 gains a constraint**: the airtime regeneration must be done with the backoff
+  window in hand, because §15.1's maximum-`PING` row is what that window is checked
+  against.
+
+### The citation cascade is not optional
+
+Nine documents bind themselves to a protocol version, and the repo rule is that a document
+citing an older version than the spec's own header **has not been reconciled**. Leaving
+them at v0.7 would have made every one of them read as unreviewed against a revision that
+in fact affects almost none of them.
+
+All nine refreshed, following the v0.6 → v0.7 precedent, with each revision entry saying
+what actually lands on that document rather than repeating the boilerplate:
+
+- **GateLink PRD and Impl Plan** — §11.5 named `CONFIG_ACK` crossing the single-frame
+  boundary *on GateLink* as the reason W9 mattered now rather than hypothetically. That
+  path has now run over the air, at the 15-fragment ceiling, before the node is installed
+  somewhere with no OTA. The plan also carries the −66 dBm neighbour at 914.0 at the gate.
+- **Protocol Library Impl Plan** — the library needed **no change** to close W9. R9 drove
+  its public API from outside for the first time; every prior exercise was its own test
+  suite, and nothing came back to report.
+- **Bridge PRD** — a raised `cad_backoffs` now has two candidate causes rather than one,
+  and the SF is what separates them.
+- **System PRD** — Pass 1 complete, D1 down to M21.
+
+### Lesson
+
+**A measurement is not finished when the trace is committed.** W9 passed on the bench in
+the morning and was still listed in §18 as "specified but unexercised on hardware" hours
+later — the one document a future reader would trust for that answer was the one still
+giving the old one.

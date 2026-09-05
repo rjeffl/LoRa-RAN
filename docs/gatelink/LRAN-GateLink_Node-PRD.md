@@ -1,11 +1,11 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.3
+**Version:** 0.4
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
 **Last updated:** 2026-08-31
 
@@ -899,6 +899,7 @@ implementation plan.*
 
 ## 10. Changelog
 
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **This node is a consumer of both halves.** §11.5 named `CONFIG_ACK` crossing the single-frame boundary on GateLink as the reason W9 mattered now rather than hypothetically; that path has now run over the air. The requirement is unchanged. Note also that §11.2's late-fragment rule remains untested at range — W9 saw no late fragments, but at 1 m of bench, which is not evidence about the 500 ft path this node sits at the end of.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **This node is a consumer**: GateLink accepts `COMMAND`, so `CommandGate` binds it at **M3**. The requirement it implements — a retried command must not pulse the relay twice — is unchanged and was already stated.
 - **v0.2** — Housekeeping revision; **no requirement changed**. Binding protocol
   citation moves **v0.2 → v0.6**. Reconciled first: this document names schema IDs

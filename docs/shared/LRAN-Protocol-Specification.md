@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.7
+**Version:** 0.8
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-05
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -1674,6 +1674,30 @@ Point-to-point had no contention. A shared channel with N nodes does.
 sharing the band with unrelated 915 MHz equipment they are a starting point to be
 checked, and `cad_backoffs` in schema `0xF0` is the instrument that checks them.
 
+> **Measured, v0.8 — the default window is an SF7 assumption.** W9's bench run (§18)
+> checked the maximum-`PING` frame against this window, which is what §15.1's
+> maximum-`PING` row exists for. At **SF7** a 222-byte frame is **348 ms** and
+> `backoff_max_ms` of 500 covers it. At **SF8** it is **615 ms** and at **SF9**
+> **1107 ms**, and the default does not — at SF9 by more than a factor of two.
+>
+> A backoff window shorter than one frame's airtime cannot outlast the frame it backed
+> off for: the retry lands while the channel is still occupied by the same
+> transmission, CAD fires again, and the node spends its `cad_retries` against a single
+> neighbour before transmitting regardless. That last step is permitted above, so this
+> is a **latency and `cad_backoffs` question, not a correctness one** — but
+> `cad_backoffs` is the instrument nominated two paragraphs up to check these very
+> defaults, and it would read high for a reason that is not congestion.
+>
+> **The defaults are left as written.** `backoff_max_ms` cannot be set sensibly before
+> **D1** fixes SF, and if D1 lands on SF7 they stand unchanged. At SF8 or above the
+> window wants raising above the full-frame airtime. Recorded here rather than resolved
+> because the choice is D1's.
+>
+> Read it alongside the site survey: the channel on this property is **not** empty. One
+> site has a confirmed in-channel occupant and another the strongest near-band
+> neighbour, both bursty rather than carriers — which is exactly the shape that spends
+> retries rather than blocking a channel.
+
 **Expect the counter to read asymmetrically.** Third-party equipment is usually
 clustered around the dwelling, which is where the bridge lives; a remote node several
 hundred metres out sees a quieter channel. A bridge-side `cad_backoffs` count well above
@@ -2132,9 +2156,9 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W4 | ~~Test vectors~~ | — | **Closed.** `/tools/vectors/` exists: an independent Python generator, a self-check and **72** vectors, cross-checked against a C++ suite on host and on target with zero divergence. The generator was written from this document alone, with the codec off limits, and the four disagreements it produced are the substance of v0.5. Provenance is recorded per vector — 66 derived, 6 adjudicated — so a reader can tell which agreements are evidence and which are bookkeeping. The v0.5 and v0.6 regenerations each changed **no existing frame byte**, independently confirming that neither altered a header field, the authentication scope or a schema layout. §14.1 is enforced by the generator and the checker independently. §13.2's standing requirement to regenerate on every protocol change is unaffected and applies to v0.6 |
 | W5 | ~~FCC Part 15 operating mode~~ | — | **Closed.** Single fixed channel, no hopping, operating at or below the §15.249 power provisions. §18.1 records the reasoning and the standing conditions |
 | W6 | **BMS `pack_ma` sign convention** | §7.2.3 | Bit `0x4000` is believed to be the discharge flag but has only ever been observed at 0.0 A. Capture once under charge and once under load. Tracked in the measurement backlog |
-| W7 | Airtime table regeneration | §15.1 | Recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header |
+| W7 | Airtime table regeneration | §15.1 | Recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
-| W9 | **Full-size and fragmented `PING` bench runs** | §6.6.1, §6.6.2 | The 222-byte frame path and the fragmented-`PING` reassembly path are specified but unexercised on hardware. v0.4 makes the second reachable, via the `frag_chunk` override rather than an unsatisfiable `n`. Hosted by the range test firmware, which already needs two boards, an antenna and a link — building a second bench tool for this would be waste. Note that nothing built so far has touched the radio at all: W9 needs the second board **and** an SX1262 driver that does not yet exist, and both arrive with that firmware. Both belong in the bring-up sequence **before** GateLink is installed at the gate, since neither is fixable remotely |
+| W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
 | W10 | **Config entry count vs. one frame** | §7.4, §11 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. Confirm the count once it does: past 21 `uint32` entries the readback fragments, which makes §11 a production path on the first config read rather than a bench feature, and moves W4's fragmentation vectors onto the critical path |
 | W13 | ~~No vector reaches §11.2's dead-space clause~~ | — | **Closed. Unit-test coverage is sufficient and no raw-frames vector form will be built.** A duplicate fragment of differing length exhausting staging is a **non-conforming-sender** path: §11.1 fixes every non-final fragment to one length, so a conforming sender cannot produce it, and W4's generator emits conforming senders by construction. That is a **boundary of the method, not a gap in it** — the vector shape witnesses two implementations of a conforming sender against each other, and a frame no conforming sender emits has no second implementation to be witnessed against. `test_duplicate_fragment_of_different_length_overwrites` drives the receiver directly and covers both halves: the overwrite wins, and the superseded copy is charged against staging rather than against the reassembly cap. A raw-frames vector form is a meaningful amount of tooling for one clause, and it would compare the codec against a hand-written frame rather than against an independent reading, which is most of what makes W4 worth having. Revisit if a second non-conforming-sender clause appears: one is a unit test, several are a vector form |
 | W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition |
@@ -2237,6 +2261,32 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
+- **v0.8** — Measurement capture. `ver` stays at `2`; **no frame layout, header field,
+  authentication scope or schema length changes, and no vector regenerates** — §13.2's
+  standing requirement is not triggered, because nothing on the wire moved.
+  **W9 closes.** Both bench runs passed over RF on 2026-09-05: §6.6.1's 222-byte
+  maximum frame (32 PINGs, 32 echoes) and §6.6.2's fragmented set at `frag_chunk = 14`
+  (32 PINGs across 480 frames, 32 echoes), with no pattern divergence in 64 round trips
+  and both ends reconciling at 512 frames. Two paths specified since v0.2 and v0.4 had
+  never run on hardware and now have: the buffer, CRC and FIFO path at `LRAN_MAX_FRAME`,
+  and index permutation, out-of-order arrival and the 15-fragment ceiling over the air.
+  **v0.4's `frag_chunk` override is confirmed** — the split is driven entirely from the
+  sender, and a responder recovers the chunk by inference from the largest fragment,
+  since §11.1 fixes every non-final fragment to one length and nothing carries the chunk
+  on the wire. **One finding, recorded and deliberately not resolved:** §12.3's default
+  `backoff_max_ms` of 500 covers a full-size frame at SF7 (348 ms, matching §15.1's own
+  figure — the first time that table has been checked against a real transmission) and
+  at no SF above it, 615 ms at SF8 and 1107 ms at SF9. A window shorter than one frame's
+  airtime cannot outlast the frame it backed off for, which spends `cad_retries` against
+  one neighbour and makes `cad_backoffs` — the instrument §12.3 nominates to check
+  itself — read high for a reason that is not congestion. §12.3 gains the measurement
+  and **W7 gains the constraint that the airtime regeneration must be done with the
+  backoff window in hand**; the defaults are left as written because they cannot be set
+  before **D1** fixes SF, and the choice is D1's. **Two caveats travel with W9's
+  closure** so a later reader does not over-read it: the path was ~1 m of bench, so it
+  is a protocol result and not a link one, and the **absence of late fragments across
+  512 frames is a bench negative at 1 m** — §11.2's rule was chosen against a
+  hypothesised RF echo and this is not evidence about the 500 ft path it exists for.
 - **v0.7** — Decision capture. `ver` stays at `2`; **no frame layout, header field,
   authentication scope or schema length changes**, and no vector regenerates.
   **W12 closes as D34, by correcting this document's own premise.** §9.4 said steps 4–6

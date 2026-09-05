@@ -1,11 +1,11 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.3
+**Version:** 0.4
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
 **Last updated:** 2026-08-31
 
 > **This document exists to hold ground, not to specify a node.** It records what is
@@ -225,6 +225,7 @@ choices that look over-engineered against a one-node system:
 
 ## 10. Changelog
 
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. Still a placeholder. Recorded because the v0.8 finding is one a WellLink inherits rather than decides: §12.3's default `backoff_max_ms` of 500 covers a full-size frame at SF7 and at no SF above it, so whatever **D1** fixes reaches this node as a given.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. Still a placeholder. Recorded because **W-* design questions inherit it**: any WellLink that accepts a command inherits `CommandGate` rather than writing a replay check.
 - **v0.2** — Housekeeping revision; **still a placeholder, no design work done**.
   Binding protocol citation moves **v0.2 → v0.6**; §9's reserved-allocation table cites

@@ -1,7 +1,7 @@
 # `/lib/lran-protocol/` — engineering log
 
 Dated entries. Measurements, surprises, and things that cost an hour.
-Binding specification: `LRAN-Protocol-Specification` v0.7 (`ver = 2`).
+Binding specification: `LRAN-Protocol-Specification` v0.8 (`ver = 2`).
 
 ---
 

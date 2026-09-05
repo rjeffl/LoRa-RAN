@@ -1,11 +1,11 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.3
+**Version:** 0.4
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
 **Last updated:** 2026-08-31
 
@@ -405,6 +405,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 ## 9. Changelog
 
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Relevant here through `cad_backoffs`.** §12.3 now records that a backoff window shorter than one frame's airtime cannot outlast the frame it backed off for, which spends `cad_retries` against a single neighbour. The bridge is the end §12.3 already expects to see the higher count — it lives where the third-party equipment is — so a raised `cad_backoffs` here has two candidate causes now, not one, and the SF is what separates them.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **R-3.1e** and §5's counter requirements are unaffected: per §9.2 the bridge receives no authenticated types today, so §9.4 steps 4–6 apply to an empty set here and `rx_rejected_seq` / `rx_dup_command` reading zero on the bridge is correct.
 - **v0.2** — Housekeeping revision; **no requirement changed**. The binding protocol
   citation moves **v0.2 → v0.6**. The body was reconciled against the v0.3–v0.6 changes

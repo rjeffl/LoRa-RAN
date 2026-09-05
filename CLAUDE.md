@@ -17,7 +17,7 @@ USB reflash in the field.
 | Document | Path | Authority over |
 |---|---|---|
 | `LRAN-System-PRD` | `docs/` | Architecture, node roles, repo layout |
-| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.7, `ver = 2`** |
+| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.8, `ver = 2`** |
 | `LRAN-Decision-Register` | `docs/shared/` | **D1–D34** and measurement backlog **M1–M21**. The **only** place a decision's status is recorded |
 | `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
 | `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
