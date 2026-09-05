@@ -87,6 +87,29 @@ int16_t RadioLink::begin(const BoardRadioConfig& board, const TestPoint& tp) {
     if (sw != RADIOLIB_ERR_NONE) return sw;
   }
 
+  // THE THIRD SILENT FAILURE, and the one the Heltec cannot exercise (task X1).
+  //
+  // Seeed does NOT tie DIO2 to the RF switch inside the Wio-SX1262
+  // (gatelink-expansion-board 7.3), so that module needs BOTH the DIO2 mode above AND
+  // a host-driven enable line. This settles Bridge Impl Plan 2.3.1 finding 1, which
+  // could not be settled from documentation because Seeed publishes no module
+  // schematic: two independent board-support definitions set both.
+  //
+  // RadioLib 7.7.1 SX126x.h: setRfSwitchPins(rxEn, txEn). RF_SW is the RX ENABLE and
+  // TX enable is unconnected - the parameter order is checked against the pinned
+  // version, not assumed, because reversing it is silent in exactly the same way
+  // everything else in this function is.
+  //
+  // THE ONE UNCHECKED RADIO CALL IN THIS FILE. It returns void in 7.7.1, so the
+  // pattern every other call here follows cannot apply. Said out loud rather than left
+  // for a reader to wonder whether the check was forgotten.
+  //
+  // kPinNone -> the board drives its RF path from DIO2 alone and this is skipped. The
+  // Heltec takes that branch, so its path through begin() is unchanged by pass 2.
+  if (board.rf_sw != kPinNone) {
+    g_radio->setRfSwitchPins(static_cast<uint32_t>(board.rf_sw), RADIOLIB_NC);
+  }
+
   // spec 2.1 requires both. RadioLib defaults to explicit header and CRC on for
   // LoRa, but "the default happens to be right" is not the same as requiring it, and
   // a later RadioLib version is free to change a default.

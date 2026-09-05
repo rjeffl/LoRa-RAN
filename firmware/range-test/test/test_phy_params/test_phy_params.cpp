@@ -173,6 +173,111 @@ static void test_heltec_switches_rf_from_dio2() {
 // Transcribed from the vendor variant pins_arduino.h; see board_config.h for the
 // path. GPIO 14 is the variant's `DIO0` (an SX127x-era label) and is the SX1262's
 // DIO1 - the number is right and the name is legacy.
+// ---------------------------------------------------------------------------
+// Pass 2 (task X7) - the XIAO+Wio Kit map, and the collision invariant.
+// ---------------------------------------------------------------------------
+
+// Transcribed from meshtastic/firmware variants/esp32s3/seeed_xiao_s3/variant.h - see
+// board_config.h for the full provenance. These five are the ones that differ from the
+// header-board product, and getting the wrong product's map is the failure this whole
+// entry is named to prevent.
+static void test_xiao_wio_kit_pin_map_is_the_b2b_variant() {
+  TEST_ASSERT_EQUAL_INT8(41, kXiaoWioKit.nss);
+  TEST_ASSERT_EQUAL_INT8(42, kXiaoWioKit.rst);
+  TEST_ASSERT_EQUAL_INT8(40, kXiaoWioKit.busy);
+  TEST_ASSERT_EQUAL_INT8(39, kXiaoWioKit.dio1);
+  TEST_ASSERT_EQUAL_INT8(38, kXiaoWioKit.rf_sw);
+}
+
+// The three SPI nets are the ONLY thing the two products share, and they are also the
+// XIAO's own D8/D9/D10 in the vendor variant. Pinned separately from the block above
+// because they are the values that would still be right if the wrong module map were
+// pasted in - so an all-in-one test would go green on half a mistake.
+static void test_xiao_wio_kit_spi_matches_the_vendor_variant() {
+  TEST_ASSERT_EQUAL_INT8(7, kXiaoWioKit.sck);
+  TEST_ASSERT_EQUAL_INT8(8, kXiaoWioKit.miso);
+  TEST_ASSERT_EQUAL_INT8(9, kXiaoWioKit.mosi);
+}
+
+// The third silent failure (radio_link.cpp begin()). Seeed does not tie DIO2 to the RF
+// switch internally, so this board needs BOTH mechanisms - unlike the Heltec, which
+// asserts kPinNone for rf_sw two tests above. Bridge Impl Plan 2.3.1 finding 1.
+static void test_xiao_wio_kit_needs_both_rf_switch_mechanisms() {
+  TEST_ASSERT_TRUE(kXiaoWioKit.dio2_as_rf_switch);
+  TEST_ASSERT_NOT_EQUAL_INT8(kPinNone, kXiaoWioKit.rf_sw);
+}
+
+// Same part, same 1.8 V, but per-profile rather than shared - a wrong value here
+// presents as a radio that will not calibrate rather than as an error.
+static void test_xiao_wio_kit_tcxo_is_1v8() {
+  TEST_ASSERT_EQUAL_UINT16(1800, kXiaoWioKit.tcxo_mv);
+}
+
+// The XIAO expansion board's panel has neither a Vext rail nor a reset line, and
+// ui_oled.cpp branches on exactly these two sentinels. If either became a real GPIO by
+// accident the bring-up would drive a pin belonging to something else.
+static void test_xiao_ui_has_no_vext_and_no_panel_reset() {
+  TEST_ASSERT_EQUAL_INT8(kPinNone, kXiaoWioKitUi.vext);
+  TEST_ASSERT_EQUAL_INT8(kPinNone, kXiaoWioKitUi.rst);
+  TEST_ASSERT_FALSE(kXiaoWioKitUi.flip_vertically);
+}
+
+// The Heltec keeps both, and keeps the flip. This is the "X4 was a no-op" assertion:
+// the display refactor must not have changed the board that already worked.
+static void test_heltec_ui_is_unchanged_by_the_refactor() {
+  TEST_ASSERT_EQUAL_INT8(17, kHeltecV3Ui.sda);
+  TEST_ASSERT_EQUAL_INT8(18, kHeltecV3Ui.scl);
+  TEST_ASSERT_EQUAL_INT8(21, kHeltecV3Ui.rst);
+  TEST_ASSERT_EQUAL_INT8(36, kHeltecV3Ui.vext);
+  TEST_ASSERT_EQUAL_INT8(0,  kHeltecV3Ui.role_button);
+  TEST_ASSERT_EQUAL_UINT8(0x3c, kHeltecV3Ui.addr);
+  TEST_ASSERT_TRUE(kHeltecV3Ui.flip_vertically);
+}
+
+// GPIO 21 reaches the button across the B2B connector - it is not one of the XIAO's
+// D-pads. Deliberately NOT GPIO 0: that is the ESP32-S3 BOOT strapping pin and the R1
+// gesture is a press held across a reset (role.h).
+static void test_xiao_role_button_is_not_the_boot_strap() {
+  TEST_ASSERT_EQUAL_INT8(21, kXiaoWioKitUi.role_button);
+  TEST_ASSERT_NOT_EQUAL_INT8(0, kXiaoWioKitUi.role_button);
+}
+
+// Both shipping profiles, checked the way the static_asserts in board_config.h check
+// them. Duplicated as a runtime test on purpose: a static_assert that someone deletes
+// to make a build go green leaves no trace, and this does.
+static void test_no_shipping_profile_has_a_pin_collision() {
+  TEST_ASSERT_FALSE(has_pin_conflict(kHeltecV3, kHeltecV3Ui));
+  TEST_ASSERT_FALSE(has_pin_conflict(kXiaoWioKit, kXiaoWioKitUi));
+}
+
+// THE TEST THAT EARNS THE CHECKER. The header-board product (p-6379) puts NSS on GPIO 5
+// and RF_SW on GPIO 6 - directly on top of the expansion board's I2C bus. Had that
+// product arrived instead, this stack would not have worked, and the symptom would have
+// been attributed to the radio or to the panel rather than to the pairing.
+//
+// Built as a local literal rather than a constant in board_config.h: this map must NOT
+// be selectable, it exists only to prove the checker catches the case it was written
+// for. If this test ever goes green-by-passing, the checker has stopped working.
+static void test_the_checker_catches_the_header_board_collision() {
+  const BoardRadioConfig header_board = {
+      "wio_sx1262_header_board", "Wio hdr",
+      /* nss */ 5, /* rst */ 3, /* busy */ 4, /* dio1 */ 2,
+      /* sck */ 7, /* miso */ 8, /* mosi */ 9,
+      /* rf_sw */ 6, /* tcxo_mv */ 1800, /* dio2_as_rf_switch */ true};
+  TEST_ASSERT_TRUE(has_pin_conflict(header_board, kXiaoWioKitUi));
+}
+
+// kPinNone is "not connected" and must never collide with itself - the Heltec carries
+// two of them (rf_sw and, on other boards, vext/rst), so a checker that compared
+// sentinels would reject every valid board.
+static void test_unconnected_pins_do_not_collide_with_each_other() {
+  const BoardUiConfig bare = {/* sda */ 5,  /* scl */ 6,
+                              /* rst */ kPinNone, /* vext */ kPinNone,
+                              /* role_button */ 21, /* addr */ 0x3c,
+                              /* flip */ false};
+  TEST_ASSERT_FALSE(has_pin_conflict(kXiaoWioKit, bare));
+}
+
 static void test_heltec_pin_map_matches_the_vendor_variant() {
   TEST_ASSERT_EQUAL_INT8(8,  kHeltecV3.nss);
   TEST_ASSERT_EQUAL_INT8(9,  kHeltecV3.sck);
@@ -225,6 +330,18 @@ int main(int, char**) {
   RUN_TEST(test_heltec_tcxo_is_1v8);
   RUN_TEST(test_heltec_switches_rf_from_dio2);
   RUN_TEST(test_heltec_pin_map_matches_the_vendor_variant);
+
+  // Pass 2 (task X7)
+  RUN_TEST(test_xiao_wio_kit_pin_map_is_the_b2b_variant);
+  RUN_TEST(test_xiao_wio_kit_spi_matches_the_vendor_variant);
+  RUN_TEST(test_xiao_wio_kit_needs_both_rf_switch_mechanisms);
+  RUN_TEST(test_xiao_wio_kit_tcxo_is_1v8);
+  RUN_TEST(test_xiao_ui_has_no_vext_and_no_panel_reset);
+  RUN_TEST(test_heltec_ui_is_unchanged_by_the_refactor);
+  RUN_TEST(test_xiao_role_button_is_not_the_boot_strap);
+  RUN_TEST(test_no_shipping_profile_has_a_pin_collision);
+  RUN_TEST(test_the_checker_catches_the_header_board_collision);
+  RUN_TEST(test_unconnected_pins_do_not_collide_with_each_other);
   RUN_TEST(test_short_board_name_fits_the_panel);
   RUN_TEST(test_full_board_name_is_still_the_unambiguous_one);
 

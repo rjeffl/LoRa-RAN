@@ -2148,3 +2148,127 @@ what actually lands on that document rather than repeating the boilerplate:
 the morning and was still listed in §18 as "specified but unexercised on hardware" hours
 later — the one document a future reader would trust for that answer was the one still
 giving the old one.
+
+---
+
+## 2026-09-05 — Pass 2 phase A: the XIAO+Wio profile, and the product that is not the one on the carrier
+
+Branch `r2-pass2-xiao`. Tasks X1–X7 of
+[`LRAN-Range-Test-Firmware-Pass2-Tasks`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md).
+Host tests only; nothing on hardware yet.
+
+### The finding that reframed the milestone
+
+**Seeed sells two Wio-SX1262 products and they are not pin-compatible.** Outside the three
+SPI nets they share nothing:
+
+| | Kit, p-5982 (B2B) | Header board, p-6379 (2.54 mm) |
+|---|---|---|
+| NSS / RST / BUSY / DIO1 / RF_SW | 41 / 42 / 40 / 39 / 38 | 5 / 3 / 4 / 2 / 6 |
+
+**The board in hand is the Kit.** That closes Bridge Impl Plan §2.3.1 finding 2 —
+*negatively*, and it is worth being blunt about because the failure it describes is
+silent: `firmware/simnode/CLAUDE.md` warned that a different variant would "stop
+validating GateLink's radio while still working perfectly." That is exactly the position
+we are in. The Kit validates the SX1262, the module's RF performance, RadioLib on a second
+board, and the injected-config seam. **It does not validate the carrier's net list.** The
+old rule holds unchanged: *XIAO validates the module; only the carrier validates the
+carrier.*
+
+Identification was by **interconnect, not silkscreen** — the stack is zip-tied and the
+underside is unreachable. That turned out to be the better discriminator anyway: B2B
+versus headers is what separates the two products.
+
+### §2.3.1 finding 1 closes positively, and the seam's first real test
+
+Both products' board-support definitions set a discrete RXEN **and**
+`DIO2_AS_RF_SWITCH`, confirming `gatelink-expansion-board.md` §7.3 as written. This could
+never be settled from documentation because Seeed publishes no module schematic; two
+independent variant definitions settle it.
+
+Which exposed the one real gap in R2: **`board.rf_sw` was a field nothing read.** The
+Heltec carries `kPinNone`, so the omission was invisible for the whole of pass 1. Pass 1
+predicted this by name — *"the first real test of the seam"* — and it is the single change
+GateLink actually depends on. `setRfSwitchPins(rxEn, txEn)`, parameter order checked
+against the pinned RadioLib 7.7.1 rather than assumed, because reversing it fails the same
+silent way everything else in `begin()` does.
+
+**It is the one unchecked radio call in that file** — it returns `void` in 7.7.1. Said out
+loud in the comment rather than left looking like a forgotten check.
+
+### The collision that did not happen
+
+The header board puts NSS on GPIO 5 and RF_SW on GPIO 6 — **directly on top of the
+expansion board's I2C bus**, which is D4/D5. Had that product arrived instead, this stack
+could not have worked, and the symptom would have been blamed on the radio or the panel
+rather than on the pairing.
+
+That was luck, not design, so it is now a `constexpr has_pin_conflict()` with a
+`static_assert` per profile and a host test that **builds the header-board map as a local
+literal and asserts the checker rejects it**. The bad map is deliberately not a constant in
+`board_config.h`: it must not be selectable, only provable.
+
+### What a second board turned into configuration
+
+R2 scoped a *radio* seam and scoped it correctly. It did not scope a *board* seam, because
+one board cannot reveal one. Pass 2 moved the display pins, the panel reset, the Vext rail
+and the role button into a `BoardUiConfig` — kept **separate** from `BoardRadioConfig`,
+which spec §12.2 cites and four firmwares inject into a driver. GateLink is headless and
+wants the radio config alone; that is the clearest argument for the split.
+
+The XIAO's role button is **GPIO 21**, on top of the Wio, reached across the B2B connector.
+Deliberately not GPIO 0: the R1 gesture is a press held across a reset, and GPIO 0 is the
+BOOT strap. The Heltec survives that only because selection happens in a window *after*
+boot, and there is no reason to point a second board at the download-mode strap when a
+plain GPIO is available.
+
+### The surprise, found while writing the environment
+
+**The XIAO's USB device is the ESP32 itself, not a separate bridge chip.** The Heltec's
+CP2102 stays enumerated across an MCU reset; the XIAO's does not — a reset tears the device
+down and the host re-enumerates over ~a second.
+
+Two things that are reliable on the Heltec may not be here, both silently: the serial role
+selector inside its 3 s window, and **`capture.py`'s boot window** — the same regression
+that destroyed a third of the 2026-09-05 campaign, now with less margin on a board it was
+never tuned against. The button selector is unaffected.
+
+**Not pre-solved.** Lengthening the window to a guessed number would be inventing a
+constant for a problem nobody has measured; the right value is how long *this* host takes
+to re-enumerate *this* board. X8 measures it.
+
+### The build finding, which host tests could not have caught
+
+`[env:xiao]` carries **`-Wno-error=cpp`** — the only place this project relaxes `-Werror`.
+
+RadioLib.h fires an unconditional `#warning` whenever `ARDUINO_USB_CDC_ON_BOOT == 1`
+("Use of USB CDC for debug output is not recommended"). The XIAO's board definition sets
+that macro, so the target does not build without the relaxation. The Heltec is unaffected —
+its CP2102 is a separate chip and the macro is 0 there.
+
+It is a false positive on both halves of its claim: it warns about *RadioLib's own* debug
+output, which is not enabled in either environment, and the hazard it names is "might stop
+on first sleep" on a mains-powered bench instrument that never sleeps.
+
+**What it costs is smaller than it looks.** `-Wno-error=cpp` *downgrades* `#warning` to a
+warning; it does not silence it. RadioLib's "unknown platform" and "low-end platform"
+warnings would still print in the build log. The signal is kept and only the enforcement
+is dropped, for one diagnostic class, in one environment.
+
+**A `#pragma GCC diagnostic ignored "-Wcpp"` around the include was tried first and does
+not work.** GCC issues `#warning` from libcpp and the diagnostic pragma does not apply to
+it — it does in Clang, which is exactly what makes the idea look correct. Written down so
+the next person does not spend the same twenty minutes.
+
+### State
+
+181 range-test host tests pass, 29 in `test_phy_params` (10 new). 107 protocol-library
+tests unaffected. **Both firmware targets build**: `heltec` 393,161 B flash, `xiao`
+382,529 B. No board has been flashed.
+
+### Lesson
+
+**A seam is only proved by the second thing that uses it.** R2's struct was right, its
+`rf_sw` field was right, and the field was dead code for a whole pass — because the only
+board in the room did not need it. The seam was not wrong; it was untested, and those look
+identical until the second board arrives.

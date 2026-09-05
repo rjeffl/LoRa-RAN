@@ -259,7 +259,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | # | Item | Blocks |
 |---|---|---|
 | M17 | **Copyright holder name for the LICENSE file** | **D31**, first public push |
-| M21 | **Confirm the SX1262 modules' own FCC grant conditions** — antenna type and gain, and what each grant assumes about power and hopping | **D33's "not a compliance determination" caveat**, and D1's TX power figure |
+| M21 | **Confirm the SX1262 modules' own FCC grant conditions** — antenna type and gain, and what each grant assumes about power and hopping. **Two distinct modules as of 2026-09-05**: the Heltec V3's onboard SX1262 and the Seeed **Wio-SX1262** (range-test pass 2). Their grants are separate questions and both are open | **D33's "not a compliance determination" caveat**, and D1's TX power figure |
 | M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
 | M19 | Airtime table regeneration once D1 fixes SF/BW/CR | Protocol Spec §15.1 (W7) |
 
