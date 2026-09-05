@@ -192,6 +192,105 @@ class Survey {
 };
 
 // ---------------------------------------------------------------------------
+// R11 - the campaign cursor and its HOLD state.
+//
+// WHY THIS EXISTS. Before R11 the scan never stopped: storing a site reset the
+// accumulator and resumed sampling immediately, so everything the radio heard while
+// the operator WALKED to the next site was folded into that site's run. Peak-hold
+// never forgets, so one burst heard in transit was attributed permanently to the site
+// being walked to. The 2026-09-05 campaign was collected that way and its peak column
+// is caveated in the trace because of it.
+//
+// There is no press pattern that avoids this - pressing on arrival rather than on
+// departure only moves the contamination to the site just left. It needs a state in
+// which the radio is not accumulating, which is what this is.
+//
+// THE CYCLE IS TWO PRESSES PER SITE. Arrive, press to start the dwell; when the dwell
+// is done, press to store and advance, which returns to HELD. The walk happens in
+// HELD and is not measured. Boot comes up HELD, because the operator is not standing
+// at site 0 when the board boots.
+//
+// This type owns the cursor and the phase and NOTHING else. Storing to NVS can fail -
+// the partition is small and fails by short write - and a cursor that advanced over a
+// site that was not written is a site silently lost. So the caller performs the store
+// and reports the outcome back through note_stored(); the cursor advances only on a
+// success. main.cpp keeps NVS and the radio, and this stays testable on the host.
+// ---------------------------------------------------------------------------
+
+enum class SurveyPhase : uint8_t {
+  Held,      // not accumulating. Walking, or waiting to be told to start.
+  Running,   // dwelling on this site, folding samples into the run
+};
+
+// What a PRG press means right now. The caller looks at this to decide what work to
+// do; nothing here performs it.
+enum class SurveyPress : uint8_t {
+  StartDwell,   // Held -> Running. Clear the accumulator and begin measuring.
+  StoreSite,    // Running -> store the run, then report back via note_stored()
+};
+
+class SurveyCampaign {
+ public:
+  size_t      site()  const { return site_; }
+  SurveyPhase phase() const { return phase_; }
+  bool        held()  const { return phase_ == SurveyPhase::Held; }
+
+  // True when the cursor is on the last site, so a store there has nowhere to
+  // advance to. The run is still stored; the cursor simply stays put.
+  bool on_last_site() const { return site_ + 1 >= kSurveySiteCount; }
+
+  SurveyPress classify_press() const {
+    return held() ? SurveyPress::StartDwell : SurveyPress::StoreSite;
+  }
+
+  // Held -> Running. The caller clears the accumulator; this only moves the phase.
+  void note_started() { phase_ = SurveyPhase::Running; }
+
+  // The caller attempted the store. On success the cursor advances (unless it is
+  // already on the last site) and the phase returns to Held, so the walk to the next
+  // site is not measured. On FAILURE nothing moves: the run stays in memory, still
+  // accumulating, and the operator can press again or read it out over serial.
+  // Returns true when the cursor advanced.
+  bool note_stored(bool ok) {
+    if (!ok) return false;
+    phase_ = SurveyPhase::Held;
+    if (on_last_site()) return false;
+    ++site_;
+    return true;
+  }
+
+  // Cursor corrections ('n' and 'b'), which store nothing. Both drop to Held: the
+  // accumulator is cleared under them, and resuming a dwell is the operator's call.
+  bool next_site() {
+    if (on_last_site()) return false;
+    ++site_;
+    phase_ = SurveyPhase::Held;
+    return true;
+  }
+  bool prev_site() {
+    if (site_ == 0) return false;
+    --site_;
+    phase_ = SurveyPhase::Held;
+    return true;
+  }
+
+  // Restoring the persisted cursor at boot. Always lands in Held - see above.
+  void restore_site(size_t site) {
+    site_  = (site < kSurveySiteCount) ? site : kSurveySiteCount - 1;
+    phase_ = SurveyPhase::Held;
+  }
+
+  void reset() {
+    site_  = 0;
+    phase_ = SurveyPhase::Held;
+  }
+
+ private:
+  size_t      site_  = 0;
+  SurveyPhase phase_ = SurveyPhase::Held;
+};
+
+// ---------------------------------------------------------------------------
 // R8's CSV. A SECOND schema, not an extension of R7's.
 //
 // The task allows either. Two schemas because the two traces have nothing in common

@@ -1432,3 +1432,102 @@ firmware task.
   fingerprint of software, not of RF.
 - **Beware concluding from the survivors.** The clean-channel finding was drawn from
   exactly the sites whose data made it through.
+
+---
+
+## 2026-09-05 — R11: the survey stops measuring the walk
+
+The M20 campaign measured the walk between sites and filed it under the destination.
+This is the fix. Branch `range/r11-survey-hold`.
+
+### The defect, stated precisely
+
+`survey_store_and_advance()` called `g_survey.reset()` and returned, and the scan loop
+carried straight on sampling. So from the moment the operator pressed PRG at one site to
+the moment they arrived at the next, the radio was folding the *path between them* into
+the next site's run.
+
+For the floor and the mean that barely matters — the floor is stationary and min-held,
+and a few minutes of walking against a five-minute dwell hardly moves a mean that is
+sitting on the floor anyway. For `peak_dbm10` it is fatal, because **a peak hold never
+forgets**: one burst heard while walking past an emitter is credited permanently to a
+site the operator had not yet reached.
+
+**There is no press pattern that avoids it.** Pressing on arrival rather than on
+departure only moves the contamination from the destination to the site just left; the
+accumulator is running either way. That is worth writing down because it was the first
+thing tried, and it is the kind of fix that looks right until you draw the timeline.
+
+### The shape of the fix
+
+A phase, not a rule. `SurveyCampaign` in `survey.h` holds the cursor and a `Held` /
+`Running` phase, and the scan loop returns early while held.
+
+**Two presses per site**: one on arrival to start the dwell, one when it is done to store
+and advance, which returns to `Held`. The walk happens in `Held` and is not measured.
+
+Three decisions inside that are worth their reasoning:
+
+- **The accumulator is cleared when the dwell STARTS**, not when the previous site was
+  stored. Otherwise a long hold — a rest, a gate to open, a conversation — accumulates
+  into the next site's run and the hold state buys nothing.
+- **`SurveyCampaign` does not own NVS.** A store fails by short write on a 20 kB
+  partition, and a cursor that advanced over a site that was not written is a site
+  silently lost. So the caller performs the store and reports the outcome through
+  `note_stored(ok)`; on failure **nothing moves** — cursor put, phase still `Running`, run
+  still in memory and still accumulating, so the operator can press again or read it out.
+  Dropping to `Held` on a failure would quietly stop measuring a site the operator
+  believes is live, which is the worse of the two failures.
+- **Boot and power cycle come up `Held`.** The board has no battery and every move between
+  laptop and power bank is a power cycle; coming back `Running` would measure the walk
+  from wherever it was switched on.
+
+The OLED gets an inverted `HELD` bar, for the same reason `show_sweep_done` has one: at
+arm's length through a shading hand, "walking, not measuring" versus "measuring" has to
+survive a glance that reads no words. Getting it wrong in the scanning direction
+contaminates the run; getting it wrong in the held direction wastes a five-minute dwell
+that measured nothing.
+
+### `# hold_discipline=1`
+
+A reader cannot tell a clean run from a transit-contaminated one from the numbers. So the
+per-site preamble says which firmware produced it. `2026-09-05-survey-campaign.csv` is the
+one committed trace without the line, and its caveat stays.
+
+This is the same lesson as `bins_sampled`, one entry earlier: **record the instrument's
+own view of its work.** Both times the missing line was the one that would have collapsed
+the diagnosis.
+
+### 12 host tests, and one that would have caught the last bug
+
+`SurveyCampaign` is Arduino-free and radio-free like the rest of `survey.h`, so every
+transition is host-testable: the failed store that moves nothing, the retry after it, the
+last site that stores without advancing, the cursor corrections that drop to `Held`, the
+stale cursor that is clamped rather than trusted, and the power cycle that resumes held.
+133 tests to 145.
+
+### The tool had no tests at all
+
+Worth stating on its own. The defect that destroyed a third of the 2026-09-05 campaign was
+in `capture.py`, and **nothing in this repo tested `capture.py`**. Every test covered the
+firmware; the tool that turns the firmware's output into committed evidence was untested,
+and it is the component with the most direct path from a small mistake to lost data.
+
+`tools/rangetest/test_capture.py` now exists. The regression under test is blunt — **the
+boot window must read the port** — and the boot window was extracted into
+`drive_boot_window()` with injected time so a 3.5 s window costs nothing to test.
+
+Verified the test has teeth by reintroducing the bug: four assertions fail, naming the
+drain. A regression test that has never been seen to fail is a comment.
+
+It also pins something easy to break by accident: **none of R11's new `#` lines may
+contain a completion marker.** `capture.py` matches those as substrings anywhere in a `#`
+line, so a carelessly worded firmware message silently truncates a capture — that trap
+cost a bench run on 2026-09-04 and is now asserted rather than remembered.
+
+### Not done here
+
+The campaign has not been re-walked. The trace in the repo is the contaminated one, its
+caveat stands, and **M20's occupant inventory is still not evidence** — R11 makes the next
+campaign clean, it does not retroactively clean this one. D1 continues to wait on that
+walk and on M21.

@@ -153,6 +153,20 @@ time**. So:
 That asymmetry is why `passes` and `samples` are recorded per bin: a reader has to be able
 to see how hard the survey looked before believing that it found nothing.
 
+### `# hold_discipline=1` — whether the peaks mean what they say
+
+**R11, 2026-09-05.** A survey trace's per-site preamble carries this line when the
+firmware that produced it **held the scan between sites**. Where it appears,
+`peak_dbm10` is site-attributable.
+
+**A trace without it predates R11.** That firmware scanned continuously, so everything
+the operator's radio heard while walking to a site was folded into that site's run — and
+because the peak is a *hold*, one burst heard in transit is credited permanently to the
+destination. Floor and mean survive it; the occupant list does not.
+
+There is no way to tell the two apart from the numbers, which is exactly why the line
+exists. `2026-09-05-survey-campaign.csv` is the one committed trace without it.
+
 ### Columns 6 and 7 are separate on purpose
 
 **D33 standing condition 1.** The Part 15.249 ceiling is on **EIRP**, which is conducted

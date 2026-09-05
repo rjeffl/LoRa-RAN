@@ -403,37 +403,38 @@ Power-cycle as often as you like — swapping the power bank between sites is fr
 **If you need to move the cursor without storing** — a site skipped, or a mis-set cursor —
 `n` advances and `b` steps back, neither of which writes anything. Both need the laptop.
 
-The OLED shows the **site name** it will file under, the pass count as a large number, and
-the loudest bin found so far.
+While scanning, the OLED shows the **site name** it will file under, the pass count as a
+large number, and the loudest bin found so far. While **held** it shows an inverted `HELD`
+bar, the site name the next dwell will be filed under, and how far through the campaign
+you are.
 
 ### At each site
 
-1. Stand still and **let it run for several minutes.** The pass count is the big number
+1. **Press PRG to start the dwell.** The inverted `HELD` bar clears and the pass count
+   starts climbing. **Nothing is measured until you do this** — the walk in was not
+   counted, which is the point.
+2. Stand still and **let it run for several minutes.** The pass count is the big number
    and it should climb steadily — that is also how you know the board has not hung.
-2. **Press PRG once.** It stores this site and advances to the next one, clearing the
-   accumulator for a fresh run. The OLED site name changes; that is your confirmation.
-3. Walk to the next site. Repeat.
+3. **Press PRG again.** It stores this site, advances to the next, and returns to
+   `HELD`. The OLED shows `HELD`, the next site's name, and `PRG = start dwell`.
+4. Walk to the next site. Repeat from step 1.
 
-> **Known limitation: the walk between sites is measured.** The scan never stops, so
-> whatever the radio hears in transit is folded into the next site's run — and because
-> `peak_dbm10` is a peak hold, one burst heard while walking past an emitter is
-> attributed permanently to the site you were heading for.
->
-> **There is no press pattern that avoids this.** Pressing on arrival instead of on
-> departure only moves the contamination from the destination site to the one you just
-> left; the accumulator is running either way. Every site except the first carries its
-> inbound transit, and that is inherent to the current firmware.
->
-> What this costs: the **occupant inventory** is not reliably site-attributable. The
-> **floor and the mean are unaffected** — the floor is stationary and min-held, and a few
-> minutes of walking against a five-minute dwell barely moves a mean that sits on the
-> floor anyway — so anything that depends on floor or mean, which is what §12.1 actually
-> asks for, is sound.
->
-> The 2026-09-05 campaign was run this way and its peak column is caveated in the trace
-> header. **The fix is a survey hold state in the firmware**, filed as the next task; if
-> you are tethered you can approximate it by sending `x` on arrival to clear the transit
-> before the dwell begins.
+**Two presses per site: one to start, one to store.** The walk between them is not
+measured.
+
+> **The `HELD` bar is the thing to check.** Inverted bar means walking, not measuring.
+> Pass count climbing means measuring. Getting this wrong in the scanning direction
+> contaminates the run; getting it wrong in the held direction wastes a five-minute
+> dwell that measured nothing. Both are visible at arm's length through a shading hand.
+
+> **Boot comes up HELD**, and so does a power cycle — the board has no battery, and the
+> move between laptop and power bank is a power cycle. It resumes at the right site and
+> waits for you to press.
+
+> **Traces before 2026-09-05 do not have this.** That firmware scanned continuously, so
+> its peak column carries bursts heard in transit and is caveated in the trace header.
+> A trace whose per-site preamble says `# hold_discipline=1` was collected with the hold
+> state and its peaks are site-attributable.
 
 > **How long is "several minutes"?** Longer than feels necessary. The noise floor settles
 > in seconds, but occupancy detection is **probabilistic**: one radio listening to one

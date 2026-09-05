@@ -83,6 +83,20 @@ class Ui {
                    uint32_t loudest_freq_hz, int16_t loudest_peak_dbm10,
                    bool saved);
 
+  // R11 - HELD, the phase in which the survey is deliberately measuring nothing.
+  //
+  // Inverted bar for the same reason show_sweep_done has one: the operator is glancing
+  // at a hand-shaded panel in sunlight, and "walking, not measuring" versus "measuring"
+  // must survive a glance that reads no words at all. Getting this wrong in the
+  // scanning direction contaminates the run; getting it wrong in the held direction
+  // wastes a five-minute dwell that measured nothing.
+  //
+  // The site name is the site the NEXT dwell will be filed under, and the counter says
+  // how far through the campaign the operator is - the two things worth knowing while
+  // walking with no laptop.
+  void show_survey_held(const char* site_name, size_t site_index, size_t site_count,
+                        bool saved);
+
   // R5/R10 - THE WALKING OPERATOR'S GO SIGNAL.
   //
   // Shown on the RESPONDER when the initiator's armed beacon says the sweep for this
