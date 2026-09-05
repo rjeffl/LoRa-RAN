@@ -226,6 +226,46 @@ void Ui::show_survey(const char* site_name, uint32_t passes, uint32_t freq_hz_no
   display_.display();
 }
 
+void Ui::show_survey_held(const char* site_name, size_t site_index, size_t site_count,
+                          bool saved) {
+  if (!ok_) return;
+
+  char top[24];
+  char foot[32];
+  std::snprintf(top, sizeof(top), "site %u/%u",
+                static_cast<unsigned>(site_index + 1),
+                static_cast<unsigned>(site_count));
+  // The press is the only thing the operator has to do, so it is the footer. `saved`
+  // distinguishes "held after storing the last site" from "held, nothing stored yet",
+  // which is the difference between a campaign in progress and one that lost a run.
+  std::snprintf(foot, sizeof(foot), "%sPRG = start dwell",
+                saved ? "saved. " : "");
+
+  display_.clear();
+  draw_role_badge(Role::Survey);
+
+  display_.setColor(WHITE);
+  display_.fillRect(0, kRowBig - 2, kWidth, 32);
+  display_.setColor(BLACK);
+  display_.setFont(ArialMT_Plain_24);
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.drawString(2, kRowBig, "HELD");
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  // Inside the bar: the site the next dwell will be filed under. Wrong site is the
+  // error that survives the walk home intact.
+  display_.drawString(kWidth - 2, kRowBig + 12, site_name);
+  display_.setColor(WHITE);   // restore, or everything after this is invisible
+
+  display_.setFont(ArialMT_Plain_10);
+  display_.setTextAlignment(TEXT_ALIGN_RIGHT);
+  display_.drawString(kWidth, kRowTop, top);
+
+  display_.setTextAlignment(TEXT_ALIGN_LEFT);
+  display_.drawString(0, kRowFoot, foot);
+  display_.display();
+}
+
 void Ui::show_sweep_done(uint16_t position_id, float last_rssi_dbm) {
   if (!ok_) return;
 

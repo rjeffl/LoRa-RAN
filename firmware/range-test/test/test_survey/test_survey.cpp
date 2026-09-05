@@ -400,6 +400,142 @@ static void test_the_whole_campaign_fits_the_nvs_partition() {
   TEST_ASSERT_LESS_THAN(20480 - 4096, campaign);
 }
 
+// ---------------------------------------------------------------------------
+// R11 - the campaign cursor and its hold state.
+//
+// This exists because the 2026-09-05 campaign measured the WALK between sites and
+// filed it under the destination. Peak-hold never forgets, so a burst heard in transit
+// became a permanent occupant of a site the operator was only walking towards. These
+// tests pin the state machine that stops it; the transitions are cheap to get subtly
+// wrong and expensive to discover in the field, a week's walk later.
+// ---------------------------------------------------------------------------
+
+void test_campaign_boots_held_at_site_zero() {
+  SurveyCampaign c;
+  // Held, not Running: the operator is not standing at site 0 when the board boots,
+  // and a scan that started itself would charge the walk in to the run.
+  TEST_ASSERT_TRUE(c.held());
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+}
+
+void test_press_while_held_starts_the_dwell_without_moving_the_cursor() {
+  SurveyCampaign c;
+  TEST_ASSERT_EQUAL(static_cast<int>(SurveyPress::StartDwell),
+                    static_cast<int>(c.classify_press()));
+  c.note_started();
+  TEST_ASSERT_FALSE(c.held());
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+}
+
+void test_press_while_running_stores_and_returns_to_held_on_the_next_site() {
+  SurveyCampaign c;
+  c.note_started();
+  TEST_ASSERT_EQUAL(static_cast<int>(SurveyPress::StoreSite),
+                    static_cast<int>(c.classify_press()));
+  TEST_ASSERT_TRUE(c.note_stored(true));      // advanced
+  TEST_ASSERT_EQUAL_UINT32(1, c.site());
+  // HELD is the whole point: the walk to site 1 must not be measured.
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_a_failed_store_moves_nothing_at_all() {
+  SurveyCampaign c;
+  c.note_started();
+  TEST_ASSERT_FALSE(c.note_stored(false));
+  // Cursor put AND still Running. Advancing over a site that was not written is a
+  // site silently lost - the NVS partition is small and fails by short write - and
+  // dropping to Held would quietly stop measuring a site the operator thinks is live.
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+  TEST_ASSERT_FALSE(c.held());
+}
+
+void test_a_retry_after_a_failed_store_still_works() {
+  SurveyCampaign c;
+  c.note_started();
+  c.note_stored(false);
+  TEST_ASSERT_EQUAL(static_cast<int>(SurveyPress::StoreSite),
+                    static_cast<int>(c.classify_press()));
+  TEST_ASSERT_TRUE(c.note_stored(true));
+  TEST_ASSERT_EQUAL_UINT32(1, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_a_full_campaign_walks_every_site_once() {
+  SurveyCampaign c;
+  for (size_t i = 0; i < kSurveySiteCount; ++i) {
+    TEST_ASSERT_EQUAL_UINT32(i, c.site());
+    TEST_ASSERT_TRUE(c.held());
+    c.note_started();
+    TEST_ASSERT_FALSE(c.held());
+    c.note_stored(true);
+  }
+  // Seven sites stored, cursor parked on the last one.
+  TEST_ASSERT_EQUAL_UINT32(kSurveySiteCount - 1, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_the_last_site_stores_but_does_not_advance() {
+  SurveyCampaign c;
+  c.restore_site(kSurveySiteCount - 1);
+  c.note_started();
+  TEST_ASSERT_TRUE(c.on_last_site());
+  // No advance - there is nowhere to go - but the phase still returns to Held so the
+  // board is not left silently accumulating over a run it has already stored.
+  TEST_ASSERT_FALSE(c.note_stored(true));
+  TEST_ASSERT_EQUAL_UINT32(kSurveySiteCount - 1, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_cursor_corrections_store_nothing_and_drop_to_held() {
+  SurveyCampaign c;
+  c.note_started();
+  TEST_ASSERT_TRUE(c.next_site());
+  TEST_ASSERT_EQUAL_UINT32(1, c.site());
+  TEST_ASSERT_TRUE(c.held());
+
+  c.note_started();
+  TEST_ASSERT_TRUE(c.prev_site());
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_cursor_corrections_stop_at_the_ends() {
+  SurveyCampaign c;
+  TEST_ASSERT_FALSE(c.prev_site());
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+
+  c.restore_site(kSurveySiteCount - 1);
+  TEST_ASSERT_FALSE(c.next_site());
+  TEST_ASSERT_EQUAL_UINT32(kSurveySiteCount - 1, c.site());
+}
+
+void test_restoring_a_stale_cursor_is_clamped_not_trusted() {
+  SurveyCampaign c;
+  // A cursor persisted by a build with a longer site list would otherwise index off
+  // the end of the name table.
+  c.restore_site(9999);
+  TEST_ASSERT_EQUAL_UINT32(kSurveySiteCount - 1, c.site());
+}
+
+void test_a_power_cycle_resumes_held() {
+  SurveyCampaign c;
+  c.note_started();
+  // A power cycle happens between sites, with the board in a bag or on a charger.
+  // Coming back Running would measure whatever the walk to the next site heard.
+  c.restore_site(3);
+  TEST_ASSERT_EQUAL_UINT32(3, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
+void test_reset_returns_to_the_boot_state() {
+  SurveyCampaign c;
+  c.restore_site(4);
+  c.note_started();
+  c.reset();
+  TEST_ASSERT_EQUAL_UINT32(0, c.site());
+  TEST_ASSERT_TRUE(c.held());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_every_site_has_a_name_and_out_of_range_does_not_read_off_the_end);
@@ -433,5 +569,17 @@ int main(int, char**) {
   RUN_TEST(test_an_unsampled_bin_reports_sentinels_not_zero);
   RUN_TEST(test_row_refuses_a_short_buffer_rather_than_truncating);
   RUN_TEST(test_row_without_a_bin_is_refused);
+  RUN_TEST(test_campaign_boots_held_at_site_zero);
+  RUN_TEST(test_press_while_held_starts_the_dwell_without_moving_the_cursor);
+  RUN_TEST(test_press_while_running_stores_and_returns_to_held_on_the_next_site);
+  RUN_TEST(test_a_failed_store_moves_nothing_at_all);
+  RUN_TEST(test_a_retry_after_a_failed_store_still_works);
+  RUN_TEST(test_a_full_campaign_walks_every_site_once);
+  RUN_TEST(test_the_last_site_stores_but_does_not_advance);
+  RUN_TEST(test_cursor_corrections_store_nothing_and_drop_to_held);
+  RUN_TEST(test_cursor_corrections_stop_at_the_ends);
+  RUN_TEST(test_restoring_a_stale_cursor_is_clamped_not_trusted);
+  RUN_TEST(test_a_power_cycle_resumes_held);
+  RUN_TEST(test_reset_returns_to_the_boot_state);
   return UNITY_END();
 }

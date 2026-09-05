@@ -174,9 +174,11 @@ uint32_t   g_survey_bin_ends_ms   = 0;   // when this bin's dwell expires
 uint32_t   g_survey_listen_at_ms  = 0;   // when the settle time is up
 uint32_t   g_survey_next_sample   = 0;
 bool       g_survey_saved         = false;
-// Which site the run in progress belongs to. Advanced by PRG, exactly as the
-// responder's position is (R5) - same button, same meaning, same muscle memory.
-size_t     g_survey_site           = 0;
+// R11 - the cursor AND the hold phase. Advanced by PRG, exactly as the responder's
+// position is (R5) - same button, same muscle memory - but two presses per site now:
+// one on arrival to start the dwell, one when it is done to store and move on. The
+// walk between sites happens in Held and is not measured. See survey.h.
+SurveyCampaign g_campaign;
 uint32_t   g_survey_next_draw_ms  = 0;
 
 // Progress to the console every so often. Not decoration: a survey run is minutes of
@@ -525,7 +527,7 @@ int16_t to_tenths(float v) {
 
 void survey_save_site_cursor() {
   if (!g_prefs.begin(kNvsNamespace, /* readOnly */ false)) return;
-  g_prefs.putUShort(kNvsSurveySiteKey, static_cast<uint16_t>(g_survey_site));
+  g_prefs.putUShort(kNvsSurveySiteKey, static_cast<uint16_t>(g_campaign.site()));
   g_prefs.end();
 }
 
@@ -565,25 +567,47 @@ bool survey_save_site(size_t site) {
   return false;
 }
 
-// PRG in survey mode: store this site and start the next one. The same gesture the
-// walk uses to mark a position, so the operator learns one button for both jobs.
-void survey_store_and_advance() {
-  g_survey_saved = survey_save_site(g_survey_site);
-  if (!g_survey_saved) return;   // do NOT advance over a run that was not stored
-
-  if (g_survey_site + 1 >= kSurveySiteCount) {
-    Serial.println(F("# all sites stored - staying on the last one. 'a' dumps them "
-                     "all."));
+// R11 - PRG in survey mode. The same gesture the walk uses to mark a position, so the
+// operator learns one button for both jobs, but it now means one of two things:
+//
+//   HELD    -> start the dwell at this site. Clears the accumulator first, so nothing
+//              heard on the walk in is counted.
+//   RUNNING -> store the run and advance, returning to HELD for the walk out.
+//
+// Two presses per site, and the walk between them is not measured. Before R11 the scan
+// never stopped and every site carried its inbound transit into a peak hold that never
+// forgets; see survey.h and the engineering log, 2026-09-05.
+void survey_prg_press() {
+  if (g_campaign.classify_press() == SurveyPress::StartDwell) {
+    // Cleared HERE, not on the store, so a long hold accumulates nothing: whatever the
+    // radio picked up while walking is discarded at the moment the dwell begins.
+    g_survey.reset();
+    g_survey_saved = false;
+    g_campaign.note_started();
+    Serial.print(F("# survey RUNNING at site "));
+    Serial.print(static_cast<unsigned>(g_campaign.site()));
+    Serial.print(' ');
+    Serial.println(survey_site_name(g_campaign.site()));
     return;
   }
-  ++g_survey_site;
+
+  g_survey_saved = survey_save_site(g_campaign.site());
+  // A failed store leaves the phase RUNNING and the cursor put: the run stays in
+  // memory and still accumulating, so the operator can press again or read it out.
+  // Advancing over a site that was not written is a site silently lost.
+  if (!g_campaign.note_stored(g_survey_saved)) {
+    if (g_survey_saved) {
+      Serial.println(F("# all sites stored - staying on the last one. 'a' dumps them "
+                       "all."));
+    }
+    return;
+  }
   survey_save_site_cursor();   // survives the next power cycle
-  g_survey.reset();
-  g_survey_saved = false;
-  Serial.print(F("# survey site -> "));
-  Serial.print(static_cast<unsigned>(g_survey_site));
+  Serial.print(F("# survey HELD - walk to site "));
+  Serial.print(static_cast<unsigned>(g_campaign.site()));
   Serial.print(' ');
-  Serial.println(survey_site_name(g_survey_site));
+  Serial.print(survey_site_name(g_campaign.site()));
+  Serial.println(F(", then press PRG to start the dwell"));
 }
 
 // Loads one site's stored run INTO g_survey, replacing whatever is there. True when
@@ -622,7 +646,9 @@ void survey_load_site_cursor() {
     const uint16_t v = g_prefs.getUShort(kNvsSurveySiteKey, 0);
     // Clamped rather than trusted: a stale cursor from a shorter site list would
     // otherwise index off the end of the name table.
-    g_survey_site = (v < kSurveySiteCount) ? v : kSurveySiteCount - 1;
+    // Always restored HELD (R11): a power cycle happens between sites, with the
+    // board in a bag or on a charger, and resuming a dwell is the operator's call.
+    g_campaign.restore_site(v);
   }
   g_prefs.end();
 }
@@ -636,7 +662,7 @@ void survey_clear_nvs() {
   }
   if (g_prefs.isKey(kNvsSurveySiteKey)) g_prefs.remove(kNvsSurveySiteKey);
   g_prefs.end();
-  g_survey_site = 0;
+  g_campaign.reset();
   Serial.println(F("# all stored surveys erased from NVS, site cursor reset"));
 }
 
@@ -651,6 +677,10 @@ void survey_dump(size_t site, bool standalone) {
   Serial.print(F("# site=")); Serial.print(static_cast<unsigned>(site));
   Serial.print(' '); Serial.println(survey_site_name(site));
   Serial.print(F("# passes=")); Serial.println(g_survey.passes());
+  // R11 provenance. Pre-R11 firmware scanned continuously between sites, so its
+  // peak column carries bursts heard in transit. A reader cannot tell the two apart
+  // from the numbers, so the trace says which firmware produced it.
+  Serial.println(F("# hold_discipline=1"));
   Serial.print(F("# bins_sampled=")); Serial.print(g_survey.bins_sampled());
   Serial.print(F(" of ")); Serial.println(kSurveyBinCount);
   Serial.print(F("# dwell_ms=")); Serial.print(g_survey_plan.dwell_ms);
@@ -764,8 +794,11 @@ void survey_dump_plan() {
                    "several minutes; a quiet bin is not a proven empty one."));
   Serial.print(F("sites=")); Serial.println(static_cast<unsigned>(kSurveySiteCount));
   Serial.println(F("# keys: d=dump this site  a=dump ALL stored  s=store here  "
-                   "p=store+next site (same as PRG)"));
+                   "p=PRG press (start dwell, or store+next)"));
   Serial.println(F("#       n=next site (no store)  b=previous site (no store)"));
+  Serial.println(F("# R11: the scan is HELD between sites. Two presses per site - one\n"
+                   "#      on arrival to start the dwell, one when it is done to store\n"
+                   "#      and move on. The walk between them is not measured."));
   Serial.println(F("#       x=clear memory  z=erase all stored  [ ]=dwell -/+ 10ms"));
   Serial.println(F("--- end survey plan ---"));
 }
@@ -773,18 +806,18 @@ void survey_dump_plan() {
 void loop_survey() {
   // PRG stores this site and moves to the next. The sites have no laptop; this is
   // the whole reason the blob exists.
-  if (prg_edge()) survey_store_and_advance();
+  if (prg_edge()) survey_prg_press();
 
   while (Serial.available() > 0) {
     const int ch = Serial.read();
     if (ch == 'd' || ch == 'D') {
-      survey_dump(g_survey_site, /* standalone */ true);  // the run in progress
+      survey_dump(g_campaign.site(), /* standalone */ true);  // the run in progress
     } else if (ch == 'a' || ch == 'A') {
       survey_dump_all(/* restore_current */ true);   // everything stored
     } else if (ch == 's' || ch == 'S') {
-      g_survey_saved = survey_save_site(g_survey_site);  // store, do not advance
+      g_survey_saved = survey_save_site(g_campaign.site());  // store, do not advance
     } else if (ch == 'p' || ch == 'P') {
-      survey_store_and_advance();          // same as PRG, for the tethered bench
+      survey_prg_press();                  // same as PRG, for the tethered bench
     } else if (ch == 'x' || ch == 'X') {
       g_survey.reset();
       g_survey_saved = false;
@@ -795,28 +828,26 @@ void loop_survey() {
       // Advance WITHOUT storing. The store-and-advance path would write the run in
       // progress over whatever is already in the next slot, so correcting a cursor
       // must not go through it.
-      if (g_survey_site + 1 < kSurveySiteCount) {
-        ++g_survey_site;
+      if (g_campaign.next_site()) {
         survey_save_site_cursor();
         g_survey.reset();
         g_survey_saved = false;
         Serial.print(F("# survey site -> "));
-        Serial.print(static_cast<unsigned>(g_survey_site));
+        Serial.print(static_cast<unsigned>(g_campaign.site()));
         Serial.print(' ');
-        Serial.print(survey_site_name(g_survey_site));
-        Serial.println(F(" (skipped, nothing stored)"));
+        Serial.print(survey_site_name(g_campaign.site()));
+        Serial.println(F(" (skipped, nothing stored, HELD)"));
       }
     } else if (ch == 'b' || ch == 'B') {
-      if (g_survey_site > 0) {
-        --g_survey_site;
+      if (g_campaign.prev_site()) {
         survey_save_site_cursor();
         g_survey.reset();
         g_survey_saved = false;
         Serial.print(F("# survey site -> "));
-        Serial.print(static_cast<unsigned>(g_survey_site));
+        Serial.print(static_cast<unsigned>(g_campaign.site()));
         Serial.print(' ');
-        Serial.print(survey_site_name(g_survey_site));
-        Serial.println(F(" (stepped back, nothing stored)"));
+        Serial.print(survey_site_name(g_campaign.site()));
+        Serial.println(F(" (stepped back, nothing stored, HELD)"));
       }
     } else if (ch == '[' && g_survey_plan.dwell_ms > 10) {
       // Rule 8 - the timing is data, adjustable at runtime, not a compile-time
@@ -834,6 +865,22 @@ void loop_survey() {
   }
 
   const uint32_t now = millis();
+
+  // R11 - HELD. The scan does not advance and does not sample, so the walk between
+  // sites is not folded into the next site's run. The display still refreshes, because
+  // a board that has gone blank at the moment the operator arrives is a board they
+  // cannot tell from a crashed one.
+  //
+  // The radio is left in RX and simply not read. Nothing here transmits in either
+  // phase, which is the property the whole mode rests on.
+  if (g_campaign.held()) {
+    if (static_cast<int32_t>(now - g_survey_next_draw_ms) >= 0) {
+      g_survey_next_draw_ms = now + kSurveyDrawIntervalMs;
+      g_ui.show_survey_held(survey_site_name(g_campaign.site()),
+                            g_campaign.site(), kSurveySiteCount, g_survey_saved);
+    }
+    return;
+  }
 
   if (static_cast<int32_t>(now - g_survey_bin_ends_ms) >= 0) {
     ++g_survey_bin;
@@ -866,7 +913,7 @@ void loop_survey() {
   if (static_cast<int32_t>(now - g_survey_next_draw_ms) >= 0) {
     g_survey_next_draw_ms = now + kSurveyDrawIntervalMs;
     const size_t loud = g_survey.loudest_bin();
-    g_ui.show_survey(survey_site_name(g_survey_site),
+    g_ui.show_survey(survey_site_name(g_campaign.site()),
                      g_survey.passes(), survey_bin_freq_hz(g_survey_bin),
                      loud < kSurveyBinCount ? survey_bin_freq_hz(loud) : 0,
                      loud < kSurveyBinCount ? g_survey.bin(loud).rssi_dbm10.max
@@ -953,9 +1000,12 @@ void setup() {
     g_survey_saved = false;
     survey_load_site_cursor();
     Serial.print(F("# resuming campaign at site "));
-    Serial.print(static_cast<unsigned>(g_survey_site));
+    Serial.print(static_cast<unsigned>(g_campaign.site()));
     Serial.print(' ');
-    Serial.println(survey_site_name(g_survey_site));
+    Serial.print(survey_site_name(g_campaign.site()));
+    // R11 - boot comes up HELD. The operator is not standing at the site when the
+    // board boots, and a scan that started itself would charge the walk in to the run.
+    Serial.println(F(" - HELD, press PRG to start the dwell"));
 
     survey_dump_plan();
     char shdr[kSurveyCsvMaxLine];

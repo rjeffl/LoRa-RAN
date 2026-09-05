@@ -101,8 +101,9 @@ pio test -d lib/lran-protocol -e esp32s3      # 110 on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 
-pio test -d firmware/range-test -e native     # 17 Unity tests, host (D33 clamp, R3 dump)
+pio test -d firmware/range-test -e native     # 145 Unity tests, host
 pio run  -d firmware/range-test -e heltec     # range test target build
+python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
 ```
 
 These are the shape the firmware targets take once they exist:

@@ -99,6 +99,16 @@ frame handling runs. Keep it that way.
 - **The settle time after each retune is a measurement, not a delay.** The SX1262's RSSI
   climbs while its AGC settles; sampling through it drags every bin's mean down by the same
   amount, which looks exactly like a clean, quiet band.
+- **The scan is HELD between sites (R11).** Two PRG presses per site: one on arrival to
+  start the dwell, one when it is done to store and advance. Before R11 the scan never
+  stopped, so the walk to each site was folded into that site's run and a burst heard in
+  transit became a permanent occupant of a peak hold. **No press pattern avoids that** -
+  pressing on arrival only moves the contamination to the site just left - so it needs the
+  phase. `SurveyCampaign` in `survey.h` owns the cursor and the phase and **not** NVS: a
+  store fails by short write, and a cursor that advanced over an unwritten site is a site
+  silently lost, so the caller reports the outcome back through `note_stored()`.
+  Boot and power cycle come up **Held**. Traces carry `# hold_discipline=1`; ones without
+  it predate R11 and their peak column is caveated.
 - **The site cursor is persisted, the role is not.** R1 governs the ROLE (a power cycle
   re-asks); campaign PROGRESS is different and must survive, because this board has no
   battery and every move between laptop and power bank is a power cycle. Without it the
@@ -186,7 +196,12 @@ an output-power value.
 pio test -d firmware/range-test -e native      # host: the D33 clamp and the R3 dump
 pio run  -d firmware/range-test -e heltec      # target build
 pio run  -d firmware/range-test -e heltec -t upload
+~/.platformio/penv/bin/python tools/rangetest/test_capture.py   # the capture tool
 ```
+
+**`capture.py` has host tests now, and it needs them.** The defect that destroyed a third
+of the 2026-09-05 campaign was in the tool, not the firmware, and nothing in the repo
+tested the tool at all. PlatformIO's python, not a bare `python3`.
 
 **Do not hardcode `upload_port` / `monitor_port`** (R1). The Kubuntu field machine and the
 macOS build machine enumerate the CP2102 differently, and either board may end up on
@@ -205,6 +220,7 @@ analyser is the wrong place to discover a rounding bug.
 | `range/sweep` | R4–R7 | A full automated sweep runs and emits CSV |
 | `range/survey` | R8 | Ambient scan produces a trace at both locations |
 | `range/w9` | R9 | 222-byte and fragmented `PING` pass over RF |
+| `range/r11-survey-hold` | R11 | A campaign walked with the hold state; peaks site-attributable |
 
 R10 is fieldwork, not a branch.
 

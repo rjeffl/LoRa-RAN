@@ -74,6 +74,43 @@ COMPLETION_MARKERS = ("sweep complete", "survey dump complete",
                       "survey campaign complete", "responder log complete")
 
 
+# The role-selection window in the firmware is 3 s (see src/role.h); this overshoots
+# it so a slow boot cannot land outside.
+BOOT_WINDOW_S = 3.5
+
+
+def drive_boot_window(ser, role_key, seconds=BOOT_WINDOW_S,
+                      now=time.monotonic, sleep=time.sleep):
+    """Hold the role-selection window open, DRAINING the port throughout.
+
+    Returns the chunks read during the window, for the caller to parse with the rest.
+
+    THE DRAINING IS THE POINT, and this is a function so it can be tested without a
+    board. It used to be a bare `time.sleep` loop that wrote role keys and never read,
+    and the board is not quiet here: in survey mode it prints the settings dump and
+    then an entire seven-site campaign at boot, ~55 kB. The tty buffer holds ~17.9 kB
+    and silently discards everything after that until something reads, so the
+    2026-09-05 campaign lost 19184 consecutive bytes - two whole sites - at the same
+    byte offset on every run. Deterministic loss looks exactly like a firmware bug,
+    and that is where two days of the diagnosis went.
+
+    `role_key` of None means no role to select: still drain, just do not write.
+    `now` and `sleep` are injected so the test does not take 3.5 s per case.
+    """
+    out = []
+    deadline = now() + seconds
+    interval = 0.15 if role_key else 0.05
+    while now() < deadline:
+        if role_key:
+            ser.write(role_key)
+            ser.flush()
+        chunk = ser.read(65536)
+        if chunk:
+            out.append(chunk)
+        sleep(interval)
+    return out
+
+
 class Trace:
     """The output file, opened at the CSV header and appended to per row.
 
@@ -285,31 +322,12 @@ def main() -> int:
             # select_role() drains everything available on each pass and returns on
             # the first match, so repeats after it has chosen are read by the mode's
             # own key handler. None of 'i', 'r' or 'v' is a key in any mode.
-            key = ROLE_KEYS[args.role]
-            deadline = time.time() + 3.5
-            while time.time() < deadline:
-                ser.write(key)
-                ser.flush()
-                # KEEP DRAINING THE PORT WHILE WE DO IT.
-                #
-                # This window used to be a blind time.sleep() loop, and the board is
-                # NOT quiet during it: in survey mode it prints the settings dump and
-                # then a full seven-site campaign at boot - about 55 kB. The tty
-                # buffer holds roughly 17.9 kB of that and silently discards the rest
-                # until something starts reading, so the 2026-09-05 campaign lost
-                # 19184 consecutive bytes - sites 3 and 4 entirely, and the tails and
-                # heads of 2 and 4 - every single time, at the identical byte offset.
-                #
-                # It looked like a firmware fault and it was this loop.
-                early.append(ser.read(65536))
-                time.sleep(0.15)
+            # Drains the port while it writes - see drive_boot_window().
+            early.extend(drive_boot_window(ser, ROLE_KEYS[args.role]))
             print(f"  selected role: {args.role}", flush=True)
         else:
             # Same hazard with no role to select: drain, do not sleep.
-            deadline = time.time() + 3.5
-            while time.time() < deadline:
-                early.append(ser.read(65536))
-                time.sleep(0.05)
+            early.extend(drive_boot_window(ser, None))
     elif args.role:
         print("--role needs --reset: the role window is only open just after a reset",
               file=sys.stderr)

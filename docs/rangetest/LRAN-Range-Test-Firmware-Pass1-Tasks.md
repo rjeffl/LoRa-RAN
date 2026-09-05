@@ -248,6 +248,51 @@ findings did.
 
 ---
 
+### R11 — the survey hold state
+
+**Added 2026-09-05, after the M20 campaign was run and found to be measuring the walk.**
+
+Before R11 the survey scan never stopped. Storing a site reset the accumulator and
+resumed sampling immediately, so everything the radio heard while the operator walked to
+the next site was folded into that site's run — and because `peak_dbm10` is a **peak
+hold**, one burst heard in transit was attributed permanently to a site the operator was
+only walking towards.
+
+**No press pattern avoids this.** Pressing on arrival rather than on departure only moves
+the contamination to the site just left; the accumulator is running either way. It needs
+a phase in which the radio is not accumulating.
+
+- **`SurveyCampaign` owns the cursor and the phase** (`Held` / `Running`), in `survey.h`,
+  Arduino-free and host-tested like everything else there. It does **not** own NVS: a
+  store can fail by short write, and a cursor that advanced over a site that was not
+  written is a site silently lost, so the caller performs the store and reports the
+  outcome back through `note_stored()`.
+- **Two presses per site.** Arrive, press to start the dwell; when it is done, press to
+  store and advance, which returns to `Held`. The walk happens in `Held`.
+- **The accumulator is cleared when the dwell STARTS**, not when the previous site was
+  stored, so a long hold accumulates nothing.
+- **Boot and power cycle come up `Held`.** The operator is not standing at the site when
+  the board boots, and a power cycle happens between sites with the board in a bag.
+- **The OLED shows an inverted `HELD` bar**, for the same reason `show_sweep_done` has
+  one: the difference between "walking, not measuring" and "measuring" has to survive a
+  glance at a hand-shaded panel in sunlight.
+- **`# hold_discipline=1` in the per-site preamble.** A reader cannot tell a clean run
+  from a transit-contaminated one from the numbers, so the trace records which firmware
+  produced it. Traces without the line predate R11 and their peak column is caveated.
+
+**Acceptance:** a campaign walked with the hold state produces a trace whose peaks are
+site-attributable, and `docs/rangetest/data/README.md` drops the caveat for traces
+carrying `hold_discipline=1`. Host tests cover every transition, including the failed
+store and the last site.
+
+**Also in this task, because the same afternoon proved it was missing:** host tests for
+`capture.py` (`tools/rangetest/test_capture.py`). The defect that destroyed a third of
+the 2026-09-05 campaign was in the tool, and **no test in the repo covered the tool at
+all** — every test covered the firmware. The regression under test is blunt: the boot
+window must read the port.
+
+---
+
 ## Pass 2 — XIAO configuration (not now)
 
 Nothing to build yet. The only thing pass 1 owes pass 2 is **R2's board config seam**: a
