@@ -236,7 +236,7 @@ the engineering log, 2026-08-31.
 | File | What it is |
 |---|---|
 | `2026-08-31-bench.csv` | **Format proof, not range data.** Both boards ~1 m apart on the build-machine desk. Every point should read 0% PER; anything else is a firmware fault, not a link finding. Committed so the schema, the tooling and the reader above are exercised end to end before anyone walks a bearing. |
-| `2026-09-04-walk-gatelink.csv` | **R10 position walk, and the first real M6 data.** Six positions on the gate bearing, P0 the fixed initiator at the house. 1152 probes, 2 lost downlink, 7 lost uplink; no dead test points. **Position 7 in this file is not a location** — see the header. Read it with the resplog below. |
+| `2026-09-04-walk-gatelink.csv` | **R10 position walk, and the first real M6 data.** Six positions on the gate bearing, P0 the fixed initiator at the house. 1152 probes, 2 lost downlink, 7 lost uplink; no dead test points. **Position 7 in this file is not a location** — see the header. Antenna height was 2–4 ft, not the 1.2 m the original capture note claimed; corrected in the header 2026-09-05. Read it with the resplog below. |
 | `2026-09-04-walk-gatelink-resplog.csv` | The responder's own log for that walk, six positions. Closes against the sweep trace at every one. |
 | `2026-09-05-survey-campaign.csv` | **R8 / M20, all seven sites, 910 rows.** Re-dumped from NVS after the first capture lost 19184 bytes to a `capture.py` defect; see the engineering log, 2026-09-05. **`peak_dbm10` is not reliably site-attributable in this trace** — the scan ran while walking between sites. Floor and mean are sound. |
 

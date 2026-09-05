@@ -1309,6 +1309,9 @@ cost a phantom position. The procedure now states it.
 
 ### P3 is the one number in the walk that cannot be defended
 
+*(Superseded 2026-09-05 — see "the walk's geometry holds up" below. The claim that
+nothing can obstruct a 6 m path is simply wrong, and the reading is sound.)*
+
 P3's arcsecond fix is identical to P0's, which would make position 3 a ~6 m link reading
 −98.5 dBm with a barn in the path. Nothing can obstruct a 6 m path. At 35N one
 arcsecond is ~31 m of latitude and ~25 m of longitude, so **two spots up to ~30 m apart
@@ -1638,3 +1641,81 @@ believe is the survey board.
 
 Both boards: empty survey NVS, cursor at site 0, `HELD` at boot, `# hold_discipline`
 reported from the blob. The first PRG press starts the dwell at `bridge-house`.
+
+---
+
+## 2026-09-05 — the walk's geometry holds up, and the height was wrong
+
+Two corrections to the 2026-09-04 walk, both from operator questions. One retracts a
+concern I raised; the other fixes a number in a committed trace.
+
+### Retraction: P3 is fine, and "nothing can obstruct a 6 m path" was wrong
+
+I flagged position 3 as indefensible because its arcsecond fix rounds onto P0's, which
+would make it a ~6 m link reading −98.5 dBm with a barn in the path.
+
+**The geometry is perfectly ordinary.** Two points 6 m apart with a barn between them —
+one standing a few metres from each side — puts the structure squarely in the path. That
+is a normal way to end up with an obstructed short link, and I should not have called it
+impossible.
+
+### The excess-loss table, which is the actual check
+
+Comparing positions on their *median* RSSI was a mistake: the 24 test points mix two
+conducted powers, so the medians are not comparable across positions. Comparing one
+fixed configuration — SF7, CR 4/5, −4 dBm, 16-byte payload — against free space at
+915 MHz gives this:
+
+| pos | measured | GPS dist | free-space | excess | obstruction noted |
+|---|---|---|---|---|---|
+| 4 | −80.6 | 106 m | −70.2 | **10.4 dB** | LOS |
+| 2 | −77.8 | 40 m | −61.7 | **16.1 dB** | LOS, small shrub |
+| 5 | −92.0 | 80 m | −67.7 | **24.3 dB** | LOS to back of house |
+| 1 | −96.1 | 85 m | −68.3 | **27.8 dB** | LOS, tree and shrub |
+| 6 | −90.8 | 40 m | −61.7 | **29.1 dB** | LOS to opposite side of house |
+| 3 | −94.8 | 0–30 m | — | ~35–49 dB | **barn in path** |
+
+**The excess loss tracks the obstruction notes.** Clear LOS is cheapest at 10 dB;
+vegetation and houses cost 16–29 dB; the barn costs most. That ordering was not designed
+in — the notes were written in the field and the arithmetic done a day later — and it is
+the strongest evidence yet that the walk is internally consistent.
+
+P3 at ~49 dB (or ~36 dB if the fix is off by the full quantisation) is a heavily
+obstructed path, which is exactly what a metal-clad barn between two nearby points looks
+like. **No retake needed.** What remains unknown is its *distance*, and that is true of
+every position, not just this one.
+
+### The height was recorded wrong
+
+The capture note said **"both ends 1.2m AGL"**. The operator's actual figure is
+**2–4 ft (0.6–1.2 m)**, varying between positions and not recorded per position. 1.2 m
+was the top of the range, not the value.
+
+This is not pedantry. Over ground at 915 MHz the two-ray reflection makes received power
+scale with the **product of the two antenna heights**, so a height that varied by 2×
+across the walk is worth several dB of the scatter *between* positions. Absolute levels
+at any one position are unaffected; cross-position comparisons carry that uncertainty on
+top of the ±15 m position uncertainty already recorded.
+
+It plausibly explains part of the P2/P6 gap — both ~40 m from P0, 13 dB apart, with only
+"small shrub" versus "opposite side of house" to separate them.
+
+The trace header is corrected in place rather than the number quietly changed: a
+committed trace that carried a wrong figure should say so.
+
+### What would actually be needed for a path-loss model
+
+Not a P3 retake. **Better position data for all seven points**, plus per-position height:
+
+- distances to ~1 m (measuring wheel, laser, or a phone GPS logging decimal degrees
+  rather than arcseconds), and
+- antenna height recorded at each position rather than as a range for the walk.
+
+`LRAN-Range-Test-Firmware-Pass1-Tasks.md` R10 already says "height matters more than you
+expect... record it" and "two runs at different heights are worth more than one careful
+run at an unrecorded one." That guidance was right and was not followed closely enough —
+worth saying plainly rather than filing as a lesson for someone else.
+
+**M6 is unaffected by all of this.** It asks whether the link closes where nodes will
+live, and at all six positions it closed with margin at the D33 ceiling. The path-loss
+model is a different, unscheduled question.
