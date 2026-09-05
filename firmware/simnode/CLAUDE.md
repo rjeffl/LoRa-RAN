@@ -4,7 +4,7 @@
 specific to the simnode.
 
 **Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7 §10.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.7** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.8** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 
 ## What this is

@@ -1,12 +1,12 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.7
+**Version:** 0.8
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.1
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.7**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.1 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-08-31
@@ -1248,6 +1248,7 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.8** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. No build step changes. The range test firmware, whose `lran-simnode` section this plan owns, has completed Pass 1: R1–R11 and W9 are done, and the boards it used are the two this plan's board-count guidance allocates.
 - **v0.7** — **§11.2 superseded and §10.8.1's Heltec column confirmed**, both from the
   range test firmware's R1–R3 build (`docs/rangetest/engineering-log.md`, 2026-08-31).
   §11.2 described a `lran-rangetest` with **no `/lib/` dependency whatsoever**, written

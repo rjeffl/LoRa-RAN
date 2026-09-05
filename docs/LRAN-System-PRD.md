@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.3
+**Version:** 0.4
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
 **Last updated:** 2026-08-31
@@ -628,7 +628,7 @@ assumed now.
 | Document | Covers | Status |
 |---|---|---|
 | **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.3 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.7** (`ver = 2`) |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.8** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M21**. Single source of truth for decision status | v0.3 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.3 |
@@ -663,6 +663,7 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Pass 1 of the range test firmware is complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on M21**, the modules' FCC grant conditions, which is paperwork rather than bench work — and D1 is what blocks node firmware.
 - **v0.3** — Document set table refreshed for **D34**, which closes Protocol Spec
   **W12** by splitting §9.4 steps 4–6: the replay and dedup gate becomes `CommandGate`
   in `/lib/lran-protocol/` (library milestone **P8**), dispatch stays in the

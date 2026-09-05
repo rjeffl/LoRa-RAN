@@ -1,9 +1,9 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.3
+**Version:** 0.4
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.7**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.8**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P7 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
@@ -677,6 +677,7 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **The library needed no change to close W9, which is the result worth recording here.** R9 drove `encode`, `encode_fragment`, `fragment_count`, `Reassembler`, `ping_fill_pattern` and `ping_check_pattern` from outside the library for the first time — every prior exercise of this API was its own test suite — and the P1–P7 surface covered the whole bench with nothing to report back. Fragmented reassembly has now run over the air, not only on host.
 - **v0.3** — **`CommandGate` specified and P8 added**, implementing **D34**, which
   closes Protocol Spec **W12**. New **§3.10**. §1's scope gains the gate and, more
   usefully, states the *test* that put it here: not "is it framing" but **"is it
