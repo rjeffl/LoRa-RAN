@@ -1254,3 +1254,181 @@ run failing rather than like the old one being destroyed.
 
 Two habits follow, both now in the docs: **commit a trace as soon as it comes off the
 board**, and never point a capture at a path that already holds one.
+
+---
+
+## 2026-09-05 — the field data lands, and the tool ate a third of the survey
+
+R10 fieldwork ran: a seven-position walk on the gate bearing (2026-09-04) and the
+seven-site ambient survey campaign (2026-09-05). **M6 has real data for the first time
+and M20's campaign is complete.** Both traces are committed. Getting the survey out of
+the board took three attempts and the reason is a defect in `capture.py`, not the radio.
+
+### The walk: six positions, and the link has margin everywhere
+
+`2026-09-04-walk-gatelink.csv` with `-resplog.csv`. P0 is the fixed initiator at the
+house; the responder walked P1-P6. The full position map and GPS fixes are in the
+trace's own header.
+
+| pos | probes | DL loss | UL loss | init RSSI med | resp RSSI med |
+|---|---|---|---|---|---|
+| 1 | 192 | 1 | 3 | −98.4 | −98.1 |
+| 2 | 192 | 0 | 0 | −77.8 | −77.5 |
+| 3 | 192 | 1 | 3 | −98.5 | −98.1 |
+| 4 | 192 | 0 | 0 | −81.9 | −81.1 |
+| 5 | 192 | 0 | 0 | −93.0 | −92.4 |
+| 6 | 192 | 0 | 1 | −93.8 | −93.0 |
+
+1152 probes over six positions, **2 lost downlink and 7 lost uplink** — 0.6% round trip
+at worst. Every one of the 144 test points returned a reading; there is not a single
+dead test point in the trace. `filler_err` is zero throughout, `foreign` zero,
+`phy_crc_err` 2 (both at position 3). The two ends agree to within 0.8 dB at every
+position, so the link is symmetric and both radios are measuring the same thing. The
+responder log closes against the sweep trace at all six positions, which is the
+cross-check `data/README.md` asks for.
+
+**The link closes with margin at every place a node will live, at the D33 ceiling.**
+
+### Position 7 is not a location
+
+A PRG press after position 6 advanced the cursor and started a seventh sweep; the
+responder was then powered down. Two test points at position 6's spot, then 22 test
+points of 100% PER against a switched-off far end.
+
+It is worth writing down *why* that is provably not a link result rather than trusting
+the operator's memory: **SF12 at −4 dBm reads 100% PER there while SF7 at −9 dBm was
+clean at −80.8 dBm.** SF12 is ~15 dB more sensitive at higher power and cannot fail
+where SF7 succeeded. The responder log has six rows and no seventh. The row is kept and
+annotated in place rather than deleted — a trace that silently loses a position is worse
+than one that explains an odd one.
+
+**The press should not have been necessary.** The 2026-09-04 fix already saves each
+position on the armed beacon, so position 6 was in NVS before the button was touched.
+`FIELD-PROCEDURE.md` never says so, so the operator did the safe-looking thing and it
+cost a phantom position. The procedure now states it.
+
+### P3 is the one number in the walk that cannot be defended
+
+P3's arcsecond fix is identical to P0's, which would make position 3 a ~6 m link reading
+−98.5 dBm with a barn in the path. Nothing can obstruct a 6 m path. At 35N one
+arcsecond is ~31 m of latitude and ~25 m of longitude, so **two spots up to ~30 m apart
+share a fix** and the true P0-P3 separation is simply unresolved.
+
+The general point matters more than this one position: **arcsecond GPS cannot support an
+RSSI-vs-distance curve on a property whose positions are 40-105 m apart.** The fixes
+identify locations; they do not measure paths. M6 as written asks whether the link closes
+where nodes will live, and it does — but a path-loss model needs better position data
+than this walk carries.
+
+### The survey: 325 rows and a whole site vanished, three times, at the same byte
+
+The first campaign capture wrote 585 rows, not 910. `welllink-well` was absent entirely,
+`weather-island` held bins 0-28 and `irrigation-pump` bins 94-129 — one contiguous hole.
+
+Two hypotheses died on the way to the answer, and both were reasonable:
+
+- **"The site was never surveyed."** Killed by the firmware: `survey_store_and_advance()`
+  advances the cursor *only* when the NVS write succeeds, so sites 4, 5 and 6 existing
+  proves site 3 stored.
+- **"A receive-buffer overrun."** Killed by re-dumping: a second capture cut at the
+  *identical* bin, and a random overrun does not repeat to the byte.
+
+What settled it was making the tool record more, then reading the board raw. Adding the
+board's per-site preamble to the trace showed **`bins_sampled=130 of 130` for every
+site** — the radio had done its job — and `# survey campaign complete - 7 site(s)` said
+all seven were loaded and dumped. A minimal raw logger then caught 7 sites x 130 rows
+on the wire, complete. The board was never at fault.
+
+**`capture.py` sent role-selection keys for 3.5 s in a `time.sleep` loop without ever
+reading the port.** In survey mode the board is not quiet during that window: it prints
+the settings dump and then a full seven-site campaign at boot, ~55 kB. The tty buffer
+holds ~17.9 kB and silently discards the rest until something drains it.
+
+| | |
+|---|---|
+| Bytes buffered before the cut | 17936 |
+| Bytes lost, contiguous | 19184 |
+| Resumes at | site 4 bin 94, 37120 bytes in — ~3.2 s of wire time |
+| Blind window | 3.5 s |
+
+Deterministic because buffer size and boot timing are both constant. That determinism is
+exactly what made it look like a firmware bug.
+
+The raw logger only produced clean data because its role loop happened to call
+`ser.read()`. That accident is the whole diagnosis.
+
+### What changed in `capture.py`
+
+1. **Drain the port during the reset/role window** and parse those bytes with the rest.
+   Both branches — with `--role` and without — were blind; both now read.
+2. Parse buffered lines even when a read returns empty, so pre-buffered output is not
+   stranded behind a board that has gone quiet. In survey mode it scans in silence.
+3. Read 64 kB per call, not 4 kB.
+4. **Discards are counted.** A data row whose field count does not match the header used
+   to vanish without trace; it now increments a counter, writes
+   `# WARNING: N malformed data line(s) DISCARDED` into the trace, and exits 1.
+   Repo rule 4 applied to the tool: a discard that increments no counter is how 325 rows
+   went missing without the file saying anything was wrong.
+5. **The board's `#` lines go into the trace**, so `bins_sampled` travels with the data.
+   That is the field that distinguishes a site the radio never finished from one the
+   link dropped, and its absence is why the first two diagnoses were guesses.
+6. Flush throttled to 0.25 s and the progress print to every 25 rows.
+
+The re-dump is a strict superset of the first capture: all 585 overlapping rows are
+byte-identical, which is the check that says we recovered the same campaign rather than
+a new one.
+
+### The recovered sites are the ones that mattered
+
+The first analysis concluded "915.0 MHz is clean at every site." That was drawn from the
+five sites that survived, and **the two that were lost are the two with occupants in the
+LRAN channel.** A textbook survivorship error, and worth recording as one.
+
+| site | floor | in-channel peak (914.6-915.4) | over floor |
+|---|---|---|---|
+| bridge-house | −116.0 | −113.0 | 3 dB |
+| gatelink-gate | −118.0 | −113.0 | 5 dB |
+| **weather-island** | −118.0 | **−81.0** at 915.0 | **37 dB** |
+| welllink-well | −116.0 | −112.0 | 4 dB |
+| **irrigation-pump** | −116.0 | **−77.0** at 915.2 | **39 dB** |
+| hopyard-lower | −116.0 | −113.0 | 3 dB |
+| propane-tank | −116.0 | −106.0 | 10 dB |
+
+The noise floor is uniform across the property at −116 to −118 dBm, and the mean in
+every in-channel bin sits at −114.5, i.e. **at the floor**. So these are rare strong
+bursts, not carriers: one hit caught in 600-800 samples. At −77 dBm an interferer is
+comparable to or stronger than our own received level on the walk (−78 to −98 dBm), so
+this is a collision risk at two sites, not a blocked channel — precisely the thing
+Protocol Spec §12.1 says will reopen the channel choice through `cad_backoffs`.
+
+Loudest occupants overall: 906.4 MHz at −39 and 911.4 at −40 (weather-island, almost
+certainly the weather station and the YoLink sensors beside it), 916.0 at −51
+(bridge-house), 920.0 at −74 (gate).
+
+### The peak column is not site-attributable, and that is a methodology defect
+
+The scan was left running while walking between sites: `survey_store_and_advance()`
+calls `g_survey.reset()` and resumes immediately, with no paused state. Peak-hold never
+forgets, so **a burst picked up in transit is attributed to the destination site.**
+
+That undercuts exactly what `data/README.md` says a peak is for. Floor and mean are
+unaffected in practice — the floor is stationary and min-held, and a few minutes of
+walking against a 5-minute dwell barely moves a mean that is sitting on the floor anyway
+— so the channel conclusions above stand. The occupant *inventory* does not: it may
+credit a site with an emitter that was heard 50 m away. The caveat is recorded in the
+trace's own header.
+
+**M20 needs a hold state before its occupant list is evidence.** Filed as the next
+firmware task.
+
+### Standing lessons
+
+- **A tool that turns hardware output into evidence must count what it throws away.**
+  Every one of the three wrong diagnoses here came from a file that could not say
+  whether it was complete.
+- **Record the instrument's own view of its work.** `bins_sampled=130 of 130` collapsed
+  the search space from "board or wire" to "wire" in one line.
+- **When a loss repeats to the byte, stop suspecting the radio.** Determinism is a
+  fingerprint of software, not of RF.
+- **Beware concluding from the survivors.** The clean-channel finding was drawn from
+  exactly the sites whose data made it through.

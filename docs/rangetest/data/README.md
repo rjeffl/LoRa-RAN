@@ -213,6 +213,26 @@ the engineering log, 2026-08-31.
 | File | What it is |
 |---|---|
 | `2026-08-31-bench.csv` | **Format proof, not range data.** Both boards ~1 m apart on the build-machine desk. Every point should read 0% PER; anything else is a firmware fault, not a link finding. Committed so the schema, the tooling and the reader above are exercised end to end before anyone walks a bearing. |
+| `2026-09-04-walk-gatelink.csv` | **R10 position walk, and the first real M6 data.** Six positions on the gate bearing, P0 the fixed initiator at the house. 1152 probes, 2 lost downlink, 7 lost uplink; no dead test points. **Position 7 in this file is not a location** — see the header. Read it with the resplog below. |
+| `2026-09-04-walk-gatelink-resplog.csv` | The responder's own log for that walk, six positions. Closes against the sweep trace at every one. |
+| `2026-09-05-survey-campaign.csv` | **R8 / M20, all seven sites, 910 rows.** Re-dumped from NVS after the first capture lost 19184 bytes to a `capture.py` defect; see the engineering log, 2026-09-05. **`peak_dbm10` is not reliably site-attributable in this trace** — the scan ran while walking between sites. Floor and mean are sound. |
 
-**No range data yet.** M6 is untouched, and D1 stays open pending M20 (R8's ambient
-survey) and M21 (the modules' FCC grant conditions).
+**M6 has data**: the link closes with margin at all six walked positions at the D33
+ceiling. It is not closed — arcsecond GPS cannot support an RSSI-vs-distance curve (see
+the log), so this trace answers "does it work there", not "what is the path loss".
+
+**M20's campaign is captured** but its occupant inventory waits on a survey hold state.
+D1 stays open pending that and M21 (the modules' FCC grant conditions).
+
+### The channel is not clean everywhere
+
+The in-channel result is the one thing to carry out of the survey. `weather-island` peaks
+at **−81 dBm at 915.0** and `irrigation-pump` at **−77 dBm at 915.2**, against a −116 to
+−118 dBm floor; the other five sites see nothing more than 10 dB over floor. The mean in
+those bins sits at the floor, so they are rare bursts rather than carriers — a collision
+risk at two sites, not a blocked channel, and exactly what §12.1 expects to surface later
+as `cad_backoffs`.
+
+**Both of those sites were the ones missing from the first capture**, and the first
+analysis concluded from the survivors that the channel was clean everywhere. Worth
+remembering the next time a trace is short.
