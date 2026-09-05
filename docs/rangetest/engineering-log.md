@@ -1774,13 +1774,35 @@ Both are true and neither cancels the other.
   sited on the SE face starts ~18 dB down on one sited on the NW face at the same range,
   and no distance-based estimate will tell you that.
 
-### Open question for the survey
+### The survey's site 0 was indoors too — answered, and the answer is useful
 
-The M20 survey's site 0 is `bridge-house`. **Whether that run was taken indoors at the
-same office location or outside is not recorded**, and it matters: an indoor noise floor
-is the right figure for the bridge's margin, an outdoor one is not. The re-walk should
-record it explicitly. Worth adding to the capture note rather than trusting memory a
-second time.
+Confirmed by the operator: **site 0 `bridge-house` was measured indoors**, survey node at
+the bridge's approximate target location in the office. The other six are at their node
+target locations; whether each was strictly outdoors was not recorded at capture time.
+
+**The noise floor does not care.** −116.0 dBm median indoors, against −116 to −118 across
+the outdoor sites — the indoor site is not an outlier by even 2 dB.
+
+| site | floor med | floor min | mean med |
+|---|---|---|---|
+| **bridge-house (indoors)** | **−116.0** | −125.0 | −114.7 |
+| gatelink-gate | −118.0 | −119.0 | −114.9 |
+| weather-island | −118.0 | −119.0 | −114.9 |
+| welllink-well | −116.0 | −123.0 | −114.9 |
+| irrigation-pump | −116.0 | −125.0 | −114.8 |
+| hopyard-lower | −116.0 | −118.0 | −114.8 |
+| propane-tank | −116.0 | −118.0 | −114.8 |
+
+That is a result, not a null: **the floor across this property is receiver-thermal-limited,
+not environment-limited.** Walls attenuate external noise but the SX1262's own noise floor
+dominates either way, so being indoors neither helped nor hurt. It also means site 0's
+floor is directly usable as the bridge's own margin figure — which is exactly the number
+§12.1 asks for, measured in exactly the right place.
+
+**The peaks are a different story.** An emitter heard through a wall is 4–10 dB stronger
+outside, so 916.0 MHz at −51 dBm is a strong external source, and weak external emitters
+may be masked at site 0 and not at the others. Site 0's occupant list is not like-for-like
+with the rest, and the trace header says so.
 
 ### Lesson
 

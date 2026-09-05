@@ -7,6 +7,21 @@
 # CAVEAT: peak_dbm10 is NOT reliably site-attributable. The scan was left running
 #   while walking between sites, so a peak may have been picked up in transit and
 #   attributed to the destination site. floor_dbm10 and mean_dbm10 are unaffected.
+# SITE CONDITIONS. Site 0 `bridge-house` was measured INDOORS, with the survey node at
+#   the bridge's approximate target location in the office (NW side). Confirmed by the
+#   operator 2026-09-05. The other six sites are at their node target locations; whether
+#   each was strictly outdoors was not recorded at capture time.
+#
+#   The noise FLOOR is unaffected: -116.0 dBm median indoors against -116 to -118 across
+#   the outdoor sites. The floor here is receiver-thermal-limited, not environment-
+#   limited, so walls do not lower it. That makes site 0's floor directly usable as the
+#   bridge's own margin figure, which is the number spec 12.1 asks for.
+#
+#   The PEAKS at site 0 are wall-attenuated. An emitter heard indoors is 4-10 dB (more
+#   with foil-faced sheathing) stronger outside, so 916.0 MHz at -51 dBm is a strong
+#   external source, and weak external emitters may be masked at this site and not at
+#   the others. Do not compare site 0's occupant list to the others as like for like.
+#
 # schema: docs/rangetest/data/README.md
 #
 # board=heltec_wifi_lora_32_V3
