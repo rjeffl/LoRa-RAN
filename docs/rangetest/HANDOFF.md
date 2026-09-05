@@ -1,6 +1,6 @@
 # Range test — session handoff
 
-**Written 2026-09-05, after W9 passed on the bench and Pass 1 closed.**
+**Written 2026-09-05, at the end of the session that closed Pass 1.**
 
 > **This file goes stale.** It records *session state and next actions*, nothing else.
 > Where it disagrees with the documents below, they win — check the engineering log's
@@ -11,7 +11,7 @@
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) — **the 2026-09-05 entries** | what happened and why. **Nine entries that day.** If you read two, read the last two: **the re-walk that closes M20's occupant inventory**, and **W9 passing on the bench with a backoff finding for D1** |
+| 2 | [`engineering-log.md`](./engineering-log.md) — **the 2026-09-05 entries** | what happened and why. **Ten entries that day.** If you read two, read these: **the re-walk that closes M20's occupant inventory**, and **W9 passing on the bench with a backoff finding for D1** (the tenth records closing W9 in spec v0.8) |
 | 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | the two field jobs, start to finish. **Read before going outside** |
 | 4 | [`CAPTURE-PY.md`](./CAPTURE-PY.md) | every `capture.py` option, and a complete command per job |
 | 5 | [`data/README.md`](./data/README.md) | the three trace schemas, and how to read them together |
@@ -23,8 +23,8 @@
 
 | | |
 |---|---|
-| Branch | `main`, verified green **2026-09-05** at 9c16fb2 |
-| Merged today | **#19**–**#23** (field data, R11, blob provenance, boards staged, site conditions), **#24** (M20 analysis), **#25** (R9 / W9), **#26** (landing R9 on `main`) |
+| Branch | `main` at **f1da424**, verified green **2026-09-05**. **`main` is the only branch left, local and remote** — all 16 merged branches were pruned at end of session |
+| Merged today | **#19**–**#23** (field data, R11, blob provenance, boards staged, site conditions), **#24** (M20 analysis), **#25** (R9 / W9), **#26** (landing R9 on `main`), **#27** (W9 closed, spec v0.8) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2` unchanged. **W9 closed there**; §12.3 carries the backoff measurement. No vector regenerates |
 | Done | **R1–R11 and the M20 re-walk. Every Pass 1 task is complete.** All gates passed on hardware |
 | **Next** | **D1** — and it is a decision, not a build. Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
@@ -164,17 +164,20 @@ needs M21 and does not.
 
 ## First actions next session
 
-1. `git checkout main && git pull --ff-only`, then run the checks above. All branches
-   through **#26** are merged; `main` is at 9c16fb2.
+1. `git checkout main && git pull --ff-only`, then run the checks above. Everything
+   through **#27** is merged and `main` is at **f1da424**. There are no other branches to
+   clean up or reconcile.
 2. **No build work is queued.** Pass 1 is complete: R1–R11 built, M20 captured and
-   analysed, W9 passed on the bench.
+   analysed, W9 passed on the bench and closed in the specification.
 3. **The next work is D1**, and it is a decision against the data above rather than code.
    Read the W9 backoff table before picking an SF, and the occupant inventory before
    picking a channel.
 4. **M21 is the blocker** and nothing in this repo advances it — it is the modules' FCC
-   grant conditions.
-5. Delete the stale local branches if they are still around: `docs/handoff-post-r11` and
-   `range/w9` are both merged.
+   grant conditions, which is paperwork.
+
+**If the next session is D1, it does not start in this directory.** The decision is
+recorded in `LRAN-Decision-Register`, the constraints live in the protocol specification
+(§12.1, §12.3, §15.1), and this firmware's job — supplying the measurements — is finished.
 
 ## The M20 re-walk — done 2026-09-05
 
