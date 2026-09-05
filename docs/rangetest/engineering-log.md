@@ -1604,3 +1604,37 @@ backward compatibility once the code that wrote v1 no longer exists.
 **Provenance belongs in the artefact, not in the tool that reads it.** Both this and
 `bins_sampled` one entry earlier are the same shape of problem, and the difference between
 them is that `bins_sampled` was already coming from the instrument and this one was not.
+
+---
+
+## 2026-09-05 — boards erased and staged for the M20 re-walk
+
+Both boards flashed from `main` at 19e605f (PR #21) and survey-erased, ready for the
+re-walk that gives M20 an occupant inventory.
+
+The old campaign was dumped one last time before erasing — it is committed, so this was
+belt-and-braces rather than necessary, but a `z` is not undoable and a 910-row dump costs
+five seconds.
+
+### Both boards were erased, and the second one is why
+
+The two CP2102 bridges both report `SER=0001` and their port names swap between
+invocations, so there is no reliable way to say which physical board is which from the
+host. Erasing only "the survey board" is therefore a guess. Both were erased.
+
+That turned out to matter. **The second board was holding two stored sites** —
+`bridge-house` and `gatelink-gate`, at **4 and 3 passes** against 71–91 for a real run.
+Seconds of scanning each: the signature of the **DTR-presses-PRG trap**, where opening a
+serial port asserts DTR, which is IO0, which is PRG, which in survey mode is
+store-and-advance. Every tethered session before that trap was fixed stored a junk run
+and stepped the cursor.
+
+Neither was ever committed and nothing is lost. But it is the first direct sighting of
+what that trap actually left behind on a board, rather than the inference from "the erase
+does not stick", and it is a good argument for erasing both ends rather than the one you
+believe is the survey board.
+
+### State
+
+Both boards: empty survey NVS, cursor at site 0, `HELD` at boot, `# hold_discipline`
+reported from the blob. The first PRG press starts the dwell at `bridge-house`.
