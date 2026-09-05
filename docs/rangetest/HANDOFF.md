@@ -1,6 +1,6 @@
 # Range test — session handoff
 
-**Written 2026-09-05, after the R10 fieldwork.**
+**Written 2026-09-05, after R11 merged and the boards were staged.**
 
 > **This file goes stale.** It records *session state and next actions*, nothing else.
 > Where it disagrees with the documents below, they win — check the engineering log's
@@ -11,7 +11,7 @@
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) — **the last two entries** | what happened and why. The 2026-09-05 entry is the one that matters: the field data, and the tool defect that ate a third of it |
+| 2 | [`engineering-log.md`](./engineering-log.md) — **the 2026-09-05 entries** | what happened and why. Six entries that day: the field data, the tool defect that ate a third of the survey, R11, its own provenance bug, the boards being staged, and the site conditions that reframe the walk |
 | 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | the two field jobs, start to finish. **Read before going outside** |
 | 4 | [`CAPTURE-PY.md`](./CAPTURE-PY.md) | every `capture.py` option, and a complete command per job |
 | 5 | [`data/README.md`](./data/README.md) | the three trace schemas, and how to read them together |
@@ -23,17 +23,18 @@
 
 | | |
 |---|---|
-| Branch | `range/handoff`, verified green **2026-09-05** |
-| Merged | #17 (field prep + R8 forward), #16, #14, #13, #12, #11 |
-| Done | **R1–R8, and R10 fieldwork.** All gates passed on hardware |
-| Not started | **R9** (`range/w9`), and **R11** (survey hold state) |
-| **Next** | **R11 — the survey hold state.** See the bottom of this file |
+| Branch | `main`, verified green **2026-09-05** at f2defc4 |
+| Merged today | **#19** (field data + capture.py), **#20** (R11 hold state), **#21** (blob provenance), **#22** (boards staged), **#23** (site conditions) |
+| Done | **R1–R8, R10 fieldwork, R11.** All gates passed on hardware |
+| Not started | **R9** (`range/w9`) — the only remaining code task |
+| **Next** | **The M20 re-walk. No code needed.** Boards are erased and staged |
 
 ```bash
-pio test -d firmware/range-test -e native   # 133 passed
+pio test -d firmware/range-test -e native   # 152 passed
 pio run  -d firmware/range-test -e heltec   # SUCCESS
 pio test -d lib/lran-protocol -e native     # 107 passed
 python3 tools/vectors/check.py              # 72 vectors OK
+python tools/rangetest/test_capture.py      # capture tool, PlatformIO's python
 ```
 
 `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**. `capture.py` needs
@@ -101,31 +102,44 @@ time a trace comes up short.
 
 ## First actions next session
 
-1. `git checkout main && git pull --ff-only`, then run the four checks above.
-2. Start **R11**, the survey hold state (below). It is the smallest change that unblocks
-   the most, and one of the two things D1 waits on.
-3. Local branches `range/sweep`, `range/survey`, `range/capture-walk`, `range/field-prep`,
-   `range/field-prep2`, `range/handoff` and `docs/v0_6-sync` are merged into `main` and can
-   be deleted.
+1. `git checkout main && git pull --ff-only`, then run the checks above.
+2. **Walk the M20 campaign.** Both boards are already flashed and erased; nothing to
+   prepare. Procedure below.
+3. All feature branches through #23 are merged and deleted. `main` is the only local
+   branch.
 
-## R11 — the survey hold state, and why it is next
+## The M20 re-walk — what is actually next
 
-`survey_store_and_advance()` calls `g_survey.reset()` and resumes scanning immediately, so
-**the walk between sites is measured**. Peak-hold never forgets, so a burst heard in transit
-is attributed permanently to the destination site.
+Seven sites, roughly a 40 minute loop, **two PRG presses per site**:
 
-**No press pattern avoids this** — pressing on arrival rather than departure only moves the
-contamination to the site you just left. It needs a firmware state: the new site stays
-paused until a second PRG press starts the dwell.
+1. Arrive. **Press PRG** — the inverted `HELD` bar clears and the pass count climbs.
+2. Stand still ~5 minutes.
+3. **Press PRG again** — stores, advances, returns to `HELD`.
+4. Walk to the next site. The walk is **not** measured, which is the whole point of R11.
 
-Floor and mean are unaffected and the channel result above is sound. What is not evidential
-is the **occupant inventory**, and that is what M20 owes D1.
+Cursors are at 0, so the first press starts the dwell at `bridge-house`.
 
-Worth doing in the same branch:
+**Put the site conditions in `--note` this time.** Indoor/outdoor and wall penetrations at
+each end, and height per site. The 2026-09-04 walk omitted that the initiator was indoors,
+and it turned out to be worth 18.2 dB between two positions at the same range. Site 0 is
+indoors at the bridge's target location by design — say so in the note.
 
-- The per-site preamble should say when a run includes a transit segment.
-- `capture.py` needs a regression test for the drain-while-waiting path. That bug destroyed
-  a third of a campaign and was invisible to every test in the repo.
+Back at the house, reset into `SURV` with a capture running: the board dumps all seven
+sites at boot in one file. **Every site should read `# hold_discipline=1`** — the first
+trace that will. Commit it as soon as it comes off the board.
+
+That closes **M20's occupant inventory**, and **D1 then waits only on M21**.
+
+### What the last campaign already told us, to compare against
+
+- The noise floor is uniform across the property at **−116 to −118 dBm** and is
+  **receiver-thermal-limited** — even the indoor site matches within 2 dB.
+- **915.0 MHz is not clean everywhere.** `weather-island` peaked at −81 dBm at 915.0 and
+  `irrigation-pump` at −77 dBm at 915.2; the other five saw nothing over 10 dB above
+  floor. Rare bursts, not carriers — a collision risk at two sites.
+- Those two sites were the ones lost in the truncated first capture, and the first
+  analysis concluded from the survivors that the channel was clean everywhere. **Worth
+  remembering the next time a trace comes up short.**
 
 ## Behaviour that changed on 2026-09-04 — expect the traces to look different
 
