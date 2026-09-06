@@ -23,7 +23,8 @@ USB reflash in the field.
 | `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
 | `LRAN-GateLink_Node-PRD` / `-Implementation-Plan` | `docs/gatelink/` | GateLink requirements and build |
 | `LRAN-WellLink_Node-PRD` | `docs/welllink/` | Placeholder — reserved allocations only |
-| `LRAN-Range-Test-Firmware-Pass1-Tasks` | `docs/rangetest/` | **The next firmware target.** Answers D1; hosts W9, M6, M20 |
+| `LRAN-Range-Test-Firmware-Pass1-Tasks` | `docs/rangetest/` | Pass 1 — **complete** (R1–R11). Answers D1; hosts W9, M6, M20 |
+| `LRAN-Range-Test-Firmware-Pass2-Tasks` | `docs/rangetest/` | Pass 2 — the second board profile (XIAO + Wio-SX1262 Kit), built and bench-measured |
 
 **Check the version.** A node document citing an older protocol version than
 `LRAN-Protocol-Specification`'s own header has not been reconciled with the intervening
@@ -163,4 +164,34 @@ Prefer asking to guessing when a requirement is ambiguous — the documents are 
 and a gap in them is worth reporting rather than patching locally. When a document turns
 out to be wrong, say so; several current sections exist because a review caught an error
 rather than working around it.
+
+### These documents are guidance, and they are works in progress
+
+**This file included.** The governing set — this file, the PRDs, the implementation plans,
+the task documents — was written **before any firmware was built or any hardware was in
+hand**. It was the first pass at a structure to work inside, not a specification derived
+from a working system. Much of it has held up. Some of it was a guess that development has
+since tested.
+
+So: **if something in a reference document looks incorrect, misplaced, inefficient or
+simply overtaken, say so and propose the change.** Do not work around it silently, and do
+not treat it as settled merely because it is written down. Update it in the same commit as
+the work that proved it wrong, and record what changed and why — the same docs-as-code
+rule the rest of this file asks for.
+
+Two things this does **not** license:
+
+- **The protocol specification is still binding.** *"If code and the protocol
+  specification disagree, the specification is right"* stands. Raise the discrepancy;
+  do not adjust the spec to match the code.
+- **A dated record is not a draft.** Engineering-log entries, committed traces and handoff
+  files describe a moment. Correct them with a *new* dated entry or a marked-superseded
+  note. Rewriting one to match today destroys the thing that made it useful.
+
+Worked examples, both from range-test pass 2 (2026-09-05): Bridge Impl Plan §10.8.1 rested
+on a premise about the Wio module's pad assignment that turned out to be false for the
+board that arrived — the section even said what would follow if it stopped being true, and
+still had to be found by audit rather than announcing itself. And pass 1's own task text
+predicted the RF-switch divergence correctly while telling pass 2 to populate its config
+from a document describing a *different product*.
 
