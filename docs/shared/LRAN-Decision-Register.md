@@ -338,7 +338,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | M4 | **MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope | **D25**, carrier BOM | GateLink Impl Plan |
 | M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
 | M6 | **Range and RSSI at ~500 ft on both bearings.** **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. **Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**, so a gross power or antenna error is caught at 10 ft rather than at 500 ft; that check is also the named test for §7.4's antenna-counterpoise uncertainty. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. **The last ~46 m is unwalked — B1b** | **D1**, bridge antenna siting | Range Test Tasks |
-| M20 | ~~**Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location~~ | **Field work done (2026-09-05).** R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`; committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. One confirmed in-channel occupant (`weather-island`, −80 dBm at 915.0), strongest near-band neighbour `gatelink-gate` at −66 dBm on 914.0, floor −115 to −118 dBm and uniform, every occupant bursty, no carrier anywhere in the band. **Residual, and it is analysis not fieldwork (M21):** re-integrate the committed trace over **500 kHz** as well as 125 kHz and report occupancy separately for **903.0–914.2** (Envelope B) and **915.2–923.0** (Envelope A's uncommitted region, 923.3–927.5 being US915 downlink), so the trace supports an Envelope B decision if a trigger fires. **Do not re-walk** | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3** | Range Test Tasks |
+| M20 | ~~**Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location~~ | **Field work done (2026-09-05).** R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`; committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. One confirmed in-channel occupant (`weather-island`, −80 dBm at 915.0), strongest near-band neighbour `gatelink-gate` at −66 dBm on 914.0, floor −115 to −118 dBm and uniform, every occupant bursty, no carrier anywhere in the band. **Residual done (2026-09-06)** by `tools/rangetest/survey_reintegrate.py`, output committed as `docs/rangetest/data/2026-09-06-m20-reintegration.csv`. **M20 is closed.** Results in §5.4 | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3** | Range Test Tasks |
 | M7 | **BMS pack-current sign convention**, captured once under charge and once under load | Last open item in the BMS protocol (Protocol Spec §18, W6). Bit `0x4000` is believed to be the discharge flag but has only been observed at 0.0 A | GateLink Impl Plan |
 
 ### 5.2 Informative
@@ -368,8 +368,81 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 
 ---
 
+### 5.4 M20's re-integration — the channel evidence for D1, 2026-09-06
+
+Derived from `2026-09-05-survey-campaign-r11.csv` by
+`tools/rangetest/survey_reintegrate.py`; the tool is host-tested and refuses a trace
+without hold discipline, because it ranks channels by peak. **No new field work was
+required and none should be done** — re-walking to answer this would have been an
+expensive, invisible mistake.
+
+**The finding that changes D1, and it was not in the occupant inventory.** There is an
+occupant cluster at **915.8–916.4 MHz**, seen at six of seven sites and by a wide margin
+the loudest thing in the campaign: **−54 dBm at `bridge-house` on 916.0**, 62 dB above the
+floor, with −86 and −80 dBm at `gatelink-gate` on 915.8 and 916.4. `bridge-house` was
+measured indoors at the bridge's target location and the YoLink hub is inside the dwelling,
+which is the obvious candidate — **unconfirmed, and it does not need confirming to be
+avoided.**
+
+This matters because it sits exactly where a reasonable person moves *to*. The inventory
+recorded `weather-island` at −80 dBm on 915.0 as the one confirmed in-channel occupant, and
+915.0 is the range test's provisional frequency; **nudging a few hundred kHz off it lands
+in something 26 dB stronger.** By contrast the 915.0 signal appears at `weather-island`
+only — every other site reads floor there — so it is local to that site, while the
+915.8–916.4 cluster is property-wide.
+
+**Envelope A — 125 kHz candidates in 915.2–923.0 MHz.** Scored on the worst peak across
+sites, then on the strongest neighbour within ±600 kHz, since a candidate reading floor
+next to a −54 dBm burst is an untested channel rather than a quiet one.
+
+| Candidate | Worst peak, all seven | Worst peak, deployed sites | Nearest strong neighbour |
+|---|---|---|---|
+| **917.4 MHz** | −110.0 dBm | −111.0 dBm | −104 dBm at 917.0 |
+| **917.2 MHz** | −109.0 dBm | −111.0 dBm | −104 dBm at 917.0 |
+| **917.6 MHz** | −105.0 dBm (`propane-tank`) | **−112.0 dBm** | −104 dBm at 917.0 |
+| 918.2 MHz | −109.0 dBm | −109.0 dBm | −103 dBm at 918.8 |
+| *915.8 / 916.0 / 916.4* | *−78 / −54 / −80 dBm* | — | **the cluster above — avoid** |
+
+**917.2–917.6 MHz is the recommendation**, and the two scorings agree on it. It is ~1.2 MHz
+clear of the 915.8–916.4 cluster, its floor is the campaign-wide −116 dBm, and its nearest
+neighbour of any strength is −104 dBm.
+
+**Envelope B — the eight US915 500 kHz channels.** Their centres are exactly the DTS grant
+range's endpoints, 903.0 + 1.6 MHz × k. Integrated floor is ≈ **−110 dBm**, i.e. 6.0 dB
+above the per-bin −116 — the bandwidth penalty a BW500 receiver pays before any occupant.
+
+| Channel | Integrated floor | Worst peak | |
+|---|---|---|---|
+| **909.4 MHz** | −109.6 dBm | **−107.0 dBm** | **clear — the pick if Envelope B is ever triggered** |
+| 911.0 MHz | −110.3 dBm | −102.0 dBm | clear, second choice |
+| 906.2 / 907.8 | −110.0 dBm | −96 / −89 dBm | occupied |
+| 903.0 / 912.6 / 914.2 / 904.6 | ≈ −110 dBm | −79 / −77 / −66 / −64 dBm | **strong occupants — do not use** |
+
+**Half the Envelope B grid is unusable**, including 914.2 MHz, where `gatelink-gate` — the
+site GateLink will occupy — sees −66 dBm. That is worth carrying into any future Envelope B
+trigger: the fallback is real but it is not a free eight-channel choice.
+
+**One limit that post-processing cannot lift.** The survey measured 125 kHz every 200 kHz,
+so **37.5 % of the band was never looked at** and a transmitter sitting entirely in a gap
+is invisible at any level. Absence of a peak was already weak evidence (`data/README.md`);
+the gaps make it weaker. This bounds every "clear" verdict above and is a reason to keep
+`cad_backoffs` under observation after D1 rather than treating the channel as settled.
+
+---
+
 ## 6. Changelog
 
+- **v0.5** — **M20 closed.** Its M21 residual is done as post-processing on the committed
+  R11 trace — `tools/rangetest/survey_reintegrate.py`, host-tested, output committed as
+  `2026-09-06-m20-reintegration.csv` — and the results are in new **§5.4**. The
+  re-integration found an occupant cluster at **915.8–916.4 MHz** that the original
+  inventory missed, including a **−54 dBm** peak at `bridge-house` on 916.0, 62 dB above
+  the floor and the loudest signal in the campaign; it sits exactly where a small move off
+  the provisional 915.0 MHz would land. **917.2–917.6 MHz is the Envelope A
+  recommendation** on both the all-sites and deployed-sites scorings, and **909.4 MHz** is
+  the Envelope B pick — with the finding that **half the US915 500 kHz grid is unusable
+  here**, 914.2 MHz included, where the GateLink site sees −66 dBm. D1's frequency now has
+  a ranked, reproducible answer rather than a survey to read.
 - **v0.4** — **M21 closed, D33 reopened, D1 amended, D28's outlook improved.** Neither
   radio module is certified under §15.249 — both carry §15.247 DTS **and** DSS grants — and
   D33's fixed-channel, no-hopping mode exists inside those grants **only at BW500** within

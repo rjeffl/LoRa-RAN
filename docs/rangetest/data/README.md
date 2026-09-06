@@ -177,6 +177,24 @@ correct: that firmware did not hold.
 peak column is caveated in its own header. `2026-09-05-survey-campaign-r11.csv` is the
 first trace to carry `1`, at all seven sites.
 
+### The survey does not tile the band — 62.5 % coverage
+
+**This is the caveat to read before quoting any aggregate over more than one bin.**
+The receiver bandwidth is **125 kHz** and the bins are **200 kHz** apart, so the survey
+measured 125 kHz out of every 200 kHz and **37.5 % of the band was never looked at.**
+
+For a **floor or a mean** this hardly matters: the noise floor is stationary and spatially
+uniform, so scaling the measured slices up to the full channel width is sound, and
+`survey_reintegrate.py` does exactly that. The arithmetic is worth stating because it is
+the number Envelope B turns on — integrating thermal noise over 500 kHz instead of 125 kHz
+raises the floor by `10·log10(500/125)` = **6.0 dB**, which is 6 dB of sensitivity a BW500
+receiver gives up before any occupant is considered.
+
+For a **narrowband occupant** it matters a great deal. A transmitter sitting entirely in
+one of the 75 kHz gaps is invisible to this survey at any peak level, and no amount of
+post-processing recovers it. **Read this together with the peak/absence asymmetry above:**
+absence of a peak was already weak evidence, and the gaps make it weaker.
+
 ### Columns 6 and 7 are separate on purpose
 
 **D33 standing condition 1.** The Part 15.249 ceiling is on **EIRP**, which is conducted
@@ -243,6 +261,7 @@ the engineering log, 2026-08-31.
 | `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk, all seven sites, 910 rows.** The first trace with `# hold_discipline=1` at every site, so **`peak_dbm10` is site-attributable here** — this is the trace the occupant inventory is built from. 68–74 passes per site, 130 of 130 bins, `dropped=0` throughout. Site 0 `bridge-house` is again indoors at the bridge's target location, by design, and says so in its own note. **Supersedes the row above for peaks;** the pre-R11 trace is kept for its floor and mean, and as the record of what the transit contamination looked like. |
 | `2026-09-05-bench-pass2-heltec.csv` | **Pass 2 bench reference, not range data.** Heltec V3 pair on the desk, pass 2 firmware. **192/192, 0% PER — reproduces `2026-08-31-bench.csv` exactly**, which is what Pass 2 Tasks §4.0.1 asked step 0 to prove: the display refactor was a no-op and the board selection is correct. **The third board was parked in `SURVEY` for this run**, and that is load-bearing — see the row below and the engineering log. |
 | `2026-09-05-bench-pass2-xiao.csv` | **Pass 2 bench, and NOT the B1b delta.** XIAO ESP32S3 + Wio-SX1262 Kit as initiator, Heltec responder. **192/192, 0% PER — the first over-air proof that the Wio's discrete RF switch line works**; `begin()` returning success could not show this, because a wrong `rf_sw` initialises cleanly and transmits into a dead end. RSSI reads ~13 dB stronger than the Heltec run, **but bench geometry is uncontrolled and dominates**: the Heltec reference itself moved −24 → −42 dBm between two runs on board placement alone. The module contribution to link margin is B1b, on the gate bearing, and is not this number. |
+| `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured** — the only file in this directory that is not a measurement. M20's residual, added by M21: the R11 trace re-integrated over 500 kHz on the US915 grid for Envelope B, and split out per 125 kHz bin across Envelope A's uncommitted 915.2–923.0 MHz. Regenerate with `python3 tools/rangetest/survey_reintegrate.py <source> --out <this>`; **do not hand-edit it**, and if the source trace is ever superseded, regenerate rather than patch. Its own header carries the coverage caveat below. |
 | `2026-09-05-w9-bench.log` | **W9 / R9, both runs, on the bench (2026-09-05).** §6.6.1's 222-byte maximum frame and §6.6.2's full 15-fragment set, 64 round trips, **zero faults at either end**; responder inbound agrees at 512 frames. **Not a link measurement and not a CSV** — see below. |
 
 ### The W9 trace is not a CSV, and not a range measurement

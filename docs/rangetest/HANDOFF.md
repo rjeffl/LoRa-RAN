@@ -1,7 +1,7 @@
 # Range test — session handoff
 
 **Written 2026-09-05, at the end of the session that built and measured Pass 2.**
-**Amended 2026-09-06: M21 closed, D33 reopened, D1 unblocked.** The amendments are marked
+**Amended 2026-09-06: M21 closed, M20 closed, D33 reopened, D1 unblocked.** The amendments are marked
 inline; everything unmarked is still the 2026-09-05 state.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -38,6 +38,7 @@ pio run  -d firmware/range-test -e xiao     # XIAO ESP32S3 + Wio-SX1262 Kit
 pio test -d lib/lran-protocol -e native
 python3 tools/vectors/check.py
 python tools/rangetest/test_capture.py      # PlatformIO's python
+python3 tools/rangetest/test_survey_reintegrate.py
 ```
 
 All green at 05ae426. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
@@ -110,8 +111,14 @@ Do not copy it into a range-test board profile — it is a different product.
 `2026-09-05-survey-campaign-r11.csv` only.
 
 - **`weather-island` peaks −80 dBm at 915.0** against a −115 dBm median floor, reproducing
-  within 1 dB across both campaigns. **The one confirmed in-channel occupant.**
-  `propane-tank` sees −106 at 915.2, also reproducing.
+  within 1 dB across both campaigns. **The one confirmed occupant *on 915.0*** — and it is
+  local to that site; every other site reads floor there. `propane-tank` sees −106 at
+  915.2, also reproducing.
+- **Added 2026-09-06 by the re-integration, and it is the loudest thing in the campaign:**
+  a **915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at
+  `bridge-house` on 916.0**. Property-wide, unlike the 915.0 signal. This list was built to
+  ask whether the provisional channel was clear, not to rank alternatives, which is why it
+  was not here before.
 - **Retracted: `irrigation-pump` at 915.2.** −77 dBm pre-R11, −112 (floor) under hold
   discipline — picked up walking in. **One in-channel occupant site, not two.**
 - **`gatelink-gate` peaks −66 dBm at 914.0**, 1 MHz off channel and the strongest near-band
@@ -164,12 +171,26 @@ itself, and it would read high for a reason that is not congestion. **Raised, no
 - **BW is no longer free.** `BW` and the Part 15 rule section are **one decision**
   (Protocol Spec §18.2). BW125 forces Envelope A (§15.249, ≈−1.2 dBm EIRP, any frequency in
   902–928); Envelope B forces BW500 and 903.0–914.2 MHz. Do not fix one without the other.
-- **The provisional 915.0 MHz must move.** It is `weather-island`'s confirmed occupant
-  peak. Note also that 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so Envelope A's
-  uncommitted region is roughly **915.2–923.0 MHz**.
+- **The frequency now has a ranked answer. Use 917.2–917.6 MHz.** M20's re-integration
+  closed on 2026-09-06 (Decision Register §5.4). The provisional 915.0 MHz is
+  `weather-island`'s occupant peak, **and a small move off it is worse, not better**: there
+  is a **915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at
+  `bridge-house` on 916.0** — the loudest signal in the campaign, 62 dB over the floor, and
+  not in the original inventory. 917.2–917.6 is ~1.2 MHz clear of it on both scorings.
+  If Envelope B is ever triggered, the pick is **909.4 MHz**; half the US915 500 kHz grid
+  is unusable here, 914.2 included, where `gatelink-gate` sees −66 dBm.
+  Note also that 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so Envelope A's uncommitted
+  region is roughly **915.2–923.0 MHz**.
 
-**Do not close D1 from range data alone**, and do not re-walk M20 — the 500 kHz
-re-integration and the envelope split are post-processing on the committed R11 trace.
+**Do not close D1 from range data alone**, and **do not re-walk M20** — it is closed, and
+the 500 kHz re-integration was post-processing on the committed R11 trace. Regenerate the
+derived file rather than editing it:
+
+```bash
+python3 tools/rangetest/survey_reintegrate.py \
+    docs/rangetest/data/2026-09-05-survey-campaign-r11.csv \
+    --out docs/rangetest/data/2026-09-06-m20-reintegration.csv
+```
 
 ## First actions next session
 
@@ -255,8 +276,8 @@ The engineering log has the full account; this is the index.
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded; D33 reopened; D1 gained a fourth
   bound tying `BW` to the rule section. See `docs/shared/LRAN-M21-FCC-Grant-Findings.md`
   and its handoff companion.
-- **M20's residual** — re-integrate the committed R11 trace over 500 kHz and split
-  903.0–914.2 / 915.2–923.0. **Analysis, not a re-walk.**
+- **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision
+  Register §5.4; derived file `2026-09-06-m20-reintegration.csv`.
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
 - **M6** — has data (six positions, all closing with margin) but is **not closed**:

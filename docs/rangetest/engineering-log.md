@@ -11,7 +11,7 @@ v0.7 (`ver = 2`). Tasks: [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./LRAN-Range-T
 |---|---|
 | **D1** — SF / BW / CR / TX power | Decision Register §2.1. **Bounded, not free:** TX power is capped by D33 and the frequency waits on M20 |
 | **M6** — range and RSSI at ~500 ft **on both bearings** | Decision Register §5.1 |
-| **M20** — ambient RSSI sweep of 902–928 MHz at **both** the bridge and the far node | Decision Register §5.1. **Field work closed 2026-09-05**; residual is 500 kHz re-integration of the committed trace, not a re-walk |
+| **M20** — ambient RSSI sweep of 902–928 MHz at **both** the bridge and the far node | Decision Register §5.1. **CLOSED 2026-09-06.** Field work 2026-09-05; 500 kHz re-integration and envelope split 2026-09-06. Results in Register §5.4 |
 | **W9** — full-size (222 B) and fragmented `PING` over the air | Protocol Spec §18, §6.6.1, §6.6.2 |
 | **§14 stage 1** — PHY CRC failures | The one discard path that cannot be produced at a desk; observe it at the far edge of the walk |
 
@@ -2472,3 +2472,90 @@ path and the three CSV columns were all already right, and `kEirpCeilingDbm10` w
 antenna, and it now records why there is deliberately no feedline term.
 
 **D1 is no longer blocked on anything external.** B1b is still owed.
+
+---
+
+## 2026-09-06 — M20's re-integration, and the occupant the inventory walked past
+
+M21 left M20 with a residual: integrate the survey over 500 kHz as well as 125 kHz, and
+report occupancy split by Part 15 envelope. It is post-processing on
+`2026-09-05-survey-campaign-r11.csv` — 130 bins × 7 sites, already committed — so the whole
+job is `tools/rangetest/survey_reintegrate.py` and its tests. **No board was powered for
+any of this**, which is the point: the alternative reading of the amendment was a second
+seven-site walk to answer a question the file already held.
+
+### The finding, and it is not the one the residual asked for
+
+The occupant inventory built on 2026-09-05 named `weather-island` at **−80 dBm on 915.0**
+as the one confirmed in-channel occupant, and 915.0 is the provisional frequency. The
+obvious next move is to shift a few hundred kHz off it.
+
+**That move lands in something 26 dB stronger.**
+
+| site | 915.8 | 916.0 | 916.4 |
+|---|---|---|---|
+| bridge-house | −105 | **−54** | −112 |
+| gatelink-gate | −86 | −89 | −80 |
+| weather-island | −78 | −113 | −113 |
+| welllink-well | −98 | −113 | −113 |
+| irrigation-pump | −105 | −113 | −112 |
+| hopyard-lower | −93 | −95 | −106 |
+
+A **915.8–916.4 MHz cluster at six of seven sites**, and −54 dBm at `bridge-house` is the
+loudest thing in the entire campaign by 11 dB — 62 dB above that site's floor. It is
+property-wide, unlike the 915.0 signal, which appears at `weather-island` and nowhere else.
+`bridge-house` was measured indoors at the bridge's target location and the YoLink hub is
+inside the dwelling, so the hub is the obvious candidate. **Unconfirmed, and it does not
+need confirming to be avoided.**
+
+**Why the inventory missed it.** It was built to answer "is the provisional channel
+clear?", so it looked at 915.0 and its immediate neighbours and reported what it found
+there, correctly. Nothing was wrong with it. But a question framed around *one* channel
+does not produce a ranking, and the thing that matters for D1 — where to go instead — was
+never asked. The re-integration asked a different question of the same rows and a −54 dBm
+peak fell out of it in about a minute.
+
+**The lesson is about the shape of the question, not the diligence of the answer.** A
+survey trace answers whatever it is interrogated for. This one had been read twice and the
+loudest signal in it was still not in any summary.
+
+### Results
+
+**Envelope A, 125 kHz in 915.2–923.0:** **917.2–917.6 MHz**, on both the all-sites and
+deployed-sites scorings, ~1.2 MHz clear of the cluster, floor at the campaign-wide
+−116 dBm, nearest neighbour of any strength −104 dBm at 917.0.
+
+**Envelope B, the eight US915 500 kHz channels:** **909.4 MHz** (−107 dBm worst peak),
+911.0 second. And a finding worth carrying: **half the grid is unusable here** — 903.0,
+904.6, 912.6 and 914.2 all see −64 to −79 dBm somewhere, and 914.2 is −66 dBm at
+`gatelink-gate`, the site GateLink will live at. If an Envelope B trigger ever fires, it is
+not a free choice of eight.
+
+Integrated floor over 500 kHz comes out at −110 dBm against −116 per bin: **6.0 dB**, which
+is `10·log10(500/125)` and is the sanity check that the power arithmetic is right. It is
+also 6 dB of sensitivity BW500 gives up before an occupant is considered.
+
+### The guard-band column, which is why the ranking is trustworthy
+
+Ranking candidates on their own bin alone put 916.4 near the top of an early run: it reads
+−112 at `bridge-house` and is 400 kHz from the −54 dBm burst. **A bin reading floor next to
+a 62 dB-over-floor neighbour is not a quiet channel; it is an untested one.** The tool now
+reports the strongest peak within ±600 kHz alongside each candidate and scores on the worse
+of the two. There is a test for exactly this case, because the failure is silent — the
+output looks like a confident recommendation either way.
+
+### The limit that post-processing cannot lift
+
+The receiver bandwidth is 125 kHz and the bins are 200 kHz apart, so **the survey measured
+62.5 % of the band and never looked at the other 37.5 %.** A narrowband transmitter sitting
+in a gap is invisible at any level. `data/README.md` already warned that absence of a peak
+is weak evidence; the gaps make it weaker, and no re-processing recovers it. Every "clear"
+verdict above is bounded by that, which is a reason to keep `cad_backoffs` under
+observation after D1 rather than treating the channel as settled — the instrument §12.3
+nominates for exactly this.
+
+### State
+
+**M20 is closed.** Results in Decision Register §5.4, derived file committed as
+`2026-09-06-m20-reintegration.csv` with its own regeneration line. `D1`'s frequency now has
+a ranked, reproducible answer; SF and B1b are what remain.

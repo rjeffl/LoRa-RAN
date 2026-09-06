@@ -1650,10 +1650,16 @@ from a measurement will be reopened by the first unexplained `cad_backoffs` read
 > `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. The floor is uniform and
 > receiver-thermal-limited at −115 to −118 dBm, every occupant is bursty and there is no
 > carrier anywhere in the band — which is what this section's contention model assumes.
-> **`weather-island` peaks −80 dBm at 915.0 MHz**, the one confirmed in-channel occupant,
-> and the range-test firmware's provisional frequency is that same 915.0. **D1 must move
-> off it.** `gatelink-gate`, the site GateLink will occupy, carries the strongest near-band
+> **`weather-island` peaks −80 dBm at 915.0 MHz** — the range-test firmware's provisional
+> frequency — so **D1 must move off it.** But **a small move is worse than none**: the
+> 2026-09-06 re-integration found a **915.8–916.4 MHz occupant cluster at six of seven
+> sites**, peaking at **−54 dBm at the bridge's own location**, 62 dB above the floor and
+> the loudest signal in the campaign. `gatelink-gate` carries the strongest near-band
 > neighbour at −66 dBm on 914.0 MHz.
+>
+> **The ranked answer is 917.2–917.6 MHz** under Envelope A, and **909.4 MHz** if
+> Envelope B is ever triggered — noting that half the US915 500 kHz grid is unusable at
+> this site, 914.2 MHz included. Decision Register §5.4 carries the tables.
 >
 > Two boundaries constrain where D1 may move. §18.1's Envelope B is confined to
 > **903.0–914.2 MHz**, and **923.3–927.5 MHz is LoRaWAN US915 downlink** — so under

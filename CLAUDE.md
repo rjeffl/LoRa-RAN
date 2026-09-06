@@ -119,6 +119,7 @@ pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
 pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit target
 python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
+python3 tools/rangetest/test_survey_reintegrate.py   # M20 re-integration tool
 ```
 
 These are the shape the firmware targets take once they exist:

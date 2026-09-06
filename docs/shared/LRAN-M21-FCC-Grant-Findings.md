@@ -481,11 +481,11 @@ closing positions along the correct bearing, not on a completed 152 m link.
 3. **D1's TX power figure is recorded as conducted power and antenna gain separately**,
    per D33 condition 1 — now more important, because §7.3 uses different gain figures for
    compliance and for link budget, and a single combined EIRP number cannot be re-derived.
-4. **M20 has run and its field work is closed** (§9.3). What remains is re-integration of
-   the committed trace over 500 kHz and a 903.0–914.2 / 915.2–923.0 split, so the survey
-   supports an Envelope B decision if a trigger fires. **D1's frequency must move off
-   915.0 MHz**, which is the confirmed occupant's peak and the range-test firmware's
-   provisional setting.
+4. **M20 is closed** (§9.3) — field work 2026-09-05, re-integration 2026-09-06. **D1's
+   frequency must move off 915.0 MHz** and **must not move to 915.8–916.4**, which the
+   re-integration found to be a property-wide occupant cluster peaking at −54 dBm.
+   Recommendations: **917.2–917.6 MHz** under Envelope A, **909.4 MHz** under Envelope B.
+   Decision Register §5.4.
 5. **M6 records conducted power in dBm**, never a RadioLib power index, and runs the §7.6
    short-range sanity check first. The range-test firmware already logs `conducted_dbm`,
    `antenna_gain_dbi10` and `eirp_ceiling_dbm` as separate CSV fields, so this obligation
@@ -528,6 +528,14 @@ closing positions along the correct bearing, not on a completed 152 m link.
 R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`,
 committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. The occupant
 inventory built from it is closed.
+
+> **Done 2026-09-06, and M20 is closed.** `tools/rangetest/survey_reintegrate.py`, output
+> committed as `docs/rangetest/data/2026-09-06-m20-reintegration.csv`. Results and the
+> channel recommendations are in Decision Register **§5.4**. The headline is one the
+> occupant inventory had missed: a **915.8–916.4 MHz cluster at six of seven sites**
+> peaking at **−54 dBm**, sitting exactly where a small move off the provisional 915.0 MHz
+> would land. **Envelope A: 917.2–917.6 MHz. Envelope B: 909.4 MHz**, with half the US915
+> 500 kHz grid unusable at this site.
 
 **The amendment below is therefore a post-processing task on a committed trace, not a
 second field campaign.** 200 kHz bins re-integrate to 500 kHz arithmetically, and the
