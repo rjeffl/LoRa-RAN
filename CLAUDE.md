@@ -23,8 +23,8 @@ USB reflash in the field.
 | `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
 | `LRAN-GateLink_Node-PRD` / `-Implementation-Plan` | `docs/gatelink/` | GateLink requirements and build |
 | `LRAN-WellLink_Node-PRD` | `docs/welllink/` | Placeholder — reserved allocations only |
-| `LRAN-Range-Test-Firmware-Pass1-Tasks` | `docs/rangetest/` | Pass 1 — **complete** (R1–R11). Answers D1; hosts W9, M6, M20 |
-| `LRAN-Range-Test-Firmware-Pass2-Tasks` | `docs/rangetest/` | Pass 2 — the second board profile (XIAO + Wio-SX1262 Kit), built and bench-measured |
+| `LRAN-Range-Test-Firmware-Pass1-Tasks` | `docs/rangetest/` | Range test pass 1 — tasks R1–R11. Answers D1; hosts W9, M6, M20 |
+| `LRAN-Range-Test-Firmware-Pass2-Tasks` | `docs/rangetest/` | Range test pass 2 — the second board profile (XIAO + Wio-SX1262 Kit) |
 
 **Check the version.** A node document citing an older protocol version than
 `LRAN-Protocol-Specification`'s own header has not been reconciled with the intervening
@@ -73,13 +73,19 @@ discrepancy rather than adjusting the spec to match the code.
 
 What exists today is marked; the rest is planned. **Do not assume a path is there.**
 
+**`[built]` / `[planned]` is the only status this file carries, deliberately.** Test
+counts, task ranges, dates and "the next target" used to live here and were **wrong more
+often than right** — every one of them was stale by the time anyone read it, and a
+governing file that is reliably wrong in its details teaches people to distrust the parts
+that are not. Current counts and status live where they are produced: run the commands
+below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
+
 ```
-lib/        lran-protocol  [built: P1-P7, 107 host tests, 72 W4 vectors]
+lib/        lran-protocol                                    [built]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
 firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
-            range-test/    [pass 1 complete R1-R11; pass 2 adds a second board
-                           profile - heltec + xiao envs, both measured 2026-09-05]
-            gatelink/, welllink/                   [planned]
+            range-test/                                      [built]
+            gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib and rangetest have one
@@ -98,12 +104,12 @@ Each firmware is its own PlatformIO project and reaches shared code via
 These work today:
 
 ```bash
-pio test -d lib/lran-protocol -e native       # 107 Unity tests, host
-pio test -d lib/lran-protocol -e esp32s3      # 110 on a Heltec V3
+pio test -d lib/lran-protocol -e native       # host Unity suite
+pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 
-pio test -d firmware/range-test -e native     # 182 Unity tests, host
+pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
 pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit target
 python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
@@ -150,6 +156,15 @@ GateLink means a USB reflash at the gate.
 ## Style
 
 - C++17. `-Wall -Wextra -Werror`.
+  - **One exception exists, and it is narrow.** A pinned third-party header may emit a
+    diagnostic you can neither fix nor suppress precisely — RadioLib fires an
+    unconditional `#warning` under `ARDUINO_USB_CDC_ON_BOOT`, and GCC issues `#warning`
+    from libcpp where `#pragma GCC diagnostic` does not reach it. Where that happens: use
+    the **narrowest flag** (`-Wno-error=cpp`, not `-Wno-error`), in the **one environment**
+    that needs it, with the reasoning written at the flag. Prefer a flag that
+    **downgrades** over one that silences — `-Wno-error=cpp` still prints the library's
+    other warnings, so the signal is kept and only the enforcement dropped. Anything wider
+    than this is a discussion, not a build fix.
 - `snake_case` for functions and variables, `PascalCase` for types, `kCamelCase` for
   constants, `lower_snake.cpp` for files.
 - Comment *why*, not *what*. Where a value comes from a document, cite the section:
@@ -179,7 +194,20 @@ not treat it as settled merely because it is written down. Update it in the same
 the work that proved it wrong, and record what changed and why — the same docs-as-code
 rule the rest of this file asks for.
 
-Two things this does **not** license:
+### A load-bearing premise must name the check that would falsify it
+
+If a document's argument rests on a factual premise — *"these two boards share a pad
+assignment"*, *"this counter cannot move"* — then **say what would prove it false, and
+point at the place that check is actually tracked**: an `M-*` item, a verify-before-build
+checklist, a test. Prose that states a falsification condition and tracks it nowhere reads
+like diligence and behaves like nothing.
+
+The case that produced this rule: Bridge Impl Plan §10.8.1 wrote *"if it ever stops being
+true, §2.3's claim collapses"* — and when it did stop being true, nothing surfaced it. It
+was found by an audit somebody thought to ask for, after the wrong pin map had already
+been copied into two other documents.
+
+Two things the "works in progress" latitude does **not** license:
 
 - **The protocol specification is still binding.** *"If code and the protocol
   specification disagree, the specification is right"* stands. Raise the discrepancy;

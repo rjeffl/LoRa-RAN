@@ -1037,6 +1037,18 @@ Everything above the driver is identical.
 **For the header board (p-6379) — GateLink's module.** The pad assignment *is* shared with
 the carrier here, which is what makes this column worth keeping.
 
+> **PREMISE CHECK — this table's remaining load-bearing assumption, and where it is
+> tracked.** The claim is that the header board's pads map to the carrier's nets as
+> `gatelink-expansion-board` §6 describes. **It is falsified by a continuity test**, and
+> that test is tracked as the *"Wio socket pad mapping — ring out each D-pad"* item in
+> **`gatelink-expansion-board.md` §10, Verify before soldering**, which remains unticked.
+>
+> Named here because the last version of this section stated its own falsification
+> condition in prose, tracked it nowhere, and did not notice when it came true — see the
+> corrected-premise box above. A premise with no owning checklist item is not being
+> checked (root `CLAUDE.md`, *A load-bearing premise must name the check that would
+> falsify it*).
+
 | Wio pad | Function | XIAO GPIO (header board) | StamPLC GPIO (GateLink carrier rev 0.3) |
 |---|---|---|---|
 | D9 | MISO | 8 | 9 — Bus 11 |
