@@ -65,9 +65,15 @@ discrepancy rather than adjusting the spec to match the code.
    settings fail *silently* on the Heltec V3, presenting as a radio that will not
    calibrate rather than as an error.
 10. **TX power is capped by D33**, at or below the FCC §15.249 EIRP ceiling (~−1 dBm EIRP;
-   roughly −3 dBm conducted with a 2 dBi antenna). Single fixed channel, no hopping.
+   **−4 dBm conducted with the fitted 3.0 dBi antenna**). Single fixed channel, no hopping.
    **Record conducted power and antenna gain separately** — the ceiling is EIRP and a
-   combined figure cannot be audited.
+   combined figure cannot be audited. **D33 was reopened by M21 on 2026-09-06**: the
+   ceiling stands but the reasoning changed, `BW` and the rule section are now one
+   decision, and the project's frame is **§15.23 home-built** — **no node may be
+   represented as FCC certified anywhere**, including a README, a LICENSE header, an
+   enclosure label or HA device metadata. Protocol Spec §18.2 is authoritative.
+   **Do not derate below −4 dBm conducted for conservatism**: −9 dBm is the SX1262's hard
+   floor and the site measured 12.5–25 % PER there at SF7.
 
 ## Layout
 
@@ -113,6 +119,8 @@ pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
 pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit target
 python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
+python3 tools/rangetest/test_survey_reintegrate.py   # M20 re-integration tool
+python3 tools/rangetest/test_eirp_check.py    # findings 7.6 EIRP sanity check
 ```
 
 These are the shape the firmware targets take once they exist:

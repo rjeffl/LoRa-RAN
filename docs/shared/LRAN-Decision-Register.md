@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.3
+**Version:** 0.4
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-06
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,8 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D34**.
+**Adding a decision.** New numbers continue from the highest issued, currently **D34** for
+decisions and **M23** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -50,9 +51,10 @@ than one section, or when it is blocking work.
 | # | Decision | Owner | Notes | Gate |
 |---|---|---|---|---|
 | **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | **Open, but bounded** — see §2.1. Pick after the range test at ~500 ft **on both bearings**. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. **TX power is capped by D33**; the **frequency requires the ambient survey (M20)** first. Range test results alone do not close this | Phase 1 |
+| **D33** | **FCC Part 15 operating mode** — *reopened 2026-09-06* | Protocol Spec §18.1 | **Reopened by M21**, exactly as standing condition 1 anticipated. Neither module is certified under §15.249; both carry §15.247 DTS **and** DSS grants, and D33's fixed-channel no-hopping mode exists inside those grants **only at BW500**. Two envelopes are documented in `LRAN-M21-FCC-Grant-Findings` §6. **Envelope A (§15.249) is the plan of record** — the 2026-09-04 walk closed at 0 % PER across six positions at its ceiling — with **Envelope B a fallback behind three explicit triggers**. Separately and permanently: the grants **do not transfer**, so the operative frame is **§15.23 home-built**. See §3.3 | Before D1 fixes a number |
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
-| **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor | Phase 5 |
+| **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor. **Amended 2026-09-06 — see §2.2. Still open, but the margin looks considerably better than this row's premise** | Phase 5 |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
 | **D31** | **Copyright holder name** | System PRD §11.2 | MIT text and the 2026 year are settled; the name on the copyright line is not. Personal name or a project/entity name. **Blocks the first public push, nothing else** | Before first public push |
 
@@ -76,8 +78,50 @@ constraints now apply, and **range test results do not close D1 on their own**:
   to a vendor hub is more likely proprietary. M20 settles it empirically, which is
   better evidence than a datasheet either way.
 - **The power figure also needs the grant conditions** recorded under D33.
+- **The bandwidth and the rule section are one decision** *(fourth bound, added
+  2026-09-06 by M21)*. A single fixed channel with no hopping exists inside the modules'
+  grants **only at BW500**, within 903.0–914.2 MHz (§15.247 DTS). BW125 forces the
+  §15.249 envelope and its ≈ −1.2 dBm EIRP ceiling — which the walk shows is sufficient,
+  so **Envelope A is the plan of record**. **D1 shall not fix `BW` without fixing the
+  envelope in the same motion.**
 
 **W7 still follows.** The airtime table regenerates once SF/BW/CR are fixed (**M19**).
+
+### 2.2 D1 and D28 — what M21 changed, 2026-09-06
+
+Recorded here rather than by editing the rows above, because the rows are the *current*
+state and this is the *dated* account of how they got there.
+
+**The frequency now has a survey behind it, and one candidate is ruled out.** M20's field
+work closed on 2026-09-05 (§5.1). `weather-island` shows the one confirmed in-channel
+occupant at **−80 dBm on 915.0 MHz** against a −115 to −118 dBm floor; `gatelink-gate`
+carries the strongest near-band neighbour at **−66 dBm on 914.0 MHz**, at the site GateLink
+will occupy. Both bursty, no carrier anywhere in 902–928. **The range-test firmware's
+provisional 915.0 MHz is the confirmed occupant's own peak and D1 must move off it.**
+Note also that 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so Envelope A's genuinely
+uncommitted region is roughly **915.2–923.0 MHz**.
+
+**The power figure is bounded, and it was measured at the ceiling rather than modelled.**
+The fitted antenna is confirmed as a 19 cm stick claiming **3.0 dBi**, vertical, the same
+part at both ends, so the conducted ceiling is **−4 dBm**. The 2026-09-04 walk ran at
+exactly that and closed at 0 % PER across all six positions; the same walk at −9 dBm — the
+SX1262's hard floor — showed 12.5–25 % PER at SF7. **A working point below −4 dBm is not
+available**: it is both unnecessary and, at −9 dBm, measurably worse.
+
+**The SF question the survey did not answer.** SF9 at −9 dBm was clean at all six positions
+where SF7 was not, but SF9 costs a `backoff_max_ms` raise above its 1107 ms full-frame
+airtime (Protocol Spec §12.3). SF7 at the −4 dBm ceiling was also clean. Both live.
+
+**D28's premise has improved, and its own recorded figure stays as written.** The GateLink
+node sits in a plastic enclosure **inside** the steel gate-controller enclosure — which
+also contains the pack and its BMS, 6–8 in away. The BLE link therefore never crosses a
+metal wall; both ends are inside the same cavity. A reading of **−50 to −60 dBm** was taken
+in that enclosure with a Heltec V3, 20–30 dB better than D28's row records. That
+discrepancy is **not silently reconciled**: candidate explanations are a different
+measurement position, a standing-wave null in the cavity, pack state, or the earlier
+reading having been taken outside the box. **D28's −80 dBm is a dated observation and is
+left standing**; this entry supersedes its *outlook*, not its record. D28 closes on
+**M23**, which is now a cavity-position and antenna question rather than a survival one.
 
 ---
 
@@ -108,7 +152,7 @@ constraints now apply, and **range test results do not close D1 on their own**:
 | **D27** | Carrier board fabrication | **Perfboard populated with prefabricated modules**; regulator and discretes mounted directly. Preserves the "no hand-built discrete circuits" property. Remaining sub-item: pick a DIN-rail carrier and cut the board to it | GateLink Impl Plan |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
-| **D33** | FCC Part 15 operating mode (**closes W5**) | **A single fixed channel, no frequency hopping, transmitting at or below the Part 15.249 power provisions.** Reasoning, link budget and standing conditions in Protocol Spec §18.1; it constrains §12.1 and §12.3 and **bounds D1** (§2.1). See §3.1 | Protocol Spec §18.1 |
+| **D33** | FCC Part 15 operating mode (**closes W5**) | **Moved to §2 — reopened 2026-09-06 by M21.** The 2026-08-30 outcome and its standing conditions remain readable in §3.1; what changed is in §3.3 | Protocol Spec §18.1 |
 | **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2 | Protocol Library Impl Plan §3, §6 (**P8**) |
 
 
@@ -116,6 +160,10 @@ constraints now apply, and **range test results do not close D1 on their own**:
 
 Both were settled on **2026-08-30**. Their outcomes are written up in the owning
 documents; what follows is the part that has no other home.
+
+> **D33 was reopened on 2026-09-06.** This subsection is left as written — it is the record
+> of what was decided and why on 2026-08-30, and rewriting it would destroy the thing that
+> makes it useful. **§3.3 records what changed.** Read them in that order.
 
 **D32 — RadioLib.** Rejected alternatives: Heltec's own library, convenient on one
 board, useless on the StamPLC carrier, and it would have forced a second driver for
@@ -208,6 +256,59 @@ Land `CommandGate` as library milestone **P8**, before B0.
 
 ---
 
+### 3.3 D33 reopened — what M21 found, 2026-09-06
+
+**The mechanism worked as designed.** §3.1's standing condition 1 required the modules' own
+FCC grant conditions to be confirmed *before D1 fixes a number*. M21 did that, and the
+confirmation did not support the premise. Full record in
+[`LRAN-M21-FCC-Grant-Findings`](./LRAN-M21-FCC-Grant-Findings.md) and its implementation
+companion [`LRAN-M21-Handoff`](./LRAN-M21-Handoff.md).
+
+**What the grants say.** Heltec V3 — `2A2GJ-HTIT`, **finished-product certification, not
+modular**, LoRa DSS 125 kHz at ≈13.5 dBm and DTS 500 kHz at ≈13.9 dBm over 902.3–914.9 and
+903.0–914.2 MHz respectively, with an **internal 3.0 dBi antenna declared and fixed**.
+Seeed Wio-SX1262 — `Z4T-WIO-SX1262`, **single modular approval**, 92 mW (≈19.6 dBm), with
+a grant condition that the antenna **must not be co-located or operating in conjunction
+with any other antenna or transmitter**.
+
+**Three findings, in order of consequence.**
+
+1. **Neither module is certified under §15.249.** Both are §15.247. D33's premise named a
+   different rule section from the one either module was tested against.
+2. **D33's operating mode exists inside those grants only at BW500.** Both manufacturers
+   split LoRa the same way — 500 kHz as DTS, 125 kHz as DSS, i.e. as frequency hopping. A
+   single fixed 125 kHz channel is too narrow for DTS and is not hopping, so it is neither.
+   **This is what makes `BW` and the rule section one decision**, and it is D1's fourth
+   bound (§2.1).
+3. **The grants do not transfer, permanently.** Four independent grounds: LRAN runs custom
+   firmware and drives the PHY arbitrarily through RadioLib (D32); the Heltec grant is not
+   modular; the Heltec antenna declaration excludes the external antenna every deployment
+   and range test uses; and **co-located LoRa, WiFi and BLE are a hard project requirement**,
+   which the Wio's modular grant forbids outright. The fourth is recorded as **closed, not
+   deferred**, so it is not re-opened later as an option.
+
+**The operative frame is §15.23 (home-built devices)** — not more than five units, personal
+use, not marketed, builder expected to follow good engineering practice and aim at the
+applicable technical standards. **Corollary, and it is a standing one: no LRAN node may be
+represented as FCC certified**, and no "Contains transmitter module FCC ID: …" label may
+appear in the README, a LICENSE header, an enclosure label, or HA device metadata.
+
+**D33's chosen ceiling survives its reasoning.** §15.249 was the only rule section
+permitting a single fixed narrow channel, and it happens also to be sufficient — the
+2026-09-04 walk closed at 0 % PER at all six positions at that ceiling. What is replaced is
+the *justification*, not the number.
+
+**One arithmetic correction to §3.1's condition 1.** It states a conducted figure of "around
+−3 dBm" from a 2 dBi antenna. The fitted antenna claims **3.0 dBi**, so the conducted
+ceiling is **−4 dBm**. The requirement to record conducted power and antenna gain
+**separately** is unchanged and is now more important, not less: the findings note uses
+*different* gain assumptions for compliance and for link budget, and a single combined EIRP
+figure cannot be re-derived into either.
+
+**What reopening D33 does and does not block.** It does not block the range test firmware,
+which already clamps to this ceiling and logs both terms. It blocks **D1 fixing a number**,
+which was always the gate.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -235,9 +336,9 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | M2 | **`MOVING` behaviour at the open limit and through the auto-close countdown** | Hold detection and the `hold_confirm_ms` default. If MOVING dips at the open limit, the confirmation timer must absorb it | GateLink Impl Plan |
 | M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert | GateLink Impl Plan |
 | M4 | **MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope | **D25**, carrier BOM | GateLink Impl Plan |
-| M5 | **BLE RSSI to the BMS from the final StamPLC mounting position** | **D28** | GateLink Impl Plan |
-| M6 | **Range and RSSI at ~500 ft on both bearings** | **D1**, bridge antenna siting | Range Test Tasks |
-| M20 | **Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3**. The two locations do not see the same picture, and it is the node's noise floor that sets its margin. Also settles empirically whether the site's YoLink network is on a LoRaWAN band plan or proprietary | Range Test Tasks |
+| M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
+| M6 | **Range and RSSI at ~500 ft on both bearings.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. **Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**, so a gross power or antenna error is caught at 10 ft rather than at 500 ft; that check is also the named test for §7.4's antenna-counterpoise uncertainty. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. **The last ~46 m is unwalked — B1b** | **D1**, bridge antenna siting | Range Test Tasks |
+| M20 | ~~**Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location~~ | **Field work done (2026-09-05).** R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`; committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. One confirmed in-channel occupant (`weather-island`, −80 dBm at 915.0), strongest near-band neighbour `gatelink-gate` at −66 dBm on 914.0, floor −115 to −118 dBm and uniform, every occupant bursty, no carrier anywhere in the band. **Residual done (2026-09-06)** by `tools/rangetest/survey_reintegrate.py`, output committed as `docs/rangetest/data/2026-09-06-m20-reintegration.csv`. **M20 is closed.** Results in §5.4 | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3** | Range Test Tasks |
 | M7 | **BMS pack-current sign convention**, captured once under charge and once under load | Last open item in the BMS protocol (Protocol Spec §18, W6). Bit `0x4000` is believed to be the discharge flag but has only been observed at 0.0 A | GateLink Impl Plan |
 
 ### 5.2 Informative
@@ -259,14 +360,110 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | # | Item | Blocks |
 |---|---|---|
 | M17 | **Copyright holder name for the LICENSE file** | **D31**, first public push |
-| M21 | **Confirm the SX1262 modules' own FCC grant conditions** — antenna type and gain, and what each grant assumes about power and hopping. **Two distinct modules as of 2026-09-05**: the Heltec V3's onboard SX1262 and the Seeed **Wio-SX1262** (range-test pass 2). Their grants are separate questions and both are open | **D33's "not a compliance determination" caveat**, and D1's TX power figure |
+| M21 | ~~**Confirm the SX1262 modules' own FCC grant conditions**~~ | **Done (2026-09-06).** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`. Heltec `2A2GJ-HTIT` — finished-product, **not modular**, ≈13.9 dBm DTS, internal 3.0 dBi antenna declared and fixed. Seeed `Z4T-WIO-SX1262` — single modular approval, 92 mW, **no-co-location condition**. **Neither is §15.249**, and the fixed-channel no-hopping mode exists in both grants only at BW500. **D33 reopened** (§3.3); **D1 gains a fourth bound** (§2.1). Backlog gains M22 and M23 |
 | M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
 | M19 | Airtime table regeneration once D1 fixes SF/BW/CR | Protocol Spec §15.1 (W7) |
+| M22 | **Bridge LoRa packet error rate with WiFi idle vs. saturated.** Run a sustained MQTT or iperf flood while the bridge receives a known `PING` sequence; compare PER and RSSI against the WiFi-idle baseline | Confirms the deliberate "**no** mutual exclusion on the bridge" policy (Bridge PRD). If PER degrades, the fallback is **physical antenna separation via the IPEX pigtail**, not firmware arbitration — ESP-IDF's coexistence arbitration has no visibility into an SPI-attached SX1262, so there is no hook to build on | Bridge Impl Plan |
+| M23 | **BLE RSSI to the BMS from the Stamp-S3A at its final mounting position**, inside the plastic enclosure inside the closed **steel** gate-controller enclosure, ~6–8 in from the pack. Sample **at least three positions and two orientations** — both ends share one reverberant cavity, so the risk is a standing-wave null, not attenuation. In the same session, measure **LoRa-to-BLE isolation** by logging BLE RSSI with the LoRa transmitter keyed and unkeyed | **D28**, superseding **M5**. Prior figures (−80 dBm, and −50 to −60 dBm) both used a Heltec V3 rather than the Stamp-S3A's internal antenna. Run before committing the mounting hardware; it does **not** gate M6 or B1b. A poor reading is a cable, connector and null question before it is an antenna verdict | GateLink Impl Plan |
+
+---
+
+### 5.4 M20's re-integration — the channel evidence for D1, 2026-09-06
+
+Derived from `2026-09-05-survey-campaign-r11.csv` by
+`tools/rangetest/survey_reintegrate.py`; the tool is host-tested and refuses a trace
+without hold discipline, because it ranks channels by peak. **No new field work was
+required and none should be done** — re-walking to answer this would have been an
+expensive, invisible mistake.
+
+**The finding that changes D1, and it was not in the occupant inventory.** There is an
+occupant cluster at **915.8–916.4 MHz**, seen at six of seven sites and by a wide margin
+the loudest thing in the campaign: **−54 dBm at `bridge-house` on 916.0**, 62 dB above the
+floor, with −86 and −80 dBm at `gatelink-gate` on 915.8 and 916.4. `bridge-house` was
+measured indoors at the bridge's target location and the YoLink hub is inside the dwelling,
+which is the obvious candidate — **unconfirmed, and it does not need confirming to be
+avoided.**
+
+This matters because it sits exactly where a reasonable person moves *to*. The inventory
+recorded `weather-island` at −80 dBm on 915.0 as the one confirmed in-channel occupant, and
+915.0 is the range test's provisional frequency; **nudging a few hundred kHz off it lands
+in something 26 dB stronger.** By contrast the 915.0 signal appears at `weather-island`
+only — every other site reads floor there — so it is local to that site, while the
+915.8–916.4 cluster is property-wide.
+
+**Envelope A — 125 kHz candidates in 915.2–923.0 MHz.** Scored on the worst peak across
+sites, then on the strongest neighbour within ±600 kHz, since a candidate reading floor
+next to a −54 dBm burst is an untested channel rather than a quiet one.
+
+| Candidate | Worst peak, all seven | Worst peak, deployed sites | Nearest strong neighbour |
+|---|---|---|---|
+| **917.4 MHz** | −110.0 dBm | −111.0 dBm | −104 dBm at 917.0 |
+| **917.2 MHz** | −109.0 dBm | −111.0 dBm | −104 dBm at 917.0 |
+| **917.6 MHz** | −105.0 dBm (`propane-tank`) | **−112.0 dBm** | −104 dBm at 917.0 |
+| 918.2 MHz | −109.0 dBm | −109.0 dBm | −103 dBm at 918.8 |
+| *915.8 / 916.0 / 916.4* | *−78 / −54 / −80 dBm* | — | **the cluster above — avoid** |
+
+**917.2–917.6 MHz is the recommendation**, and the two scorings agree on it. It is ~1.2 MHz
+clear of the 915.8–916.4 cluster, its floor is the campaign-wide −116 dBm, and its nearest
+neighbour of any strength is −104 dBm.
+
+**Envelope B — the eight US915 500 kHz channels.** Their centres are exactly the DTS grant
+range's endpoints, 903.0 + 1.6 MHz × k. Integrated floor is ≈ **−110 dBm**, i.e. 6.0 dB
+above the per-bin −116 — the bandwidth penalty a BW500 receiver pays before any occupant.
+
+| Channel | Integrated floor | Worst peak | |
+|---|---|---|---|
+| **909.4 MHz** | −109.6 dBm | **−107.0 dBm** | **clear — the pick if Envelope B is ever triggered** |
+| 911.0 MHz | −110.3 dBm | −102.0 dBm | clear, second choice |
+| 906.2 / 907.8 | −110.0 dBm | −96 / −89 dBm | occupied |
+| 903.0 / 912.6 / 914.2 / 904.6 | ≈ −110 dBm | −79 / −77 / −66 / −64 dBm | **strong occupants — do not use** |
+
+**Half the Envelope B grid is unusable**, including 914.2 MHz, where `gatelink-gate` — the
+site GateLink will occupy — sees −66 dBm. That is worth carrying into any future Envelope B
+trigger: the fallback is real but it is not a free eight-channel choice.
+
+**One limit that post-processing cannot lift.** The survey measured 125 kHz every 200 kHz,
+so **37.5 % of the band was never looked at** and a transmitter sitting entirely in a gap
+is invisible at any level. Absence of a peak was already weak evidence (`data/README.md`);
+the gaps make it weaker. This bounds every "clear" verdict above and is a reason to keep
+`cad_backoffs` under observation after D1 rather than treating the channel as settled.
 
 ---
 
 ## 6. Changelog
 
+- **v0.5** — **M20 closed.** Its M21 residual is done as post-processing on the committed
+  R11 trace — `tools/rangetest/survey_reintegrate.py`, host-tested, output committed as
+  `2026-09-06-m20-reintegration.csv` — and the results are in new **§5.4**. The
+  re-integration found an occupant cluster at **915.8–916.4 MHz** that the original
+  inventory missed, including a **−54 dBm** peak at `bridge-house` on 916.0, 62 dB above
+  the floor and the loudest signal in the campaign; it sits exactly where a small move off
+  the provisional 915.0 MHz would land. **917.2–917.6 MHz is the Envelope A
+  recommendation** on both the all-sites and deployed-sites scorings, and **909.4 MHz** is
+  the Envelope B pick — with the finding that **half the US915 500 kHz grid is unusable
+  here**, 914.2 MHz included, where the GateLink site sees −66 dBm. D1's frequency now has
+  a ranked, reproducible answer rather than a survey to read.
+- **v0.4** — **M21 closed, D33 reopened, D1 amended, D28's outlook improved.** Neither
+  radio module is certified under §15.249 — both carry §15.247 DTS **and** DSS grants — and
+  D33's fixed-channel, no-hopping mode exists inside those grants **only at BW500** within
+  903.0–914.2 MHz. Two envelopes are documented in `LRAN-M21-FCC-Grant-Findings`;
+  **Envelope A (§15.249) is the plan of record**, and the reason is measured rather than
+  modelled: the 2026-09-04 gate-bearing walk ran at its **−4 dBm conducted ceiling** with
+  the confirmed 3.0 dBi antenna and closed at 0 % PER across all six positions, while the
+  same walk at −9 dBm — the SX1262's hard floor — lost 12.5–25 % at SF7. Envelope B is
+  retained behind three explicit triggers. **D1 gains a fourth bound** tying `BW` to the
+  rule section (§2.1), and **§2.2** records what M21 changed for D1 and D28 as a dated
+  entry rather than by editing their rows. Recorded separately in **§3.3**: the grants
+  **do not transfer** — custom firmware, a non-modular Heltec grant, an external antenna
+  outside the Heltec declaration, and a co-location requirement the Wio's modular grant
+  forbids — so the operative frame is **§15.23 home-built**, permanently, and no node may
+  be represented as FCC certified. §3.1 is left as written and annotated, per the rule that
+  a dated record is corrected by a new entry rather than rewritten. Backlog: **M20's field
+  work is marked done** (the 2026-09-05 R11 re-walk) with its M21 amendment reduced to
+  post-processing of the committed trace; **M6 gains the conducted-power and sanity-check
+  requirements** and records how far the walk actually reached; **M5 is superseded by M23**;
+  **M21 closes**; and **M22** (bridge LoRa PER under WiFi load) and **M23** (BLE RSSI and
+  LoRa isolation inside the steel enclosure) are added.
 - **v0.3** — **D34 added, closing Protocol Spec W12**: §9.4 steps 4–6 are **split**
   rather than placed whole — steps 4, 5 and the state half of 6 become
   `lran::CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application.

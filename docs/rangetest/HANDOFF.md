@@ -1,6 +1,8 @@
 # Range test — session handoff
 
 **Written 2026-09-05, at the end of the session that built and measured Pass 2.**
+**Amended 2026-09-06: M21 closed, M20 closed, D33 reopened, D1 unblocked.** The amendments are marked
+inline; everything unmarked is still the 2026-09-05 state.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,6 +19,7 @@
 | 3 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) | the second board profile — what it validates and, more importantly, what it does not |
 | 4 | [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | R1–R11, complete. Its Pass 2 section is closed against what it predicted |
 | 5 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any campaign. **Start with "Power down every board you are not measuring with"** |
+| 5b | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the §7.6 check. **M6's precondition**, and it needs no firmware change |
 | 6 | [`data/README.md`](./data/README.md) | the two schemas, and what each committed trace is *not* |
 
 ## Where things stand
@@ -27,7 +30,7 @@
 | Merged today | **#28** (handoff close-out), **#29** (Pass 2 phase A — the board profile), **#30** (Pass 2 phase B — the bench, plus the document audit and three governing-doc rules) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Pass 2 changed **nothing** on the wire — no frame layout, no schema, no vector regenerates |
 | Done | **Pass 1 R1–R11 and the M20 re-walk.** **Pass 2 X1–X10:** a second board profile, built and bench-measured |
-| **Next** | **D1** — still a decision, not a build, and still waiting only on **M21**. The one piece of *bench* work this directory still owes is **B1b**, the gate-bearing walk with the Wio |
+| **Next** | **D1** — still a decision, not a build. **M21 closed 2026-09-06, so D1 is no longer blocked**: read `docs/shared/LRAN-M21-FCC-Grant-Findings.md` and Protocol Spec §18.2 before picking a number. The one piece of *bench* work this directory still owes is **B1b**, the gate-bearing walk with the Wio |
 
 ```bash
 pio test -d firmware/range-test -e native   # host Unity suite
@@ -36,6 +39,7 @@ pio run  -d firmware/range-test -e xiao     # XIAO ESP32S3 + Wio-SX1262 Kit
 pio test -d lib/lran-protocol -e native
 python3 tools/vectors/check.py
 python tools/rangetest/test_capture.py      # PlatformIO's python
+python3 tools/rangetest/test_survey_reintegrate.py
 ```
 
 All green at 05ae426. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
@@ -108,8 +112,14 @@ Do not copy it into a range-test board profile — it is a different product.
 `2026-09-05-survey-campaign-r11.csv` only.
 
 - **`weather-island` peaks −80 dBm at 915.0** against a −115 dBm median floor, reproducing
-  within 1 dB across both campaigns. **The one confirmed in-channel occupant.**
-  `propane-tank` sees −106 at 915.2, also reproducing.
+  within 1 dB across both campaigns. **The one confirmed occupant *on 915.0*** — and it is
+  local to that site; every other site reads floor there. `propane-tank` sees −106 at
+  915.2, also reproducing.
+- **Added 2026-09-06 by the re-integration, and it is the loudest thing in the campaign:**
+  a **915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at
+  `bridge-house` on 916.0**. Property-wide, unlike the 915.0 signal. This list was built to
+  ask whether the provisional channel was clear, not to rank alternatives, which is why it
+  was not here before.
 - **Retracted: `irrigation-pump` at 915.2.** −77 dBm pre-R11, −112 (floor) under hold
   discipline — picked up walking in. **One in-channel occupant site, not two.**
 - **`gatelink-gate` peaks −66 dBm at 914.0**, 1 MHz off channel and the strongest near-band
@@ -152,11 +162,36 @@ itself, and it would read high for a reason that is not congestion. **Raised, no
 - **SF.** The backoff table above is the constraint the survey did not supply. SF7 keeps
   §12.3's defaults valid as written; SF8+ needs `backoff_max_ms` raised above full-frame
   airtime.
-- **TX power.** Needs **M21**, the modules' FCC grant conditions — **and M21 is now two
-  modules**, the Heltec's SX1262 and the Seeed Wio-SX1262. Separate grants, both open.
+- **TX power.** **M21 is closed (2026-09-06).** Both grants are recorded in
+  `docs/shared/LRAN-M21-FCC-Grant-Findings.md`. Neither module is §15.249 — both are
+  §15.247 DTS + DSS — and **the grants do not transfer at all**, so the frame is §15.23
+  home-built. **D33 is reopened**; the §15.249 ceiling survives. The working point is
+  **−4 dBm conducted with the fitted 3.0 dBi antenna**, which is exactly what the
+  2026-09-04 walk ran at and closed 0 % PER on at all six positions. **−9 dBm is the
+  SX1262's hard floor, not a safer choice** — the same walk lost 12.5–25 % at SF7 there.
+- **BW is no longer free.** `BW` and the Part 15 rule section are **one decision**
+  (Protocol Spec §18.2). BW125 forces Envelope A (§15.249, ≈−1.2 dBm EIRP, any frequency in
+  902–928); Envelope B forces BW500 and 903.0–914.2 MHz. Do not fix one without the other.
+- **The frequency now has a ranked answer. Use 917.2–917.6 MHz.** M20's re-integration
+  closed on 2026-09-06 (Decision Register §5.4). The provisional 915.0 MHz is
+  `weather-island`'s occupant peak, **and a small move off it is worse, not better**: there
+  is a **915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at
+  `bridge-house` on 916.0** — the loudest signal in the campaign, 62 dB over the floor, and
+  not in the original inventory. 917.2–917.6 is ~1.2 MHz clear of it on both scorings.
+  If Envelope B is ever triggered, the pick is **909.4 MHz**; half the US915 500 kHz grid
+  is unusable here, 914.2 included, where `gatelink-gate` sees −66 dBm.
+  Note also that 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so Envelope A's uncommitted
+  region is roughly **915.2–923.0 MHz**.
 
-**Do not close D1 from range data alone.** The frequency needed M20 and has it; the power
-needs M21 and does not.
+**Do not close D1 from range data alone**, and **do not re-walk M20** — it is closed, and
+the 500 kHz re-integration was post-processing on the committed R11 trace. Regenerate the
+derived file rather than editing it:
+
+```bash
+python3 tools/rangetest/survey_reintegrate.py \
+    docs/rangetest/data/2026-09-05-survey-campaign-r11.csv \
+    --out docs/rangetest/data/2026-09-06-m20-reintegration.csv
+```
 
 ## First actions next session
 
@@ -165,11 +200,15 @@ needs M21 and does not.
 2. **No firmware work is queued.** Pass 1 and Pass 2 are both complete and merged.
 3. **Decide which of the two open threads you are on**, because they are not the same job:
    - **D1** — a decision against the data above. Read the W9 backoff table before picking
-     an SF and the occupant inventory before picking a channel. **Blocked on M21**, which
-     is paperwork and which nothing in this repo advances.
+     an SF, the occupant inventory before picking a channel, and **Protocol Spec §18.2
+     before picking either** — `BW` and the rule section are one decision now. **No longer
+     blocked**: M21 closed on 2026-09-06.
    - **B1b** — the gate-bearing walk with the Wio. This is the only bench work this
      directory still owes, and it is a walk, not a build. The desk runs are explicitly not
      it.
+   - **The §7.6 EIRP sanity check** — a short-range bench measurement, procedure in
+     [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md). **No firmware change needed**, and
+     it is M6's stated precondition, so it comes before B1b if both are on the list.
 4. **If it is B1b:** re-read `FIELD-PROCEDURE.md` first, and note the third board. Two
    boards make a measurement; a spare still powered in a backpack is in the experiment.
 
@@ -236,11 +275,19 @@ The engineering log has the full account; this is the index.
 
 ## Open, and not closable from this firmware alone
 
-- **D1** — M20 closed. Waits only on **M21**.
-- **M21** — **now two modules**: the Heltec's SX1262 and the Seeed Wio-SX1262. Separate FCC
-  grant conditions, both open. Paperwork, not bench work.
+- **D1** — M20 closed, **M21 closed 2026-09-06**. Nothing external blocks it now; it needs
+  a decision made against the data, plus B1b if the 500 ft leg is wanted first.
+- **M21** — **CLOSED 2026-09-06.** Both grants recorded; D33 reopened; D1 gained a fourth
+  bound tying `BW` to the rule section. See `docs/shared/LRAN-M21-FCC-Grant-Findings.md`
+  and its handoff companion.
+- **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision
+  Register §5.4; derived file `2026-09-06-m20-reintegration.csv`.
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
+- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure written
+  2026-09-06 (`EIRP-SANITY-CHECK.md`), tool written and tested, run not yet performed.
+- **Handoff §6 requirement 7** — log the applied `paOptTable` entry and the `optimize`
+  flag at boot. **The one firmware change this thread still owes**, and it is small.
 - **M6** — has data (six positions, all closing with margin) but is **not closed**:
   arcsecond GPS cannot support an RSSI-vs-distance curve. It answers "does it work there",
   not "what is the path loss".

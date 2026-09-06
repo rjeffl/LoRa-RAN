@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.8
+**Version:** 0.9
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-05
+**Last updated:** 2026-09-06
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -1626,11 +1626,11 @@ that outgrows a frame is not the moment to find out: GateLink has no OTA and sit
 
 | Parameter | Value | Note |
 |---|---|---|
-| Band | 915 MHz ISM | **Single fixed channel, no hopping** (W5 closed). Exact frequency per **D1**, chosen against an ambient survey — see below |
+| Band | 902–928 MHz ISM | **Single fixed channel, no hopping** (W5 closed; **D33 reopened 2026-09-06**, outcome unchanged). Exact frequency per **D1**, chosen against the ambient survey — see below |
 | Header mode | **Explicit** | Required by §2.1 |
 | CRC | **Enabled** | Required by §2.1 |
 | Sync word | Private (`0x12` / SX126x `0x1424`) | Not the LoRaWAN value |
-| SF / BW / CR / TX power | Per **D1**, TX power **at or below the §15.249 ceiling** | §15 gives the airtime consequences; §18.1 gives the ceiling |
+| SF / BW / CR / TX power | Per **D1**. TX power **at or below the §15.249 EIRP ceiling**; **`BW` and the rule section are one decision** (§18.1) | §15 gives the airtime consequences; §18.1 gives the ceiling and the envelope coupling |
 | Node-address filtering | Enabled in the SX126x packet handler | Low value while nodes run continuous RX; retained because it matters for any duty-cycled node (§17.1) |
 
 **All nodes share one frequency, SF, BW and sync word.** Per-node channels would
@@ -1644,6 +1644,26 @@ the two locations do not see the same picture and it is the node's floor that se
 link margin. The sweep is a deliverable of the range test firmware, and the traces
 belong in the repo alongside the range data: a channel choice that cannot be justified
 from a measurement will be reopened by the first unexplained `cad_backoffs` reading.
+
+> **Measured, v0.9 — the survey has run and it rules a channel out.** M20's field work
+> closed on 2026-09-05: seven sites, 902.0–927.8 MHz in 200 kHz bins,
+> `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. The floor is uniform and
+> receiver-thermal-limited at −115 to −118 dBm, every occupant is bursty and there is no
+> carrier anywhere in the band — which is what this section's contention model assumes.
+> **`weather-island` peaks −80 dBm at 915.0 MHz** — the range-test firmware's provisional
+> frequency — so **D1 must move off it.** But **a small move is worse than none**: the
+> 2026-09-06 re-integration found a **915.8–916.4 MHz occupant cluster at six of seven
+> sites**, peaking at **−54 dBm at the bridge's own location**, 62 dB above the floor and
+> the loudest signal in the campaign. `gatelink-gate` carries the strongest near-band
+> neighbour at −66 dBm on 914.0 MHz.
+>
+> **The ranked answer is 917.2–917.6 MHz** under Envelope A, and **909.4 MHz** if
+> Envelope B is ever triggered — noting that half the US915 500 kHz grid is unusable at
+> this site, 914.2 MHz included. Decision Register §5.4 carries the tables.
+>
+> Two boundaries constrain where D1 may move. §18.1's Envelope B is confined to
+> **903.0–914.2 MHz**, and **923.3–927.5 MHz is LoRaWAN US915 downlink** — so under
+> Envelope A the genuinely uncommitted region is roughly **915.2–923.0 MHz**.
 
 **LoRa PHY parameters are not runtime-configurable.** Changing them from HA means
 changing the link you are changing them over; one mismatch and the node is unreachable
@@ -2154,7 +2174,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W2 | ~~`movement_cause` values~~ | — | **Closed.** Cause is now derived locally from observed inputs; §8.5 lists exactly the distinctions the node can make |
 | W3 | ~~Partial-open preset count~~ | — | **Closed.** Partial open is out of scope; the command is retired (§8.1) |
 | W4 | ~~Test vectors~~ | — | **Closed.** `/tools/vectors/` exists: an independent Python generator, a self-check and **72** vectors, cross-checked against a C++ suite on host and on target with zero divergence. The generator was written from this document alone, with the codec off limits, and the four disagreements it produced are the substance of v0.5. Provenance is recorded per vector — 66 derived, 6 adjudicated — so a reader can tell which agreements are evidence and which are bookkeeping. The v0.5 and v0.6 regenerations each changed **no existing frame byte**, independently confirming that neither altered a header field, the authentication scope or a schema layout. §14.1 is enforced by the generator and the checker independently. §13.2's standing requirement to regenerate on every protocol change is unaffected and applies to v0.6 |
-| W5 | ~~FCC Part 15 operating mode~~ | — | **Closed.** Single fixed channel, no hopping, operating at or below the §15.249 power provisions. §18.1 records the reasoning and the standing conditions |
+| W5 | ~~FCC Part 15 operating mode~~ | — | **Closed, and the outcome still holds.** Single fixed channel, no hopping, operating at or below the §15.249 power provisions. **§18.1's *reasoning* was substantially replaced in v0.9** — M21 found that neither module is certified under §15.249, that the grants do not transfer at all, and that the operative frame is §15.23 home-built. **D33 is reopened in the register on that basis; W5 is not.** W5 asked which mode to build against and the answer is unchanged. See §18.1 and §18.2 |
 | W6 | **BMS `pack_ma` sign convention** | §7.2.3 | Bit `0x4000` is believed to be the discharge flag but has only ever been observed at 0.0 A. Capture once under charge and once under load. Tracked in the measurement backlog |
 | W7 | Airtime table regeneration | §15.1 | Recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
@@ -2168,6 +2188,11 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 
 **Decision: a single fixed channel, no hopping, operating at or below the Part 15.249
 power provisions.** Recorded here because it constrains §12.1 and bounds D1.
+
+> **Read §18.2 with this section.** The decision above is unchanged, but the argument
+> below rests on premises M21 tested on 2026-09-06, and two of them did not hold. §18.2
+> states which, and what replaces them. This section is left as written rather than
+> rewritten, because it is the record of the reasoning that produced the choice.
 
 **Why hopping is not needed.** Part 15.247 digital-modulation operation generally
 requires at least 500 kHz of occupied bandwidth, and LoRa at BW 125 kHz on a fixed
@@ -2213,6 +2238,93 @@ which mode to build against. Confirm the operating conditions of the radio modul
 FCC grants — antenna type and gain, and what each grant assumes about power and hopping
 — **before D1 fixes a number**, since operating inside a modular grant is the practical
 route for a build of this kind.
+
+### 18.2 What M21 changed, 2026-09-06 — the frame, the ceiling and the envelope coupling
+
+Standing condition 1 above required the modules' own grants to be confirmed before D1
+fixed a number. That confirmation was done and **did not support §18.1's premises**. Full
+record in [`LRAN-M21-FCC-Grant-Findings`](./LRAN-M21-FCC-Grant-Findings.md); the register
+carries the decision status as **D33, reopened**.
+
+**Premise 1 falsified: operating inside a modular grant is not available.** §18.1's closing
+sentence assumed it was the practical route. It is not, on four independent grounds — LRAN
+runs custom firmware and drives the PHY arbitrarily through RadioLib; the Heltec grant is
+a finished-product certification and **not modular at all**; the Heltec antenna declaration
+is internal-and-fixed, excluding the external antenna every deployment uses; and
+**co-located LoRa, WiFi and BLE are a hard project requirement**, which the Wio module's
+grant forbids outright. The fourth is permanent, not deferred.
+
+**The operative frame is §15.23, home-built devices** — not more than five units, personal
+use, not marketed, the builder expected to apply good engineering practice and aim at the
+applicable technical standards. Most of what this specification already requires is that
+record: an EIRP computed from separately recorded terms, a clamp in firmware, and traces
+that carry the power they were taken at.
+
+> **Standing corollary.** **No LRAN node may be represented as FCC certified**, and no
+> "Contains transmitter module FCC ID: …" label may appear — README, LICENSE header,
+> enclosure label, or HA device metadata. That is a claim about a certified integration
+> LRAN cannot make.
+
+**Premise 2 falsified: §15.249 is not the rule section either module was tested against.**
+Both are certified under **§15.247**, each carrying a DTS grant and a DSS grant, and both
+manufacturers split LoRa the same way — **500 kHz as DTS, 125 kHz as DSS**, i.e. as
+frequency hopping.
+
+**The consequence is the one that binds D1: a single fixed 125 kHz channel is neither.**
+It is too narrow for DTS and it is not hopping. **The only configuration where this
+specification's operating mode and the modules' grants overlap is BW500 within the DTS
+range**, which yields two envelopes:
+
+| | **Envelope A** — plan of record | **Envelope B** — documented fallback |
+|---|---|---|
+| Rule | §15.249 | §15.247, DTS path |
+| Ceiling | ≈ **−1.2 dBm EIRP** | 1 W by rule; ≈19.6 dBm (Wio) / ≈13.9 dBm (Heltec) as tested |
+| **Bandwidth** | **free** — BW125, BW250 or BW500 | **BW500 required**; BW125 and BW250 excluded |
+| Hopping | not required | not required |
+| Frequency | anywhere in 902–928 | **903.0–914.2 MHz only** |
+| Grant support | none — neither module was tested here | both tested in this mode, **as evidence, not authorization** |
+
+**`BW` and the rule section are therefore one decision, and §12.1 now says so.** BW125
+forces Envelope A; Envelope B forces BW500. A firmware that lets one be set without the
+other can produce a combination that is legal in neither — **BW125 at Envelope B's power
+is the specific mistake to catch**, and the envelope must be a runtime parameter rather
+than a compile-time constant, per §12.1's configurability rules and the repo's no-OTA
+constraint.
+
+**Envelope B's triggers**, in the pattern used for the D30 co-processor: M6 fails to close
+at SF12/BW125 on **both** bearings at the Envelope A ceiling; **or** M20's re-integration
+finds no acceptable channel anywhere in 902–928 at the node end; **or** measured PER at the
+working point leaves under ~10 dB of margin after seasonal foliage change. **If Envelope B
+is ever triggered, D28 must be re-opened in the same motion** — the co-location arithmetic
+at GateLink changes by more than 20 dB.
+
+**The ceiling survives, and is now measured rather than argued.** §18.1 chose §15.249's
+ceiling for a reason that turned out to be wrong, and picked correctly anyway: it was the
+only rule section permitting a single fixed narrow channel, and it is also sufficient. The
+2026-09-04 gate-bearing walk ran at **−4 dBm conducted with a 3.0 dBi antenna — the
+Envelope A ceiling exactly** — and closed at **0 % PER across all six positions** to 106 m,
+worst position −96.8 dBm against a −115 dBm floor. §18.1's ~48 dB free-space margin is not
+the deployed figure; the measured excess loss on this property runs 10 dB for clear
+line-of-sight to ~35–49 dB through a metal-clad barn, every figure bundling at least one
+exterior wall because the bridge is indoors.
+
+**Two corrections to standing condition 1's arithmetic.**
+
+- **The fitted antenna claims 3.0 dBi, not 2 dBi** — a 19 cm stick, vertical, the same part
+  at both ends — so the conducted ceiling is **−4 dBm**, not −3.
+- **−9 dBm is the SX1262's hard floor, not a conservative choice.** RadioLib enforces a
+  −9 to +22 dBm range. The walk measured 12.5–25 % PER at SF7 there, where −4 dBm was
+  clean. **A compliance derate must not be taken below −4 dBm**: it is unnecessary, it is
+  measurably worse, and at −9 dBm it removes the ability to derate at all.
+
+**The requirement to record conducted power and antenna gain separately is unchanged and
+now matters more**, because the compliance calculation and the link budget deliberately use
+*different* gain assumptions — highest plausible for compliance, lowest plausible for the
+link — and a single combined EIRP figure cannot be re-derived into either.
+
+**What is still open.** D33 is reopened in the register pending D1. **This section changes
+nothing on the wire**: no frame layout, no header field, no enumeration, no schema, no
+authentication scope. `ver` stays at `2` and no test vector regenerates.
 
 ---
 
@@ -2261,6 +2373,28 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
+- **v0.9** — **M21's findings folded in. `ver` stays at `2`; no frame layout, header field,
+  enumeration value, schema or authentication scope changes, and no test vector
+  regenerates.** New **§18.2** records what M21 falsified in §18.1's reasoning while
+  leaving §18.1 itself as written: operating inside a modular grant is **not** available to
+  this project on four independent grounds, so the operative frame is **§15.23 home-built**
+  and no node may be represented as certified; and **neither module is certified under
+  §15.249** — both are §15.247 with DTS at 500 kHz and DSS at 125 kHz, which makes a single
+  fixed 125 kHz channel neither. The consequence binds D1: **`BW` and the rule section are
+  one decision**, stated in §12.1's parameter table and elaborated as Envelope A (§15.249,
+  any BW, plan of record) and Envelope B (§15.247 DTS, BW500 only, 903.0–914.2 MHz,
+  fallback behind three triggers). **The §15.249 ceiling itself survives and is now
+  measured**: the 2026-09-04 walk ran at −4 dBm conducted with the confirmed 3.0 dBi
+  antenna — the Envelope A ceiling exactly — and closed at 0 % PER at all six positions.
+  Standing condition 1's arithmetic is corrected in two places: the antenna is 3.0 dBi so
+  the conducted ceiling is **−4 dBm**, and **−9 dBm is the SX1262's hard floor** rather
+  than a conservative setting, measurably worse on this site and leaving no room for any
+  further derate. **§12.1 gains the measured survey result** — the floor is uniform at
+  −115 to −118 dBm, every occupant is bursty with no carrier in band, and 915.0 MHz is the
+  one confirmed in-channel occupant's peak, so D1 must move off the range test's
+  provisional frequency; 923.3–927.5 MHz is US915 downlink, leaving ≈915.2–923.0 as
+  Envelope A's uncommitted region. **W5 is not reopened** — it asked which mode to build
+  against and that answer is unchanged; **D33 is**, in the register.
 - **v0.8** — Measurement capture. `ver` stays at `2`; **no frame layout, header field,
   authentication scope or schema length changes, and no vector regenerates** — §13.2's
   standing requirement is not triggered, because nothing on the wire moved.

@@ -21,8 +21,13 @@ int16_t floor_div10(int16_t v) {
 
 int8_t conducted_ceiling_dbm(int16_t antenna_gain_dbi10) {
   // spec 18.1: EIRP = conducted + antenna gain, so the conducted ceiling is the EIRP
-  // ceiling less the gain. With a 2 dBi antenna: -1.0 - 2.0 = -3.0 dBm conducted,
-  // which is the figure spec 18.1 states.
+  // ceiling less the gain. With the fitted 3.0 dBi antenna: -1.0 - 3.0 = -4.0 dBm
+  // conducted, which is spec 18.2's working point and what the 2026-09-04 walk ran at.
+  //
+  // No feedline term, deliberately. Spec 18.2 / M21 findings 7.2 assume 0 dB of feedline
+  // loss on the COMPLIANCE side, so omitting it here is that assumption expressed in
+  // code. GateLink's real path crosses two bulkheads and loses 0.5-1.5 dB; crediting that
+  // would raise the permitted conducted power. Do not "fix" this.
   const int16_t conducted_dbm10 =
       static_cast<int16_t>(kEirpCeilingDbm10 - antenna_gain_dbi10);
 

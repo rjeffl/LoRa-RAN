@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.4
+**Version:** 0.5
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.1
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-06
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -523,14 +523,46 @@ protocol** (§9.5).
   unit-tested against the same captured frames.
 
 **Antenna (D28).** The Stamp-S3A's 2.4 GHz antenna is **internal to the DIN case with no
-external option**, unlike the LoRa side. The node will sit ~12 in from the pack, which
-should be comfortable — but **measure RSSI from the intended mounting position** before
-committing (**M5**). §9.5 records why this is a live concern and not a formality.
+external option**, unlike the LoRa side. **Measure RSSI at the final mounting position
+before committing — now M23, which supersedes M5.** §9.5 records why this was a live
+concern; the paragraph below records what changed on 2026-09-06.
 
-**No radio coexistence problem.** The SX1262 is separate silicon on SPI with its own
-antenna at 915 MHz; the BLE radio is 2.4 GHz; WiFi is off. Putting the LoRa radio on a
-carrier board rather than the same PCB, if anything, improves isolation. **The open
-question is link margin, not interference.**
+> **Updated 2026-09-06 — the geometry is better than this section assumed, and the
+> measurement is a different one.** The GateLink node sits in a **plastic enclosure inside
+> the steel gate-controller enclosure**, and **the pack and its BMS are inside that same
+> steel enclosure**, 6–8 in away (GateLink PRD §4.3.1). The BLE link therefore never
+> crosses a metal wall — both ends are in one cavity. A **−50 to −60 dBm** reading was
+> taken in that enclosure with a Heltec V3, 20–30 dB better than §9.5's premise; that
+> discrepancy is recorded and not silently reconciled (Decision Register §2.2), and §9.5's
+> dated −80 dBm figure stands as written.
+>
+> **What this changes about the measurement.** A closed steel box holding both ends is a
+> reverberant cavity: energy is returned rather than radiated away, so the mean level over
+> six inches is typically *better* than free space. The cost is structure, not loss —
+> **standing-wave nulls that are position- and orientation-dependent**, and can be deep.
+> **M23 therefore samples at least three positions and two orientations** with the
+> Stamp-S3A's own antenna, rather than taking one reading and calling it the figure. A null
+> is defeated by moving the node a few centimetres, which is a mounting decision, not a
+> redesign.
+
+**Radio coexistence: the isolation is good, and the one path that is hard to characterise
+is inside the box.** The SX1262 is separate silicon on SPI at 915 MHz, the BLE radio is
+2.4 GHz, WiFi is off, and 915 MHz harmonics land nowhere near 2400–2483.5 MHz — the
+mechanism to worry about was never harmonics but broadband PA noise and receiver blocking
+from a transmitter inches away. **The steel wall sits between the LoRa antenna and the BLE
+receiver**, adding to the 20–30 dB of free-space spacing, and the Envelope A working point
+of −4 dBm conducted is ~24 dB below what the Wio could emit at its grant power.
+
+**The exception, and it is the reason R-4.3h exists.** The LoRa feedline does not leave the
+box at the module: it runs from the Wio's IPEX to a bulkhead on the plastic enclosure,
+across a jumper, to a second bulkhead on the steel — **three connector pairs and two cable
+runs inside the cavity that holds the BLE receiver and the BMS**, alongside the 1050's
+motor drive, the MPPT's switcher and the loop detector's oscillator. Leakage there cannot
+escape. Mitigation is mechanical: shielded assemblies, sound connectors, short runs away
+from the motor harnesses (§ layout guidance already requires this for the reverse reason).
+**Strict LoRa/BLE mutual exclusion (R-4.3h) is kept because it covers this path cheaply**,
+and because a connector degrading over years of outdoor thermal cycling is exactly the
+failure that would not announce itself.
 
 ### 4.4 Gate controller I/O — timing
 
@@ -1011,9 +1043,16 @@ signature is one a future reader will otherwise misdiagnose.
 from inches away** — confirmed independently with a phone, which needs to rest on top of
 the battery to beat −60 dBm. **This is the battery's own transmitter, not the test
 hardware**; the reading is consistent with a weak transmitter or an antenna shielded under
-the BMS heat sink. GateLink will sit ~12 in from the pack, which should be comfortable,
+the BMS heat sink. GateLink will sit 6–8 in from the pack, which should be comfortable,
 **but the host's 2.4 GHz antenna is internal to its DIN case with no external option** —
 hence **D28** and **M5**.
+
+> **Superseded in part, 2026-09-06.** M5 is superseded by **M23**, and the paragraph above
+> is a dated record whose *outlook* has changed: a −50 to −60 dBm reading taken inside the
+> deployed steel enclosure is 20–30 dB better than the −80 dBm recorded here. The −80 dBm
+> observation itself is left standing — it may have been taken outside the enclosure, at a
+> cavity null, or at a different pack state, and which of those holds is still open. See
+> §4.3's updated note and Decision Register §2.2.
 
 The full record of dead ends is in [`LRAN-Research-Archive`](../archive/LRAN-Research-Archive.md).
 
@@ -1081,6 +1120,19 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.5** — **§4.3 and §9.5 updated for the confirmed enclosure geometry**, both by dated
+  annotation rather than rewriting: the pack and BMS are inside the *same* steel enclosure
+  as the node, so the BLE link never crosses a metal wall, and the −50 to −60 dBm reading
+  taken in that enclosure is 20–30 dB better than §9.5's premise. §9.5's dated −80 dBm
+  observation stands as written; the discrepancy is recorded in Decision Register §2.2, not
+  reconciled. **M5 is superseded by M23**, which samples three positions and two
+  orientations — a closed steel box holding both ends is a reverberant cavity, so the risk
+  is a position-dependent standing-wave null, not attenuation. §4.3's coexistence paragraph
+  is expanded: the isolation from the steel wall is good, but the LoRa feedline runs
+  *inside* the cavity across three connector pairs alongside the motor drive, the MPPT
+  switcher and the loop detector, and that path is why R-4.3h's mutual exclusion is kept
+  even on a favourable M23. Requirements source and binding protocol advanced.
 
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Two things land on this node.** §11's reassembly path has now been exercised over the air at the 15-fragment ceiling, which §11.5 wanted before GateLink depends on it for a `CONFIG_ACK` that crosses the single-frame boundary — and this node has no OTA. Separately, the survey found the strongest near-band neighbour of any site at the gate, −66 dBm at 914.0 MHz, 1 MHz off channel.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. §4.1's obligations are unchanged; the dedup cache §4.1 assumes now has a named home and a `dedup_cache_depth` parameter in `/lib/lran-config/`.
