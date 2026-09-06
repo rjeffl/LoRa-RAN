@@ -310,16 +310,36 @@ window must read the port.
 
 ---
 
-## Pass 2 — XIAO configuration (not now)
+## Pass 2 — XIAO configuration — **DONE 2026-09-05**
 
-Nothing to build yet. The only thing pass 1 owes pass 2 is **R2's board config seam**: a
-second `BoardRadioConfig` populated from `gatelink-expansion-board.md`, and nothing else
-changing. If pass 2 turns out to need more than that, R2 was built wrong, and it is worth
-saying so in the log rather than absorbing it quietly.
+Built and measured. See
+[`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md);
+this section is kept for what it predicted.
 
-Worth noting when it comes: the Wio-SX1262 carrier drives its RF switch from a dedicated
-`LORA_RFSW` GPIO rather than from DIO2, which is exactly the divergence §12.2 anticipates
-and the first real test of the seam.
+It said the only thing pass 1 owed pass 2 was R2's seam — *"a second `BoardRadioConfig`
+populated from `gatelink-expansion-board.md`, and nothing else changing. If pass 2 turns
+out to need more than that, R2 was built wrong, and it is worth saying so in the log."*
+
+**Pass 2 needed more, and R2 was not built wrong.** The excess was in three places, none
+of them the radio pin map: a `rf_sw` field R2 defined that nothing ever read, the display
+and button pins (R2 scoped a *radio* seam correctly — one board cannot reveal a *board*
+seam), and the antenna as a D33 clamp input. Said out loud, as instructed, in the
+engineering log for that date.
+
+**The prediction below was exactly right**, and was the first thing pass 2 had to fix:
+
+> the Wio-SX1262 carrier drives its RF switch from a dedicated `LORA_RFSW` GPIO rather
+> than from DIO2, which is exactly the divergence §12.2 anticipates and the first real
+> test of the seam.
+
+It also needs both mechanisms, not one instead of the other. Confirmed over the air:
+192 probes out, 192 echoes back.
+
+**One thing it got wrong**, worth recording because it propagated: the second config was
+to be *"populated from `gatelink-expansion-board.md`"*. That document describes the
+**header board** (p-6379), and the board that arrived is the **Kit** (p-5982), whose
+control lines cross a B2B connector on entirely different GPIO. Copying the carrier's map
+would have produced a board that looked configured and did not work.
 
 ---
 

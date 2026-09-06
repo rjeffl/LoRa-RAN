@@ -2272,3 +2272,107 @@ tests unaffected. **Both firmware targets build**: `heltec` 393,161 B flash, `xi
 `rf_sw` field was right, and the field was dead code for a whole pass — because the only
 board in the room did not need it. The seam was not wrong; it was untested, and those look
 identical until the second board arrives.
+
+---
+
+## 2026-09-05 — Pass 2 phase B: the bench, and a third radio that quietly ate 60% of it
+
+Branch `x8-bench-bringup`. Task X8. Three boards: two Heltec V3 and the XIAO+Wio Kit, all
+USB-powered on the build-machine desk, 3.0 dBi, indoors.
+
+### Step 0 did its job, and what it caught was not what it was written for
+
+§4.0.1 put the Heltec regression first, to separate a loud failure (X4 broke the display)
+from a quiet one (X3 selected the wrong board). Both passed on the settings dump:
+`board=heltec_wifi_lora_32_V3`, `i2cInit(): sda=17 scl=18`, no OLED warning, `SX1262 up.`
+
+Then the sweep came back at **32.8 % PER** against pass 1's committed bench trace of
+**192/192, 0.0 %** — a trace whose own note says *"every point should read 0 % PER."*
+
+**It was called a regression at that point. That was wrong, and the correction is the
+point of this entry.**
+
+### The bisect that exonerated the firmware
+
+Pass-1 firmware was rebuilt from `241a4a3` in a worktree, flashed to both Heltecs, and run
+through the identical procedure:
+
+| Firmware | PER |
+|---|---|
+| Pass 2 | 32.8 % |
+| **Pass 1** | **61.4 %** |
+
+The old firmware was **worse**. Whatever was happening was not in the code.
+
+The XIAO run had already hinted at this without being read correctly: its failures were
+SF9/SF12-heavy while the Heltec run's were SF7-heavy. Scattered, non-repeating loss at
+−30 dBm is not link margin and not a pin map — and two runs failing at *different* points
+rules out anything static.
+
+### The cause: the third board was transmitting
+
+Every run today had **three radios powered**. An idle initiator sits ARMED and beacons
+once a second on the same fixed channel. Pass 1's clean 192/192 was taken with **two**
+boards on the desk and nothing else radiating.
+
+Confirmed directly by parking the third board in `ROLE_SURVEY`, which listens and never
+transmits:
+
+| Run | Third radio | PER |
+|---|---|---|
+| Heltec pair, pass 2 | beaconing | 32.8 % |
+| Heltec pair, pass 1 | beaconing | 61.4 % |
+| **Heltec pair, pass 2** | **parked, silent** | **0.0 % — 192/192** |
+| **XIAO → Heltec, pass 2** | **parked, silent** | **0.0 % — 192/192** |
+
+An exact reproduction of the pass-1 reference. **This belongs in the field procedure, not
+just here:** a spare board left powered on the bench corrupts a two-board measurement by
+up to 60 % PER, silently, and it looks exactly like poor link margin — the one symptom the
+whole instrument exists to measure.
+
+### What the XIAO actually proved
+
+`SX1262 up.` only says `begin()` returned success. A wrong `rf_sw` pin initialises just as
+cleanly and then transmits into a dead end — the silent failure the whole board config is
+built around. **192 frames out and 192 echoes back settles it:** the Wio's discrete RF
+switch line is real, GPIO 38 is right, and `setRfSwitchPins(rxEn, txEn)` is the correct
+order. X1 is confirmed end-to-end rather than by inspection.
+
+The XIAO read **+13.1 dB mean RSSI** over the Heltec pair run. **That is not the B1b module
+delta and must not be quoted as one.** Bench geometry is uncontrolled and dominates at this
+range: the Heltec reference itself moved from −24 dBm to −42 dBm between two runs on board
+placement alone, which is larger than the effect being claimed. B1b is a range measurement
+on the gate bearing.
+
+### The USB prediction was half wrong
+
+Phase A predicted the XIAO's native USB would cost margin in the role-selection window and
+in `capture.py`'s boot window. **Measured: 104–106 ms to first byte, against the Heltec's
+106–109 ms, port handle surviving every trial.** The ROM bootloader and the application
+share the USB-Serial-JTAG peripheral, so a run-mode reset never removes the USB device. No
+window needed changing.
+
+**The cost landed where it was not predicted — flashing.** Coming from Meshtastic's TinyUSB
+CDC (`2886:0059`), the reset into download mode swaps the USB device, esptool loses its
+handle, and the upload fails with `Could not configure port`. The board is in the
+bootloader, on a *new* port; flash to that port and it works. It does not recur once this
+firmware is installed.
+
+### Two small things the bench found
+
+**The boot banner was stale** — still `pass 1, branch 1 (R1-R3)` and `v0.7` long after
+R4–R9 and spec v0.8. That string is stamped into every capture and correlated against
+months later, so it was a confident wrong answer in every log file. Fixed.
+
+**The XIAO's display is flipped 180°** at operator request — not because the panel is
+mounted rotated (it is not) but because the enclosure holds the stack inverted. A board's
+config entry describes it *as deployed*, so it belongs in `BoardUiConfig` rather than at
+the draw site. Pinned by a test, because a wrong flip still ACKs at 0x3C, still draws, and
+is only ever caught by a person looking at it.
+
+### Lesson
+
+**An instrument measures its whole environment, including the parts of it you brought.**
+The failure looked exactly like the thing the instrument exists to detect, which is what
+made it convincing — a 60 % PER on a desk was accepted as a code regression for two runs
+before the bisect. The bisect was cheap and the assumption was not.

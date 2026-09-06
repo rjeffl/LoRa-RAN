@@ -1,7 +1,9 @@
 # LRAN Range Test Firmware — Pass 2 Tasks
 
-**Status:** **Phase A complete 2026-09-05** (X1-X7, X10). Both firmware targets build;
-181 range-test host tests pass. **Phase B (X8) not started — no board flashed.**
+**Status:** **Phase A and Phase B complete 2026-09-05.** Both targets build, 182 host tests
+pass, both boards flashed and measured on the bench: Heltec pair **192/192** (reproducing
+the pass-1 reference exactly) and XIAO→Heltec **192/192**. X1 confirmed over the air.
+**Still open: the gate-bearing walk (B1b / D1) and the XIAO ambient survey.**
 **Revision:** 0.1 (2026-09-05)
 **Target:** Seeed XIAO ESP32S3 + Wio-SX1262 **Kit** (B2B), on a Seeeduino XIAO Expansion Board
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` v0.8 (`ver = 2`)
@@ -232,9 +234,30 @@ Two things that are reliable on the Heltec may not be on the XIAO, and both fail
 
 **Deliberately not pre-solved.** Lengthening the window to a guessed number would be
 inventing a constant to fix a problem nobody has measured. The right value is how long
-*this host* takes to re-enumerate *this board*, which is a measurement — X8 takes it, and
-the number goes in the log. If it turns out the window needs to be board-dependent, that
-is one more field in `BoardUiConfig` and an entry in the log.
+*this host* takes to re-enumerate *this board*, which is a measurement — X8 takes it.
+
+> #### MEASURED 2026-09-05 — the mechanism was real, the consequence was not
+>
+> | | reset → first byte |
+> |---|---|
+> | XIAO (USB-Serial-JTAG) | 104–106 ms |
+> | Heltec (CP2102) | 106–109 ms |
+>
+> `n = 4` each, **port handle survived every trial**. A run-mode reset does not tear the
+> host connection down: the ROM bootloader and the running application share the same
+> USB-Serial-JTAG peripheral (`303A:1001`), so the USB device never disappears. **The role
+> window and `capture.py` needed no change**, and refusing to guess a longer window was
+> the right call for the wrong reason — the number turned out not to matter at all.
+>
+> **The real cost landed at flashing time, which this section did not predict.** Coming
+> *from* a firmware with a different USB stack — stock Meshtastic enumerates as TinyUSB
+> CDC `2886:0059` — the reset into download mode swaps the USB device, esptool loses its
+> handle mid-connect, and the upload fails with `Could not configure port`. The board is
+> in the bootloader; it is on a *new* port. Flash to that port and it works. Once this
+> firmware is installed it does not recur.
+>
+> Recorded as a miss, not a hit: the section predicted a capture-time problem that does
+> not exist and missed an upload-time one that does.
 
 O5 gates nothing and blocks no code. It changes only how much X8 is expected to discover.
 

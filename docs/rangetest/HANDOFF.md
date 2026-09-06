@@ -6,18 +6,22 @@
 > Where it disagrees with the documents below, they win — check the engineering log's
 > last entry against the date above before trusting anything here.
 
-> ### SUPERSEDED IN PART, 2026-09-05 — pass 2 started
+> ### UPDATED 2026-09-05 — pass 2 is built and measured
 >
 > This file was written expecting the next session to be **D1**, elsewhere. It was not:
-> the XIAO ESP32S3 + Wio-SX1262 hardware arrived and the next session is **range-test
-> pass 2**, which does start in this directory.
->
+> the XIAO ESP32S3 + Wio-SX1262 hardware arrived and **range-test pass 2** happened here.
 > Read [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md)
-> **before** acting on the "next actions" below. Two statements here are now wrong:
-> `main` is no longer the only branch, and pass 1's board count of one is no longer true.
+> alongside this file; where the two disagree, pass 2 is newer.
 >
-> The routing advice for **D1 itself** still holds — that decision belongs to the Decision
-> Register, and pass 2 supplies measurements toward it rather than making it.
+> **What changed:** a second board profile (**XIAO+Wio Kit**, `-e xiao`), the display and
+> role button moved into `BoardUiConfig`, and the driver taught the Wio's discrete RF
+> switch line. Both boards measured on the bench at **192/192, 0% PER**.
+>
+> **What did not:** D1 is still the next *decision* and **M21 is still its blocker**.
+> Pass 2 supplies measurements toward D1; it does not make it.
+>
+> Superseded below: the branch/test-count table in *Where things stand*, the hardware
+> state, and *First actions*. Those sections now carry their own dated corrections.
 
 ## Read these, in this order
 
@@ -36,15 +40,16 @@
 
 | | |
 |---|---|
-| Branch | `main` at **f1da424**, verified green **2026-09-05**. **`main` is the only branch left, local and remote** — all 16 merged branches were pruned at end of session |
+| Branch | ~~`main` at **f1da424**, the only branch left~~ — **superseded.** `main` is at **#29** (pass 2 phase A) with **#30** (phase B) open. Pass 2 branches: `r2-pass2-xiao`, `x8-bench-bringup` |
 | Merged today | **#19**–**#23** (field data, R11, blob provenance, boards staged, site conditions), **#24** (M20 analysis), **#25** (R9 / W9), **#26** (landing R9 on `main`), **#27** (W9 closed, spec v0.8) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2` unchanged. **W9 closed there**; §12.3 carries the backoff measurement. No vector regenerates |
-| Done | **R1–R11 and the M20 re-walk. Every Pass 1 task is complete.** All gates passed on hardware |
-| **Next** | **D1** — and it is a decision, not a build. Both blocking measurements are in: **M20 closed**, **W9 passed**. D1 waits only on **M21** |
+| Done | **R1–R11 and the M20 re-walk — every Pass 1 task.** Plus **pass 2 X1–X10**: second board profile, built and measured on hardware |
+| **Next** | **D1** — still a decision, not a build; still waiting only on **M21**. Pass 2 changed none of that. The remaining *bench* work is **B1b**: the gate-bearing walk with the Wio, which pass 2's desk runs explicitly do **not** substitute for |
 
 ```bash
-pio test -d firmware/range-test -e native   # 171 passed
+pio test -d firmware/range-test -e native   # 182 passed  (was 171 at pass 1 close)
 pio run  -d firmware/range-test -e heltec   # SUCCESS
+pio run  -d firmware/range-test -e xiao     # SUCCESS  (pass 2)
 pio test -d lib/lran-protocol -e native     # 107 passed
 python3 tools/vectors/check.py              # 72 vectors OK
 python tools/rangetest/test_capture.py      # capture tool, PlatformIO's python
@@ -55,8 +60,21 @@ PlatformIO's python: `~/.platformio/penv/bin/python`.
 
 ## Hardware state
 
-Two Heltec V3 boards, **both flashed from `main` at the R9 build (PR #25), 2026-09-05**,
-and both last used for the W9 bench run.
+**Superseded 2026-09-05 by pass 2.** Now **three** boards, all flashed from the pass 2
+phase B build:
+
+- **Two Heltec V3**, `-e heltec`. Both report `SER=0001`, so with both attached the device
+  nodes are told apart only by USB location — read `board=` off the settings dump.
+- **One XIAO ESP32S3 + Wio-SX1262 Kit** on a Seeeduino XIAO Expansion Board, `-e xiao`,
+  enumerating as `/dev/cu.usbmodem*`. **Meshtastic has been overwritten.**
+
+> **Power down every board you are not measuring with.** An idle ARMED initiator beacons
+> once a second on the single fixed channel; a third powered board cost up to **60 % PER**
+> on 2026-09-05 and looked exactly like poor link margin. Park a spare in `SURVEY`
+> (listen-only) if it must stay powered. See `FIELD-PROCEDURE.md`.
+
+Previously: two Heltec V3 flashed from the R9 build (PR #25), last used for the W9 bench
+run.
 
 **Both still hold the completed seven-site campaign in NVS**, cursor at site 6, `HELD` at
 boot. Uploading firmware writes the app partition and does not touch NVS, so three
@@ -177,11 +195,12 @@ needs M21 and does not.
 
 ## First actions next session
 
-1. `git checkout main && git pull --ff-only`, then run the checks above. Everything
-   through **#27** is merged and `main` is at **f1da424**. There are no other branches to
-   clean up or reconcile.
-2. **No build work is queued.** Pass 1 is complete: R1–R11 built, M20 captured and
-   analysed, W9 passed on the bench and closed in the specification.
+1. `git checkout main && git pull --ff-only`, then run the checks above. **Corrected
+   2026-09-05:** everything through **#29** is merged; **#30** (pass 2 phase B) may still
+   be open — check before assuming `main` is current.
+2. ~~**No build work is queued.**~~ **Superseded.** Pass 2 built a second board profile
+   (X1–X10) and measured it. What is *now* unqueued is firmware work; what remains is
+   **B1b**, a walk, not a build.
 3. **The next work is D1**, and it is a decision against the data above rather than code.
    Read the W9 backoff table before picking an SF, and the occupant inventory before
    picking a channel.
@@ -191,6 +210,11 @@ needs M21 and does not.
 **If the next session is D1, it does not start in this directory.** The decision is
 recorded in `LRAN-Decision-Register`, the constraints live in the protocol specification
 (§12.1, §12.3, §15.1), and this firmware's job — supplying the measurements — is finished.
+
+> **Still true after pass 2, with one addition.** Pass 2 did not advance D1 and was never
+> going to: it added a board, not a measurement of the link. The one piece of bench work
+> this directory still owes is **B1b** — the gate-bearing walk with the Wio. The desk runs
+> in `2026-09-05-bench-pass2-*.csv` are **not** that, and say so in their own headers.
 
 ## The M20 re-walk — done 2026-09-05
 

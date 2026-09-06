@@ -219,7 +219,14 @@ static void test_xiao_wio_kit_tcxo_is_1v8() {
 static void test_xiao_ui_has_no_vext_and_no_panel_reset() {
   TEST_ASSERT_EQUAL_INT8(kPinNone, kXiaoWioKitUi.vext);
   TEST_ASSERT_EQUAL_INT8(kPinNone, kXiaoWioKitUi.rst);
-  TEST_ASSERT_FALSE(kXiaoWioKitUi.flip_vertically);
+}
+
+// TRUE for the enclosure, not for the panel - the XIAO expansion board's display is not
+// mounted rotated, but the box holds the stack inverted. Pinned because it is invisible
+// to every other check: a wrong flip still ACKs at 0x3C, still draws, and is only ever
+// caught by a person looking at it.
+static void test_xiao_display_is_flipped_for_the_enclosure() {
+  TEST_ASSERT_TRUE(kXiaoWioKitUi.flip_vertically);
 }
 
 // The Heltec keeps both, and keeps the flip. This is the "X4 was a no-op" assertion:
@@ -258,6 +265,10 @@ static void test_no_shipping_profile_has_a_pin_collision() {
 // Built as a local literal rather than a constant in board_config.h: this map must NOT
 // be selectable, it exists only to prove the checker catches the case it was written
 // for. If this test ever goes green-by-passing, the checker has stopped working.
+//
+// The real header-board map is owned by docs/gatelink/gatelink-expansion-board.md 6.1 -
+// it is GateLink's module, not this firmware's. Do not promote this literal into a board
+// profile; if this firmware ever needs that product, take the numbers from there.
 static void test_the_checker_catches_the_header_board_collision() {
   const BoardRadioConfig header_board = {
       "wio_sx1262_header_board", "Wio hdr",
@@ -337,6 +348,7 @@ int main(int, char**) {
   RUN_TEST(test_xiao_wio_kit_needs_both_rf_switch_mechanisms);
   RUN_TEST(test_xiao_wio_kit_tcxo_is_1v8);
   RUN_TEST(test_xiao_ui_has_no_vext_and_no_panel_reset);
+  RUN_TEST(test_xiao_display_is_flipped_for_the_enclosure);
   RUN_TEST(test_heltec_ui_is_unchanged_by_the_refactor);
   RUN_TEST(test_xiao_role_button_is_not_the_boot_strap);
   RUN_TEST(test_no_shipping_profile_has_a_pin_collision);

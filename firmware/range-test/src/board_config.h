@@ -19,9 +19,13 @@ namespace rangetest {
 inline constexpr int8_t kPinNone = -1;
 
 // spec 12.2 - the pin map, TCXO reference voltage and RF-switch mode are supplied
-// by configuration at construction, never compiled in. Pass 1 has one board type,
-// which makes the seam look like ceremony; it is the reason pass 2 is a config
-// addition rather than a rewrite (task R2), and four firmwares depend on it.
+// by configuration at construction, never compiled in. Pass 1 had one board type, which
+// made the seam look like ceremony; it is the reason pass 2 was a config addition rather
+// than a rewrite (task R2), and four firmwares depend on it.
+//
+// PASS 2 CASHED THAT IN, and found the one thing a single board could not show: `rf_sw`
+// was a field R2 defined and nothing read, because the Heltec carries kPinNone. A seam is
+// only proved by the second thing that uses it.
 //
 // TCXO voltage is TENTHS OF A VOLT, not a float. The value is compared and printed
 // in the settings dump (R3) and a float that prints as "1.8" but compares unequal to
@@ -198,9 +202,13 @@ struct BoardUiConfig {
 
   uint8_t addr;
 
-  // The V3's panel is mounted rotated; the XIAO expansion board's is not. Silent and
-  // cosmetic rather than dangerous, but an upside-down display at the far end of a
-  // walk is not something to discover there.
+  // Two different reasons a board sets this, both ending at the same field:
+  //   - the V3's panel is mounted rotated on the board itself;
+  //   - the XIAO expansion board's is not, but the ENCLOSURE holds the stack inverted.
+  // Silent and cosmetic rather than dangerous, but an upside-down display at the far end
+  // of a walk is not something to discover there. Enclosure orientation belongs here for
+  // the same reason the panel's own mounting does: this struct describes a board AS
+  // DEPLOYED, and the draw site should not know which of the two reasons applies.
   bool flip_vertically;
 };
 
@@ -237,6 +245,10 @@ inline constexpr BoardUiConfig kHeltecV3Ui = {
 // radio and display coexist here and would not have on the other product.
 // `has_pin_conflict()` below makes that a compile-time check rather than a memory.
 //
+// flip_vertically TRUE, and NOT because the panel is mounted rotated - it is not. The
+// enclosure this stack goes into holds it inverted, so the image turns to match
+// (operator request 2026-09-05, after reading the panel the other way up on the bench).
+//
 // role_button 21: the user button on TOP OF THE WIO BOARD, reached across the B2B
 // connector - GPIO 21 is not one of the XIAO's D-pads. Meshtastic's Kit variant calls
 // it the program button and declares BUTTON_NEED_PULLUP, so it is active low with a
@@ -254,7 +266,7 @@ inline constexpr BoardUiConfig kXiaoWioKitUi = {
     /* vext            */ kPinNone,
     /* role_button     */ 21,
     /* addr            */ 0x3c,
-    /* flip_vertically */ false,
+    /* flip_vertically */ true,
 };
 
 // ---------------------------------------------------------------------------

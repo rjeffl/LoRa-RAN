@@ -189,6 +189,42 @@ Bus 14 is still labelled CS in the StamPLC pin table (§5). It is now carrying B
 the vendor's suggested use, not a hardware function — G11 has no chip-select hardware behind it —
 but expect to re-read that table twice while debugging.
 
+#### 6.1 The module's pads on a XIAO host — this document owns this mapping
+
+**Moved here from Bridge Impl Plan §10.8.1 (2026-09-05), so it lives with the module it
+describes.** That section is about what the *simnode* builds; this module is GateLink's,
+and its pad assignment is a property of this board's design rather than of the bridge's
+test instrument.
+
+The module is the **header board, "Wio-SX1262 for XIAO" (p-6379)**, 2.54 mm headers. Where
+it is hosted on a XIAO ESP32S3 instead of this carrier — bench work, or a future simnode
+built on the right product — the same pads land on these GPIO:
+
+| Wio pad | Function | XIAO ESP32S3 GPIO | StamPLC GPIO (this board, rev 0.3) |
+|---|---|---|---|
+| D9 | MISO | 8 | 9 — Bus 11 |
+| D8 | SCK | 7 | 7 — Bus 12 |
+| D10 | MOSI | 9 | 8 — Bus 13 |
+| D4 | NSS | 5 | 41 — Bus 16 |
+| D3 | BUSY | 4 | 11 — Bus 14 |
+| D1 | DIO1 | 2 | 1 — PORT.A white |
+| D2 | RST | 3 | 2 — PORT.A yellow |
+| D5 | RF_SW | 6 | 40 — Bus 15 |
+
+TCXO is **1.8 V via DIO3**, and differs from the Heltec's value — it cannot be a shared
+constant (§7.3).
+
+> **DO NOT CONFUSE THIS WITH THE KIT.** Seeed's other product — "Wio-SX1262 with XIAO
+> ESP32S3" (p-5982) — connects over a **B2B connector** on GPIO 38–42 and uses **none of
+> these pads**. It is the board the range-test firmware runs on (`kXiaoWioKit`), and it
+> **does not validate this board's wiring**. A table copied from the wrong product
+> produces a node that looks configured and does not work.
+>
+> **The XIAO GPIO column above is still unrung** — it is derived, and corroborated by an
+> independent source (meshtastic/firmware issue #8409) that matches the pad column value
+> for value. Two agreeing derivations are not a continuity check. §10's ring-out item is
+> the check that closes it.
+
 ### VE.Direct
 
 Named from the **ESP32's** perspective. Victron labels its connector from the MPPT's perspective, so their TX is our RX. Keep this convention everywhere in firmware and comments.
@@ -373,7 +409,7 @@ At roughly 5.25 A per leaf: a 20 ft run in 16 AWG drops about 0.84 V, in 18 AWG 
 ## 10. Verify before soldering
 
 - [ ] J1 orientation — continuity-check pin 1 with the boards seated. The right-angle mate mirrors the footprint.
-- [ ] Wio socket pad mapping — ring out each D-pad to its module pin. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
+- [ ] Wio socket pad mapping — ring out each D-pad to its module pin. **This item is the tracked check for Bridge Impl Plan §10.8.1's remaining load-bearing premise** — that the header board's pads map to this board's nets as §6 describes. Ticking it closes that premise; leaving it open means the premise is assumed, not verified. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
   - The D-number mapping did gain an **independent corroboration** on 2026-09-05 — meshtastic/firmware issue #8409's header-board map matches §6's Wio pad column value for value (D9 MISO, D8 SCK, D10 MOSI, D3 BUSY, D5 RF_SW, D4 NSS, D1 DIO1, D2 RST). **Two agreeing derivations are not a continuity check.** Ring it out anyway.
 - [ ] **Every non-SPI radio net moved in rev 0.3.** Ring out all five against §6 before power-up: BUSY→Bus 14, RF_SW→Bus 15, NSS→Bus 16, DIO1→PORT.A white, RST→PORT.A yellow. Any rev 0.2 board, harness or firmware header on the bench is now wrong.
 - [ ] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**

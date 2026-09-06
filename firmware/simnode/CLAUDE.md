@@ -49,11 +49,10 @@ Wio-SX1262 products that are not pin-compatible outside the three SPI nets. Conf
   nss=41 rst=42 busy=40 dio1=39  sck=7 miso=8  mosi=9
   rf_sw=38           tcxo=1.8f  dio2_as_rf_switch=true
 
-// LRAN_PROFILE_XIAO_WIO_HDR  — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers
-//   NOT THE BOARD IN HAND. Listed because it is GATELINK'S module and its pad
-//   assignment is the carrier's (gatelink-expansion-board.md §6). Still not rung out.
-  nss=5  rst=3  busy=4  dio1=2   sck=7 miso=8  mosi=9
-  rf_sw=6            tcxo=1.8f  dio2_as_rf_switch=true
+// The OTHER Wio product — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers — is
+//   GateLink's module, NOT the board in hand, and its map is deliberately not
+//   duplicated here. It lives in gatelink-expansion-board.md 6.1, which owns it.
+//   Different GPIO entirely; do not reach for it by memory.
 ```
 
 **`rf_sw` is a real pin on both XIAO profiles, not `RADIOLIB_NC`.** Seeed does not tie
@@ -87,10 +86,11 @@ than a risk:
 > RadioLib on a second board, and the injected-config seam. **It does not validate the
 > carrier's net list.** XIAO validates the module; only the carrier validates the carrier.
 
-The carrier's pad assignment (D4 NSS, D3 BUSY, D1 DIO1, D2 RST, D5 RF_SW, D8/D9/D10 SPI)
-did gain an *independent corroboration* in the header-board map above — but two agreeing
+The carrier's pad assignment did gain an *independent corroboration* — but two agreeing
 derivations are not a continuity check, and **the Kit cannot supply one**, because it does
-not use those pads. `gatelink-expansion-board.md` §11's ring-out checkbox stays open.
+not use those pads. That map, its corroboration and its outstanding ring-out all live in
+**`gatelink-expansion-board.md` §6.1 and §10**, which own them. Nothing in this directory
+should carry a second copy.
 
 ## Multi-identity
 

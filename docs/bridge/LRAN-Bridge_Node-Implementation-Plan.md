@@ -175,6 +175,10 @@ XIAO validates the module; only the carrier validates the carrier.**
 > |---|---|---|
 > | NSS / RST / BUSY / DIO1 / RF_SW | 41 / 42 / 40 / 39 / 38 | 5 / 3 / 4 / 2 / 6 |
 >
+> *The header-board column is shown here only to make the difference visible. It is not a
+> build reference and this document does not own it —* `gatelink-expansion-board.md` §6.1
+> *does.*
+>
 > **The board that arrived is the Kit.** §2.3's premise is therefore narrowed, exactly as
 > the warning below §10.8.1 anticipated: the XIAO validates the **module** — SX1262
 > silicon, RF performance, RadioLib on a second board, and the injected-config seam — but
@@ -1016,26 +1020,60 @@ Everything above the driver is identical.
 
 #### 10.8.1 The pin maps
 
-**The Wio pad assignment is a property of the module, not of the host.** The Wio-SX1262
-occupies the same eight XIAO-footprint pads wherever it is used. GateLink's carrier wires
-those same eight pads to StamPLC GPIO; the XIAO simnode gets them from the XIAO footprint
-directly. **The GPIO numbers differ; the pad topology is identical.** That identity is the
-entire reason the XIAO profile validates anything about GateLink — if it ever stops being
-true, §2.3's claim collapses (see §2.3.1 finding 2).
+> ### THIS SECTION'S PREMISE FAILED. Corrected 2026-09-05.
+>
+> It read: *"The Wio pad assignment is a property of the module, not of the host. The
+> Wio-SX1262 occupies the same eight XIAO-footprint pads wherever it is used... That
+> identity is the entire reason the XIAO profile validates anything about GateLink — if it
+> ever stops being true, §2.3's claim collapses."*
+>
+> **It stopped being true.** Seeed sells two Wio-SX1262 products. The **header board**
+> (p-6379) does occupy those eight pads and is GateLink's module. The **Kit** (p-5982,
+> the board that arrived) connects over a **B2B connector** instead, on GPIO 38–42, and
+> touches none of them. The pad topology is *not* identical across products, so the
+> identity this section rested on does not hold for the hardware in hand.
+>
+> §2.3's claim is therefore narrowed rather than collapsed — see §2.3.1 finding 2.
+>
+> **The old table's "XIAO ESP32S3 GPIO" column was the header board's**, which is
+> GateLink's module and not this section's subject. It has been **moved to
+> `gatelink-expansion-board.md` §6.1** rather than kept here in a corrected form: this
+> section describes what the simnode builds, and a second copy of a map that belongs to
+> another board is precisely how the wrong column reached two other documents.
 
-| Wio pad | Function | XIAO ESP32S3 GPIO | StamPLC GPIO (GateLink carrier rev 0.3) |
-|---|---|---|---|
-| D9 | MISO | 8 | 9 — Bus 11 |
-| D8 | SCK | 7 | 7 — Bus 12 |
-| D10 | MOSI | 9 | 8 — Bus 13 |
-| D4 | NSS | 5 | 41 — Bus 16 |
-| D3 | BUSY | 4 | 11 — Bus 14 |
-| D1 | DIO1 | 2 | 1 — PORT.A white |
-| D2 | RST | 3 | 2 — PORT.A yellow |
-| D5 | RF_SW | 6 | 40 — Bus 15 |
+**The header board's pad map now lives in `gatelink-expansion-board.md` §6.1**, moved
+there 2026-09-05. It is GateLink's module and its pad assignment is a property of that
+board's design; this section is about what the **simnode** builds, and the simnode builds
+the Kit. Keeping a second copy here is exactly how the wrong column got copied into two
+other documents in the first place.
 
-TCXO is **1.8 V via DIO3 on both**, and differs from the Heltec's value — this is the
+> **PREMISE CHECK.** The claim that the header board's pads map to the carrier's nets as
+> `gatelink-expansion-board` §6 describes is **falsified by a continuity test**, tracked as
+> the *"Wio socket pad mapping — ring out each D-pad"* item in that document's §10,
+> *Verify before soldering*. It remains unticked. Named because the previous version of
+> this section stated its own falsification condition in prose, tracked it nowhere, and did
+> not notice when it came true (root `CLAUDE.md`, *A load-bearing premise must name the
+> check that would falsify it*).
+
+**For the Kit (p-5982) — the board in hand.** No D-pad column, because the module does not
+use the D-pads: these cross the B2B connector.
+
+| Function | XIAO GPIO (Kit) |
+|---|---|
+| MISO / SCK / MOSI | 8 / 7 / 9 — the only three nets the two products share |
+| NSS | 41 |
+| RST | 42 |
+| BUSY | 40 |
+| DIO1 | 39 |
+| RF_SW | 38 |
+
+TCXO is **1.8 V via DIO3 on all three**, and differs from the Heltec's value — this is the
 one radio constant that cannot be shared across profiles.
+
+**`rf_sw` is a real pin on every Wio profile.** Confirmed 2026-09-05: Seeed does not tie
+DIO2 to the RF switch internally, so both mechanisms are needed (§2.3.1 finding 1), and
+`firmware/range-test` has since driven it over the air — 192 probes out, 192 echoes back
+on the Kit. `setRfSwitchPins(rxEn, txEn)`, RF_SW being the **RX enable**.
 
 ```c
 // /firmware/simnode/src/profiles.h
@@ -1054,21 +1092,27 @@ struct RadioPins {
     .sck = 9, .miso = 11, .mosi = 10,
     .rf_sw = RADIOLIB_NC, .tcxo_v = 1.8f, .dio2_as_rf_switch = true };
 
-#elif defined(LRAN_PROFILE_XIAO_WIO)
-  // XIAO ESP32S3 + Wio-SX1262 — GateLink's module on its reference host
+#elif defined(LRAN_PROFILE_XIAO_WIO_KIT)
+  // Kit p-5982, B2B connector — THE BOARD IN HAND. Control lines cross the B2B
+  // connector, which is why they are GPIO 38-42 and not D-pad numbers.
   constexpr RadioPins kRadio = {
-    .nss = 5, .rst = 3, .busy = 4, .dio1 = 2,
+    .nss = 41, .rst = 42, .busy = 40, .dio1 = 39,
     .sck = 7, .miso = 8, .mosi = 9,
-    .rf_sw = 6, .tcxo_v = 1.8f, .dio2_as_rf_switch = true };
+    .rf_sw = 38, .tcxo_v = 1.8f, .dio2_as_rf_switch = true };
+// A header-board profile is deliberately NOT defined here. That module is GateLink's;
+// its map is gatelink-expansion-board.md 6.1, and GateLink's firmware supplies it as a
+// third instance of this struct without any driver change - which is the whole of R-4.1b.
 #endif
 ```
 
-**Both maps are derived, not transcribed from a vendor pin table.** The Heltec values are
-the community-standard V3 assignment; the XIAO values come from the Meshtastic variant
-config for this pairing combined with the published XIAO ESP32S3 D-pad → GPIO numbering
-(D0–D10 = GPIO 1, 2, 3, 4, 5, 6, 43, 44, 7, 8, 9). The GateLink column is transcribed from
-`gatelink-expansion-board` rev 0.3 §6. **Ring out the XIAO column against the module on
-arrival and correct this table in place** — it is the reference every subsequent document
+**Provenance, updated 2026-09-05.** The Heltec values were the community-standard V3
+assignment and are now the vendor's — see the confirmation below. The Kit values are
+transcribed from meshtastic/firmware `variants/esp32s3/seeed_xiao_s3/variant.h` and have
+since been proven over the air. The XIAO ESP32S3 D-pad → GPIO numbering
+(D0–D10 = GPIO 1, 2, 3, 4, 5, 6, 43, 44, 7, 8, 9) is transcribed from the vendor variant at
+the pinned framework version. ~~**Ring out the header-board column and correct this table
+in place**~~ — that column has moved to `gatelink-expansion-board.md` §6.1 and the
+instruction moved with it — it is the reference every subsequent document
 will copy from, and a wrong entry here propagates silently.
 
 > **The Heltec column is now confirmed, 2026-08-31.** Range test R2 transcribed it from
@@ -1083,7 +1127,14 @@ will copy from, and a wrong entry here propagates silently.
 > number in the table above is right and the vendor's label is legacy; anyone who trusts
 > the symbol over the number will go hunting for a GPIO that does not exist.
 >
-> **The XIAO column is still unrung** and the instruction above still applies to it.
+> **The Kit column is now transcribed and proven, 2026-09-05.** Taken from
+> meshtastic/firmware `variants/esp32s3/seeed_xiao_s3/variant.h`, and then confirmed on
+> hardware the only way a radio pin map can be — 192 frames out and 192 echoes back.
+> `begin()` succeeding proves nothing here: a wrong `rf_sw` initialises just as cleanly
+> and transmits into a dead end.
+>
+> **The header board is no longer described here.** Its map, its corroboration and its
+> outstanding ring-out are `gatelink-expansion-board.md` §6.1's, as of 2026-09-05.
 
 **`rf_sw` is deliberately present in the Heltec entry as `RADIOLIB_NC`, not absent.** The
 struct shape is fixed across profiles so the driver has no conditional compilation in it.
