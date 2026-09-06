@@ -11,7 +11,7 @@ v0.7 (`ver = 2`). Tasks: [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./LRAN-Range-T
 |---|---|
 | **D1** — SF / BW / CR / TX power | Decision Register §2.1. **Bounded, not free:** TX power is capped by D33 and the frequency waits on M20 |
 | **M6** — range and RSSI at ~500 ft **on both bearings** | Decision Register §5.1 |
-| **M20** — ambient RSSI sweep of 902–928 MHz at **both** the bridge and the far node | Decision Register §5.1. Blocks D1's frequency and D33's third standing condition |
+| **M20** — ambient RSSI sweep of 902–928 MHz at **both** the bridge and the far node | Decision Register §5.1. **Field work closed 2026-09-05**; residual is 500 kHz re-integration of the committed trace, not a re-walk |
 | **W9** — full-size (222 B) and fragmented `PING` over the air | Protocol Spec §18, §6.6.1, §6.6.2 |
 | **§14 stage 1** — PHY CRC failures | The one discard path that cannot be produced at a desk; observe it at the far edge of the walk |
 
@@ -2376,3 +2376,99 @@ is only ever caught by a person looking at it.
 The failure looked exactly like the thing the instrument exists to detect, which is what
 made it convincing — a 60 % PER on a desk was accepted as a code regression for two runs
 before the bisect. The bisect was cheap and the assumption was not.
+
+---
+
+## 2026-09-06 — M21 closed, and the committed traces answered two questions nobody asked them
+
+M21 was paperwork, done away from the repo: pull both modules' FCC grants and see what they
+say. It closed, D33 reopened, and the full record is in
+[`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md). What belongs in
+*this* log is the part that came back to the range test: **reconciling the finding against
+this directory's data changed two of its numbers.**
+
+### The grants, in one paragraph
+
+Neither module is certified under §15.249, which is the rule section D33 named. Both are
+§15.247, each with a DTS grant (LoRa at 500 kHz) and a DSS grant (LoRa at 125 kHz, i.e. as
+hopping). **A single fixed 125 kHz channel is neither** — too narrow for DTS, not hopping.
+So D33's operating mode exists inside those grants only at BW500, which is what makes `BW`
+and the rule section one decision. And the grants do not transfer to LRAN under any reading,
+permanently, so the frame is §15.23 home-built. **The §15.249 ceiling itself survives** —
+it was chosen for a reason that turned out to be wrong and was the right choice anyway.
+
+### The first number the traces changed: the working point is −4 dBm, not −9
+
+The findings note arrived recommending **−9 dBm conducted**, derived by assuming the
+antenna might reach 5 dBi over the enclosure's ground plane and then subtracting a 3 dB
+tolerance budget on top.
+
+**Two things in this repo contradict that, and they are independent.**
+
+`phy_params.h` records `kSx1262MinDbm = -9`, and RadioLib 7.7.1's
+`SX1262::checkOutputPower()` enforces −9 to +22. **The recommended design target of
+−9.2 dBm was below what the radio can emit.** `clamp_conducted()` would have answered
+`BelowRadioFloor` — the refusal path R4 built for exactly this and which had never fired
+against a real proposal. A working point with no room left to derate is not conservative;
+it is unfalsifiable.
+
+Then the walk. `2026-09-04-walk-gatelink.csv` sweeps both −9 and −4 dBm at every position:
+
+| position | SF7 @ −4 dBm | SF7 @ −9 dBm |
+|---|---|---|
+| P1, 85 m, tree and shrub | −96.8 dBm, **0 %** | −104.4 dBm, **12.5 %** |
+| P3, barn in path | −95.9 dBm, **0 %** | −103.3 dBm, **25 %** |
+| P4, 106 m, LOS | −80.8 dBm, 0 % | −88.0 dBm, 0 % |
+
+**−9 dBm is the measured marginal case at SF7 on this property**, and −4 dBm — which is
+exactly the Envelope A ceiling with the 3.0 dBi antenna the firmware has always been
+configured for — was clean at all six positions. A power chosen to be safe for compliance
+landed on the one setting the site had already shown to be inadequate.
+
+The 5 dBi premise fell separately once the antenna was confirmed: a **19 cm stick** at
+915 MHz is ≈ 0.58 λ, a half-wave-class part that carries its own counterpoise. The
+ground-plane gain mechanism the 5 dBi figure came from belongs to the quarter-wave monopole.
+
+**The lesson is not "the note was wrong."** It is that a compliance derate and a link
+budget were being computed by different people against different assumptions, and the CSV
+that already carried `conducted_dbm`, `antenna_gain_dbi10` and `eirp_ceiling_dbm` as three
+separate columns is what made the collision visible in about ten minutes. **D33 standing
+condition 1 paid for itself here**, and not in the way it was written for.
+
+### The second: M20 had already run, and its amendment is arithmetic
+
+The note asked for M20 to report occupancy split by envelope and integrated over 500 kHz —
+written as if the survey were still ahead. It ran on 2026-09-05. The R11 trace covers
+902.0–927.8 MHz in 200 kHz bins at seven sites, so **500 kHz re-integration and the
+envelope split are post-processing on a committed file.** Re-walking seven sites to answer
+a question the data already holds would have been an expensive, invisible mistake — the
+kind that gets made because a document said "measure" and nobody checked whether it had
+been measured.
+
+Two things fell out of reading the survey against the envelopes:
+
+- **The provisional 915.0 MHz is `weather-island`'s confirmed occupant peak** (−80 dBm
+  against a −115 dBm floor). D1 must move off it. It was always provisional; nothing had
+  forced the point before.
+- **923.3–927.5 MHz is LoRaWAN US915 *downlink*.** The findings note claimed 915–928 was
+  entirely outside the US915 band plan. It is not, and Envelope A's genuinely uncommitted
+  region is roughly **915.2–923.0 MHz**.
+
+### One factual correction worth carrying, because it will come up again
+
+The note asked firmware to "verify RadioLib selects the low-power PA at −9 dBm and pin it."
+**The SX1262 has no low-power PA** — that is the SX1261. RadioLib always configures the HP
+PA (`RADIOLIB_SX126X_PA_CONFIG_SX1262`) and picks `paDutyCycle`/`hpMax` from `paOptTable`
+indexed by requested power. There is no selection to make. What *is* worth logging, and is
+not logged today, is which `paOptTable` entry was applied and whether `optimize` was left
+true — two firmwares asking for the same dBm through different RadioLib versions can land
+on different table entries, and a trace should say which one produced its numbers.
+
+### State
+
+**No firmware change was required by any of this.** The ceiling, the clamp, the refusal
+path and the three CSV columns were all already right, and `kEirpCeilingDbm10` was already
+−1.0 dBm. One comment in `phy_params.cpp` was updated — its worked example used a 2 dBi
+antenna, and it now records why there is deliberately no feedline term.
+
+**D1 is no longer blocked on anything external.** B1b is still owed.

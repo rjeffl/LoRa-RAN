@@ -1,6 +1,8 @@
 # Range test — session handoff
 
 **Written 2026-09-05, at the end of the session that built and measured Pass 2.**
+**Amended 2026-09-06: M21 closed, D33 reopened, D1 unblocked.** The amendments are marked
+inline; everything unmarked is still the 2026-09-05 state.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -27,7 +29,7 @@
 | Merged today | **#28** (handoff close-out), **#29** (Pass 2 phase A — the board profile), **#30** (Pass 2 phase B — the bench, plus the document audit and three governing-doc rules) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Pass 2 changed **nothing** on the wire — no frame layout, no schema, no vector regenerates |
 | Done | **Pass 1 R1–R11 and the M20 re-walk.** **Pass 2 X1–X10:** a second board profile, built and bench-measured |
-| **Next** | **D1** — still a decision, not a build, and still waiting only on **M21**. The one piece of *bench* work this directory still owes is **B1b**, the gate-bearing walk with the Wio |
+| **Next** | **D1** — still a decision, not a build. **M21 closed 2026-09-06, so D1 is no longer blocked**: read `docs/shared/LRAN-M21-FCC-Grant-Findings.md` and Protocol Spec §18.2 before picking a number. The one piece of *bench* work this directory still owes is **B1b**, the gate-bearing walk with the Wio |
 
 ```bash
 pio test -d firmware/range-test -e native   # host Unity suite
@@ -152,11 +154,22 @@ itself, and it would read high for a reason that is not congestion. **Raised, no
 - **SF.** The backoff table above is the constraint the survey did not supply. SF7 keeps
   §12.3's defaults valid as written; SF8+ needs `backoff_max_ms` raised above full-frame
   airtime.
-- **TX power.** Needs **M21**, the modules' FCC grant conditions — **and M21 is now two
-  modules**, the Heltec's SX1262 and the Seeed Wio-SX1262. Separate grants, both open.
+- **TX power.** **M21 is closed (2026-09-06).** Both grants are recorded in
+  `docs/shared/LRAN-M21-FCC-Grant-Findings.md`. Neither module is §15.249 — both are
+  §15.247 DTS + DSS — and **the grants do not transfer at all**, so the frame is §15.23
+  home-built. **D33 is reopened**; the §15.249 ceiling survives. The working point is
+  **−4 dBm conducted with the fitted 3.0 dBi antenna**, which is exactly what the
+  2026-09-04 walk ran at and closed 0 % PER on at all six positions. **−9 dBm is the
+  SX1262's hard floor, not a safer choice** — the same walk lost 12.5–25 % at SF7 there.
+- **BW is no longer free.** `BW` and the Part 15 rule section are **one decision**
+  (Protocol Spec §18.2). BW125 forces Envelope A (§15.249, ≈−1.2 dBm EIRP, any frequency in
+  902–928); Envelope B forces BW500 and 903.0–914.2 MHz. Do not fix one without the other.
+- **The provisional 915.0 MHz must move.** It is `weather-island`'s confirmed occupant
+  peak. Note also that 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so Envelope A's
+  uncommitted region is roughly **915.2–923.0 MHz**.
 
-**Do not close D1 from range data alone.** The frequency needed M20 and has it; the power
-needs M21 and does not.
+**Do not close D1 from range data alone**, and do not re-walk M20 — the 500 kHz
+re-integration and the envelope split are post-processing on the committed R11 trace.
 
 ## First actions next session
 
@@ -165,8 +178,9 @@ needs M21 and does not.
 2. **No firmware work is queued.** Pass 1 and Pass 2 are both complete and merged.
 3. **Decide which of the two open threads you are on**, because they are not the same job:
    - **D1** — a decision against the data above. Read the W9 backoff table before picking
-     an SF and the occupant inventory before picking a channel. **Blocked on M21**, which
-     is paperwork and which nothing in this repo advances.
+     an SF, the occupant inventory before picking a channel, and **Protocol Spec §18.2
+     before picking either** — `BW` and the rule section are one decision now. **No longer
+     blocked**: M21 closed on 2026-09-06.
    - **B1b** — the gate-bearing walk with the Wio. This is the only bench work this
      directory still owes, and it is a walk, not a build. The desk runs are explicitly not
      it.
@@ -236,9 +250,13 @@ The engineering log has the full account; this is the index.
 
 ## Open, and not closable from this firmware alone
 
-- **D1** — M20 closed. Waits only on **M21**.
-- **M21** — **now two modules**: the Heltec's SX1262 and the Seeed Wio-SX1262. Separate FCC
-  grant conditions, both open. Paperwork, not bench work.
+- **D1** — M20 closed, **M21 closed 2026-09-06**. Nothing external blocks it now; it needs
+  a decision made against the data, plus B1b if the 500 ft leg is wanted first.
+- **M21** — **CLOSED 2026-09-06.** Both grants recorded; D33 reopened; D1 gained a fourth
+  bound tying `BW` to the rule section. See `docs/shared/LRAN-M21-FCC-Grant-Findings.md`
+  and its handoff companion.
+- **M20's residual** — re-integrate the committed R11 trace over 500 kHz and split
+  903.0–914.2 / 915.2–923.0. **Analysis, not a re-walk.**
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
 - **M6** — has data (six positions, all closing with margin) but is **not closed**:

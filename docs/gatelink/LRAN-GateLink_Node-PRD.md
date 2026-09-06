@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.4
+**Version:** 0.5
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-06
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -441,13 +441,68 @@ voltage-sense.** This is the requirement that drives platform selection.
 - **R-4.3d.** The carrier SHALL provide a **local 3.3 V regulator** with dropout
   ≤300 mV. The host exposes **no 3.3 V rail** and its 5 V expansion rail sits near
   4.76 V under load (**D26**).
-- **R-4.3e.** The LoRa antenna SHALL be **outside the enclosure**, via an SMA bulkhead.
+- **R-4.3e.** The LoRa antenna SHALL be **outside the steel gate-controller enclosure**,
+  via an SMA bulkhead on that enclosure. See §4.3.1 for the full RF path, which crosses
+  two bulkheads, and for what depends on it.
 - **R-4.3f.** The carrier SHALL be **DIN-mounted**, not free-floating on its header. The
   SMA bulkhead and the VE.Direct cable both pull on the board, and an outdoor enclosure
   that sees a seasonal thermal cycle is no place for something hanging on a connector.
 - **R-4.3g.** The SX1262 reset SHALL NOT be wired to the host's shared peripheral reset
   line. A radio driver pulsing that line would also reset the display and an I/O
   expander — **and therefore risks disturbing relay state.**
+- **R-4.3h.** The node SHALL enforce **strict mutual exclusion between LoRa transmit and
+  BLE activity**, via one shared interlock rather than two independent schedulers. The BMS
+  poll and the LoRa TX path are inches apart inside a metal cavity (§4.3.1); this is cheap
+  here and, unlike on the bridge, there is nothing that requires a continuously held radio
+  link. **See the Bridge PRD for why the bridge deliberately does not do this** — the
+  asymmetry is a decision, not an oversight.
+- **R-4.3i.** TX power SHALL be configured as **two runtime parameters**,
+  `tx_conducted_dbm` and `antenna_gain_dbi`, never one combined EIRP figure, and the
+  firmware SHALL compute EIRP from them and **refuse to transmit above the configured
+  envelope ceiling**. The envelope itself (Protocol Spec §18.2) is a runtime parameter, and
+  a bandwidth/power combination valid in one envelope and not the other SHALL be rejected.
+  GateLink has no OTA: a compile-time ceiling is a walk to the gate.
+
+### 4.3.1 The enclosure stack and the RF path
+
+Confirmed **2026-09-06**. Recorded as requirements because two separate analyses now depend
+on this arrangement, and a mechanical change made for unrelated reasons would silently
+invalidate them.
+
+```
+steel gate-controller enclosure  (outdoors, at the gate)
+├── 1050 gate controller, MPPT charge controller, Reno loop detector
+├── 100 Ah LiFePO4 pack + BMS              ← the BLE target, 6-8 in away
+└── plastic GateLink enclosure             ← RF-transparent
+    └── StamPLC + carrier
+        └── Wio-SX1262 IPEX
+              -> SMA-female bulkhead on the PLASTIC enclosure
+              -> SMA male-to-female jumper
+              -> SMA-female bulkhead on the STEEL enclosure
+              -> 19 cm stick antenna, claimed 3.0 dBi, vertical, OUTSIDE
+```
+
+- **R-4.3.1a.** The LoRa antenna SHALL be a **vertically mounted 19 cm stick of nominally
+  3.0 dBi**, and that gain figure SHALL be what is written into `antenna_gain_dbi`
+  (R-4.3i). It is the direct term in the EIRP calculation and the conducted ceiling that
+  follows from it is **−4 dBm** (Protocol Spec §18.2).
+- **R-4.3.1b.** The **steel** enclosure SHALL remain conductive and substantially closed.
+  **What would falsify the analyses that rest on it:** replacing it with a non-conductive
+  enclosure, cutting a large aperture, or moving the LoRa antenna inboard of it. Any of
+  those invalidates the LoRa-to-BLE isolation argument (M21 handoff §4) and the premise
+  that makes the EIRP figure meaningful at all. **The tracked check is M23**, which
+  measures the isolation term directly.
+- **R-4.3.1c.** The **plastic** inner enclosure carries no RF analysis and may be changed
+  freely. It is transparent at both 915 MHz and 2.4 GHz. Recorded so that a later reader
+  does not treat the two enclosures as interchangeable.
+- **R-4.3.1d.** The internal LoRa run SHALL use **properly shielded assemblies with sound
+  connectors**, kept short and routed away from the motor harnesses. It is the one radiator
+  that sits *inside* the cavity with the BLE receiver and the BMS, and leakage there has
+  nowhere to go. **A poor BLE reading at M23 is a cable and connector question before it is
+  an antenna verdict.**
+- **R-4.3.1e.** Feedline and connector loss across the two bulkheads (0.5–1.5 dB) SHALL be
+  assumed **0 dB for compliance** and **1.5 dB for link budget**. Never one figure for
+  both, and never the flattering one for compliance.
 
 ### 4.4 Supply
 
@@ -777,7 +832,7 @@ as unavailable.
 | Enclosure temperature | `sensor` | LM75 |
 | MPPT temperature | `sensor` (diagnostic) | MPPT |
 | Node uptime, boot count | `sensor` (diagnostic) | node |
-| BMS link RSSI | `sensor` (diagnostic) | node — evidence for **D28** |
+| BMS link RSSI | `sensor` (diagnostic) | node — evidence for **D28**, and the continuous dataset **M23** reads a trend from. Required, not optional: a cavity null that develops after install shows here as a trend rather than as a silent failure |
 | LoRa RSSI / SNR, missed polls, protocol version | `sensor` (diagnostic) | bridge |
 | Commonly-tuned parameters | `number` (config) ×N | §5.3 |
 | Configuration persisted | `binary_sensor` (diagnostic) | false ⇒ running unsaved config |
@@ -866,7 +921,7 @@ implementation plan.*
 | **V-4** | The held-open alert fires on the first edge, for every hold source including a manual one, with no arming delay | This is G-8, the primary operational requirement |
 | **V-5** | Held-open and FIRE events **fire exactly once and do not replay on HA restart or discovery refresh** | These drive email and SMS. A replay is a 2 AM notification about last Tuesday |
 | **V-6** | VE.Direct **text parsing and HEX round-trip**, including write rejection when unauthenticated or disarmed | The round-trip is the proof that the charge controller accepts our drive level, which the vendor does not document. **Prove it; do not assume it** |
-| **V-7** | The BMS client decodes the live pack in agreement with the reference implementation, and BLE RSSI from the **final mounting position** is adequate | **D28**. RSSI on the bench is not RSSI in the enclosure |
+| **V-7** | The BMS client decodes the live pack in agreement with the reference implementation, and BLE RSSI is adequate at the **final mounting position and orientation**, sampled at **three positions and two orientations** | **D28**, via **M23**. Both ends share one steel cavity (§4.3.1), so the risk is a standing-wave null rather than attenuation, and a single reading cannot distinguish them. The same session measures LoRa-to-BLE isolation with the transmitter keyed and unkeyed |
 | **V-8** | Every command path from HA, with **relay dry-run enabled first** | Command logic must be validated before anything can move the gate |
 | **V-9** | Both manual UNLOCK paths, **before the first real hold-open** | **S-6**. A held gate with no manual release is the failure this guards against |
 | **V-10** | Configuration round-trip: set every parameter, confirm the ACK, power-cycle, confirm the override survived — **then repeat with the microSD removed** and confirm the change still applies and is honestly reported as unpersisted | R-5.3d has two halves and the second one is the one that gets skipped |
@@ -898,6 +953,23 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.5** — **The enclosure stack is confirmed and recorded as requirements.** New
+  **§4.3.1** documents the arrangement — a plastic GateLink enclosure inside the steel
+  gate-controller enclosure, which also holds the pack and BMS 6–8 in away, with the LoRa
+  antenna outside the steel via two bulkheads and a jumper — and states what would falsify
+  the analyses resting on it, with **M23** as the tracked check. **R-4.3.1a–e** fix the
+  antenna at a nominally 3.0 dBi 19 cm stick, require the steel enclosure to stay
+  conductive and closed, note explicitly that the *plastic* inner enclosure carries no RF
+  analysis and may be changed freely, require shielded internal assemblies because the LoRa
+  feedline is the one radiator inside the cavity with the BLE receiver, and split the
+  feedline-loss assumption between compliance and link budget. **R-4.3h** requires strict
+  LoRa/BLE mutual exclusion — the Bridge PRD §4.4 records why the bridge deliberately does
+  not — and **R-4.3i** requires TX power as two runtime parameters with a firmware EIRP
+  clamp and a runtime envelope. **V-7** is rewritten for M23's multi-position sampling: both
+  ends share one reverberant cavity, so the risk is a standing-wave null rather than
+  attenuation and a single reading cannot tell them apart. The BMS-RSSI diagnostic entity
+  is made explicitly required. Binding protocol advanced to **v0.9**.
 
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **This node is a consumer of both halves.** §11.5 named `CONFIG_ACK` crossing the single-frame boundary on GateLink as the reason W9 mattered now rather than hypothetically; that path has now run over the air. The requirement is unchanged. Note also that §11.2's late-fragment rule remains untested at range — W9 saw no late fragments, but at 1 m of bench, which is not evidence about the 500 ft path this node sits at the end of.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **This node is a consumer**: GateLink accepts `COMMAND`, so `CommandGate` binds it at **M3**. The requirement it implements — a retried command must not pulse the relay twice — is unchanged and was already stated.

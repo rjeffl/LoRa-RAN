@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.4
+**Version:** 0.5
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-06
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -233,7 +233,10 @@ live.**
 ### 4.3 Antenna
 
 - **R-4.3a.** A **915 MHz antenna appropriate to the chosen PHY parameters**, on the
-  board's existing connector.
+  board's existing connector. **Confirmed 2026-09-06:** a vertically mounted 19 cm stick of
+  nominally **3.0 dBi**, the same part fitted at the GateLink end. That figure is a direct
+  term in the EIRP calculation (Protocol Spec §18.2) and SHALL be what is configured as
+  `antenna_gain_dbi`, giving a conducted ceiling of **−4 dBm** under Envelope A.
 - **R-4.3b. Antenna siting is a two-bearing problem and SHALL be resolved by measurement,
   not by assumption.** GateLink and WellLink sit at similar distances in **different
   directions**. Favour an **omnidirectional antenna in a central, elevated position**
@@ -244,6 +247,49 @@ live.**
 > Siting the bridge for the gate and discovering later that the well is in a null is a
 > mistake that costs a re-run of the install, not a firmware change. It is cheap to
 > measure first and expensive to measure second.
+
+**The bridge sits indoors, and the walk measured what that costs.** The 2026-09-04 trace
+was taken with the initiator at the bridge's target location in the NW office, so every
+reading in it crosses at least one framed exterior wall. Two positions ~40 m out on
+opposite faces differed by **18.2 dB**, consistently across all 24 matched test points —
+the structure, not terrain or height. **R-4.3b's "measure, do not assume" applies to the
+wall as much as to the bearing**, and no distance-based estimate reproduces that term.
+
+### 4.4 Radio coexistence — the bridge deliberately does not enforce mutual exclusion
+
+Recorded because **GateLink does** (GateLink PRD R-4.3h), and an undocumented asymmetry
+reads as an oversight to the next person.
+
+- **R-4.4a.** The bridge SHALL NOT gate LoRa transmit against WiFi activity. Its WiFi must
+  hold a live network connection; a radio that cannot be silenced cannot be interlocked.
+- **R-4.4b.** The bridge SHALL publish LoRa RSSI/SNR and PER diagnostics sufficient to
+  detect coexistence degradation after the fact (already required by R-5.5b and §6.1).
+- **R-4.4c.** If **M22** shows PER degrading under WiFi load, the remedy is **physical
+  antenna separation via the IPEX pigtail**, not firmware arbitration.
+
+**Three reasons the asymmetry is safe, in descending order of how much weight they carry.**
+
+1. **The link that cannot be gated is the one that needs protecting least.** WiFi to the AP
+   typically arrives at −40 to −60 dBm with 20–40 dB of blocking headroom. GateLink's BLE
+   link to the BMS has no such margin and shares a metal cavity with the transmitter.
+2. **There is no mechanism to build on.** ESP-IDF's coexistence arbitration exists because
+   WiFi and Bluetooth share one radio on the ESP32-S3. It has **no visibility into an
+   SPI-attached SX1262**. Strict mutual exclusion here is not a matter of effort — the hook
+   does not exist.
+3. **The reverse direction is implausible.** WiFi TX desensing the bridge's LoRa RX would
+   need broadband PA noise at 915 MHz, 1.5 GHz below the WiFi fundamental and well outside
+   the SX1262 front-end passband; harmonics do not help it either. Heltec also certified
+   both radios on this board as one finished product at comparable powers, so the
+   combination has been through a chamber — **as evidence about the hardware, not as
+   authorization** (Protocol Spec §18.2).
+
+**No regulatory driver either.** Part 15 does not prohibit simultaneous transmitters; the
+multi-transmitter procedures are a *certification* concern, and this project is on §15.23
+regardless.
+
+> **What would falsify this.** **M22**: run a sustained MQTT or iperf flood while the
+> bridge receives a known `PING` sequence, and compare PER and RSSI against the WiFi-idle
+> baseline. Tracked in the Decision Register §5.3.
 
 ---
 
@@ -389,7 +435,8 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 | # | Must be proven | Why it is not optional |
 |---|---|---|
-| **V-B1** | **Range and RSSI at ~500 ft on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged |
+| **V-B1** | **Range and RSSI at ~500 ft on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged. **Partly done:** the 2026-09-04 walk closed at six positions to 106 m on the gate bearing at the −4 dBm ceiling; the last ~46 m and the second bearing are outstanding (**M6**, **B1b**) |
+| **V-B2** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
@@ -404,6 +451,17 @@ owning node's PRD. The bridge publishes them; it does not define them.
 ---
 
 ## 9. Changelog
+
+- **v0.5** — **M21's coexistence and antenna findings folded in.** New **§4.4** records
+  that the bridge **deliberately** does not enforce LoRa/WiFi mutual exclusion while
+  GateLink does (R-4.3h) — the link that cannot be gated is the one with 20–40 dB of
+  headroom, ESP-IDF's coexistence arbitration has no visibility into an SPI-attached
+  SX1262 so there is no hook to build on, and the reverse direction is implausible at
+  1.5 GHz offset. **M22** is named as the check that would falsify it, and **V-B2** added.
+  **R-4.3a** now carries the confirmed antenna — a 19 cm stick at nominally 3.0 dBi, same
+  part both ends — which fixes the conducted ceiling at −4 dBm under Envelope A. §4.3 gains
+  the walk's measured structure term: two positions on opposite faces of the house at the
+  same range differed by **18.2 dB**. Binding protocol advanced to **v0.9**.
 
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Relevant here through `cad_backoffs`.** §12.3 now records that a backoff window shorter than one frame's airtime cannot outlast the frame it backed off for, which spends `cad_retries` against a single neighbour. The bridge is the end §12.3 already expects to see the higher count — it lives where the third-party equipment is — so a raised `cad_backoffs` here has two candidate causes now, not one, and the SF is what separates them.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **R-3.1e** and §5's counter requirements are unaffected: per §9.2 the bridge receives no authenticated types today, so §9.4 steps 4–6 apply to an empty set here and `rx_rejected_seq` / `rx_dup_command` reading zero on the bridge is correct.
