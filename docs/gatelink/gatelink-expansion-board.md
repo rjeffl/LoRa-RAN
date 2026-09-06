@@ -189,6 +189,42 @@ Bus 14 is still labelled CS in the StamPLC pin table (§5). It is now carrying B
 the vendor's suggested use, not a hardware function — G11 has no chip-select hardware behind it —
 but expect to re-read that table twice while debugging.
 
+#### 6.1 The module's pads on a XIAO host — this document owns this mapping
+
+**Moved here from Bridge Impl Plan §10.8.1 (2026-09-05), so it lives with the module it
+describes.** That section is about what the *simnode* builds; this module is GateLink's,
+and its pad assignment is a property of this board's design rather than of the bridge's
+test instrument.
+
+The module is the **header board, "Wio-SX1262 for XIAO" (p-6379)**, 2.54 mm headers. Where
+it is hosted on a XIAO ESP32S3 instead of this carrier — bench work, or a future simnode
+built on the right product — the same pads land on these GPIO:
+
+| Wio pad | Function | XIAO ESP32S3 GPIO | StamPLC GPIO (this board, rev 0.3) |
+|---|---|---|---|
+| D9 | MISO | 8 | 9 — Bus 11 |
+| D8 | SCK | 7 | 7 — Bus 12 |
+| D10 | MOSI | 9 | 8 — Bus 13 |
+| D4 | NSS | 5 | 41 — Bus 16 |
+| D3 | BUSY | 4 | 11 — Bus 14 |
+| D1 | DIO1 | 2 | 1 — PORT.A white |
+| D2 | RST | 3 | 2 — PORT.A yellow |
+| D5 | RF_SW | 6 | 40 — Bus 15 |
+
+TCXO is **1.8 V via DIO3**, and differs from the Heltec's value — it cannot be a shared
+constant (§7.3).
+
+> **DO NOT CONFUSE THIS WITH THE KIT.** Seeed's other product — "Wio-SX1262 with XIAO
+> ESP32S3" (p-5982) — connects over a **B2B connector** on GPIO 38–42 and uses **none of
+> these pads**. It is the board the range-test firmware runs on (`kXiaoWioKit`), and it
+> **does not validate this board's wiring**. A table copied from the wrong product
+> produces a node that looks configured and does not work.
+>
+> **The XIAO GPIO column above is still unrung** — it is derived, and corroborated by an
+> independent source (meshtastic/firmware issue #8409) that matches the pad column value
+> for value. Two agreeing derivations are not a continuity check. §10's ring-out item is
+> the check that closes it.
+
 ### VE.Direct
 
 Named from the **ESP32's** perspective. Victron labels its connector from the MPPT's perspective, so their TX is our RX. Keep this convention everywhere in firmware and comments.

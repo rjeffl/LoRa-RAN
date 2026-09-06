@@ -265,6 +265,10 @@ static void test_no_shipping_profile_has_a_pin_collision() {
 // Built as a local literal rather than a constant in board_config.h: this map must NOT
 // be selectable, it exists only to prove the checker catches the case it was written
 // for. If this test ever goes green-by-passing, the checker has stopped working.
+//
+// The real header-board map is owned by docs/gatelink/gatelink-expansion-board.md 6.1 -
+// it is GateLink's module, not this firmware's. Do not promote this literal into a board
+// profile; if this firmware ever needs that product, take the numbers from there.
 static void test_the_checker_catches_the_header_board_collision() {
   const BoardRadioConfig header_board = {
       "wio_sx1262_header_board", "Wio hdr",
