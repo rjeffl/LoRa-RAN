@@ -2559,3 +2559,94 @@ nominates for exactly this.
 **M20 is closed.** Results in Decision Register §5.4, derived file committed as
 `2026-09-06-m20-reintegration.csv` with its own regeneration line. `D1`'s frequency now has
 a ranked, reproducible answer; SF and B1b are what remain.
+
+---
+
+## 2026-09-06 — the §7.6 check needs no firmware, and the 2026-08-31 trace already half-answers it
+
+Setting up findings §7.6 — back EIRP out of RSSI at a known short distance, as the
+substitute for the RF power meter this project does not have. Procedure is
+`EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **The run has not
+been performed.** What follows is what setting it up turned up.
+
+### It does not need a firmware change, and the reason is worth writing down
+
+The first instinct was a dedicated sweep plan: one SF, one CR, and the conducted power
+stepped 1 dB at a time. That is a firmware change, and it is a bigger one than it looks.
+**The responder resolves the probe's `tp_index` against its own copy of `g_plan`** to
+decide what power to echo at (`main.cpp:1268`, and the comment there explains why — echoing
+at the responder's own ceiling put a measured 6 dB asymmetry into round-trip PER). So a
+plan that differs between the ends silently corrupts the return leg, and any plan change
+has to be selected at boot on **both** boards.
+
+None of it is needed. The default plan's power axis is
+`{kSx1262MinDbm, kSx1262MaxDbm}` — **−9 dBm and +22 dBm as requested** — and the high point
+reaches the air only through `clamp_conducted()`. At one position that gives two power
+points 5 dB apart with twelve replicates each, which is a better relative check than a fine
+sweep with one sample per step.
+
+**And it gives something better than that for free.** Because the high point is *requested
+at the SX1262 maximum and clamped*, the run exercises the D33 clamp over the air. **Nothing
+in this repository has ever done that.** The clamp is host tested and the ceiling
+arithmetic is host tested; "the number the firmware computed is the number the PA emitted"
+has been assumed since R3. A broken clamp does not look like a bad reading — it is a 26 dB
+step where 5 dB was expected, and it is a compliance fault rather than a measurement error.
+
+**The lesson is the same one M20's residual taught a few hours earlier:** the instrument
+already in the repo answered the question, and the reflex was to build a new one. Twice in
+one day is a pattern worth naming.
+
+### The check is three checks, and they are not equally strong
+
+Writing the tool forced the hierarchy to be explicit, and it is the opposite of the
+intuitive reading:
+
+- **The power step is the sharp instrument, and it is immune to geometry.** Distance,
+  height, multipath and antenna gain all cancel in a *difference* between two powers on the
+  same link. This is what catches §7.6's named failure — a power setting that silently did
+  not apply reads 0 dB.
+- **The clamp check is binary and is the one that matters most**, for the reason above.
+- **The absolute back-out is coarse: ±6 dB at best.** RSSI accuracy is ±3–6 dB, the
+  antenna's 3.0 dBi is an unverified vendor claim, and ground reflection moves readings
+  several dB. It detects a gross error and nothing finer. Quoting it as an EIRP measurement
+  would be exactly the unauditable number §7.3 exists to prevent.
+
+The tool therefore also fits a **path-loss slope** across the distances, which is the only
+honest way to say whether the absolute figure is worth reading: free space loses 20 dB per
+decade, and a fit far from that means the number is measuring the ground. The repo already
+knew this was the risk — the 2026-09-05 entry records the bench reference moving −24 → −42
+dBm on **placement alone**, 18 dB against the ±6 dB the check is trying to resolve.
+
+### Running it against `2026-08-31-bench.csv`, which was never meant for this
+
+The oldest committed trace is a format proof at "~1 m on the build-machine desk". Pointing
+the tool at it:
+
+| check | result |
+|---|---|
+| power step, expected 6.0 dB | **uplink +5.8, downlink +5.6 — PASS** |
+| D33 clamp, ceiling −3 dBm at the 2.0 dBi then configured | high point logged **−3 dBm — PASS** |
+| absolute EIRP at an assumed 1 m | **11 dB low — WARN** |
+
+**Two of the three already pass, on a trace captured for another purpose entirely.** The
+power step tracks and the clamp ran over the air on 2026-08-31 — that is real evidence and
+it had been sitting in the repository unread for a week.
+
+The absolute figure being 11 dB low is not a finding about the radio. The distance is "~1 m"
+from a capture note, not a measurement, and desk geometry is the uncontrolled term this very
+entry is about. **It is a good demonstration of why the procedure insists on a tape measure
+and three distances**, and it is the reason the tool reports the slope rather than printing
+an EIRP and stopping.
+
+Note also that this trace was taken with **2.0 dBi** configured, where every trace since
+carries 3.0. The build flag is `-DLRAN_ANTENNA_GAIN_DBI10=30` in all three environments
+today, which matches the confirmed antenna, so nothing needs changing — but a trace's
+ceiling is a function of the gain it was captured with, and the tool reads the ceiling from
+the row rather than assuming one.
+
+### State
+
+Procedure and tool committed; **the measurement is owed**. It is M6's stated precondition,
+so it comes before B1b. Handoff §6 requirement 7 — log the applied `paOptTable` entry and
+the `optimize` flag — remains the one firmware change this thread still owes, and until it
+exists a trace does not record which PA configuration produced its numbers.

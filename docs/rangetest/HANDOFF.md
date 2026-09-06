@@ -19,6 +19,7 @@ inline; everything unmarked is still the 2026-09-05 state.
 | 3 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) | the second board profile — what it validates and, more importantly, what it does not |
 | 4 | [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | R1–R11, complete. Its Pass 2 section is closed against what it predicted |
 | 5 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any campaign. **Start with "Power down every board you are not measuring with"** |
+| 5b | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the §7.6 check. **M6's precondition**, and it needs no firmware change |
 | 6 | [`data/README.md`](./data/README.md) | the two schemas, and what each committed trace is *not* |
 
 ## Where things stand
@@ -205,6 +206,9 @@ python3 tools/rangetest/survey_reintegrate.py \
    - **B1b** — the gate-bearing walk with the Wio. This is the only bench work this
      directory still owes, and it is a walk, not a build. The desk runs are explicitly not
      it.
+   - **The §7.6 EIRP sanity check** — a short-range bench measurement, procedure in
+     [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md). **No firmware change needed**, and
+     it is M6's stated precondition, so it comes before B1b if both are on the list.
 4. **If it is B1b:** re-read `FIELD-PROCEDURE.md` first, and note the third board. Two
    boards make a measurement; a spare still powered in a backpack is in the experiment.
 
@@ -280,6 +284,10 @@ The engineering log has the full account; this is the index.
   Register §5.4; derived file `2026-09-06-m20-reintegration.csv`.
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
+- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure written
+  2026-09-06 (`EIRP-SANITY-CHECK.md`), tool written and tested, run not yet performed.
+- **Handoff §6 requirement 7** — log the applied `paOptTable` entry and the `optimize`
+  flag at boot. **The one firmware change this thread still owes**, and it is small.
 - **M6** — has data (six positions, all closing with margin) but is **not closed**:
   arcsecond GPS cannot support an RSSI-vs-distance curve. It answers "does it work there",
   not "what is the path loss".
