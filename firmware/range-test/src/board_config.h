@@ -19,9 +19,13 @@ namespace rangetest {
 inline constexpr int8_t kPinNone = -1;
 
 // spec 12.2 - the pin map, TCXO reference voltage and RF-switch mode are supplied
-// by configuration at construction, never compiled in. Pass 1 has one board type,
-// which makes the seam look like ceremony; it is the reason pass 2 is a config
-// addition rather than a rewrite (task R2), and four firmwares depend on it.
+// by configuration at construction, never compiled in. Pass 1 had one board type, which
+// made the seam look like ceremony; it is the reason pass 2 was a config addition rather
+// than a rewrite (task R2), and four firmwares depend on it.
+//
+// PASS 2 CASHED THAT IN, and found the one thing a single board could not show: `rf_sw`
+// was a field R2 defined and nothing read, because the Heltec carries kPinNone. A seam is
+// only proved by the second thing that uses it.
 //
 // TCXO voltage is TENTHS OF A VOLT, not a float. The value is compared and printed
 // in the settings dump (R3) and a float that prints as "1.8" but compares unequal to

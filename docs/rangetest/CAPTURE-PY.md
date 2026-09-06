@@ -56,7 +56,7 @@ already done. **Ctrl-C ends a capture cleanly and writes the file.**
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--port PORT` | *required* | Serial device. On macOS always `/dev/cu.*`, never `/dev/tty.*` |
+| `--port PORT` | *required* | Serial device. On macOS always `/dev/cu.*`, never `/dev/tty.*`. The **Heltec** enumerates as `/dev/cu.usbserial-*` (CP2102, `10C4:EA60`); the **XIAO** as `/dev/cu.usbmodem*` (`303A:1001`) |
 | `--out FILE` | *required* | Trace to write. Opened when the CSV header is seen |
 | `--baud BAUD` | `115200` | Console speed. The firmware does not vary it |
 | `--reset` | off | Pulse reset after opening the port, so the settings dump and CSV header land *after* the capture is listening. Retires the old "start this before resetting the board" trap |
@@ -122,8 +122,8 @@ empty run in progress over each one.
 **`SURVEY` is reachable by holding PRG** (~1.5 s), not only by serial `v`. `--role survey`
 sends `v`, which is the tethered equivalent.
 
-**The port is opened with DTR deasserted, and that is not cosmetic.** On this carrier DTR
-drives IO0, which is GPIO 0, which is the PRG button — so a naive `serial.Serial(port)`
+**The port is opened with DTR deasserted, and that is not cosmetic.** On the **Heltec's
+CP2102** DTR drives IO0, which is GPIO 0, which is the PRG button — so a naive `serial.Serial(port)`
 holds PRG down just by opening the port. In survey mode a press is store-and-advance, so
 every tethered session used to store a bogus run and step the campaign cursor on by one.
 It presents as an erase that "does not stick": the erase works, and a phantom press
@@ -375,3 +375,48 @@ deadline can catch, and the initiator's own completion line is not a CSV marker.
 
 **Redirect to a file to keep the result** — the trace committed under `data/` was assembled
 from the two consoles by hand, because there is no file to commit otherwise.
+
+---
+
+## Two boards now, and the differences that actually bite
+
+`capture.py` needs no board-specific flags — the same commands drive both. Three things
+around it are not the same, and all three were found on 2026-09-05.
+
+### Port naming
+
+| Board | Device node | USB ID |
+|---|---|---|
+| Heltec V3 | `/dev/cu.usbserial-*` | `10C4:EA60` (CP2102 bridge chip) |
+| XIAO ESP32S3 + Wio | `/dev/cu.usbmodem*` | `303A:1001` (ESP32-S3 USB-Serial-JTAG) |
+
+**Two Heltecs report the same serial string** (`SER=0001`), so with a pair attached the
+device nodes are told apart only by USB location and can swap between sessions. The
+board's own settings dump names it — `board=` — and that is the reliable check.
+
+### The DTR/IO0 hazard is Heltec-only, but the mitigation is universal
+
+The deasserted-DTR handling above exists because the CP2102's DTR drives GPIO 0 on the
+Heltec. The XIAO has no bridge chip and its role button is GPIO 21, so opening its port
+presses nothing. **Nothing needs changing** — the mitigation is harmless on both — but do
+not read a XIAO symptom as that trap.
+
+### Native USB does not cost capture margin — measured
+
+The XIAO's USB device is the ESP32 itself, so a reset was expected to tear the port down
+and eat into the 3 s role window and the boot-window capture. **It does not:**
+
+| | reset → first byte |
+|---|---|
+| XIAO | 104–106 ms |
+| Heltec | 106–109 ms |
+
+`n = 4` each, port handle surviving every trial — the ROM bootloader and the application
+share the same USB peripheral, so the device never disappears. No timing was changed.
+
+**Where it does bite is `-t upload`, not capture.** Flashing a XIAO that is running a
+firmware with a *different* USB stack — stock Meshtastic enumerates as TinyUSB CDC
+`2886:0059` — swaps the USB device at bootloader entry, esptool loses its handle, and the
+upload fails with `Could not configure port`. **The board is in the bootloader; it is on a
+new port.** Re-run against the new `/dev/cu.usbmodem*` and it succeeds. It does not recur
+once this firmware is installed.

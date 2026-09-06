@@ -468,7 +468,8 @@ sequential.
 /firmware/welllink/      # WellLink                                   [planned]
 /firmware/simnode/       # simulated node for multi-node bench testing
     CLAUDE.md            #                                            [exists]
-/firmware/range-test/    # D1 / M6 / M20 / W9 — the next target       [next]
+/firmware/range-test/    # D1 / M6 / M20 / W9 — pass 1 complete;      [built]
+                         # pass 2 adds the XIAO + Wio-SX1262 profile
     CLAUDE.md
 /lib/lran-platform/      # host HAL: relays, inputs, display, buttons, INA226,
                          #   LM75, RTC, SD. Shared with AquaLink

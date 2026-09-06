@@ -76,7 +76,8 @@ What exists today is marked; the rest is planned. **Do not assume a path is ther
 lib/        lran-protocol  [built: P1-P7, 107 host tests, 72 W4 vectors]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
 firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
-            range-test/    [R1-R3 built; R2 gate passed on hardware 2026-08-31]
+            range-test/    [pass 1 complete R1-R11; pass 2 adds a second board
+                           profile - heltec + xiao envs, both measured 2026-09-05]
             gatelink/, welllink/                   [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
@@ -101,8 +102,9 @@ pio test -d lib/lran-protocol -e esp32s3      # 110 on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 
-pio test -d firmware/range-test -e native     # 152 Unity tests, host
-pio run  -d firmware/range-test -e heltec     # range test target build
+pio test -d firmware/range-test -e native     # 182 Unity tests, host
+pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
+pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit target
 python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
 ```
 

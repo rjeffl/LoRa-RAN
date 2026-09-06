@@ -216,9 +216,18 @@ did not happen** — check the role was selected. Repeat for the second board.
 
 ### Role selection — a 3-second window after boot, not a hold through reset
 
-PRG is GPIO 0, the BOOT strapping pin; held through reset it enters the ROM downloader
-and the application never runs. So the roles are chosen **after** the board starts, while
-the OLED shows a countdown:
+On the **Heltec**, PRG is GPIO 0, the BOOT strapping pin; held through reset it enters the
+ROM downloader and the application never runs. So the roles are chosen **after** the board
+starts, while the OLED shows a countdown.
+
+> **On the XIAO the button is a different pin, and deliberately so.** The role selector is
+> the **user button on top of the Wio board, GPIO 21**, reached across the B2B connector —
+> not GPIO 0 and not the expansion board's D1. Same active-low convention, same gesture,
+> same 3 s window, so nothing below changes in use. The pin lives in `BoardUiConfig`; the
+> reason it is not GPIO 0 is the sentence above this box, and there was no reason to point
+> a second board at the download-mode strap when it has a plain GPIO free.
+
+The roles, either board:
 
 | Board | Do this within 3 s of reset | Badge |
 |---|---|---|
