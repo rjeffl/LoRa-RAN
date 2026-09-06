@@ -198,9 +198,13 @@ struct BoardUiConfig {
 
   uint8_t addr;
 
-  // The V3's panel is mounted rotated; the XIAO expansion board's is not. Silent and
-  // cosmetic rather than dangerous, but an upside-down display at the far end of a
-  // walk is not something to discover there.
+  // Two different reasons a board sets this, both ending at the same field:
+  //   - the V3's panel is mounted rotated on the board itself;
+  //   - the XIAO expansion board's is not, but the ENCLOSURE holds the stack inverted.
+  // Silent and cosmetic rather than dangerous, but an upside-down display at the far end
+  // of a walk is not something to discover there. Enclosure orientation belongs here for
+  // the same reason the panel's own mounting does: this struct describes a board AS
+  // DEPLOYED, and the draw site should not know which of the two reasons applies.
   bool flip_vertically;
 };
 
@@ -237,6 +241,10 @@ inline constexpr BoardUiConfig kHeltecV3Ui = {
 // radio and display coexist here and would not have on the other product.
 // `has_pin_conflict()` below makes that a compile-time check rather than a memory.
 //
+// flip_vertically TRUE, and NOT because the panel is mounted rotated - it is not. The
+// enclosure this stack goes into holds it inverted, so the image turns to match
+// (operator request 2026-09-05, after reading the panel the other way up on the bench).
+//
 // role_button 21: the user button on TOP OF THE WIO BOARD, reached across the B2B
 // connector - GPIO 21 is not one of the XIAO's D-pads. Meshtastic's Kit variant calls
 // it the program button and declares BUTTON_NEED_PULLUP, so it is active low with a
@@ -254,7 +262,7 @@ inline constexpr BoardUiConfig kXiaoWioKitUi = {
     /* vext            */ kPinNone,
     /* role_button     */ 21,
     /* addr            */ 0x3c,
-    /* flip_vertically */ false,
+    /* flip_vertically */ true,
 };
 
 // ---------------------------------------------------------------------------

@@ -943,8 +943,13 @@ void setup() {
   while (!Serial && millis() - serial_wait < 2000) delay(10);
 
   Serial.println();
-  Serial.println(F("LRAN range test firmware - pass 1, branch 1 (R1-R3)"));
-  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.7 (ver = 2)"));
+  // The banner is what a capture is correlated against months later, so it names the
+  // pass and the binding spec version. Both were stale until the pass 2 bench run
+  // printed them next to a v0.8 repo - it still said "pass 1, branch 1 (R1-R3)" and
+  // "v0.7" long after R4-R9 landed and the spec moved. A banner nobody updates is worse
+  // than no banner: it is a confident wrong answer in every log file it appears in.
+  Serial.println(F("LRAN range test firmware - pass 2 (two board profiles)"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.8 (ver = 2)"));
   Serial.println(F("This firmware never ships. No WiFi, no MQTT, no secrets."));
 
   if (!g_ui.begin()) {

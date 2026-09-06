@@ -143,6 +143,37 @@ If you ever do want a plain console — for poking at a board when you are *not*
 capturing — use `~/.platformio/penv/bin/pio device monitor -p /dev/cu.usbserial-0001 -b 115200`,
 and close it before running `capture.py`.
 
+### Power down every board you are not measuring with
+
+**A spare board left powered and ARMED corrupts the measurement, silently, by up to 60 %
+PER.** An idle initiator beacons once a second on the same fixed channel, and the campaign
+uses one channel with no hopping (D33). A third radio on the bench is a co-channel
+interferer sitting a metre from both antennas.
+
+It matters because **the symptom is indistinguishable from the thing being measured.** It
+does not look like a fault. It looks like poor link margin — scattered probe loss, some
+test points fine and others at 100 %, strong RSSI wherever anything gets through. On
+2026-09-05 this was mistaken for a firmware regression across two full sweeps before a
+bisect against the previous firmware showed the *older* build performing worse.
+
+Measured that day, Heltec pair on the desk, everything else identical:
+
+| Third board | Overall PER |
+|---|---|
+| Powered and ARMED | 32.8 % |
+| **Powered, parked in SURVEY (listen-only)** | **0.0 % — 192/192** |
+
+Before any run:
+
+- **Unplug spare boards.** Simplest and unambiguous.
+- If a spare must stay powered — tethered for flashing, say — **park it in `SURVEY`**
+  (`--role survey`, or hold PRG at boot). `ROLE_SURVEY` listens and never transmits, so it
+  is safe to leave running.
+- Do **not** rely on a board being "idle". ARMED is not idle; it beacons.
+
+The same applies in the field. Two boards make a measurement; a third in a backpack that
+is still powered is in the experiment whether or not it is in the plan.
+
 ### Erase the bench data first
 
 Both boards carry NVS state from bench work: the responder's position log and up to seven
