@@ -31,11 +31,23 @@ Four things decide whether the run is worth anything, and all four are procedure
    throwaway 24 dB; the absolute check is trying to resolve ±6 dB.
 4. **Antennas connected before power**, every time.
 
+**The run produces two committed files, not one.** The sweep trace, and the responder's own
+log — the only copy of the reverse-direction data, and the thing step 7's cross-check reads.
+
 ```bash
+# 1. the sweep, one capture spanning all three distances
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
     --port /dev/ttyUSB0 --reset --role initiator \
     --out docs/rangetest/data/2026-09-XX-eirp-sanity.csv --note "..."
 
+# 2. the responder's log, a SECOND capture with its own port and --out.
+#    No 'd' needed: it dumps at boot when it has a log (main.cpp:1073).
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/ttyUSB0 --reset --role responder --sweeps 1 \
+    --out docs/rangetest/data/2026-09-XX-eirp-sanity-resplog.csv \
+    --idle-timeout 60 --note "responder log, 7.6 EIRP sanity check"
+
+# 3. reading it - OFFLINE, takes the file, never a port
 python3 tools/rangetest/eirp_check.py docs/rangetest/data/2026-09-XX-eirp-sanity.csv \
     --distance 1=3.0 --distance 2=6.0 --distance 3=12.0
 ```

@@ -132,8 +132,22 @@ do not pace it. Add 24 m if the field allows.
 
 **6. Ctrl-C.** Confirm the file ends with `# capture ended:`.
 
-**7. Dump the responder's own log** — connect it, send `d`. Its per-position counts should
-close against the sweep trace. Disagreement is instrumentation, not a link result.
+**7. Capture the responder's own log.** A **second capture**, its own port and its own
+`--out` — the responder was untethered, so nothing has read it yet. **This is the only copy
+of the reverse-direction data.** Can wait until you are indoors, but do it before the boards
+are used for anything else.
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/ttyUSB0 --reset --role responder --sweeps 1 \
+    --out docs/rangetest/data/YYYY-MM-DD-eirp-sanity-resplog.csv \
+    --idle-timeout 60 --note "responder log, 7.6 EIRP sanity check of YYYY-MM-DD"
+```
+
+**No `d` needed** — the responder dumps at boot when it has a stored log, so `--reset`
+triggers it and `--sweeps 1` stops at `# responder log complete`. Its per-position counts
+should close against the sweep trace; disagreement is instrumentation, not a link result —
+**provided you cleared the log before the run**.
 
 **Budget ~30 minutes of standing** for three positions, plus setup.
 

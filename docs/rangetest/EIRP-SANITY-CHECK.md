@@ -150,10 +150,29 @@ tape at each one; do not pace it.
 > position 1 is therefore **added to** this run's position 1, and the disagreement below
 > reads as an instrumentation fault when the instrument is fine.
 
-**Step 7 — dump the responder's own log** as the cross-check the two-schema design exists
-for: connect it and send `d`. `sum(probes_sent) − sum(echoes_recv)` from the sweep trace
-should equal `sum(probes_sent) − probes_heard` from the responder's row for each position.
-Disagreement is an instrumentation fault, not a link result.
+**Step 7 — capture the responder's own log**, as the cross-check the two-schema design
+exists for. **This is a second capture and it needs its own port and `--out`** — the
+responder was untethered during the run, so nothing has read it yet:
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/ttyUSB0 --reset --role responder --sweeps 1 \
+    --out docs/rangetest/data/2026-09-XX-eirp-sanity-resplog.csv \
+    --idle-timeout 60 \
+    --note "responder log, 7.6 EIRP sanity check of 2026-09-XX"
+```
+
+**No `d` is needed.** The responder dumps at boot whenever it has a stored log
+(`main.cpp:1073`), so `--reset` is what triggers it; `--sweeps 1` then stops the capture at
+`# responder log complete`. Use `--key d` only to re-dump without resetting.
+
+Expect one `RESP,` row per position. **Commit it next to the sweep trace** — the two are
+only useful together, and this is the only copy of the reverse-direction data.
+
+Then check, per position: `sum(probes_sent) − sum(echoes_recv)` from the sweep trace should
+equal `sum(probes_sent) − probes_heard` from the responder's row. Disagreement is an
+instrumentation fault, not a link result — **provided the log was cleared first**, per the
+note above.
 
 ---
 
