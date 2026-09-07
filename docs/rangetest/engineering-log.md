@@ -2763,3 +2763,73 @@ CSV predates the record, and none of them can be back-filled: the PA configurati
 derivable from the conducted power *given* the flag, and the flag was never recorded. The
 first trace to carry it should be the §7.6 EIRP sanity check, which is the next job and the
 measurement the record exists to support.
+
+---
+
+## 2026-09-06 — the boards are reflashed, and the boot record says −9 dBm, not −4
+
+All three boards flashed from `main` at **3a9843d**, the build carrying the PA record. Two
+Heltecs on `/dev/cu.usbserial-0001` and `/dev/cu.usbserial-4`, the XIAO on
+`/dev/cu.usbmodem1101`. No surprises in the flashing itself — the XIAO's one-time
+"Could not configure port" trap did not recur, exactly as pass 2 predicted it would not
+once this firmware was installed.
+
+**The record prints, and it reaches the trace header, on hardware.** Read back off all
+three boards through `capture.py`:
+
+```
+# conducted_dbm=-9
+# pa_optimize=1
+# pa_duty_cycle=2
+# pa_hp_max=2
+# pa_val=-5
+# pa_table=RadioLib-7.7.1-paOptTable
+```
+
+The `capture.py` path worked without modification, which is what the host tests predicted
+and is now confirmed rather than argued.
+
+### Correction to this morning's entry, and to two documents
+
+**The entry earlier today, the handoff and `EIRP-SANITY-CHECK.md` all named the −4 dBm
+entry — `paDutyCycle = 1, hpMax = 2, paVal = 3` — as what a trace would carry. That is
+wrong about the boot line.**
+
+The boot record describes **test point 0**, and the sweep starts at the **bottom of the
+SX1262's range** and climbs only on failure (task guardrail 3). So point 0 is **−9 dBm**,
+which is **table entry 0**: `paDutyCycle = 2, hpMax = 2, paVal = -5`. The −4 dBm ceiling
+point is entry 5 and is reached **during** the sweep, not at boot.
+
+Nothing in the firmware is wrong — this is the design working as written, and `data/README.md`
+described it correctly ("the PA configuration applied at the boot test point"). What was
+wrong was two documents naming the working point's entry in a place a reader would take as
+"what the header will say". Both are corrected. **The claim was written from the tests,
+where −4 dBm was the interesting value, and never checked against a booting board** — which
+is the whole argument for reading a record off hardware before describing it.
+
+**The derivation argument is unaffected and is worth restating**, because it is why one line
+is enough: every CSV row carries its own `conducted_dbm`, and the entry is a pure function of
+it. What the boot line uniquely supplies is the **`optimize` flag** and the **table version**,
+neither of which appears anywhere else.
+
+### Two incidental findings
+
+**The stored survey campaign survived the reflash, and it lives on one board only.** The
+Heltec on `usbserial-0001` dumped all seven sites, 910 rows, `hold_discipline=1`; the other
+Heltec and the XIAO dumped nothing. NVS is untouched by a firmware upload, which is the
+expected behaviour and is now observed rather than assumed. The committed
+`2026-09-05-survey-campaign-r11.csv` remains the copy that matters — NVS on one bench board
+is not a backup.
+
+**A flashed board boots ARMED, and esptool's hard reset is a boot.** After the second
+Heltec was flashed it came up as `INITIATOR` and began beaconing once a second, on the
+single fixed channel, with two other boards on the bench — the exact configuration that cost
+up to 60 % PER on 2026-09-05. It was parked in `SURVEY` within the minute. Worth writing
+down because **a reflash session is a period during which every board is transmitting**, and
+nothing about "I am just flashing firmware" suggests that. All three were left in `SURVEY`.
+
+### State
+
+**Boards ready for the §7.6 EIRP sanity check**, which is the next job and will be the first
+trace captured with the PA record on it. Nothing owed in this directory but that measurement
+and B1b.
