@@ -1,5 +1,5 @@
 # LRAN range test trace, captured 2026-09-07 16:42:32
-# note: findings 7.6 EIRP sanity check. Heltec pair, 3.0dBi sticks vertical, both ends <H>m AGL on <stands>, level grass, clear LOS, laptop <N>m off-path on USB extension, operator 2m off-path at the initiator end every position. P1=3.0m P2=6.0m P3=12.0m tape measured. XIAO POWERED DOWN.
+# note: findings 7.6 EIRP sanity check. Heltec pair, 3.0dBi sticks vertical, both ends 1.45m AGL (57in to antenna tip), each node on a plastic 5gal bucket on a plastic-top table with metal legs and frame - the bucket puts the antenna roughly 0.5-0.7m above the metal, which is the field card's distance rule. Level grass, clear LOS. Laptop ~0.6m behind the antenna and ~0.6m below the tip, NOT on a USB extension. Operator 2m off-path at the initiator end every position. P1=3.0m P2=6.0m P3=12.0m, tape measured. XIAO POWERED DOWN. Geometry filled in 2026-09-07 from the operator's account; the capture ran with the template placeholders unedited.
 # schema: docs/rangetest/data/README.md
 #
 # board=heltec_wifi_lora_32_V3

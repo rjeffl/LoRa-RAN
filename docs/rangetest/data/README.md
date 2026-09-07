@@ -292,7 +292,41 @@ the engineering log, 2026-08-31.
 | `2026-09-05-bench-pass2-heltec.csv` | **Pass 2 bench reference, not range data.** Heltec V3 pair on the desk, pass 2 firmware. **192/192, 0% PER — reproduces `2026-08-31-bench.csv` exactly**, which is what Pass 2 Tasks §4.0.1 asked step 0 to prove: the display refactor was a no-op and the board selection is correct. **The third board was parked in `SURVEY` for this run**, and that is load-bearing — see the row below and the engineering log. |
 | `2026-09-05-bench-pass2-xiao.csv` | **Pass 2 bench, and NOT the B1b delta.** XIAO ESP32S3 + Wio-SX1262 Kit as initiator, Heltec responder. **192/192, 0% PER — the first over-air proof that the Wio's discrete RF switch line works**; `begin()` returning success could not show this, because a wrong `rf_sw` initialises cleanly and transmits into a dead end. RSSI reads ~13 dB stronger than the Heltec run, **but bench geometry is uncontrolled and dominates**: the Heltec reference itself moved −24 → −42 dBm between two runs on board placement alone. The module contribution to link margin is B1b, on the gate bearing, and is not this number. |
 | `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured** — the only file in this directory that is not a measurement. M20's residual, added by M21: the R11 trace re-integrated over 500 kHz on the US915 grid for Envelope B, and split out per 125 kHz bin across Envelope A's uncommitted 915.2–923.0 MHz. Regenerate with `python3 tools/rangetest/survey_reintegrate.py <source> --out <this>`; **do not hand-edit it**, and if the source trace is ever superseded, regenerate rather than patch. Its own header carries the coverage caveat below. |
+| `2026-09-07-eirp-sanity.csv` | **The §7.6 EIRP sanity check, and the run that closed it.** Heltec pair, matched module both ends, three tape-measured distances (3.0 / 6.0 / 12.0 m) at 1.45 m AGL on grass. **All four checks PASS**; 72/72 test points, 0% PER, zero error counters. **Check 2 is the one that mattered** — the D33 clamp reaching the PA over the air, which nothing in this repository had ever verified. Slope −15.8 to −16.3 dB/decade at **1.0–1.2 dB rms residual**, where the procedure calls 2–3 dB a normal outdoor result. **The capture ran with the field card's `--note` placeholders unedited**; the geometry was filled in the same day from the operator's account and the note says so. Read with its resplog. |
+| `2026-09-07-eirp-sanity-resplog.csv` | The responder's log for that run. **Closes exactly** — 192 sent, 192 heard, 192 echoed, 192 received at all three positions, zero loss either direction. |
+| `2026-09-07-eirp-sanity-xiao.csv` | **§7's Wio repeat.** XIAO ESP32S3 + Wio-SX1262 Kit as initiator, Heltec responder, same site and geometry. Checks 1, 2 and 4 pass; **the D33 clamp holds on the Wio as well**, which is the second module verified over the air rather than assumed. 72/72, 0% PER. Check 3's six WARNs are the module asymmetry below showing against a figure computed from the *requested* power — **not a geometry fault**, residual was 1.1–1.3 dB. |
+| `2026-09-07-eirp-sanity-xiao-resplog.csv` | The Heltec responder's log for the Wio run. Closes exactly, 192/192/192/192. |
+| `2026-09-07-eirp-sanity-swap.csv` | **The role swap, and a negative result worth keeping.** Heltec initiator, XIAO + Wio responder — the same pair with roles reversed, run to try to separate the Wio's transmit from its receive. **It cannot, and neither can any number of such runs:** swapping roles relabels which direction the tool calls uplink, path loss is reciprocal and cancels, so both runs measure the one combination `(TX−RX)_Wio − (TX−RX)_Heltec`. Kept as an **independent repeat with roles, tethering and which board walked all changed** — magnitudes agree within 0.21 dB. **Its absolute figures are not usable:** residuals 2.3–2.7 dB, check 3 FAILED at 12 m, one slope WARN, and the tool's own advice to discard check 3 fired correctly. Checks 1 and 2 stand. |
+| `2026-09-07-eirp-sanity-swap-resplog.csv` | The XIAO responder's log for the swap. Closes exactly, 192/192/192/192. |
 | `2026-09-05-w9-bench.log` | **W9 / R9, both runs, on the bench (2026-09-05).** §6.6.1's 222-byte maximum frame and §6.6.2's full 15-fragment set, 64 round trips, **zero faults at either end**; responder inbound agrees at 512 frames. **Not a link measurement and not a CSV** — see below. |
+
+### The three 2026-09-07 EIRP traces are one measurement, and must be read as a set
+
+They were captured the same evening at the same site, and **the matched pair is what makes
+the other two readable**. Alone, a 3 dB asymmetry between the two legs of a link is a number
+with no scale on it; against a same-module-both-ends run it is a module difference.
+
+| Run | uplink − downlink | sd |
+|---|---|---|
+| `-eirp-sanity.csv` — Heltec pair, matched | **+0.39 dB** | 0.14 |
+| `-eirp-sanity-xiao.csv` — Wio initiator | **+3.26 dB** | 0.36 |
+| `-eirp-sanity-swap.csv` — Wio responder | **−3.47 dB** | 0.63 |
+
+The matched pair establishes **+0.39 dB as the instrumentation floor**. The other two are
+the *same* quantity measured twice with the sign flipped by the role relabelling, mean
+magnitude **3.37 dB**.
+
+**The finding is `(TX − RX)` for the Wio sitting 3.37 dB below the Heltec's** — and that is
+as far as these traces go. It is equally consistent with a PA 3.4 dB weak or an RSSI reading
+3.4 dB optimistic, and **reciprocal RSSI cannot choose between them at any number of nodes**:
+for any pair, `P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`. Separation needs an absolute
+reference this project does not have. **Do not run a third permutation expecting a different
+answer.**
+
+**Neither reading is a compliance problem.** A weak PA sits further under D33's ceiling; an
+optimistic RSSI means the Wio's transmit equals the Heltec's, which passed check 2 against
+the −4 dBm ceiling at three distances. **Check 2 passed on the Wio's own hardware in both
+Wio runs regardless**, and that is the check that carries the compliance weight.
 
 ### The W9 trace is not a CSV, and not a range measurement
 
