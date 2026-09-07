@@ -157,6 +157,43 @@ def test_trace_without_malformed_rows_carries_no_warning(tmp):
     check("clean trace still says how it ended", "capture ended: test" in text)
 
 
+def test_pa_config_lines_reach_the_trace_header(tmp):
+    """Handoff 6 requirement 7 - the boot PA record has to survive the tool.
+
+    The firmware prints these AFTER radio begin() but BEFORE the CSV header, which
+    is the window where capture.py collects `key=value` lines into `meta`. Nothing
+    else enforces that: a line that fails SETTING_RE is counted as unparsed and
+    silently absent from the trace, which is the same class of quiet loss that ate
+    325 survey rows. The C++ side asserts the format (test_pa_config); this asserts
+    the tool accepts it and writes it out.
+
+    Transcribed from format_pa_config() in firmware/range-test/src/pa_config.cpp.
+    """
+    emitted = ["pa_optimize=1", "pa_duty_cycle=1", "pa_hp_max=2", "pa_val=3",
+               "pa_table=RadioLib-7.7.1-paOptTable"]
+    for line in emitted:
+        check(f"capture.py collects {line!r}",
+              capture.SETTING_RE.match(line) is not None,
+              "SETTING_RE rejected it - the line would be dropped as unparsed")
+
+    # The out-of-range form, which is the one a reader most needs to see.
+    check("capture.py collects 'pa_entry=none'",
+          capture.SETTING_RE.match("pa_entry=none") is not None)
+
+    t = capture.Trace(str(tmp), note=None)
+    t.open("tp_index,freq_hz,sf", emitted)
+    t.row("0,915000000,7")
+    t.close("test")
+    text = tmp.read_text()
+    for line in emitted:
+        check(f"{line!r} is written into the trace header", f"# {line}\n" in text,
+              text)
+    # Above the data, not somewhere after it: a configuration record that follows
+    # the rows it describes is one a reader has to hunt for.
+    check("the PA record precedes the CSV header",
+          text.index("# pa_optimize=1") < text.index("tp_index,freq_hz,sf"))
+
+
 def main():
     import tempfile
     print("capture.py host tests")
@@ -169,6 +206,7 @@ def main():
         test_trace_counts_malformed_rows_rather_than_dropping_them(
             Path(d) / "a.csv")
         test_trace_without_malformed_rows_carries_no_warning(Path(d) / "b.csv")
+        test_pa_config_lines_reach_the_trace_header(Path(d) / "c.csv")
 
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {', '.join(FAILED)}")

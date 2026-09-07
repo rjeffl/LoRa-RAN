@@ -16,8 +16,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <climits>
 
 #include "board_config.h"
+#include "pa_config.h"
 #include "phy_params.h"
 
 namespace rangetest {
@@ -55,6 +57,17 @@ class RadioLink {
   // is called for by name in the engineering log's header.
   bool poll(uint8_t* buf, size_t cap, size_t* out_len, bool* out_crc_error);
 
+  // Handoff 6 requirement 7 - the PA configuration behind the power now applied.
+  //
+  // Derived from the power the driver ACCEPTED, not from the one it was asked for:
+  // set_power() and apply() record it only after RadioLib returns success, so a
+  // rejected setting cannot leave a config here describing air that was never used.
+  // Before the first successful set the entry reads `in_range = false`, which
+  // format_pa_config() prints as `pa_entry=none` rather than as entry 0.
+  PaConfig applied_pa_config() const {
+    return pa_config_for(last_power_dbm_, kPaOptimize);
+  }
+
   float last_rssi_dbm() const { return last_rssi_; }
   float last_snr_db() const { return last_snr_; }
 
@@ -88,6 +101,10 @@ class RadioLink {
   bool  ready_     = false;
   float last_rssi_ = 0.0f;
   float last_snr_  = 0.0f;
+
+  // Deliberately outside the SX1262's -9..+22 range until a power is successfully
+  // applied, so applied_pa_config() reports "no entry" rather than a plausible one.
+  int8_t last_power_dbm_ = INT8_MIN;
 };
 
 }  // namespace rangetest

@@ -25,6 +25,7 @@
 #include "bench_frame.h"
 #include "board_config.h"
 #include "csv.h"
+#include "pa_config.h"
 #include "phy_params.h"
 #include "radio_link.h"
 #include "resp_log.h"
@@ -1000,6 +1001,32 @@ void setup() {
     while (true) delay(1000);
   }
   Serial.println(F("SX1262 up."));
+
+  // Handoff 6 requirement 7 / M21 findings 7.5 - the PA configuration on the record.
+  //
+  // PRINTED HERE, AFTER begin(), for two reasons. It is the configuration actually
+  // applied rather than the one intended, and it is still before the CSV header, which
+  // is what makes capture.py fold these lines into the trace's own header block with
+  // the rest of the settings dump (SETTING_RE, `key=value`, no spaces). A trace has
+  // never carried this: every committed CSV records the power requested and nothing
+  // about the PA configuration that emitted it.
+  //
+  // Only the boot point's entry is printed, and that is enough. The configuration is a
+  // pure function of conducted power, and every CSV row already carries its own
+  // conducted power - so with `pa_optimize` and the table version on the record, the
+  // entry for any row in the sweep is recoverable. What could not be recovered is the
+  // flag, because it is invisible in RadioLib's one-argument overload.
+  {
+    char pa[192];
+    const size_t pn = format_pa_config(g_radio.applied_pa_config(), pa, sizeof(pa));
+    if (pn == 0) {
+      // Same refusal as the settings dump: a partial record is worse than a named
+      // absence, because it reads like a complete one.
+      Serial.println(F("ERROR: PA config record did not fit its buffer"));
+    } else {
+      Serial.print(pa);
+    }
+  }
 
   // Both roles listen. The initiator is waiting for echoes, the responder for probes.
   const int16_t rx = g_radio.start_receive();

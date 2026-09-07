@@ -57,7 +57,7 @@ measurement error.
 | Boards | **Two Heltec V3s** — a matched pair, same module, same antenna, same configured gain. Start here rather than with the XIAO; see §7 |
 | Antennas | The **19 cm 3.0 dBi sticks**, one per board, **vertical**, connected **before power** |
 | Third board | **Powered down.** Not in a backpack, not in `SURVEY`. Off |
-| Firmware | `main` at the pass-2 build. **No firmware change is needed for this check** |
+| Firmware | **Reflash both boards from current `main`.** The check itself still needs no firmware change — but the PA record (handoff §6 requirement 7) landed 2026-09-06 and a board flashed before it produces a trace with no `pa_*` lines |
 | Site | Outdoors, **grass not pavement**, clear line of sight, nothing metal within a couple of metres of either end |
 | Measure | A tape or a laser. **Not** GPS — the walk already learned that arcsecond fixes cannot support a distance-dependent reading |
 | Mounts | Two non-metallic stands — tripods, plastic buckets, a wooden post. Both ends at the **same height** |
@@ -198,10 +198,13 @@ closest distance recommended and 1 m is not.
   half-wave-class part whose theoretical maximum is 2.15 dBi (findings §7.4). Check 3 folds
   antenna gain and RSSI accuracy into one ±6 dB band and cannot separate them. What it can
   do is rule out a *gross* gain error, which is the residual §7.4 actually left open.
-- **It does not log the applied PA configuration.** Handoff §6 requirement 7 — record which
-  `paOptTable` entry was used and whether `optimize` was left true — is **still owed** and
-  is a firmware change. Until it exists, a trace does not say which PA configuration
-  produced its numbers.
+- **It is no longer blocked on the PA record, which landed 2026-09-06.** Handoff §6
+  requirement 7 — log the applied `paOptTable` entry and the `optimize` flag — is
+  **implemented**: the boot record prints `pa_optimize`, `pa_duty_cycle`, `pa_hp_max`,
+  `pa_val` and `pa_table`, and `capture.py` folds them into the trace header. At the −4 dBm
+  working point the entry is `paDutyCycle = 1, hpMax = 2, paVal = 3`.
+  **The boards have not been reflashed**, so a trace only carries the record once they are.
+  Reflash before this run — it is the measurement the record exists to support.
 - **It says nothing about the 500 ft path.** That is M6 and B1b.
 
 ---

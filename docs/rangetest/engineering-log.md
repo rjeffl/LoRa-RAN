@@ -2650,3 +2650,116 @@ Procedure and tool committed; **the measurement is owed**. It is M6's stated pre
 so it comes before B1b. Handoff §6 requirement 7 — log the applied `paOptTable` entry and
 the `optimize` flag — remains the one firmware change this thread still owes, and until it
 exists a trace does not record which PA configuration produced its numbers.
+
+---
+
+## 2026-09-06 — the PA configuration goes on the record, and the mirror needs a check of its own
+
+**Handoff §6 requirement 7, the last firmware item this thread owed.** Log the applied
+`paOptTable` entry and the `optimize` flag at boot, so a trace records not only what power
+was requested but what PA configuration emitted it. M21 findings §7.5 budgets ~3 dB between
+a requested power and the power at the connector, and §7.6 reads the sanity check against
+that budget — a divergence is only a defect to find rather than noise to absorb if the
+configuration is on the record.
+
+### Neither half of it is observable, which is the whole problem
+
+`SX1262::setOutputPower(power)` forwards to `setOutputPower(power, true)`. The `true`
+selects `paDutyCycle` / `hpMax` / `paVal` from a 32-entry table indexed by `power + 9`.
+**Neither the flag nor the entry can be read back:**
+
+- `paOptTable` is **file-static** in RadioLib's `SX1262.cpp`. It is not exported, and the
+  firmware could not read it even if it wanted to.
+- The SX1262's PA configuration is written by the **`SetPaConfig` command**, not to a
+  register that reads back. There is no "ask the radio what it is set to".
+
+So the entry has to be **computed** from the power, which means a **mirror of RadioLib's
+table** in this firmware. That is a second copy of a value that upstream derived by
+measurement (RadioLib issue 1628), and a second copy is a liability, not a feature.
+
+### The mirror is a load-bearing premise, so it got a falsifying check
+
+Root `CLAUDE.md`: a premise like *"these 32 entries are RadioLib 7.7.1's table"* must name
+the check that would prove it false **and point at where that check is tracked**. Prose
+asserting the two agree reads like diligence and behaves like nothing — which is exactly
+how the Wio pad-assignment premise survived being wrong until an audit found it.
+
+`tools/rangetest/check_pa_table.py` parses **both** tables from source and diffs them entry
+by entry. It also checks that the RadioLib version the mirror names matches the version
+pinned in every `platformio.ini`, because a mirror that is correct for a driver nobody
+builds is not correct.
+
+**Three failure paths were exercised deliberately, not assumed:** a corrupted mirror entry
+(reports the index, the dBm and both triples), a version skew, and a missing RadioLib
+source tree. The last one matters most: `.pio/` is gitignored, so the pinned source is
+absent on a fresh clone, and the tool **exits non-zero rather than skipping**. A check that
+reports success for a comparison it never ran is worse than no check.
+
+### Two things changed on the air path, and one of them is not cosmetic
+
+**`setOutputPower` is now called with two arguments everywhere**, passing `kPaOptimize`
+explicitly. Today that constant is `true`, so nothing about the emitted power changes and
+the pass-2 bench traces remain reproducible. What changes is ownership: the flag alters
+emitted power, and it was being set by a library default that no document in this
+repository had ever named.
+
+**`begin()` re-asserts the power after RadioLib's own `begin()` sets it.** RadioLib's
+`begin()` calls the one-argument overload internally, hardcoding `optimize = true` inside
+the driver where this project's constant cannot reach. Today the two agree. The day
+`kPaOptimize` is set false, `begin()` would otherwise leave the radio optimized until the
+first `apply()` — and the boot record printed in between would describe a configuration the
+radio was not in. One extra SPI command closes that window.
+
+### Where the record is printed, and why exactly there
+
+**After `begin()` succeeds, before the CSV header.** That is not decoration:
+
+- *After `begin()`* — it is the configuration **applied**, derived from the power the driver
+  accepted, not the one it was asked for. `applied_pa_config()` reads back a sentinel
+  (`pa_entry=none`) until a `setOutputPower` has actually returned success.
+- *Before the CSV header* — that is the window in which `capture.py` collects
+  `^[a-z][a-z0-9_]*=\S*$` lines into `meta`, which it writes into the trace's own header
+  block. **So every future trace carries the PA record with no change to the capture tool.**
+
+That second property is asserted rather than assumed. The C++ side (`test_pa_config`)
+checks the format contains no spaces and is `key=value` throughout; the Python side
+(`test_capture.py`) checks `SETTING_RE` accepts each emitted line, that the lines reach the
+written trace, and that they land **above** the data rather than after it. A line that fails
+that regex is counted as `unparsed` and silently absent — the same class of quiet loss that
+ate 325 survey rows.
+
+### Only the boot point's entry is printed, and that is enough
+
+The configuration is a pure function of conducted power, and **every CSV row already carries
+its own conducted power**. With `pa_optimize` and the table version on the record, the entry
+for any row in a sweep is recoverable. What could not be recovered from a trace is the
+**flag**, because it is invisible in RadioLib's one-argument overload. So the flag is the
+part that had to be logged; the entry is logged because it is cheap and saves the reader
+the lookup.
+
+### The working point's entry, for reference
+
+−4 dBm conducted is index 5: **`paDutyCycle = 1`, `hpMax = 2`, `paVal = 3`**. That is what
+every range-test trace from here on will carry at the D33 ceiling with the fitted 3.0 dBi
+antenna, and it is what the §7.6 check will be read against.
+
+### A test caught its own author
+
+The first draft of `test_interior_entries` wrote an index as `-9 + 13` while intending entry
+15, which is +6 dBm. The suite failed on the spot with *"Expected 3 Was 1"*. Worth recording
+because it is the argument for spot values transcribed by hand from upstream rather than
+generated from the mirror: **a test generated from the thing it tests cannot fail this way,
+and cannot catch a mirror edited to match a wrong table either.** The six hand-transcribed
+entries are a second, independent copy — the same trick `tools/vectors/` plays on the codec.
+
+### State
+
+**Requirement 7 is closed.** Both target builds green, 191 host tests green, the mirror
+verified 32/32 against the pinned RadioLib, and `capture.py`'s handling of the new lines
+tested end to end.
+
+**No trace carries these fields yet** — the boards have not been reflashed. Every committed
+CSV predates the record, and none of them can be back-filled: the PA configuration is
+derivable from the conducted power *given* the flag, and the flag was never recorded. The
+first trace to carry it should be the §7.6 EIRP sanity check, which is the next job and the
+measurement the record exists to support.
