@@ -97,13 +97,20 @@ the PA record — and **verified by reading the record back off each one**, not 
 the upload. Nothing under `firmware/`, `lib/` or `tools/` has changed since, so **the boards
 are current with `main` at 36582e0**; #35 was documentation only.
 
-**All three were left in `SURVEY`**, which listens and never transmits.
+**The bench is already in the §7.6 configuration**, as left at the end of 2026-09-06:
 
-| Board | Env | Port seen 2026-09-06 | Notes |
-|---|---|---|---|
-| Heltec V3 | `heltec` | `/dev/cu.usbserial-0001` | **Holds the stored survey campaign** — all seven sites |
-| Heltec V3 | `heltec` | `/dev/cu.usbserial-4` | No stored sites |
-| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `/dev/cu.usbmodem1101` | Seeeduino XIAO Expansion Board. No stored sites. **Meshtastic has been overwritten** |
+| Board | Env | Port seen 2026-09-06 | State left | Notes |
+|---|---|---|---|---|
+| Heltec V3 | `heltec` | `/dev/cu.usbserial-0001` | `SURVEY` | **Holds the stored survey campaign** — all seven sites. Prefer it as the tethered initiator, which keeps it away from PRG presses |
+| Heltec V3 | `heltec` | `/dev/cu.usbserial-4` | `SURVEY` | No stored sites |
+| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `/dev/cu.usbmodem1101` | **POWERED DOWN** | Seeeduino XIAO Expansion Board. No stored sites. **Meshtastic has been overwritten.** Keep it off for §7.6 — it is not in that measurement |
+
+**`SURVEY` is safe to leave a board in indefinitely** — it listens and never transmits — but
+**§7.6 wants the third board OFF, not parked.** That distinction is the difference between a
+clean measurement and a repeat of the 2026-09-05 afternoon. The XIAO is already off.
+
+**The role is not persisted.** Every board re-asks at boot, so nothing above has to be
+undone before the run.
 
 **Port names are what they enumerated as that day, not identities.** Both CP2102 bridges
 report `SER=0001` and the node names are not stable across replug. **Read `board=` off the
