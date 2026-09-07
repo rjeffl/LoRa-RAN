@@ -31,7 +31,7 @@
 | Merged 2026-09-06 | **#31** (the previous handoff rewrite), **#32** (M21 closure, M20 re-integration, the §7.6 setup) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20 (closed)**, **M21 (closed)** |
-| **Next** | **The §7.6 EIRP sanity check** — a bench measurement, procedure written, tool written and host-tested, **run not performed**. It gates **M6**, so it comes before B1b. **Reflash both boards first:** the PA record landed 2026-09-06 and the boards predate it. After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not start in this directory |
+| **Next** | **The §7.6 EIRP sanity check** — a bench measurement, procedure written, tool written and host-tested, **run not performed**. It gates **M6**, so it comes before B1b. **The boards are reflashed and ready.** After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not start in this directory |
 
 ```bash
 pio test -d lib/lran-protocol -e native      # host Unity suite
@@ -53,9 +53,14 @@ All green at 8653d38. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `
 
 ## Hardware state
 
-**Three boards, all flashed from `main` at the Pass 2 phase B build — which is now BEHIND.**
-The PA record (§6 requirement 7) landed 2026-09-06 and the boards do not have it. **Reflash
-before the next measurement**, or its trace will carry no `pa_*` lines.
+**Three boards, all reflashed from `main` at 3a9843d on 2026-09-06** — the build that carries
+the PA record. Verified by reading the record back off each one. **All three were left in
+`SURVEY`**, which listens and never transmits.
+
+**The stored survey campaign lives on the Heltec that enumerated as `/dev/cu.usbserial-0001`**,
+and only that one — the other Heltec and the XIAO dumped no stored sites. The campaign
+survived the reflash. It is also committed as
+`data/2026-09-05-survey-campaign-r11.csv`, so NVS is not the only copy.
 
 | Board | Env | Port | Notes |
 |---|---|---|---|
@@ -235,8 +240,8 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 1. `git checkout main && git pull --ff-only`, then run the checks above. Everything through
    **#32** is merged and `main` is at **8653d38**. No branches to reconcile.
-2. **No firmware work is queued.** Pass 1, Pass 2 and §6 requirement 7 are all complete and
-   merged. **The three boards are flashed from an older image** — reflash before measuring.
+2. **No firmware work is queued**, and **no reflash is owed.** Pass 1, Pass 2 and §6
+   requirement 7 are complete and merged, and all three boards run 3a9843d.
 3. **Decide which thread you are on, and they are ordered:**
    - **The §7.6 EIRP sanity check** — a short-range bench measurement, procedure in
      [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md). **No firmware change needed**, and it
@@ -254,10 +259,17 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 ### The firmware change this thread owed is done
 
-**Handoff §6 requirement 7 landed 2026-09-06.** The boot record now prints the applied
-`paOptTable` entry and the `optimize` flag, and `capture.py` folds those lines into the
-trace header with no change to the tool. At the −4 dBm working point the entry is
-`paDutyCycle = 1, hpMax = 2, paVal = 3`.
+**Handoff §6 requirement 7 landed 2026-09-06**, and the record is **confirmed on hardware** —
+all three boards were reflashed the same day. The boot record prints the applied `paOptTable`
+entry and the `optimize` flag, and `capture.py` folds those lines into the trace header with
+no change to the tool.
+
+**The boot line is the BOOT TEST POINT, not the working point.** The sweep starts at the
+bottom of the SX1262's range (task guardrail 3), so it reads
+`conducted_dbm=-9` with `pa_duty_cycle=2  pa_hp_max=2  pa_val=-5` — entry 0. The **−4 dBm**
+ceiling point is entry 5 (`1, 2, 3`) and is reached during the sweep. Any row's entry follows
+from its own `conducted_dbm`; what the boot line uniquely supplies is the **flag** and the
+table version.
 
 Two things to know about it:
 

@@ -201,10 +201,16 @@ closest distance recommended and 1 m is not.
 - **It is no longer blocked on the PA record, which landed 2026-09-06.** Handoff §6
   requirement 7 — log the applied `paOptTable` entry and the `optimize` flag — is
   **implemented**: the boot record prints `pa_optimize`, `pa_duty_cycle`, `pa_hp_max`,
-  `pa_val` and `pa_table`, and `capture.py` folds them into the trace header. At the −4 dBm
-  working point the entry is `paDutyCycle = 1, hpMax = 2, paVal = 3`.
-  **The boards have not been reflashed**, so a trace only carries the record once they are.
-  Reflash before this run — it is the measurement the record exists to support.
+  `pa_val` and `pa_table`, and `capture.py` folds them into the trace header.
+  **All three boards were reflashed 2026-09-06 and the record is confirmed on hardware.**
+
+  **Read the boot line as the BOOT TEST POINT, which is not the working point.** The sweep
+  starts at the bottom of the SX1262's range and climbs only on failure (task guardrail 3),
+  so point 0 is **−9 dBm** and the boot record reads
+  `pa_duty_cycle=2  pa_hp_max=2  pa_val=-5` — table entry 0. The **−4 dBm** ceiling point is
+  entry 5, `paDutyCycle = 1, hpMax = 2, paVal = 3`, and it is reached during the sweep, not
+  at boot. Any row's entry follows from its own `conducted_dbm`; the boot line supplies the
+  `optimize` flag and the table version, which is the part that cannot be derived.
 - **It says nothing about the 500 ft path.** That is M6 and B1b.
 
 ---
