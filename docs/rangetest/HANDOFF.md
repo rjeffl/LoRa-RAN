@@ -1,7 +1,7 @@
 # Range test — session handoff
 
-**Written 2026-09-06, at the end of the session that closed M21 and M20 and set up the
-§7.6 EIRP check.** It replaces the 2026-09-05 file wholesale.
+**Written 2026-09-06, at the end of the session that landed the PA record and reflashed the
+boards.** It replaces the earlier 2026-09-06 file wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -9,29 +9,63 @@
 > the documents below, they win — check the log's last entry against the date above before
 > trusting anything here.
 
+## The next job, in one place
+
+**Run the §7.6 EIRP sanity check.** It is a short-range bench measurement, it gates **M6**,
+the procedure and the reader are written and tested, and **the boards are flashed and
+ready**. Nothing blocks it and nothing else in this directory comes before it.
+
+Read [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) and
+[`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) first. Three things decide whether the run is
+worth anything, and all three are procedure rather than code:
+
+1. **Power the third board OFF.** Not in a backpack, not in `SURVEY` — off.
+2. **Tape-measured distances, three of them**, both ends at the same height, on grass.
+   Desk geometry moved a bench reference 18 dB on placement alone; the absolute check is
+   trying to resolve ±6 dB.
+3. **Antennas connected before power**, every time.
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py \
+    --port /dev/cu.usbserial-0001 --reset --role initiator \
+    --out docs/rangetest/data/2026-09-XX-eirp-sanity.csv --note "..."
+
+python3 tools/rangetest/eirp_check.py docs/rangetest/data/2026-09-XX-eirp-sanity.csv \
+    --distance 1=3.0 --distance 2=6.0 --distance 3=12.0
+```
+
+**Check 2 is the one that matters** — the D33 clamp reaching the PA over the air, which
+nothing in this repository has ever verified. A broken clamp does not produce a
+wrong-looking reading; it produces a **26 dB step where a 5 dB one was expected**, and that
+is a compliance fault rather than a measurement error. The absolute EIRP back-out is the
+weakest of the three and §7.6 does not claim otherwise.
+
+After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not
+start in this directory.
+
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. The last four are M21's closure, M20's re-integration, the §7.6 setup, and the PA record. Before them, the 2026-09-05 Pass 2 entries |
-| 3 | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the §7.6 procedure. **M6's precondition**, needs no firmware change, and is the next bench job |
-| 4 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any campaign. **Start with "Power down every board you are not measuring with"** |
+| 2 | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the next job. **M6's precondition** |
+| 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any bench or field run. **Start with "Power down every board you are not measuring with"** |
+| 4 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. Five of them now: M21's closure, M20's re-integration, the §7.6 setup, the PA record, and the reflash **(which corrects the fourth)**. Before them, the 2026-09-05 Pass 2 entries |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
 | 6 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§2.1, §3.3, §5.4** | D1's four bounds, D33's reopening, and the ranked channel evidence |
-| 7 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) | the second board profile — what it validates and, more importantly, what it does not |
-| 8 | [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | R1–R11, complete. Its Pass 2 section is closed against what it predicted |
-| 9 | [`data/README.md`](./data/README.md) | the two schemas, what each committed trace is *not*, and **the 62.5 % band-coverage caveat** |
+| 7 | [`data/README.md`](./data/README.md) | the two schemas, what each committed trace is *not*, the `pa_*` header fields, and **the 62.5 % band-coverage caveat** |
+| 8 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) | the second board profile — what it validates and, more importantly, what it does not |
+| 9 | [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | R1–R11, complete. Its Pass 2 section is closed against what it predicted |
 
 ## Where things stand
 
 | | |
 |---|---|
-| Branch | **`main` at 8653d38**, verified green **2026-09-06**. **`main` is the only branch, local and remote** — `m21-closure` was merged and pruned |
-| Merged 2026-09-06 | **#31** (the previous handoff rewrite), **#32** (M21 closure, M20 re-integration, the §7.6 setup) |
-| Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
-| Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20 (closed)**, **M21 (closed)** |
-| **Next** | **The §7.6 EIRP sanity check** — a bench measurement, procedure written, tool written and host-tested, **run not performed**. It gates **M6**, so it comes before B1b. **The boards are reflashed and ready.** After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not start in this directory |
+| Branch | **`main` at 36582e0**, verified green **2026-09-06**. **`main` is the only branch, local and remote** |
+| Merged 2026-09-06 | **#31**, **#32** (M21 closure, M20 re-integration, §7.6 setup), **#33** (handoff rewrite), **#34** (the PA record), **#35** (reflash, and the correction below) |
+| Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
+| Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7** |
+| Firmware queue | **Empty.** This directory owes two measurements and no code |
 
 ```bash
 pio test -d lib/lran-protocol -e native      # host Unity suite
@@ -42,10 +76,10 @@ python3 tools/vectors/check.py
 python tools/rangetest/test_capture.py       # PlatformIO's python
 python3 tools/rangetest/test_survey_reintegrate.py
 python3 tools/rangetest/test_eirp_check.py
-python3 tools/rangetest/check_pa_table.py     # the paOptTable mirror vs. pinned RadioLib
+python3 tools/rangetest/check_pa_table.py    # the paOptTable mirror vs. pinned RadioLib
 ```
 
-All green at 8653d38. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
+All green at 36582e0. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
 `capture.py` needs `~/.platformio/penv/bin/python`.
 
 > **Counts are deliberately not written here or in root `CLAUDE.md`.** They were wrong more
@@ -53,24 +87,28 @@ All green at 8653d38. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `
 
 ## Hardware state
 
-**Three boards, all reflashed from `main` at 3a9843d on 2026-09-06** — the build that carries
-the PA record. Verified by reading the record back off each one. **All three were left in
-`SURVEY`**, which listens and never transmits.
+**All three boards were reflashed 2026-09-06 from `main` at 3a9843d** — the build carrying
+the PA record — and **verified by reading the record back off each one**, not by trusting
+the upload. Nothing under `firmware/`, `lib/` or `tools/` has changed since, so **the boards
+are current with `main` at 36582e0**; #35 was documentation only.
 
-**The stored survey campaign lives on the Heltec that enumerated as `/dev/cu.usbserial-0001`**,
-and only that one — the other Heltec and the XIAO dumped no stored sites. The campaign
-survived the reflash. It is also committed as
-`data/2026-09-05-survey-campaign-r11.csv`, so NVS is not the only copy.
+**All three were left in `SURVEY`**, which listens and never transmits.
 
-| Board | Env | Port | Notes |
+| Board | Env | Port seen 2026-09-06 | Notes |
 |---|---|---|---|
-| Heltec V3 ×2 | `heltec` | `/dev/cu.usbserial-*` | Both report `SER=0001`; told apart only by USB location |
-| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `/dev/cu.usbmodem*` | On a Seeeduino XIAO Expansion Board. **Meshtastic has been overwritten** |
+| Heltec V3 | `heltec` | `/dev/cu.usbserial-0001` | **Holds the stored survey campaign** — all seven sites |
+| Heltec V3 | `heltec` | `/dev/cu.usbserial-4` | No stored sites |
+| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `/dev/cu.usbmodem1101` | Seeeduino XIAO Expansion Board. No stored sites. **Meshtastic has been overwritten** |
 
-**Read `board=` off the R3 settings dump to know which board you are talking to.** It is
-the only reliable identifier, and a wrong board selection is otherwise silent — the build
-still boots, still displays, and writes the wrong pin map and antenna gain into a
-normal-looking CSV.
+**Port names are what they enumerated as that day, not identities.** Both CP2102 bridges
+report `SER=0001` and the node names are not stable across replug. **Read `board=` off the
+settings dump** — a wrong board selection is silent, and writes the wrong pin map and
+antenna gain into a normal-looking CSV.
+
+**The stored campaign survived the reflash.** NVS is untouched by a firmware upload —
+observed now rather than assumed. It is also committed as
+`data/2026-09-05-survey-campaign-r11.csv`, and **that is the copy that matters**: NVS on one
+bench board is not a backup.
 
 > ### Power down every board you are not measuring with
 >
@@ -79,34 +117,41 @@ normal-looking CSV.
 > margin. Unplug spares, or park one in `SURVEY` (`--role survey`) — it listens and never
 > transmits. **ARMED is not idle.** Full account in `FIELD-PROCEDURE.md`.
 
-## What 2026-09-06 changed
+## The PA record, and the one thing to read correctly
 
-**M21 closed, and D33 reopened with its ceiling intact.** Both modules' grants are recorded
-in `LRAN-M21-FCC-Grant-Findings`. Neither is §15.249 — both are §15.247 DTS + DSS — and the
-grants **do not transfer**, so the project's operative frame is **§15.23 home-built**.
-**No node may be represented as FCC certified anywhere**: not a README, a LICENSE header, an
-enclosure label or HA device metadata.
+**Handoff §6 requirement 7 landed and is confirmed on hardware.** Five `key=value` lines are
+printed after the radio comes up and before the CSV header, so `capture.py` folds them into
+every trace header with no change to the tool:
 
-**Three things the committed traces changed in the findings as received**, which is the
-reason to keep raising discrepancies rather than adopting a document wholesale:
+```
+pa_optimize=1  pa_duty_cycle=2  pa_hp_max=2  pa_val=-5  pa_table=RadioLib-7.7.1-paOptTable
+```
 
-- **The working point is −4 dBm conducted, not −9.** −9 dBm is the SX1262's hard floor
-  (`kSx1262MinDbm`), not a conservative setting, and the 2026-09-04 walk measured
-  **12.5–25 % PER at SF7 there** where −4 dBm was clean at all six positions. `phy_params.cpp`
-  now carries the −4 dBm arithmetic and a note saying **not** to credit feedline loss.
-- **M20's field work was already done.** Its M21 amendment turned out to be arithmetic on a
-  committed trace, not a second campaign. **Do not re-walk M20.**
-- **The SX1262 has no low-power PA**, so the obligation became logging the applied
-  `paOptTable` entry, **which landed later the same day** — see below.
+**That is the BOOT TEST POINT, and it is not the working point.** The sweep starts at the
+bottom of the SX1262's range and climbs only on failure (task guardrail 3), so point 0 is
+**−9 dBm** — table entry 0. The **−4 dBm** ceiling point is entry 5 (`1, 2, 3`) and is
+reached *during* the sweep. **An earlier version of this file said a trace would carry
+entry 5; it was wrong**, and the correction is in the log's last entry.
 
-**M20 closed, and the re-integration found the loudest signal in the campaign.** Details in
-the D1 section.
+Any row's entry follows from its own `conducted_dbm`, because the configuration is a pure
+function of power. What the boot line uniquely supplies is the **`optimize` flag** and the
+**table version** — neither appears anywhere else.
 
-**The §7.6 check was set up without a firmware change**, and running the new tool against
-the oldest committed trace (`2026-08-31-bench.csv`, a format proof) already passes two of
-its three checks: the power step tracks (+5.8 / +5.6 dB against 6.0 expected) and the D33
-clamp ran over the air. The absolute figure reads 11 dB low, which is desk geometry, and is
-exactly why the procedure insists on a tape measure and three distances.
+Two things to know:
+
+- **`setOutputPower` takes two arguments now**, passing `kPaOptimize` explicitly. It is
+  `true`, which is what RadioLib's one-argument overload already did — **nothing on the air
+  changed** and the pass-2 bench traces stay reproducible. What changed is that a flag
+  affecting emitted power is this project's decision rather than a library default.
+- **The table is a mirror, and mirrors drift.** `paOptTable` is file-static in RadioLib and
+  the SX1262's PA config cannot be read back, so the entry is computed from a copy.
+  **`python3 tools/rangetest/check_pa_table.py` is the check on that premise** — it diffs
+  the copy against the pinned source and fails loudly, including when the pinned source is
+  absent rather than skipping. **Run it after any RadioLib version change.**
+
+**No committed trace carries these fields**, and none can be back-filled: deriving an entry
+needs the flag, and the flag was never recorded before this date. **The §7.6 run will be the
+first.**
 
 ## What Pass 2 did, and what it did not
 
@@ -145,6 +190,9 @@ Do not copy it into a range-test board profile — it is a different product.
 | `2026-09-05-bench-pass2-heltec.csv` | **Pass 2 regression check.** Heltec pair on pass 2 firmware, **192/192** — reproduces `2026-08-31-bench.csv` exactly. Third board parked in SURVEY, which is load-bearing |
 | `2026-09-05-bench-pass2-xiao.csv` | **Pass 2, and NOT the B1b delta.** XIAO→Heltec, **192/192** — the first over-air proof the Wio's RF switch line works. Reads ~13 dB stronger RSSI, but **bench geometry is uncontrolled and dominates**: the Heltec reference itself moved −24 → −42 dBm between two runs on placement alone |
 | `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured — the only file here that is not a measurement.** The R11 trace re-integrated over 500 kHz on the US915 grid, plus per-125 kHz bins across 915.2–923.0. **Regenerate it, never hand-edit it** |
+
+**Every one of them predates the PA record.** A trace with no `pa_*` lines was captured by a
+board flashed before 2026-09-06; that is the only thing its absence means.
 
 ### The results to carry forward
 
@@ -202,8 +250,8 @@ itself, and it would read high for a reason that is not congestion. **Raised, no
 
 **Nothing external blocks it.** M20 and M21 are both closed. It needs a decision made
 against the material below, plus B1b if the 500 ft leg is wanted first. **Read Protocol
-Spec §18.2 and Decision Register §2.1 before picking any number** — there are now four
-bounds, not three.
+Spec §18.2 and Decision Register §2.1 before picking any number** — there are four bounds
+now, not three.
 
 - **Frequency — there is a ranked answer. Use 917.2–917.6 MHz.** The provisional 915.0 MHz
   is `weather-island`'s occupant peak, **and a small move off it is worse, not better**:
@@ -239,61 +287,20 @@ python3 tools/rangetest/survey_reintegrate.py \
 ## First actions next session
 
 1. `git checkout main && git pull --ff-only`, then run the checks above. Everything through
-   **#32** is merged and `main` is at **8653d38**. No branches to reconcile.
-2. **No firmware work is queued**, and **no reflash is owed.** Pass 1, Pass 2 and §6
-   requirement 7 are complete and merged, and all three boards run 3a9843d.
-3. **Decide which thread you are on, and they are ordered:**
-   - **The §7.6 EIRP sanity check** — a short-range bench measurement, procedure in
-     [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md). **No firmware change needed**, and it
-     is M6's stated precondition, so **it comes first if the bench is available**. Heltec
-     pair, three tape-measured distances, then the Wio repeat, which is cheap once the site
-     is set up and is **not** B1b.
-   - **B1b** — the gate-bearing walk with the Wio. The only field work this directory still
-     owes. A walk, not a build; the 2026-09-05 desk runs are explicitly not it.
-   - **D1** — a decision against the data above. **It does not start in this directory:**
-     it is recorded in `LRAN-Decision-Register` and its constraints live in the protocol
-     specification (§12.1, §12.3, §15.1, §18.2).
-4. **If it is a bench or field session:** re-read `FIELD-PROCEDURE.md` first, and note the
-   third board. Two boards make a measurement; a spare still powered in a backpack is in
-   the experiment.
-
-### The firmware change this thread owed is done
-
-**Handoff §6 requirement 7 landed 2026-09-06**, and the record is **confirmed on hardware** —
-all three boards were reflashed the same day. The boot record prints the applied `paOptTable`
-entry and the `optimize` flag, and `capture.py` folds those lines into the trace header with
-no change to the tool.
-
-**The boot line is the BOOT TEST POINT, not the working point.** The sweep starts at the
-bottom of the SX1262's range (task guardrail 3), so it reads
-`conducted_dbm=-9` with `pa_duty_cycle=2  pa_hp_max=2  pa_val=-5` — entry 0. The **−4 dBm**
-ceiling point is entry 5 (`1, 2, 3`) and is reached during the sweep. Any row's entry follows
-from its own `conducted_dbm`; what the boot line uniquely supplies is the **flag** and the
-table version.
-
-Two things to know about it:
-
-- **`setOutputPower` is called with two arguments now**, passing `kPaOptimize` explicitly.
-  It is `true`, which is what RadioLib's one-argument overload was already doing — **nothing
-  on the air changed** and the pass-2 bench traces stay reproducible. What changed is that a
-  flag affecting emitted power is this project's decision rather than a library default.
-- **The table is a mirror, and mirrors drift.** `paOptTable` is file-static in RadioLib and
-  the SX1262's PA config cannot be read back, so the entry is computed from a copy.
-  `python3 tools/rangetest/check_pa_table.py` diffs the copy against the pinned source and
-  fails loudly — including when the pinned source is absent, rather than skipping. **Run it
-  after any RadioLib version change.**
-
-**No committed trace carries these fields**, and none can be back-filled: deriving an entry
-needs the flag, and the flag was never recorded before this date.
+   **#35** is merged and `main` is at **36582e0**. No branches to reconcile.
+2. **No firmware work is queued and no reflash is owed.** The boards are current.
+3. **If the bench is available, run the §7.6 check** — the section at the top of this file.
+   It is the only thing here that produces a new measurement rather than a document.
+4. **If it is a field session instead, it is B1b**, and `FIELD-PROCEDURE.md` comes first.
+5. **If it is D1, it does not start in this directory.**
 
 ## Behaviour that changed, and will make traces look different
 
 **From 2026-09-06:**
 
-- **The boot output has five new `key=value` lines** — `pa_optimize`, `pa_duty_cycle`,
-  `pa_hp_max`, `pa_val`, `pa_table` — printed after the radio comes up and before the CSV
-  header. `capture.py` puts them in the trace header automatically. **A trace without them
-  was captured by a board flashed before 2026-09-06.**
+- **Five new `key=value` lines in the boot output** — `pa_optimize`, `pa_duty_cycle`,
+  `pa_hp_max`, `pa_val`, `pa_table` — and `capture.py` puts them in the trace header
+  automatically. **A trace without them was captured by a board flashed before this date.**
 - **The conducted ceiling is −4 dBm** at the configured 3.0 dBi, where the comment in
   `phy_params.cpp` previously described −3 dBm at 2.0 dBi. **The code's arithmetic did not
   change** — it has always derived the ceiling from the configured gain — but a trace's
@@ -330,6 +337,10 @@ The engineering log has the full account; this is the index.
   regression across two full sweeps on 2026-09-05. **A ten-minute bisect against the
   previous firmware settles this class of question — reach for it before asserting a
   regression, not after.**
+- **A reflash session is a period during which every board transmits.** A flashed board
+  boots ARMED, and esptool's hard reset *is* a boot — so a board comes off the programmer
+  beaconing once a second. Observed 2026-09-06 with two other boards on the bench, which is
+  the 60 % PER configuration above. Park or unplug each board as it finishes.
 - **Bench geometry moves RSSI further than anything you are trying to measure.** The Heltec
   reference moved **−24 → −42 dBm between two runs on placement alone**. That is 18 dB
   against the ±6 dB an absolute EIRP figure is trying to resolve, and it is why §7.6 wants
@@ -339,13 +350,17 @@ The engineering log has the full account; this is the index.
   bridge chip and its button is GPIO 21, so this trap is Heltec-only.
 - **Flashing the XIAO from a firmware with a different USB stack fails once.** Bootloader
   entry swaps the USB device, esptool loses its handle, `Could not configure port`. The
-  board *is* in the bootloader — on a **new** `/dev/cu.usbmodem*`. Flash to that. It does
-  not recur once this firmware is installed.
+  board *is* in the bootloader — on a **new** `/dev/cu.usbmodem*`. Flash to that. It did
+  **not** recur on the 2026-09-06 reflash, as pass 2 predicted it would not.
 - **A tool that does not read the port while it waits loses everything the board says.**
   Cost 19184 bytes of a survey dump, deterministically, and read as a firmware bug.
 - **`capture.py` will not overwrite an existing `--out`** (needs `--force`).
 - **Completion markers match as substrings anywhere in a `#` line.** Careless wording of a
   new firmware message truncates captures.
+- **A boot line that is not `key=value` never reaches the trace.** `capture.py` collects
+  `^[a-z][a-z0-9_]*=\S*$` into the header and counts everything else as `unparsed`. One
+  space in one value and that line is silently absent — which is why the PA record's format
+  is asserted by tests on both sides rather than eyeballed.
 - **`--idle-timeout` cannot end a run against a board that never goes quiet.** Use
   `--run-for` for setup commands.
 - **Never ask RadioLib's `getPacketLength()` whether a packet arrived**, and never use
@@ -362,8 +377,8 @@ The engineering log has the full account; this is the index.
 
 ## Open, and not closable from this firmware alone
 
-- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure and tool committed
-  2026-09-06; the run has not been performed. **The next job in this directory.**
+- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure and tool committed;
+  boards ready; **the run has not been performed.** The next job here.
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
 - **D1** — nothing external blocks it. It needs a decision made against the data above, plus
@@ -382,17 +397,16 @@ The engineering log has the full account; this is the index.
   §10.8.1's remaining premise.
 - **D31** — copyright holder. Every file carries the `<holder>` placeholder.
 
-### Closed this session, and not to be reopened by habit
+### Closed, and not to be reopened by habit
 
 - **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision
   Register §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`.
 - **W9** — **CLOSED in spec v0.8.** Left the SF7 backoff finding above for D1.
-- **Handoff §6 requirement 7** — **DONE 2026-09-06.** The PA record, plus
-  `check_pa_table.py` as the check on the mirror it needs. **There is no firmware work
-  queued in this directory now.**
+- **Handoff §6 requirement 7** — **DONE 2026-09-06**, and confirmed on hardware. The PA
+  record plus `check_pa_table.py` as the check on the mirror it needs.
 
-### New backlog items, neither of which is range-test work
+### Backlog items that are not range-test work
 
 - **M22** — bridge LoRa PER with WiFi idle vs. saturated. Belongs to the bridge.
 - **M23** — BLE RSSI to the BMS from the Stamp-S3A at its final mounting position, and
