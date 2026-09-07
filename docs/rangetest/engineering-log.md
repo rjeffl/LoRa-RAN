@@ -2833,3 +2833,118 @@ nothing about "I am just flashing firmware" suggests that. All three were left i
 **Boards ready for the §7.6 EIRP sanity check**, which is the next job and will be the first
 trace captured with the PA record on it. Nothing owed in this directory but that measurement
 and B1b.
+
+## 2026-09-07 — the field laptop, a throwaway trace, and the NVS collision that would have faked an instrumentation fault
+
+**Session was bench/desk preparation for the §7.6 EIRP sanity check, on the Kubuntu field
+laptop rather than the Mac. The check itself is still owed.** Three things came out of it:
+the capture path is confirmed working on real hardware, the field laptop is now a full
+build-and-test host, and a persistence behaviour was found that would have corrupted §7.6's
+step 7 cross-check in a way that reads as a fault in the instrument.
+
+### The throwaway trace, and what it proved
+
+A short sweep was captured at a **fixed desk position** — both boards on a table, laptop
+alongside, WiFi and LoRa neighbours in the room — purely to confirm the laptop drives the
+board and the firmware behaves. Two sweeps ran, the second stopped by the operator part way.
+**The file was deliberately not committed**; it was never a measurement and `data/` is not
+where throwaways live.
+
+What it established, all of it firsts:
+
+- **`capture.py` folds the PA record into the trace header on real hardware.** All five
+  `pa_*` lines present, ahead of the CSV header, exactly as the 2026-09-06 entry predicted.
+  Until now that path had only been asserted by tests on both sides.
+- **The boot record reads entry 0.** `pa_duty_cycle=2 pa_hp_max=2 pa_val=-5` — the −9 dBm
+  test point, matching `kPaOptTable[0]` in `pa_config.cpp` and confirming the correction
+  made on 2026-09-06 rather than the claim it replaced.
+- **The power step and the clamp both work over the air.** +4.7/+5.0 dB measured against
+  5.0 dB expected, and the highest conducted power in the trace was −4 dBm against a −4 dBm
+  ceiling. **That is §7.6's check 2 — the D33 clamp reaching the PA — passing on hardware
+  for the first time**, albeit at a geometry that means nothing.
+- **Sentinels survive the whole chain.** The one fully-lost test point emitted
+  `resp_heard=65535` and `−32768` for RSSI and SNR, and `eirp_check.py` excluded it from the
+  means rather than averaging it in. Repo rule 6 works end to end, board to tool.
+- Zero `phy_crc_err`, `foreign` and `filler_err` across all 47 rows.
+
+**RSSI wandered ~24 dB between the two sweeps at identical placement**, and up to 36 dB
+across configurations within one sweep. Not investigated and not a defect: a table, a
+laptop, an operator moving about and several WiFi and LoRa devices in the room is exactly
+the uncontrolled geometry the 2026-09-05 entry recorded as an 18 dB effect. **It is one more
+argument for §7.6's tape measure, stands and fixed operator position** — the effect being
+measured is smaller than the effect of standing up.
+
+### The finding: the responder's position log merges by position id
+
+**`PositionLog` persists to NVS and reloads at boot, and `g_position_id` does not.**
+
+- `resp_log_save()` writes the log under key `poslog` on every PRG advance; `resp_log_load()`
+  restores it in `setup()`. A firmware upload does not touch it — already known.
+- `g_position_id` is a plain global initialised to `0` (`main.cpp:115`), **not persisted**,
+  so every run restarts at position 1.
+- `PositionLog::slot_for()` (`resp_log.cpp:61`) looks for an existing entry **with the same
+  `position_id`** and returns it. Only if none matches does it open a new slot.
+
+So a previous run's position 1 is not shadowed by the next run's position 1 — it is
+**added to**. `probes_heard` and `echoes_sent` accumulate and the RSSI/SNR series mix two
+sessions.
+
+**Why this matters more than it looks:** EIRP-SANITY-CHECK §4 step 7 exists precisely to
+cross-check the responder's count against the initiator's, and calls disagreement *"an
+instrumentation fault, not a link result."* A stale log makes the responder report roughly
+double, so the check fires — pointing at the instrument, which is fine. The failure mode is
+a confident diagnosis of the wrong thing.
+
+**FIELD-PROCEDURE.md already covered this** in *"Erase the bench data first"*, with the
+right command and the `# position log cleared` confirmation to look for. What it did not do
+was appear in either document a person actually reads before this run: the one-page field
+card, or the §7.6 procedure whose step 7 depends on it. **Both now carry it**, with the
+mechanism rather than just the instruction — an instruction without a reason is the kind of
+step that gets skipped when the light is going.
+
+Log was cleared on the responder this session. **The initiator was left alone**: the survey
+campaign lives under `surv*`/`survsite` in the same `lran-rt` namespace, nothing in the
+initiator path reads it during an EIRP run, and clearing it would destroy the seven-site
+campaign for no benefit.
+
+### The field laptop is now a full host
+
+It was a fresh clone with no PlatformIO packages, which meant **`check_pa_table.py` could
+not run at all** — it correctly refused rather than skipping, exactly as it was built to.
+After `pio pkg install`, the whole suite runs here:
+
+| check | result |
+|---|---|
+| `lran-protocol` native | 107/107 |
+| `range-test` native | 191/191 |
+| build `heltec` / `xiao` | both SUCCESS |
+| W4 vectors | 72 re-derived and matched |
+| `capture.py` / `survey_reintegrate.py` / `eirp_check.py` | pass |
+| **`check_pa_table.py`** | **32/32 vs RadioLib 7.7.1** |
+
+Both firmware targets build, so a field reflash is possible from this machine if it comes
+to that.
+
+### Git auth, worth writing down because it presented as a dead network
+
+`git fetch` and `git ls-remote` **hung indefinitely with no output** while `curl` reached
+github.com in 0.26 s. Cause was two things compounding: the repo is private (anonymous
+`info/refs` returns 401), and Plasma ships
+`/etc/xdg/plasma-workspace/env/ksshaskpass.sh` setting **`SSH_ASKPASS_REQUIRE=prefer`**, so
+git routed the credential prompt to a **GUI dialog** instead of the terminal. From a
+non-interactive context the dialog has nowhere to go and git blocks forever.
+`GIT_TERMINAL_PROMPT=0` does not help — it disables the *terminal* prompt, not askpass.
+
+Resolved with an ed25519 key and an SSH remote; read and write both confirmed. The Plasma
+default was left in place, being a reasonable one that no longer applies here.
+
+**The diagnostic worth keeping: a hang is not a network failure.** Reach for
+`curl` against the same host to separate transport from authentication before assuming the
+link is down — and note that `GIT_CURL_VERBOSE=1` against an authenticating endpoint prints
+credential material into the terminal, which is a poor way to find that out.
+
+### State
+
+**The §7.6 EIRP sanity check is still owed and is still the next job.** Nothing in this
+session was a measurement. Boards flashed and current, responder log cleared, field card in
+the tree, capture path confirmed on hardware.

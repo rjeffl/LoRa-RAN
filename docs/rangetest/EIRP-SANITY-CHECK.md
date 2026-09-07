@@ -143,6 +143,13 @@ tape at each one; do not pace it.
 
 **Step 6 — Ctrl-C the capture.** Confirm the file ends with a `# capture ended:` line.
 
+> **This cross-check is only valid if the responder's position log was cleared before the
+> run** — see Step 0 and `FIELD-PROCEDURE.md`, *"Erase the bench data first"*. The log
+> persists in NVS across boots and reflashes, `g_position_id` restarts at 1 every run, and
+> `PositionLog::slot_for()` merges by position id rather than opening a new slot. A stale
+> position 1 is therefore **added to** this run's position 1, and the disagreement below
+> reads as an instrumentation fault when the instrument is fine.
+
 **Step 7 — dump the responder's own log** as the cross-check the two-schema design exists
 for: connect it and send `d`. `sum(probes_sent) − sum(echoes_recv)` from the sweep trace
 should equal `sum(probes_sent) − probes_heard` from the responder's row for each position.

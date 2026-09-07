@@ -14,6 +14,13 @@ day. Read [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) once before the first tri
 - [ ] **Confirm the serial port and permissions on the field laptop** — see *Kubuntu deltas*
       below. Do this indoors, not in a field.
 - [ ] **XIAO stays powered down.** It is not in this measurement.
+- [ ] **Erase the responder's position log** — `FIELD-PROCEDURE.md`, *"Erase the bench data
+      first"*. `capture.py --reset --role responder --key x --run-for 20`, and **confirm
+      `# position log cleared` comes back**. This is not housekeeping: the log is persisted
+      to NVS and reloaded at boot, `g_position_id` restarts at 1 every run, and the log
+      merges by position id — so a previous run's position 1 is **folded into** this run's,
+      doubling `probes_heard`. Step 7's cross-check then reports an instrumentation fault
+      that is not there.
 - [ ] Two Heltecs, **two 19 cm 3.0 dBi sticks**, power bank, USB cable, **long USB
       extension** (see below), tape measure, both stands, something to shade the OLED.
 - [ ] Antennas **screwed on before power**, every time.

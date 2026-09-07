@@ -1,7 +1,7 @@
 # Range test — session handoff
 
-**Written 2026-09-06, at the end of the session that landed the PA record and reflashed the
-boards.** It replaces the earlier 2026-09-06 file wholesale.
+**Written 2026-09-07, at the end of the session that set up the field laptop and proved the
+capture path on hardware.** It replaces the 2026-09-06 file wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -11,38 +11,41 @@ boards.** It replaces the earlier 2026-09-06 file wholesale.
 
 ## The next job, in one place
 
-**Run the §7.6 EIRP sanity check.** It is a short-range bench measurement, it gates **M6**,
-the procedure and the reader are written and tested, and **the boards are flashed and
-ready**. Nothing blocks it and nothing else in this directory comes before it.
+**Run the §7.6 EIRP sanity check.** Unchanged from the last two handoffs, and now with
+fewer excuses: the procedure and reader are written and tested, the boards are flashed and
+ready, the responder's log is cleared, the field laptop builds and tests the whole repo, and
+**the capture path is confirmed working on hardware** rather than only in tests. Nothing
+blocks it.
 
-Read [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) and
-[`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) first, and carry
-[`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) — the one-page version, with the **Kubuntu
-field-laptop deltas** (`/dev/ttyUSB*`, the `dialout` group) and the **reduced-scope
-fallback**: checks 1 and 2 need no geometry at all, so a run at one distance on poor stands
-still closes the half that matters. Three things decide whether the run is
-worth anything, and all three are procedure rather than code:
+Carry [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) — the one page, with the Kubuntu deltas
+and the reduced-scope fallback. Read [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) and
+[`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) for the reasoning behind it.
+
+Four things decide whether the run is worth anything, and all four are procedure:
 
 1. **Power the third board OFF.** Not in a backpack, not in `SURVEY` — off.
-2. **Tape-measured distances, three of them**, both ends at the same height, on grass.
-   Desk geometry moved a bench reference 18 dB on placement alone; the absolute check is
-   trying to resolve ±6 dB.
-3. **Antennas connected before power**, every time.
+2. **Clear the responder's position log**, and see `# position log cleared` come back.
+   New this session and explained below — a stale log fakes an instrumentation fault.
+3. **Tape-measured distances, three of them**, both ends at the same height, on grass.
+   Desk geometry moved a bench reference 18 dB on placement alone, and moved this session's
+   throwaway 24 dB; the absolute check is trying to resolve ±6 dB.
+4. **Antennas connected before power**, every time.
 
 ```bash
 ~/.platformio/penv/bin/python tools/rangetest/capture.py \
-    --port /dev/cu.usbserial-0001 --reset --role initiator \
+    --port /dev/ttyUSB0 --reset --role initiator \
     --out docs/rangetest/data/2026-09-XX-eirp-sanity.csv --note "..."
 
 python3 tools/rangetest/eirp_check.py docs/rangetest/data/2026-09-XX-eirp-sanity.csv \
     --distance 1=3.0 --distance 2=6.0 --distance 3=12.0
 ```
 
-**Check 2 is the one that matters** — the D33 clamp reaching the PA over the air, which
-nothing in this repository has ever verified. A broken clamp does not produce a
-wrong-looking reading; it produces a **26 dB step where a 5 dB one was expected**, and that
-is a compliance fault rather than a measurement error. The absolute EIRP back-out is the
-weakest of the three and §7.6 does not claim otherwise.
+**Check 2 is the one that matters** — the D33 clamp reaching the PA over the air. It passed
+this session at a meaningless geometry, which proves the mechanism but not the number; §7.6
+still wants it at a controlled one. A broken clamp does not produce a wrong-looking reading,
+it produces a **26 dB step where a 5 dB one was expected**, and that is a compliance fault
+rather than a measurement error. The absolute EIRP back-out is the weakest of the three and
+§7.6 does not claim otherwise.
 
 After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not
 start in this directory.
@@ -52,10 +55,10 @@ start in this directory.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) | **the one page to carry.** Kubuntu deltas, the stand problem, the fallback |
+| 2 | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) | **the one page to carry.** Kubuntu deltas, the stand problem, the log-clearing step, the fallback |
 | 2b | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the next job, and the reasoning behind the card. **M6's precondition** |
-| 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any bench or field run. **Start with "Power down every board you are not measuring with"** |
-| 4 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. Five of them now: M21's closure, M20's re-integration, the §7.6 setup, the PA record, and the reflash **(which corrects the fourth)**. Before them, the 2026-09-05 Pass 2 entries |
+| 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any bench or field run. **Start with "Power down every board you are not measuring with"** and *"Erase the bench data first"* |
+| 4 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-07** entry, then the five **2026-09-06** ones | what happened and why. The newest covers the throwaway trace, the NVS collision and the field laptop |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
 | 6 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§2.1, §3.3, §5.4** | D1's four bounds, D33's reopening, and the ranked channel evidence |
 | 7 | [`data/README.md`](./data/README.md) | the two schemas, what each committed trace is *not*, the `pa_*` header fields, and **the 62.5 % band-coverage caveat** |
@@ -66,8 +69,8 @@ start in this directory.
 
 | | |
 |---|---|
-| Branch | **`main` at 36582e0**, verified green **2026-09-06**. **`main` is the only branch, local and remote** |
-| Merged 2026-09-06 | **#31**, **#32** (M21 closure, M20 re-integration, §7.6 setup), **#33** (handoff rewrite), **#34** (the PA record), **#35** (reflash, and the correction below) |
+| Branch | see **Git state** below — `main` is **not** the only branch any more |
+| Merged through | **#36**. The field card was pushed as a branch and has **no PR open** |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7** |
 | Firmware queue | **Empty.** This directory owes two measurements and no code |
@@ -84,43 +87,57 @@ python3 tools/rangetest/test_eirp_check.py
 python3 tools/rangetest/check_pa_table.py    # the paOptTable mirror vs. pinned RadioLib
 ```
 
-All green at 36582e0. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
-`capture.py` needs `~/.platformio/penv/bin/python`.
+**All nine green on the field laptop 2026-09-07**, including both firmware builds. `pio` is
+at `~/.platformio/penv/bin/pio` and is **not on `PATH`**; `capture.py` needs
+`~/.platformio/penv/bin/python`.
 
 > **Counts are deliberately not written here or in root `CLAUDE.md`.** They were wrong more
 > often than right. Run the commands.
 
+## The field laptop
+
+**Work has moved to the Kubuntu field laptop.** It is now a full host — clone verified
+against origin, all PlatformIO packages installed, every check green, **both firmware
+targets build**, so a reflash in the field is possible if it comes to that.
+
+| | macOS (M5) | **Kubuntu field laptop** |
+|---|---|---|
+| CP2102 port | `/dev/cu.usbserial-0001` | **`/dev/ttyUSB0`, `/dev/ttyUSB1`** |
+| Which is which | by USB location | **by plug order** — plug one at a time and note it |
+| Permissions | none needed | `dialout` — **confirmed present** |
+
+**Commands written in older documents carry macOS port names.** `FIELD-PROCEDURE.md`'s
+erase commands and `EIRP-SANITY-CHECK.md`'s capture command both say
+`/dev/cu.usbserial-0001`. Substitute the `ttyUSB` node. The field card's table is the
+authority.
+
+**Git auth is SSH now**, `git@github.com:rjeffl/LoRa-RAN.git`, ed25519 key with no
+passphrase. It was HTTPS, and because the repo is private and Plasma sets
+`SSH_ASKPASS_REQUIRE=prefer`, every git network operation **hung silently** waiting on a GUI
+dialog. If git ever hangs again with no output, that is the shape of it — and `curl` against
+the same host separates transport from authentication in one command.
+
 ## Hardware state
 
 **All three boards were reflashed 2026-09-06 from `main` at 3a9843d** — the build carrying
-the PA record — and **verified by reading the record back off each one**, not by trusting
-the upload. Nothing under `firmware/`, `lib/` or `tools/` has changed since, so **the boards
-are current with `main` at 36582e0**; #35 was documentation only.
+the PA record — and **verified by reading the record back off each one**. Nothing under
+`firmware/`, `lib/` or `tools/` has changed since, so **the boards are current**.
 
-**The bench is already in the §7.6 configuration**, as left at the end of 2026-09-06:
+| Board | Env | State | Notes |
+|---|---|---|---|
+| Heltec V3 | `heltec` | `SURVEY` | **Holds the stored survey campaign** — all seven sites. Prefer it as the tethered initiator, which keeps it away from PRG presses |
+| Heltec V3 | `heltec` | `SURVEY` | No stored sites. **Position log cleared 2026-09-07** — use this one as the responder |
+| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | **POWERED DOWN** | Seeeduino XIAO Expansion Board. **Meshtastic has been overwritten.** Keep it off for §7.6 — it is not in that measurement |
 
-| Board | Env | Port seen 2026-09-06 | State left | Notes |
-|---|---|---|---|---|
-| Heltec V3 | `heltec` | `/dev/cu.usbserial-0001` | `SURVEY` | **Holds the stored survey campaign** — all seven sites. Prefer it as the tethered initiator, which keeps it away from PRG presses |
-| Heltec V3 | `heltec` | `/dev/cu.usbserial-4` | `SURVEY` | No stored sites |
-| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `/dev/cu.usbmodem1101` | **POWERED DOWN** | Seeeduino XIAO Expansion Board. No stored sites. **Meshtastic has been overwritten.** Keep it off for §7.6 — it is not in that measurement |
-
-**`SURVEY` is safe to leave a board in indefinitely** — it listens and never transmits — but
-**§7.6 wants the third board OFF, not parked.** That distinction is the difference between a
-clean measurement and a repeat of the 2026-09-05 afternoon. The XIAO is already off.
+**Port names are not identities.** Both CP2102 bridges report `SER=0001` and the nodes are
+not stable across replug. **Read `board=` off the settings dump** — a wrong board selection
+is silent, and writes the wrong pin map and antenna gain into a normal-looking CSV.
 
 **The role is not persisted.** Every board re-asks at boot, so nothing above has to be
-undone before the run.
+undone before a run.
 
-**Port names are what they enumerated as that day, not identities.** Both CP2102 bridges
-report `SER=0001` and the node names are not stable across replug. **Read `board=` off the
-settings dump** — a wrong board selection is silent, and writes the wrong pin map and
-antenna gain into a normal-looking CSV.
-
-**The stored campaign survived the reflash.** NVS is untouched by a firmware upload —
-observed now rather than assumed. It is also committed as
-`data/2026-09-05-survey-campaign-r11.csv`, and **that is the copy that matters**: NVS on one
-bench board is not a backup.
+**The stored campaign is committed** as `data/2026-09-05-survey-campaign-r11.csv`, and
+**that is the copy that matters**: NVS on one bench board is not a backup.
 
 > ### Power down every board you are not measuring with
 >
@@ -129,41 +146,54 @@ bench board is not a backup.
 > margin. Unplug spares, or park one in `SURVEY` (`--role survey`) — it listens and never
 > transmits. **ARMED is not idle.** Full account in `FIELD-PROCEDURE.md`.
 
-## The PA record, and the one thing to read correctly
+## The NVS collision — new 2026-09-07, and it fakes a fault
 
-**Handoff §6 requirement 7 landed and is confirmed on hardware.** Five `key=value` lines are
-printed after the radio comes up and before the CSV header, so `capture.py` folds them into
-every trace header with no change to the tool:
+**Clear the responder's position log before every run.** This is not housekeeping.
 
+- `PositionLog` **persists to NVS** (key `poslog`) on every PRG advance and **reloads at
+  boot**. A firmware upload does not touch it.
+- **`g_position_id` is not persisted** (`main.cpp:115`) — every run restarts at position 1.
+- `PositionLog::slot_for()` (`resp_log.cpp:61`) **matches on `position_id`** and returns the
+  existing entry. Only if none matches does it open a new slot.
+
+So last run's position 1 is **added to** this run's position 1: `probes_heard` and
+`echoes_sent` accumulate, the RSSI/SNR series mix two sessions. §7.6 step 7's cross-check
+then disagrees, and that document calls disagreement *"an instrumentation fault, not a link
+result."* **The failure mode is a confident diagnosis of the wrong thing.**
+
+```bash
+~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/ttyUSB0 \
+    --reset --role responder --key x --out /tmp/erase.csv --run-for 20
 ```
-pa_optimize=1  pa_duty_cycle=2  pa_hp_max=2  pa_val=-5  pa_table=RadioLib-7.7.1-paOptTable
-```
 
-**That is the BOOT TEST POINT, and it is not the working point.** The sweep starts at the
-bottom of the SX1262's range and climbs only on failure (task guardrail 3), so point 0 is
-**−9 dBm** — table entry 0. The **−4 dBm** ceiling point is entry 5 (`1, 2, 3`) and is
-reached *during* the sweep. **An earlier version of this file said a trace would carry
-entry 5; it was wrong**, and the correction is in the log's last entry.
+**Confirm `# position log cleared` comes back.** No line, no erase. Full procedure in
+`FIELD-PROCEDURE.md`, *"Erase the bench data first"*; `--run-for`, never `--idle-timeout`.
 
-Any row's entry follows from its own `conducted_dbm`, because the configuration is a pure
-function of power. What the boot line uniquely supplies is the **`optimize` flag** and the
-**table version** — neither appears anywhere else.
+**Do not clear the initiator.** The survey campaign lives under `surv*`/`survsite` in the
+same `lran-rt` namespace; nothing in the initiator path reads it during an EIRP run, and
+`z` would destroy the seven-site campaign for nothing.
 
-Two things to know:
+## What 2026-09-07 established
 
-- **`setOutputPower` takes two arguments now**, passing `kPaOptimize` explicitly. It is
-  `true`, which is what RadioLib's one-argument overload already did — **nothing on the air
-  changed** and the pass-2 bench traces stay reproducible. What changed is that a flag
-  affecting emitted power is this project's decision rather than a library default.
-- **The table is a mirror, and mirrors drift.** `paOptTable` is file-static in RadioLib and
-  the SX1262's PA config cannot be read back, so the entry is computed from a copy.
-  **`python3 tools/rangetest/check_pa_table.py` is the check on that premise** — it diffs
-  the copy against the pinned source and fails loudly, including when the pinned source is
-  absent rather than skipping. **Run it after any RadioLib version change.**
+A **throwaway trace** was captured at a fixed desk position to prove the laptop drives the
+board. **It was not committed** — it was never a measurement, and `data/` is not where
+throwaways live. What it confirmed, all firsts on hardware:
 
-**No committed trace carries these fields**, and none can be back-filled: deriving an entry
-needs the flag, and the flag was never recorded before this date. **The §7.6 run will be the
-first.**
+- **`capture.py` folds all five `pa_*` lines into the trace header**, ahead of the CSV
+  header. Previously only asserted by tests on both sides.
+- **The boot record reads entry 0** — `pa_duty_cycle=2 pa_hp_max=2 pa_val=-5`, the −9 dBm
+  point, matching `kPaOptTable[0]` and confirming 2026-09-06's correction rather than the
+  claim it replaced.
+- **The power step and the D33 clamp both work over the air** — +4.7/+5.0 dB against 5.0
+  expected, ceiling honoured at −4 dBm. §7.6's check 2, at a geometry that means nothing.
+- **Sentinels survive board to tool** — a fully-lost point emitted `65535` / `−32768` and
+  `eirp_check.py` excluded it from the means rather than averaging it in.
+- Zero `phy_crc_err`, `foreign`, `filler_err` across 47 rows.
+
+**RSSI wandered ~24 dB between two sweeps at identical placement.** Not a defect — a table,
+a laptop, an operator moving and several WiFi and LoRa neighbours in the room. It is one
+more argument for the tape, the stands and a fixed operator position: the effect being
+measured is smaller than the effect of standing up.
 
 ## What Pass 2 did, and what it did not
 
@@ -204,7 +234,9 @@ Do not copy it into a range-test board profile — it is a different product.
 | `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured — the only file here that is not a measurement.** The R11 trace re-integrated over 500 kHz on the US915 grid, plus per-125 kHz bins across 915.2–923.0. **Regenerate it, never hand-edit it** |
 
 **Every one of them predates the PA record.** A trace with no `pa_*` lines was captured by a
-board flashed before 2026-09-06; that is the only thing its absence means.
+board flashed before 2026-09-06; that is the only thing its absence means. **The §7.6 run
+will still be the first committed trace to carry them** — 2026-09-07's throwaway carried
+them and was discarded.
 
 ### The results to carry forward
 
@@ -296,15 +328,30 @@ python3 tools/rangetest/survey_reintegrate.py \
     --out docs/rangetest/data/2026-09-06-m20-reintegration.csv
 ```
 
+## Git state — read before pushing
+
+**`main` is no longer the only branch.** As of 2026-09-07:
+
+- **`origin/main` is at `f199542`** (through PR #36).
+- **Local `main` is ahead**, carrying the field-card commits fast-forwarded from
+  `origin/docs/eirp-field-card` (`c55a209`, `fd7548b`), plus this session's documentation.
+- **`origin/docs/eirp-field-card` exists and has no PR open.** Its content is already
+  contained in the newer branch, so merging that closes both.
+
+**Owed to the repository, not to the field:** open the PR for this session's branch and
+write the description, per root `CLAUDE.md`.
+
 ## First actions next session
 
-1. `git checkout main && git pull --ff-only`, then run the checks above. Everything through
-   **#35** is merged and `main` is at **36582e0**. No branches to reconcile.
+1. `git pull --ff-only`, then run the checks above. **Auth is SSH now** — if git hangs with
+   no output, read *The field laptop* above before assuming the network is down.
 2. **No firmware work is queued and no reflash is owed.** The boards are current.
-3. **If the bench is available, run the §7.6 check** — the section at the top of this file.
-   It is the only thing here that produces a new measurement rather than a document.
-4. **If it is a field session instead, it is B1b**, and `FIELD-PROCEDURE.md` comes first.
-5. **If it is D1, it does not start in this directory.**
+3. **Run the §7.6 check** — the section at the top of this file. It is still the only thing
+   here that produces a new measurement rather than a document, and it has now been the
+   next job for three sessions running.
+4. **Clear the responder's log first**, and confirm the line comes back.
+5. **If it is a field session for B1b instead**, `FIELD-PROCEDURE.md` comes first.
+6. **If it is D1, it does not start in this directory.**
 
 ## Behaviour that changed, and will make traces look different
 
@@ -312,7 +359,8 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 - **Five new `key=value` lines in the boot output** — `pa_optimize`, `pa_duty_cycle`,
   `pa_hp_max`, `pa_val`, `pa_table` — and `capture.py` puts them in the trace header
-  automatically. **A trace without them was captured by a board flashed before this date.**
+  automatically. **Confirmed on hardware 2026-09-07.** A trace without them was captured by
+  a board flashed before 2026-09-06.
 - **The conducted ceiling is −4 dBm** at the configured 3.0 dBi, where the comment in
   `phy_params.cpp` previously described −3 dBm at 2.0 dBi. **The code's arithmetic did not
   change** — it has always derived the ceiling from the configured gain — but a trace's
@@ -344,6 +392,8 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 The engineering log has the full account; this is the index.
 
+- **A stale responder position log merges into the new run** and fakes an instrumentation
+  fault. Clear it, and confirm the line. Section above.
 - **A third powered board corrupts a two-board measurement**, silently, by up to 60 % PER,
   and the symptom is indistinguishable from poor link margin. It was mistaken for a code
   regression across two full sweeps on 2026-09-05. **A ten-minute bisect against the
@@ -354,16 +404,17 @@ The engineering log has the full account; this is the index.
   beaconing once a second. Observed 2026-09-06 with two other boards on the bench, which is
   the 60 % PER configuration above. Park or unplug each board as it finishes.
 - **Bench geometry moves RSSI further than anything you are trying to measure.** The Heltec
-  reference moved **−24 → −42 dBm between two runs on placement alone**. That is 18 dB
-  against the ±6 dB an absolute EIRP figure is trying to resolve, and it is why §7.6 wants
-  a tape measure, three distances and a slope rather than one number.
+  reference moved **−24 → −42 dBm between two runs on placement alone**, and 2026-09-07's
+  desk throwaway wandered 24 dB between two sweeps at *identical* placement. That is 18–24
+  dB against the ±6 dB an absolute EIRP figure is trying to resolve, and it is why §7.6
+  wants a tape measure, three distances and a slope rather than one number.
 - **Opening a serial port presses PRG — on the Heltec.** GPIO 0 is also IO0, driven by the
   CP2102's DTR. Host tools must set `dtr = False` **before** opening. The XIAO has no
   bridge chip and its button is GPIO 21, so this trap is Heltec-only.
 - **Flashing the XIAO from a firmware with a different USB stack fails once.** Bootloader
   entry swaps the USB device, esptool loses its handle, `Could not configure port`. The
-  board *is* in the bootloader — on a **new** `/dev/cu.usbmodem*`. Flash to that. It did
-  **not** recur on the 2026-09-06 reflash, as pass 2 predicted it would not.
+  board *is* in the bootloader — on a **new** device node. Flash to that. It did **not**
+  recur on the 2026-09-06 reflash, as pass 2 predicted it would not.
 - **A tool that does not read the port while it waits loses everything the board says.**
   Cost 19184 bytes of a survey dump, deterministically, and read as a firmware bug.
 - **`capture.py` will not overwrite an existing `--out`** (needs `--force`).
@@ -383,14 +434,19 @@ The engineering log has the full account; this is the index.
   air. `begin()` returning success proves none of them; only frames crossing does.
 - **Both CP2102 bridges report `SER=0001`.** Trust the confirmation from the command that
   did the work, not a separate check afterwards.
+- **A git hang is not a network failure.** Private repo plus Plasma's
+  `SSH_ASKPASS_REQUIRE=prefer` sends the credential prompt to a GUI dialog and blocks
+  forever; `GIT_TERMINAL_PROMPT=0` does not help, because it disables the *terminal* prompt
+  and not askpass. `curl` against the same host separates transport from authentication.
 - **Never transmit without an antenna connected.** It is also one of the failures the §7.6
   check exists to detect — detect it in the trace, not by damaging a PA.
 - **The OLED needs hand-shading in direct sunlight.** Procedure, not a defect.
 
 ## Open, and not closable from this firmware alone
 
-- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure and tool committed;
-  boards ready; **the run has not been performed.** The next job here.
+- **The §7.6 EIRP sanity check** — **owed, and it gates M6.** Procedure, card and tool
+  committed; boards ready; log cleared; capture path proven on hardware. **The run has not
+  been performed.** The next job here.
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
 - **D1** — nothing external blocks it. It needs a decision made against the data above, plus
@@ -415,8 +471,8 @@ The engineering log has the full account; this is the index.
   Register §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`.
 - **W9** — **CLOSED in spec v0.8.** Left the SF7 backoff finding above for D1.
-- **Handoff §6 requirement 7** — **DONE 2026-09-06**, and confirmed on hardware. The PA
-  record plus `check_pa_table.py` as the check on the mirror it needs.
+- **Handoff §6 requirement 7** — **DONE 2026-09-06**, and **confirmed in a real trace
+  2026-09-07.** The PA record plus `check_pa_table.py` as the check on the mirror it needs.
 
 ### Backlog items that are not range-test work
 
