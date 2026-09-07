@@ -195,6 +195,36 @@ one of the 75 kHz gaps is invisible to this survey at any peak level, and no amo
 post-processing recovers it. **Read this together with the peak/absence asymmetry above:**
 absence of a peak was already weak evidence, and the gaps make it weaker.
 
+### The trace header carries the PA configuration, from 2026-09-06
+
+**New fields, and no trace committed before this date has them.** The firmware prints five
+`key=value` lines after the radio comes up and before the CSV header, so `capture.py`
+collects them into the trace's own header block alongside the settings dump:
+
+| Field | Meaning |
+|---|---|
+| `pa_optimize` | RadioLib's `setOutputPower` optimize flag, **as passed by this firmware**. `1` selects the measured `paOptTable`; `0` selects the datasheet default |
+| `pa_duty_cycle`, `pa_hp_max`, `pa_val` | the PA configuration applied at the boot test point |
+| `pa_table` | which RadioLib version's table the entry came from, e.g. `RadioLib-7.7.1-paOptTable` |
+| `pa_entry=none` | printed **instead of** the three fields when the power is outside the SX1262's −9..+22 range. An explicit absence, not an omitted block |
+
+**Why it is only the boot point.** The configuration is a pure function of conducted power,
+and every row carries its own `conducted_dbm` — so with the flag and the table version on
+the record, any row's entry is recoverable. The flag is the part that could not be
+recovered, because RadioLib's one-argument overload hides it.
+
+**These fields cannot be back-filled onto an older trace.** Deriving an entry needs the
+flag, and the flag was never recorded before this date. A trace is a dated record: if you
+need the PA configuration behind an older number, say what it was *probably* set to and why,
+in a new note — do not write the fields into the file.
+
+**The mirror behind them has its own check**, because `paOptTable` is file-static in
+RadioLib and the SX1262's PA config cannot be read back:
+
+```bash
+python3 tools/rangetest/check_pa_table.py
+```
+
 ### Columns 6 and 7 are separate on purpose
 
 **D33 standing condition 1.** The Part 15.249 ceiling is on **EIRP**, which is conducted

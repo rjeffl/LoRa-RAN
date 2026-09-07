@@ -60,7 +60,11 @@ discrepancy rather than adjusting the spec to match the code.
    compile time in a node that cannot be reflashed without a walk to the gate.
 9. **RadioLib is the SX1262 driver everywhere** (**D32**), and **its version is pinned in
    every `platformio.ini`.** A driver shared by four firmwares is not a thing to let
-   float. The radio pin map, TCXO reference voltage and DIO2-as-RF-switch flag are
+   float. **The pin now has a consumer that depends on the driver's internals:**
+   `firmware/range-test/src/pa_config.cpp` mirrors RadioLib's file-static `paOptTable` so
+   the applied PA configuration can be logged (the SX1262's PA config cannot be read back).
+   **Run `python3 tools/rangetest/check_pa_table.py` after any RadioLib version change** —
+   a bump that changes that table is silent in every other check here. The radio pin map, TCXO reference voltage and DIO2-as-RF-switch flag are
    **injected as a config struct**, never `#define`d (spec §12.2) — the two voltage/switch
    settings fail *silently* on the Heltec V3, presenting as a radio that will not
    calibrate rather than as an error.
@@ -121,6 +125,7 @@ pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit ta
 python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's python
 python3 tools/rangetest/test_survey_reintegrate.py   # M20 re-integration tool
 python3 tools/rangetest/test_eirp_check.py    # findings 7.6 EIRP sanity check
+python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned RadioLib
 ```
 
 These are the shape the firmware targets take once they exist:

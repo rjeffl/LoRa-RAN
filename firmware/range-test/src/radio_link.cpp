@@ -79,6 +79,16 @@ int16_t RadioLink::begin(const BoardRadioConfig& board, const TestPoint& tp) {
       /* useRegulatorLDO */ false);
   if (st != RADIOLIB_ERR_NONE) return st;
 
+  // Re-asserted with an EXPLICIT `optimize`, because RadioLib's begin() sets the power
+  // through the one-argument overload and so hardcodes `optimize = true` inside the
+  // driver. Today kPaOptimize is also true and this call changes nothing on the air;
+  // the day someone sets it false, begin() would otherwise leave the radio in the
+  // optimized configuration until the first apply() and the boot record would describe
+  // a PA setting the radio was not in. One SPI command to close that window.
+  const int16_t pwr = g_radio->setOutputPower(tp.power.conducted_dbm, kPaOptimize);
+  if (pwr != RADIOLIB_ERR_NONE) return pwr;
+  last_power_dbm_ = tp.power.conducted_dbm;
+
   // The second silent failure. The V3 routes its RF path from DIO2; without this the
   // PA is never connected to the antenna and every transmit "succeeds" into a dead
   // end. Checked, not fired and forgotten.
@@ -140,8 +150,15 @@ int16_t RadioLink::apply(const TestPoint& tp) {
   // The clamp has already run in phy_params; this is the value it produced. The
   // driver is not the place the D33 ceiling is enforced - task guardrail 3 puts it
   // in code that can be host tested, which this cannot.
-  st = g_radio->setOutputPower(tp.power.conducted_dbm);
+  //
+  // TWO ARGUMENTS, NOT ONE, and the second is the point of the change. RadioLib's
+  // one-argument overload forwards `optimize = true`, which selects a different
+  // paDutyCycle/hpMax/paVal than the datasheet default and therefore a different
+  // emitted power. Passing it explicitly makes it this project's decision rather
+  // than a library default, and kPaOptimize is what the boot record prints.
+  st = g_radio->setOutputPower(tp.power.conducted_dbm, kPaOptimize);
   if (st != RADIOLIB_ERR_NONE) return st;
+  last_power_dbm_ = tp.power.conducted_dbm;
 
   return RADIOLIB_ERR_NONE;
 }
@@ -163,7 +180,14 @@ float RadioLink::instant_rssi_dbm() {
 
 int16_t RadioLink::set_power(int8_t conducted_dbm) {
   if (!ready_ || g_radio == nullptr) return RADIOLIB_ERR_WRONG_MODEM;
-  return g_radio->setOutputPower(conducted_dbm);
+  // Explicit `optimize` here for apply()'s reason. The responder's echo runs through
+  // this path, and echoing under a different PA configuration than the probe was sent
+  // with would put the two legs of a round trip on different power - the asymmetry
+  // this function's header comment exists to prevent, arriving by another route.
+  const int16_t st = g_radio->setOutputPower(conducted_dbm, kPaOptimize);
+  if (st != RADIOLIB_ERR_NONE) return st;
+  last_power_dbm_ = conducted_dbm;
+  return st;
 }
 
 int16_t RadioLink::transmit(const uint8_t* data, size_t len) {

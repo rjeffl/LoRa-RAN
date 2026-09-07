@@ -14,7 +14,7 @@
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. The last three are M21's closure, M20's re-integration, and the §7.6 check. Before them, the 2026-09-05 Pass 2 entries |
+| 2 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. The last four are M21's closure, M20's re-integration, the §7.6 setup, and the PA record. Before them, the 2026-09-05 Pass 2 entries |
 | 3 | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the §7.6 procedure. **M6's precondition**, needs no firmware change, and is the next bench job |
 | 4 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any campaign. **Start with "Power down every board you are not measuring with"** |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
@@ -31,7 +31,7 @@
 | Merged 2026-09-06 | **#31** (the previous handoff rewrite), **#32** (M21 closure, M20 re-integration, the §7.6 setup) |
 | Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20 (closed)**, **M21 (closed)** |
-| **Next** | **The §7.6 EIRP sanity check** — a bench measurement, procedure written, tool written and host-tested, **run not performed**. It gates **M6**, so it comes before B1b. After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not start in this directory |
+| **Next** | **The §7.6 EIRP sanity check** — a bench measurement, procedure written, tool written and host-tested, **run not performed**. It gates **M6**, so it comes before B1b. **Reflash both boards first:** the PA record landed 2026-09-06 and the boards predate it. After it: **B1b**, the gate-bearing walk with the Wio. **D1** is a decision and does not start in this directory |
 
 ```bash
 pio test -d lib/lran-protocol -e native      # host Unity suite
@@ -42,6 +42,7 @@ python3 tools/vectors/check.py
 python tools/rangetest/test_capture.py       # PlatformIO's python
 python3 tools/rangetest/test_survey_reintegrate.py
 python3 tools/rangetest/test_eirp_check.py
+python3 tools/rangetest/check_pa_table.py     # the paOptTable mirror vs. pinned RadioLib
 ```
 
 All green at 8653d38. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `PATH`**;
@@ -52,8 +53,9 @@ All green at 8653d38. `pio` is at `~/.platformio/penv/bin/pio` and is **not on `
 
 ## Hardware state
 
-**Three boards, all flashed from `main` at the Pass 2 phase B build.** No firmware change
-has landed since; the flashed image is current.
+**Three boards, all flashed from `main` at the Pass 2 phase B build — which is now BEHIND.**
+The PA record (§6 requirement 7) landed 2026-09-06 and the boards do not have it. **Reflash
+before the next measurement**, or its trace will carry no `pa_*` lines.
 
 | Board | Env | Port | Notes |
 |---|---|---|---|
@@ -90,7 +92,7 @@ reason to keep raising discrepancies rather than adopting a document wholesale:
 - **M20's field work was already done.** Its M21 amendment turned out to be arithmetic on a
   committed trace, not a second campaign. **Do not re-walk M20.**
 - **The SX1262 has no low-power PA**, so the obligation became logging the applied
-  `paOptTable` entry — see the owed firmware change below.
+  `paOptTable` entry, **which landed later the same day** — see below.
 
 **M20 closed, and the re-integration found the loudest signal in the campaign.** Details in
 the D1 section.
@@ -233,8 +235,8 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 1. `git checkout main && git pull --ff-only`, then run the checks above. Everything through
    **#32** is merged and `main` is at **8653d38**. No branches to reconcile.
-2. **No firmware work is queued except one small item** — see "the owed firmware change"
-   below. Pass 1 and Pass 2 are both complete and merged.
+2. **No firmware work is queued.** Pass 1, Pass 2 and §6 requirement 7 are all complete and
+   merged. **The three boards are flashed from an older image** — reflash before measuring.
 3. **Decide which thread you are on, and they are ordered:**
    - **The §7.6 EIRP sanity check** — a short-range bench measurement, procedure in
      [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md). **No firmware change needed**, and it
@@ -250,19 +252,36 @@ python3 tools/rangetest/survey_reintegrate.py \
    third board. Two boards make a measurement; a spare still powered in a backpack is in
    the experiment.
 
-### The owed firmware change
+### The firmware change this thread owed is done
 
-**Handoff §6 requirement 7 — log the applied `paOptTable` entry and the `optimize` flag at
-boot.** Small, and the only firmware work this thread still owes. Until it exists **a trace
-does not record which PA configuration produced its numbers**, which is a gap in the §15.23
-good-engineering-practice record rather than a defect in the link. It is not a precondition
-for the §7.6 check — that check reads the ceiling out of the row — but it belongs in the
-same neighbourhood and is worth doing while the reasoning is fresh.
+**Handoff §6 requirement 7 landed 2026-09-06.** The boot record now prints the applied
+`paOptTable` entry and the `optimize` flag, and `capture.py` folds those lines into the
+trace header with no change to the tool. At the −4 dBm working point the entry is
+`paDutyCycle = 1, hpMax = 2, paVal = 3`.
+
+Two things to know about it:
+
+- **`setOutputPower` is called with two arguments now**, passing `kPaOptimize` explicitly.
+  It is `true`, which is what RadioLib's one-argument overload was already doing — **nothing
+  on the air changed** and the pass-2 bench traces stay reproducible. What changed is that a
+  flag affecting emitted power is this project's decision rather than a library default.
+- **The table is a mirror, and mirrors drift.** `paOptTable` is file-static in RadioLib and
+  the SX1262's PA config cannot be read back, so the entry is computed from a copy.
+  `python3 tools/rangetest/check_pa_table.py` diffs the copy against the pinned source and
+  fails loudly — including when the pinned source is absent, rather than skipping. **Run it
+  after any RadioLib version change.**
+
+**No committed trace carries these fields**, and none can be back-filled: deriving an entry
+needs the flag, and the flag was never recorded before this date.
 
 ## Behaviour that changed, and will make traces look different
 
 **From 2026-09-06:**
 
+- **The boot output has five new `key=value` lines** — `pa_optimize`, `pa_duty_cycle`,
+  `pa_hp_max`, `pa_val`, `pa_table` — printed after the radio comes up and before the CSV
+  header. `capture.py` puts them in the trace header automatically. **A trace without them
+  was captured by a board flashed before 2026-09-06.**
 - **The conducted ceiling is −4 dBm** at the configured 3.0 dBi, where the comment in
   `phy_params.cpp` previously described −3 dBm at 2.0 dBi. **The code's arithmetic did not
   change** — it has always derived the ceiling from the configured gain — but a trace's
@@ -335,8 +354,6 @@ The engineering log has the full account; this is the index.
   2026-09-06; the run has not been performed. **The next job in this directory.**
 - **B1b** — the gate-bearing walk with the Wio. **Owed by this directory.** The 2026-09-05
   desk runs are not it.
-- **Handoff §6 requirement 7** — log the applied `paOptTable` entry and the `optimize` flag
-  at boot. **The one firmware change this thread still owes.**
 - **D1** — nothing external blocks it. It needs a decision made against the data above, plus
   B1b if the 500 ft leg is wanted first.
 - **M6** — has data (six positions to 106 m, all closing with margin) but is **not closed**:
@@ -359,6 +376,9 @@ The engineering log has the full account; this is the index.
   Register §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`.
 - **W9** — **CLOSED in spec v0.8.** Left the SF7 backoff finding above for D1.
+- **Handoff §6 requirement 7** — **DONE 2026-09-06.** The PA record, plus
+  `check_pa_table.py` as the check on the mirror it needs. **There is no firmware work
+  queued in this directory now.**
 
 ### New backlog items, neither of which is range-test work
 

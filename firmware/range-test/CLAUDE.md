@@ -252,8 +252,31 @@ an output-power value.
 - **The sweep starts at the bottom and climbs only on failure.** A working point chosen at
   an unusable power is a result you throw away.
 
-**M21 is open** — the modules' own FCC grant conditions. Until it closes, the 2.0 dBi in
-`main.cpp` is a nameplate figure, not an audited one.
+**M21 closed 2026-09-06** — both modules' grants are recorded in
+`docs/shared/LRAN-M21-FCC-Grant-Findings.md`. Neither is §15.249; the frame is **§15.23
+home-built** and **no node may be represented as FCC certified anywhere**. The D33 ceiling
+survives, and the working point is **−4 dBm conducted at the fitted 3.0 dBi antenna**.
+
+**The antenna gain is a build flag, not a value in `main.cpp`** — `-DLRAN_ANTENNA_GAIN_DBI10`,
+set explicitly in both environments, so an antenna swap is one line visible in the diff.
+(This paragraph said "the 2.0 dBi in `main.cpp`" until 2026-09-06; it was wrong on both the
+figure and the location.)
+
+**The PA configuration is on the record too** (handoff §6 requirement 7, 2026-09-06). The
+boot output carries `pa_optimize`, `pa_duty_cycle`, `pa_hp_max`, `pa_val` and `pa_table`,
+and `capture.py` folds them into the trace header.
+
+- **`setOutputPower` is called with TWO arguments**, passing `kPaOptimize` explicitly. It is
+  `true`, which is what RadioLib's one-argument overload already did, so nothing on the air
+  changed — but a flag that alters emitted power is not left to a library default.
+- **`pa_config.cpp` MIRRORS RadioLib's `paOptTable`, and a mirror can drift.** It has to:
+  the table is file-static in `SX1262.cpp`, and the SX1262's PA config is written by a
+  command, not to a readable register. **`python3 tools/rangetest/check_pa_table.py` is the
+  check on that premise** — run it after any RadioLib version change. It fails loudly when
+  the pinned source is absent rather than skipping.
+- **`begin()` re-asserts the power after RadioLib's `begin()` sets it**, because RadioLib
+  hardcodes `optimize = true` internally. Today they agree; the day they do not, the boot
+  record would otherwise describe a configuration the radio was not in.
 
 ## Build and test
 
@@ -262,6 +285,7 @@ pio test -d firmware/range-test -e native      # host: the D33 clamp and the R3 
 pio run  -d firmware/range-test -e heltec      # target build
 pio run  -d firmware/range-test -e heltec -t upload
 ~/.platformio/penv/bin/python tools/rangetest/test_capture.py   # the capture tool
+python3 tools/rangetest/check_pa_table.py      # the PA mirror vs. pinned RadioLib
 ```
 
 **`capture.py` has host tests now, and it needs them.** The defect that destroyed a third
@@ -296,7 +320,9 @@ R10 is fieldwork, not a branch.
 passed on the bench. There is no build work queued here.
 
 **Do not close D1 from range data alone.** The frequency needed R8's survey (**M20**) and
-has it; the power needs the grant conditions (**M21**) and does not.
+has it; the power needed the grant conditions (**M21**) and now has them too — both closed
+2026-09-06. **D1 also has a fourth bound now:** `BW` and the Part 15 rule section are one
+decision (Protocol Spec §18.2). Nothing external blocks D1; it is a decision to be made.
 
 **Before D1 picks an SF, read the W9 backoff finding**: §12.3's default `backoff_max_ms`
 of 500 covers a full-size frame at SF7 (348 ms) and at no SF above it — 615 ms at SF8,
