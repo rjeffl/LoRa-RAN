@@ -5,6 +5,7 @@
 **Source requirement:** [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) §7.6
 **Gates:** **M6** — the register's M6 row requires this to run *before* the 500 ft passes
 **Tool:** `tools/rangetest/eirp_check.py`
+**Field card:** [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) — the one-page version to carry, including the Kubuntu field-laptop deltas and the reduced-scope fallback when the stands do not work out
 
 > **Read [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) first**, in particular *"Power down
 > every board you are not measuring with."* An idle ARMED board beacons once a second and

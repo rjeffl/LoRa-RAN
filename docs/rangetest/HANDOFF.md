@@ -16,7 +16,11 @@ the procedure and the reader are written and tested, and **the boards are flashe
 ready**. Nothing blocks it and nothing else in this directory comes before it.
 
 Read [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) and
-[`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) first. Three things decide whether the run is
+[`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) first, and carry
+[`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) — the one-page version, with the **Kubuntu
+field-laptop deltas** (`/dev/ttyUSB*`, the `dialout` group) and the **reduced-scope
+fallback**: checks 1 and 2 need no geometry at all, so a run at one distance on poor stands
+still closes the half that matters. Three things decide whether the run is
 worth anything, and all three are procedure rather than code:
 
 1. **Power the third board OFF.** Not in a backpack, not in `SURVEY` — off.
@@ -48,7 +52,8 @@ start in this directory.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the next job. **M6's precondition** |
+| 2 | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) | **the one page to carry.** Kubuntu deltas, the stand problem, the fallback |
+| 2b | [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | the next job, and the reasoning behind the card. **M6's precondition** |
 | 3 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | read before any bench or field run. **Start with "Power down every board you are not measuring with"** |
 | 4 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-06** entries | what happened and why. Five of them now: M21's closure, M20's re-integration, the §7.6 setup, the PA record, and the reflash **(which corrects the fourth)**. Before them, the 2026-09-05 Pass 2 entries |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
