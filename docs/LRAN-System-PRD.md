@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.7
+**Version:** 0.8
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
 **Last updated:** 2026-09-08
@@ -613,7 +613,7 @@ system.
 | mbedTLS (HMAC, HKDF) | via ESP-IDF | Apache-2.0 |
 | MQTT client | PubSubClient | MIT |
 | JSON | ArduinoJson | MIT |
-| Display | U8g2 (Heltec OLED targets only) | BSD-2-Clause |
+| Display | **ThingPulse `ESP8266 and ESP32 OLED driver for SSD1306 displays`** (Heltec OLED targets only) | **MIT** |
 | SD / filesystem | via ESP-IDF / Arduino core | Apache-2.0 / LGPL-2.1-or-later |
 | NVS / Preferences | via ESP-IDF | Apache-2.0 |
 | *Nice BusT4 protocol logic* | *`pruwait` / `xdanik` / `makstech` lineage* | ***GPL-3.0 — not used in v1.*** Research archive only |
@@ -645,11 +645,13 @@ assumed now.
 - `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed 2026-09-08). **Done.**
 - `THIRD_PARTY_NOTICES.md` at root — MIT and BSD components require attribution
   retention. **Done 2026-09-08.** It records what is **actually in a build**, which is not
-  the same set as §11.1's planned inventory, and its §3 lists the three differences: §11.1
-  omits Unity and the ThingPulse SSD1306 driver; its LCD row names M5Unified where the
-  build resolves M5GFX (MIT, with LovyanGFX BSD-2-Clause inside); and PubSubClient,
-  ArduinoJson, U8g2 and the VE.Direct parser have no build yet. **Update it in the same
-  commit as any `lib_deps`, platform-pin or framework-version change.**
+  the same set as §11.1's planned inventory, and its §3 lists the differences: §11.1 omits
+  **Unity**; its LCD row names M5Unified where the build resolves **M5GFX** (MIT, with
+  LovyanGFX BSD-2-Clause inside), left as a finding because only the proof of concept
+  builds it today; and PubSubClient, ArduinoJson and the VE.Direct parser have no build
+  yet. **The display row is resolved** — see this document's v0.8 entry. **Update the
+  notices file in the same commit as any `lib_deps`, platform-pin or framework-version
+  change.**
 - Vendor reference documents (Nice 1050 manual, TTPCI manual, DMBM integration protocol;
   Victron VE.Direct protocol documents): **link, do not vendor.**
 
@@ -659,14 +661,14 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.7 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.8 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.5 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.9 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.10 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
 | [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
@@ -698,6 +700,18 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.8** — **§11.1's display row corrected: U8g2 out, the ThingPulse SSD1306 driver in,
+  and the license with it** — U8g2 is BSD-2-Clause and the driver actually built is
+  **MIT**. Nothing in the repository ever used U8g2. Both Heltec V3 implementations chose
+  the ThingPulse driver: the `/wattcycle-reader/` proof of concept, whose design note gives
+  the reason — U8g2's extra font control was not needed and the library is heavier — and
+  `firmware/range-test/`, which lifted its Vext bring-up sequence from that PoC and
+  inherited the driver with it. **The requirement that could have argued the other way was
+  met without it:** range test R6 wants link figures readable outdoors at arm's length, and
+  `ui_oled.cpp` does that with the driver's 24 px font. Reasoning lives in Bridge
+  Implementation Plan **§5.1.1**, including the part this row cannot carry: for the bridge,
+  which has no firmware, this is still a choice rather than a fact. Document set table
+  updated for that plan's v0.10.
 - **v0.7** — **§9.3's CI is built rather than described.** `.github/workflows/ci.yml` runs
   on every push to `main`, every pull request and on demand, in three parallel jobs:
   `checks` (binding citations, the HKDF check, the W4 vectors and the range test host
