@@ -950,7 +950,7 @@ void setup() {
   // "v0.7" long after R4-R9 landed and the spec moved. A banner nobody updates is worse
   // than no banner: it is a confident wrong answer in every log file it appears in.
   Serial.println(F("LRAN range test firmware - pass 2 (two board profiles)"));
-  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.8 (ver = 2)"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.9 (ver = 2)"));
   Serial.println(F("This firmware never ships. No WiFi, no MQTT, no secrets."));
 
   if (!g_ui.begin()) {

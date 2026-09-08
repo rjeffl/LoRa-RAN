@@ -6,7 +6,7 @@ the pass-1 reference exactly) and XIAO→Heltec **192/192**. X1 confirmed over t
 **Still open: the gate-bearing walk (B1b / D1) and the XIAO ambient survey.**
 **Revision:** 0.1 (2026-09-05)
 **Target:** Seeed XIAO ESP32S3 + Wio-SX1262 **Kit** (B2B), on a Seeeduino XIAO Expansion Board
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` v0.8 (`ver = 2`)
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` v0.9 (`ver = 2`)
 **Predecessor:** `LRAN-Range-Test-Firmware-Pass1-Tasks.md` — pass 1 complete, R2 gate passed
 on hardware 2026-08-31
 **Record:** `docs/rangetest/engineering-log.md`

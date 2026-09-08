@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.5
+**Version:** 0.6
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
 **Last updated:** 2026-09-08
@@ -319,8 +319,14 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
   similar distances in different directions. Favour an omnidirectional antenna in a
   central, elevated position over anything with a pattern optimized toward the gate.
   **Range-test both bearings before committing to a location.**
-- FCC Part 15 operating mode is an open item (Protocol Spec §18.1) and should be
-  settled **before** D1 fixes a TX power.
+- **FCC Part 15 operating mode: read Protocol Spec §18.2, not §18.1.** The question of
+  *which mode to build against* is closed (**W5**) and the answer is unchanged — a single
+  fixed channel, no hopping, at or below the §15.249 power provisions. What M21 changed is
+  the reasoning: neither module is certified under §15.249, module grants do not transfer,
+  and the operative frame is **§15.23 home-built**, so **no node may be represented as
+  certified anywhere**. **D33 is reopened in the register on that basis.** §18.1 is
+  annotated rather than rewritten and must not be read on its own. Settle this **before**
+  D1 fixes a TX power — and note that **`BW` and the rule section are now one decision**.
 
 ### 5.2 Fleet-wide protocol obligations
 
@@ -634,17 +640,20 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.3 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.8** (`ver = 2`) |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.6 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.3 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.6 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.3 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.3 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
+| [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
+| [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.5 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.9 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
-| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.3 |
-| [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list — **the next firmware target**. Answers D1, hosts W9, M6 and M20 | pass 1 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.5 |
+| [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
+| [`LRAN-Range-Test-Firmware-Pass2-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md) | Range test pass 2 — the XIAO + Wio-SX1262 Kit board profile | rev 0.1 |
 | [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
 
 > **Document versions are the reader's staleness check.** A node document citing a
@@ -670,6 +679,24 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.6** — Citation refresh, plus one bullet that was stale in substance. Protocol
+  specification **v0.8 → v0.9**, which changes **no frame layout, header field,
+  enumeration value, schema or authentication scope**; `ver` stays at `2` and no vector
+  regenerates. What v0.9 carries is regulatory: new **§18.2** records that neither SX1262
+  module is certified under §15.249, that module grants do not transfer, and that the
+  operative frame is **§15.23 home-built** — so **no node may be represented as certified**
+  in any document, header, label or HA device metadata. §12.1 also gains the measured
+  ambient survey and binds **`BW` to the rule section as one decision** with D1.
+  **§5.1's Part 15 bullet is corrected**, not merely re-cited: it called the operating mode
+  "an open item (§18.1)" when W5 has been closed since v0.6 of the specification and §18.1
+  has since been superseded in its reasoning by §18.2. It now points at §18.2, states that
+  D33 is reopened rather than the mode being undecided, and warns against reading §18.1
+  alone.
+  **§12's document set table was itself the stalest thing in this document** — it listed
+  eight of thirteen documents at versions they had left behind, in the table whose own
+  note calls document versions "the reader's staleness check". Every row is now synced
+  against the documents' headers, and the two documents missing from it entirely,
+  `LRAN-M21-FCC-Grant-Findings` and `LRAN-Range-Test-Firmware-Pass2-Tasks`, are added.
 - **v0.5** — **D31 closed** (Decision Register v0.6): the copyright holder is
   **Robert J. Lee**, a personal name rather than a project or entity name. §11.2's
   pending action becomes a statement of fact — `LICENSE` exists at the repo root with the

@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.4
+**Version:** 0.5
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.8**
-**Last updated:** 2026-08-31
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Last updated:** 2026-09-08
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -225,6 +225,15 @@ choices that look over-engineered against a one-node system:
 
 ## 10. Changelog
 
+- **v0.5** — Citation refresh only. Protocol specification **v0.8 → v0.9**: `ver` stays at
+  `2` and nothing on the wire changes. Still a placeholder. **Recorded because a
+  placeholder node inherits both of v0.9's consequences rather than deciding either.**
+  First, the regulatory one binds WellLink the day it exists: spec **§18.2** puts the
+  project under **§15.23 home-built**, so **no WellLink document, header, label or HA
+  device entry may represent it as FCC certified**, and that is easier to honour before
+  anything is written than to correct afterwards. Second, `BW` is now part of the same
+  decision as the Part 15 rule section, so **D1 hands this node a channel *and* a
+  bandwidth** as a given, on top of the SF constraint already recorded at v0.4.
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. Still a placeholder. Recorded because the v0.8 finding is one a WellLink inherits rather than decides: §12.3's default `backoff_max_ms` of 500 covers a full-size frame at SF7 and at no SF above it, so whatever **D1** fixes reaches this node as a given.
 - **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. Still a placeholder. Recorded because **W-* design questions inherit it**: any WellLink that accepts a command inherits `CommandGate` rather than writing a replay check.
 - **v0.2** — Housekeeping revision; **still a placeholder, no design work done**.
