@@ -11,6 +11,12 @@ specific to the bridge.
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only.
 
+**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
+trap: **MQTT topics, discovery keys and the §14.1 counter names are exact tokens**, and
+they are the interface Home Assistant sees. A topic or counter renamed for readability in
+a document is a topic that no longer matches the spec, which owns both (see **Counter
+names come from spec §14.1** below).
+
 ## Three properties that must survive every change
 
 1. **No gate knowledge anywhere.** The bridge decodes GateLink's schemas because they are

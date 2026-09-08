@@ -6,6 +6,11 @@ specific to the simnode.
 **Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7 §10.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.8** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
+**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
+trap: **console commands, fault names, role names and schema IDs are exact tokens.**
+`ROLE_GATELINK`, `DEBUG_SYNTHETIC`, `0xFE` and every `simctl` verb are typed by an
+operator or a script and must match the firmware character for character. Never
+paraphrase one for readability, in documents or in `--help` text.
 
 ## What this is
 
