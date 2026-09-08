@@ -149,7 +149,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D24** | Manual UNLOCK path | **Two independent paths**: the handheld remote already programmed with UNLOCK, and the control-panel pushbutton rewired to AUX2 | GateLink PRD |
 | **D26** | StamPLC 3.3 V rail | **No 3.3 V rail is exposed.** Bus power pins are VIN, GND and EXT_5V only, and EXT_5V sits near 4.76 V under load. The carrier LDO stays in the BOM, and an AMS1117 is excluded on dropout | GateLink Impl Plan |
 | **D27** | Carrier board fabrication | **Perfboard populated with prefabricated modules**; regulator and discretes mounted directly. Preserves the "no hand-built discrete circuits" property. Remaining sub-item: pick a DIN-rail carrier and cut the board to it | GateLink Impl Plan |
-| **D31** | Copyright holder name | **Robert J. Lee**, a personal name rather than a project or entity name. `LICENSE` now exists at the repo root carrying the MIT text and `Copyright (c) 2026 Robert J. Lee`, and the 87 source files that carried the `<holder>` placeholder carry the name. **The first public push is no longer blocked by this**; §11.3's `THIRD_PARTY_NOTICES.md` obligation is separate and still outstanding | System PRD §11.2 |
+| **D31** | Copyright holder name | **Robert J. Lee**, a personal name rather than a project or entity name. `LICENSE` now exists at the repo root carrying the MIT text and `Copyright (c) 2026 Robert J. Lee`, and the 87 source files that carried the `<holder>` placeholder carry the name. **The first public push is no longer blocked by this**; §11.3's separate `THIRD_PARTY_NOTICES.md` obligation was written the same day | System PRD §11.2 |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
 | **D33** | FCC Part 15 operating mode (**closes W5**) | **Moved to §2 — reopened 2026-09-06 by M21.** The 2026-08-30 outcome and its standing conditions remain readable in §3.1; what changed is in §3.3 | Protocol Spec §18.1 |
@@ -388,7 +388,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 
 | # | Item | Blocks |
 |---|---|---|
-| M17 | ~~**Copyright holder name for the LICENSE file**~~ | **Done (2026-09-08).** **Robert J. Lee.** `LICENSE` written at the repo root; placeholder replaced in every source file. **D31 resolved.** `THIRD_PARTY_NOTICES.md` (System PRD §11.3) is a separate obligation and is not done |
+| M17 | ~~**Copyright holder name for the LICENSE file**~~ | **Done (2026-09-08).** **Robert J. Lee.** `LICENSE` written at the repo root; placeholder replaced in every source file. **D31 resolved.** `THIRD_PARTY_NOTICES.md` (System PRD §11.3) written the same day |
 | M21 | ~~**Confirm the SX1262 modules' own FCC grant conditions**~~ | **Done (2026-09-06).** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`. Heltec `2A2GJ-HTIT` — finished-product, **not modular**, ≈13.9 dBm DTS, internal 3.0 dBi antenna declared and fixed. Seeed `Z4T-WIO-SX1262` — single modular approval, 92 mW, **no-co-location condition**. **Neither is §15.249**, and the fixed-channel no-hopping mode exists in both grants only at BW500. **D33 reopened** (§3.3); **D1 gains a fourth bound** (§2.1). Backlog gains M22 and M23 |
 | M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
 | M19 | Airtime table regeneration once D1 fixes SF/BW/CR | Protocol Spec §15.1 (W7) |
@@ -467,10 +467,14 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
   and `tools/vectors/embed.py`'s emitted header. **M17 is marked done** and **D11's row
   updated** — D11 itself has been resolved since v0.1 and only its dangling "holder name
   outstanding" note needed changing. **The first public push is no longer blocked**, with
-  one caveat recorded rather than glossed: System PRD §11.3 also requires
-  `THIRD_PARTY_NOTICES.md`, which does not exist. That is an attribution obligation of the
-  MIT and BSD components, not a D31 residual, so it is stated in D31's row and M17's rather
-  than left to be discovered at push time.
+  one caveat that was recorded rather than glossed and then discharged: System PRD §11.3
+  also requires `THIRD_PARTY_NOTICES.md`, an attribution obligation of the MIT and BSD
+  components rather than a D31 residual. It is now written, and it records what is actually
+  in a build rather than restating §11.1 — auditing the two against each other turned up
+  **two components in the build that §11.1 lists nowhere** (Unity, and the ThingPulse
+  SSD1306 driver) and an **LCD row that names the wrong package** (M5GFX, MIT with
+  LovyanGFX BSD-2-Clause inside it, resolved through M5StamPLC). Those are findings about
+  the build, not decisions, so they live in the notices file's §3.
   **Header correction:** this file's header still read **v0.4** while §6 already carried a
   **v0.5** entry — the v0.5 edit bumped the changelog and not the header. Corrected here by
   numbering this revision **v0.6**, not by renumbering v0.5.

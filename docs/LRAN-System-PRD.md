@@ -618,9 +618,13 @@ assumed now.
 ### 11.3 Repo obligations
 
 - `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed 2026-09-08). **Done.**
-- `THIRD_PARTY_NOTICES.md` listing §11.1 with copyright lines. MIT and BSD components
-  require attribution retention. **Not written.** With D31 closed this is the one
-  licensing item still outstanding before a public push.
+- `THIRD_PARTY_NOTICES.md` at root — MIT and BSD components require attribution
+  retention. **Done 2026-09-08.** It records what is **actually in a build**, which is not
+  the same set as §11.1's planned inventory, and its §3 lists the three differences: §11.1
+  omits Unity and the ThingPulse SSD1306 driver; its LCD row names M5Unified where the
+  build resolves M5GFX (MIT, with LovyanGFX BSD-2-Clause inside); and PubSubClient,
+  ArduinoJson, U8g2 and the VE.Direct parser have no build yet. **Update it in the same
+  commit as any `lib_deps`, platform-pin or framework-version change.**
 - Vendor reference documents (Nice 1050 manual, TTPCI manual, DMBM integration protocol;
   Victron VE.Direct protocol documents): **link, do not vendor.**
 
@@ -670,12 +674,15 @@ assumed now.
   **Robert J. Lee**, a personal name rather than a project or entity name. §11.2's
   pending action becomes a statement of fact — `LICENSE` exists at the repo root with the
   MIT text and `Copyright (c) 2026 Robert J. Lee` — and the `<holder>` placeholder is gone
-  from every source file. **§11.3 is corrected rather than simply ticked:** `LICENSE` is
-  marked done, and `THIRD_PARTY_NOTICES.md` is marked **not written** and named as the one
-  licensing item still standing between this repo and a public push. §11.2 previously said
-  the holder name was "the only thing" doing so, which was not accurate — the attribution
-  obligation of the MIT and BSD components in §11.1 was always there too. Document set
-  table refreshed: the Decision Register is v0.6 and its backlog runs to **M23**, not M21.
+  from every source file. **§11.3's second obligation is met in the same revision:**
+  `THIRD_PARTY_NOTICES.md` is written. §11.2 previously said the holder name was "the only
+  thing" standing between this repo and a public push, which was not accurate — the
+  attribution obligation of the MIT and BSD components in §11.1 was always there too, and
+  is now discharged rather than restated. **The notices file also audits §11.1 against the
+  build and finds it incomplete in three ways**, recorded in its §3 rather than corrected
+  here, because §11.1 describes the design as planned and the discrepancies are findings
+  about the build. Document set table refreshed: the Decision Register is v0.6 and its
+  backlog runs to **M23**, not M21.
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Pass 1 of the range test firmware is complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on M21**, the modules' FCC grant conditions, which is paperwork rather than bench work — and D1 is what blocks node firmware.
 - **v0.3** — Document set table refreshed for **D34**, which closes Protocol Spec
   **W12** by splitting §9.4 steps 4–6: the replay and dedup gate becomes `CommandGate`
