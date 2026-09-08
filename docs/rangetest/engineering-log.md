@@ -3044,6 +3044,21 @@ require.
 
 ## 2026-09-07 — the §7 Wio repeat, and a 2.9 dB module asymmetry that the matched pair made visible
 
+> **Superseded in part by the role-swap entry below** (same date, next entry). The text
+> is left as written; this note says what it got wrong.
+>
+> This entry states the finding as *"the Wio link is ~2.9 dB weaker at the same requested
+> conducted power"* — a transmit-side conclusion. That is **one of two readings the data
+> supports, stated as though it were the only one.** Reciprocal RSSI measures only the
+> per-node combination `TX − RX`, so a weak PA and an optimistic RSSI are
+> indistinguishable here, and the swap run confirmed no role permutation can separate
+> them. **The finding as it stands: `(TX − RX)` for the Wio sits 3.37 dB below the
+> Heltec's** — magnitude revised from 2.87 dB (one run) to 3.37 dB (both runs).
+>
+> **The compliance conclusion in this entry is unaffected** and holds under either
+> reading. The section headed "What this does not separate, and the swap that would" is
+> the part that is wrong: the swap could not have, and the algebra is in the next entry.
+
 **`EIRP-SANITY-CHECK.md` §7's repeat, run the same evening at the same site and geometry**,
 with the XIAO ESP32S3 + Wio-SX1262 Kit as initiator and the Heltec V3 as responder.
 `board=xiao_esp32s3_wio_kit` confirmed off the settings dump before starting.
