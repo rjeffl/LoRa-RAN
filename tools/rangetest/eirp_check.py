@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <holder>          # D31 open - see LRAN-Decision-Register
+# Copyright (c) 2026 Robert J. Lee
 """The M21 findings note 7.6 sanity check, read off a committed sweep trace.
 
 No RF power meter exists for this project, so the D33 EIRP ceiling is met by

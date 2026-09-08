@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Public-domain-style SHA-256 (FIPS 180-4) plus HMAC and HKDF, written out here so
 // the native environment needs no crypto dependency at all.

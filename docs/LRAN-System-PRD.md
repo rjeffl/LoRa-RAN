@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.4
+**Version:** 0.5
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-08
 
 ---
 
@@ -605,9 +605,10 @@ aims: maximum reuse, attribution only.
 > a derivative work of GPL-3.0 code. When BusT4 left v1, that obligation disappeared
 > and the question became a free choice.
 
-**Action:** a `LICENSE` file at the repo root containing the MIT text with
-`Copyright (c) 2026 <holder>`. **The holder's name is still to be chosen** (**D31**) and
-is the only thing standing between this repo and a public push.
+**Done:** `LICENSE` at the repo root carries the MIT text and
+`Copyright (c) 2026 Robert J. Lee`. **D31 closed 2026-09-08** — a personal name rather
+than a project or entity name — and every source file carries it in place of the former
+`<holder>` placeholder. The remaining §11.3 obligation is `THIRD_PARTY_NOTICES.md`.
 
 **If BusT4 is ever pursued**, a port linking the GPL-3.0 community lineage would make
 *that binary* GPL-3.0 regardless of this repo's stated license. Keep such a port in its
@@ -616,9 +617,10 @@ assumed now.
 
 ### 11.3 Repo obligations
 
-- `LICENSE` at root — MIT; holder pending **D31**.
+- `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed 2026-09-08). **Done.**
 - `THIRD_PARTY_NOTICES.md` listing §11.1 with copyright lines. MIT and BSD components
-  require attribution retention.
+  require attribution retention. **Not written.** With D31 closed this is the one
+  licensing item still outstanding before a public push.
 - Vendor reference documents (Nice 1050 manual, TTPCI manual, DMBM integration protocol;
   Victron VE.Direct protocol documents): **link, do not vendor.**
 
@@ -630,7 +632,7 @@ assumed now.
 |---|---|---|
 | **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.3 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.8** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M21**. Single source of truth for decision status | v0.3 |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.3 |
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.6 |
@@ -664,6 +666,16 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.5** — **D31 closed** (Decision Register v0.6): the copyright holder is
+  **Robert J. Lee**, a personal name rather than a project or entity name. §11.2's
+  pending action becomes a statement of fact — `LICENSE` exists at the repo root with the
+  MIT text and `Copyright (c) 2026 Robert J. Lee` — and the `<holder>` placeholder is gone
+  from every source file. **§11.3 is corrected rather than simply ticked:** `LICENSE` is
+  marked done, and `THIRD_PARTY_NOTICES.md` is marked **not written** and named as the one
+  licensing item still standing between this repo and a public push. §11.2 previously said
+  the holder name was "the only thing" doing so, which was not accurate — the attribution
+  obligation of the MIT and BSD components in §11.1 was always there too. Document set
+  table refreshed: the Decision Register is v0.6 and its backlog runs to **M23**, not M21.
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Pass 1 of the range test firmware is complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on M21**, the modules' FCC grant conditions, which is paperwork rather than bench work — and D1 is what blocks node firmware.
 - **v0.3** — Document set table refreshed for **D34**, which closes Protocol Spec
   **W12** by splitting §9.4 steps 4–6: the replay and dedup gate becomes `CommandGate`

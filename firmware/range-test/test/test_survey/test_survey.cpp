@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Host tests for the R8 / M20 ambient survey: the bin plan, the peak-hold
 // statistics, the CSV schema and the NVS blob.

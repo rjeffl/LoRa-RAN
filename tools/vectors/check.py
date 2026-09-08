@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <copyright holder - D31, still open>
+# Copyright (c) 2026 Robert J. Lee
 """Self-check for the LRAN test vectors - open item W4, milestone P6.
 
 Loads the four generated JSON files and re-derives, from each vector's own

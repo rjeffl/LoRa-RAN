@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <holder>          # D31 open - see LRAN-Decision-Register
+# Copyright (c) 2026 Robert J. Lee
 """Host tests for capture.py.
 
 Run with PlatformIO's python, which is the one that has pyserial - capture.py exits

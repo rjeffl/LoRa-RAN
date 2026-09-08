@@ -483,7 +483,10 @@ The engineering log has the full account; this is the index.
 - **`gatelink-expansion-board.md` §10 ring-out** — the header board's pads against the
   carrier's nets. **The Kit cannot close it.** It is the tracked check for Bridge Impl Plan
   §10.8.1's remaining premise.
-- **D31** — copyright holder. Every file carries the `<holder>` placeholder.
+- ~~**D31** — copyright holder. Every file carries the `<holder>` placeholder.~~
+  **Closed 2026-09-08: Robert J. Lee.** `LICENSE` written at the repo root, placeholder
+  replaced repo-wide. Superseding note, not a rewrite — the line above describes the state
+  this handoff was written in.
 
 ### Closed, and not to be reopened by habit
 

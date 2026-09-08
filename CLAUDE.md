@@ -182,8 +182,9 @@ GateLink means a USB reflash at the gate.
   constants, `lower_snake.cpp` for files.
 - Comment *why*, not *what*. Where a value comes from a document, cite the section:
   `// spec 7.2.9 - uint32 because 16 bits saturates at 18h`.
-- License header on every file: MIT, 2026. Copyright holder is **D31, still open** — use
-  the placeholder already in the template rather than inventing one.
+- License header on every file: MIT, 2026. Copyright holder is **Robert J. Lee** (**D31**,
+  closed 2026-09-08): `// Copyright (c) 2026 Robert J. Lee`. `LICENSE` at the repo root
+  carries the full MIT text.
 - No `TODO` without an identifier: `// TODO(W6): confirm pack_ma sign under load`.
 
 ## Writing

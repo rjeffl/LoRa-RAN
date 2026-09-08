@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <holder>          # D31 open - see LRAN-Decision-Register
+# Copyright (c) 2026 Robert J. Lee
 """Capture a range-test sweep from the initiator into a committed CSV trace.
 
 Reads the initiator's serial console, keeps the CSV header and data rows, and
