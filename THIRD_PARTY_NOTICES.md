@@ -146,23 +146,31 @@ its own clearly-marked subtree.
 
 ## 3. Where this differs from System PRD §11.1
 
-§11.1 is the planned inventory and predates most of the build. Three differences are
-worth recording rather than silently reconciling:
+§11.1 is the planned inventory and predates most of the build. Two differences remain
+worth recording rather than silently reconciling, and one has been resolved:
 
-1. **§11.1 omits two components that are in the build today.** Unity and the ThingPulse
-   SSD1306 driver appear in no row of it. Unity is test-only; the SSD1306 driver is
-   linked into the range-test firmware.
+1. **§11.1 omits Unity**, which is in the build and appears in no row of it. Unity is
+   test-only and is linked into no firmware image, so it carries no obligation on a
+   released binary — but a licensing inventory that omits a component is incomplete
+   whether or not that component travels.
 2. **The LCD row names the wrong package.** §11.1 says "LovyanGFX (via M5Unified),
    BSD-2-Clause". The actual path is M5StamPLC → M5Unified + **M5GFX**, and M5GFX's own
    license is **MIT** with LovyanGFX's BSD-2-Clause code inside it. The license names in
    §11.1 are individually right and the attribution derived from them would be
-   incomplete.
-3. **Several §11.1 rows have no build yet.** PubSubClient, ArduinoJson, U8g2 and the
-   VE.Direct parser are all listed there and none is installed, because the bridge and
-   GateLink firmwares do not exist. **U8g2 in particular should be re-checked when a
-   display target is next chosen** — the firmware that exists uses the ThingPulse driver
-   instead, so §11.1's row may describe a decision that was quietly changed rather than a
-   component still to come.
+   incomplete. **Left as a finding rather than corrected**, because the only build that
+   resolves M5GFX today is the `/wattcycle-reader/` proof of concept; for GateLink, whose
+   firmware does not exist, the row still describes the design as planned.
+3. **Some §11.1 rows have no build yet.** PubSubClient, ArduinoJson and the VE.Direct
+   parser are listed there and none is installed, because the bridge and GateLink
+   firmwares do not exist.
+
+**Resolved 2026-09-08 — the display row.** §11.1 named **U8g2** and nothing in the
+repository ever used it: both Heltec V3 implementations chose the ThingPulse SSD1306
+driver, and the proof of concept records why — U8g2's extra font control was not needed
+and the library is heavier. The row now names the driver that is actually built, and its
+license with it: U8g2 is BSD-2-Clause, the ThingPulse driver is **MIT**. Bridge
+Implementation Plan **§5.1.1** carries the reasoning, including that for the bridge — which
+has no firmware yet — this is still a choice rather than a fact.
 
 **This file is updated in the same commit as any change to a `lib_deps` line, a platform
 pin or a framework version.** A notices file that lags the build is worse than none,

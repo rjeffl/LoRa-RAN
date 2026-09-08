@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.9
+**Version:** 0.10
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -416,10 +416,31 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 | WiFi | Arduino-ESP32 | LGPL-2.1-or-later |
 | MQTT | **`MqttTransport` → PubSubClient** (**D5**) | MIT |
 | JSON | ArduinoJson | MIT |
-| Display | U8g2 | BSD-2-Clause |
+| Display | **ThingPulse SSD1306 driver** — `thingpulse/ESP8266 and ESP32 OLED driver for SSD1306 displays`, version pinned. Not U8g2; see §5.1.1 | MIT |
 | HMAC / HKDF | mbedTLS via ESP-IDF | Apache-2.0 |
 | OTA | ArduinoOTA or `esp_https_ota` | LGPL / Apache-2.0 |
 | VE.Direct HEX register model | **`/lib/vedirect/`**, shared with GateLink | MIT |
+
+#### 5.1.1 Why the SSD1306 driver rather than U8g2
+
+**U8g2 was this table's original choice and no target ever used it.** Two independent
+Heltec V3 implementations picked the ThingPulse driver instead: the BMS proof of concept
+in `/wattcycle-reader/`, whose design note gives the reason — *U8g2 is the alternative if
+you want more font control; heavier, and unnecessary here* — and `firmware/range-test/`,
+which lifted its Vext bring-up sequence from that PoC and inherited the driver with it.
+
+**The one requirement that could have argued for U8g2 has been met without it.** Range
+test task R6 wants link figures readable outdoors at arm's length in sunlight;
+`src/ui_oled.cpp` does that with the ThingPulse driver's 24 px font. Font control was the
+stated reason to prefer U8g2, and it was not needed.
+
+**For this node it remains a choice rather than a fact**, because no bridge firmware
+exists yet. R-4.1c asks only for a glanceable "N nodes online" display and is MAY-level,
+which is the lightest display requirement in the project — so the case for a heavier
+library is weaker here than in either firmware that has already declined it. Consistency
+across the Heltec targets is the argument; nothing forces it. **If a bridge display
+requirement ever needs what U8g2 offers, change this row and say why** rather than
+reaching for a second display library alongside the first.
 
 ### 5.2 Task structure
 
@@ -1338,6 +1359,19 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.10** — **§5.1's display library is corrected and new §5.1.1 says why.** The table
+  named **U8g2**, which no firmware in this repository has ever used: the BMS proof of
+  concept and `firmware/range-test/` both chose the **ThingPulse SSD1306 driver**, and the
+  PoC records the reason — U8g2's extra font control was not needed and the library is
+  heavier. Range test R6's outdoor-legibility requirement, the one that could have argued
+  for U8g2, was met with the ThingPulse driver's 24 px font. The license changes with the
+  row: U8g2 is BSD-2-Clause, this driver is **MIT**, and `THIRD_PARTY_NOTICES.md` moves the
+  discrepancy from open finding to resolved. **§5.1.1 states plainly that this node's half
+  is still a choice**, because no bridge firmware exists — R-4.1c asks only for a
+  glanceable "N nodes online" display and is MAY-level, so the case for a heavier library
+  is weaker here than in either firmware that already declined it. Consistency is the
+  argument; nothing forces it, and a future display requirement that needs U8g2 should
+  change the row and say why rather than add a second display library beside the first.
 - **v0.9** — Citation refresh only. Protocol specification **v0.8 → v0.9**: `ver` stays at
   `2`, and **no frame layout, header field, enumeration value, schema or authentication
   scope changes**; no vector regenerates and no build step here changes. **What reaches
