@@ -28,7 +28,11 @@ USB reflash in the field.
 
 **Check the version.** A node document citing an older protocol version than
 `LRAN-Protocol-Specification`'s own header has not been reconciled with the intervening
-revisions — say so rather than building against it.
+revisions — say so rather than building against it. **`python3
+tools/checks/spec_citation_version.py` checks this**, across documents, context files,
+`platformio.ini` headers and the range-test boot banner. It reports drift; it cannot tell
+you a document is reconciled, so **reconcile first and update the citation second** —
+bumping the number alone is the failure the check exists to make visible.
 
 Requirement identifiers (`R-*`, `BG-*`, `BS-*`, `V-B*`, `D*`, `W*`, `M*`) refer to those
 documents. **Cite them in commits and PR descriptions.**
@@ -118,6 +122,7 @@ pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
+python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
 
 pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build

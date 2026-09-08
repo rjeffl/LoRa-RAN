@@ -167,6 +167,7 @@ pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
 pio run  -d firmware/range-test -e xiao       # XIAO ESP32S3 + Wio-SX1262 Kit
 python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned RadioLib
+python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
 ```
 
 **The W4 test vectors are generated independently of the codec**, from the specification,
