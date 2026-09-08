@@ -3,6 +3,13 @@
 **Written 2026-09-07, at the end of the session that ran and closed the §7.6 EIRP sanity
 check.** It replaces the 2026-09-06 file wholesale.
 
+> **Updated 2026-09-08 — repository state only.** That session was documentation, licensing
+> and tooling; **no bench work ran, no board was reflashed and no measurement changed**.
+> Every section below is as written on 09-07 except *Git state*, *First actions next
+> session* and the spec row in *Where things stand*, which were facts about the repository
+> and are now false. **What a field session needs to know from 09-08 is in *What changed on
+> 2026-09-08* below.**
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -69,8 +76,8 @@ Neither reading disturbs the ceiling; `data/README.md` has the arithmetic.
 
 | | |
 |---|---|
-| Branch | see **Git state** below — `main` is **not** the only branch any more |
-| Merged through | **#36**. Everything since is on `docs/eirp-field-laptop`, **PR not yet open** |
+| Branch | `main` only. See **Git state** below *(updated 2026-09-08)* |
+| Merged through | **#39**, `742fdca`. Nothing open, nothing queued *(updated 2026-09-08)* |
 | Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten. *(Version corrected 2026-09-08: this row read v0.8 when written, while already describing §18.2, which v0.9 introduced. The row's substance was right and its version number was not.)* |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7** |
 | Firmware queue | **Empty.** This directory owes **one** measurement — B1b — and no code |
@@ -85,7 +92,12 @@ python tools/rangetest/test_capture.py       # PlatformIO's python
 python3 tools/rangetest/test_survey_reintegrate.py
 python3 tools/rangetest/test_eirp_check.py
 python3 tools/rangetest/check_pa_table.py    # the paOptTable mirror vs. pinned RadioLib
+python3 tools/checks/spec_citation_version.py # new 2026-09-08 - citations vs. the spec
 ```
+
+**CI runs all of the above on every push and pull request** (new 2026-09-08,
+`.github/workflows/ci.yml`). Run them locally when you are about to spend bench time on
+the result; otherwise a green run already answers it.
 
 **All nine green on the field laptop 2026-09-07**, including both firmware builds. `pio` is
 at `~/.platformio/penv/bin/pio` and is **not on `PATH`**; `capture.py` needs
@@ -344,30 +356,50 @@ python3 tools/rangetest/survey_reintegrate.py \
 
 ## Git state — read before pushing
 
-As of the end of 2026-09-07:
+As of the end of **2026-09-08**:
 
-- **`origin/main` is at `f199542`** (through PR #36).
-- **`origin/docs/eirp-field-laptop`** carries everything since: the field-card commits
-  fast-forwarded in, the field-laptop and NVS-collision documentation, the step 7 fix, and
-  the six EIRP traces. **This is the branch to open the PR from** — it contains
-  `docs/eirp-field-card`'s two commits, so merging it closes both.
-- **`origin/docs/eirp-field-card` exists and has no PR.** Superseded by the branch above.
-- **Local `main` is behind the working branch** and 2 ahead of `origin/main`; it was
-  fast-forwarded onto the field-card commits before the working branch was cut.
-
-**Everything is pushed. Nothing is local-only.** Verify with:
+- **`origin/main` is at `742fdca`** (through PR #39). The 09-07 session's work merged as
+  PR #37; two documentation branches merged on 09-08 as PR #38 and PR #39.
+- **No branch is open and nothing is queued.** `main` is the only branch, local and remote.
+- **Everything is pushed. Nothing is local-only.**
 
 ```bash
 git status --porcelain          # empty
 git log --branches --not --remotes --oneline   # empty
 ```
 
+**One push gotcha, and it is not a network fault.** A token without the `workflow` scope is
+refused when a commit touches `.github/workflows/`, with `refusing to allow an OAuth App to
+create or update workflow`. The fix is `gh auth refresh -s workflow`, which is interactive.
+Nothing else in this repository triggers it.
+
+## What changed on 2026-09-08
+
+Documentation, licensing and tooling. **Three things reach a field session:**
+
+1. **The boot banner now reads `v0.9`.** The specification moved v0.8 → v0.9 on 09-06 and
+   thirteen citations lagged, this firmware's among them. **Captures committed before
+   09-08 say `v0.8` and are correct** — they were produced by a firmware built against that
+   citation. Do not re-stamp them. `ver` stays at `2` and v0.9 changed nothing on the wire,
+   so old and new traces stay comparable; the string separates *when a build was made*, not
+   *what it measured*. The engineering log's 2026-09-08 entry has the detail.
+2. **CI exists.** `.github/workflows/ci.yml` runs the repository checks, the host tools'
+   own tests, both Unity suites and both firmware targets on every push and pull request.
+   A green run is now the answer to "does this still build", so **do not spend a field
+   session's bench time on it**.
+3. **`tools/checks/spec_citation_version.py` is new** and runs in CI. It fails when a
+   binding-specification citation names a version the specification has moved past — which
+   is what nothing caught in the v0.8 → v0.9 drift.
+
+**No firmware behaviour changed.** The only code touched was a comment header and the
+banner string. The boards on the bench are current and no reflash is owed — but a reflash
+for any other reason will change the banner in that session's captures.
+
 ## First actions next session
 
-1. **Open the PR** for `docs/eirp-field-laptop` if it is still open, and write the
-   description. See *Git state* above.
-2. `git pull --ff-only`, then run the checks above. **Auth is SSH** — if git hangs with no
-   output, read *The field laptop* before assuming the network is down.
+1. `git pull --ff-only`. **Nothing is queued and no PR is open** — see *Git state*.
+2. Run the checks below. **Auth is SSH on the field laptop** — if git hangs with no output,
+   read *The field laptop* before assuming the network is down.
 3. **No firmware work is queued and no reflash is owed.** The boards are current.
 4. **B1b is the next measurement.** `FIELD-PROCEDURE.md` first, and **clear the responder's
    position log** before the run.
