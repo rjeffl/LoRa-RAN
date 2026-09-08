@@ -4,19 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-LRAN (LoRa Remote-Automation-Network): bidirectional communication between Home
-Assistant and remote automation nodes over a point-to-multipoint LoRa link.
-Planned nodes: **LoRaBridge** (WiFi↔LoRa gateway), **GateLink** (driveway gate
-controller + battery monitor), **WellLink** (planned, TBD). Full product
-requirements are in `docs/lran-prd-v0_5.md` (and earlier-numbered PRDs in
-`docs/` for specific subsystems — wire format, bench procedure, gate-link
-specifics).
+**This sub-project sits inside the LRAN repository but outside its build.** The root
+`/CLAUDE.md` governs the repository; this file governs `wattcycle-reader/`. Where they
+overlap, the root wins.
 
-Only one sub-project currently has code: **`wattcycle-reader/`**, a
-standalone PoC for the BLE-BMS-read capability that GateLink needs (PRD §5.7).
-Its `lib/bms_ble/` is written to drop into GateLink's firmware unchanged once
-GateLink itself exists — treat it as a library being developed in place, not
-throwaway PoC code.
+LRAN (LoRa Remote Automation Network): bidirectional communication between Home Assistant
+and remote automation nodes over a point-to-multipoint LoRa link. Nodes are **LoRaBridge**
+(`0x00`, WiFi↔LoRa gateway), **GateLink** (`0x01`, driveway gate controller + battery
+monitor) and **WellLink** (`0x02`, placeholder). Start at
+[`docs/README.md`](../docs/README.md); the parent document is
+[`docs/LRAN-System-PRD.md`](../docs/LRAN-System-PRD.md), and
+`docs/shared/LRAN-Protocol-Specification.md` is authoritative for anything on the wire.
+
+This is a standalone proof of concept for the BLE BMS read that GateLink needs —
+**`docs/gatelink/LRAN-GateLink_Node-PRD` §3.4**, requirements `R-3.4a`–`R-3.4d`. It is
+recorded as complete at System PRD §7.1. (This file used to cite **§5.7 of
+`lran-prd-v0_5`**, which is superseded and now lives under `docs/archive/`, retained
+deliberately so old references still land somewhere. Do not confuse it with the **§5.7**
+in code comments and the README here — those point at
+`docs/wattcycle-reader-poc_3.md`, this workspace's own design doc.)
+
+`lib/bms_ble/` is written to drop into GateLink's firmware unchanged once GateLink exists
+— treat it as a library being developed in place, not throwaway PoC code. **`src/` is
+not**, and one difference is already known: this PoC holds a persistent connection and
+polls on an interval, while `R-3.4a`/`R-3.4b` require GateLink to connect, read,
+disconnect and de-initialize the BLE controller between polls. See Architecture below.
+
+Two other sub-projects have code now — `lib/lran-protocol/` and `firmware/range-test/`.
+Neither builds against anything here.
+
+The TDT protocol write-up still needs lifting out of this workspace into
+`docs/gatelink/bms-protocol.md` (System PRD §5 and §7.1). That move is a prerequisite for
+GateLink's BMS work.
 
 ## Writing
 
@@ -141,6 +160,14 @@ to `Polling` (holds one persistent connection, sends a request on a fixed
 interval, falls back to `Scanning` the moment the link drops). This is the
 shape to extend for new commands or a different poll cadence — don't bolt a
 one-shot connect/disconnect cycle on next to it.
+
+**That rule is about this PoC, and GateLink does not inherit it.** `R-3.4a`/`R-3.4b`
+require GateLink to connect, read, disconnect and de-initialize the BLE controller between
+polls, on `bms_poll_s` (default 300) — the opposite of a held connection, for power
+reasons this mains-adjacent PoC never had to face. The persistent link stays here because
+it makes protocol work fast; GateLink's client is written against the PRD, not copied from
+`src/main.cpp`. `lib/bms_ble/` is unaffected either way: it is transport-agnostic
+post-connection I/O.
 
 The protocol itself (TDT smart BMS, wearing a JBD-style
 `FFF0`/`FFF1`/`FFF2` GATT service layout but speaking a different protocol
