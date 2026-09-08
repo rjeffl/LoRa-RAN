@@ -18,6 +18,22 @@ Its `lib/bms_ble/` is written to drop into GateLink's firmware unchanged once
 GateLink itself exists — treat it as a library being developed in place, not
 throwaway PoC code.
 
+## Writing
+
+This sub-project is outside the LRAN build, but **the repo's prose standard still applies
+to it**: root `## Writing` — use the `nbj-write-clearly` skill for the README, the design
+docs under `wattcycle-reader/docs/`, commit messages and code comments.
+
+The target-specific trap is the **known-unverified** material. README §"Known-unverified"
+records the current sign convention (§5.8) as the one open protocol question, and the
+design docs carry similar qualifications. **A hedge here is a measurement that was never
+taken**, not cautious phrasing to be tightened up — it must survive every revision, and it
+must survive the move when the TDT protocol write-up is lifted out into
+`docs/gatelink/bms-protocol.md`.
+
+Section numbers (§5.8 and the rest) are cited from code comments. Renumbering a design doc
+breaks those references silently.
+
 ## wattcycle-reader — build, test, flash
 
 All commands run from `wattcycle-reader/`. `pio` is PlatformIO; if not on
