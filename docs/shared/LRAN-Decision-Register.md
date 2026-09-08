@@ -309,6 +309,35 @@ figure cannot be re-derived into either.
 which already clamps to this ceiling and logs both terms. It blocks **D1 fixing a number**,
 which was always the gate.
 
+### The clamp is now verified over the air — 2026-09-07
+
+**Until this date, "the number the firmware computed is the number the PA emitted" was
+assumed.** `clamp_conducted()` is host tested and the ceiling arithmetic is host tested, but
+nothing had ever confirmed the clamp *over RF*. The §7.6 EIRP sanity check closed that gap.
+
+The sweep plan requests `kSx1262MaxDbm` (**+22 dBm**) for its high point and relies entirely
+on the clamp to bring it to the ceiling. **A failed clamp would present as a 26 dB step, not
+a 5 dB one** — a compliance fault rather than a measurement error.
+
+**Result: the highest conducted power reaching the air was −4 dBm against a −4 dBm ceiling
+for the fitted 3.0 dBi antenna, at three tape-measured distances, in three runs, on both
+board profiles.** Traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv` in `docs/rangetest/data/`;
+procedure in `docs/rangetest/EIRP-SANITY-CHECK.md`; full account in the range-test
+engineering log for 2026-09-07.
+
+**This is evidence for the §15.23 good-engineering-practice record, and it is not a
+compliance determination** — that needs a calibrated field-strength meter at 3 m, per
+§7.6 §6. What it establishes is that the ceiling this register specifies is the ceiling the
+hardware applies.
+
+**A module difference was found and does not disturb the ceiling.** The Wio-SX1262's
+`(TX − RX)` sits **3.37 dB below** the Heltec's, reproduced across two runs. Reciprocal RSSI
+cannot say whether that is a weaker PA or an optimistic RSSI reading, and **it does not need
+to**: a weak PA sits further under the ceiling, and an optimistic RSSI implies the Wio's
+transmit equals the Heltec's, which passed the clamp check directly. **Neither reading puts
+either module over.** Findings §7.5 had budgeted ~3 dB for the requested-to-connector gap
+and left the Wio's share unmeasured; it now has a bound.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -337,7 +366,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert | GateLink Impl Plan |
 | M4 | **MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope | **D25**, carrier BOM | GateLink Impl Plan |
 | M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
-| M6 | **Range and RSSI at ~500 ft on both bearings.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. **Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**, so a gross power or antenna error is caught at 10 ft rather than at 500 ft; that check is also the named test for §7.4's antenna-counterpoise uncertainty. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. **The last ~46 m is unwalked — B1b** | **D1**, bridge antenna siting | Range Test Tasks |
+| M6 | **Range and RSSI at ~500 ft on both bearings.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. ~~**Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**~~ — **DONE 2026-09-07, all four checks PASS.** Heltec pair plus §7's Wio repeat, three tape-measured distances, traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv`. **The precondition is met and M6 is unblocked.** It also discharges §7.4's antenna-counterpoise uncertainty to the extent that check can — it rules out a *gross* gain error, not the 3.0 dBi vendor claim itself. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. **The last ~46 m is unwalked — B1b** | **D1**, bridge antenna siting | Range Test Tasks |
 | M20 | ~~**Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location~~ | **Field work done (2026-09-05).** R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`; committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. One confirmed in-channel occupant (`weather-island`, −80 dBm at 915.0), strongest near-band neighbour `gatelink-gate` at −66 dBm on 914.0, floor −115 to −118 dBm and uniform, every occupant bursty, no carrier anywhere in the band. **Residual done (2026-09-06)** by `tools/rangetest/survey_reintegrate.py`, output committed as `docs/rangetest/data/2026-09-06-m20-reintegration.csv`. **M20 is closed.** Results in §5.4 | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3** | Range Test Tasks |
 | M7 | **BMS pack-current sign convention**, captured once under charge and once under load | Last open item in the BMS protocol (Protocol Spec §18, W6). Bit `0x4000` is believed to be the discharge flag but has only been observed at 0.0 A | GateLink Impl Plan |
 

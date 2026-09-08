@@ -2833,3 +2833,394 @@ nothing about "I am just flashing firmware" suggests that. All three were left i
 **Boards ready for the §7.6 EIRP sanity check**, which is the next job and will be the first
 trace captured with the PA record on it. Nothing owed in this directory but that measurement
 and B1b.
+
+## 2026-09-07 — the field laptop, a throwaway trace, and the NVS collision that would have faked an instrumentation fault
+
+**Session was bench/desk preparation for the §7.6 EIRP sanity check, on the Kubuntu field
+laptop rather than the Mac. The check itself is still owed.** Three things came out of it:
+the capture path is confirmed working on real hardware, the field laptop is now a full
+build-and-test host, and a persistence behaviour was found that would have corrupted §7.6's
+step 7 cross-check in a way that reads as a fault in the instrument.
+
+### The throwaway trace, and what it proved
+
+A short sweep was captured at a **fixed desk position** — both boards on a table, laptop
+alongside, WiFi and LoRa neighbours in the room — purely to confirm the laptop drives the
+board and the firmware behaves. Two sweeps ran, the second stopped by the operator part way.
+**The file was deliberately not committed**; it was never a measurement and `data/` is not
+where throwaways live.
+
+What it established, all of it firsts:
+
+- **`capture.py` folds the PA record into the trace header on real hardware.** All five
+  `pa_*` lines present, ahead of the CSV header, exactly as the 2026-09-06 entry predicted.
+  Until now that path had only been asserted by tests on both sides.
+- **The boot record reads entry 0.** `pa_duty_cycle=2 pa_hp_max=2 pa_val=-5` — the −9 dBm
+  test point, matching `kPaOptTable[0]` in `pa_config.cpp` and confirming the correction
+  made on 2026-09-06 rather than the claim it replaced.
+- **The power step and the clamp both work over the air.** +4.7/+5.0 dB measured against
+  5.0 dB expected, and the highest conducted power in the trace was −4 dBm against a −4 dBm
+  ceiling. **That is §7.6's check 2 — the D33 clamp reaching the PA — passing on hardware
+  for the first time**, albeit at a geometry that means nothing.
+- **Sentinels survive the whole chain.** The one fully-lost test point emitted
+  `resp_heard=65535` and `−32768` for RSSI and SNR, and `eirp_check.py` excluded it from the
+  means rather than averaging it in. Repo rule 6 works end to end, board to tool.
+- Zero `phy_crc_err`, `foreign` and `filler_err` across all 47 rows.
+
+**RSSI wandered ~24 dB between the two sweeps at identical placement**, and up to 36 dB
+across configurations within one sweep. Not investigated and not a defect: a table, a
+laptop, an operator moving about and several WiFi and LoRa devices in the room is exactly
+the uncontrolled geometry the 2026-09-05 entry recorded as an 18 dB effect. **It is one more
+argument for §7.6's tape measure, stands and fixed operator position** — the effect being
+measured is smaller than the effect of standing up.
+
+### The finding: the responder's position log merges by position id
+
+**`PositionLog` persists to NVS and reloads at boot, and `g_position_id` does not.**
+
+- `resp_log_save()` writes the log under key `poslog` on every PRG advance; `resp_log_load()`
+  restores it in `setup()`. A firmware upload does not touch it — already known.
+- `g_position_id` is a plain global initialised to `0` (`main.cpp:115`), **not persisted**,
+  so every run restarts at position 1.
+- `PositionLog::slot_for()` (`resp_log.cpp:61`) looks for an existing entry **with the same
+  `position_id`** and returns it. Only if none matches does it open a new slot.
+
+So a previous run's position 1 is not shadowed by the next run's position 1 — it is
+**added to**. `probes_heard` and `echoes_sent` accumulate and the RSSI/SNR series mix two
+sessions.
+
+**Why this matters more than it looks:** EIRP-SANITY-CHECK §4 step 7 exists precisely to
+cross-check the responder's count against the initiator's, and calls disagreement *"an
+instrumentation fault, not a link result."* A stale log makes the responder report roughly
+double, so the check fires — pointing at the instrument, which is fine. The failure mode is
+a confident diagnosis of the wrong thing.
+
+**FIELD-PROCEDURE.md already covered this** in *"Erase the bench data first"*, with the
+right command and the `# position log cleared` confirmation to look for. What it did not do
+was appear in either document a person actually reads before this run: the one-page field
+card, or the §7.6 procedure whose step 7 depends on it. **Both now carry it**, with the
+mechanism rather than just the instruction — an instruction without a reason is the kind of
+step that gets skipped when the light is going.
+
+Log was cleared on the responder this session. **The initiator was left alone**: the survey
+campaign lives under `surv*`/`survsite` in the same `lran-rt` namespace, nothing in the
+initiator path reads it during an EIRP run, and clearing it would destroy the seven-site
+campaign for no benefit.
+
+### The field laptop is now a full host
+
+It was a fresh clone with no PlatformIO packages, which meant **`check_pa_table.py` could
+not run at all** — it correctly refused rather than skipping, exactly as it was built to.
+After `pio pkg install`, the whole suite runs here:
+
+| check | result |
+|---|---|
+| `lran-protocol` native | 107/107 |
+| `range-test` native | 191/191 |
+| build `heltec` / `xiao` | both SUCCESS |
+| W4 vectors | 72 re-derived and matched |
+| `capture.py` / `survey_reintegrate.py` / `eirp_check.py` | pass |
+| **`check_pa_table.py`** | **32/32 vs RadioLib 7.7.1** |
+
+Both firmware targets build, so a field reflash is possible from this machine if it comes
+to that.
+
+### Git auth, worth writing down because it presented as a dead network
+
+`git fetch` and `git ls-remote` **hung indefinitely with no output** while `curl` reached
+github.com in 0.26 s. Cause was two things compounding: the repo is private (anonymous
+`info/refs` returns 401), and Plasma ships
+`/etc/xdg/plasma-workspace/env/ksshaskpass.sh` setting **`SSH_ASKPASS_REQUIRE=prefer`**, so
+git routed the credential prompt to a **GUI dialog** instead of the terminal. From a
+non-interactive context the dialog has nowhere to go and git blocks forever.
+`GIT_TERMINAL_PROMPT=0` does not help — it disables the *terminal* prompt, not askpass.
+
+Resolved with an ed25519 key and an SSH remote; read and write both confirmed. The Plasma
+default was left in place, being a reasonable one that no longer applies here.
+
+**The diagnostic worth keeping: a hang is not a network failure.** Reach for
+`curl` against the same host to separate transport from authentication before assuming the
+link is down — and note that `GIT_CURL_VERBOSE=1` against an authenticating endpoint prints
+credential material into the terminal, which is a poor way to find that out.
+
+### State
+
+**The §7.6 EIRP sanity check is still owed and is still the next job.** Nothing in this
+session was a measurement. Boards flashed and current, responder log cleared, field card in
+the tree, capture path confirmed on hardware.
+
+## 2026-09-07 — the §7.6 EIRP sanity check ran, and all four checks passed
+
+**The measurement this directory has owed for three sessions is done.** Outdoors, three
+tape-measured distances, both traces committed. **M6's precondition is met.**
+
+`2026-09-07-eirp-sanity.csv` (sweep) and `2026-09-07-eirp-sanity-resplog.csv` (responder).
+They are only useful together.
+
+```bash
+python3 tools/rangetest/eirp_check.py docs/rangetest/data/2026-09-07-eirp-sanity.csv \
+    --distance 1=3.0 --distance 2=6.0 --distance 3=12.0
+```
+
+### The result
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Power step | **PASS** — +5.0 to +5.5 dB against 5.0 expected, three positions, both directions |
+| 2 | **D33 clamp** | **PASS** — −4 dBm against a −4 dBm ceiling at all three positions |
+| 3 | Absolute EIRP | **PASS** — +1.9 to +5.8 dB, inside the ±6 dB band, all below calculated |
+| 4 | Path-loss slope | **PASS** — −15.8 to −16.3 dB/decade, **rms residual 1.0–1.2 dB** |
+
+**72/72 test points, 576 probes, 0 % PER at every position**, zero `phy_crc_err`, `foreign`
+and `filler_err`. Step 7's cross-check closes **exactly**: 192 sent, 192 heard, 192 echoed,
+192 received at each position — zero downlink loss, zero uplink loss.
+
+**Check 2 is the one that mattered.** The default sweep plan requests `kSx1262MaxDbm` (+22)
+for its high point and relies on `clamp_conducted()` to bring it to the D33 ceiling. The
+clamp is host tested and the ceiling arithmetic is host tested, but *"the number the
+firmware computed is the number the PA emitted"* had **never been verified over the air**.
+It now has been, at three distances. A broken clamp would have shown a 26 dB step, not a
+5 dB one, and that would have been a compliance fault rather than a measurement error.
+
+**Check 3 passed in the safe direction at every point** — measured EIRP below calculated,
+never above. That is the direction that matters for a ceiling.
+
+### The geometry, and why the residual came out so low
+
+Both ends at **1.45 m AGL** (57 in to antenna tip), 3.0 dBi sticks vertical, level grass,
+clear LOS, distances tape measured at 3.0 / 6.0 / 12.0 m.
+
+**Each node sat on a plastic 5-gallon bucket, on a plastic-top table with metal legs and
+frame.** The operator recorded this as *"not ideal but best I could do."* **The data says
+otherwise, and the reason is the bucket.** A 5-gal bucket raises the antenna roughly 37 cm
+above the table surface, so the antenna spanned about **0.5–0.7 m of vertical separation
+from the metal** — squarely inside the field card's *"~35 cm minimum, ~65 cm and it stops
+mattering"* band.
+
+**This is the card's "it is a distance rule, not a materials rule" claim closed against a
+real result.** A metal-framed table with the antenna half a metre above it behaved like a
+clean site: **1.0–1.2 dB rms residual**, where `EIRP-SANITY-CHECK.md` §3 calls 2–3 dB *"a
+normal outdoor short-range result"* and >5 dB grounds for discarding check 3. The advice to
+extend rather than replace a metal mount is now evidence-backed rather than reasoned.
+
+The laptop sat **~0.6 m behind the antenna** and ~0.6 m below the tip, **not** on a USB
+extension as the card recommends. At 915 MHz that is ~1.9 λ — marginal by the card's own
+rule — but it was *behind* the antennas rather than in the path, and the residual says it
+cost nothing measurable. **Worth keeping as a bound, not a licence:** it worked at 0.6 m
+behind; it is not evidence that 0.6 m to the *side* would.
+
+Slope came out at −15.8 to −16.3 dB/decade against free space's −20. That is expected below
+the two-ray breakpoint (~27 m at this height) and is what check 4 exists to measure rather
+than to enforce.
+
+### Two process notes, both worth more than the numbers
+
+**The capture ran with the field card's template placeholders unedited.** The note carried
+`<H>m AGL on <stands>` and `laptop <N>m off-path` into a committed trace. Checks 3 and 4
+are exactly the geometry-dependent ones, so the record was passing on the strength of
+conditions it did not state. **The geometry was filled in the same day from the operator's
+account, and the note says so** rather than pretending it was captured that way — a
+placeholder records nothing, so completing it is not the rewriting the docs-as-code rule
+prohibits. **The lesson for the card is that a template placeholder in a `--note` is a
+silent defect**: `capture.py` cannot know `<H>` is not a value, and nothing downstream
+checks.
+
+**Step 7 had no runnable command in either short document.** Both `EIRP-SANITY-CHECK.md`
+and the field card said *"connect it and send `d`"* — no port, no `--out`, and the
+responder dump is a **second capture** producing the only copy of the reverse-direction
+data. It was caught by the operator reading ahead of the run and asking whether a port was
+needed, not by any check here. Both now carry the invocation.
+
+**And the mechanism in those documents was wrong.** No `d` is needed: the responder dumps
+at boot whenever it has a stored log (`main.cpp:1073`), so `--reset` triggers it and
+`--sweeps 1` stops at `# responder log complete`. `FIELD-PROCEDURE.md`'s walk command had
+always been right; the two shorter documents described a mechanism the firmware does not
+require.
+
+### State
+
+**§7.6 is closed. M6's precondition is met.** The next measurement this directory owes is
+**B1b**, the gate-bearing walk with the Wio. D1 is a decision and does not start here.
+
+## 2026-09-07 — the §7 Wio repeat, and a 2.9 dB module asymmetry that the matched pair made visible
+
+> **Superseded in part by the role-swap entry below** (same date, next entry). The text
+> is left as written; this note says what it got wrong.
+>
+> This entry states the finding as *"the Wio link is ~2.9 dB weaker at the same requested
+> conducted power"* — a transmit-side conclusion. That is **one of two readings the data
+> supports, stated as though it were the only one.** Reciprocal RSSI measures only the
+> per-node combination `TX − RX`, so a weak PA and an optimistic RSSI are
+> indistinguishable here, and the swap run confirmed no role permutation can separate
+> them. **The finding as it stands: `(TX − RX)` for the Wio sits 3.37 dB below the
+> Heltec's** — magnitude revised from 2.87 dB (one run) to 3.37 dB (both runs).
+>
+> **The compliance conclusion in this entry is unaffected** and holds under either
+> reading. The section headed "What this does not separate, and the swap that would" is
+> the part that is wrong: the swap could not have, and the algebra is in the next entry.
+
+**`EIRP-SANITY-CHECK.md` §7's repeat, run the same evening at the same site and geometry**,
+with the XIAO ESP32S3 + Wio-SX1262 Kit as initiator and the Heltec V3 as responder.
+`board=xiao_esp32s3_wio_kit` confirmed off the settings dump before starting.
+`2026-09-07-eirp-sanity-xiao.csv` and its `-resplog.csv`.
+
+Checks 1, 2 and 4 pass. **72/72 test points, 0 % PER, step 7 closes exactly** at
+192/192/192/192 across three positions. **The D33 clamp holds on the Wio as well** — −4 dBm
+against a −4 dBm ceiling at every position, which is the second module that has now been
+verified over the air rather than assumed.
+
+### The measurement §7 actually wanted
+
+Check 3 raised six WARNs, 6.2–11.9 dB. **That is not a geometry fault** — check 4's residual
+stayed at 1.1–1.3 dB — and it is not a failure. It is a **module asymmetry**, and the way to
+see it is to compare the two legs *within* each run, where geometry, distance, height and
+antenna gain all cancel:
+
+| Run | uplink − downlink | sd |
+|---|---|---|
+| Heltec pair, matched module both ends | **+0.39 dB** | 0.14 |
+| XIAO + Wio as initiator | **+3.26 dB** | 0.36 |
+| **net** | **+2.87 dB** | |
+
+Consistent across three distances and two power levels. **The matched pair is what makes
+this readable:** §7 predicted that a same-module-both-ends run should show the two legs
+agreeing, and it did, at +0.39 dB — so +0.39 dB is the instrumentation floor and the
+remaining ~2.9 dB is hardware.
+
+`uplink` is `init_rssi`, which is what the initiator heard, so it measures the
+**responder's** transmit; `downlink` is `resp_rssi` and measures the **initiator's**. The
+sign therefore points at the leg where the **Wio** transmits: **the Wio link is ~2.9 dB
+weaker at the same requested conducted power.** That is almost exactly findings §7.5's
+**~3 dB budget for the gap between a requested figure and the connector**, which was
+unmeasured for this module until now.
+
+**The direction is the one that matters for compliance: the Wio emits *less* than
+calculated, not more.** D33's ceiling is not threatened by it. A module reading 3 dB *over*
+its requested power would have been a different entry.
+
+### What this does not separate, and the swap that would
+
+The asymmetry conflates **Wio-TX vs Heltec-TX** with **Wio-RX vs Heltec-RX**. Both legs
+change module at both ends simultaneously:
+
+- downlink = Wio TX → Heltec RX
+- uplink = Heltec TX → Wio RX
+
+so their difference is `(Wio_TX − Heltec_TX) − (Wio_RX − Heltec_RX)`. **One run cannot
+separate the two terms** — and, as the role swap run immediately afterwards established,
+**neither can two.** See the next entry.
+
+**This is why the matched-pair run had to come first**, and why §7 says so. Without a
+measured instrumentation floor, +3.26 dB is just a number with no scale on it.
+
+### An unexplained difference, recorded rather than resolved
+
+**Slope came out −24.1 to −26.5 dB/decade in the Wio run, against −15.8 to −16.3 for the
+matched pair** — same site, same three distances, same evening. Residuals stayed at
+1.0–1.3 dB in both, so **both fits are sound** and neither is a bad-geometry result; the two
+runs simply did not present identical geometry. The candidates are antenna height on the
+bucket, stick orientation, or the Wio's own pattern, and this test cannot choose between
+them.
+
+**It does not affect the finding.** Checks 1 and 2 are geometry-immune by construction, and
+the ~2.9 dB asymmetry is a within-run leg difference, so geometry cancels there too. The
+absolute figures in check 3 are the only thing the slope difference touches, and §7.6
+already calls those the weakest of the four.
+
+### Not what it is not
+
+The Wio run is **not B1b** — that is the gate-bearing walk. And the Kit is **not GateLink's
+board**: GateLink uses the header board (p-6379, 2.54 mm pads), the Kit is p-5982, and
+*only the carrier validates the carrier*. What transfers is the **module's** power
+behaviour, which is exactly what was measured.
+
+## 2026-09-07 — the role swap did not separate TX from RX, and could not have
+
+**Third run of the evening, same pair and site, roles reversed:** Heltec V3 as initiator,
+XIAO + Wio-SX1262 Kit as responder. `board=heltec_wifi_lora_32_V3` confirmed.
+`2026-09-07-eirp-sanity-swap.csv` and its `-resplog.csv`. 72/72 test points, **0 % PER**,
+zero error counters, step 7 closes at 192/192/192/192.
+
+**It was run on a prediction that was wrong**, and the wrongness is the useful part.
+
+### What was predicted, and what the algebra actually says
+
+The swap was expected to produce a second, independent equation that would separate the
+Wio's transmit from its receive. It produced the same equation with the sign flipped:
+
+| Run | uplink is | downlink is | measured `up − dn` |
+|---|---|---|---|
+| A — XIAO initiator | `Heltec_TX + Wio_RX` | `Wio_TX + Heltec_RX` | **+3.26 dB** (sd 0.36) |
+| B — XIAO responder | `Wio_TX + Heltec_RX` | `Heltec_TX + Wio_RX` | **−3.47 dB** (sd 0.63) |
+
+**B is −A.** Swapping the roles relabels which physical direction the tool calls "uplink";
+it does not create a second direction. There are only ever two, and **path loss is
+reciprocal, so it cancels in both** — leaving the one combination
+`(TX_Wio − RX_Wio) − (TX_Heltec − RX_Heltec)` measured twice.
+
+**This generalises, and it is worth stating once so nobody designs this experiment again.**
+For any pair of nodes *i*, *j*:
+
+```
+P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)
+```
+
+Reciprocal RSSI determines **only the per-node quantity `TX − RX`**, and no number of nodes
+or role permutations changes that — every pair contributes the same form. **Separating TX
+from RX requires an absolute reference**: a calibrated power meter, or a receiver of known
+gain. That is exactly the instrument `EIRP-SANITY-CHECK.md` §1 opens by saying this project
+does not have, and §6 already reserves for a real compliance determination. The limit was
+documented; the experiment was designed as though it were not.
+
+### What the swap did buy, which is not nothing
+
+**An independent repeat of the asymmetry, with every nuisance variable changed.** Roles
+swapped, tethering swapped, which board walked swapped, which board sat by the laptop
+swapped. The two magnitudes agree within **0.21 dB**:
+
+**|+3.26| vs |−3.47|, mean 3.37 dB.**
+
+That rules out a role-dependent or tethering-dependent artifact and establishes the
+asymmetry as a property of the two modules. As a reproducibility check it is a good result;
+it is simply not the result it was run to get.
+
+### The finding, stated correctly
+
+**`(TX − RX)` for the Wio module sits 3.37 dB below the Heltec's.** Three readings that are
+all consistent with it, and this measurement cannot choose between them:
+
+- the Wio's PA is ~3.4 dB weaker at the same requested conducted power, RSSI calibration
+  identical;
+- the Wio's RSSI reads ~3.4 dB **optimistic**, PA identical — **a plainly plausible case**,
+  since RSSI calibration is per-module and nothing here has ever cross-checked it;
+- any mixture of the two.
+
+**The earlier entry's reading — "the Wio link is ~2.9 dB weaker at the same requested
+conducted power" — was one interpretation stated as the finding.** It is corrected here to
+the combination that was actually measured. The revised magnitude is 3.37 dB across both
+runs rather than 2.87 dB from one.
+
+### Why the compliance conclusion survives the ambiguity
+
+**It does not matter which term it is.** If the difference is transmit, the Wio emits less
+than calculated and sits further under the ceiling. If it is receive calibration, the Wio's
+transmit equals the Heltec's — which passed check 2 against the −4 dBm ceiling at three
+distances, in two runs, on both boards. **Neither reading puts the Wio over D33's ceiling**,
+and check 2 passed on the Wio's own hardware regardless.
+
+### Run B's geometry was worse, and the tool said so
+
+Residuals rose to **2.3–2.7 dB** from run A's 1.0–1.3, slopes steepened to −25.7 to −28.1
+dB/decade, and **check 3 FAILED at position 3** (12.9–14.0 dB). One uplink slope WARNed and
+the tool's own advice fired correctly: *"discard the absolute EIRP, keep checks 1 and 2."*
+
+**Take that advice for run B.** Its absolute figures are not usable. The asymmetry is
+unaffected, because it is a within-run difference between two legs measured over the same
+path at the same instant — the geometry cancels there whatever it was. Checks 1 and 2 passed
+in run B as they are built to.
+
+### State
+
+**§7.6 is closed, including §7's Wio repeat.** M6's precondition is met. Three sweep traces
+and three responder logs committed for 2026-09-07. **The TX/RX split is not closable with
+the instruments on this project** and should not be attempted again without one.
