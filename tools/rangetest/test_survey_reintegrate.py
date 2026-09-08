@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <holder>          # D31 open - see LRAN-Decision-Register
+# Copyright (c) 2026 Robert J. Lee
 """Host tests for survey_reintegrate.py.
 
     python3 tools/rangetest/test_survey_reintegrate.py

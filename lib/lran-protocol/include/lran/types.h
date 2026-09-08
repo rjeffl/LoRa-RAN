@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Identifiers, status, and every enumeration in spec 8. Wire values only - this
 // header assigns no behaviour.

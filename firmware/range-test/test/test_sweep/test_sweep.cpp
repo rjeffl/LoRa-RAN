@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Host tests for the R4 sweep: enumeration, the D33 clamp on every point, the
 // round-trip PER arithmetic, and the duration estimate.

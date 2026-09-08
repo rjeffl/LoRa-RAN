@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Payloads of the schema-free message types. Spec 6.2-6.6, 7.6.
 //

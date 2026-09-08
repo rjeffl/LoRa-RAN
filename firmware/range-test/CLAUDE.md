@@ -4,8 +4,13 @@
 specific to this target.
 
 **Primary document:** `docs/rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md`.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.8** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.9** (`ver = 2`).
 **Record:** `docs/rangetest/engineering-log.md`.
+**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. It bites hardest here,
+because most of this target's writing is dated campaign record: engineering-log entries,
+`HANDOFF.md`, `FIELD-PROCEDURE.md` and the traces under `docs/rangetest/data/`. **Correct
+one with a new dated entry or a marked-superseded note, never by rewriting it** — a
+reading taken on 2026-09-05 keeps the words it was written with, including its hedges.
 
 ## This firmware never ships
 

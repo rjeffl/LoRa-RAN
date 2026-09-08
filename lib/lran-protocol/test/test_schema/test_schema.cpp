@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // P4 - schemas. Offsets are asserted against the spec 7 tables FIELD BY FIELD, not
 // merely round-tripped: a symmetric encoder and decoder agree on a wrong offset.

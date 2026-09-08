@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // The (type, schema) tables. Spec 6, 7.1, 9.2, 19.
 //

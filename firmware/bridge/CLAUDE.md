@@ -5,11 +5,17 @@ specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.2 (requirements,
 `R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7
-(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.8**
+(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.9**
 (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only.
+
+**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
+trap: **MQTT topics, discovery keys and the §14.1 counter names are exact tokens**, and
+they are the interface Home Assistant sees. A topic or counter renamed for readability in
+a document is a topic that no longer matches the spec, which owns both (see **Counter
+names come from spec §14.1** below).
 
 ## Three properties that must survive every change
 

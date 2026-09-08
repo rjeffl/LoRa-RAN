@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // R9 host tests. The fragmentation and pattern paths are exercised here against the
 // real codec, so a fault is found at the desk rather than at the far end of a walk.

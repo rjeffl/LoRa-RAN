@@ -71,7 +71,7 @@ Neither reading disturbs the ceiling; `data/README.md` has the arithmetic.
 |---|---|
 | Branch | see **Git state** below — `main` is **not** the only branch any more |
 | Merged through | **#36**. Everything since is on `docs/eirp-field-laptop`, **PR not yet open** |
-| Spec | **`LRAN-Protocol-Specification` is v0.8**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
+| Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten. *(Version corrected 2026-09-08: this row read v0.8 when written, while already describing §18.2, which v0.9 introduced. The row's substance was right and its version number was not.)* |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7** |
 | Firmware queue | **Empty.** This directory owes **one** measurement — B1b — and no code |
 
@@ -483,7 +483,10 @@ The engineering log has the full account; this is the index.
 - **`gatelink-expansion-board.md` §10 ring-out** — the header board's pads against the
   carrier's nets. **The Kit cannot close it.** It is the tracked check for Bridge Impl Plan
   §10.8.1's remaining premise.
-- **D31** — copyright holder. Every file carries the `<holder>` placeholder.
+- ~~**D31** — copyright holder. Every file carries the `<holder>` placeholder.~~
+  **Closed 2026-09-08: Robert J. Lee.** `LICENSE` written at the repo root, placeholder
+  replaced repo-wide. Superseding note, not a rewrite — the line above describes the state
+  this handoff was written in.
 
 ### Closed, and not to be reopened by habit
 

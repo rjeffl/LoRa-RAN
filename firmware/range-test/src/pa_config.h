@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Handoff 6 requirement 7 / M21 findings 7.5 - the PA configuration actually applied,
 // as a record a trace can carry.

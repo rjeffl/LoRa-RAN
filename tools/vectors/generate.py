@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <copyright holder - D31, still open>
+# Copyright (c) 2026 Robert J. Lee
 """LRAN protocol test-vector generator - open item W4, milestone P6.
 
 Derived from the prose of `LRAN-Protocol-Specification` v0.6 and from nothing

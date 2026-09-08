@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // ESP32 IMac / IKdf backed by the ESP-IDF mbedTLS component. Spec 9.1, 9.3.
 //

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 <holder>          # D31 open - see LRAN-Decision-Register
+# Copyright (c) 2026 Robert J. Lee
 """Re-integrate an R8 survey trace over 500 kHz and split it by Part 15 envelope.
 
 This is M20's residual, added by M21 (Decision Register 5.1). The field work is

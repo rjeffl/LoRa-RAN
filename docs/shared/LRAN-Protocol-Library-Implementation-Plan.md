@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.4
+**Version:** 0.5
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.8**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.9**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P7 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-08
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -677,6 +677,15 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.5** — Citation refresh only. Protocol specification **v0.8 → v0.9**. **Nothing in
+  this plan or in `/lib/lran-protocol/` changes, and that is the whole entry**: `ver` stays
+  at `2`, no frame layout, header field, enumeration value, schema or authentication scope
+  moves, and **no W4 vector regenerates**, so §13.2's standing regeneration requirement is
+  not triggered. v0.9's content is regulatory and radio-parameter work — §18.2's §15.23
+  framing, and §12.1 binding `BW` to the rule section — none of which the codec can see.
+  The library remains validated against the wire definitions as they stood at
+  specification v0.6, which v0.7, v0.8 and v0.9 have each left untouched. **P8
+  (`CommandGate`, D34) is still the only outstanding library work.**
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **The library needed no change to close W9, which is the result worth recording here.** R9 drove `encode`, `encode_fragment`, `fragment_count`, `Reassembler`, `ping_fill_pattern` and `ping_check_pattern` from outside the library for the first time — every prior exercise of this API was its own test suite — and the P1–P7 surface covered the whole bench with nothing to report back. Fragmented reassembly has now run over the air, not only on host.
 - **v0.3** — **`CommandGate` specified and P8 added**, implementing **D34**, which
   closes Protocol Spec **W12**. New **§3.10**. §1's scope gains the gate and, more

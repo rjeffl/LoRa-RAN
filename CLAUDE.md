@@ -17,7 +17,7 @@ USB reflash in the field.
 | Document | Path | Authority over |
 |---|---|---|
 | `LRAN-System-PRD` | `docs/` | Architecture, node roles, repo layout |
-| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.8, `ver = 2`** |
+| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.9, `ver = 2`** |
 | `LRAN-Decision-Register` | `docs/shared/` | **D1–D34** and measurement backlog **M1–M21**. The **only** place a decision's status is recorded |
 | `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
 | `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
@@ -28,7 +28,11 @@ USB reflash in the field.
 
 **Check the version.** A node document citing an older protocol version than
 `LRAN-Protocol-Specification`'s own header has not been reconciled with the intervening
-revisions — say so rather than building against it.
+revisions — say so rather than building against it. **`python3
+tools/checks/spec_citation_version.py` checks this**, across documents, context files,
+`platformio.ini` headers and the range-test boot banner. It reports drift; it cannot tell
+you a document is reconciled, so **reconcile first and update the citation second** —
+bumping the number alone is the failure the check exists to make visible.
 
 Requirement identifiers (`R-*`, `BG-*`, `BS-*`, `V-B*`, `D*`, `W*`, `M*`) refer to those
 documents. **Cite them in commits and PR descriptions.**
@@ -118,6 +122,7 @@ pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
+python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
 
 pio test -d firmware/range-test -e native     # host Unity suite
 pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
@@ -143,7 +148,13 @@ is the entire value, so never "fix" a vector to match the codec — investigate 
 wrong.
 
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
-before merge.
+before merge. **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) enforces it** in
+three parallel jobs: `checks` (the repository invariants and the host tools, seconds, no
+toolchain), `native` (both Unity suites) and `firmware` (both range-test targets, then the
+PA table mirror, which has to run after a build because it reads the installed RadioLib).
+**No secrets are needed or available** — every target built there is secrets-free by
+design, and a target that starts needing `secrets.h` needs a decision about CI rather than
+a secret pasted into a workflow.
 
 ## Workflow
 
@@ -182,9 +193,40 @@ GateLink means a USB reflash at the gate.
   constants, `lower_snake.cpp` for files.
 - Comment *why*, not *what*. Where a value comes from a document, cite the section:
   `// spec 7.2.9 - uint32 because 16 bits saturates at 18h`.
-- License header on every file: MIT, 2026. Copyright holder is **D31, still open** — use
-  the placeholder already in the template rather than inventing one.
+- License header on every file: MIT, 2026. Copyright holder is **Robert J. Lee** (**D31**,
+  closed 2026-09-08): `// Copyright (c) 2026 Robert J. Lee`. `LICENSE` at the repo root
+  carries the full MIT text.
 - No `TODO` without an identifier: `// TODO(W6): confirm pack_ma sign under load`.
+
+## Writing
+
+**Use the `nbj-write-clearly` skill for every prose artifact in this repo** — documents
+under `docs/`, `README`s, engineering-log entries, commit messages, PR descriptions, code
+comments and docstrings, and revisions to any of them. Invoke it before drafting or
+revising, not as a cleanup pass afterward. It carries the reader-first rules: result
+first, named actor, condition before instruction, one term per concept, and a list of
+stock machine-writing patterns to keep out.
+
+Order of precedence when the skill and this repo disagree:
+
+1. This file and the governing documents in `docs/`.
+2. Source facts — measurements, requirement identifiers, spec section numbers, quoted
+   text, code, commands, pin names, enum values. These never drift for style.
+3. The repo's existing voice. The documents here argue a point and say why; do not flatten
+   them into neutral reference prose.
+4. The skill's own guidance.
+
+Three places the repo's rules override the skill outright:
+
+- **Dated records keep their tense and their wording.** An engineering-log entry, a
+  committed trace or a handoff file describes a moment. Correct it with a new dated entry
+  or a marked-superseded note — never by rewriting it into the present tense.
+- **Precision beats familiarity.** Where the accurate term is `hdr_flags` bit 7, EIRP,
+  or `(ctx_id, seq)` deduplication, use it. Do not substitute a plainer word that means
+  something slightly different.
+- **Uncertainty is preserved exactly.** "Suspected", "unverified", "measured once",
+  "D31 still open" — a hedge in this repo is usually load-bearing and often the whole
+  point of the sentence.
 
 ## Working style
 

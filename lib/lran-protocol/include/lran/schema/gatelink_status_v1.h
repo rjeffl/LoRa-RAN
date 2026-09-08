@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2026 <holder>          // D31 open - see LRAN-Decision-Register
+// Copyright (c) 2026 Robert J. Lee
 //
 // Schema 0x10 - GateLink status v1, 78 bytes. Spec 7.2.
 // Schema 0xFE - simnode synthetic status, bench only, mirrors this layout (spec 7.1).

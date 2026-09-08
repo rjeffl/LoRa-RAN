@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.4
+**Version:** 0.7
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
-**Last updated:** 2026-08-31
+**Last updated:** 2026-09-08
 
 ---
 
@@ -319,8 +319,14 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
   similar distances in different directions. Favour an omnidirectional antenna in a
   central, elevated position over anything with a pattern optimized toward the gate.
   **Range-test both bearings before committing to a location.**
-- FCC Part 15 operating mode is an open item (Protocol Spec §18.1) and should be
-  settled **before** D1 fixes a TX power.
+- **FCC Part 15 operating mode: read Protocol Spec §18.2, not §18.1.** The question of
+  *which mode to build against* is closed (**W5**) and the answer is unchanged — a single
+  fixed channel, no hopping, at or below the §15.249 power provisions. What M21 changed is
+  the reasoning: neither module is certified under §15.249, module grants do not transfer,
+  and the operative frame is **§15.23 home-built**, so **no node may be represented as
+  certified anywhere**. **D33 is reopened in the register on that basis.** §18.1 is
+  annotated rather than rewritten and must not be read on its own. Settle this **before**
+  D1 fixes a TX power — and note that **`BW` and the rule section are now one decision**.
 
 ### 5.2 Fleet-wide protocol obligations
 
@@ -529,6 +535,25 @@ Two files per node, for two different audiences:
   CRCs, committed to `/lib/lran-protocol/test/`. Two firmwares developed independently
   against a prose specification will diverge; test vectors are what stop that.
 
+**Built 2026-09-08** — `.github/workflows/ci.yml`, on every push to `main`, every pull
+request, and on demand. Three jobs run in parallel so that one failure does not mask
+another:
+
+| Job | Runs | Why it is separate |
+|---|---|---|
+| `checks` | Binding-citation check, the HKDF check, the W4 vectors, and the range test host tools' own tests | Seconds, and needs no toolchain. It should fail before anything spends five minutes installing a compiler |
+| `native` | `pio test -e native` for `/lib/lran-protocol/` and `firmware/range-test/` | Repo rule 7 — the library must keep building for the host |
+| `firmware` | Both range-test targets, then the PA table mirror | The mirror reads the *installed* RadioLib, so it can only run after a build |
+
+**The host tools are tested in CI, not just the firmware.** The defect that destroyed a
+third of the 2026-09-05 campaign was in `capture.py`, and nothing in the repository tested
+the tool at all.
+
+**No secrets are needed or available.** Every target built in CI is secrets-free by
+design: the range test firmware has no WiFi, no MQTT and no key material. A target that
+starts needing `secrets.h` needs a decision about how CI handles it, not a secret pasted
+into a workflow file.
+
 ### 9.4 Configuration — one source of truth
 
 `/lib/lran-config/` declares every runtime parameter **once** — name, type, unit,
@@ -605,9 +630,10 @@ aims: maximum reuse, attribution only.
 > a derivative work of GPL-3.0 code. When BusT4 left v1, that obligation disappeared
 > and the question became a free choice.
 
-**Action:** a `LICENSE` file at the repo root containing the MIT text with
-`Copyright (c) 2026 <holder>`. **The holder's name is still to be chosen** (**D31**) and
-is the only thing standing between this repo and a public push.
+**Done:** `LICENSE` at the repo root carries the MIT text and
+`Copyright (c) 2026 Robert J. Lee`. **D31 closed 2026-09-08** — a personal name rather
+than a project or entity name — and every source file carries it in place of the former
+`<holder>` placeholder. The remaining §11.3 obligation is `THIRD_PARTY_NOTICES.md`.
 
 **If BusT4 is ever pursued**, a port linking the GPL-3.0 community lineage would make
 *that binary* GPL-3.0 regardless of this repo's stated license. Keep such a port in its
@@ -616,9 +642,14 @@ assumed now.
 
 ### 11.3 Repo obligations
 
-- `LICENSE` at root — MIT; holder pending **D31**.
-- `THIRD_PARTY_NOTICES.md` listing §11.1 with copyright lines. MIT and BSD components
-  require attribution retention.
+- `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed 2026-09-08). **Done.**
+- `THIRD_PARTY_NOTICES.md` at root — MIT and BSD components require attribution
+  retention. **Done 2026-09-08.** It records what is **actually in a build**, which is not
+  the same set as §11.1's planned inventory, and its §3 lists the three differences: §11.1
+  omits Unity and the ThingPulse SSD1306 driver; its LCD row names M5Unified where the
+  build resolves M5GFX (MIT, with LovyanGFX BSD-2-Clause inside); and PubSubClient,
+  ArduinoJson, U8g2 and the VE.Direct parser have no build yet. **Update it in the same
+  commit as any `lib_deps`, platform-pin or framework-version change.**
 - Vendor reference documents (Nice 1050 manual, TTPCI manual, DMBM integration protocol;
   Victron VE.Direct protocol documents): **link, do not vendor.**
 
@@ -628,17 +659,20 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.3 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.8** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M21**. Single source of truth for decision status | v0.3 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.3 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.6 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.3 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.3 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.7 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
+| [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
+| [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.5 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.9 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
-| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.3 |
-| [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list — **the next firmware target**. Answers D1, hosts W9, M6 and M20 | pass 1 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.5 |
+| [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
+| [`LRAN-Range-Test-Firmware-Pass2-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md) | Range test pass 2 — the XIAO + Wio-SX1262 Kit board profile | rev 0.1 |
 | [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
 
 > **Document versions are the reader's staleness check.** A node document citing a
@@ -664,6 +698,48 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.7** — **§9.3's CI is built rather than described.** `.github/workflows/ci.yml` runs
+  on every push to `main`, every pull request and on demand, in three parallel jobs:
+  `checks` (binding citations, the HKDF check, the W4 vectors and the range test host
+  tools), `native` (both Unity suites) and `firmware` (both range-test targets, then the
+  PA table mirror, which reads the installed RadioLib and so cannot run before a build).
+  The section keeps its original three bullets — they stated the intent and the intent
+  held — and gains what was actually built under them. **Two things it records that the
+  original did not anticipate:** the host tools are tested in CI alongside the firmware,
+  because the defect that cost a third of the 2026-09-05 campaign was in `capture.py` and
+  nothing tested it; and CI needs no secrets, because every target built there is
+  secrets-free by design, which is a property to defend rather than a gap to fill.
+- **v0.6** — Citation refresh, plus one bullet that was stale in substance. Protocol
+  specification **v0.8 → v0.9**, which changes **no frame layout, header field,
+  enumeration value, schema or authentication scope**; `ver` stays at `2` and no vector
+  regenerates. What v0.9 carries is regulatory: new **§18.2** records that neither SX1262
+  module is certified under §15.249, that module grants do not transfer, and that the
+  operative frame is **§15.23 home-built** — so **no node may be represented as certified**
+  in any document, header, label or HA device metadata. §12.1 also gains the measured
+  ambient survey and binds **`BW` to the rule section as one decision** with D1.
+  **§5.1's Part 15 bullet is corrected**, not merely re-cited: it called the operating mode
+  "an open item (§18.1)" when W5 has been closed since v0.6 of the specification and §18.1
+  has since been superseded in its reasoning by §18.2. It now points at §18.2, states that
+  D33 is reopened rather than the mode being undecided, and warns against reading §18.1
+  alone.
+  **§12's document set table was itself the stalest thing in this document** — it listed
+  eight of thirteen documents at versions they had left behind, in the table whose own
+  note calls document versions "the reader's staleness check". Every row is now synced
+  against the documents' headers, and the two documents missing from it entirely,
+  `LRAN-M21-FCC-Grant-Findings` and `LRAN-Range-Test-Firmware-Pass2-Tasks`, are added.
+- **v0.5** — **D31 closed** (Decision Register v0.6): the copyright holder is
+  **Robert J. Lee**, a personal name rather than a project or entity name. §11.2's
+  pending action becomes a statement of fact — `LICENSE` exists at the repo root with the
+  MIT text and `Copyright (c) 2026 Robert J. Lee` — and the `<holder>` placeholder is gone
+  from every source file. **§11.3's second obligation is met in the same revision:**
+  `THIRD_PARTY_NOTICES.md` is written. §11.2 previously said the holder name was "the only
+  thing" standing between this repo and a public push, which was not accurate — the
+  attribution obligation of the MIT and BSD components in §11.1 was always there too, and
+  is now discharged rather than restated. **The notices file also audits §11.1 against the
+  build and finds it incomplete in three ways**, recorded in its §3 rather than corrected
+  here, because §11.1 describes the design as planned and the discrepancies are findings
+  about the build. Document set table refreshed: the Decision Register is v0.6 and its
+  backlog runs to **M23**, not M21.
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Pass 1 of the range test firmware is complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on M21**, the modules' FCC grant conditions, which is paperwork rather than bench work — and D1 is what blocks node firmware.
 - **v0.3** — Document set table refreshed for **D34**, which closes Protocol Spec
   **W12** by splitting §9.4 steps 4–6: the replay and dedup gate becomes `CommandGate`

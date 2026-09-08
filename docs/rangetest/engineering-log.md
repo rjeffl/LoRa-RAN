@@ -3224,3 +3224,38 @@ in run B as they are built to.
 **§7.6 is closed, including §7's Wio repeat.** M6's precondition is met. Three sweep traces
 and three responder logs committed for 2026-09-07. **The TX/RX split is not closable with
 the instruments on this project** and should not be attempted again without one.
+
+---
+
+## 2026-09-08 — spec citations reconciled to v0.9; the boot banner moved with them
+
+**No code behaviour changed and no bench run was made.** This entry exists because one of
+the strings that changed is stamped into every capture.
+
+`LRAN-Protocol-Specification` reached **v0.9 on 2026-09-06**, and thirteen places across
+the repository still cited **v0.8** as binding — including this firmware's
+`platformio.ini` header, `firmware/range-test/CLAUDE.md`, both pass-task documents and the
+boot banner in `src/main.cpp`. The banner now reads:
+
+```
+Binding spec: LRAN-Protocol-Specification v0.9 (ver = 2)
+```
+
+**Captures taken before today say `v0.8`, and they are correct.** The 2026-09-05 and
+2026-09-07 traces were produced by a firmware built against the v0.8 citation, and nothing
+in this change makes them v0.9 runs. Do not re-stamp them. `ver` stays at `2` and v0.9
+changed no frame layout, header field, enumeration value, schema or authentication scope,
+so the two sets of traces are comparable on the wire — the version string separates when
+they were built, not what they measured.
+
+**Why the citation lagged at all** is worth recording, because the same gap can recur:
+v0.9's changes were entirely regulatory (§18.2, §15.23 home-built, the two envelopes) and
+radio-parameter (§12.1's survey result, `BW` bound to the rule section). Nothing on the
+wire moved, so no test failed and no vector regenerated — the only signal that a document
+was stale was the version number itself, which is exactly what the root `CLAUDE.md` warns
+to check and what nothing checks automatically.
+
+**The one substantive correction found while reconciling:** `HANDOFF.md`'s spec row named
+v0.8 while already describing **§18.2**, which v0.9 introduced. Its substance was right and
+its version number was not; the row carries a dated correction note rather than a silent
+edit.
