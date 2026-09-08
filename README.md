@@ -175,8 +175,9 @@ by a Python generator that never sees the C++. That independence is the entire v
 when a vector and the codec disagree, investigate which one is wrong — never edit the
 vector to match. Regenerating after a protocol change is not optional (spec §13.2).
 
-`main` stays buildable. A pull request builds every firmware target and the native tests
-before merge.
+`main` stays buildable. [GitHub Actions](.github/workflows/ci.yml) runs the repository
+checks, the host tools' own tests, both Unity suites and both firmware targets on every
+pull request. No secrets are needed: every target built in CI is secrets-free by design.
 
 ## Current state
 

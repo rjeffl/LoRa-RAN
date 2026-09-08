@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.6
+**Version:** 0.7
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
 **Last updated:** 2026-09-08
@@ -535,6 +535,25 @@ Two files per node, for two different audiences:
   CRCs, committed to `/lib/lran-protocol/test/`. Two firmwares developed independently
   against a prose specification will diverge; test vectors are what stop that.
 
+**Built 2026-09-08** — `.github/workflows/ci.yml`, on every push to `main`, every pull
+request, and on demand. Three jobs run in parallel so that one failure does not mask
+another:
+
+| Job | Runs | Why it is separate |
+|---|---|---|
+| `checks` | Binding-citation check, the HKDF check, the W4 vectors, and the range test host tools' own tests | Seconds, and needs no toolchain. It should fail before anything spends five minutes installing a compiler |
+| `native` | `pio test -e native` for `/lib/lran-protocol/` and `firmware/range-test/` | Repo rule 7 — the library must keep building for the host |
+| `firmware` | Both range-test targets, then the PA table mirror | The mirror reads the *installed* RadioLib, so it can only run after a build |
+
+**The host tools are tested in CI, not just the firmware.** The defect that destroyed a
+third of the 2026-09-05 campaign was in `capture.py`, and nothing in the repository tested
+the tool at all.
+
+**No secrets are needed or available.** Every target built in CI is secrets-free by
+design: the range test firmware has no WiFi, no MQTT and no key material. A target that
+starts needing `secrets.h` needs a decision about how CI handles it, not a secret pasted
+into a workflow file.
+
 ### 9.4 Configuration — one source of truth
 
 `/lib/lran-config/` declares every runtime parameter **once** — name, type, unit,
@@ -640,7 +659,7 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.6 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.7 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
@@ -679,6 +698,17 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.7** — **§9.3's CI is built rather than described.** `.github/workflows/ci.yml` runs
+  on every push to `main`, every pull request and on demand, in three parallel jobs:
+  `checks` (binding citations, the HKDF check, the W4 vectors and the range test host
+  tools), `native` (both Unity suites) and `firmware` (both range-test targets, then the
+  PA table mirror, which reads the installed RadioLib and so cannot run before a build).
+  The section keeps its original three bullets — they stated the intent and the intent
+  held — and gains what was actually built under them. **Two things it records that the
+  original did not anticipate:** the host tools are tested in CI alongside the firmware,
+  because the defect that cost a third of the 2026-09-05 campaign was in `capture.py` and
+  nothing tested it; and CI needs no secrets, because every target built there is
+  secrets-free by design, which is a property to defend rather than a gap to fill.
 - **v0.6** — Citation refresh, plus one bullet that was stale in substance. Protocol
   specification **v0.8 → v0.9**, which changes **no frame layout, header field,
   enumeration value, schema or authentication scope**; `ver` stays at `2` and no vector

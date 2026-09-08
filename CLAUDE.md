@@ -148,7 +148,13 @@ is the entire value, so never "fix" a vector to match the codec — investigate 
 wrong.
 
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
-before merge.
+before merge. **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) enforces it** in
+three parallel jobs: `checks` (the repository invariants and the host tools, seconds, no
+toolchain), `native` (both Unity suites) and `firmware` (both range-test targets, then the
+PA table mirror, which has to run after a build because it reads the installed RadioLib).
+**No secrets are needed or available** — every target built there is secrets-free by
+design, and a target that starts needing `secrets.h` needs a decision about CI rather than
+a secret pasted into a workflow.
 
 ## Workflow
 

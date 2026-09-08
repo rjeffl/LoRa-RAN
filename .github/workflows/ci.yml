@@ -1,0 +1,144 @@
+# LRAN CI — System PRD §9.3.
+#
+# Three jobs, ordered by how fast they tell you something useful:
+#
+#   checks     seconds, no toolchain. Repository invariants and the host tools.
+#   native     the Unity suites on the host, for the library and the range test.
+#   firmware   both range-test targets, then the PA table mirror.
+#
+# `main` stays buildable (root CLAUDE.md), so a pull request runs all three
+# before merge. They are independent and run in parallel; a firmware target
+# breaking does not hide a failing vector.
+#
+# NO SECRETS ARE NEEDED OR AVAILABLE. secrets.h is gitignored and every target
+# built here is secrets-free by design — the range test firmware has no WiFi, no
+# MQTT and no key material (task guardrail 2). A target that starts needing
+# secrets.h needs a decision about CI, not a secret pasted into a workflow.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Repository checks and host tools
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # capture.py's tests import pyserial. Nothing else here needs a dependency.
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pyserial
+
+      # Fails when a "binding protocol" citation names a version the specification
+      # has moved past. v0.9 changed nothing on the wire, so no test and no vector
+      # caught that drift — only this does.
+      - name: Binding specification citations
+        run: python3 tools/checks/spec_citation_version.py
+
+      # Spec §9.1 — key derivation must not depend on mbedtls_hkdf(). The header
+      # ships with Arduino-ESP32 but the symbol is not built, so only a link
+      # catches it on target; this catches it in seconds.
+      - name: No mbedtls_hkdf dependency
+        run: python3 tools/checks/no_mbedtls_hkdf.py
+
+      # W4. The generator is written from the specification with the codec off
+      # limits, and that independence is the whole value. A failure here is never
+      # fixed by editing a vector — find out which side is wrong.
+      - name: W4 protocol vectors
+        run: python3 tools/vectors/check.py
+
+      # The tools are not scaffolding. The defect that destroyed a third of the
+      # 2026-09-05 campaign was in capture.py, not in firmware, and nothing tested
+      # the tool at all.
+      - name: Range test host tools
+        run: |
+          python3 tools/rangetest/test_capture.py
+          python3 tools/rangetest/test_survey_reintegrate.py
+          python3 tools/rangetest/test_eirp_check.py
+
+  native:
+    name: Host Unity suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-native-${{ runner.os }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: pio-native-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install platformio
+
+      # Repo rule 7: /lib/lran-protocol/ must keep building in `native`. If this
+      # breaks, that is a defect to fix now, not a nuisance to route around.
+      - name: Protocol library
+        run: pio test -d lib/lran-protocol -e native
+
+      - name: Range test firmware
+        run: pio test -d firmware/range-test -e native
+
+  firmware:
+    name: Firmware targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The espressif32 toolchain is large and pinned, so caching it is the
+      # difference between a two-minute job and a ten-minute one.
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-firmware-${{ runner.os }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: pio-firmware-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install platformio
+
+      - name: Heltec WiFi LoRa 32 V3
+        run: pio run -d firmware/range-test -e heltec
+
+      - name: XIAO ESP32S3 + Wio-SX1262 Kit
+        run: pio run -d firmware/range-test -e xiao
+
+      # Root rule 9. pa_config.cpp mirrors a file-static table inside RadioLib so
+      # the applied PA configuration can be logged, because the SX1262 cannot read
+      # it back. A RadioLib bump that changes that table is silent everywhere else.
+      # This runs here, not in `checks`, because it reads the installed library.
+      - name: PA table mirror vs. pinned RadioLib
+        run: python3 tools/rangetest/check_pa_table.py
