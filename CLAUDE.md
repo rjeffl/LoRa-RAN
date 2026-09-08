@@ -186,6 +186,36 @@ GateLink means a USB reflash at the gate.
   the placeholder already in the template rather than inventing one.
 - No `TODO` without an identifier: `// TODO(W6): confirm pack_ma sign under load`.
 
+## Writing
+
+**Use the `nbj-write-clearly` skill for every prose artifact in this repo** — documents
+under `docs/`, `README`s, engineering-log entries, commit messages, PR descriptions, code
+comments and docstrings, and revisions to any of them. Invoke it before drafting or
+revising, not as a cleanup pass afterward. It carries the reader-first rules: result
+first, named actor, condition before instruction, one term per concept, and a list of
+stock machine-writing patterns to keep out.
+
+Order of precedence when the skill and this repo disagree:
+
+1. This file and the governing documents in `docs/`.
+2. Source facts — measurements, requirement identifiers, spec section numbers, quoted
+   text, code, commands, pin names, enum values. These never drift for style.
+3. The repo's existing voice. The documents here argue a point and say why; do not flatten
+   them into neutral reference prose.
+4. The skill's own guidance.
+
+Three places the repo's rules override the skill outright:
+
+- **Dated records keep their tense and their wording.** An engineering-log entry, a
+  committed trace or a handoff file describes a moment. Correct it with a new dated entry
+  or a marked-superseded note — never by rewriting it into the present tense.
+- **Precision beats familiarity.** Where the accurate term is `hdr_flags` bit 7, EIRP,
+  or `(ctx_id, seq)` deduplication, use it. Do not substitute a plainer word that means
+  something slightly different.
+- **Uncertainty is preserved exactly.** "Suspected", "unverified", "measured once",
+  "D31 still open" — a hedge in this repo is usually load-bearing and often the whole
+  point of the sentence.
+
 ## Working style
 
 Prefer asking to guessing when a requirement is ambiguous — the documents are maintained
