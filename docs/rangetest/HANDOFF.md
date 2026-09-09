@@ -22,6 +22,12 @@ check.** It replaces the 2026-09-06 file wholesale.
 precondition is met**, so nothing in this directory blocks the 500 ft leg any more. The
 2026-09-05 desk runs are explicitly not B1b.
 
+> **The run is planned and written up: [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)** *(new
+> 2026-09-09)*. It carries the board assignments by enclosure, the two positions, the
+> capture commands and the optional Heltec A/B at the gate. **It is a minimal run by
+> design** — two sweeps, not a re-walk of 2026-09-04's P1–P6 — and it says up front which
+> of B1b's acceptance criteria it does **not** close. Read it with `FIELD-PROCEDURE.md`.
+
 `FIELD-PROCEDURE.md` comes first for any field session. The three rules that decide whether
 a run is worth anything have not changed:
 
@@ -62,7 +68,8 @@ Neither reading disturbs the ceiling; `data/README.md` has the arithmetic.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | **read before any field session — B1b is next.** Start with *"Power down every board you are not measuring with"* and *"Erase the bench data first"* |
+| 2 | [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md) | **the next run, on one page** *(new 2026-09-09)*. Boards by enclosure, two positions, the capture commands, and what B1b does not close |
+| 2a | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | **read before any field session.** Start with *"Power down every board you are not measuring with"* and *"Erase the bench data first"*. Its commands carry **macOS port names** and a Heltec pair; the B1b card supersedes both for this run |
 | 2b | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) + [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | **§7.6 is closed** — these are now reference, not the next job. The card's stands and log-clearing guidance still applies to any run |
 | 3 | [`engineering-log.md`](./engineering-log.md) — the **four 2026-09-07** entries, then the five **2026-09-06** ones | what happened and why. The 09-07 set: the field laptop and the NVS collision; the §7.6 run; the Wio repeat; and the role swap that could not do what it was run for |
 | 4 | [`data/README.md`](./data/README.md) — *"The three 2026-09-07 EIRP traces are one measurement"* | why the matched pair is what makes the other two readable |
@@ -138,8 +145,8 @@ the PA record — and **verified by reading the record back off each one**. Noth
 
 | Board | Env | State | Notes |
 |---|---|---|---|
-| Heltec V3 | `heltec` | **POWERED DOWN** | **Holds the stored survey campaign** — all seven sites. Not used on 2026-09-07 and kept off throughout, which is why the EIRP runs are clean |
-| Heltec V3 | `heltec` | `SURVEY` | No stored sites. **Position log cleared 2026-09-07** after its logs were captured. Was both responder and initiator across the three EIRP runs |
+| Heltec V3 — **Heltec dev board handheld case** | `heltec` | **POWERED DOWN** | **Holds the stored survey campaign** — all seven sites. Not used on 2026-09-07 and kept off throughout, which is why the EIRP runs are clean. The B1b card calls it **Heltec #1** |
+| Heltec V3 — **Meshtastic flat case** | `heltec` | `SURVEY` | **The target unit for the bridge node.** No stored sites. **Position log cleared 2026-09-07** after its logs were captured. Was both responder and initiator across the three EIRP runs. The B1b card calls it **Heltec #2** and puts it at the house end for that reason |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `SURVEY` | **Position log cleared 2026-09-07** after capture. Was initiator then responder. `/dev/ttyACM0`, not `ttyUSB` |
 
 **Both logs were dumped and committed before clearing.** Nothing was lost — the six
@@ -148,6 +155,10 @@ the PA record — and **verified by reading the record back off each one**. Noth
 **Port names are not identities.** Both CP2102 bridges report `SER=0001` and the nodes are
 not stable across replug. **Read `board=` off the settings dump** — a wrong board selection
 is silent, and writes the wrong pin map and antenna gain into a normal-looking CSV.
+
+**The two Heltecs are told apart by their enclosures** — handheld case holds the surveys,
+flat case is the bridge's target unit. The settings dump reads `heltec` for both, and the
+"seven stored sites" discriminator disappears the moment those surveys are erased.
 
 **The role is not persisted.** Every board re-asks at boot, so nothing above has to be
 undone before a run.
@@ -401,8 +412,10 @@ for any other reason will change the banner in that session's captures.
 2. Run the checks below. **Auth is SSH on the field laptop** — if git hangs with no output,
    read *The field laptop* before assuming the network is down.
 3. **No firmware work is queued and no reflash is owed.** The boards are current.
-4. **B1b is the next measurement.** `FIELD-PROCEDURE.md` first, and **clear the responder's
-   position log** before the run.
+4. **B1b is the next measurement**, and the run is planned:
+   **[`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)**. Two sweeps, XIAO+Wio walking, the
+   flat-case Heltec tethered at the house. **Clear the XIAO+Wio's position log** before the
+   run and confirm the line comes back.
 5. **If it is D1, it does not start in this directory** — it is a decision against data that
    already exists.
 6. **Do not re-run the §7.6 permutations.** It is closed, and the TX/RX split is not
@@ -501,6 +514,10 @@ The engineering log has the full account; this is the index.
 
 - **B1b** — the gate-bearing walk with the Wio. **The only measurement this directory still
   owes.** The 2026-09-05 desk runs are not it, and neither are the 2026-09-07 EIRP runs.
+  **Planned in [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)** as a two-sweep minimal run on
+  the deployed pairing — Heltec at the house, Wio at the gate. **It does not close the
+  carrier ring-out, §2.3.1(b), the Wio's TX/RX split or the well bearing**, and the card
+  says so on its first page.
 - **D1** — nothing external blocks it. It needs a decision made against the data above, plus
   B1b if the 500 ft leg is wanted first.
 - **M6** — **precondition met 2026-09-07**, so nothing external blocks it now. Still **not
