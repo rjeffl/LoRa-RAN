@@ -76,8 +76,10 @@ measurement difference.
 | Heltec #2 (CP2102) | `/dev/cu.usbserial-0001` | `/dev/ttyUSB0` or `/dev/ttyUSB1`, **by plug order** |
 | XIAO+Wio (native USB) | `/dev/cu.usbmodem1101` | `/dev/ttyACM0` — **not** a `ttyUSB` node |
 
-The Kubuntu laptop is the one verified green on all nine checks with both firmware targets
-building, so prefer it if a field reflash is even faintly possible.
+**Default to the Mac.** The Kubuntu laptop comes out when you need to direct-connect to
+something in the field — a board to flash or capture from at the gate. It is a full host
+for that, verified green on all nine checks with both firmware targets building, but the
+house end of this run is a laptop sitting in the office and does not need it.
 
 ---
 
