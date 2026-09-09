@@ -182,8 +182,8 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 
 | | |
 |---|---|
-| Branch | **`b1b-gate-walk`.** The B1b work is on it; **see Git state below** |
-| Merged through | **#40.** `origin/main` carries the B1b planning documents and nothing of the run |
+| Branch | **`b1b-gate-walk`**, four commits, PR open. **See Git state below** |
+| Merged through | **#40**, `530c334`. **`origin/main` carries none of B1b** — not the planning documents and not the run |
 | Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
 | Firmware queue | **Empty.** No code is owed and no reflash is owed |
@@ -423,14 +423,13 @@ was captured by a board flashed before 2026-09-06; that is the only thing its ab
 
 As of the end of **2026-09-09**:
 
-- **`origin/main` is at PR #40**, which carried the B1b planning documents. **None of the
-  B1b run is on `origin`.**
-- **Working branch is `b1b-gate-walk`.** It carries the four data files plus the documentation
-  in this session: this file, `data/README.md`, `engineering-log.md`, `B1B-FIELD-CARD.md`,
-  Decision Register §2.2/§3.3/M6, and the corrected comment in `main.cpp`.
-- **Open the PR and write the description yourself.** State which of B1b's acceptance criteria
-  the branch satisfies **and which it does not** — the carrier net list, §2.3.1(b), the TX/RX
-  split and the well bearing are all still open, and the card already says so.
+- **`origin/main` is at `530c334`** (PR #40, the 2026-09-08 documentation work). **Nothing of
+  B1b is on `main`** — planning or run.
+- **Working branch is `b1b-gate-walk`, four commits, PR open.** Two planning commits from
+  09-09 morning (`e836c74`, `5b8f822`), then the run's analysis (`0f21c23`) and the correction
+  that inverted its A/B reading (`539068e`).
+- **Read both analysis commits, in order.** The second supersedes the first's reading of the
+  A/B and the first is kept as the record of how the wrong conclusion was reached.
 
 ```bash
 git status --porcelain
