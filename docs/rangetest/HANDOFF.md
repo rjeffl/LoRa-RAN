@@ -44,8 +44,12 @@ controller: **192 of 192 probes returned at all 24 configurations, 0 % PER**, at
 | | |
 |---|---|
 | **G1** | mid-driveway, 0.5 m AGL. 190/192, 1.04 % PER, **2 CRC errors** |
-| **G2, the gate** | 0.8 m AGL on the column, 47 m past G1. **192/192, 0 %** |
-| Heltec A/B | two further sweeps at the gate. Both 192/192. **Not a module measurement** |
+| **G2, the gate** | on top of the gate controller enclosure, antenna vertical, 0.8 m AGL, 47 m past G1. **192/192, 0 %** |
+| Heltec A/B | two further sweeps, **same spot and mount**. Both 192/192 |
+
+**G2 is the 2026-09-04 walk's P1, and the deployed GateLink antenna lands within 6 in of it.**
+So B1b measured the link **where the node will radiate**, not near it — a better answer to
+M6's question than any position on the earlier walk could give.
 
 **Three results to carry forward, and one non-result:**
 
@@ -64,33 +68,63 @@ controller: **192 of 192 probes returned at all 24 configurations, 0 % PER**, at
   two, with `foreign=0`; the gate produced none. That is a bursty occupant on 915.0 MHz,
   which M20 already put an occupant on — not link margin. §14 stage 1 is now observed
   somewhere other than a desk, which is what §10.5 asked for.
-- **The non-result: the A/B measured the mount.** Both A/B sweeps read ~9 dB stronger than
-  the Wio at G2, which looks like a module figure and is not one. **Section below.**
+- **The A/B separated the Wio's transmit term from its receive term** — a first here.
+  TX ≈ 6 dB and RX ≈ 3 dB below the Heltec's, at one mount with one initiator.
+  **Section below**, including what the number does and does not support.
 
 **One thing to note for GateLink, not for this directory:** the field notes record a 24 in
 tree trunk partially blocking the direct line from the gate controller to the house,
 unrecorded before this run. GateLink mounts there.
 
-## The A/B looked like it separated TX from RX. It did not.
+## The A/B split the Wio's TX term from its RX term — read this before quoting it
 
-**Do not cite B1b as having closed the Wio's transmit-versus-receive split.** Read this
-before repeating the run or quoting a number from it.
+**B1b's A/B is a board substitution at one position, and it is the first thing in this project
+to separate the two terms.** The operator confirmed the same day that sweeps 2, 3 and 4 all
+put the responder in the **same place** — resting on top of the gate controller enclosure,
+antenna vertical — with the same initiator in the same room throughout, tethered and
+untouched. **Only the responder board changed**, so path loss cancels.
 
-At the gate the Wio pair reads `(init+resp)/2 = −98.94 dBm` and the Heltec pair −89.69 — a
-9.25 dB gap. Substituting one node at fixed geometry against a common initiator **would**
-break the degeneracy that §7's role permutations provably cannot, and working the gap
-through gives TX_wio − TX_heltec = −6.05 dB, RX_wio − RX_heltec = −3.21 dB.
+| | sum/2 = (init+resp)/2 | diff = init − resp |
+|---|---|---|
+| Wio at G2, sweep 2 | −98.94 dBm | −3.27 dB |
+| Heltec at G2, sweep 4 | −89.69 dBm | −0.43 dB |
+| **difference** | **−9.25 dB** = the `(TX+RX)` term | **−2.84 dB** = the `(TX−RX)` term |
 
-**The geometry was not fixed.** The Wio sat 0.8 m AGL on the *back* of a concrete column
-behind that 24 in trunk; the A/B board was hand-placed nearby, and the field notes say the
-first A/B sweep started before it was in position. The 2026-09-04 walk settles it: **a Heltec
-at that same spot read −98.25 dBm** averaged over both directions, and **B1b's Wio at G2
-reads −98.94** — agreeing to 0.7 dB across five days. The A/B Heltec reads −89.69. Siting
-explains both data sets with one assumption; a 9 dB module difference needs the 2026-09-04
-Heltec to have coincidentally lost 9 dB at that spot.
+**TX_wio − TX_heltec ≈ −6.0 dB. RX_wio − RX_heltec ≈ −3.2 dB.**
 
-**§7's conclusion stands: the split is unmeasured.** What is new is that a route to measuring
-it exists — see *Worth doing*.
+**§7 is not overturned and must not be reported as overturned.** It ruled out **role
+permutation** within a pair, which is still true: for any pair,
+`P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`. Substituting one **node** against a common
+initiator at a fixed position is a different experiment. **Do not run more role permutations.**
+
+**Carry the uncertainty.** Sweep 3 ran while the board was still being placed and reads
+−91.79 against sweep 4's −89.69, so **placement at that mount is worth 2.10 dB** — well under
+the 9.25 dB gap, but roughly ±1 dB on each split term. **The sum term rests on one pair of
+sweeps**; the difference term is measured twice, at two geometries 16 dB apart, and matches
+the bench. **Split approximate, difference firm.** Repeating the substitution on the same
+mount is now a well-defined run — see *Worth doing*.
+
+**The 2026-09-04 walk is not a control on this**, and the first analysis pass wrongly used it
+as one. That walk read a **Heltec** at this spot at −98.25 dBm sum/2, 0.7 dB from this run's
+**Wio** and 8.6 dB from its **Heltec**. The 8.6 dB is not a board difference — only two
+Heltecs existed then, so both walks used the same pair, and `sum/2` is unchanged by which end
+each sat at. **What was never pinned down is the initiator**, specified in that trace only as
+"the office on the NW side." Indoor multipath at 915 MHz moves more than 8.6 dB over inches,
+and this project has measured a desk rig wandering **24 dB at nominally identical placement**.
+**Two uncontrolled numbers agreeing is not evidence.** Engineering log, 2026-09-09 (second
+entry).
+
+**Compliance is unaffected and the direction is safe.** §7.6 check 3 backed every measurement
+out **below** calculated on both boards, so neither transmits above its setpoint, and a Wio
+delivering ~6 dB less at the same commanded power sits further under the D33 ceiling.
+**Check 2's pass on both boards is not in tension with this** — it is a step-size test, 5 dB
+expected against 26 dB for a broken clamp, and is blind to a common-mode offset by design.
+
+**Nothing about B1b's result changes.** The gate sweep was taken **with the Wio**, so the
+0 % PER and every margin figure already carry the Wio's penalty. **Those are the deployed
+numbers.** The corollary is new: **a Heltec at the gate would see ~9 dB more margin than
+GateLink will** — an option if the SF7 tail is judged too thin, and GateLink's decision, not
+this directory's.
 
 ## The responder swap — new 2026-09-09, and the trace shows it
 
@@ -377,10 +411,10 @@ now in tension with B1b's SF7 fade tail.**
 | `2026-09-07-eirp-sanity.csv` + `-resplog.csv` | **The §7.6 run that closed it.** Matched Heltec pair, three tape-measured distances. **All four checks PASS.** The first committed traces carrying the `pa_*` header fields |
 | `2026-09-07-eirp-sanity-xiao.csv` + `-resplog.csv` | **§7's Wio repeat.** XIAO+Wio initiator. Checks 1, 2, 4 pass; the clamp holds on the Wio too. Check 3's WARNs are the module asymmetry, not geometry |
 | `2026-09-07-eirp-sanity-swap.csv` + `-resplog.csv` | **The role swap — a negative result, kept deliberately.** It cannot separate TX from RX and neither can any such run. **Its absolute figures are not usable** (residuals 2.3–2.7 dB, check 3 failed at 12 m) |
-| `2026-09-09-b1b-walk-gate.csv` | **B1b, and the trace that closes the gate bearing. Four sweeps in one file — read them in file order, not by `position`.** Sweeps 1–2 are B1b (G1, then the gate, 192/192 at 0 %); sweeps 3–4 are the Heltec A/B, which measured the mount. **Two locations share `position=1`** and sweep 3 carries a `position=0`. Header carries the filled placeholders and every caveat |
+| `2026-09-09-b1b-walk-gate.csv` | **B1b, and the trace that closes the gate bearing. Four sweeps in one file — read them in file order, not by `position`.** Sweeps 1–2 are B1b (G1, then the gate, 192/192 at 0 %); sweeps 3–4 are the Heltec A/B at the **same mount**, which splits the Wio's TX term from its RX term. **Two locations share `position=1`** and sweep 3 carries a `position=0`. Header carries the filled placeholders and every caveat |
 | `2026-09-09-b1b-walk-gate-resplog-wio.csv` | The Wio's log, **sweeps 1 and 2 only**. Closes exactly at both |
 | `2026-09-09-b1b-walk-gate-resplog-heltec.csv` | Heltec #1's log, **sweeps 3 and 4 only** — the A/B. **Its `position=1` is the gate, not G1** |
-| `2026-09-09-b1b-field-notes.md` | **Not a trace.** The operator's field notes: decimal-degree fixes, AGL, elevation, obstructions, and why a third and fourth sweep exist. The only record of the G2 mount and the 24 in trunk |
+| `2026-09-09-b1b-field-notes.md` | **Not a trace.** The operator's field notes: decimal-degree fixes, AGL, elevation, obstructions, and why a third and fourth sweep exist. The only record of the G2 mount and the 24 in trunk. **Its same-day clarification is what makes the A/B readable** — one mount for all three gate sweeps, G2 is 2026-09-04's P1, and the deployed antenna lands within 6 in |
 
 **Everything above the 2026-09-07 rows predates the PA record.** A trace with no `pa_*` lines
 was captured by a board flashed before 2026-09-06; that is the only thing its absence means.
@@ -419,15 +453,18 @@ Nothing else in this repository triggers it. **This session touches no workflow 
    already exists, and B1b's SF constraint is the newest input.
 6. **If it is the well bearing**, `B1B-FIELD-CARD.md` is the procedure. Read its two
    2026-09-09 corrections first, and **reset the initiator if you change responders.**
-7. **Do not re-run the §7.6 permutations, and do not cite B1b's A/B as a module figure.**
+7. **Do not re-run the §7.6 role permutations.** B1b's A/B is a module figure and can be
+   cited as one, with its ±1 dB and its one-pair-of-sweeps caveat attached.
 
 ## Worth doing, and nothing blocks on either
 
-- **The fixed-mount A/B.** Both boards on **one bracket**, same height and orientation, swap
-  only the board, alternate Wio–Heltec–Wio so drift shows, photograph the mount. Done that way
-  it **does** separate the Wio's transmit term from its receive term — node substitution at
-  genuinely fixed geometry breaks the degeneracy that §7's role permutations provably cannot.
-  Done any other way it measures the bracket, which is what 2026-09-09 did.
+- **Repeat the A/B substitution, to tighten a number that already exists.** 2026-09-09 got
+  TX ≈ −6.0 dB and RX ≈ −3.2 dB off **one** pair of sweeps at G2's mount. The repeat is cheap
+  and well defined: same mount, same initiator untouched, **alternate Wio–Heltec–Wio** so drift
+  shows in the data rather than being argued about, and photograph the mount. Three sweeps
+  turn ±1 dB into something defensible and would settle the 0.7 dB coincidence with the
+  2026-09-04 reading. **Not blocking anything** — the deployed margin figures already carry
+  the Wio's penalty.
 - **A `capture.py` guard against `--note` placeholders.** Refuse, or warn loudly, on a note
   containing `<...>`. Two runs in three have gone out with placeholders unedited — §7.6's
   `<H>m AGL on <stands>` and B1b's two position descriptions — and B1b also left a stale
@@ -484,10 +521,15 @@ The engineering log has the full account; this is the index.
 
 - **A responder swapped in mid-capture sweeps with no press**, at position 0, wherever it is
   being carried. Reset the initiator. **New 2026-09-09**, and it cost a sweep.
-- **A comparison between two boards is a comparison between two mountings** until the mounting
-  is held fixed and written down. Bench placement moved the Heltec reference 18 dB; which side
-  of a concrete column a board sat on moved it 9 dB and nearly produced a module figure that
-  was not one. **New 2026-09-09.**
+- **Two uncontrolled numbers agreeing is not evidence.** B1b's A/B was a same-hour
+  substitution at one mount, and it was talked out of its own result by a five-day-old reading
+  whose indoor end was specified only as "the office on the NW side" — where multipath moves
+  more than the 8.6 dB in question. **Weight the tighter experiment, and check what the looser
+  one actually pinned down before using it as a control.** **New 2026-09-09**; it cost a wrong
+  conclusion that stood for one commit.
+- **Write down the mount, not just the position.** "0.8 m AGL on the back of a concrete
+  column" and "on top of the gate controller enclosure" describe one spot and read as two. The
+  A/B was nearly discarded over the wording. **New 2026-09-09.**
 - **A stale responder position log merges into the new run** and fakes an instrumentation
   fault. Clear it, and confirm the line. Section above.
 - **A `--note` template placeholder is a silent defect**, and so is a note clause the run then
@@ -548,9 +590,10 @@ The engineering log has the full account; this is the index.
   bearings** and the well bearing is unwalked. Arcsecond GPS at the house end still cannot
   support an RSSI-vs-distance curve, so it answers "does it work there", not "what is the path
   loss".
-- **The Wio's TX/RX split** — still unmeasured. **B1b's A/B does not close it** — that reading
-  is siting, not module. **A fixed-mount substitution run would**; see *Worth doing*. §7's
-  ruling stands for role permutations specifically: do not run another one.
+- **The Wio's TX/RX split** — **measured for the first time by B1b's A/B**: TX ≈ −6.0 dB and
+  RX ≈ −3.2 dB against the Heltec, with ~±1 dB on each and the sum term resting on one pair of
+  sweeps. **Not closed, because it wants one repeat** on the same mount; see *Worth doing*.
+  §7's ruling stands for **role permutations** specifically: do not run another one.
 - **D33** — **reopened 2026-09-06 by M21**, exactly as its own standing condition 1
   anticipated. The ceiling survives; the reasoning changed and the frame is §15.23 home-built.
   Decision Register §3.3, which now also carries B1b's field confirmation of the asymmetry.
@@ -566,7 +609,9 @@ The engineering log has the full account; this is the index.
 ### Closed, and not to be reopened by habit
 
 - **B1b's gate bearing** — **CLOSED 2026-09-09.** 192/192 at 0 % PER at the gate on the
-  deployed pairing. **The A/B in the same capture is not a module measurement.**
+  deployed pairing, at a spot within 6 in of where the node's antenna will sit. **The A/B in
+  the same capture also split the Wio's TX term from its RX term** — a first, and it wants one
+  repeat rather than a rerun of §7's permutations.
 - **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision Register
   §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`.

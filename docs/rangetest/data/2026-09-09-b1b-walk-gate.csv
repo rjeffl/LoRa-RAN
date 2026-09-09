@@ -11,10 +11,15 @@
 #   G1  top of the loop driveway, about half way to the gate. 0.5 m AGL. Elev ~2135 ft.
 #       35.04467 N, 83.36102 W. A few small trees and shrubs in the line of sight to
 #       the house.
-#   G2  the gate controller. 0.8 m AGL, mounted on the BACK of a concrete column.
+#   G2  the gate controller. Responder resting on top of the gate controller enclosure,
+#       antenna vertical, 0.8 m AGL; the enclosure is on the back of a concrete column.
 #       Elev ~2200 ft. 35.04478 N, 83.36052 W. A 24 in diameter tree trunk partially
 #       blocks the direct line of sight to the house - not noted before this run.
-#       The operator records G2 as the same location as the 2026-09-04 walk's P1.
+#       G2 IS the 2026-09-04 walk's P1, described more fully. That trace lists P1 at
+#       2200 ft with "LOS, small tree and shrub in path" and does not mention the trunk.
+#       The deployed GateLink antenna lands within 6 in of this position, so B1b
+#       measured the gate where the node will radiate rather than near it.
+#       Sweeps 3 and 4 used this same spot and mount - only the board changed.
 #   Initiator end unchanged from 2026-09-04: indoors, office on the NW side, 0.5-1.0 m,
 #       one framed exterior wall in every path.
 #   G1 to G2 is 47 m ground distance and +20 m of elevation, computed from the two
@@ -35,8 +40,9 @@
 #   2nd sweep   2         XIAO+Wio     G2, the gate                 B1b, valid - the
 #                                                                   measurement B1b exists
 #                                                                   for
-#   3rd sweep   0         Heltec #1    at the gate, still moving    DISCARD for level
-#   4th sweep   1         Heltec #1    at the gate, settled         A/B repeat
+#   3rd sweep   0         Heltec #1    G2, same mount, still being   the 2 dB placement
+#                                        placed                        control
+#   4th sweep   1         Heltec #1    G2, same mount, settled       the A/B measurement
 #
 # TWO DIFFERENT LOCATIONS SHARE position=1 (sweep 1 is G1 with the Wio; sweep 4 is the
 # gate with a Heltec). Anything that groups this file by the position column alone
@@ -50,25 +56,66 @@
 # before the operator had the board in position. HANDOFF.md's rule "a trace with a
 # position 0 predates the 2026-09-04 arming change" is false as of this file.
 #
-# WHY THE 3rd SWEEP IS DISCARDED FOR LEVEL, AND KEPT. Its first 8 test points average
-# -94.4 dBm at 5.8 dB sd against the last 16 at -90.6 dBm and 3.1 dB - the board was
-# still being placed. It is 192/192 at 0 % PER regardless, which is a result about the
-# link and not about the placement.
+# THE 3rd SWEEP IS THE PLACEMENT CONTROL, AND THAT IS MORE USEFUL THAN DISCARDING IT.
+# It ran while the board was still being placed: its first 8 test points average
+# -94.4 dBm at 5.8 dB sd against the last 16 at -90.6 dBm and 3.1 dB. Sweep-level, it
+# reads -91.79 sum/2 against sweep 4's -89.69 - so being carried into position rather
+# than settled on it is worth 2.10 dB at this mount. That is the scale bar for the A/B
+# below. It is 192/192 at 0 % PER either way.
 #
-# THE HELTEC A/B DOES NOT MEASURE THE MODULE. Both A/B sweeps read about 9 dB stronger
-# than the Wio at G2, which looks like a module difference and is not usable as one:
-# the A/B board was not on G2's column mount. The 2026-09-04 walk measured a HELTEC at
-# the same spot at -98.25 dBm mean of the two directions, and this file's WIO at G2
-# reads -98.94 - agreeing to 0.7 dB, five days apart. The A/B Heltec reads -89.7. The
-# reading that fits both data sets is that the A/B board sat somewhere better than the
-# back of the column, not that the modules differ by 9 dB. Section 7 of the 2026-09-07
-# work still stands: the Wio's transmit and receive terms are not separated.
+# THE HELTEC A/B IS A BOARD SUBSTITUTION AT ONE POSITION, AND IT SEPARATES THE WIO'S
+# TRANSMIT TERM FROM ITS RECEIVE TERM. Operator confirmation, same day: sweeps 2, 3 and
+# 4 all put the responder in the SAME place - resting on top of the gate controller
+# enclosure with the antenna vertical - and the initiator was the same board in the same
+# room throughout the capture, tethered and untouched. Only the responder board changed.
+# Path loss therefore cancels, which reciprocal RSSI within one pair can never do.
 #
-# WHAT DOES SURVIVE, because it cancels path loss: init_rssi - resp_rssi is -2.91 dB at
-# G1 and -3.27 dB at the gate with the Wio, against -0.15 and -0.43 dB on the two
-# Heltec-Heltec sweeps here and -0.51 to -0.85 dB across all six positions of the
-# 2026-09-04 walk. The Wio's (TX - RX) sits about 3.1 dB below the Heltec's, which
-# reproduces the 3.37 dB measured on the bench on 2026-09-07, over the air and at range.
+#   sum/2 = (init_rssi + resp_rssi)/2      Wio -98.94    Heltec -89.69
+#   diff  =  init_rssi - resp_rssi         Wio  -3.27    Heltec  -0.43
+#
+#   (TX+RX)_wio - (TX+RX)_heltec = -9.25 dB
+#   (TX-RX)_wio - (TX-RX)_heltec = -2.84 dB
+#   ==> TX_wio - TX_heltec ~ -6.0 dB
+#   ==> RX_wio - RX_heltec ~ -3.2 dB
+#
+# CARRY THE UNCERTAINTY. The two Heltec sweeps here differ by 2.10 dB (-91.79 at
+# position 0, still being placed, against -89.69 settled), so placement at that mount is
+# worth about 2 dB - well under the 9.25 dB gap, but it puts roughly +/-1 dB on each of
+# the two split terms. The sum term rests on ONE pair of sweeps; the difference term is
+# measured twice here, at two geometries 16 dB apart, and matches the 3.37 dB measured on
+# the bench on 2026-09-07. Treat the split as approximate and the difference as firm.
+#
+# THIS DOES NOT OVERTURN SECTION 7 OF THE 2026-09-07 WORK. That ruled out ROLE
+# PERMUTATION within a pair, which is still true - for any pair,
+# P_ij - P_ji = (TX_i - RX_i) - (TX_j - RX_j), and no amount of swapping escapes it.
+# Substituting one NODE against a common initiator at a fixed position is a different
+# experiment, and it is the one this file happens to contain. Do not run more role
+# permutations; do repeat this one on the same mount if the numbers need tightening.
+#
+# THE 2026-09-04 WALK IS NOT A CONTROL ON IT, and the temptation to use it is why this
+# block is long. That walk measured a HELTEC at this same spot at -98.25 dBm sum/2, which
+# happens to sit 0.7 dB from this file's WIO reading and 8.6 dB from its HELTEC reading.
+# The 8.6 dB is not a board difference: only two Heltecs existed on 2026-09-04, so both
+# walks used the same pair, and sum/2 is unchanged by which end each board sat at.
+# What was not pinned down is the INITIATOR, specified in that trace only as "the office
+# on the NW side". Indoor multipath at 915 MHz moves more than 8.6 dB over inches, and
+# this project has already measured a desk rig wandering 24 dB between two sweeps at
+# nominally identical placement (engineering log, 2026-09-07). Per-position AGL was also
+# recorded as a 2-4 ft range rather than a value, and vegetation moisture differed. None
+# of it is measured. A five-day-apart reading with the indoor end respecified to a room is
+# not a check on a same-hour substitution at one mount.
+#
+# COMPLIANCE IS UNAFFECTED AND THE DIRECTION IS SAFE. Section 7.6 check 3 backed every
+# measurement out BELOW its calculated figure on both boards, so neither transmits above
+# its setpoint; a Wio that delivers ~6 dB less than the Heltec at the same commanded power
+# sits further under the D33 ceiling. Check 2 is a STEP-SIZE test - 5 dB expected against
+# 26 dB for a broken clamp - so it was never able to see a common-mode difference in
+# delivered power between two boards, and its passing on both is not in tension with this.
+#
+# WHAT IT MEANS FOR THE MEASUREMENT ABOVE: nothing needs adjusting. B1b's gate sweep was
+# taken WITH the Wio, so the 0 % PER and every margin figure already carry the Wio's
+# penalty. Those are the deployed numbers. The corollary is new, though - a Heltec at the
+# gate would see about 9 dB more margin than GateLink will.
 # schema: docs/rangetest/data/README.md
 #
 # board=heltec_wifi_lora_32_V3

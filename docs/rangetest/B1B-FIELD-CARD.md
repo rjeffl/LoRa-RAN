@@ -5,11 +5,13 @@ once before the first trip; this card is what to do on the day.
 
 > **RUN 2026-09-09. The gate closed at 0 % PER, 192/192, at all 24 configurations.** The
 > card is kept as the procedure for any repeat and for the well bearing M6 still asks for.
-> **Two things in it were wrong on the day and are corrected in place below:** §4's
-> prediction about what a swapped responder does (it is worse than a duplicate position
-> id — see §4), and the `--note` template, whose placeholders went out unedited for the
-> second time in three runs. Results are in
-> [`engineering-log.md`](./engineering-log.md), 2026-09-09.
+> **§4's optional A/B was worth doing** — it separated the Wio's transmit term from its
+> receive term, a first here. **Two things in the card were wrong on the day and are
+> corrected in place below:** §4's prediction about what a swapped responder does (it is
+> worse than a duplicate position id), and the `--note` template, whose placeholders went out
+> unedited for the second time in three runs. Results are in
+> [`engineering-log.md`](./engineering-log.md), 2026-09-09 — **both entries**, the second of
+> which supersedes the first's reading of the A/B.
 
 
 **What this run answers:** does the gate link close at the gate, on the pairing that will
@@ -25,7 +27,9 @@ gate**, and that is the configuration this card walks.
   meter on the carrier, not a walk.
 - **The Wio's TX/RX split.** Reciprocal RSSI gives only `(TX − RX)` per node, and the
   2026-09-07 runs already established the asymmetry at 3.37 dB. Do not run permutations
-  hoping to separate it.
+  hoping to separate it. **Superseded 2026-09-09 by §4's A/B**, which separated it — not by
+  permuting roles but by substituting one board at a fixed mount. The sentence was right
+  about permutations and wrong to conclude the split was out of reach; §4 carries the result.
 - **The well bearing.** M6 asks for both; this card covers the gate bearing only.
 
 ---
@@ -183,18 +187,24 @@ the deployed path by measuring both boards over the same path within the same ho
 is the only condition under which a Wio-versus-Heltec number has ever meant anything here:
 bench geometry moved the Heltec reference −24 → −42 dBm on placement alone.
 
-> **Corrected 2026-09-09: "the same path" means the same mount, and the run did not get
-> it.** Both A/B sweeps read ~9 dB stronger than the Wio at G2, which is not a module
-> figure — the Wio sat on the back of a concrete column behind a 24 in trunk and the A/B
-> board was hand-placed nearby. The 2026-09-04 walk measured a **Heltec** at that spot at
-> −98.25 dBm and this run's **Wio** reads −98.94, agreeing to 0.7 dB; the A/B Heltec reads
-> −89.7. Siting explains both data sets and a module difference does not.
+> **Ran 2026-09-09, and it worked.** All three gate sweeps put the responder in one place —
+> resting on top of the gate controller enclosure, antenna vertical — with one initiator
+> untouched in the office throughout. **It separated the Wio's transmit term from its receive
+> term for the first time:** TX ≈ **−6.0 dB** and RX ≈ **−3.2 dB** against the Heltec, from
+> `sum/2` of −98.94 (Wio) against −89.69 (Heltec) and the two `(init − resp)` figures.
+> §7's ruling covered **role permutation** and still holds; node substitution at one mount is
+> a different experiment.
 >
-> **If this A/B is repeated, the mount is the experiment.** Put both boards on the same
-> bracket at the same height and orientation, swap only the board, and alternate
-> Wio–Heltec–Wio so drift shows up. Photograph the mount. Done that way it separates the
-> Wio's transmit term from its receive term, which §7's role permutations provably cannot
-> — done any other way it measures the bracket.
+> **What it wants is one repeat, not a redesign.** The sum term rests on a single pair of
+> sweeps and placement at that mount is worth 2.10 dB, so each split term carries about
+> ±1 dB. **Alternate Wio–Heltec–Wio** rather than running each board once, so drift shows in
+> the data instead of being argued about afterwards, and **photograph the mount** — this run
+> nearly lost its own result because "on the back of a concrete column" and "on top of the
+> gate controller enclosure" describe one spot and read as two.
+>
+> **Do not use the 2026-09-04 walk as the control.** Its P1 is this same spot, but its
+> initiator is specified only as "the office on the NW side," and indoor multipath at 915 MHz
+> moves more than the 8.6 dB such a comparison turns on.
 
 **It needs its own capture file, and the reason is worse than this card first said.**
 

@@ -3425,3 +3425,110 @@ with margin at the D33 ceiling. What B1b was already documented not to close is 
 the carrier's net list, §2.3.1(b)'s sleep current, and the well bearing that M6 still asks
 for. **Add the TX/RX split to that list** — this run looked briefly as though it had closed
 it and has not.
+
+---
+
+## 2026-09-09, later — the A/B was valid, and it splits the Wio's TX from its RX
+
+**Supersedes the section "The Heltec A/B measured the mount, not the module" in the entry
+above.** That section's conclusion was wrong. The rest of that entry stands. This is a new
+entry rather than an edit because the first one is the record of how the wrong reading was
+reached, and the reasoning is worth keeping.
+
+**Operator confirmation, same day, and it inverts the conclusion:** P1 of the 2026-09-04 walk
+and G2 of this run **are the same location**, and **both boards sat in the same place for the
+A/B** — resting on top of the gate controller enclosure with the antenna vertical. "0.8 m AGL
+on the back of a concrete column" and "on top of the gate controller enclosure" describe one
+position; the enclosure is on the column. The field notes were a fuller description of a spot
+the earlier walk already used, not a different spot. **The deployed GateLink antenna lands
+within 6 in of it.**
+
+The trace agrees once you look for it: 2026-09-04 lists P1 at **2200 ft** with "LOS, small
+tree and shrub in path," against G2's ~2200 ft — the same spot, minus the 24 in trunk nobody
+had written down.
+
+### So the substitution is at fixed geometry, and it separates the terms
+
+Sweeps 2, 3 and 4 share the responder position and mount. The initiator was the same board in
+the same room throughout the capture, tethered and untouched while the operator was at the
+gate. **Only the responder board changed.** Path loss cancels.
+
+| | sum/2 = (init+resp)/2 | diff = init − resp |
+|---|---|---|
+| Wio at G2, sweep 2 | −98.94 dBm | −3.27 dB |
+| Heltec at G2, sweep 4 | −89.69 dBm | −0.43 dB |
+| **difference** | **−9.25 dB** = the `(TX+RX)` term | **−2.84 dB** = the `(TX−RX)` term |
+
+**TX_wio − TX_heltec ≈ −6.0 dB. RX_wio − RX_heltec ≈ −3.2 dB.** The first separation of the
+two terms this project has managed.
+
+**§7's ruling is not overturned, and should not be reported as overturned.** It ruled out
+**role permutation** within a pair, which is still true — for any pair,
+`P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`, and no amount of swapping escapes that.
+Substituting one **node** against a common initiator at a fixed position is a different
+experiment. §7 said an absolute reference was needed; a second node at the same mount turns
+out to be one.
+
+**Uncertainty, carried explicitly.** Sweep 3 ran while the board was still being placed and
+reads −91.79 sum/2 against sweep 4's −89.69, so **placement at that mount is worth 2.10 dB** —
+an order of magnitude below the 9.25 dB gap, but roughly ±1 dB on each split term. **The sum
+term rests on one pair of sweeps.** The difference term is measured twice here, at two
+geometries 16 dB apart, and matches 2026-09-07's bench 3.37 dB. Treat the split as
+approximate and the difference as firm. Repeat on the same mount if the numbers need
+tightening; that is now a well-defined run rather than a hope.
+
+### Why the 2026-09-04 comparison misled, and why it is not a control
+
+The earlier entry leaned on this: a **Heltec** at that spot read −98.25 dBm sum/2 on
+2026-09-04, which sits 0.7 dB from this capture's **Wio** and 8.6 dB from its **Heltec**. That
+looked decisive and is not.
+
+**The 8.6 dB is not a board difference.** Only two Heltecs existed on 2026-09-04, so both
+walks used the same pair, and `sum/2` is unchanged by which end each board sat at — it sums
+both nodes' transmit and receive terms. Swapping the ends cannot move it.
+
+**What was never pinned down is the initiator.** The 2026-09-04 trace specifies it as "the
+office on the NW side" and no more. **Indoor multipath at 915 MHz moves more than 8.6 dB over
+inches**, and this project has already measured a desk rig wandering **24 dB between two
+sweeps at nominally identical placement** (2026-09-07). Add per-position AGL recorded as a
+2–4 ft range rather than a value, and a different day's vegetation moisture. None of it is
+measured.
+
+**The general lesson, and it cuts the other way from the earlier entry's:** a five-day-apart
+reading whose indoor end is specified to a room is not a control on a same-hour substitution
+at one mount. **The tighter experiment was the trustworthy one, and it was discarded in favour
+of the looser one because the looser one had a second data point.** Two numbers agreeing is
+not evidence when neither is controlled.
+
+The 0.7 dB agreement between 2026-09-04's Heltec and this run's Wio is a coincidence. It is an
+uncomfortable one, and the way to settle it is to repeat the substitution rather than to
+reason about it further.
+
+### Compliance is unaffected, and check 2 was never able to see this
+
+**The direction is safe.** §7.6 check 3 backed every measurement out **below** its calculated
+figure on both boards, so neither board transmits above its setpoint, and a Wio delivering
+~6 dB less than the Heltec at the same commanded power sits **further under** the D33 ceiling.
+Decision Register §3.3's argument covered both readings of the asymmetry and covers this.
+
+**Check 2's pass on both boards is not in tension with a 6 dB inter-board difference.** Check 2
+is a **step-size** test by design — `EIRP-SANITY-CHECK.md` §1 puts it as 5 dB expected against
+26 dB for a broken clamp — so it verifies that the clamp arithmetic reached the PA and is
+blind to a common-mode offset in delivered power. That is what it was built to do and the
+limitation is worth stating rather than discovering later.
+
+### What it changes, and what it does not
+
+**Nothing about B1b's result.** The gate sweep was taken **with the Wio**, so the 0 % PER and
+every margin figure already carry the Wio's penalty. **Those are the deployed numbers**, which
+is precisely why the card specified the deployed pairing instead of a Heltec pair. The SF7
+fade tail of 2.2 dB is GateLink's tail.
+
+**One new input, and it belongs to GateLink rather than here.** A Heltec at the gate would see
+about **9 dB more margin** than the Wio-based node will. If the SF7 tail is judged too thin,
+that is an option that was not on the table before — alongside SF9, which buys ~13 dB for a
+`backoff_max_ms` raise. Raised, not decided.
+
+**And M6's answer is stronger than it was.** With the deployed antenna landing within 6 in of
+G2, B1b measured the link **where GateLink will radiate**, not near it. That is a better
+answer to "does it work there" than the 2026-09-04 walk could give at any position.

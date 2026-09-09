@@ -356,14 +356,42 @@ bias is therefore about 0.5 dB and the module figure sits well outside it, at tw
 16 dB apart in received power. **The compliance argument above is unchanged** — it already
 covered both readings of the asymmetry.
 
-**B1b's Heltec A/B does not separate the transmit term from the receive term, and should not
-be cited as though it does.** Node substitution at fixed geometry against a common initiator
-would break the degeneracy that role permutation cannot, but the geometry was not fixed: the
-Wio sat on the back of a concrete column behind a 24 in trunk and the A/B board was
-hand-placed nearby. The 2026-09-04 walk measured a **Heltec** at that spot at −98.25 dBm and
-B1b's **Wio** reads −98.94, agreeing to 0.7 dB, while the A/B Heltec reads −89.7 — siting
-explains both data sets and a 9 dB module difference does not. **Separating the terms needs
-both boards on one bracket, alternated within the hour**, and remains unmeasured.
+**B1b's Heltec A/B separated the transmit term from the receive term — a first, and the
+degeneracy is broken by substitution rather than permutation.** All three of B1b's gate sweeps
+put the responder in one place, resting on top of the gate controller enclosure with the
+antenna vertical, with one initiator untouched in the office throughout; only the responder
+board changed, so path loss cancels. From `sum/2` of **−98.94 dBm** (Wio) against **−89.69**
+(Heltec), and the `(init − resp)` figures of −3.27 and −0.43 dB:
+
+| term | value |
+|---|---|
+| `(TX+RX)_wio − (TX+RX)_heltec` | **−9.25 dB** |
+| `(TX−RX)_wio − (TX−RX)_heltec` | **−2.84 dB** |
+| **TX_wio − TX_heltec** | **≈ −6.0 dB** |
+| **RX_wio − RX_heltec** | **≈ −3.2 dB** |
+
+**Carry the caveats with the numbers.** The sum term rests on **one pair of sweeps**, and
+placement at that mount is worth 2.10 dB (sweep 3, still being placed, read −91.79), so each
+split term carries roughly **±1 dB**. The difference term is measured twice, at two geometries
+16 dB apart, and matches the bench — **split approximate, difference firm.** One repeat,
+alternating Wio–Heltec–Wio at the same mount, would settle it.
+
+**The ruling against role permutation is unchanged and still applies.** For any pair,
+`P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`; swapping roles cannot reach the sum term. What
+§7 lacked was an absolute reference, and a second node at the same mount turns out to be one.
+**Do not run further role permutations.**
+
+**The compliance conclusion above is strengthened, not disturbed.** §7.6 check 3 backed every
+measurement out **below** its calculated figure on both boards, so neither transmits above its
+setpoint, and a Wio delivering ~6 dB less at the same commanded power sits **further under**
+the ceiling. **Check 2's pass on both boards is not in tension with a 6 dB inter-board
+difference** — it is a step-size test (5 dB expected against 26 dB for a broken clamp) and is
+blind to a common-mode offset in delivered power by design.
+
+**The consequence for GateLink, which is a Wio node.** B1b's gate sweep was taken with the
+Wio, so its 0 % PER and every margin figure already carry this penalty — **those are the
+deployed numbers.** The new option is that **a Heltec at the gate would see ~9 dB more
+margin**, which belongs to GateLink's module choice alongside the SF question in §2.2.
 
 ## 4. Retired decisions
 
@@ -393,7 +421,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 | M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert | GateLink Impl Plan |
 | M4 | **MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope | **D25**, carrier BOM | GateLink Impl Plan |
 | M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
-| M6 | **Range and RSSI at ~500 ft on both bearings.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. ~~**Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**~~ — **DONE 2026-09-07, all four checks PASS.** Heltec pair plus §7's Wio repeat, three tape-measured distances, traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv`. **The precondition is met and M6 is unblocked.** It also discharges §7.4's antenna-counterpoise uncertainty to the extent that check can — it rules out a *gross* gain error, not the 3.0 dBi vendor claim itself. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. ~~**The last ~46 m is unwalked — B1b**~~ — **B1b RAN 2026-09-09 and the gate bearing is answered.** The gate closed **192/192, 0 % PER at all 24 configurations** on the deployed pairing (Heltec V3 indoors at the bridge's target location, XIAO+Wio at the gate controller), at both −9 and −4 dBm conducted, zero error counters. Trace `2026-09-09-b1b-walk-gate.csv`. **Margin on the mean is 17–25 dB of SNR; the SF7 tail is not — one probe reached a 2.2 dB margin at −119.0 dBm**, which is a new constraint on D1's SF choice and pulls against W9's. **M6 still needs the well bearing**, which no version of B1b covers. First positions recorded in decimal degrees; still not a path-loss model, because the house end is behind a wall on an arcsecond-era fix | **D1**, bridge antenna siting | Range Test Tasks |
+| M6 | **Range and RSSI at ~500 ft on both bearings.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. ~~**Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**~~ — **DONE 2026-09-07, all four checks PASS.** Heltec pair plus §7's Wio repeat, three tape-measured distances, traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv`. **The precondition is met and M6 is unblocked.** It also discharges §7.4's antenna-counterpoise uncertainty to the extent that check can — it rules out a *gross* gain error, not the 3.0 dBi vendor claim itself. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. ~~**The last ~46 m is unwalked — B1b**~~ — **B1b RAN 2026-09-09 and the gate bearing is answered.** The gate closed **192/192, 0 % PER at all 24 configurations** on the deployed pairing (Heltec V3 indoors at the bridge's target location, XIAO+Wio at the gate controller), at both −9 and −4 dBm conducted, zero error counters. Trace `2026-09-09-b1b-walk-gate.csv`. **Margin on the mean is 17–25 dB of SNR; the SF7 tail is not — one probe reached a 2.2 dB margin at −119.0 dBm**, which is a new constraint on D1's SF choice and pulls against W9's. **G2 is the 2026-09-04 walk's P1, and the deployed GateLink antenna lands within 6 in of it** — so B1b measured the link where the node will radiate rather than near it, which is a stronger answer to M6's question than any position on the earlier walk. **M6 still needs the well bearing**, which no version of B1b covers. First positions recorded in decimal degrees; still not a path-loss model, because the house end is behind a wall on an arcsecond-era fix | **D1**, bridge antenna siting | Range Test Tasks |
 | M20 | ~~**Ambient RSSI sweep of 902–928 MHz**, run at the bridge location **and** at the most distant node location~~ | **Field work done (2026-09-05).** R11 re-walk, seven sites, 902.0–927.8 MHz in 200 kHz bins, 130/130 bins, `dropped = 0`; committed as `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`. One confirmed in-channel occupant (`weather-island`, −80 dBm at 915.0), strongest near-band neighbour `gatelink-gate` at −66 dBm on 914.0, floor −115 to −118 dBm and uniform, every occupant bursty, no carrier anywhere in the band. **Residual done (2026-09-06)** by `tools/rangetest/survey_reintegrate.py`, output committed as `docs/rangetest/data/2026-09-06-m20-reintegration.csv`. **M20 is closed.** Results in §5.4 | **D1's frequency** (Protocol Spec §12.1) and **D33 standing condition 3** | Range Test Tasks |
 | M7 | **BMS pack-current sign convention**, captured once under charge and once under load | Last open item in the BMS protocol (Protocol Spec §18, W6). Bit `0x4000` is believed to be the discharge flag but has only been observed at 0.0 A | GateLink Impl Plan |
 
