@@ -3,6 +3,15 @@
 **One page to carry.** Written 2026-09-09. Read [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md)
 once before the first trip; this card is what to do on the day.
 
+> **RUN 2026-09-09. The gate closed at 0 % PER, 192/192, at all 24 configurations.** The
+> card is kept as the procedure for any repeat and for the well bearing M6 still asks for.
+> **Two things in it were wrong on the day and are corrected in place below:** §4's
+> prediction about what a swapped responder does (it is worse than a duplicate position
+> id — see §4), and the `--note` template, whose placeholders went out unedited for the
+> second time in three runs. Results are in
+> [`engineering-log.md`](./engineering-log.md), 2026-09-09.
+
+
 **What this run answers:** does the gate link close at the gate, on the pairing that will
 actually be deployed, and with what margin. The bridge is a Heltec V3 (**R-4.1a**);
 GateLink carries a Wio-SX1262. So the deployed link is **Heltec at the house, Wio at the
@@ -116,10 +125,16 @@ the INITIATOR, which is the no-press default.
     --note "B1b gate-bearing walk. INITIATOR Heltec V3 in the Meshtastic flat case (the bridge's target unit), INDOORS at the bridge target location (office, NW side, 1 exterior wall). RESPONDER XIAO+Wio-SX1262 Kit, outdoors, hand-carried. Bearing 120deg to gate. 3.0dBi both ends. Trace position 1 = G1 <describe spot, GPS, AGL both ends, LOS/obstructions>; position 2 = G2 the gate <same>. Third Heltec (handheld case) POWERED DOWN <at the house | in the pack, off>. Weather <..>, foliage <..>."
 ```
 
-**Fill the placeholders in before you press Return.** The §7.6 run went out with
-`<H>m AGL on <stands>` unedited and the two geometry-dependent checks were exactly the ones
-that needed it. `capture.py` cannot tell a placeholder from a value and nothing downstream
-checks.
+**Fill the placeholders in before you press Return, and re-read the whole note after you
+do.** The §7.6 run went out with `<H>m AGL on <stands>` unedited, and B1b went out on
+2026-09-09 with the two position descriptions unedited **and** with "Third Heltec POWERED
+DOWN" left standing in a run that then carried it to the gate. Weather and foliage were
+filled in both times, so the failure is stopping partway rather than skipping the step.
+`capture.py` cannot tell a placeholder from a value and nothing downstream checks.
+
+**Easier than remembering: paste the note into the shell, edit it there, and read it back
+before adding it to the command.** A stale clause about what a board is doing is worse than
+an unfilled `<>`, because it looks like a fact.
 
 **3. Read `board=` and `antenna_gain_dbi=` off the settings dump** before walking away.
 
@@ -168,10 +183,33 @@ the deployed path by measuring both boards over the same path within the same ho
 is the only condition under which a Wio-versus-Heltec number has ever meant anything here:
 bench geometry moved the Heltec reference −24 → −42 dBm on placement alone.
 
-**It needs its own capture file.** Heltec #1 boots with `g_position_id` at 0, so its first
-press produces trace position 1 again — a duplicate position id inside the walk capture.
-Ctrl-C at step 8, then start a second capture before carrying Heltec #1 out. That costs a
-return trip to the gate and buys an unambiguous file.
+> **Corrected 2026-09-09: "the same path" means the same mount, and the run did not get
+> it.** Both A/B sweeps read ~9 dB stronger than the Wio at G2, which is not a module
+> figure — the Wio sat on the back of a concrete column behind a 24 in trunk and the A/B
+> board was hand-placed nearby. The 2026-09-04 walk measured a **Heltec** at that spot at
+> −98.25 dBm and this run's **Wio** reads −98.94, agreeing to 0.7 dB; the A/B Heltec reads
+> −89.7. Siting explains both data sets and a module difference does not.
+>
+> **If this A/B is repeated, the mount is the experiment.** Put both boards on the same
+> bracket at the same height and orientation, swap only the board, and alternate
+> Wio–Heltec–Wio so drift shows up. Photograph the mount. Done that way it separates the
+> Wio's transmit term from its receive term, which §7's role permutations provably cannot
+> — done any other way it measures the bracket.
+
+**It needs its own capture file, and the reason is worse than this card first said.**
+
+*Corrected 2026-09-09, after the run.* The prediction here was a duplicate trace position 1.
+What actually happens is that **the swapped-in responder starts a sweep with no press at
+all.** The responder owns `position_id` and boots it at 0 (`main.cpp:115`); the initiator
+starts a sweep whenever the position it hears differs from the one it swept
+(`main.cpp:1811`), and after G2 it is holding 2. Zero is not two, so Heltec #1 swept the
+moment it came up — while it was still being carried into place. The 2026-09-09 capture
+runs `1, 2, 0, 1`, with **two different locations sharing position 1** and a position 0 the
+firmware is documented not to produce.
+
+**So: Ctrl-C at step 8, and reset the initiator as well as starting a new capture file
+before Heltec #1 is powered on.** `--reset` on the new capture does both. That costs a
+return trip to the gate and buys a file that means one thing.
 
 Before it leaves the house, Heltec #1 needs **both** erases — its stored surveys dump at
 boot and would land in the trace:

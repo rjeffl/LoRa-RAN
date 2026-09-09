@@ -1,0 +1,47 @@
+# LRAN range test trace, captured 2026-09-09 15:28:29
+# note: responder log, B1b gate walk of 2026-09-09, XIAO+Wio
+#
+# ANNOTATED 2026-09-09, same day. This log covers the FIRST TWO sweeps of
+# 2026-09-09-b1b-walk-gate.csv only - position 1 = G1, position 2 = G2 the gate.
+# The third and fourth sweeps of that file had Heltec #1 as responder and are in
+# 2026-09-09-b1b-walk-gate-resplog-heltec.csv.
+#
+# Closes exactly against the sweep trace: 192 heard and 192 echoed at both positions,
+# against 192 sent and 192 received. Zero loss in either direction at the gate.
+# The XIAO+Wio's position log was cleared before the run, so nothing here is folded
+# in from an earlier session.
+# schema: docs/rangetest/data/README.md
+#
+# board=xiao_esp32s3_wio_kit
+# freq_hz=915000000
+# sf=7
+# bw_khz=125.0
+# cr=4/5
+# conducted_dbm=-9
+# antenna_gain_dbi=3.0
+# eirp_ceiling_dbm=-1.0
+# sync_word=0x1424
+# explicit_header=1
+# crc=1
+# preamble_symbols=8
+# payload_len=16
+# role=RESPONDER
+# test_points=24
+# probes_per_point=8
+# total_probes=192
+# duration_nominal_s=382
+# duration_worst_s=430
+# pa_optimize=1
+# pa_duty_cycle=2
+# pa_hp_max=2
+# pa_val=-5
+# pa_table=RadioLib-7.7.1-paOptTable
+#
+RESP,position,probes_heard,echoes_sent,rssi_mean10,rssi_min10,rssi_max10,snr_mean10,snr_min10,snr_max10
+RESP,1,192,192,-812,-850,-770,94,38,135
+RESP,2,192,192,-973,-1110,-900,50,-63,105
+# responder log complete
+# resp tuned to config 0 sf=7 cr=4/5
+# resp tuned to config 1 sf=7 cr=4/8
+# resp tuned to config 2 sf=9 cr=4/5
+# capture ended: sweep count reached - 2 rows

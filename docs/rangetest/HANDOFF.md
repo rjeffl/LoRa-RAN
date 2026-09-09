@@ -1,14 +1,7 @@
 # Range test — session handoff
 
-**Written 2026-09-07, at the end of the session that ran and closed the §7.6 EIRP sanity
-check.** It replaces the 2026-09-06 file wholesale.
-
-> **Updated 2026-09-08 — repository state only.** That session was documentation, licensing
-> and tooling; **no bench work ran, no board was reflashed and no measurement changed**.
-> Every section below is as written on 09-07 except *Git state*, *First actions next
-> session* and the spec row in *Where things stand*, which were facts about the repository
-> and are now false. **What a field session needs to know from 09-08 is in *What changed on
-> 2026-09-08* below.**
+**Written 2026-09-09, at the end of the session that ran and analysed B1b.** It replaces the
+2026-09-07 file (and its 2026-09-08 addendum) wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,26 +11,106 @@ check.** It replaces the 2026-09-06 file wholesale.
 
 ## The next job, in one place
 
-**B1b — the gate-bearing walk with the Wio.** §7.6 closed on 2026-09-07 and **M6's
-precondition is met**, so nothing in this directory blocks the 500 ft leg any more. The
-2026-09-05 desk runs are explicitly not B1b.
+**This directory owes no more measurements on the gate bearing.** B1b ran on 2026-09-09 and
+the gate closed. What is left splits three ways, and only the first two are work:
 
-> **The run is planned and written up: [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)** *(new
-> 2026-09-09)*. It carries the board assignments by enclosure, the two positions, the
-> capture commands and the optional Heltec A/B at the gate. **It is a minimal run by
-> design** — two sweeps, not a re-walk of 2026-09-04's P1–P6 — and it says up front which
-> of B1b's acceptance criteria it does **not** close. Read it with `FIELD-PROCEDURE.md`.
+1. **D1 — a decision, not a measurement.** Everything it needs now exists. **It does not
+   start in this directory:** read Protocol Spec §18.2 and Decision Register §2.1 and §2.2
+   first. B1b added one new bound to it, described under *What B1b established*.
+2. **M6's well bearing.** Still unwalked. `B1B-FIELD-CARD.md` is the procedure — the boards,
+   the capture commands and the mistakes are all the same; only the bearing changes.
+3. **Two optional runs that would each answer something real**, neither blocking anything:
+   the fixed-mount A/B that would separate the Wio's transmit term from its receive term,
+   and a `capture.py` guard against `--note` placeholders. Both under *Worth doing*.
 
 `FIELD-PROCEDURE.md` comes first for any field session. The three rules that decide whether
 a run is worth anything have not changed:
 
 1. **Power the third board OFF.** Not in a backpack, not in `SURVEY` — off.
 2. **Clear the responder's position log**, and see `# position log cleared` come back.
-   A stale log fakes an instrumentation fault; section below.
 3. **Antennas connected before power**, every time.
 
-**D1** is a decision, not a measurement, and does not start in this directory. Read Protocol
-Spec §18.2 and Decision Register §2.1 before picking any number.
+**And one new rule, from B1b:** **reset the initiator whenever you change responders.** A
+fresh responder starts a sweep with no button press. Section below; it cost a sweep on
+2026-09-09.
+
+## What B1b established — 2026-09-09
+
+**The gate link closes on the pairing that will be deployed.** Heltec #2 (the bridge's
+target unit) indoors at the bridge's target location, XIAO + Wio-SX1262 Kit at the gate
+controller: **192 of 192 probes returned at all 24 configurations, 0 % PER**, at both −9 and
+−4 dBm conducted, with `phy_crc_err`, `foreign` and `filler_err` all zero.
+
+| | |
+|---|---|
+| **G1** | mid-driveway, 0.5 m AGL. 190/192, 1.04 % PER, **2 CRC errors** |
+| **G2, the gate** | 0.8 m AGL on the column, 47 m past G1. **192/192, 0 %** |
+| Heltec A/B | two further sweeps at the gate. Both 192/192. **Not a module measurement** |
+
+**Three results to carry forward, and one non-result:**
+
+- **Margin is comfortable on the mean and thin in the SF7 tail.** Mean SNR margins at the
+  gate: 17.1 dB at SF7, 20.5 at SF9, 24.7 at SF12. But **the worst single SF7 probe reached
+  −5.3 dB SNR, a 2.2 dB margin, at −119.0 dBm**, against 14.8 dB for the worst SF9 probe.
+  Per-test-point RSSI spread at the gate is 15 dB. **This is a new constraint on D1 and it
+  pulls against W9's:** SF7 is both the SF that keeps §12.3's `backoff_max_ms` defaults valid
+  and the SF whose margin at the gate occasionally approaches zero. Decision Register §2.2.
+- **The Wio's module asymmetry is real, not a bench artifact.** `init_rssi − resp_rssi` was
+  −2.91 dB at G1 and −3.27 dB at the gate, against −0.15 and −0.43 dB on the two
+  Heltec-Heltec sweeps in the same capture. The Wio's `(TX − RX)` sits ~3.1 dB below the
+  Heltec's, reproducing 2026-09-07's bench 3.37 dB over the air at two geometries 16 dB
+  apart. Does not disturb D33; Register §3.3.
+- **The two CRC errors are at G1, not at the gate.** G1 is 16 dB *stronger* and produced
+  two, with `foreign=0`; the gate produced none. That is a bursty occupant on 915.0 MHz,
+  which M20 already put an occupant on — not link margin. §14 stage 1 is now observed
+  somewhere other than a desk, which is what §10.5 asked for.
+- **The non-result: the A/B measured the mount.** Both A/B sweeps read ~9 dB stronger than
+  the Wio at G2, which looks like a module figure and is not one. **Section below.**
+
+**One thing to note for GateLink, not for this directory:** the field notes record a 24 in
+tree trunk partially blocking the direct line from the gate controller to the house,
+unrecorded before this run. GateLink mounts there.
+
+## The A/B looked like it separated TX from RX. It did not.
+
+**Do not cite B1b as having closed the Wio's transmit-versus-receive split.** Read this
+before repeating the run or quoting a number from it.
+
+At the gate the Wio pair reads `(init+resp)/2 = −98.94 dBm` and the Heltec pair −89.69 — a
+9.25 dB gap. Substituting one node at fixed geometry against a common initiator **would**
+break the degeneracy that §7's role permutations provably cannot, and working the gap
+through gives TX_wio − TX_heltec = −6.05 dB, RX_wio − RX_heltec = −3.21 dB.
+
+**The geometry was not fixed.** The Wio sat 0.8 m AGL on the *back* of a concrete column
+behind that 24 in trunk; the A/B board was hand-placed nearby, and the field notes say the
+first A/B sweep started before it was in position. The 2026-09-04 walk settles it: **a Heltec
+at that same spot read −98.25 dBm** averaged over both directions, and **B1b's Wio at G2
+reads −98.94** — agreeing to 0.7 dB across five days. The A/B Heltec reads −89.69. Siting
+explains both data sets with one assumption; a 9 dB module difference needs the 2026-09-04
+Heltec to have coincidentally lost 9 dB at that spot.
+
+**§7's conclusion stands: the split is unmeasured.** What is new is that a route to measuring
+it exists — see *Worth doing*.
+
+## The responder swap — new 2026-09-09, and the trace shows it
+
+**Reset the initiator when you change responders**, or the new board sweeps with no press.
+
+- The responder owns `position_id` and boots it at **0** (`main.cpp:115`).
+- The initiator starts a sweep whenever the position it hears differs from the one it swept
+  (`main.cpp:1811`).
+- Swap a responder in mid-capture and the initiator is holding the last position it swept.
+  Zero is not that, so the fresh board sweeps immediately — wherever the operator is
+  carrying it.
+
+2026-09-09's capture runs `1, 2, 0, 1`: **two different locations share `position=1`**, and
+there is a `position=0` the firmware is documented not to produce. Both are annotated in the
+trace header.
+
+**The previous file's rule "a trace with a position 0 predates the 2026-09-04 arming change"
+is false and has been removed.** So has the same claim from the comment at `main.cpp:79`.
+`--reset` on a new capture file fixes it; a firmware fix would require a press whenever a
+position id moves backwards, and is not worth a reflash at the gate on its own.
 
 ## §7.6 is closed — 2026-09-07
 
@@ -53,41 +126,33 @@ counters, step 7 closing exactly at 192/192/192/192.
 | 4. Path-loss slope | **PASS** — −15.8 to −16.3 dB/decade, **1.0–1.2 dB rms residual** |
 
 **Check 2 was the one that mattered** — the D33 clamp reaching the PA over the air, which
-nothing in this repository had ever verified. It also passed on the Wio in §7's repeat, so
+nothing in this repository had ever verified. It passed on the Wio in §7's repeat too, so
 **both board profiles are confirmed**. Decision Register §3.3 carries the register-side note.
-
-**§7's Wio repeat found a module asymmetry**: the Wio-SX1262's `(TX − RX)` sits **3.37 dB
-below** the Heltec's, reproduced across two runs. **Reciprocal RSSI cannot say whether that
-is a weak PA or an optimistic RSSI**, and no further permutation will — for any pair,
-`P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`. Separation needs an absolute reference this
-project does not have. **Do not run a third permutation expecting a different answer.**
-Neither reading disturbs the ceiling; `data/README.md` has the arithmetic.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md) | **the next run, on one page** *(new 2026-09-09)*. Boards by enclosure, two positions, the capture commands, and what B1b does not close |
-| 2a | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | **read before any field session.** Start with *"Power down every board you are not measuring with"* and *"Erase the bench data first"*. Its commands carry **macOS port names** and a Heltec pair; the B1b card supersedes both for this run |
-| 2b | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) + [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | **§7.6 is closed** — these are now reference, not the next job. The card's stands and log-clearing guidance still applies to any run |
-| 3 | [`engineering-log.md`](./engineering-log.md) — the **four 2026-09-07** entries, then the five **2026-09-06** ones | what happened and why. The 09-07 set: the field laptop and the NVS collision; the §7.6 run; the Wio repeat; and the role swap that could not do what it was run for |
-| 4 | [`data/README.md`](./data/README.md) — *"The three 2026-09-07 EIRP traces are one measurement"* | why the matched pair is what makes the other two readable |
+| 2 | [`engineering-log.md`](./engineering-log.md) — the **2026-09-09** entry, then the four **2026-09-07** ones | what happened and why. The 09-09 entry: B1b's result, the A/B's confound, the responder swap, and the placeholder note again |
+| 3 | [`data/README.md`](./data/README.md) — *"B1b: the gate closed, and the A/B did not measure what it looks like it measured"* | the numbers, the margin table, and why the A/B's 9 dB is siting |
+| 4 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§2.1, §2.2, §3.3, §5.4** | D1's four bounds and its new SF constraint, D33's reopening, the asymmetry's field confirmation, and the ranked channel evidence |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
-| 6 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§2.1, §3.3, §5.4** | D1's four bounds, D33's reopening, and the ranked channel evidence |
+| 6 | [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md) | **the procedure for the well bearing**, and the record of what B1b did and did not close. Its §4 and its `--note` template both carry 2026-09-09 corrections |
+| 6a | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | **read before any field session.** Start with *"Power down every board you are not measuring with"* and *"Erase the bench data first"*. Its commands carry **macOS port names** |
 | 7 | [`data/README.md`](./data/README.md) | the two schemas, what each committed trace is *not*, the `pa_*` header fields, and **the 62.5 % band-coverage caveat** |
-| 8 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) | the second board profile — what it validates and, more importantly, what it does not |
-| 9 | [`LRAN-Range-Test-Firmware-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | R1–R11, complete. Its Pass 2 section is closed against what it predicted |
+| 8 | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) + [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | **§7.6 is closed** — reference, not a job. The stands and log-clearing guidance still applies |
+| 9 | [`LRAN-Range-Test-Firmware-Pass2-Tasks.md`](./LRAN-Range-Test-Firmware-Pass2-Tasks.md) and [`-Pass1-Tasks.md`](./LRAN-Range-Test-Firmware-Pass1-Tasks.md) | the two board profiles, and R1–R11 complete |
 
 ## Where things stand
 
 | | |
 |---|---|
-| Branch | `main` only. See **Git state** below *(updated 2026-09-08)* |
-| Merged through | **#39**, `742fdca`. Nothing open, nothing queued *(updated 2026-09-08)* |
-| Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten. *(Version corrected 2026-09-08: this row read v0.8 when written, while already describing §18.2, which v0.9 introduced. The row's substance was right and its version number was not.)* |
-| Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7** |
-| Firmware queue | **Empty.** This directory owes **one** measurement — B1b — and no code |
+| Branch | **`b1b-gate-walk`.** The B1b work is on it; **see Git state below** |
+| Merged through | **#40.** `origin/main` carries the B1b planning documents and nothing of the run |
+| Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
+| Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
+| Firmware queue | **Empty.** No code is owed and no reflash is owed |
 
 ```bash
 pio test -d lib/lran-protocol -e native      # host Unity suite
@@ -99,40 +164,36 @@ python tools/rangetest/test_capture.py       # PlatformIO's python
 python3 tools/rangetest/test_survey_reintegrate.py
 python3 tools/rangetest/test_eirp_check.py
 python3 tools/rangetest/check_pa_table.py    # the paOptTable mirror vs. pinned RadioLib
-python3 tools/checks/spec_citation_version.py # new 2026-09-08 - citations vs. the spec
+python3 tools/checks/spec_citation_version.py # citations vs. the spec
 ```
 
-**CI runs all of the above on every push and pull request** (new 2026-09-08,
-`.github/workflows/ci.yml`). Run them locally when you are about to spend bench time on
-the result; otherwise a green run already answers it.
-
-**All nine green on the field laptop 2026-09-07**, including both firmware builds. `pio` is
-at `~/.platformio/penv/bin/pio` and is **not on `PATH`**; `capture.py` needs
-`~/.platformio/penv/bin/python`.
+**CI runs all of the above on every push and pull request** (`.github/workflows/ci.yml`).
+Run them locally when you are about to spend bench time on the result; otherwise a green run
+already answers it.
 
 > **Counts are deliberately not written here or in root `CLAUDE.md`.** They were wrong more
 > often than right. Run the commands.
 
-## The field laptop
+## Which machine
 
-**Work has moved to the Kubuntu field laptop.** It is now a full host — clone verified
-against origin, all PlatformIO packages installed, every check green, **both firmware
-targets build**, so a reflash in the field is possible if it comes to that.
+**B1b ran from the Mac**, with the initiator tethered in the office. **The Kubuntu field
+laptop comes out only when you need to plug into something in the field** — a board to flash
+or capture from at the gate. It is a full host for that: clone verified against origin, all
+PlatformIO packages installed, every check green, both firmware targets building.
 
-| | macOS (M5) | **Kubuntu field laptop** |
+| | macOS (M5) | Kubuntu field laptop |
 |---|---|---|
-| Heltec (CP2102) | `/dev/cu.usbserial-0001` | **`/dev/ttyUSB0`, `/dev/ttyUSB1`** |
-| **XIAO (native USB)** | `/dev/cu.usbmodem1101` | **`/dev/ttyACM0`** — *not* a `ttyUSB` node, it has no bridge chip |
+| Heltec (CP2102) | `/dev/cu.usbserial-0001` | `/dev/ttyUSB0`, `/dev/ttyUSB1` |
+| **XIAO (native USB)** | `/dev/cu.usbmodem1101` | `/dev/ttyACM0` — *not* a `ttyUSB` node, it has no bridge chip |
 | Which is which | by USB location | **by plug order** — plug one at a time and note it |
-| Permissions | none needed | `dialout` — **confirmed present** |
+| Permissions | none needed | `dialout` — confirmed present |
 
-**Commands written in older documents carry macOS port names.** `FIELD-PROCEDURE.md`'s
-erase commands and `EIRP-SANITY-CHECK.md`'s capture command both say
-`/dev/cu.usbserial-0001`. Substitute the `ttyUSB` node. The field card's table is the
-authority.
+**Commands written in older documents carry macOS port names.** `FIELD-PROCEDURE.md`'s erase
+commands and `EIRP-SANITY-CHECK.md`'s capture command both say `/dev/cu.usbserial-0001`. On
+the Kubuntu laptop, substitute the `ttyUSB` node; the field card's table is the authority.
 
-**Git auth is SSH now**, `git@github.com:rjeffl/LoRa-RAN.git`, ed25519 key with no
-passphrase. It was HTTPS, and because the repo is private and Plasma sets
+**Git auth on the field laptop is SSH**, `git@github.com:rjeffl/LoRa-RAN.git`, ed25519 key
+with no passphrase. It was HTTPS, and because the repo is private and Plasma sets
 `SSH_ASKPASS_REQUIRE=prefer`, every git network operation **hung silently** waiting on a GUI
 dialog. If git ever hangs again with no output, that is the shape of it — and `curl` against
 the same host separates transport from authentication in one command.
@@ -140,155 +201,130 @@ the same host separates transport from authentication in one command.
 ## Hardware state
 
 **All three boards were reflashed 2026-09-06 from `main` at 3a9843d** — the build carrying
-the PA record — and **verified by reading the record back off each one**. Nothing under
-`firmware/`, `lib/` or `tools/` has changed since, so **the boards are current**.
+the PA record — and verified by reading the record back off each one. Nothing under
+`firmware/`, `lib/` or `tools/` has changed since **except a comment in `main.cpp`**, so the
+boards are current and no reflash is owed.
 
-| Board | Env | State | Notes |
+| Board | Env | State after 2026-09-09 | Notes |
 |---|---|---|---|
-| Heltec V3 — **Heltec dev board handheld case** | `heltec` | **POWERED DOWN** | **Holds the stored survey campaign** — all seven sites. Not used on 2026-09-07 and kept off throughout, which is why the EIRP runs are clean. The B1b card calls it **Heltec #1** |
-| Heltec V3 — **Meshtastic flat case** | `heltec` | `SURVEY` | **The target unit for the bridge node.** No stored sites. **Position log cleared 2026-09-07** after its logs were captured. Was both responder and initiator across the three EIRP runs. The B1b card calls it **Heltec #2** and puts it at the house end for that reason |
-| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | `SURVEY` | **Position log cleared 2026-09-07** after capture. Was initiator then responder. `/dev/ttyACM0`, not `ttyUSB` |
+| Heltec V3 — **Heltec dev board handheld case** | `heltec` | **Went to the gate for B1b's A/B.** Powered down after | The B1b card's **Heltec #1**. **Whether its stored survey campaign was erased before the trip is not recorded** — check before relying on it, below |
+| Heltec V3 — **Meshtastic flat case** | `heltec` | **B1b's INITIATOR**, tethered in the office | **The target unit for the bridge node.** The B1b card's **Heltec #2**. Position log irrelevant — it was the initiator |
+| XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | **B1b's walking RESPONDER.** Position log holds G1 and G2 | Log cleared before the run and dumped after; both committed. `/dev/cu.usbmodem1101` |
 
-**Both logs were dumped and committed before clearing.** Nothing was lost — the six
-2026-09-07 traces are the record, and NVS on a bench board is not a backup.
+**Heltec #1's stored surveys: state unknown.** The field card's §4 required two erases before
+it left the house, and nothing in the run records whether both were done. **The trace cannot
+tell you** — Heltec #1 booted untethered as responder, so any survey dump went nowhere, and
+the later resplog capture used `--role survey`'s counterpart and would not dump surveys
+either. Boot it as `--role survey` and count the sites if you need to know. **It does not
+matter for the data:** all seven sites at 130 bins each are committed in
+`data/2026-09-05-survey-campaign-r11.csv` and `data/2026-09-05-survey-campaign.csv`. NVS on a
+bench board is not a backup.
+
+**The "seven stored sites" discriminator may therefore be gone.** **The two Heltecs are told
+apart by their enclosures** — handheld case is #1, flat case is #2, the bridge's target unit.
+The settings dump reads `heltec` for both.
 
 **Port names are not identities.** Both CP2102 bridges report `SER=0001` and the nodes are
 not stable across replug. **Read `board=` off the settings dump** — a wrong board selection
 is silent, and writes the wrong pin map and antenna gain into a normal-looking CSV.
 
-**The two Heltecs are told apart by their enclosures** — handheld case holds the surveys,
-flat case is the bridge's target unit. The settings dump reads `heltec` for both, and the
-"seven stored sites" discriminator disappears the moment those surveys are erased.
-
-**The role is not persisted.** Every board re-asks at boot, so nothing above has to be
-undone before a run.
-
-**The stored campaign is committed** as `data/2026-09-05-survey-campaign-r11.csv`, and
-**that is the copy that matters**: NVS on one bench board is not a backup.
+**The role is not persisted.** Every board re-asks at boot, so nothing above has to be undone
+before a run.
 
 > ### Power down every board you are not measuring with
 >
 > An idle ARMED initiator **beacons once a second** on the single fixed channel. A third
 > powered board cost up to **60 % PER** on 2026-09-05 and looked exactly like poor link
 > margin. Unplug spares, or park one in `SURVEY` (`--role survey`) — it listens and never
-> transmits. **ARMED is not idle.** Full account in `FIELD-PROCEDURE.md`.
+> transmits. **ARMED is not idle.** Full account in `FIELD-PROCEDURE.md`. **B1b honoured
+> this**: the Wio was off for the A/B sweeps and Heltec #1 was off for the walk, so no sweep
+> in that capture has a third board live in it.
 
-## The NVS collision — new 2026-09-07, and it fakes a fault
+## The NVS collision — and it fakes a fault
 
 **Clear the responder's position log before every run.** This is not housekeeping.
 
 - `PositionLog` **persists to NVS** (key `poslog`) on every PRG advance and **reloads at
   boot**. A firmware upload does not touch it.
-- **`g_position_id` is not persisted** (`main.cpp:115`) — every run restarts at position 1.
+- **`g_position_id` is not persisted** (`main.cpp:115`) — every run restarts at 0 and the
+  first press makes it 1.
 - `PositionLog::slot_for()` (`resp_log.cpp:61`) **matches on `position_id`** and returns the
   existing entry. Only if none matches does it open a new slot.
 
 So last run's position 1 is **added to** this run's position 1: `probes_heard` and
-`echoes_sent` accumulate, the RSSI/SNR series mix two sessions. §7.6 step 7's cross-check
-then disagrees, and that document calls disagreement *"an instrumentation fault, not a link
-result."* **The failure mode is a confident diagnosis of the wrong thing.**
+`echoes_sent` accumulate, and the RSSI/SNR series mix two sessions. The cross-check against
+the sweep trace then disagrees, and a disagreement there is **an instrumentation fault, not a
+link result**. **The failure mode is a confident diagnosis of the wrong thing.**
 
 ```bash
-~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/ttyUSB0 \
+~/.platformio/penv/bin/python tools/rangetest/capture.py --port /dev/cu.usbmodem1101 \
     --reset --role responder --key x --out /tmp/erase.csv --run-for 20
 ```
 
 **Confirm `# position log cleared` comes back.** No line, no erase. Full procedure in
 `FIELD-PROCEDURE.md`, *"Erase the bench data first"*; `--run-for`, never `--idle-timeout`.
 
-**Do not clear the initiator.** The survey campaign lives under `surv*`/`survsite` in the
-same `lran-rt` namespace; nothing in the initiator path reads it during an EIRP run, and
-`z` would destroy the seven-site campaign for nothing.
+**Do not clear an initiator that holds the survey campaign.** The campaign lives under
+`surv*`/`survsite` in the same `lran-rt` namespace; nothing in the initiator path reads it
+during a walk, and `z` would destroy it for nothing.
 
-## What 2026-09-07 established
+**All four of B1b's responder rows closed at exactly 192/192**, so nothing accumulated in
+that run.
 
-**Three sweeps and three responder logs**, all committed, plus one throwaway that was
-deliberately **not** committed — a fixed-desk rig check run before the real thing, which
-proved the laptop drives the board and is not a measurement.
+## D1 — a decision, against data that already exists
 
-Firsts, all confirmed on hardware:
+**Nothing external blocks it and no measurement is owed.** M20, M21, §7.6 and B1b's gate
+bearing are all closed. **Read Protocol Spec §18.2 and Decision Register §2.1 and §2.2 before
+picking any number** — there are four bounds now, not three.
 
-- **`capture.py` folds all five `pa_*` lines into the trace header.** Previously asserted
-  only by tests on both sides. **The three 2026-09-07 traces are the first committed ones
-  carrying them.**
-- **The boot record reads `kPaOptTable[0]`** — `pa_duty_cycle=2 pa_hp_max=2 pa_val=-5`, the
-  −9 dBm point, confirming 2026-09-06's correction rather than the claim it replaced.
-- **The D33 clamp works over the air, on both board profiles.**
-- **Sentinels survive board to tool** — a lost point emitted `65535` / `−32768` and
-  `eirp_check.py` excluded it from the means rather than averaging it in.
-- **Step 7's cross-check closes exactly** in all three runs, 192/192/192/192.
+- **Frequency — there is a ranked answer. Use 917.2–917.6 MHz.** The provisional 915.0 MHz is
+  `weather-island`'s occupant peak, **and a small move off it is worse, not better**:
+  915.8–916.4 carries the property-wide cluster peaking at −54 dBm. 917.2–917.6 is ~1.2 MHz
+  clear of it on both scorings, floor at −116 dBm, nearest neighbour of any strength −104 dBm.
+  Full table in Decision Register §5.4. Note 923.3–927.5 MHz is LoRaWAN US915 *downlink*, so
+  Envelope A's uncommitted region is roughly **915.2–923.0 MHz**. **B1b ran on 915.0 and its
+  two CRC errors are consistent with that occupant** — one more reason to move.
+- **BW and the rule section are one decision.** BW125 forces **Envelope A** (§15.249,
+  ≈−1.2 dBm EIRP, any frequency in 902–928); **Envelope B** forces BW500 and 903.0–914.2 MHz.
+  **Envelope A is the plan of record** — both walks closed 0 % PER at its ceiling. If Envelope
+  B is ever triggered the pick is **909.4 MHz**; half the US915 500 kHz grid is unusable here,
+  914.2 included, where `gatelink-gate` sees −66 dBm. And a BW500 receiver gives up **6.0 dB**
+  of floor to bandwidth before any occupant is considered.
+- **SF — this is where B1b changed the picture, and it did not simplify it.** At the gate all
+  three SFs closed at 0 % PER, so PER does not choose. The fade tail does: worst-probe SNR
+  margin was **2.2 dB at SF7** against **14.8 dB at SF9**. Against that, W9's airtime table
+  says SF7 keeps §12.3's `backoff_max_ms` defaults valid as written and SF9 needs it raised
+  above 1107 ms. **The two constraints point opposite ways. Decide, and record which one you
+  weighted.**
+- **TX power.** The working point is **−4 dBm conducted with the fitted 3.0 dBi antenna**,
+  which both walks closed 0 % PER on. **Do not derate to −9 dBm for conservatism** — it is the
+  SX1262's hard floor and the 2026-09-04 walk lost 12.5–25 % at SF7 there. Record conducted
+  power and antenna gain **separately**; the ceiling is EIRP and a combined figure cannot be
+  audited.
 
-**Two process lessons, worth more than the numbers:**
+**Do not close D1 from range data alone**, and **do not re-walk M20** — it is closed, and the
+500 kHz re-integration was post-processing on the committed R11 trace. Regenerate the derived
+file rather than editing it:
 
-- **A `--note` template placeholder is a silent defect.** The §7.6 capture ran with
-  `<H>m AGL on <stands>` unedited, and checks 3 and 4 are exactly the geometry-dependent
-  ones. `capture.py` cannot know `<H>` is not a value and nothing downstream checks. The
-  geometry was filled in the same day and **the note says it was**.
-- **Step 7 had no runnable command** in either short document — caught by the operator
-  reading ahead, not by any check. Both now carry the invocation, and the mechanism they
-  described was wrong: no `d` is needed, the responder dumps at boot from NVS
-  (`main.cpp:1073`).
+```bash
+python3 tools/rangetest/survey_reintegrate.py \
+    docs/rangetest/data/2026-09-05-survey-campaign-r11.csv \
+    --out docs/rangetest/data/2026-09-06-m20-reintegration.csv
+```
 
-## What Pass 2 did, and what it did not
-
-**Did.** Added the XIAO ESP32S3 + Wio-SX1262 **Kit** as a second board profile behind R2's
-injected-config seam. Display pins, panel reset, Vext and the role button moved into
-`BoardUiConfig`. The driver learned the Wio's discrete RF switch line — a `rf_sw` field R2
-defined that *nothing had ever read*, because the Heltec carries `kPinNone`. Both boards
-measured at **192/192, 0 % PER**, the Heltec run reproducing the pass-1 bench reference
-exactly.
-
-**Did not.** It added a board, not a measurement of the link. **Nothing in Pass 2 advances
-D1**, and the two bench traces are not range data — they say so in their own headers.
-
-**And it does not validate GateLink's carrier.** Seeed sells two Wio-SX1262 products that
-share only the three SPI nets. The board in hand is the **Kit** (p-5982, B2B, GPIO 38–42);
-GateLink's is the **header board** (p-6379, 2.54 mm pads). Bridge Impl Plan §2.3.1
-finding 2 is closed **negatively**:
-
-> The Kit validates the SX1262, the module's RF performance, RadioLib on a second board,
-> and the injected-config seam. It does **not** validate the carrier's net list.
-> *XIAO validates the module; only the carrier validates the carrier.*
-
-The header board's pin map lives in **`gatelink-expansion-board.md` §6.1**, which owns it.
-Do not copy it into a range-test board profile — it is a different product.
-
-## Committed traces
-
-| File | What it is |
-|---|---|
-| `2026-08-31-bench.csv` | Format proof, ~1 m bench link. **Not range data.** Also the trace the §7.6 tool was first exercised against — captured at **2.0 dBi** configured, where everything since carries 3.0 |
-| `2026-09-04-walk-gatelink.csv` | **R10 walk, six positions.** 1152 probes, 2 lost downlink, 7 lost uplink, no dead test points. **Not a clear-field test** — the initiator was indoors at the bridge's target location. **Position 7 is not a location.** Caveats in the file's header |
-| `2026-09-04-walk-gatelink-resplog.csv` | The responder's log for that walk. Closes against the sweep trace at all six positions |
-| `2026-09-05-survey-campaign.csv` | All seven sites, 910 rows, pre-R11. **Superseded for peaks** — its `peak_dbm10` is not site-attributable. Floor and mean sound |
-| `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk**, `hold_discipline=1` at every site. The trace the occupant inventory is built from. 68–74 passes, 130/130 bins, `dropped=0` |
-| `2026-09-05-w9-bench.log` | **W9 / R9**, 64 round trips, zero faults either end. Console lines, not a CSV. **Not a link measurement** |
-| `2026-09-05-bench-pass2-heltec.csv` | **Pass 2 regression check.** Heltec pair on pass 2 firmware, **192/192** — reproduces `2026-08-31-bench.csv` exactly. Third board parked in SURVEY, which is load-bearing |
-| `2026-09-05-bench-pass2-xiao.csv` | **Pass 2, and NOT the B1b delta.** XIAO→Heltec, **192/192** — the first over-air proof the Wio's RF switch line works. Reads ~13 dB stronger RSSI, but **bench geometry is uncontrolled and dominates**: the Heltec reference itself moved −24 → −42 dBm between two runs on placement alone |
-| `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured — the only file here that is not a measurement.** The R11 trace re-integrated over 500 kHz on the US915 grid, plus per-125 kHz bins across 915.2–923.0. **Regenerate it, never hand-edit it** |
-
-| `2026-09-07-eirp-sanity.csv` + `-resplog.csv` | **The §7.6 run that closed it.** Matched Heltec pair, three tape-measured distances. **All four checks PASS.** The first committed traces carrying the `pa_*` header fields |
-| `2026-09-07-eirp-sanity-xiao.csv` + `-resplog.csv` | **§7's Wio repeat.** XIAO+Wio initiator. Checks 1, 2, 4 pass; the clamp holds on the Wio too. Check 3's WARNs are the module asymmetry, not geometry |
-| `2026-09-07-eirp-sanity-swap.csv` + `-resplog.csv` | **The role swap — a negative result, kept deliberately.** It cannot separate TX from RX and neither can any such run. Useful as an independent repeat; **its absolute figures are not usable** (residuals 2.3–2.7 dB, check 3 failed at 12 m) |
-
-**Everything above the 2026-09-07 rows predates the PA record.** A trace with no `pa_*`
-lines was captured by a board flashed before 2026-09-06; that is the only thing its absence
-means. **The three 2026-09-07 traces are the first committed ones carrying them.**
-
-### The results to carry forward
+## The results to carry forward, from M20
 
 **The occupant inventory is closed, off the R11 trace.** Read peaks from
 `2026-09-05-survey-campaign-r11.csv` only.
 
-- **A 915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at
-  `bridge-house` on 916.0** — 62 dB over the floor and by a wide margin the loudest thing
-  in the campaign. Property-wide. Found by the re-integration, not by the original
-  inventory, which was built to ask whether one provisional channel was clear rather than
-  to rank alternatives.
+- **A 915.8–916.4 MHz cluster at six of seven sites**, peaking at **−54 dBm at `bridge-house`
+  on 916.0** — 62 dB over the floor and by a wide margin the loudest thing in the campaign.
+  Property-wide. Found by the re-integration, not by the original inventory, which was built
+  to ask whether one provisional channel was clear rather than to rank alternatives.
 - **`weather-island` peaks −80 dBm at 915.0** against a −115 dBm median floor, reproducing
   within 1 dB across both campaigns. **The one confirmed occupant *on 915.0*** — and it is
-  local to that site; every other site reads floor there. `propane-tank` sees −106 at
-  915.2, also reproducing.
+  local to that site; every other site reads floor there. `propane-tank` sees −106 at 915.2,
+  also reproducing.
 - **Retracted: `irrigation-pump` at 915.2.** −77 dBm pre-R11, −112 (floor) under hold
   discipline — picked up walking in. **One in-channel occupant site, not two.**
 - **`gatelink-gate` peaks −66 dBm at 914.0**, 1 MHz off channel and the strongest near-band
@@ -297,22 +333,20 @@ means. **The three 2026-09-07 traces are the first committed ones carrying them.
   when it plans to surface contention as `cad_backoffs`.
 - **The floor is uniform and receiver-thermal-limited** — −115.0 dBm median at all seven
   sites, the indoor one included.
-- **The survey covers 62.5 % of the band, not all of it.** 125 kHz of receiver bandwidth
-  every 200 kHz. Floors and means scale soundly; **a narrowband occupant sitting in one of
-  the 75 kHz gaps is invisible at any level.** Absence of a peak was already weak evidence
-  and this makes it weaker. `data/README.md` has the arithmetic.
+- **The survey covers 62.5 % of the band, not all of it.** 125 kHz of receiver bandwidth every
+  200 kHz. Floors and means scale soundly; **a narrowband occupant sitting in one of the
+  75 kHz gaps is invisible at any level.** `data/README.md` has the arithmetic.
 
-**The pre-R11 trace warned in its own header that the peak column was not attributable, and
-it was right.** A caveat on a column is a claim to go back and test — and the same held for
-the inventory's own framing, which is how the 916.0 cluster was finally seen.
+**The pre-R11 trace warned in its own header that the peak column was not attributable, and it
+was right.** A caveat on a column is a claim to go back and test — and the same held for the
+inventory's own framing, which is how the 916.0 cluster was finally seen.
 
-### W9 passed, and left one thing for D1
+## W9 passed, and left one thing for D1
 
 Both runs passed over RF on the bench — §6.6.1's 222-byte maximum frame and §6.6.2's full
-15-fragment set, 64 round trips, **zero faults at either end**. **No late fragments in
-either direction across 512 frames**; §11.2's rule was chosen against a *hypothesised* RF
-echo and there are none on this link. That is a **bench** negative at 1 m and says nothing
-about the 500 ft path.
+15-fragment set, 64 round trips, **zero faults at either end**. **No late fragments in either
+direction across 512 frames**; §11.2's rule was chosen against a *hypothesised* RF echo and
+there are none on this link. That is a **bench** negative at 1 m.
 
 **The finding — §12.3's default backoff window is an SF7 assumption:**
 
@@ -325,131 +359,119 @@ about the 500 ft path.
 A window shorter than one frame's airtime cannot outlast the frame it backed off for. §12.3
 permits transmitting after `cad_retries` regardless, so this is latency and `cad_backoffs`
 rather than correctness — but `cad_backoffs` is the instrument §12.3 nominates to check
-itself, and it would read high for a reason that is not congestion. **Raised, not patched.**
+itself, and it would read high for a reason that is not congestion. **Raised, not patched, and
+now in tension with B1b's SF7 fade tail.**
 
-## D1 — a decision, against data that already exists
+## Committed traces
 
-**Nothing external blocks it.** M20 and M21 are both closed. It needs a decision made
-against the material below, plus B1b if the 500 ft leg is wanted first. **Read Protocol
-Spec §18.2 and Decision Register §2.1 before picking any number** — there are four bounds
-now, not three.
+| File | What it is |
+|---|---|
+| `2026-08-31-bench.csv` | Format proof, ~1 m bench link. **Not range data.** Also the trace the §7.6 tool was first exercised against — captured at **2.0 dBi** configured, where everything since carries 3.0 |
+| `2026-09-04-walk-gatelink.csv` + `-resplog.csv` | **R10 walk, six positions.** 1152 probes, 2 lost downlink, 7 lost uplink, no dead test points. **Not a clear-field test** — the initiator was indoors at the bridge's target location. **Position 7 is not a location.** Caveats in the file's header. **Its P1 is the cross-check that unmasked B1b's A/B confound** |
+| `2026-09-05-survey-campaign.csv` | All seven sites, 910 rows, pre-R11. **Superseded for peaks** — its `peak_dbm10` is not site-attributable. Floor and mean sound |
+| `2026-09-05-survey-campaign-r11.csv` | **The M20 re-walk**, `hold_discipline=1` at every site. The trace the occupant inventory is built from. 68–74 passes, 130/130 bins, `dropped=0` |
+| `2026-09-05-w9-bench.log` | **W9 / R9**, 64 round trips, zero faults either end. Console lines, not a CSV. **Not a link measurement** |
+| `2026-09-05-bench-pass2-heltec.csv` | **Pass 2 regression check.** Heltec pair on pass 2 firmware, **192/192** — reproduces `2026-08-31-bench.csv` exactly. Third board parked in SURVEY, which is load-bearing |
+| `2026-09-05-bench-pass2-xiao.csv` | **Pass 2, and NOT the B1b delta.** XIAO→Heltec, **192/192** — the first over-air proof the Wio's RF switch line works. Reads ~13 dB stronger RSSI, but **bench geometry is uncontrolled and dominates** |
+| `2026-09-06-m20-reintegration.csv` | **DERIVED, not captured — the only file here that is not a measurement.** **Regenerate it, never hand-edit it** |
+| `2026-09-07-eirp-sanity.csv` + `-resplog.csv` | **The §7.6 run that closed it.** Matched Heltec pair, three tape-measured distances. **All four checks PASS.** The first committed traces carrying the `pa_*` header fields |
+| `2026-09-07-eirp-sanity-xiao.csv` + `-resplog.csv` | **§7's Wio repeat.** XIAO+Wio initiator. Checks 1, 2, 4 pass; the clamp holds on the Wio too. Check 3's WARNs are the module asymmetry, not geometry |
+| `2026-09-07-eirp-sanity-swap.csv` + `-resplog.csv` | **The role swap — a negative result, kept deliberately.** It cannot separate TX from RX and neither can any such run. **Its absolute figures are not usable** (residuals 2.3–2.7 dB, check 3 failed at 12 m) |
+| `2026-09-09-b1b-walk-gate.csv` | **B1b, and the trace that closes the gate bearing. Four sweeps in one file — read them in file order, not by `position`.** Sweeps 1–2 are B1b (G1, then the gate, 192/192 at 0 %); sweeps 3–4 are the Heltec A/B, which measured the mount. **Two locations share `position=1`** and sweep 3 carries a `position=0`. Header carries the filled placeholders and every caveat |
+| `2026-09-09-b1b-walk-gate-resplog-wio.csv` | The Wio's log, **sweeps 1 and 2 only**. Closes exactly at both |
+| `2026-09-09-b1b-walk-gate-resplog-heltec.csv` | Heltec #1's log, **sweeps 3 and 4 only** — the A/B. **Its `position=1` is the gate, not G1** |
+| `2026-09-09-b1b-field-notes.md` | **Not a trace.** The operator's field notes: decimal-degree fixes, AGL, elevation, obstructions, and why a third and fourth sweep exist. The only record of the G2 mount and the 24 in trunk |
 
-- **Frequency — there is a ranked answer. Use 917.2–917.6 MHz.** The provisional 915.0 MHz
-  is `weather-island`'s occupant peak, **and a small move off it is worse, not better**:
-  915.8–916.4 carries the property-wide cluster peaking at −54 dBm. 917.2–917.6 is ~1.2 MHz
-  clear of it on both scorings, floor at −116 dBm, nearest neighbour of any strength −104
-  dBm. Full table in Decision Register §5.4. Note 923.3–927.5 MHz is LoRaWAN US915
-  *downlink*, so Envelope A's uncommitted region is roughly **915.2–923.0 MHz**.
-- **BW and the rule section are one decision.** BW125 forces **Envelope A** (§15.249,
-  ≈−1.2 dBm EIRP, any frequency in 902–928); **Envelope B** forces BW500 and 903.0–914.2
-  MHz. **Envelope A is the plan of record** — the walk closed 0 % PER at its ceiling. If
-  Envelope B is ever triggered the pick is **909.4 MHz**; half the US915 500 kHz grid is
-  unusable here, 914.2 included, where `gatelink-gate` sees −66 dBm. And a BW500 receiver
-  gives up **6.0 dB** of floor to bandwidth before any occupant is considered.
-- **SF.** The W9 backoff table above is the constraint the survey did not supply. SF7 keeps
-  §12.3's defaults valid as written; SF8+ needs `backoff_max_ms` raised above full-frame
-  airtime.
-- **TX power.** The working point is **−4 dBm conducted with the fitted 3.0 dBi antenna**,
-  which is what the 2026-09-04 walk ran at and closed 0 % PER on at all six positions.
-  **Do not derate to −9 dBm for conservatism** — it is the SX1262's hard floor and the same
-  walk lost 12.5–25 % at SF7 there. Record conducted power and antenna gain **separately**;
-  the ceiling is EIRP and a combined figure cannot be audited.
-
-**Do not close D1 from range data alone**, and **do not re-walk M20** — it is closed, and
-the 500 kHz re-integration was post-processing on the committed R11 trace. Regenerate the
-derived file rather than editing it:
-
-```bash
-python3 tools/rangetest/survey_reintegrate.py \
-    docs/rangetest/data/2026-09-05-survey-campaign-r11.csv \
-    --out docs/rangetest/data/2026-09-06-m20-reintegration.csv
-```
+**Everything above the 2026-09-07 rows predates the PA record.** A trace with no `pa_*` lines
+was captured by a board flashed before 2026-09-06; that is the only thing its absence means.
 
 ## Git state — read before pushing
 
-As of the end of **2026-09-08**:
+As of the end of **2026-09-09**:
 
-- **`origin/main` is at `742fdca`** (through PR #39). The 09-07 session's work merged as
-  PR #37; two documentation branches merged on 09-08 as PR #38 and PR #39.
-- **No branch is open and nothing is queued.** `main` is the only branch, local and remote.
-- **Everything is pushed. Nothing is local-only.**
+- **`origin/main` is at PR #40**, which carried the B1b planning documents. **None of the
+  B1b run is on `origin`.**
+- **Working branch is `b1b-gate-walk`.** It carries the four data files plus the documentation
+  in this session: this file, `data/README.md`, `engineering-log.md`, `B1B-FIELD-CARD.md`,
+  Decision Register §2.2/§3.3/M6, and the corrected comment in `main.cpp`.
+- **Open the PR and write the description yourself.** State which of B1b's acceptance criteria
+  the branch satisfies **and which it does not** — the carrier net list, §2.3.1(b), the TX/RX
+  split and the well bearing are all still open, and the card already says so.
 
 ```bash
-git status --porcelain          # empty
-git log --branches --not --remotes --oneline   # empty
+git status --porcelain
+git log --branches --not --remotes --oneline
 ```
 
 **One push gotcha, and it is not a network fault.** A token without the `workflow` scope is
 refused when a commit touches `.github/workflows/`, with `refusing to allow an OAuth App to
 create or update workflow`. The fix is `gh auth refresh -s workflow`, which is interactive.
-Nothing else in this repository triggers it.
-
-## What changed on 2026-09-08
-
-Documentation, licensing and tooling. **Three things reach a field session:**
-
-1. **The boot banner now reads `v0.9`.** The specification moved v0.8 → v0.9 on 09-06 and
-   thirteen citations lagged, this firmware's among them. **Captures committed before
-   09-08 say `v0.8` and are correct** — they were produced by a firmware built against that
-   citation. Do not re-stamp them. `ver` stays at `2` and v0.9 changed nothing on the wire,
-   so old and new traces stay comparable; the string separates *when a build was made*, not
-   *what it measured*. The engineering log's 2026-09-08 entry has the detail.
-2. **CI exists.** `.github/workflows/ci.yml` runs the repository checks, the host tools'
-   own tests, both Unity suites and both firmware targets on every push and pull request.
-   A green run is now the answer to "does this still build", so **do not spend a field
-   session's bench time on it**.
-3. **`tools/checks/spec_citation_version.py` is new** and runs in CI. It fails when a
-   binding-specification citation names a version the specification has moved past — which
-   is what nothing caught in the v0.8 → v0.9 drift.
-
-**No firmware behaviour changed.** The only code touched was a comment header and the
-banner string. The boards on the bench are current and no reflash is owed — but a reflash
-for any other reason will change the banner in that session's captures.
+Nothing else in this repository triggers it. **This session touches no workflow file.**
 
 ## First actions next session
 
-1. `git pull --ff-only`. **Nothing is queued and no PR is open** — see *Git state*.
-2. Run the checks below. **Auth is SSH on the field laptop** — if git hangs with no output,
-   read *The field laptop* before assuming the network is down.
-3. **No firmware work is queued and no reflash is owed.** The boards are current.
-4. **B1b is the next measurement**, and the run is planned:
-   **[`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)**. Two sweeps, XIAO+Wio walking, the
-   flat-case Heltec tethered at the house. **Clear the XIAO+Wio's position log** before the
-   run and confirm the line comes back.
+1. `git pull --ff-only`, then check whether `b1b-gate-walk` merged. **See Git state.**
+2. Run the checks above — or read a green CI run instead of spending bench time on them.
+3. **No firmware work is queued and no reflash is owed.** The one `main.cpp` change is a
+   comment; the boards on the bench are current.
+4. **No measurement is owed on the gate bearing.** B1b closed it.
 5. **If it is D1, it does not start in this directory** — it is a decision against data that
-   already exists.
-6. **Do not re-run the §7.6 permutations.** It is closed, and the TX/RX split is not
-   reachable with the instruments here.
+   already exists, and B1b's SF constraint is the newest input.
+6. **If it is the well bearing**, `B1B-FIELD-CARD.md` is the procedure. Read its two
+   2026-09-09 corrections first, and **reset the initiator if you change responders.**
+7. **Do not re-run the §7.6 permutations, and do not cite B1b's A/B as a module figure.**
+
+## Worth doing, and nothing blocks on either
+
+- **The fixed-mount A/B.** Both boards on **one bracket**, same height and orientation, swap
+  only the board, alternate Wio–Heltec–Wio so drift shows, photograph the mount. Done that way
+  it **does** separate the Wio's transmit term from its receive term — node substitution at
+  genuinely fixed geometry breaks the degeneracy that §7's role permutations provably cannot.
+  Done any other way it measures the bracket, which is what 2026-09-09 did.
+- **A `capture.py` guard against `--note` placeholders.** Refuse, or warn loudly, on a note
+  containing `<...>`. Two runs in three have gone out with placeholders unedited — §7.6's
+  `<H>m AGL on <stands>` and B1b's two position descriptions — and B1b also left a stale
+  clause standing that the run falsified. Bold text under the command has now failed twice,
+  which makes it a tooling question rather than a discipline one. Cheap, and it protects the
+  geometry-dependent checks specifically.
 
 ## Behaviour that changed, and will make traces look different
 
+**From 2026-09-09 — no code changed, but read this before parsing a multi-responder capture:**
+
+- **The `position` column does not identify a sweep once more than one responder is used.**
+  Split on file order. Section above.
+
+**From 2026-09-08:**
+
+- **The boot banner reads `v0.9`.** **Captures committed before 09-08 say `v0.8` and are
+  correct** — they were produced by a firmware built against that citation. Do not re-stamp
+  them. `ver` stays at `2` and v0.9 changed nothing on the wire, so old and new traces stay
+  comparable; the string separates *when a build was made*, not *what it measured*.
+- **CI exists**, and **`tools/checks/spec_citation_version.py`** runs in it.
+
 **From 2026-09-06:**
 
-- **Five new `key=value` lines in the boot output** — `pa_optimize`, `pa_duty_cycle`,
-  `pa_hp_max`, `pa_val`, `pa_table` — and `capture.py` puts them in the trace header
-  automatically. **Confirmed on hardware 2026-09-07.** A trace without them was captured by
-  a board flashed before 2026-09-06.
-- **The conducted ceiling is −4 dBm** at the configured 3.0 dBi, where the comment in
-  `phy_params.cpp` previously described −3 dBm at 2.0 dBi. **The code's arithmetic did not
-  change** — it has always derived the ceiling from the configured gain — but a trace's
+- **Five `pa_*` `key=value` lines in the boot output**, folded into the trace header by
+  `capture.py`. A trace without them was captured by a board flashed before 2026-09-06.
+- **The conducted ceiling is −4 dBm** at the configured 3.0 dBi. **The code's arithmetic did
+  not change** — it has always derived the ceiling from the configured gain — but a trace's
   ceiling is a function of the gain it was captured with, and `2026-08-31-bench.csv` was
   captured at 2.0.
 
 **From Pass 2 (2026-09-05):**
 
-- **Two build environments now**, `heltec` and `xiao`, selected by `-DLRAN_BOARD_*`. One
-  selection point, `kBoard`/`kBoardUi` in `board_config.h`.
-- **The boot banner now reads `pass 2` and `v0.8`.** It said `pass 1, branch 1 (R1-R3)` and
-  `v0.7` until then — every capture before that carries the wrong string.
-- **The XIAO's display is flipped 180°** for the enclosure, and its role button is
-  **GPIO 21** on the Wio, not GPIO 0.
+- **Two build environments**, `heltec` and `xiao`, selected by `-DLRAN_BOARD_*`. One selection
+  point, `kBoard`/`kBoardUi` in `board_config.h`.
+- **The XIAO's display is flipped 180°** for the enclosure, and its role button is **GPIO 21**
+  on the Wio, not GPIO 0.
 - **`[env:xiao]` carries `-Wno-error=cpp`**, the only relaxation of `-Werror` in the repo.
   Reasoning is at the flag.
 
 **From 2026-09-04:**
 
-- **The initiator boots ARMED.** No sweep runs until the first PRG press, so **positions
-  start at 1, not 0.** A trace with a position 0 predates this.
+- **The initiator boots ARMED.** No sweep runs until the first PRG press — **for the first
+  responder of a capture.** Not for a second one; section above.
 - **Tap PRG = RESPONDER, hold ~1.5 s = SURVEY.** The survey is reachable untethered.
 - **The survey's site cursor is persisted**; the role is not.
 - **The responder saves each position as its sweep completes**, not on the next press.
@@ -460,99 +482,104 @@ for any other reason will change the banner in that session's captures.
 
 The engineering log has the full account; this is the index.
 
+- **A responder swapped in mid-capture sweeps with no press**, at position 0, wherever it is
+  being carried. Reset the initiator. **New 2026-09-09**, and it cost a sweep.
+- **A comparison between two boards is a comparison between two mountings** until the mounting
+  is held fixed and written down. Bench placement moved the Heltec reference 18 dB; which side
+  of a concrete column a board sat on moved it 9 dB and nearly produced a module figure that
+  was not one. **New 2026-09-09.**
 - **A stale responder position log merges into the new run** and fakes an instrumentation
   fault. Clear it, and confirm the line. Section above.
-- **A third powered board corrupts a two-board measurement**, silently, by up to 60 % PER,
-  and the symptom is indistinguishable from poor link margin. It was mistaken for a code
-  regression across two full sweeps on 2026-09-05. **A ten-minute bisect against the
-  previous firmware settles this class of question — reach for it before asserting a
-  regression, not after.**
-- **A reflash session is a period during which every board transmits.** A flashed board
-  boots ARMED, and esptool's hard reset *is* a boot — so a board comes off the programmer
-  beaconing once a second. Observed 2026-09-06 with two other boards on the bench, which is
-  the 60 % PER configuration above. Park or unplug each board as it finishes.
+- **A `--note` template placeholder is a silent defect**, and so is a note clause the run then
+  falsifies. Twice now: §7.6's `<H>m AGL on <stands>`, and B1b's position descriptions plus
+  "Third Heltec POWERED DOWN" on a run that carried it to the gate. `capture.py` cannot tell a
+  placeholder from a value and nothing downstream checks.
+- **A third powered board corrupts a two-board measurement**, silently, by up to 60 % PER, and
+  the symptom is indistinguishable from poor link margin. It was mistaken for a code
+  regression across two full sweeps on 2026-09-05. **A ten-minute bisect against the previous
+  firmware settles this class of question — reach for it before asserting a regression.**
+- **A reflash session is a period during which every board transmits.** A flashed board boots
+  ARMED, and esptool's hard reset *is* a boot. Park or unplug each board as it finishes.
 - **Bench geometry moves RSSI further than anything you are trying to measure.** The Heltec
-  reference moved **−24 → −42 dBm between two runs on placement alone**, and 2026-09-07's
-  desk throwaway wandered 24 dB between two sweeps at *identical* placement. That is 18–24
-  dB against the ±6 dB an absolute EIRP figure is trying to resolve, and it is why §7.6
-  wants a tape measure, three distances and a slope rather than one number.
+  reference moved **−24 → −42 dBm between two runs on placement alone**, and 2026-09-07's desk
+  throwaway wandered 24 dB between two sweeps at *identical* placement. That is why §7.6 wants
+  a tape measure, three distances and a slope rather than one number.
 - **Opening a serial port presses PRG — on the Heltec.** GPIO 0 is also IO0, driven by the
-  CP2102's DTR. Host tools must set `dtr = False` **before** opening. The XIAO has no
-  bridge chip and its button is GPIO 21, so this trap is Heltec-only.
-- **Flashing the XIAO from a firmware with a different USB stack fails once.** Bootloader
-  entry swaps the USB device, esptool loses its handle, `Could not configure port`. The
-  board *is* in the bootloader — on a **new** device node. Flash to that. It did **not**
-  recur on the 2026-09-06 reflash, as pass 2 predicted it would not.
-- **A tool that does not read the port while it waits loses everything the board says.**
-  Cost 19184 bytes of a survey dump, deterministically, and read as a firmware bug.
+  CP2102's DTR. Host tools must set `dtr = False` **before** opening. The XIAO has no bridge
+  chip and its button is GPIO 21, so this trap is Heltec-only.
+- **Flashing the XIAO from a firmware with a different USB stack fails once.** Bootloader entry
+  swaps the USB device, esptool loses its handle, `Could not configure port`. The board *is* in
+  the bootloader — on a **new** device node. Flash to that.
+- **A tool that does not read the port while it waits loses everything the board says.** Cost
+  19184 bytes of a survey dump, deterministically, and read as a firmware bug.
 - **`capture.py` will not overwrite an existing `--out`** (needs `--force`).
-- **Completion markers match as substrings anywhere in a `#` line.** Careless wording of a
-  new firmware message truncates captures.
+- **Completion markers match as substrings anywhere in a `#` line.** Careless wording of a new
+  firmware message truncates captures.
 - **A boot line that is not `key=value` never reaches the trace.** `capture.py` collects
-  `^[a-z][a-z0-9_]*=\S*$` into the header and counts everything else as `unparsed`. One
-  space in one value and that line is silently absent — which is why the PA record's format
-  is asserted by tests on both sides rather than eyeballed.
-- **`--idle-timeout` cannot end a run against a board that never goes quiet.** Use
-  `--run-for` for setup commands.
+  `^[a-z][a-z0-9_]*=\S*$` into the header and counts everything else as `unparsed`. One space
+  in one value and that line is silently absent.
+- **`--idle-timeout` cannot end a run against a board that never goes quiet.** Use `--run-for`
+  for setup commands.
 - **Never ask RadioLib's `getPacketLength()` whether a packet arrived**, and never use
   `getRSSI()` without `false` for an ambient reading. Both hold stale values.
 - **The responder must follow the initiator's retune**, or a clean 100 % PER looks real.
 - **TCXO 1.8 V, `setDio2AsRfSwitch(true)`, and — on the Wio — a real `rf_sw` pin** all fail
   *silently*. The radio initialises, reports a successful transmit, and puts nothing on the
   air. `begin()` returning success proves none of them; only frames crossing does.
-- **Both CP2102 bridges report `SER=0001`.** Trust the confirmation from the command that
-  did the work, not a separate check afterwards.
+- **Both CP2102 bridges report `SER=0001`.** Trust the confirmation from the command that did
+  the work, not a separate check afterwards.
 - **A git hang is not a network failure.** Private repo plus Plasma's
-  `SSH_ASKPASS_REQUIRE=prefer` sends the credential prompt to a GUI dialog and blocks
-  forever; `GIT_TERMINAL_PROMPT=0` does not help, because it disables the *terminal* prompt
-  and not askpass. `curl` against the same host separates transport from authentication.
+  `SSH_ASKPASS_REQUIRE=prefer` sends the credential prompt to a GUI dialog and blocks forever;
+  `GIT_TERMINAL_PROMPT=0` does not help, because it disables the *terminal* prompt and not
+  askpass. `curl` against the same host separates transport from authentication.
 - **Never transmit without an antenna connected.** It is also one of the failures the §7.6
   check exists to detect — detect it in the trace, not by damaging a PA.
 - **The OLED needs hand-shading in direct sunlight.** Procedure, not a defect.
+- **SF12 reads ~7 dB lower SNR than SF7 at the same RSSI**, on every trace back to
+  2026-08-31. It is a property of the estimator, not of the link, and it means SF12 margin
+  figures are understated. Do not chase it as a fault.
 
 ## Open, and not closable from this firmware alone
 
-- **B1b** — the gate-bearing walk with the Wio. **The only measurement this directory still
-  owes.** The 2026-09-05 desk runs are not it, and neither are the 2026-09-07 EIRP runs.
-  **Planned in [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md)** as a two-sweep minimal run on
-  the deployed pairing — Heltec at the house, Wio at the gate. **It does not close the
-  carrier ring-out, §2.3.1(b), the Wio's TX/RX split or the well bearing**, and the card
-  says so on its first page.
-- **D1** — nothing external blocks it. It needs a decision made against the data above, plus
-  B1b if the 500 ft leg is wanted first.
-- **M6** — **precondition met 2026-09-07**, so nothing external blocks it now. Still **not
-  closed**: the last ~46 m is unwalked (that is B1b), and arcsecond GPS cannot support an
-  RSSI-vs-distance curve. It answers "does it work there", not "what is the path loss".
+- **D1** — nothing external blocks it and no measurement is owed. It needs a decision made
+  against the data above. **B1b's SF7 fade tail is the newest input and it pulls against W9's
+  backoff finding.**
+- **M6** — **the gate bearing is answered by B1b.** Still **not closed**: it asks for **both
+  bearings** and the well bearing is unwalked. Arcsecond GPS at the house end still cannot
+  support an RSSI-vs-distance curve, so it answers "does it work there", not "what is the path
+  loss".
+- **The Wio's TX/RX split** — still unmeasured. **B1b's A/B does not close it** — that reading
+  is siting, not module. **A fixed-mount substitution run would**; see *Worth doing*. §7's
+  ruling stands for role permutations specifically: do not run another one.
 - **D33** — **reopened 2026-09-06 by M21**, exactly as its own standing condition 1
-  anticipated. The ceiling survives; the reasoning changed and the frame is §15.23
-  home-built. Decision Register §3.3.
+  anticipated. The ceiling survives; the reasoning changed and the frame is §15.23 home-built.
+  Decision Register §3.3, which now also carries B1b's field confirmation of the asymmetry.
 - **W7** — the §15.1 airtime table regenerates once D1 fixes SF/BW/CR.
-- **§2.3.1 sub-question (b)** — the sleep-current cost of holding `RF_SW` high. Untouched;
-  belongs to B1b.
+- **§2.3.1 sub-question (b)** — the sleep-current cost of holding `RF_SW` high. Untouched, and
+  **B1b did not touch it either**. A meter on the carrier, not a walk.
 - **`gatelink-expansion-board.md` §10 ring-out** — the header board's pads against the
   carrier's nets. **The Kit cannot close it.** It is the tracked check for Bridge Impl Plan
   §10.8.1's remaining premise.
-- ~~**D31** — copyright holder. Every file carries the `<holder>` placeholder.~~
-  **Closed 2026-09-08: Robert J. Lee.** `LICENSE` written at the repo root, placeholder
-  replaced repo-wide. Superseding note, not a rewrite — the line above describes the state
-  this handoff was written in.
+- **A `capture.py` placeholder guard** — see *Worth doing*. Not blocking; two runs in three
+  argue for it.
 
 ### Closed, and not to be reopened by habit
 
-- **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision
-  Register §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
+- **B1b's gate bearing** — **CLOSED 2026-09-09.** 192/192 at 0 % PER at the gate on the
+  deployed pairing. **The A/B in the same capture is not a module measurement.**
+- **M20** — **CLOSED 2026-09-06.** Field work plus re-integration. Results in Decision Register
+  §5.4; derived file `2026-09-06-m20-reintegration.csv`. **Do not re-walk it.**
 - **M21** — **CLOSED 2026-09-06.** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`.
 - **W9** — **CLOSED in spec v0.8.** Left the SF7 backoff finding above for D1.
-- **§7.6 EIRP sanity check** — **CLOSED 2026-09-07**, all four checks, plus §7's Wio
-  repeat. **M6's precondition is met.** Decision Register §3.3 and the M6 row carry it.
-- **The Wio TX/RX split** — **not closable here, by construction.** Reciprocal RSSI gives
-  only `(TX − RX)` per node. **Do not run another permutation.**
-- **Handoff §6 requirement 7** — **DONE 2026-09-06**, and **confirmed in a real trace
-  2026-09-07.** The PA record plus `check_pa_table.py` as the check on the mirror it needs.
+- **§7.6 EIRP sanity check** — **CLOSED 2026-09-07**, all four checks, plus §7's Wio repeat.
+- **D31** — copyright holder. **Closed 2026-09-08: Robert J. Lee.**
+- **Handoff §6 requirement 7** — **DONE 2026-09-06**, confirmed in a real trace 2026-09-07.
 
 ### Backlog items that are not range-test work
 
 - **M22** — bridge LoRa PER with WiFi idle vs. saturated. Belongs to the bridge.
 - **M23** — BLE RSSI to the BMS from the Stamp-S3A at its final mounting position, and
-  LoRa-to-BLE isolation in the same session. Supersedes **M5**. Belongs to GateLink, and it
-  does **not** gate M6 or B1b.
+  LoRa-to-BLE isolation in the same session. Supersedes **M5**. Belongs to GateLink.
+- **The 24 in trunk at the gate** — recorded by B1b's field notes, partially blocking the
+  direct line from the gate controller to the house. **GateLink's siting question, not a
+  range-test one.** No node document carries it yet.

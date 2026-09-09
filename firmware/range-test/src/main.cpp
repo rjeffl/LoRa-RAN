@@ -89,6 +89,17 @@ enum class InitState : uint8_t { Sweeping, Armed };
 // Arming instead means the first sweep starts on the operator's first PRG press, which
 // is what R5's "one press, one sweep, one position" already describes. Positions then
 // run 1..N and every one of them is clean.
+//
+// THAT HOLDS FOR ONE RESPONDER PER CAPTURE, AND ONLY THAT. Arming protects the
+// INITIATOR's boot; it does nothing about a responder swapped in mid-capture. A fresh
+// responder boots g_position_id at 0 (below) while the initiator is still holding the
+// last position it swept, and the mismatch below IS the start signal - so the new board
+// starts a sweep with no press, at position 0, wherever the operator happens to be
+// carrying it. Observed 2026-09-09 on the B1b A/B: sweeps ran 1, 2, 0, 1 in one file,
+// with two different locations sharing position 1.
+//
+// Reset the initiator when you change responders. Until that is enforced here, "a trace
+// with a position 0 predates this change" is not a safe reading of a trace.
 InitState g_init_state = InitState::Armed;
 
 // Position the CURRENT sweep is being run at, versus the latest the responder has
