@@ -298,6 +298,10 @@ the engineering log, 2026-08-31.
 | `2026-09-07-eirp-sanity-xiao-resplog.csv` | The Heltec responder's log for the Wio run. Closes exactly, 192/192/192/192. |
 | `2026-09-07-eirp-sanity-swap.csv` | **The role swap, and a negative result worth keeping.** Heltec initiator, XIAO + Wio responder — the same pair with roles reversed, run to try to separate the Wio's transmit from its receive. **It cannot, and neither can any number of such runs:** swapping roles relabels which direction the tool calls uplink, path loss is reciprocal and cancels, so both runs measure the one combination `(TX−RX)_Wio − (TX−RX)_Heltec`. Kept as an **independent repeat with roles, tethering and which board walked all changed** — magnitudes agree within 0.21 dB. **Its absolute figures are not usable:** residuals 2.3–2.7 dB, check 3 FAILED at 12 m, one slope WARN, and the tool's own advice to discard check 3 fired correctly. Checks 1 and 2 stand. |
 | `2026-09-07-eirp-sanity-swap-resplog.csv` | The XIAO responder's log for the swap. Closes exactly, 192/192/192/192. |
+| `2026-09-09-b1b-walk-gate.csv` | **B1b, and the trace that closes the gate question.** Four sweeps in one file, not two — read them in **file order**, because the `position` column does not identify them and two different locations share `position=1`. Sweeps 1 and 2 are B1b proper: XIAO+Wio walking to **G1** (mid-driveway) and **G2** (the gate controller), Heltec #2 indoors at the bridge's target location. **The gate closed 192/192, 0 % PER, at every one of the 24 configurations**, at both −9 and −4 dBm conducted. Sweeps 3 and 4 are the optional Heltec A/B, both at the gate; **sweep 3 carries `position=0`, which the firmware is not supposed to produce**, and its first 8 test points are contaminated by placement. **The A/B is a board substitution at one position and it separates the Wio's TX term from its RX term** — see below. The capture note's placeholders were unedited and its "third Heltec POWERED DOWN" claim covers the first half of the run only; both are corrected in the file's own header. Read with both resplogs. |
+| `2026-09-09-b1b-walk-gate-resplog-wio.csv` | The XIAO+Wio's own log, **sweeps 1 and 2 only**. Closes exactly, 192/192/192/192 at both positions. Its position log was cleared before the run. |
+| `2026-09-09-b1b-walk-gate-resplog-heltec.csv` | Heltec #1's log, **sweeps 3 and 4 only** — the A/B at the gate, same mount as the Wio. Closes exactly at both. **Its `position=1` is the gate, not G1**; the Wio log's `position=1` is G1. |
+| `2026-09-09-b1b-field-notes.md` | **Not a trace.** The operator's field notes for the B1b run: the two positions with decimal-degree fixes, AGL, elevation and obstructions, and the account of why a third and fourth sweep exist. It is the source the sweep trace's header annotation was filled in from, and the only record of the G2 mount and the 24 in trunk. **Its same-day clarification is what makes the A/B readable** — G2 is 2026-09-04's P1, all three gate sweeps used one mount, and the deployed GateLink antenna lands within 6 in of it. |
 | `2026-09-05-w9-bench.log` | **W9 / R9, both runs, on the bench (2026-09-05).** §6.6.1's 222-byte maximum frame and §6.6.2's full 15-fragment set, 64 round trips, **zero faults at either end**; responder inbound agrees at 512 frames. **Not a link measurement and not a CSV** — see below. |
 
 ### The three 2026-09-07 EIRP traces are one measurement, and must be read as a set
@@ -327,6 +331,111 @@ answer.**
 optimistic RSSI means the Wio's transmit equals the Heltec's, which passed check 2 against
 the −4 dBm ceiling at three distances. **Check 2 passed on the Wio's own hardware in both
 Wio runs regardless**, and that is the check that carries the compliance weight.
+
+### B1b: the gate closed, and the A/B split the Wio's TX term from its RX term
+
+**The result.** At **G2, the gate controller** — and the field notes put the deployed
+GateLink antenna **within 6 in of that spot**, so this is where the node will radiate rather
+than near it — the deployed pairing — Heltec V3 indoors at
+the bridge's target location, XIAO + Wio-SX1262 Kit at the gate — returned **every one of
+192 probes across all 24 configurations, 0 % PER**, at both −9 and −4 dBm conducted, with
+`phy_crc_err`, `foreign` and `filler_err` all zero. That is B1b's question and the answer
+is yes.
+
+**The margin is comfortable on the mean and thin in the tail.** Against the LoRa
+demodulation limits, at the gate:
+
+| SF | mean SNR | margin on the mean | worst single probe |
+|---|---|---|---|
+| 7 | 9.6 dB | 17.1 dB | **−5.3 dB, a 2.2 dB margin**, at −119.0 dBm |
+| 9 | 8.0 dB | 20.5 dB | 14.8 dB |
+| 12 | 4.7 dB | 24.7 dB | 23.5 dB |
+
+One SF7 probe came within about 2 dB of failing and still decoded. Per-test-point RSSI
+spread at the gate is 15 dB. **Read the mean and the tail separately when D1 picks an SF**:
+SF7 is the choice that keeps §12.3's `backoff_max_ms` defaults valid under W9's airtime
+table, and it is also the one whose margin at the gate occasionally approaches zero. SF9
+cost nothing measurable in PER here.
+
+**The two CRC errors are at G1, not at the gate.** G1 sits 16 dB stronger and produced two
+`phy_crc_err` with `foreign=0`; the gate produced none. That is the signature of a bursty
+local occupant rather than link margin, and the run used **915.0 MHz**, which the M20 survey
+puts an occupant on.
+
+**The Heltec A/B separates the Wio's transmit term from its receive term.** Operator
+confirmation, same day: sweeps 2, 3 and 4 all put the responder in the **same place** —
+resting on top of the gate controller enclosure, antenna vertical — and the initiator was
+the same board in the same room throughout, tethered and untouched. **Only the responder
+board changed**, so path loss cancels. §7 ruled out **role permutation** within a pair,
+which remains true: for any pair, `P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`, and no
+amount of swapping escapes it. **Substituting one node against a common initiator at a
+fixed position is a different experiment**, and it is the one this capture contains.
+
+| | sum/2 = (init+resp)/2 | diff = init − resp |
+|---|---|---|
+| Wio at G2 (sweep 2) | −98.94 dBm | −3.27 dB |
+| Heltec at G2 (sweep 4) | −89.69 dBm | −0.43 dB |
+| **difference** | **−9.25 dB** = `(TX+RX)` term | **−2.84 dB** = `(TX−RX)` term |
+
+**TX_wio − TX_heltec ≈ −6.0 dB. RX_wio − RX_heltec ≈ −3.2 dB.** First separation of the two
+terms in this project.
+
+**Carry the uncertainty with the numbers.** The two Heltec sweeps differ by 2.10 dB (−91.79
+while the board was still being placed, −89.69 settled), so placement at that mount is worth
+about 2 dB — an order of magnitude under the 9.25 dB gap, but it puts roughly ±1 dB on each
+split term. **The sum term rests on one pair of sweeps; the difference term is measured twice
+here** at two geometries 16 dB apart and matches the bench. Treat the split as approximate
+and the difference as firm.
+
+**The 2026-09-04 walk is not a control on this, and the temptation to use it is worth naming.**
+That walk measured a **Heltec** at this same spot at −98.25 dBm sum/2 — 0.7 dB from this
+capture's **Wio** and 8.6 dB from its **Heltec**. The 8.6 dB is not a board difference: only
+two Heltecs existed on 2026-09-04, so both walks used the same pair, and `sum/2` is unchanged
+by which end each board sat at. What was never pinned down is the **initiator**, specified in
+that trace only as "the office on the NW side." **Indoor multipath at 915 MHz moves more than
+8.6 dB over inches**, and this project has measured a desk rig wandering 24 dB between two
+sweeps at nominally identical placement. Per-position AGL was recorded as a 2–4 ft range
+rather than a value, and vegetation moisture differed. **A five-day-apart reading with the
+indoor end respecified to a room is not a check on a same-hour substitution at one mount.**
+
+**Compliance is unaffected and the direction is safe.** §7.6 check 3 backed every measurement
+out **below** its calculated figure on both boards, so neither transmits above its setpoint,
+and a Wio delivering ~6 dB less at the same commanded power sits further under the D33
+ceiling. **Check 2 is a step-size test** — 5 dB expected against 26 dB for a broken clamp —
+so it never could see a common-mode difference in delivered power between two boards, and its
+passing on both is not in tension with this.
+
+**Nothing above needs adjusting.** The gate sweep was taken **with the Wio**, so the 0 % PER
+and every margin figure already carry the Wio's penalty. Those are the deployed numbers. The
+corollary is new: **a Heltec at the gate would see about 9 dB more margin than GateLink
+will** — relevant if the SF7 fade tail is judged too thin, and a question for GateLink's
+module choice rather than for this directory.
+
+**The difference term, at two geometries.** `init_rssi − resp_rssi` cancels path loss
+whatever the siting, so these rows stand independently of everything above:
+
+| pair | (init − resp) |
+|---|---|
+| Heltec ↔ **Wio**, G1 (−84 dBm) | **−2.91 dB** |
+| Heltec ↔ **Wio**, the gate (−100 dBm) | **−3.27 dB** |
+| Heltec ↔ Heltec, sweep 3 | −0.15 dB |
+| Heltec ↔ Heltec, sweep 4 | −0.43 dB |
+| Heltec ↔ Heltec, 2026-09-04, all six positions | −0.51 to −0.85 dB |
+
+The Wio's `(TX − RX)` sits about **3.1 dB below** the Heltec's, at two geometries 16 dB
+apart in received power. The Heltec-Heltec rows put the instrument's own bias at about
+0.5 dB, so the figure is outside it. **This reproduces the 3.37 dB measured on the bench on
+2026-09-07, over the air and at range** — the first confirmation that the asymmetry is not
+a bench artifact, and the input the split above needs alongside the sum term.
+
+### SF12 reads about 7 dB lower SNR than SF7 at the same RSSI, and always has
+
+Pooled across the B1b sweeps: SF7 11.4 dB, SF9 10.1 dB, SF12 4.9 dB, at RSSI means within
+1 dB of each other. **This is not a B1b finding and not a link property.** The same gap sits
+in `2026-08-31-bench.csv` at −45 dBm (12.90 / 11.30 / 5.44) and in
+`2026-09-05-bench-pass2-xiao.csv` at −33 dBm (12.46 / 10.97 / 5.08) — four received-power
+levels spanning 75 dB, same offset. Treat it as a property of the estimator. It means SF12's
+margin figures above are understated, not overstated.
 
 ### The W9 trace is not a CSV, and not a range measurement
 

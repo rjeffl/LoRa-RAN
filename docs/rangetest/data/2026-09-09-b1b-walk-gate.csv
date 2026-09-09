@@ -1,0 +1,276 @@
+# LRAN range test trace, captured 2026-09-09 14:22:24
+# note: B1b gate-bearing walk. INITIATOR Heltec V3 in the Meshtastic flat case (the bridge's target unit), INDOORS at the bridge target location (office, NW side, 1 exterior wall). RESPONDER XIAO+Wio-SX1262 Kit, outdoors, hand-carried. Bearing 120deg to gate. 3.0dBi both ends. Trace position 1 = G1 <describe spot, GPS, AGL both ends, LOS/obstructions>; position 2 = G2 the gate <same>. Third Heltec (handheld case) POWERED DOWN <at the house | in the pack, off>. Weather <partly cloudy>, foliage <Summer/Green>.
+#
+# ANNOTATED 2026-09-09, same day, during analysis. The capture note above went out with
+# four placeholders unedited and one statement that the run then falsified. The note is
+# left as captured; everything below is the correction.
+#
+# PLACEHOLDERS FILLED, from the operator's field notes of the same day
+# (data/2026-09-09-b1b-field-notes.md, which is the source and holds the full account):
+#
+#   G1  top of the loop driveway, about half way to the gate. 0.5 m AGL. Elev ~2135 ft.
+#       35.04467 N, 83.36102 W. A few small trees and shrubs in the line of sight to
+#       the house.
+#   G2  the gate controller. Responder resting on top of the gate controller enclosure,
+#       antenna vertical, 0.8 m AGL; the enclosure is on the back of a concrete column.
+#       Elev ~2200 ft. 35.04478 N, 83.36052 W. A 24 in diameter tree trunk partially
+#       blocks the direct line of sight to the house - not noted before this run.
+#       G2 IS the 2026-09-04 walk's P1, described more fully. That trace lists P1 at
+#       2200 ft with "LOS, small tree and shrub in path" and does not mention the trunk.
+#       The deployed GateLink antenna lands within 6 in of this position, so B1b
+#       measured the gate where the node will radiate rather than near it.
+#       Sweeps 3 and 4 used this same spot and mount - only the board changed.
+#   Initiator end unchanged from 2026-09-04: indoors, office on the NW side, 0.5-1.0 m,
+#       one framed exterior wall in every path.
+#   G1 to G2 is 47 m ground distance and +20 m of elevation, computed from the two
+#       decimal fixes above. These are the first B1b positions recorded in decimal
+#       degrees rather than arcseconds.
+#
+# "Third Heltec (handheld case) POWERED DOWN" IS WRONG FOR THIS FILE. Heltec #1 was
+# carried to the gate and used as the responder for the third and fourth sweeps - the
+# optional A/B of B1B-FIELD-CARD.md section 4. It was powered down for sweeps 1 and 2,
+# and the XIAO+Wio was powered down for sweeps 3 and 4, so no sweep here has a third
+# board live in it. The note's claim covers the first half of the run only.
+#
+# FOUR SWEEPS IN ONE FILE, AND THE position COLUMN DOES NOT IDENTIFY THEM.
+# Read them in file order, not by position id:
+#
+#   file order  position  responder    where                        what it is
+#   1st sweep   1         XIAO+Wio     G1                           B1b, valid
+#   2nd sweep   2         XIAO+Wio     G2, the gate                 B1b, valid - the
+#                                                                   measurement B1b exists
+#                                                                   for
+#   3rd sweep   0         Heltec #1    G2, same mount, still being   the 2 dB placement
+#                                        placed                        control
+#   4th sweep   1         Heltec #1    G2, same mount, settled       the A/B measurement
+#
+# TWO DIFFERENT LOCATIONS SHARE position=1 (sweep 1 is G1 with the Wio; sweep 4 is the
+# gate with a Heltec). Anything that groups this file by the position column alone
+# merges them. Split on file order.
+#
+# WHY THERE IS A position=0, WHICH THE FIRMWARE IS NOT SUPPOSED TO PRODUCE. Swapping in
+# Heltec #1 as responder without resetting the initiator started a sweep with no button
+# press. The responder owns position_id and boots it at 0 (main.cpp:115); the initiator
+# starts a sweep whenever the position it hears differs from the one it swept
+# (main.cpp:1811), and it was sitting at 2. Zero is not two, so it swept immediately,
+# before the operator had the board in position. HANDOFF.md's rule "a trace with a
+# position 0 predates the 2026-09-04 arming change" is false as of this file.
+#
+# THE 3rd SWEEP IS THE PLACEMENT CONTROL, AND THAT IS MORE USEFUL THAN DISCARDING IT.
+# It ran while the board was still being placed: its first 8 test points average
+# -94.4 dBm at 5.8 dB sd against the last 16 at -90.6 dBm and 3.1 dB. Sweep-level, it
+# reads -91.79 sum/2 against sweep 4's -89.69 - so being carried into position rather
+# than settled on it is worth 2.10 dB at this mount. That is the scale bar for the A/B
+# below. It is 192/192 at 0 % PER either way.
+#
+# THE HELTEC A/B IS A BOARD SUBSTITUTION AT ONE POSITION, AND IT SEPARATES THE WIO'S
+# TRANSMIT TERM FROM ITS RECEIVE TERM. Operator confirmation, same day: sweeps 2, 3 and
+# 4 all put the responder in the SAME place - resting on top of the gate controller
+# enclosure with the antenna vertical - and the initiator was the same board in the same
+# room throughout the capture, tethered and untouched. Only the responder board changed.
+# Path loss therefore cancels, which reciprocal RSSI within one pair can never do.
+#
+#   sum/2 = (init_rssi + resp_rssi)/2      Wio -98.94    Heltec -89.69
+#   diff  =  init_rssi - resp_rssi         Wio  -3.27    Heltec  -0.43
+#
+#   (TX+RX)_wio - (TX+RX)_heltec = -9.25 dB
+#   (TX-RX)_wio - (TX-RX)_heltec = -2.84 dB
+#   ==> TX_wio - TX_heltec ~ -6.0 dB
+#   ==> RX_wio - RX_heltec ~ -3.2 dB
+#
+# CARRY THE UNCERTAINTY. The two Heltec sweeps here differ by 2.10 dB (-91.79 at
+# position 0, still being placed, against -89.69 settled), so placement at that mount is
+# worth about 2 dB - well under the 9.25 dB gap, but it puts roughly +/-1 dB on each of
+# the two split terms. The sum term rests on ONE pair of sweeps; the difference term is
+# measured twice here, at two geometries 16 dB apart, and matches the 3.37 dB measured on
+# the bench on 2026-09-07. Treat the split as approximate and the difference as firm.
+#
+# THIS DOES NOT OVERTURN SECTION 7 OF THE 2026-09-07 WORK. That ruled out ROLE
+# PERMUTATION within a pair, which is still true - for any pair,
+# P_ij - P_ji = (TX_i - RX_i) - (TX_j - RX_j), and no amount of swapping escapes it.
+# Substituting one NODE against a common initiator at a fixed position is a different
+# experiment, and it is the one this file happens to contain. Do not run more role
+# permutations; do repeat this one on the same mount if the numbers need tightening.
+#
+# THE 2026-09-04 WALK IS NOT A CONTROL ON IT, and the temptation to use it is why this
+# block is long. That walk measured a HELTEC at this same spot at -98.25 dBm sum/2, which
+# happens to sit 0.7 dB from this file's WIO reading and 8.6 dB from its HELTEC reading.
+# The 8.6 dB is not a board difference: only two Heltecs existed on 2026-09-04, so both
+# walks used the same pair, and sum/2 is unchanged by which end each board sat at.
+# What was not pinned down is the INITIATOR, specified in that trace only as "the office
+# on the NW side". Indoor multipath at 915 MHz moves more than 8.6 dB over inches, and
+# this project has already measured a desk rig wandering 24 dB between two sweeps at
+# nominally identical placement (engineering log, 2026-09-07). Per-position AGL was also
+# recorded as a 2-4 ft range rather than a value, and vegetation moisture differed. None
+# of it is measured. A five-day-apart reading with the indoor end respecified to a room is
+# not a check on a same-hour substitution at one mount.
+#
+# COMPLIANCE IS UNAFFECTED AND THE DIRECTION IS SAFE. Section 7.6 check 3 backed every
+# measurement out BELOW its calculated figure on both boards, so neither transmits above
+# its setpoint; a Wio that delivers ~6 dB less than the Heltec at the same commanded power
+# sits further under the D33 ceiling. Check 2 is a STEP-SIZE test - 5 dB expected against
+# 26 dB for a broken clamp - so it was never able to see a common-mode difference in
+# delivered power between two boards, and its passing on both is not in tension with this.
+#
+# WHAT IT MEANS FOR THE MEASUREMENT ABOVE: nothing needs adjusting. B1b's gate sweep was
+# taken WITH the Wio, so the 0 % PER and every margin figure already carry the Wio's
+# penalty. Those are the deployed numbers. The corollary is new, though - a Heltec at the
+# gate would see about 9 dB more margin than GateLink will.
+# schema: docs/rangetest/data/README.md
+#
+# board=heltec_wifi_lora_32_V3
+# freq_hz=915000000
+# sf=7
+# bw_khz=125.0
+# cr=4/5
+# conducted_dbm=-9
+# antenna_gain_dbi=3.0
+# eirp_ceiling_dbm=-1.0
+# sync_word=0x1424
+# explicit_header=1
+# crc=1
+# preamble_symbols=8
+# payload_len=16
+# role=INITIATOR
+# test_points=24
+# probes_per_point=8
+# total_probes=192
+# duration_nominal_s=382
+# duration_worst_s=430
+# pa_optimize=1
+# pa_duty_cycle=2
+# pa_hp_max=2
+# pa_val=-5
+# pa_table=RadioLib-7.7.1-paOptTable
+#
+position,tp_index,freq_hz,sf,cr_denom,conducted_dbm,antenna_gain_dbi10,payload_len,probes_sent,echoes_recv,resp_heard,per_pct100,init_rssi_mean10,init_rssi_min10,init_rssi_max10,init_snr_mean10,init_snr_min10,init_snr_max10,resp_rssi_mean10,resp_rssi_min10,resp_rssi_max10,resp_snr_mean10,resp_snr_min10,resp_snr_max10,phy_crc_err,foreign,filler_err
+# ARMED at boot - press PRG on the responder to start position 1. No sweep runs until you do.
+# sweep start, position 1
+# warmup 4 probes into tp 0
+1,0,915000000,7,5,-9,30,16,8,8,8,0,-871,-880,-860,119,115,123,-840,-850,-830,119,115,123,0,0,0
+1,1,915000000,7,5,-9,30,64,8,8,8,0,-871,-880,-870,121,115,125,-844,-850,-840,119,113,128,0,0,0
+1,2,915000000,7,5,-4,30,16,8,8,8,0,-809,-810,-800,123,118,128,-780,-780,-780,123,120,128,0,0,0
+1,3,915000000,7,5,-4,30,64,8,8,8,0,-813,-820,-810,124,120,128,-784,-790,-780,122,118,125,0,0,0
+# warmup 4 probes into tp 4
+1,4,915000000,7,8,-9,30,16,8,8,8,0,-863,-870,-860,129,123,133,-836,-840,-830,123,120,130,0,0,0
+1,5,915000000,7,8,-9,30,64,8,8,8,0,-861,-870,-860,127,123,130,-828,-830,-810,121,115,123,0,0,0
+1,6,915000000,7,8,-4,30,16,8,8,8,0,-803,-810,-800,126,123,128,-779,-780,-770,130,123,135,0,0,0
+1,7,915000000,7,8,-4,30,64,8,8,8,0,-801,-810,-800,125,120,130,-780,-780,-780,129,123,135,0,0,0
+# warmup 4 probes into tp 8
+1,8,915000000,9,5,-9,30,16,8,8,8,0,-861,-870,-860,111,110,115,-835,-840,-830,109,103,113,0,0,0
+1,9,915000000,9,5,-9,30,64,8,8,8,0,-859,-870,-850,109,108,113,-829,-830,-820,109,100,115,0,0,0
+1,10,915000000,9,5,-4,30,16,8,8,8,0,-805,-810,-800,111,105,120,-776,-780,-770,109,103,113,0,0,0
+1,11,915000000,9,5,-4,30,64,8,8,8,0,-806,-810,-800,110,105,113,-775,-780,-770,111,108,115,0,0,0
+# warmup 4 probes into tp 12
+1,12,915000000,9,8,-9,30,16,8,8,8,0,-865,-870,-860,109,108,110,-830,-830,-830,109,103,110,0,0,0
+1,13,915000000,9,8,-9,30,64,8,8,8,0,-870,-870,-870,107,105,110,-840,-850,-830,105,100,110,0,0,0
+1,14,915000000,9,8,-4,30,16,8,7,8,1250,-816,-820,-810,110,103,120,-790,-790,-790,108,105,113,1,0,0
+1,15,915000000,9,8,-4,30,64,8,8,8,0,-811,-820,-800,110,103,113,-786,-790,-770,108,103,113,0,0,0
+# warmup 2 probes into tp 16
+1,16,915000000,12,5,-9,30,16,8,8,8,0,-881,-890,-870,51,45,58,-850,-850,-850,46,40,53,0,0,0
+1,17,915000000,12,5,-9,30,64,8,7,7,1250,-876,-880,-870,50,48,55,-843,-850,-840,47,43,53,1,0,0
+1,18,915000000,12,5,-4,30,16,8,8,8,0,-818,-830,-810,51,45,58,-788,-800,-780,50,43,55,0,0,0
+1,19,915000000,12,5,-4,30,64,8,8,8,0,-823,-830,-820,57,45,70,-800,-810,-790,55,45,73,0,0,0
+# warmup 5 probes into tp 20
+1,20,915000000,12,8,-9,30,16,8,8,8,0,-873,-880,-870,48,45,50,-840,-840,-840,45,40,50,0,0,0
+1,21,915000000,12,8,-9,30,64,8,8,8,0,-881,-890,-870,49,43,55,-848,-850,-840,46,38,58,0,0,0
+1,22,915000000,12,8,-4,30,16,8,8,8,0,-824,-840,-820,51,48,58,-790,-790,-790,52,40,63,0,0,0
+1,23,915000000,12,8,-4,30,64,8,8,8,0,-821,-830,-820,56,43,65,-793,-810,-780,63,48,73,0,0,0
+# sweep complete at position 1 - ARMED, press PRG on the responder for the next position
+# sweep start, position 2
+# warmup 4 probes into tp 0
+2,0,915000000,7,5,-9,30,16,8,8,8,0,-1004,-1020,-990,101,90,105,-974,-990,-950,65,50,80,0,0,0
+2,1,915000000,7,5,-9,30,64,8,8,8,0,-1046,-1090,-1010,76,48,98,-1010,-1040,-980,36,8,63,0,0,0
+2,2,915000000,7,5,-4,30,16,8,8,8,0,-1063,-1190,-980,58,-53,105,-1019,-1110,-950,26,-63,85,0,0,0
+2,3,915000000,7,5,-4,30,64,8,8,8,0,-993,-1020,-960,104,93,113,-961,-990,-940,74,58,88,0,0,0
+# warmup 4 probes into tp 4
+2,4,915000000,7,8,-9,30,16,8,8,8,0,-1003,-1020,-990,102,93,110,-974,-990,-960,67,53,80,0,0,0
+2,5,915000000,7,8,-9,30,64,8,8,8,0,-993,-1000,-990,106,98,110,-959,-970,-950,77,68,88,0,0,0
+2,6,915000000,7,8,-4,30,16,8,8,8,0,-938,-940,-930,121,120,125,-909,-910,-900,104,103,105,0,0,0
+2,7,915000000,7,8,-4,30,64,8,8,8,0,-1009,-1050,-940,97,73,118,-970,-1030,-910,66,23,105,0,0,0
+# warmup 4 probes into tp 8
+2,8,915000000,9,5,-9,30,16,8,8,8,0,-1079,-1100,-1070,53,38,63,-1045,-1060,-1030,3,-15,13,0,0,0
+2,9,915000000,9,5,-9,30,64,8,8,8,0,-1075,-1080,-1070,56,48,68,-1039,-1060,-1020,8,-8,23,0,0,0
+2,10,915000000,9,5,-4,30,16,8,8,8,0,-1038,-1050,-1020,80,73,85,-1005,-1010,-1000,42,35,45,0,0,0
+2,11,915000000,9,5,-4,30,64,8,8,8,0,-1031,-1040,-1030,82,80,85,-1003,-1010,-1000,44,40,48,0,0,0
+# warmup 4 probes into tp 12
+2,12,915000000,9,8,-9,30,16,8,8,8,0,-1054,-1070,-1040,68,55,75,-1013,-1020,-1010,28,18,38,0,0,0
+2,13,915000000,9,8,-9,30,64,8,8,8,0,-1005,-1110,-980,87,23,98,-973,-1040,-960,62,8,73,0,0,0
+2,14,915000000,9,8,-4,30,16,8,8,8,0,-930,-930,-930,106,103,110,-900,-900,-900,96,93,100,0,0,0
+2,15,915000000,9,8,-4,30,64,8,8,8,0,-929,-930,-920,105,103,108,-900,-900,-900,96,93,98,0,0,0
+# warmup 2 probes into tp 16
+2,16,915000000,12,5,-9,30,16,8,8,8,0,-995,-1000,-990,41,35,50,-961,-980,-950,35,28,50,0,0,0
+2,17,915000000,12,5,-9,30,64,8,8,8,0,-1048,-1080,-1030,48,35,58,-1009,-1040,-960,27,13,35,0,0,0
+2,18,915000000,12,5,-4,30,16,8,8,8,0,-979,-1010,-960,46,38,55,-949,-950,-940,51,40,58,0,0,0
+2,19,915000000,12,5,-4,30,64,8,8,8,0,-956,-970,-940,50,38,65,-935,-950,-910,46,33,58,0,0,0
+# warmup 5 probes into tp 20
+2,20,915000000,12,8,-9,30,16,8,8,8,0,-990,-1000,-980,41,38,45,-960,-970,-950,36,30,48,0,0,0
+2,21,915000000,12,8,-9,30,64,8,8,8,0,-1008,-1080,-980,46,38,53,-980,-1050,-950,34,5,55,0,0,0
+2,22,915000000,12,8,-4,30,16,8,8,8,0,-963,-1000,-930,50,40,63,-933,-970,-910,43,33,55,0,0,0
+2,23,915000000,12,8,-4,30,64,8,8,8,0,-1010,-1070,-940,53,35,63,-973,-1030,-920,41,10,53,0,0,0
+# sweep complete at position 2 - ARMED, press PRG on the responder for the next position
+# sweep start, position 0
+# warmup 4 probes into tp 0
+0,0,915000000,7,5,-9,30,16,8,8,8,0,-998,-1020,-970,103,90,115,-1003,-1020,-980,102,93,110,0,0,0
+0,1,915000000,7,5,-9,30,64,8,8,8,0,-1023,-1090,-970,90,43,113,-1029,-1070,-990,90,70,110,0,0,0
+0,2,915000000,7,5,-4,30,16,8,8,8,0,-933,-960,-910,118,113,125,-939,-970,-920,118,113,128,0,0,0
+0,3,915000000,7,5,-4,30,64,8,8,8,0,-969,-1000,-940,116,105,128,-974,-990,-950,114,100,120,0,0,0
+# warmup 4 probes into tp 4
+0,4,915000000,7,8,-9,30,16,8,8,8,0,-989,-1010,-960,109,103,120,-990,-1010,-960,108,103,115,0,0,0
+0,5,915000000,7,8,-9,30,64,8,8,8,0,-919,-960,-880,122,115,130,-936,-980,-890,119,118,125,0,0,0
+0,6,915000000,7,8,-4,30,16,8,8,8,0,-869,-890,-850,127,120,133,-869,-890,-840,127,123,133,0,0,0
+0,7,915000000,7,8,-4,30,64,8,8,8,0,-850,-860,-840,126,118,133,-853,-870,-830,126,120,133,0,0,0
+# warmup 4 probes into tp 8
+0,8,915000000,9,5,-9,30,16,8,8,8,0,-933,-970,-900,107,98,115,-924,-970,-900,108,103,115,0,0,0
+0,9,915000000,9,5,-9,30,64,8,8,8,0,-948,-1030,-920,104,83,108,-949,-1020,-900,103,88,110,0,0,0
+0,10,915000000,9,5,-4,30,16,8,8,8,0,-870,-940,-840,109,105,115,-865,-880,-850,109,103,113,0,0,0
+0,11,915000000,9,5,-4,30,64,8,8,8,0,-873,-890,-850,108,105,110,-861,-880,-850,111,105,115,0,0,0
+# warmup 4 probes into tp 12
+0,12,915000000,9,8,-9,30,16,8,8,8,0,-929,-930,-920,107,105,110,-924,-940,-910,109,100,113,0,0,0
+0,13,915000000,9,8,-9,30,64,8,8,8,0,-940,-960,-920,109,103,118,-941,-960,-920,109,105,113,0,0,0
+0,14,915000000,9,8,-4,30,16,8,8,8,0,-893,-900,-890,109,105,110,-888,-890,-880,110,105,115,0,0,0
+0,15,915000000,9,8,-4,30,64,8,8,8,0,-876,-890,-850,109,105,113,-875,-890,-870,109,108,113,0,0,0
+# warmup 2 probes into tp 16
+0,16,915000000,12,5,-9,30,16,8,8,8,0,-928,-940,-920,49,45,53,-923,-930,-910,48,45,50,0,0,0
+0,17,915000000,12,5,-9,30,64,8,8,8,0,-943,-950,-930,51,40,63,-938,-950,-920,46,43,50,0,0,0
+0,18,915000000,12,5,-4,30,16,8,8,8,0,-868,-870,-860,50,48,55,-864,-870,-850,48,45,50,0,0,0
+0,19,915000000,12,5,-4,30,64,8,8,8,0,-881,-890,-870,47,40,50,-874,-890,-860,51,45,53,0,0,0
+# warmup 5 probes into tp 20
+0,20,915000000,12,8,-9,30,16,8,8,8,0,-939,-960,-910,49,43,55,-929,-960,-900,48,43,53,0,0,0
+0,21,915000000,12,8,-9,30,64,8,8,8,0,-929,-940,-910,46,43,50,-925,-950,-890,46,40,53,0,0,0
+0,22,915000000,12,8,-4,30,16,8,8,8,0,-874,-900,-850,52,48,58,-869,-910,-850,53,45,58,0,0,0
+0,23,915000000,12,8,-4,30,64,8,8,8,0,-874,-890,-860,52,45,60,-869,-920,-840,50,48,53,0,0,0
+# sweep complete at position 0 - ARMED, press PRG on the responder for the next position
+# sweep start, position 1
+# warmup 4 probes into tp 0
+1,0,915000000,7,5,-9,30,16,8,8,8,0,-905,-930,-880,119,115,128,-903,-940,-870,123,118,130,0,0,0
+1,1,915000000,7,5,-9,30,64,8,8,8,0,-943,-1010,-910,117,98,125,-936,-990,-890,117,110,125,0,0,0
+1,2,915000000,7,5,-4,30,16,8,8,8,0,-879,-900,-870,120,118,125,-874,-900,-850,123,118,128,0,0,0
+1,3,915000000,7,5,-4,30,64,8,8,8,0,-875,-900,-850,123,118,133,-873,-890,-850,124,118,130,0,0,0
+# warmup 4 probes into tp 4
+1,4,915000000,7,8,-9,30,16,8,8,8,0,-935,-940,-930,123,120,125,-930,-940,-920,120,118,123,0,0,0
+1,5,915000000,7,8,-9,30,64,8,8,8,0,-931,-940,-920,119,115,123,-928,-930,-920,119,115,123,0,0,0
+1,6,915000000,7,8,-4,30,16,8,8,8,0,-870,-870,-870,124,120,128,-868,-870,-860,123,120,125,0,0,0
+1,7,915000000,7,8,-4,30,64,8,8,8,0,-870,-870,-870,123,118,128,-870,-870,-870,121,118,125,0,0,0
+# warmup 4 probes into tp 8
+1,8,915000000,9,5,-9,30,16,8,8,8,0,-930,-930,-930,106,103,110,-926,-930,-920,105,103,108,0,0,0
+1,9,915000000,9,5,-9,30,64,8,8,8,0,-930,-930,-930,107,105,108,-924,-930,-920,107,105,110,0,0,0
+1,10,915000000,9,5,-4,30,16,8,8,8,0,-878,-880,-870,108,105,113,-870,-870,-870,108,105,113,0,0,0
+1,11,915000000,9,5,-4,30,64,8,8,8,0,-863,-870,-850,109,105,115,-859,-880,-850,109,103,118,0,0,0
+# warmup 4 probes into tp 12
+1,12,915000000,9,8,-9,30,16,8,8,8,0,-923,-940,-910,109,103,115,-914,-930,-900,106,100,113,0,0,0
+1,13,915000000,9,8,-9,30,64,8,8,8,0,-928,-940,-910,105,103,110,-925,-930,-910,107,105,108,0,0,0
+1,14,915000000,9,8,-4,30,16,8,8,8,0,-865,-870,-850,110,105,115,-859,-870,-850,111,105,118,0,0,0
+1,15,915000000,9,8,-4,30,64,8,8,8,0,-870,-870,-870,108,105,113,-870,-870,-870,108,105,110,0,0,0
+# warmup 2 probes into tp 16
+1,16,915000000,12,5,-9,30,16,8,8,8,0,-935,-940,-920,46,43,50,-930,-940,-910,45,40,50,0,0,0
+1,17,915000000,12,5,-9,30,64,8,8,8,0,-930,-940,-920,48,43,58,-928,-940,-910,47,43,53,0,0,0
+1,18,915000000,12,5,-4,30,16,8,8,8,0,-864,-870,-860,49,48,50,-854,-860,-850,50,43,55,0,0,0
+1,19,915000000,12,5,-4,30,64,8,8,8,0,-870,-870,-870,49,43,50,-868,-890,-850,51,45,55,0,0,0
+# warmup 5 probes into tp 20
+1,20,915000000,12,8,-9,30,16,8,8,8,0,-915,-930,-910,50,45,53,-909,-910,-900,51,48,55,0,0,0
+1,21,915000000,12,8,-9,30,64,8,8,8,0,-923,-930,-900,48,43,55,-926,-950,-910,48,40,55,0,0,0
+1,22,915000000,12,8,-4,30,16,8,8,8,0,-874,-900,-860,53,48,60,-864,-880,-850,53,48,58,0,0,0
+1,23,915000000,12,8,-4,30,64,8,8,8,0,-871,-880,-870,48,43,50,-866,-880,-860,48,43,53,0,0,0
+# sweep complete at position 1 - ARMED, press PRG on the responder for the next position
+# capture ended: stopped by operator - 96 rows

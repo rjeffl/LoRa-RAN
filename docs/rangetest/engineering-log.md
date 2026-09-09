@@ -3259,3 +3259,276 @@ to check and what nothing checks automatically.
 v0.8 while already describing **§18.2**, which v0.9 introduced. Its substance was right and
 its version number was not; the row carries a dated correction note rather than a silent
 edit.
+
+---
+
+## 2026-09-09 — B1b: the gate link closes, and the A/B measured the mount
+
+**The gate closed at 0 % PER on the deployed pairing.** Heltec #2 indoors at the bridge's
+target location, XIAO + Wio-SX1262 Kit at the gate controller: **192 of 192 probes returned
+at every one of the 24 configurations**, at both −9 and −4 dBm conducted, with
+`phy_crc_err`, `foreign` and `filler_err` all zero. M6's gate bearing has the measurement it
+was waiting for, and it is the pairing that will actually be deployed rather than a
+Heltec-pair stand-in.
+
+Four sweeps landed in one capture, not the two the field card planned. Files:
+`2026-09-09-b1b-walk-gate.csv` with `-resplog-wio.csv` and `-resplog-heltec.csv`, plus
+`2026-09-09-b1b-field-notes.md`, which is the operator's own record and the source the trace
+header was annotated from.
+
+| file order | position | responder | where | |
+|---|---|---|---|---|
+| 1 | 1 | XIAO+Wio | G1, mid-driveway, 0.5 m AGL | 190/192, 1.04 % PER, 2 CRC errors |
+| 2 | 2 | XIAO+Wio | **G2, the gate**, 0.8 m AGL on the column | **192/192, 0 %** |
+| 3 | **0** | Heltec #1 | at the gate, still being placed | 192/192, 0 %, level discarded |
+| 4 | 1 | Heltec #1 | at the gate, settled | 192/192, 0 % |
+
+**Two different locations share `position=1` in one file** — sweep 1 is G1 with the Wio,
+sweep 4 is the gate with a Heltec. Anything that groups the file by the `position` column
+alone merges them. The field card predicted this collision and said the A/B needed its own
+capture file; it went into the walk capture instead.
+
+### The `position=0` sweep is a firmware behaviour, and the field card only half predicted it
+
+The card expected Heltec #1's first press to produce a duplicate `position=1`. What happened
+instead is that **no press was needed at all**. The responder owns `position_id` and boots it
+at 0 (`main.cpp:115`); the initiator starts a sweep whenever the position it hears differs
+from the one it swept (`main.cpp:1811`). Swapping the responder without resetting the
+initiator left the initiator at `g_swept_position = 2` and the fresh board announcing 0. Zero
+is not two, so the sweep started immediately, before the operator had the board in position.
+
+That has two consequences beyond this run:
+
+- **Arming at boot protects the initiator's boot, not a responder swap mid-capture.** The
+  comment at `main.cpp:79` claims positions "then run 1..N and every one of them is clean."
+  That holds for one responder per capture and is false for two. Comment corrected.
+- **`HANDOFF.md`'s discriminator "a trace with a position 0 predates the 2026-09-04 arming
+  change" is falsified by this trace**, which postdates it by five days. Removed.
+
+The procedural fix is the field card's own instruction, now stated as a rule rather than a
+preference: **reset the initiator when you change responders.** The firmware fix would be to
+require a press after a position id moves backwards, and is not worth a reflash at the gate
+on its own.
+
+The third sweep is kept and discarded only for level. Its first 8 test points average
+−94.4 dBm at 5.8 dB sd against the last 16 at −90.6 dBm and 3.1 dB, which is the board being
+carried. It still returned 192 of 192.
+
+### The Heltec A/B measured the mount, not the module
+
+At the gate the Wio pair reads `(init+resp)/2 = −98.94 dBm` and the Heltec pair −89.69 — a
+9.25 dB gap. Substituting one node at fixed geometry against a common initiator **would**
+separate the Wio's transmit term from its receive term, which is the thing §7 established
+role permutation can never do. Working it through gives TX_wio − TX_heltec = −6.05 dB and
+RX_wio − RX_heltec = −3.21 dB.
+
+**Do not use those numbers.** The geometry was not fixed, and the 2026-09-04 walk is what
+shows it:
+
+- The field notes record G2 as the same location as that walk's **P1**.
+- 2026-09-04 measured **a Heltec** at P1 at −98.25 dBm, averaged over the two directions.
+- This run's **Wio** at G2 reads **−98.94** — agreeing with the older Heltec to 0.7 dB,
+  across five days and a change of foliage.
+- This run's **Heltec** at "the gate" reads −89.69, 8.5 dB off the Heltec reading taken at
+  the same spot.
+
+The Wio at G2 sat 0.8 m AGL on the **back** of a concrete column, with a 24 in trunk
+partially blocking the path — an obstruction the field notes record for the first time. The
+A/B board was hand-placed nearby, and the notes say the first A/B sweep started before it was
+in position. One assumption explains both data sets: **the A/B board was sited better than
+the column mount.** The alternative requires the 2026-09-04 Heltec to have coincidentally
+lost 9 dB at that spot.
+
+**§7's conclusion stands and should not be reported as overturned.** A node-substitution run
+would separate TX from RX, and it needs both boards on the identical mount, alternated within
+the hour. That is a different experiment from the role permutations §7 rules out. Worth
+doing; not what happened here.
+
+**The lesson is the one this repository keeps relearning at a different scale.** Bench
+geometry moved the Heltec reference 18 dB on placement alone; field geometry moved it 9 dB on
+which side of a column the board sat. A comparison between two boards is a comparison between
+two mountings until the mounting is held fixed and written down.
+
+### The asymmetry reproduces in the field, and this part is solid
+
+`init_rssi − resp_rssi` is a within-sweep difference over one path at one instant, so siting
+cancels out of it entirely.
+
+| pair | (init − resp) |
+|---|---|
+| Heltec ↔ **Wio**, G1, −84 dBm | **−2.91 dB** |
+| Heltec ↔ **Wio**, the gate, −100 dBm | **−3.27 dB** |
+| Heltec ↔ Heltec, sweep 3 | −0.15 dB |
+| Heltec ↔ Heltec, sweep 4 | −0.43 dB |
+| Heltec ↔ Heltec, 2026-09-04, all six positions | −0.51 to −0.85 dB |
+
+The Wio's `(TX − RX)` sits about **3.1 dB below** the Heltec's, at two geometries 16 dB apart
+in received power. The Heltec-Heltec rows put the instrument's own bias near 0.5 dB, so the
+figure sits well outside it. **This reproduces 2026-09-07's bench value of 3.37 dB over the
+air and at range** — the first evidence that the asymmetry is a property of the module rather
+than of the desk it was measured on. It does not disturb D33: §7's compliance argument
+covered both readings of the asymmetry and both leave the Wio under the ceiling.
+
+### Margin at the gate, on the mean and in the tail
+
+| SF | mean SNR | margin on the mean | worst single probe |
+|---|---|---|---|
+| 7 | 9.6 dB | 17.1 dB | **−5.3 dB, a 2.2 dB margin**, at −119.0 dBm |
+| 9 | 8.0 dB | 20.5 dB | 14.8 dB |
+| 12 | 4.7 dB | 24.7 dB | 23.5 dB |
+
+**The mean is comfortable and the SF7 tail is not.** One probe at test point 2 came within
+about 2 dB of the demodulation limit and still decoded; per-test-point RSSI spread at the gate
+is 15 dB. This is a constraint D1 did not have before, and it points the opposite way from
+W9's: **W9 says SF7 keeps §12.3's `backoff_max_ms` defaults valid, and B1b says SF7 is the SF
+whose margin at the gate occasionally approaches zero.** SF9 cost nothing measurable in PER
+here and buys about 13 dB of tail margin, at the price of raising `backoff_max_ms` above
+1107 ms. Neither is obviously right; both facts belong in the decision.
+
+**The two CRC errors are at G1, not at the gate.** G1 is 16 dB stronger and produced two,
+with `foreign=0`; the gate produced none. That is a bursty local occupant rather than link
+margin, and the run used 915.0 MHz, which M20 puts an occupant on. §14 stage 1 has now been
+observed somewhere other than a desk, which is what §10.5 asked for — just not at the position
+anyone expected.
+
+### Two things the run gives that no previous one did
+
+**Decimal-degree fixes.** G1 at 35.04467 N, 83.36102 W and G2 at 35.04478 N, 83.36052 W —
+47 m of ground distance and +20 m of elevation between them, with AGL recorded per position
+rather than as a range for the walk. The 2026-09-05 entry asked for exactly this and the walk
+that prompted it could not supply it. It is still not a path-loss model: the house end is one
+arcsecond-era fix behind a wall.
+
+**The G2 obstruction.** A 24 in trunk partially blocking the direct line from the gate
+controller to the house, unrecorded before this run. GateLink mounts there. Worth carrying
+into the node's own siting discussion rather than leaving in a range-test note.
+
+### The capture note went out with placeholders again
+
+`<describe spot, GPS, AGL both ends, LOS/obstructions>` and `<same>` both unedited, and
+`POWERED DOWN <at the house | in the pack, off>` left in a sentence the run then falsified —
+Heltec #1 went to the gate for the A/B. Weather and foliage were filled in, so the operator
+was editing the note and stopped partway.
+
+This is the second run in three to do it, after §7.6's `<H>m AGL on <stands>`. The 09-07
+entry called a placeholder "a silent defect" and the card carries the warning in bold
+directly under the command. **Neither was enough, which makes this a tooling question rather
+than a discipline one:** `capture.py` could refuse a `--note` containing `<...>` and cost
+nothing. Filed as a change worth making rather than a lesson worth repeating. The trace
+header carries the filled values with a dated annotation, the same way 2026-09-04's height
+correction does.
+
+### State
+
+**B1b is closed for the gate bearing.** The link closes at the gate on the deployed pairing
+with margin at the D33 ceiling. What B1b was already documented not to close is unchanged:
+the carrier's net list, §2.3.1(b)'s sleep current, and the well bearing that M6 still asks
+for. **Add the TX/RX split to that list** — this run looked briefly as though it had closed
+it and has not.
+
+---
+
+## 2026-09-09, later — the A/B was valid, and it splits the Wio's TX from its RX
+
+**Supersedes the section "The Heltec A/B measured the mount, not the module" in the entry
+above.** That section's conclusion was wrong. The rest of that entry stands. This is a new
+entry rather than an edit because the first one is the record of how the wrong reading was
+reached, and the reasoning is worth keeping.
+
+**Operator confirmation, same day, and it inverts the conclusion:** P1 of the 2026-09-04 walk
+and G2 of this run **are the same location**, and **both boards sat in the same place for the
+A/B** — resting on top of the gate controller enclosure with the antenna vertical. "0.8 m AGL
+on the back of a concrete column" and "on top of the gate controller enclosure" describe one
+position; the enclosure is on the column. The field notes were a fuller description of a spot
+the earlier walk already used, not a different spot. **The deployed GateLink antenna lands
+within 6 in of it.**
+
+The trace agrees once you look for it: 2026-09-04 lists P1 at **2200 ft** with "LOS, small
+tree and shrub in path," against G2's ~2200 ft — the same spot, minus the 24 in trunk nobody
+had written down.
+
+### So the substitution is at fixed geometry, and it separates the terms
+
+Sweeps 2, 3 and 4 share the responder position and mount. The initiator was the same board in
+the same room throughout the capture, tethered and untouched while the operator was at the
+gate. **Only the responder board changed.** Path loss cancels.
+
+| | sum/2 = (init+resp)/2 | diff = init − resp |
+|---|---|---|
+| Wio at G2, sweep 2 | −98.94 dBm | −3.27 dB |
+| Heltec at G2, sweep 4 | −89.69 dBm | −0.43 dB |
+| **difference** | **−9.25 dB** = the `(TX+RX)` term | **−2.84 dB** = the `(TX−RX)` term |
+
+**TX_wio − TX_heltec ≈ −6.0 dB. RX_wio − RX_heltec ≈ −3.2 dB.** The first separation of the
+two terms this project has managed.
+
+**§7's ruling is not overturned, and should not be reported as overturned.** It ruled out
+**role permutation** within a pair, which is still true — for any pair,
+`P_ij − P_ji = (TX_i − RX_i) − (TX_j − RX_j)`, and no amount of swapping escapes that.
+Substituting one **node** against a common initiator at a fixed position is a different
+experiment. §7 said an absolute reference was needed; a second node at the same mount turns
+out to be one.
+
+**Uncertainty, carried explicitly.** Sweep 3 ran while the board was still being placed and
+reads −91.79 sum/2 against sweep 4's −89.69, so **placement at that mount is worth 2.10 dB** —
+an order of magnitude below the 9.25 dB gap, but roughly ±1 dB on each split term. **The sum
+term rests on one pair of sweeps.** The difference term is measured twice here, at two
+geometries 16 dB apart, and matches 2026-09-07's bench 3.37 dB. Treat the split as
+approximate and the difference as firm. Repeat on the same mount if the numbers need
+tightening; that is now a well-defined run rather than a hope.
+
+### Why the 2026-09-04 comparison misled, and why it is not a control
+
+The earlier entry leaned on this: a **Heltec** at that spot read −98.25 dBm sum/2 on
+2026-09-04, which sits 0.7 dB from this capture's **Wio** and 8.6 dB from its **Heltec**. That
+looked decisive and is not.
+
+**The 8.6 dB is not a board difference.** Only two Heltecs existed on 2026-09-04, so both
+walks used the same pair, and `sum/2` is unchanged by which end each board sat at — it sums
+both nodes' transmit and receive terms. Swapping the ends cannot move it.
+
+**What was never pinned down is the initiator.** The 2026-09-04 trace specifies it as "the
+office on the NW side" and no more. **Indoor multipath at 915 MHz moves more than 8.6 dB over
+inches**, and this project has already measured a desk rig wandering **24 dB between two
+sweeps at nominally identical placement** (2026-09-07). Add per-position AGL recorded as a
+2–4 ft range rather than a value, and a different day's vegetation moisture. None of it is
+measured.
+
+**The general lesson, and it cuts the other way from the earlier entry's:** a five-day-apart
+reading whose indoor end is specified to a room is not a control on a same-hour substitution
+at one mount. **The tighter experiment was the trustworthy one, and it was discarded in favour
+of the looser one because the looser one had a second data point.** Two numbers agreeing is
+not evidence when neither is controlled.
+
+The 0.7 dB agreement between 2026-09-04's Heltec and this run's Wio is a coincidence. It is an
+uncomfortable one, and the way to settle it is to repeat the substitution rather than to
+reason about it further.
+
+### Compliance is unaffected, and check 2 was never able to see this
+
+**The direction is safe.** §7.6 check 3 backed every measurement out **below** its calculated
+figure on both boards, so neither board transmits above its setpoint, and a Wio delivering
+~6 dB less than the Heltec at the same commanded power sits **further under** the D33 ceiling.
+Decision Register §3.3's argument covered both readings of the asymmetry and covers this.
+
+**Check 2's pass on both boards is not in tension with a 6 dB inter-board difference.** Check 2
+is a **step-size** test by design — `EIRP-SANITY-CHECK.md` §1 puts it as 5 dB expected against
+26 dB for a broken clamp — so it verifies that the clamp arithmetic reached the PA and is
+blind to a common-mode offset in delivered power. That is what it was built to do and the
+limitation is worth stating rather than discovering later.
+
+### What it changes, and what it does not
+
+**Nothing about B1b's result.** The gate sweep was taken **with the Wio**, so the 0 % PER and
+every margin figure already carry the Wio's penalty. **Those are the deployed numbers**, which
+is precisely why the card specified the deployed pairing instead of a Heltec pair. The SF7
+fade tail of 2.2 dB is GateLink's tail.
+
+**One new input, and it belongs to GateLink rather than here.** A Heltec at the gate would see
+about **9 dB more margin** than the Wio-based node will. If the SF7 tail is judged too thin,
+that is an option that was not on the table before — alongside SF9, which buys ~13 dB for a
+`backoff_max_ms` raise. Raised, not decided.
+
+**And M6's answer is stronger than it was.** With the deployed antenna landing within 6 in of
+G2, B1b measured the link **where GateLink will radiate**, not near it. That is a better
+answer to "does it work there" than the 2026-09-04 walk could give at any position.
