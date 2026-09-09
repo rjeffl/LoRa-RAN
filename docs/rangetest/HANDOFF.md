@@ -182,8 +182,7 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 
 | | |
 |---|---|
-| Branch | **`main` only.** Nothing open, nothing queued. **See Git state below** |
-| Merged through | **#41**, `9fee445`. **All of B1b is on `main`** — planning, data and analysis |
+| Branch and merge state | **Not written here — it cannot be kept true.** Run the two commands in *Git state* below |
 | Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
 | Firmware queue | **Empty.** No code is owed and no reflash is owed |
@@ -419,37 +418,56 @@ now in tension with B1b's SF7 fade tail.**
 **Everything above the 2026-09-07 rows predates the PA record.** A trace with no `pa_*` lines
 was captured by a board flashed before 2026-09-06; that is the only thing its absence means.
 
-## Git state — read before pushing
+## Git state — ask git, do not read it here
 
-As of the end of **2026-09-09**:
+> **Where `main` points, what merged last, which branches exist and whether a PR is open are
+> deliberately not written in this file.** They were the single largest source of staleness in
+> it: two of the five commits before 2026-09-09 exist *only* to correct three lines of
+> hardcoded SHAs and PR numbers, and each correction needed its own branch and PR to land.
+> **A written SHA is wrong the moment the branch carrying it merges, and it is wrong in the
+> worst direction** — confidently, in a file whose whole value is being trustable cold.
 
-- **`origin/main` is at `9fee445`**, the merge of **PR #41**. All of B1b is on `main`:
-  planning, data, analysis and the documentation.
-- **Nothing is open and nothing is queued.** `b1b-gate-walk` merged and was deleted, local and
-  remote. `main` is the only branch. CI was green on all three jobs before the merge.
-- **Read B1b's two analysis commits in order** — `0f21c23` then `539068e`. The second
-  supersedes the first's reading of the A/B, and the first is kept as the record of how the
-  wrong conclusion was reached. The engineering log's two 2026-09-09 entries mirror them.
-- **One non-blocking CI annotation, and it is not this branch's.** GitHub forces
-  `actions/checkout@v4`, `actions/setup-python@v5` and `actions/cache@v4` onto Node.js 24
-  because Node 20 is deprecated on runners. Nothing fails. Bumping the pins needs a commit
-  touching `.github/workflows/`, so it needs the token scope below — worth doing on its own,
-  not folded into measurement work.
+Four commands, and they answer it better than prose can:
 
 ```bash
-git status --porcelain
-git log --branches --not --remotes --oneline
+git fetch origin -p                       # prune deleted remote branches first
+git log --oneline -1 origin/main          # where main actually is
+gh pr list --state open                   # what is open, if anything
+git log --branches --not --remotes --oneline   # local-only work; empty is good
 ```
 
-**One push gotcha, and it is not a network fault.** A token without the `workflow` scope is
-refused when a commit touches `.github/workflows/`, with `refusing to allow an OAuth App to
-create or update workflow`. The fix is `gh auth refresh -s workflow`, which is interactive.
-Nothing else in this repository triggers it. **The 2026-09-09 session touched no workflow
-file; a Node-version pin bump would be the first thing to need it.**
+**Run `git fetch` before trusting any of it.** Two machines push to this repository — the Mac
+and the Kubuntu field laptop — so a local view can be behind without saying so.
+
+### What a SHA in this file *does* mean
+
+**Permanent history is citable; moving state is not.** `0f21c23` names a commit that will
+always be that commit, so citing it is safe. "`main` is at `9fee445`" names where a pointer
+happened to sit on one afternoon, so it is not.
+
+So this is fine and stays:
+
+- **Read B1b's two analysis commits in order — `0f21c23`, then `539068e`.** The second
+  supersedes the first's reading of the A/B, and the first is kept as the record of how the
+  wrong conclusion was reached. The engineering log's two 2026-09-09 entries mirror them.
+
+### Two things that do not go stale, so they are written down
+
+**A token without the `workflow` scope is refused when a commit touches
+`.github/workflows/`**, with `refusing to allow an OAuth App to create or update workflow`.
+The fix is `gh auth refresh -s workflow`, which is interactive. Nothing else in this
+repository triggers it.
+
+**The CI action pins are behind, and the annotation is not a failure.** GitHub forces
+`actions/checkout@v4`, `actions/setup-python@v5` and `actions/cache@v4` onto Node.js 24 now
+that Node 20 is deprecated on runners. **Every job passes.** Bumping the pins touches
+`.github/workflows/` and so needs the scope above — worth its own change, not folded into
+measurement work.
 
 ## First actions next session
 
-1. `git pull --ff-only`. **Nothing is queued and no PR is open** — see *Git state*.
+1. **Ask git where you are** — the four commands in *Git state*. This file does not say, on
+   purpose; `git fetch -p` first, because the field laptop pushes too.
 2. Run the checks above — or read a green CI run instead of spending bench time on them.
 3. **No firmware work is queued and no reflash is owed.** The one `main.cpp` change is a
    comment; the boards on the bench are current.

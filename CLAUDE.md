@@ -168,6 +168,28 @@ a secret pasted into a workflow.
   "why is it like this" in eighteen months.
 - Use docs-as-code workflow with all repository documents. As doc updates are identified, make changes at the repo level for commit along with code or test results that support it.
 
+### A document must not record where a branch currently points
+
+**`docs/<node>/HANDOFF.md` files, and any other document, name no `origin/main` SHA, no
+"merged through #N", no current branch and no open-PR status.** These went stale on every
+merge, and the correction could not ride along with the work that caused it — the branch being
+described is the branch doing the describing, so each fix needed its own branch and PR. Two of
+the five commits before 2026-09-09 on the range-test handoff exist for nothing else.
+
+Sort a fact into one of three places, by whether it can be kept true:
+
+| The fact is | Where it goes |
+|---|---|
+| **Derivable** — where `main` points, what is open, which branches exist, whether anything is local-only | **A command in the document**, never prose. `git fetch origin -p` first; two machines push here |
+| **Predictive** — "once this merges, `main` carries X" | **The PR description.** It is read at review time and is about a proposed state by nature. A handoff written this way is *false when committed*, which is worse than silent |
+| **Durable** — what a run measured, a trap, a push gotcha, "read these two commits in order" | **The document.** This is what a handoff is for |
+
+**Permanent history is citable; moving state is not.** `0f21c23` will always be that commit,
+so cite it freely. "`main` is at `9fee445`" describes where a pointer sat one afternoon.
+
+The same test already governs test counts and task ranges here — *"they were wrong more often
+than right"* — and this is that rule reaching the one section that kept escaping it.
+
 ## Secrets
 
 `secrets.h` is **gitignored**. `secrets.h.example` is committed and documents every field.
