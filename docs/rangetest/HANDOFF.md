@@ -182,8 +182,8 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 
 | | |
 |---|---|
-| Branch | **`b1b-gate-walk`**, four commits, PR open. **See Git state below** |
-| Merged through | **#40**, `530c334`. **`origin/main` carries none of B1b** — not the planning documents and not the run |
+| Branch | **`main` only.** Nothing open, nothing queued. **See Git state below** |
+| Merged through | **#41**, `9fee445`. **All of B1b is on `main`** — planning, data and analysis |
 | Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
 | Firmware queue | **Empty.** No code is owed and no reflash is owed |
@@ -423,13 +423,18 @@ was captured by a board flashed before 2026-09-06; that is the only thing its ab
 
 As of the end of **2026-09-09**:
 
-- **`origin/main` is at `530c334`** (PR #40, the 2026-09-08 documentation work). **Nothing of
-  B1b is on `main`** — planning or run.
-- **Working branch is `b1b-gate-walk`, four commits, PR open.** Two planning commits from
-  09-09 morning (`e836c74`, `5b8f822`), then the run's analysis (`0f21c23`) and the correction
-  that inverted its A/B reading (`539068e`).
-- **Read both analysis commits, in order.** The second supersedes the first's reading of the
-  A/B and the first is kept as the record of how the wrong conclusion was reached.
+- **`origin/main` is at `9fee445`**, the merge of **PR #41**. All of B1b is on `main`:
+  planning, data, analysis and the documentation.
+- **Nothing is open and nothing is queued.** `b1b-gate-walk` merged and was deleted, local and
+  remote. `main` is the only branch. CI was green on all three jobs before the merge.
+- **Read B1b's two analysis commits in order** — `0f21c23` then `539068e`. The second
+  supersedes the first's reading of the A/B, and the first is kept as the record of how the
+  wrong conclusion was reached. The engineering log's two 2026-09-09 entries mirror them.
+- **One non-blocking CI annotation, and it is not this branch's.** GitHub forces
+  `actions/checkout@v4`, `actions/setup-python@v5` and `actions/cache@v4` onto Node.js 24
+  because Node 20 is deprecated on runners. Nothing fails. Bumping the pins needs a commit
+  touching `.github/workflows/`, so it needs the token scope below — worth doing on its own,
+  not folded into measurement work.
 
 ```bash
 git status --porcelain
@@ -439,11 +444,12 @@ git log --branches --not --remotes --oneline
 **One push gotcha, and it is not a network fault.** A token without the `workflow` scope is
 refused when a commit touches `.github/workflows/`, with `refusing to allow an OAuth App to
 create or update workflow`. The fix is `gh auth refresh -s workflow`, which is interactive.
-Nothing else in this repository triggers it. **This session touches no workflow file.**
+Nothing else in this repository triggers it. **The 2026-09-09 session touched no workflow
+file; a Node-version pin bump would be the first thing to need it.**
 
 ## First actions next session
 
-1. `git pull --ff-only`, then check whether `b1b-gate-walk` merged. **See Git state.**
+1. `git pull --ff-only`. **Nothing is queued and no PR is open** — see *Git state*.
 2. Run the checks above — or read a green CI run instead of spending bench time on them.
 3. **No firmware work is queued and no reflash is owed.** The one `main.cpp` change is a
    comment; the boards on the bench are current.
