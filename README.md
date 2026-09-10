@@ -42,7 +42,7 @@ other; there is no mesh and no multi-hop routing.
    +--------------+    |                     |
    |   GateLink   |<-->|                     |
    | StamPLC      |    |                     |
-   | + SX1262     |    |     LoRaBridge      |        +-------------------+
+   | + SX1262     |    |     Bridge Node     |        +-------------------+
    | 4x relay out |    |     Heltec V3       |        |  Home Assistant   |
    | 6x iso. in   |    |                     |        |                   |
    |    <-> 1050  |    |                     |        | (Mosquitto broker,|
@@ -67,7 +67,7 @@ a change to the scheduler, the availability watchdog or the MQTT layer.
 
 | Node | ID | Hardware | Role | Power |
 |---|---|---|---|---|
-| **LoRaBridge** | `0x00` | Heltec WiFi LoRa 32 V3 | LoRa↔MQTT gateway: per-node poll scheduling, MQTT Discovery, availability watchdog, VE.Direct HEX proxy, OTA | Mains |
+| **Bridge Node** | `0x00` | Heltec WiFi LoRa 32 V3 | LoRa↔MQTT gateway: per-node poll scheduling, MQTT Discovery, availability watchdog, VE.Direct HEX proxy, OTA | Mains |
 | **GateLink** | `0x01` | M5Stack StamPLC + SX1262 | Gate command and state, vehicle detection and direction, held-open alerting, MPPT telemetry and config transport, battery SOC over BLE | Solar / LiFePO4 |
 | **WellLink** | `0x02` | To be decided | Well level monitoring with battery telemetry | To be decided |
 | **simnode** | `0xF0`–`0xF3` | Heltec V3, XIAO + Wio-SX1262 | Bench instrument. Exercises the bridge's receive path, registry, scheduler, retry and fault handling — permanent infrastructure, not scaffolding | Bench |

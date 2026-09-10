@@ -1,8 +1,8 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.7
-**Node:** `LoRaBridge`, node ID `0x00`
+**Version:** 0.8
+**Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
@@ -473,6 +473,7 @@ what the link does there; it did not fix a PHY configuration or site the antenna
 
 | Version | What changed |
 |---|---|
+| **v0.8** | Header names the node **Bridge Node**, retiring `LoRaBridge` |
 | **v0.7** | Readability pass — **new §8.1** takes V-B1's measurement detail out of the table cell; §9 gains a version index |
 | **v0.6** | §8's duplicate `V-B2` resolved — the coexistence row becomes **`V-B12`** |
 | **v0.5** | **§4.4**, the bridge's deliberate lack of LoRa/WiFi mutual exclusion, with **M22** as its falsifier; R-4.3a's confirmed antenna |
@@ -480,6 +481,11 @@ what the link does there; it did not fix a PHY configuration or site the antenna
 | **v0.3** | Spec v0.7 citation; **D34** reaches an empty set here — the bridge receives no authenticated types |
 | **v0.2** | Spec v0.6 citation, body reconciled first; cross-document links repaired |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` and restated as requirements |
+
+- **v0.8** — **Header renamed:** the node is **Bridge Node**, with `lran-bridge` given as
+  the firmware target. `LoRaBridge` predates the document set settling on this document's
+  own title and was retired across the live set in System PRD v0.11; **D17 is amended** in
+  the register. No requirement changed.
 
 - **v0.7** — **Readability pass; no requirement changed and no measurement restated.**
   **New §8.1** carries what V-B1's table cell had grown to hold — M6's closure, both

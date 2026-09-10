@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
@@ -44,7 +44,7 @@ the 12 V LiFePO4 pack, and connects to:
   terminals;
 - the MPPT 75/15, via a level-shifted VE.Direct UART;
 - the battery BMS, over BLE;
-- the LoRaBridge, over 915 MHz LoRa.
+- the Bridge Node, over 915 MHz LoRa.
 
 ### 1.2 Build sequence at a glance
 
@@ -1120,6 +1120,16 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.6** — **Naming only:** §1's peer list says **Bridge Node** rather than
+  `LoRaBridge`, the name retired across the live set in System PRD v0.11 and amended in
+  **D17**. **No requirement, measurement or design changed.**
+  **One thing this revision does not fix, recorded so it is not lost:** §3.4 sizes the
+  carrier LDO against *"~120 mA peak SX1262 TX at +22 dBm"* and milestone **M0** accepts on
+  *"LDO holds ≥3.2 V through SX1262 TX at +22 dBm"* — a power **D33** no longer permits, on
+  either envelope. Testing at +22 dBm is a defensible margin choice; stating it as the
+  operating point is not, and the two readings size different hardware. Raised by Bridge
+  Implementation Plan v0.13 §2.3.
 
 - **v0.5** — **§4.3 and §9.5 updated for the confirmed enclosure geometry**, both by dated
   annotation rather than rewriting: the pack and BMS are inside the *same* steel enclosure
