@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.10
+**Version:** 0.11
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-10
@@ -51,7 +51,7 @@ One house-side bridge and N remote nodes, in a star topology.
    +--------------+    |                     |
    |   GateLink   |<-->|                     |
    | StamPLC      |    |                     |
-   | + SX1262     |    |     LoRaBridge      |        +-------------------+
+   | + SX1262     |    |     Bridge Node     |        +-------------------+
    | 4x relay out |    |     Heltec V3       |        |  Home Assistant   |
    | 6x iso. in   |    |                     |        |                   |
    |    <-> 1050  |    |                     |        | (Mosquitto broker,|
@@ -72,6 +72,7 @@ One house-side bridge and N remote nodes, in a star topology.
 | Thing | Value |
 |---|---|
 | Repo | `lran` |
+| Node names | **Bridge Node**, **GateLink**, **WellLink** |
 | Firmware targets | `lran-bridge`, `lran-gatelink`, `lran-welllink` (future), `lran-simnode` |
 | MQTT topic root | `lran/` |
 | Node topic form | `lran/<node>/...` — e.g. `lran/gatelink/...` |
@@ -82,6 +83,17 @@ One house-side bridge and N remote nodes, in a star topology.
 Node ID assignments are normative in
 [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §5.3; the table above
 is a convenience copy.
+
+**"LoRaBridge" is retired, 2026-09-10.** The bridge was named `LoRaBridge` before its
+documents settled on **Bridge Node**, and both names ran side by side for the whole
+document set — including in **D17**, which recorded the older one. Bridge Node is the node
+name; `lran-bridge` is the firmware target; "LoRa Bridge" stays as the **HA device name**,
+which is a user-visible string rather than a second name for the node. **D17 is amended
+accordingly** — the register is the only place a decision's status is recorded, so the
+rename is not complete until it is recorded there. **Protocol Spec §5.3's node-table gloss
+still reads `(LoRaBridge)` and is deliberately left**: changing it bumps the specification
+and restakes all 21 binding citations, so it waits for the next substantive specification
+revision. D17 carries that deferral.
 
 ---
 
@@ -113,7 +125,7 @@ summary:
 
 | Node | Goal summary | Document |
 |---|---|---|
-| **LoRaBridge** | General-purpose LoRa↔MQTT gateway; per-node poll scheduling, discovery publication, availability watchdog, VE.Direct HEX proxy, OTA | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) |
+| **Bridge Node** | General-purpose LoRa↔MQTT gateway; per-node poll scheduling, discovery publication, availability watchdog, VE.Direct HEX proxy, OTA | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) |
 | **GateLink** | Gate command and state, vehicle detection and direction, held-open alerting, MPPT telemetry and configuration transport, battery SOC over BLE, full runtime configurability | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) |
 | **WellLink** | Well level monitoring with battery telemetry | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) |
 
@@ -140,7 +152,7 @@ summary:
 
 ### 3.1 Node inventory
 
-| | LoRaBridge | GateLink | WellLink (planned) |
+| | Bridge Node | GateLink | WellLink (planned) |
 |---|---|---|---|
 | Board | Heltec WiFi LoRa 32 V3 | **M5Stack StamPLC** (ESP32-S3FN8) + external SX1262 | TBD |
 | Node ID | `0x00` | `0x01` | `0x02` |
@@ -233,7 +245,7 @@ directly. GateLink publishes over LoRa and is bridged.
 Each node has its own PRD and implementation plan. What follows is the system-level
 summary only.
 
-### 4.1 LoRaBridge (`0x00`)
+### 4.1 Bridge Node (`0x00`)
 
 A **general-purpose LoRa↔MQTT gateway**, not a gate-specific bridge. Receives and sends
 LoRa to any registered node, connects to the LAN over WiFi, and bridges to the existing
@@ -470,7 +482,7 @@ sequential.
 ### 9.1 Layout
 
 ```
-/firmware/bridge/        # LoRaBridge PlatformIO project             [planned]
+/firmware/bridge/        # Bridge Node PlatformIO project            [planned]
     CLAUDE.md            #   subproject context for Claude Code       [exists]
 /firmware/gatelink/      # GateLink PlatformIO project                [planned]
     CLAUDE.md
@@ -668,16 +680,16 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.10 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.11 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.7 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.7 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.12 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.8 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.13 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.6 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
 | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.5 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
@@ -712,6 +724,7 @@ This index is the scan; the entries are the record.
 
 | Version | What changed |
 |---|---|
+| **v0.11** | `LoRaBridge` retired in favour of **Bridge Node** across the live set; **D17** amended |
 | **v0.10** | Readability pass — §13 gains a version index, §5.1's Part 15 bullet leads with its actions, §11.3's notices bullet becomes sub-bullets |
 | **v0.9** | Header cross-reference corrected — `lran-prd-v0_8`'s retirement is §13, not §11 |
 | **v0.8** | §11.1's display row corrected: U8g2 out, the ThingPulse SSD1306 driver in, MIT with it |
@@ -722,6 +735,16 @@ This index is the scan; the entries are the record.
 | **v0.3** | **D34** — the replay and dedup gate becomes `CommandGate`, library milestone **P8** |
 | **v0.2** | `docs/` reorganization: every relative link repaired; §9.1 marked built vs. planned |
 | **v0.1** | Initial release, compartmentalizing `lran-prd-v0_8` into this document set |
+
+- **v0.11** — **The bridge had two names and this document carried both.** `LoRaBridge`
+  predates the set settling on **Bridge Node**, and the two ran side by side in §1.2's
+  diagram, §2.2, §3.1, §4.1's heading, §9.1's layout comment and two rows of §12. All are
+  now **Bridge Node**. Two names that were never in question are unchanged and are now
+  stated as such in §1.3: **`lran-bridge`** is the firmware target, and **"LoRa Bridge"**
+  is the HA device name — a user-visible string rather than a second name for the node.
+  **§1.3 gains a `Node names` row and a dated note**, and **D17 is amended in the register**,
+  which recorded the retired name and is the only place a decision's status lives.
+  Document set table synced for the four documents revised alongside this one.
 
 - **v0.10** — **Readability pass; no fact, requirement or claim changed.** §13 gains a
   **version index** — one line per revision above the entries themselves. The entries stay

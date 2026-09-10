@@ -1,8 +1,8 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.12
-**Node:** `LoRaBridge`, node ID `0x00`
+**Version:** 0.13
+**Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
@@ -122,7 +122,7 @@ flashed and known-working is a fifteen-minute recovery rather than a shipping wa
 is a real but separable argument; it is no longer a test-coverage requirement. See §10.7
 for why the bench peers stay in service permanently rather than being reclaimed.
 
-### 2.2 Bench RF hygiene — two ways to damage a board
+### 2.2 Bench RF hygiene — one hazard, one data-quality trap
 
 **Never transmit without an antenna attached.** An unterminated SX1262 PA reflects its
 own output power back into the final stage. On a board that has been keyed up bare, the
@@ -130,14 +130,30 @@ failure is usually not immediate or total — it presents later as degraded TX p
 link that is inexplicably worse than the range test predicted. Attach antennas before
 first flash, not before first test.
 
-**Attenuate, or separate, for bench work.** Two boards at +22 dBm sitting a foot apart on
-the same desk put roughly −20 dBm into a receiver designed to work at −120 dBm. The
-result is front-end saturation: RSSI figures that are meaningless, packet errors that
-look like a protocol bug, and — at sustained power — a real risk to the LNA. For bench
-work either **drop TX power to the minimum** the driver allows (this is a configuration
-value already, per **R-4.1b**) or fit a 20–30 dB SMA attenuator. **Restore full power
-before the range test** and record the setting in the log, because a range test run at
-bench power is a range test that will have to be repeated.
+**Attenuate, or separate, for bench work — but D33 has made this much less dangerous
+than it was.** This paragraph was written against the SX1262's `+22 dBm` maximum, and
+**no configuration in this project transmits there.** Envelope A, the plan of record,
+caps the fitted 3.0 dBi antenna at **−4 dBm conducted**; Envelope B's ceiling is the
+modules' own tested powers, 19.6 dBm (Wio) and 13.9 dBm (Heltec), and a Heltec driven at
++22 dBm is roughly 8 dB outside its own grant (`LRAN-M21-FCC-Grant-Findings` §6, §2).
+
+At +22 dBm, two boards a foot apart put roughly **−20 dBm** into a receiver designed to
+work at −120 dBm: front-end saturation, meaningless RSSI, packet errors that look like a
+protocol bug, and at sustained power a real risk to the LNA. Apply that same ~42 dB of
+separation loss to the **−4 dBm** ceiling and the figure is around **−46 dBm** — still far
+above the design point, so RSSI read at desk range remains a relative number rather than a
+measurement, but no longer anywhere near the damage region. **Fit a 20–30 dB SMA
+attenuator when the RSSI numbers themselves matter**; reach for it as a data-quality tool
+now, not as protection.
+
+**"Full power" is the D33 ceiling, not the driver's maximum.** RadioLib accepts −9 to
++22 dBm and the range test firmware clamps into the permitted envelope
+(`clamp_conducted()`, and `tools/rangetest/eirp_check.py` verifies it ran). Bench work may
+sit at −9 dBm, the SX1262's hard floor; **restore the D33 ceiling before a range test**,
+and **record conducted power in dBm rather than a RadioLib power index** — the Heltec and
+Wio certified powers differ by about 6 dB, so an index does not carry between them (root
+`CLAUDE.md` rule 10, **M6**). A range test run at bench power is a range test that has to
+be repeated.
 
 ### 2.3 The XIAO + Wio-SX1262 as a target-radio simnode
 
@@ -164,9 +180,19 @@ prove.
 **What it still does not validate:** the StamPLC carrier's SPI routing and bus speed,
 contention with StamPLC peripherals on a shared bus, and — the one to watch — the
 hand-built 3.3 V regulator on the perfboard carrier under TX current transients
-(**D26**, **D27**). Roughly 118 mA steps at +22 dBm through a perfboard regulator is
-precisely the thing that works on a bench supply and browns out on the carrier. **The
-XIAO validates the module; only the carrier validates the carrier.**
+(**D26**, **D27**). A ~118 mA step at +22 dBm through a perfboard regulator is precisely
+the thing that works on a bench supply and browns out on the carrier — **though D33 has
+taken the worst case off the table**, since the node transmits at the Envelope A ceiling
+rather than at the driver's maximum, and the step scales with it. **The XIAO validates the
+module; only the carrier validates the carrier.**
+
+> **GateLink's own documents carried the same figure and have been corrected**
+> (GateLink Implementation Plan **v0.6**): §3.4 sized the carrier LDO against *"~120 mA
+> peak SX1262 TX at +22 dBm"* and milestone **M0** accepted on *"LDO holds ≥3.2 V through
+> SX1262 TX at +22 dBm"*. Both now work from the powers D33 permits: the rail is sized
+> against the Wio's tested 19.6 dBm as the worst permitted case, and **M0 accepts at the
+> −4 dBm operating point**. Nothing in that node's rail, part or budget decisions moved;
+> every one of them gained headroom.
 
 #### 2.3.1 Two hardware findings to confirm on arrival
 
@@ -704,9 +730,10 @@ entries, and the entries most likely to be skipped are the ones whose expected r
 "nothing happens" — `hdr_rsv` accepted, `seq_wrap` accepted, `wrong_dst` discarded with no
 `ERROR`. Those are exactly the forward-compatibility rules that break quietly.
 
-**Observe TX power before every session.** Bench work runs at reduced power per §2.2; a
-test that silently ran at +22 dBm across a desk produced meaningless RSSI, and a range
-test that silently ran at bench power has to be repeated.
+**Observe TX power before every session, in dBm conducted.** Bench work may run below the
+D33 ceiling per §2.2, and a range test that silently ran at bench power has to be repeated.
+Log the conducted figure rather than a RadioLib power index, so a trace taken on the Heltec
+can be compared with one taken on the Wio.
 
 ---
 
@@ -1372,6 +1399,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
 | **v0.12** | Readability pass — §2.2 and §10.7 moved into numeric order, §2.3.1's superseded text labelled as such, §12 gains a version index |
 | **v0.11** | Six defects from a readability audit — duplicate `V-B12`, stale sibling citations, B0 gated on P8, §2.1's heading, §4.2's split table |
 | **v0.10** | §5.1's display library corrected to the ThingPulse SSD1306 driver; **new §5.1.1** says why |
@@ -1384,6 +1412,26 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.13** — **§2.2 reasoned about a power no configuration in this project uses.** It was
+  written against the SX1262's `+22 dBm` maximum: two boards a foot apart putting −20 dBm
+  into the receiver, "drop TX power to the minimum the driver allows", "restore full power
+  before the range test". **D33 has capped conducted power at −4 dBm** with the fitted
+  3.0 dBi antenna under Envelope A, Envelope B's ceiling is the modules' own tested powers
+  (19.6 dBm Wio, 13.9 dBm Heltec), and a Heltec at +22 dBm is roughly 8 dB outside its own
+  grant. The section keeps the original arithmetic — it is what makes the change legible —
+  and applies the same ~42 dB of separation loss to the real ceiling: about **−46 dBm** at
+  desk range, which still makes RSSI a relative number but is nowhere near the damage
+  region. **The attenuator becomes a data-quality tool rather than protection**, "full
+  power" becomes the D33 ceiling rather than the driver's maximum, and both §2.2 and §7.2
+  now ask for **conducted dBm rather than a RadioLib power index**, since the Heltec and
+  Wio certified powers differ by about 6 dB. §2.2's title changes with its content: one
+  hazard, one data-quality trap. **The antenna rule is untouched** — it applies at any
+  power.
+  **§2.3's regulator note is qualified in the same way**, and the same figure in GateLink's
+  own documents — §3.4's LDO sizing, milestone **M0**'s acceptance criterion and §9.7's
+  power budget — is corrected alongside it in **GateLink Implementation Plan v0.6**.
+  **Header renamed** to **Bridge Node** — see System PRD v0.11 and the amended **D17**.
 
 - **v0.12** — **Readability pass; no design, requirement or measurement changed.**
   **Two sections were out of numeric order** and had been since the revisions that added

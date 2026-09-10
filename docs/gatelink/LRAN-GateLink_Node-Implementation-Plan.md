@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
@@ -44,7 +44,7 @@ the 12 V LiFePO4 pack, and connects to:
   terminals;
 - the MPPT 75/15, via a level-shifted VE.Direct UART;
 - the battery BMS, over BLE;
-- the LoRaBridge, over 915 MHz LoRa.
+- the Bridge Node, over 915 MHz LoRa.
 
 ### 1.2 Build sequence at a glance
 
@@ -299,8 +299,16 @@ what excludes an AMS1117.
 | ~4.76 V | EXT_5V, bus pin 6 | Carrier LDO input; VE.Direct **HV** rail |
 | 3.3 V | **Carrier LDO** | SX1262; VE.Direct **LV** rail |
 
-Load on the LDO: ~120 mA peak SX1262 TX at +22 dBm plus the level-shifter rail. 700 mA
-of headroom is ample.
+**Load on the LDO.** This line read *"~120 mA peak SX1262 TX at +22 dBm"*, a power
+**neither envelope permits**: Envelope A caps conducted power at **−4 dBm** with the fitted
+3.0 dBi antenna, and Envelope B's ceiling is the Wio module's own tested **19.6 dBm**
+(`LRAN-M21-FCC-Grant-Findings` §6). **Size the rail against 19.6 dBm**, the highest power
+any permitted configuration reaches; the node operates at −4 dBm, in the PA's low-power
+path, so the working draw sits well below that.
+
+**700 mA of headroom is ample, by a wider margin than this section originally claimed.**
+No rail, part or layout decision moves. **M0 accepts at the operating point only** — if
+Envelope B is ever triggered, the rail is sized for it but has not been tested there.
 
 > A netlist-level check against the vendor IO schematic (**M16**) is still worth doing
 > when the carrier is laid out, but it can no longer change the design — only confirm
@@ -876,7 +884,7 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **M0** | **Carrier board bring-up** | BOM in hand; **M4** settled | LDO holds ≥3.2 V through SX1262 TX at +22 dBm. RadioLib initialises the radio on the §3.3 pin map with the correct TCXO voltage and DIO2 RF-switch mode. Module confirmed to need no TXEN/RXEN. Ping/loopback to a Heltec succeeds on the bench. **Failure here is D30 trigger 1** |
+| **M0** | **Carrier board bring-up** | BOM in hand; **M4** settled | LDO holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. *Previously read "+22 dBm", which neither envelope permits.* **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio on the §3.3 pin map with the correct TCXO voltage and DIO2 RF-switch mode. Module confirmed to need no TXEN/RXEN. Ping/loopback to a Heltec succeeds on the bench. **Failure here is D30 trigger 1** |
 | **M1** | **Platform HAL** | Host in hand | Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through `/lib/lran-platform/`. **The same HAL compiles for the Heltec bridge target** |
 | **M2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `/docs/1050-config.md` written. **M1, M2, M3, M8 measurements captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
 | **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync and command dedup all verified. **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
@@ -1089,7 +1097,10 @@ and standby rows.
 
 **Where the current goes on the node.** The **radio is not the constraint.** LoRa 125 kHz
 receive is 4.2 mA (normal) or 5.3 mA (Rx-boosted); TX is ~90 mA @ +14 dBm and ~118 mA @
-+22 dBm; sleep with configuration retained is sub-µA. Continuous RX adds only ~5 mA on top
++22 dBm, **both above anything this node transmits at** — D33 caps it at **−4 dBm
+conducted**, in the PA's low-power path, so the real TX draw is lower than either figure
+and the budget below is conservative in the node's favour. Sleep with configuration
+retained is sub-µA. Continuous RX adds only ~5 mA on top
 of an **ESP32-S3 that dominates** at tens of mA while awake. **The floor is set by keeping
 the MCU awake, and the MCU stays awake to parse the ~1 Hz VE.Direct stream.** The host
 platform adds the LCD backlight when on (off by default), the I²C expanders and the
@@ -1120,6 +1131,28 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.6** — **Three statements of TX power reconciled with D33, and one rename.** §3.4
+  sized the carrier LDO against *"~120 mA peak SX1262 TX at +22 dBm"*, milestone **M0**
+  accepted on *"LDO holds ≥3.2 V through SX1262 TX at +22 dBm"*, and §9.7's power budget
+  quoted the same figure. **Neither envelope permits +22 dBm**: Envelope A caps conducted
+  power at **−4 dBm** with the fitted 3.0 dBi antenna, and Envelope B's ceiling is the Wio
+  module's own tested **19.6 dBm** (`LRAN-M21-FCC-Grant-Findings` §6). Raised by Bridge
+  Implementation Plan v0.13 §2.3.
+  **No rail, part, layout or budget decision moves, and that is the point** — every one of
+  them gets *more* headroom, not less, because the node transmits in the PA's low-power
+  path rather than at its maximum. §3.4 now sizes against 19.6 dBm as the worst permitted
+  case and says the operating draw sits well below it. §9.7 keeps the datasheet figures,
+  which are useful, and states that both sit above anything this node reaches, so the
+  budget is conservative in the node's favour. **M0 accepts at the operating point and
+  nothing more** — −4 dBm conducted, the power the node actually uses. A margin run at
+  19.6 dBm was considered and dropped as bring-up work that buys little: the rail is sized
+  for that power, and testing it there would mean either radiating above the Envelope A
+  ceiling or building a dummy-load setup for a case three documented triggers stand in
+  front of. **M0 says to re-run it if Envelope B is ever triggered**, which is where the
+  question actually becomes live.
+  **Naming:** §1's peer list says **Bridge Node** rather than `LoRaBridge`, retired across
+  the live set in System PRD v0.11 and amended in **D17**.
 
 - **v0.5** — **§4.3 and §9.5 updated for the confirmed enclosure geometry**, both by dated
   annotation rather than rewriting: the pack and BMS are inside the *same* steel enclosure

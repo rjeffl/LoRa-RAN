@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 overlap, the root wins.
 
 LRAN (LoRa Remote Automation Network): bidirectional communication between Home Assistant
-and remote automation nodes over a point-to-multipoint LoRa link. Nodes are **LoRaBridge**
+and remote automation nodes over a point-to-multipoint LoRa link. Nodes are the **Bridge Node**
 (`0x00`, WiFi↔LoRa gateway), **GateLink** (`0x01`, driveway gate controller + battery
 monitor) and **WellLink** (`0x02`, placeholder). Start at
 [`docs/README.md`](../docs/README.md); the parent document is
