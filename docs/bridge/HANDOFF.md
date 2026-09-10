@@ -1,6 +1,7 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-10, at the end of the session that closed D1 and D33.** It replaces the
+**Written 2026-09-10, at the end of the session that closed D1 and D33 and settled the
+bridge antenna.** It replaces the
 earlier 2026-09-10 file — written after the document audit, the `LoRaBridge` retirement and
 the firmware task list — wholesale.
 
@@ -52,6 +53,11 @@ recommendation, unchanged.
 - **Protocol Spec v0.10** carries §12.1, §12.3 and §15.1, and renames §5.3's `0x00` gloss to
   **Bridge Node** — the one item D17 deferred to the next substantive revision. **Nothing on
   the wire moved:** `ver` stays at `2` and no W4 vector regenerates.
+- **The bridge antenna is decided: the 3.0 dBi 19 cm stick the range test ran on**
+  (Bridge PRD **R-4.3a.1**). It is not a new selection — B1a and B1b measured through that
+  part at both ends, and D1's −4 dBm conducted ceiling is computed against its gain, so
+  **swapping it invalidates the measurements and the compliance arithmetic together.**
+  **V-B1's remaining gap is the bridge's position**, not the antenna.
 
 ## Read these, in this order
 
@@ -143,6 +149,11 @@ backup**, and none of it is input to this node's work.
 **The flat-case Heltec is the intended bridge unit** (range-test handoff, 2026-09-09). It
 carries no bridge firmware and nothing reserves it, so say so before reflashing it for
 something else.
+
+**Its antenna stays on it.** The bridge uses the same 3.0 dBi 19 cm stick these boards ran
+the range test with (Bridge PRD **R-4.3a.1**) — the sticks are interchangeable as parts, but
+**the gain is a term in D1's EIRP arithmetic**, so a different antenna is a decision to
+record, not a swap to make at the bench.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
