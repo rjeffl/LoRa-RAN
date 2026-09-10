@@ -1,9 +1,9 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.9
+**Version:** 0.10
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
-**Status:** Requirements settled. **PHY parameters fixed by D1, 2026-09-10**; antenna siting still open.
+**Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
@@ -237,6 +237,13 @@ live.**
   nominally **3.0 dBi**, the same part fitted at the GateLink end. That figure is a direct
   term in the EIRP calculation (Protocol Spec §18.2) and SHALL be what is configured as
   `antenna_gain_dbi`, giving a conducted ceiling of **−4 dBm** under Envelope A.
+- **R-4.3a.1. The bridge SHALL use the same 3.0 dBi stick the range test ran on**, decided
+  2026-09-10. It is not a new selection to make: **B1a and B1b measured through this part at
+  both ends**, so every margin, PER and RSSI figure this project holds already carries it,
+  and D1's −4 dBm conducted ceiling is computed against its gain. **Fitting a different
+  antenna invalidates both at once** — the measurements and the compliance arithmetic — and
+  is a change to make deliberately, with the gain re-recorded and the ceiling recomputed,
+  never as a substitution from the parts drawer.
 - **R-4.3b. Antenna siting is a two-bearing problem and SHALL be resolved by measurement,
   not by assumption.** GateLink and WellLink sit at similar distances in **different
   directions**. Favour an **omnidirectional antenna in a central, elevated position**
@@ -435,7 +442,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 | # | Must be proven | Why it is not optional |
 |---|---|---|
-| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured (M6 closed 2026-09-09) and D1 closed 2026-09-10** — §8.1. **Still outstanding: the bridge antenna choice** |
+| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured (M6 closed 2026-09-09), D1 closed and the antenna chosen 2026-09-10** — §8.1. **Still outstanding: the bridge's position, recorded with its measured margins** |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
@@ -469,9 +476,15 @@ closure, including which of the two bearings the original wording overstated.
 the tail rather than the mean:** the worst single SF7 probe at the gate reached 2.2 dB of
 margin, and SF9 buys about 13 dB of it for a `backoff_max_ms` raise to 1500.
 
-**The bridge antenna choice remains open.** M6 answered where the nodes are and what the
-link does there; it did not site the antenna, and V-B1 is not met until it is chosen and
-recorded.
+**The antenna is chosen: the same 3.0 dBi stick the range test ran on** (R-4.3a.1,
+2026-09-10). B1a and B1b measured through that part at both ends, so this choice keeps the
+measured margins and D1's EIRP arithmetic valid rather than requiring either to be redone.
+
+**The bridge's position remains open**, and it is the last of V-B1. M6 answered where the
+nodes are and what the link does there; B1b's initiator sat at the intended location
+indoors, which is evidence for it rather than a commitment to it. **V-B1 is not met until
+the position is committed and recorded with its measured RSSI and SNR on both bearings**
+(Implementation Plan §3.2).
 
 ---
 
@@ -479,6 +492,7 @@ recorded.
 
 | Version | What changed |
 |---|---|
+| **v0.10** | **R-4.3a.1** — the bridge uses the range test's own 3.0 dBi stick; V-B1's remaining gap is the position |
 | **v0.9** | **D1 closed** — §8.1 states the PHY parameters; V-B1's remaining gap is the antenna |
 | **v0.8** | Header names the node **Bridge Node**, retiring `LoRaBridge` |
 | **v0.7** | Readability pass — **new §8.1** takes V-B1's measurement detail out of the table cell; §9 gains a version index |
@@ -488,6 +502,16 @@ recorded.
 | **v0.3** | Spec v0.7 citation; **D34** reaches an empty set here — the bridge receives no authenticated types |
 | **v0.2** | Spec v0.6 citation, body reconciled first; cross-document links repaired |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` and restated as requirements |
+
+- **v0.10** — **The bridge antenna is decided, and it is the one already measured through.**
+  New **R-4.3a.1**: the same nominally 3.0 dBi 19 cm stick the range test ran on, at both
+  ends, decided 2026-09-10. R-4.3a already recorded the part; what this adds is that **the
+  bridge is not choosing an antenna, it is keeping one**, and why that matters — B1a and B1b
+  measured through it, so every margin figure and D1's −4 dBm conducted ceiling are computed
+  against its gain, and a substitution invalidates the measurements and the compliance
+  arithmetic together. **V-B1's remaining gap narrows from the antenna to the position**,
+  corrected in §8's row and §8.1; v0.9 stated the gap too broadly. Siting is unchanged and
+  still a two-bearing problem (R-4.3b, R-4.3c).
 
 - **v0.9** — **D1 closed 2026-09-10, so V-B1 has one gap left rather than two.** §8.1 now
   states the fixed PHY parameters — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted —

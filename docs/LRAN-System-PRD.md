@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.14
+**Version:** 0.15
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-10
@@ -329,10 +329,13 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
   with a `backoff_max_ms` raise to 1500 — the protocol spec's airtime analysis had already
   established that **SF may be chosen on link margin alone, not on power**. Protocol Spec
   §12.1 and §12.3 state the parameters; Decision Register §3.4 records the reasoning.
-- **Bridge antenna placement is a two-bearing problem.** GateLink and WellLink are at
-  similar distances in different directions. Favour an omnidirectional antenna in a
-  central, elevated position over anything with a pattern optimized toward the gate.
-  **Range-test both bearings before committing to a location.**
+- **The bridge antenna is the range test's own 3.0 dBi 19 cm stick**, decided 2026-09-10
+  (Bridge PRD R-4.3a.1) — the same part at both ends, and the gain D1's −4 dBm conducted
+  ceiling is computed against.
+- **Bridge antenna placement is a two-bearing problem, and it is still open.** GateLink and
+  WellLink are at similar distances in different directions. Favour a central, elevated
+  position over anything that trades one bearing for the other. **Both bearings are
+  range-tested; the position has yet to be committed and recorded.**
 - **FCC Part 15 operating mode — settled, and read §18.2 for it.** **D33 closed
   2026-09-10 with D1**, on **Envelope A**: §15.249, single fixed channel, no hopping,
   BW 125 kHz, −4 dBm conducted. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) stays a
@@ -683,21 +686,21 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.13 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.15 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.10** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.9 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.6 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.8 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.13 |
-| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.2 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.10 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.15 |
+| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.3 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-09-10 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.6 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.6 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.7 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
-| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.5 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.6 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
 | [`LRAN-Range-Test-Firmware-Pass2-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md) | Range test pass 2 — the XIAO + Wio-SX1262 Kit board profile | rev 0.1 |
 | [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
@@ -730,6 +733,7 @@ This index is the scan; the entries are the record.
 
 | Version | What changed |
 |---|---|
+| **v0.15** | §5.1 records the bridge antenna: the range test's 3.0 dBi stick |
 | **v0.14** | **D1 and D33 closed** — §5.1 states the PHY parameters; spec v0.10, register v0.9 |
 | **v0.13** | §12 registers the D1 decision brief and the bridge handoff |
 | **v0.12** | §12 registers `LRAN-Bridge-Firmware-Tasks` |
@@ -744,6 +748,16 @@ This index is the scan; the entries are the record.
 | **v0.3** | **D34** — the replay and dedup gate becomes `CommandGate`, library milestone **P8** |
 | **v0.2** | `docs/` reorganization: every relative link repaired; §9.1 marked built vs. planned |
 | **v0.1** | Initial release, compartmentalizing `lran-prd-v0_8` into this document set |
+
+- **v0.15** — **§5.1 records the bridge's antenna, which was decided rather than deferred.**
+  **§12's version column is resynced in the same pass** — seven rows still named the
+  revisions those documents carried before D1 closed, which is the failure mode this table
+  has had before.
+  The bridge keeps the **3.0 dBi 19 cm stick the range test ran on** (Bridge PRD
+  **R-4.3a.1**), the same part at both ends of B1a and B1b. §5.1's antenna bullet used to
+  fold the antenna and the placement into one open question; **the antenna is settled and the
+  placement is not**, and the two are now separate bullets. No requirement moved and no
+  measurement is affected — the point of keeping this part is that none has to be.
 
 - **v0.14** — **D1 closed on 2026-09-10, and D33 closed with it.** §5.1 states the
   parameters instead of deferring to a decision: **917.4 MHz, SF9, BW 125 kHz, CR 4/5,

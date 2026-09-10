@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.14
+**Version:** 0.15
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -76,7 +76,7 @@ will eventually serve:
 | 1 | **Heltec WiFi LoRa 32 V3** | **Permanent bench peer.** Range-test partner, then `simnode` host for the life of the system (§10.7) |
 | 1 | **Seeed XIAO ESP32S3 + Wio-SX1262** | **Target-radio simnode.** Same LoRa module as GateLink's carrier. B1b range peer, then permanent `ROLE_GATELINK` at `0xF1` (§2.3) |
 | *1* | *Heltec WiFi LoRa 32 V3* | *Third Heltec — cold spare only. No longer needed for contention (§2.1)* |
-| 2+ | **915 MHz antennas** | One per board. Bridge antenna selected after **M6**; favour omnidirectional (§3.2). Bench boards need one each regardless of type |
+| 2+ | **915 MHz antennas** | One per board. **The bridge uses the range test's own 3.0 dBi 19 cm stick** (Bridge PRD R-4.3a.1) — the part B1a and B1b measured through, and the gain D1's ceiling is computed against. Bench boards need one each regardless of type |
 | 2+ | USB-C supplies and cables | Mains, indoors |
 | *1* | *Extension cable / remote antenna mount* | *Only if siting requires the antenna away from the board* |
 | *1* | *SMA attenuator, 20–30 dB* | *Bench hygiene — see the warning in §2.2* |
@@ -333,12 +333,16 @@ being wrong.**
 
 - GateLink and WellLink are at similar distances — **~87 m and ~100 m**, measured, not
   the ~500 ft estimated before either was walked to — on **different bearings**.
-- **Favour an omnidirectional antenna in a central, elevated position.** A pattern
-  optimized toward the gate buys margin on one link and may put the other in a null.
-- **Range-test both bearings before committing to a location** (**M6**, **V-B1**).
-- Record the chosen position, antenna type and the measured RSSI/SNR on both bearings in
+- **The antenna is settled and the position is not.** The bridge keeps the **3.0 dBi
+  19 cm stick the range test ran on** (Bridge PRD R-4.3a.1) — omnidirectional, and already
+  the part behind every measured margin. **What is left here is where the board goes.**
+- **Range-test both bearings before committing to a location** (**M6**, **V-B1**). Done, and
+  B1b's initiator sat indoors at the intended location — evidence for that position, not a
+  commitment to it.
+- Record the chosen position and the measured RSSI/SNR on both bearings in
   `/docs/bridge/engineering-log.md`, so a later "why is the well link marginal?" has a
-  baseline to compare against.
+  baseline to compare against. **Record the antenna gain with it** even though it is not
+  changing: it is a term in the EIRP arithmetic, not a note about a part.
 
 Practical siting constraints: within WiFi range of the LAN, on mains, and preferably
 where the USB-C cable is not the tallest thing in the room. **Elevation usually matters
@@ -749,7 +753,7 @@ can be compared with one taken on the Wio.
 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin — **done 2026-09-10**, though the register rather than B1a is where it landed. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
+| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin — **done 2026-09-10**, though the register rather than B1a is where it landed. Bridge antenna type and position chosen and recorded — **type chosen 2026-09-10** (the range test's 3.0 dBi stick, Bridge PRD R-4.3a.1); **the position is still owed**. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
 | **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised — **confirmed**, and B1b's own fade-tail result is what chose SF9 over SF7. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
 | **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` **P6 and P8** | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
@@ -1407,6 +1411,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
 | **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
 | **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
 | **v0.12** | Readability pass — §2.2 and §10.7 moved into numeric order, §2.3.1's superseded text labelled as such, §12 gains a version index |
@@ -1421,6 +1426,16 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.15** — **The bridge antenna is decided: the same 3.0 dBi 19 cm stick the range test
+  ran on** (Bridge PRD **R-4.3a.1**, 2026-09-10). §2.1's BOM row said "selected after M6",
+  which is now answered, and §3.2's siting section was written as though the antenna and the
+  position were one open question. **They are not, and separating them is the point of this
+  revision** — the antenna is the part B1a and B1b measured through and the gain D1's −4 dBm
+  ceiling is computed against, so keeping it is what makes those figures transferable. **What
+  is still open is where the board goes**, which is the last of **V-B1**. The engineering-log
+  requirement gains the antenna gain explicitly: it stays a term in the EIRP arithmetic even
+  when it is not changing.
 
 - **v0.14** — **D1 closed 2026-09-10, so §2.2 states a working point instead of an
   envelope.** 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with the fitted 3.0 dBi
