@@ -189,9 +189,10 @@ module; only the carrier validates the carrier.**
 > **GateLink's own documents carried the same figure and have been corrected**
 > (GateLink Implementation Plan **v0.6**): §3.4 sized the carrier LDO against *"~120 mA
 > peak SX1262 TX at +22 dBm"* and milestone **M0** accepted on *"LDO holds ≥3.2 V through
-> SX1262 TX at +22 dBm"*. Both now work from the powers D33 permits — the −4 dBm operating
-> ceiling, and the Wio's tested 19.6 dBm as the worst permitted case. Nothing in that
-> node's rail, part or budget decisions moved; every one of them gained headroom.
+> SX1262 TX at +22 dBm"*. Both now work from the powers D33 permits: the rail is sized
+> against the Wio's tested 19.6 dBm as the worst permitted case, and **M0 accepts at the
+> −4 dBm operating point**. Nothing in that node's rail, part or budget decisions moved;
+> every one of them gained headroom.
 
 #### 2.3.1 Two hardware findings to confirm on arrival
 
