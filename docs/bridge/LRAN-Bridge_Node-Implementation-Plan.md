@@ -186,12 +186,12 @@ taken the worst case off the table**, since the node transmits at the Envelope A
 rather than at the driver's maximum, and the step scales with it. **The XIAO validates the
 module; only the carrier validates the carrier.**
 
-> **This wants reconciling in GateLink's own documents, not here.** GateLink Implementation
-> Plan §3.4 sizes the LDO against *"~120 mA peak SX1262 TX at +22 dBm"* and milestone
-> **M0** accepts on *"LDO holds ≥3.2 V through SX1262 TX at +22 dBm"* — a case D33 no longer
-> permits. Testing at +22 dBm is a defensible margin choice; stating it as the operating
-> point is not, and the two readings ask for different hardware. Raised here because this
-> section is what pointed at it; the change belongs to that document.
+> **GateLink's own documents carried the same figure and have been corrected**
+> (GateLink Implementation Plan **v0.6**): §3.4 sized the carrier LDO against *"~120 mA
+> peak SX1262 TX at +22 dBm"* and milestone **M0** accepted on *"LDO holds ≥3.2 V through
+> SX1262 TX at +22 dBm"*. Both now work from the powers D33 permits — the −4 dBm operating
+> ceiling, and the Wio's tested 19.6 dBm as the worst permitted case. Nothing in that
+> node's rail, part or budget decisions moved; every one of them gained headroom.
 
 #### 2.3.1 Two hardware findings to confirm on arrival
 
@@ -1427,10 +1427,9 @@ that drifts is the one that gets followed.
   Wio certified powers differ by about 6 dB. §2.2's title changes with its content: one
   hazard, one data-quality trap. **The antenna rule is untouched** — it applies at any
   power.
-  **§2.3's regulator note is qualified in the same way**, and raises a reconciliation this
-  document cannot make: **GateLink Implementation Plan §3.4 and milestone M0 still size and
-  accept the carrier LDO at +22 dBm**, a case D33 no longer permits. Testing there is a
-  defensible margin choice; stating it as the operating point is not.
+  **§2.3's regulator note is qualified in the same way**, and the same figure in GateLink's
+  own documents — §3.4's LDO sizing, milestone **M0**'s acceptance criterion and §9.7's
+  power budget — is corrected alongside it in **GateLink Implementation Plan v0.6**.
   **Header renamed** to **Bridge Node** — see System PRD v0.11 and the amended **D17**.
 
 - **v0.12** — **Readability pass; no design, requirement or measurement changed.**
