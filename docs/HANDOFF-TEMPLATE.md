@@ -111,15 +111,36 @@ should go and read is durable and belongs here. "`main` is at `abc1234`" is not.
 ## Hardware state
 
 <!--
-  WRITE THIS ONE OUT. It is the section that cannot be derived, and a wrong board or a
-  stale stored state is SILENT - it produces a normal-looking artifact with the wrong
-  configuration in it. Per board or device: what it is, how you tell it from its twin,
-  what firmware it holds, what it has stored, and whether it is powered.
-  Identify hardware by something that does not expire. Serial numbers collide and a
-  software discriminator disappears the moment someone erases it; an enclosure does not.
+  WRITE THIS ONE OUT, AS THE TABLE BELOW. It is the section that cannot be derived, and a
+  wrong device or a stale stored state is SILENT - it produces a normal-looking artifact
+  with the wrong configuration in it.
+
+  THIS TABLE IS PER SUBPROJECT AND IS NOT SHARED. Another subproject's table describes its
+  devices in ITS roles, so it does not transfer and must not be cited in place of this one.
+  Where the same physical device appears in two subprojects, each names it in its own terms
+  and both say so; copying the other's row is how a wrong pin map reached two documents
+  before (root CLAUDE.md, "a load-bearing premise must name the check that would falsify it").
+
+  Add or drop columns to fit the subproject. Keep "Told apart by" whatever else changes.
 -->
 
-TODO(handoff): what is on the bench, how to tell them apart, and what state each is in.
+| Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
+|---|---|---|---|---|---|
+| TODO(handoff): what it is, and the physical detail that identifies it | TODO(handoff): the short name the rest of this file uses | TODO(handoff): something that does not expire | TODO(handoff): build env, and what it was last flashed from | TODO(handoff): what is in NVS / on disk, and what losing it would cost | TODO(handoff): powered, parked, deployed, or off - and where it physically is |
+
+**Identify a device by something that does not expire.** Serial numbers collide, port names
+are not identities, and a software discriminator disappears the moment someone erases the
+thing it keys on. A physical difference — an enclosure, a label, a fitted antenna — does not.
+
+<!--
+  Below the table, say per subproject:
+    - what a wrong selection would silently produce, so the reader knows the cost;
+    - which stored state is the only copy, and which is committed somewhere;
+    - anything that must be powered down during a measurement, and why.
+-->
+
+TODO(handoff): what a wrong selection produces silently, and which stored state is the only
+copy.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
