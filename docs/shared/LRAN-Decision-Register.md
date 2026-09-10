@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.7
+**Version:** 0.8
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-10
@@ -50,7 +50,7 @@ than one section, or when it is blocking work.
 
 | # | Decision | Owner | Notes | Gate |
 |---|---|---|---|---|
-| **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | **Open, but bounded** — see §2.1. **The range test is done: both bearings measured, M6 closed 2026-09-09** at the actual distances (~87 m gate, ~100 m well — §5.1.1), not the ~500 ft this row guessed. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. **TX power is capped by D33**; the **frequency requires the ambient survey (M20)** first. Range test results alone do not close this | Phase 1 |
+| **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | **Open, but bounded** — see §2.1. **The range test is done: both bearings measured, M6 closed 2026-09-09** at the actual distances (~87 m gate, ~100 m well — §5.1.1), not the ~500 ft this row guessed. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. **TX power is capped by D33**; the **frequency requires the ambient survey (M20)** first. Range test results alone do not close this. **All four bounds have now reported** (M6, M20, M21), so what remains is a choice rather than a measurement — options, evidence and a recommendation are assembled in [`LRAN-D1-PHY-Decision-Brief`](./LRAN-D1-PHY-Decision-Brief.md), which **decides nothing**; this row stays the status of record | Phase 1 |
 | **D33** | **FCC Part 15 operating mode** — *reopened 2026-09-06* | Protocol Spec §18.1 | **Reopened by M21**, exactly as standing condition 1 anticipated. Neither module is certified under §15.249; both carry §15.247 DTS **and** DSS grants, and D33's fixed-channel no-hopping mode exists inside those grants **only at BW500**. Two envelopes are documented in `LRAN-M21-FCC-Grant-Findings` §6. **Envelope A (§15.249) is the plan of record** — the 2026-09-04 walk closed at 0 % PER across six positions at its ceiling — with **Envelope B a fallback behind three explicit triggers**. Separately and permanently: the grants **do not transfer**, so the operative frame is **§15.23 home-built**. See §3.3 | Before D1 fixes a number |
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
@@ -548,6 +548,16 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.8** — **D1's row gains a pointer, and its status does not change.** All four bounds
+  named in §2.1 have reported — M6 2026-09-09, M20 2026-09-05, M21 2026-09-06 — so D1 is now
+  a decision to make rather than a measurement to run, and nothing in the register said that
+  in one place. The evidence was spread across §2.1, §2.2, §5.4, the M21 findings, Protocol
+  Spec §12 and §15, and the range-test log's 2026-09-09 entry;
+  [`LRAN-D1-PHY-Decision-Brief`](./LRAN-D1-PHY-Decision-Brief.md) assembles it and
+  recommends a working point. **The brief decides nothing and this file remains the only
+  place D1's status is recorded** — when D1 closes, this row changes and the brief is marked
+  superseded rather than edited to agree.
 
 - **v0.7** — **D17 amended: the bridge is `Bridge Node`, not `LoRaBridge`.** The register
   recorded the name the project used before its own document set settled on **Bridge
