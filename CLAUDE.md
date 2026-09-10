@@ -190,6 +190,16 @@ so cite it freely. "`main` is at `9fee445`" describes where a pointer sat one af
 The same test already governs test counts and task ranges here — *"they were wrong more often
 than right"* — and this is that rule reaching the one section that kept escaping it.
 
+**Start a node's handoff from [`docs/HANDOFF-TEMPLATE.md`](docs/HANDOFF-TEMPLATE.md).** It
+carries the sections in reading order, this rule applied inline, and what each section is for
+written where it is needed. Its blanks are `TODO(handoff):`, not `<angle brackets>`, because
+two field captures went out with `<...>` unedited — so a half-filled handoff is greppable:
+
+```bash
+grep -n "TODO(handoff)" docs/<node>/HANDOFF.md   # empty before commit
+grep -c "<!--" docs/<node>/HANDOFF.md            # 0 before commit
+```
+
 ## Secrets
 
 `secrets.h` is **gitignored**. `secrets.h.example` is committed and documents every field.
