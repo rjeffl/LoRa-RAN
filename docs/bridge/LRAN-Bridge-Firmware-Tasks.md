@@ -1,12 +1,12 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.4
+**Version:** 0.5
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.9
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.13
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.10
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.16
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.6
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-11
 
@@ -96,14 +96,18 @@ of CI** while the target is a banner. **Neither is wired into the workflow yet**
 `.github/workflows/` needs a token scope the operator has to refresh — so today:
 
 ```bash
-pio test -d firmware/bridge -e native    # runs in CI: NO. Run it yourself
-pio run  -d firmware/bridge -e heltec    # runs in CI: NO. Needs secrets.h
+pio test -d firmware/bridge -e native            # runs in CI: NO. Run it yourself
+pio run  -d firmware/bridge -e heltec            # runs in CI: NO. Needs secrets.h
+python3 tools/checks/lora_task_never_blocks.py   # runs in CI: NO. Added by BF-11
 ```
 
-**`main` being green does not mean this project builds.** Revisit when the target does
-something a build failure would be worth catching — BF-12's WiFi and MQTT is the natural
-point — and if the target build is added then, the workflow copies `secrets.h.example`
-rather than gaining a secret.
+**`main` being green does not mean this project builds, and it does not mean the
+never-block check ran.** Revisit when the target does something a build failure would be
+worth catching — BF-12's WiFi and MQTT is the natural point — and if the target build is
+added then, the workflow copies `secrets.h.example` rather than gaining a secret. **Add all
+three in one edit**, cheapest first: the `checks` job gains `lora_task_never_blocks.py`
+(seconds, no toolchain), the `native` job gains the bridge's host tests, and the `firmware`
+job gains the target build.
 
 ## 2. How to read the model column
 
@@ -178,7 +182,9 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 | # | Task | Model | Why |
 |---|---|---|---|
 | ~~**BF-10**~~ | ~~Project skeleton, `secrets.h.example`, `native` environment, `CLAUDE.md` (§5.4, §11.4)~~ — **done 2026-09-10.** `firmware/bridge/` builds on `heltec` and passes three `native` tests that link the shared codec from this project. `secrets.h` was already gitignored and `secrets.h.example` already written; what this task added is the build that consumes them, and a boot check for the template's all-zero key. **The bridge target is not in CI** — see §1.2 | **Sonnet** | Layout is specified. One rule to honour: **`secrets.h` in `.gitignore` in the first commit, before it exists** |
-| **BF-11** | **Task structure** — the seven tasks of §5.2, priorities, and the never-block rule | **Opus** | *"`lora_task` is highest priority and never blocks on the network"* is the one place a naive "publish inline on receive" quietly loses data. Getting the priorities and queue boundaries right is architecture, and retrofitting them is not a small edit |
+| ~~**BF-11**~~ | ~~**Task structure** — the seven tasks of §5.2, priorities, and the never-block rule~~ — **done 2026-09-10.** Seven static FreeRTOS tasks, four queue boundaries, drop-newest-and-count on a full queue, and the numbers argued in Impl Plan §5.2.1. The never-block rule has `tools/checks/lora_task_never_blocks.py` rather than only a paragraph. **Two follow-ons split out: BF-11a and BF-11b** | **Opus** | *"`lora_task` is highest priority and never blocks on the network"* is the one place a naive "publish inline on receive" quietly loses data. Getting the priorities and queue boundaries right is architecture, and retrofitting them is not a small edit |
+| **BF-11a** | **Log queue and `log_task`'s drain** — `LogMessage`, the leveled serial log, the raw frame log (§6.6) | **Sonnet** | The queue's depth and its drop accounting exist; what is missing is the message type and the drain. Lowest priority on purpose — a log that can preempt the radio changes what it measures |
+| **BF-11b** | **Hardware watchdog, fed from `sched_task`** (§5.2) | **Sonnet** | One feed point, and it must be the task that would notice a stall. Enabling it before BF-16 means a watchdog reset for a radio that is not there yet |
 | **BF-12** | WiFi station, reconnect, `MqttTransport` interface over PubSubClient, LWT (§4.3) | **Sonnet** | Well-trodden, and the one trap is written down: **`MQTT_MAX_PACKET_SIZE` ≥ 1024 in the build flags on day one**, or discovery configs vanish with no error |
 | **BF-13** | **OTA — A/B partition table and rollback** (§6.5) | **Opus** | The partition table is a build-time decision that *cannot* be retrofitted without a USB flash, and the bridge is the node whose failure takes the whole property's telemetry. **V-B9** requires a deliberately bad image to roll back |
 | **BF-14** | OLED status page (§5.3 `ui.cpp`) | **Sonnet** | R-4.1c is MAY-level — a glanceable "N nodes online". Reuse the ThingPulse driver and the range test's Vext bring-up sequence |
@@ -260,6 +266,7 @@ only against the bridge, a cached value republished as current.
 | Version | What changed |
 |---|---|
 | **v0.9** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
+| **v0.5** | **BF-11 done** — seven tasks, four queues; BF-11a and BF-11b split out |
 | **v0.4** | **BF-10 done** — the skeleton builds; §1.2 records why CI does not build it |
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
@@ -273,6 +280,20 @@ only against the bridge, a cached value republished as current.
   `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
   on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
   v0.16.
+
+- **v0.5** — **BF-11 is done: the task structure exists, and it is the part that was
+  expensive to get wrong.** Seven statically allocated FreeRTOS tasks in the priority bands
+  §5.2 gives, `lora` strictly highest and pinned off the WiFi core, `log` strictly lowest,
+  four queue boundaries with drop-newest-and-count, and thirteen host tests over the table
+  and the accounting. **The never-block rule stopped being only a paragraph:**
+  `tools/checks/lora_task_never_blocks.py` fails on a blocking primitive or a network call
+  in the code `lora_task` owns. Impl Plan **§5.2.1** now carries the numbers and the
+  argument for each; the engineering log carries what is not a number, including **why root
+  rule 4 does not reach a queue overflow.** **Two follow-ons are split out rather than
+  smuggled in:** `BF-11a` (the log queue's message type and drain) and `BF-11b` (the
+  hardware watchdog fed from `sched_task`) — both are named by `TODO`s in the code, so the
+  identifiers resolve to rows here. Sibling citations in the header are resynced in the same
+  pass.
 
 - **v0.4** — **BF-10 is done: `firmware/bridge/` exists and builds.** A `heltec`
   environment, a `native` environment with three tests that link `/lib/lran-protocol/`

@@ -13,15 +13,23 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**`BF-11`, the task structure — and it is the one to think hardest about.** `lora_task`
-is highest priority and never blocks on the network, and retrofitting that is not a small
-edit. `BF-12` through `BF-14` in
-[`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) run in parallel with it.
+**`BF-12` (WiFi, `MqttTransport`, LWT) and `BF-14` (the OLED page) are unblocked and run
+in parallel**, in [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md).
+**`BF-13`, the OTA partition table, is the one that cannot be retrofitted** without a USB
+flash — and it has a seam waiting for it, `lora_task_idle()`, so it defers to the radio
+rather than inventing its own signal.
 
-**`BF-10` is done: `firmware/bridge/` exists and builds.** A `heltec` environment, a
-`native` environment with three tests that link the shared codec through this project, and
-a `main.cpp` that boots and prints its binding spec version and D1's working point. **It is
-a skeleton — no tasks, no radio, no WiFi, no MQTT, no OTA partition table.**
+**`BF-10` and `BF-11` are done.** `firmware/bridge/` builds on `heltec` and passes 16 host
+tests. Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off
+the WiFi core, `log` strictly lowest, four queue boundaries that **drop the newest item and
+count it** rather than blocking a producer. The numbers are argued in Impl Plan **§5.2.1**;
+the reasoning that is not a number is in the engineering log's 2026-09-10 entry.
+
+**The never-block rule is enforced now, not just written down.**
+`tools/checks/lora_task_never_blocks.py` fails on a blocking primitive or a network call in
+the code `lora_task` owns, and there is no blocking send in `task_runtime.h` to reach for.
+
+**Still absent: the radio, WiFi, MQTT, OTA and the OLED.**
 
 **The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two

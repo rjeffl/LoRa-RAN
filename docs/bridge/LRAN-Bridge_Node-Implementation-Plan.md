@@ -516,6 +516,63 @@ properties matter:
 - `ota_task` defers until `lora_task` reports idle (**R-5.3d**).
 - Watchdog fed from `sched_task`.
 
+#### 5.2.1 The numbers, chosen by BF-11 on 2026-09-10
+
+§5.2's table gives bands. `firmware/bridge/src/tasks.cpp` gives numbers, and this is
+where they are argued rather than merely declared. **The table there is the
+authority; if these disagree, the code is what runs and this section is stale.**
+
+| Task | Priority | Core | Stack (words) | Trigger |
+|---|---:|---:|---:|---|
+| `lora` | **6** | **1** | 4096 | queue and radio |
+| `sched` | 4 | 1 | 3072 | 1000 ms |
+| `mqtt` | 3 | **0** | 6144 | 100 ms + queue |
+| `app` | 3 | any | 6144 | queue |
+| `ota` | 2 | any | 4096 | on request |
+| `ui` | 2 | any | 3072 | 500 ms |
+| `log` | **1** | any | 3072 | queue |
+
+**The gaps in the priority numbers are deliberate.** A task added later at "just
+above `mqtt`" takes an unused number instead of forcing a renumbering of everything
+above it. **`lora` is strictly highest and `log` strictly lowest**, and both are
+asserted by a host test rather than left to review — a tie at the top means the frame
+path can be made to wait for whatever it tied with.
+
+**Nothing sits below priority 1**, which is where Arduino's own `loopTask` runs. A
+task beneath it is starved by a `loop()` that never yields, which is the default
+shape of an Arduino sketch.
+
+**`lora` is pinned to core 1 and `mqtt` to core 0**, where the WiFi and lwIP stacks
+already run. This is the structural half of the asymmetry PRD §4.4 records at the
+radio level. **If M22 shows LoRa PER degrading with WiFi saturated, this pinning is
+one of the two levers** — the other being antenna separation — and neither rescues a
+design that publishes inline.
+
+**Queue depths: RX 8, publish 32, TX 4, log 16.** The publish queue is the deep one
+because a single status frame fans out into a dozen entities and because it is what
+rides out a broker reconnect. **The TX queue is shallow on purpose**: the bridge
+serializes polls fleet-wide (§6.1, R-3.1d), so depth there would mean something
+upstream had stopped honouring that, and a queue is the wrong place to discover it.
+
+**A full queue drops the newest item and counts it.** Blocking is how a slow consumer
+reaches back and stops `lora_task`, which §5.2 and PRD §1.3 forbid. Dropping the
+oldest suits state, which is idempotent, and is wrong for events, which are not —
+**BF-24 and BF-25 own the per-class refinement** once the publication policy exists.
+Each queue carries `sent`, `dropped` and `high_water`; these are **bridge
+diagnostics, not schema `0xF0`**, because §14.1 is the wire's registry and a queue
+overflow has no §14 stage. The engineering log's 2026-09-10 entry records why root
+rule 4 is not stretched to cover it.
+
+**Everything above is static.** Queue storage and task stacks are fixed arrays
+(root rule 3), so a creation failure is a table defect rather than a memory
+condition — and `setup()` halts on one rather than running a fleet with a task
+missing.
+
+**The never-block rule has a check:** `tools/checks/lora_task_never_blocks.py` fails
+if `portMAX_DELAY`, `delay()`, a WiFi or publish call, or a queue call with a
+non-zero timeout appears in the code `lora_task` owns. It reads one function's text —
+a tripwire on the shape of the mistake, not a proof.
+
 ### 5.3 Module map
 
 ```
@@ -1424,7 +1481,8 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.16** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.16** | **§5.2.1** — BF-11's task priorities, cores, stacks, queue depths and drop policy |
 | **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
 | **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
 | **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
@@ -1441,13 +1499,26 @@ that drifts is the one that gets followed.
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
 
-- **v0.16** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
+- **v0.20** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
   §9.4's check/record window: a node that receives a retry while still executing the
   command counts it and sends nothing (D34 amended 2026-09-11). **§6.2 needed no new
   branch** — silence already takes the `no ACK` path — and gains a paragraph on the one
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
   one. Nothing on the wire moved; `ver` stays `2`.
+
+- **v0.16** — **§5.2's bands become numbers, in new §5.2.1.** BF-11 built the task
+  structure, and the choices it had to make — priorities, core pinning, stack sizes, queue
+  depths and what a full queue does — had no home. §5.2 keeps its bands and its rules;
+  §5.2.1 records what was chosen, argues each number, and **names `firmware/bridge/src/tasks.cpp`
+  as the authority over itself.** Three things in it are worth reading even if the table is
+  not: `lora` is pinned off the WiFi core and **M22 is the measurement that would say that is
+  not enough**; a full queue **drops the newest and counts it**, with BF-24/BF-25 owning the
+  per-class refinement; and the never-block rule now has
+  **`tools/checks/lora_task_never_blocks.py`** rather than only a paragraph. The engineering
+  log's 2026-09-10 entry carries the reasoning that is not a number, including why **root
+  rule 4 is not stretched to cover a queue overflow** — a dropped frame there has already
+  passed the whole §14 ladder and has no stage to map to.
 
 - **v0.15** — **The bridge antenna is decided: the same 3.0 dBi 19 cm stick the range test
   ran on** (Bridge PRD **R-4.3a.1**, 2026-09-10). §2.1's BOM row said "selected after M6",

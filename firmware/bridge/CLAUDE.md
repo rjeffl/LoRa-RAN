@@ -21,16 +21,38 @@ names come from spec §14.1** below).
 
 ## What exists here today
 
-**`BF-10` only — the skeleton.** `platformio.ini` with `heltec` and `native`
-environments, `src/main.cpp` (banner and a boot check), and one `native` test that proves
-the shared codec links and round-trips *from this project*. **No tasks, no radio, no
-WiFi, no MQTT, no OTA partition table.** Each arrives with its own `BF-*` task; do not
-add one early because it is convenient.
+**`BF-10` and `BF-11` — the skeleton and the task structure.** `platformio.ini`
+(`heltec` and `native`), `main.cpp` (banner, placeholder-key check, task start),
+`tasks.{h,cpp}` and `queues.{h,cpp}` (the table, the depths, the drop accounting — all
+Arduino-free and host-tested), and `task_runtime.{h,cpp}` (every FreeRTOS call).
+**Still absent: the radio, WiFi, MQTT, OTA and the OLED.** Each arrives with its own
+`BF-*` task; do not add one early because it is convenient.
 
 ```bash
-pio run  -d firmware/bridge -e heltec    # target build - NEEDS secrets.h
-pio test -d firmware/bridge -e native    # host, no secrets
+pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
+pio test -d firmware/bridge -e native            # host, no secrets
+python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
 ```
+
+**The Arduino-free/Arduino split is load-bearing, and `build_src_filter` in
+`[env:native]` is where it is declared.** `tasks.cpp` and `queues.cpp` build on the host
+so §5.2's rules can be *asserted*; a file that needs to move into that group has to be
+added to the filter, which is a visible edit. Keep new policy on the host side.
+
+## The never-block rule is checked, not just stated
+
+**`lora_task` is highest priority and never blocks on the network** — and there is no
+blocking queue send in `task_runtime.h` to reach for. Every send is zero-tick and counts
+its drop. `tools/checks/lora_task_never_blocks.py` fails on `portMAX_DELAY`, `delay()`, a
+WiFi or publish call, or a queue call with a non-zero timeout in the code `lora_task`
+owns. **It reads one function's text** — a tripwire on the shape of the mistake, not a
+proof, and it cannot see into RadioLib.
+
+**A full queue drops the newest item and counts it** (`QueueAccounting`). Those counters
+are **bridge diagnostics and not schema `0xF0`**: §14.1 is the wire's normative registry
+of receive-ladder discards, and a queue overflow happens *after* a frame has passed the
+whole ladder. Root rule 4 is honoured in substance — no silent discard — and the
+engineering log's 2026-09-10 entry says why it is not stretched further.
 
 **`secrets.h` is required to build the target, and it is gitignored.** Copy
 `secrets.h.example` from the repo root and fill it in; the build fails with a message

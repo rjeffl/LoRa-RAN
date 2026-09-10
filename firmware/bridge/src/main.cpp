@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Bridge Node, node 0x00 - boot and banner. Task BF-10, milestone B2.
+// Bridge Node, node 0x00 - boot, banner and task creation. Tasks BF-10 and BF-11,
+// milestone B2.
 //
-// This is the skeleton and nothing more. Task creation (BF-11), WiFi and MQTT
-// (BF-12), OTA (BF-13) and the OLED page (BF-14) each land in their own files; what
-// belongs here when they do is task creation and init order, per Impl Plan 5.3.
+// Init order and task creation only. WiFi and MQTT
+// (BF-12), OTA (BF-13) and the OLED page (BF-14) each land in their own files; the
+// task table and the queue boundaries are in tasks.h and queues.h (Impl Plan 5.2).
 
 #include <Arduino.h>
+
+#include "task_runtime.h"
+#include "tasks.h"
 
 // spec 9.1 and Impl Plan 11.4 - the master key, WiFi and broker credentials. This is
 // the only firmware in the repo that holds any of them.
@@ -66,11 +70,27 @@ void setup() {
     Serial.println(F("*** This build cannot authenticate any node. Fill in secrets.h. ***"));
   }
 
-  Serial.println(F("BF-10 skeleton: no tasks, no radio, no WiFi, no MQTT yet."));
+  // BF-11. Task creation is the last thing setup() does: everything a task might
+  // touch is initialized above it, and after this line the Arduino loop is the
+  // lowest-value thing running.
+  if (!bridge::start_tasks()) {
+    // Static allocation, so a failure here is a table defect - a depth, a stack
+    // array that does not match its declared size - and not a runtime condition
+    // that might clear. Halting beats running a fleet with one task missing.
+    Serial.println(F("FATAL: task or queue creation failed. Halting."));
+    for (;;) {
+      delay(1000);
+    }
+  }
+
+  Serial.print(F("Tasks started: "));
+  Serial.println(static_cast<unsigned>(bridge::kTaskCount));
+  Serial.println(F("BF-11: structure only. No radio, no WiFi, no MQTT, no OTA yet."));
 }
 
 void loop() {
-  // BF-11 replaces this with task creation; until then the sketch exists to prove
-  // the project builds, links the shared codec and boots.
-  delay(1000);
+  // Nothing runs here by design. The seven tasks own the work (Impl Plan 5.2), and
+  // the Arduino loop task sits below all of them; code added here would run at a
+  // priority chosen by Arduino rather than by the table.
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
