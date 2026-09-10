@@ -11,17 +11,16 @@
 
 ## The next job, in one place
 
-**This directory owes no more measurements on the gate bearing.** B1b ran on 2026-09-09 and
-the gate closed. What is left splits three ways, and only the first two are work:
+**This directory owes no measurements at all.** B1b closed the gate bearing on 2026-09-09,
+and the well bearing turned out to have been answered on 2026-09-04 by a position nobody had
+identified. What is left splits three ways, and only the first is work:
 
 1. **D1 — a decision, not a measurement.** Everything it needs now exists. **It does not
    start in this directory:** read Protocol Spec §18.2 and Decision Register §2.1 and §2.2
    first. B1b added one new bound to it, described under *What B1b established*.
-2. **M6's well bearing.** Still unwalked, and **it is a Heltec-pair walk, not a Wio one.**
-   `B1B-FIELD-CARD.md` supplies the procedure and the traps; **its board table does not
-   transfer** — that table walks the Wio because B1b existed to measure GateLink's module.
-   B1a specifies two Heltecs, and the well walk is the one that matches it. See *What the
-   well bearing is for* below before scheduling it.
+2. **Nothing. There is no second measurement.** The well bearing was answered on 2026-09-04
+   by walk P3, which is `welllink-well` — confirmed by the operator 2026-09-09 and never
+   recorded in the trace. **Do not schedule a well walk.** Section below.
 3. **Two optional runs that would each answer something real**, neither blocking anything:
    the fixed-mount A/B that would separate the Wio's transmit term from its receive term,
    and a `capture.py` guard against `--note` placeholders. Both under *Worth doing*.
@@ -175,7 +174,7 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 | 3 | [`data/README.md`](./data/README.md) — *"B1b: the gate closed, and the A/B did not measure what it looks like it measured"* | the numbers, the margin table, and why the A/B's 9 dB is siting |
 | 4 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§2.1, §2.2, §3.3, §5.4** | D1's four bounds and its new SF constraint, D33's reopening, the asymmetry's field confirmation, and the ranked channel evidence |
 | 5 | [`LRAN-M21-FCC-Grant-Findings`](../shared/LRAN-M21-FCC-Grant-Findings.md) + Protocol Spec **§18.2** | the regulatory frame. **Read before picking any number for D1** — `BW` and the rule section are one decision now |
-| 6 | [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md) | **the procedure for the well bearing** — but **not its board table**, which is B1b's. Also the record of what B1b did and did not close. Its §4 and its `--note` template both carry 2026-09-09 corrections |
+| 6 | [`B1B-FIELD-CARD.md`](./B1B-FIELD-CARD.md) | the record of what B1b did and did not close, and the procedure for any future walk. **Not needed for the well bearing** — that is answered. Its §4 and its `--note` template both carry 2026-09-09 corrections |
 | 6a | [`FIELD-PROCEDURE.md`](./FIELD-PROCEDURE.md) | **read before any field session.** Start with *"Power down every board you are not measuring with"* and *"Erase the bench data first"*. Its commands carry **macOS port names** |
 | 7 | [`data/README.md`](./data/README.md) | the two schemas, what each committed trace is *not*, the `pa_*` header fields, and **the 62.5 % band-coverage caveat** |
 | 8 | [`EIRP-FIELD-CARD.md`](./EIRP-FIELD-CARD.md) + [`EIRP-SANITY-CHECK.md`](./EIRP-SANITY-CHECK.md) | **§7.6 is closed** — reference, not a job. The stands and log-clearing guidance still applies |
@@ -307,34 +306,43 @@ during a walk, and `z` would destroy it for nothing.
 **All four of B1b's responder rows closed at exactly 192/192**, so nothing accumulated in
 that run.
 
-## What the well bearing is for, and what it is not
+## The well bearing is answered — and it was answered on 2026-09-04
 
-**It is not a Wio measurement.** The XIAO+Wio is GateLink's module, GateLink is at the gate,
-and **WellLink's hardware is undecided** — its PRD is an explicit placeholder ("nothing here
-is buildable yet", hardware requirements *to be developed*) and **D19**, mains versus
-battery/solar, is open. Walking the well bearing with the Wio would measure a module with no
-established connection to the node that will stand there, and would carry the Wio's ~9 dB
-penalty into a reading whose point is the path.
+**Walk P3 is survey site 3, `welllink-well`.** Confirmed by the operator 2026-09-09. The
+2026-09-04 trace's position map names no site, so the only well-bearing link measurement this
+project has was sitting in a committed file under a number.
 
-**B1a already says what to walk it with: two Heltec boards.** The Heltec is also the reference
-every other number in this directory is expressed in.
+| | |
+|---|---|
+| Boards | **Heltec pair** — which is what B1a specifies, not the Wio |
+| Initiator | indoors at the bridge's real target location, same as every other position |
+| Path | NW exterior wall **plus the barn** |
+| Distance | **~100 m** (operator figure), *not* the 0–30 m the recorded fix implies |
+| Result | **2.08 % PER**, 192 probes, init −99.5 / resp −98.7 dBm, at the D33 ceiling |
 
-**What it actually gates is the bridge's antenna, and only that.** The 2026-09-05 finding is
-the reason: **P2 and P6 are both ~40 m out and differ by 18.2 dB**, consistently across all 24
-matched test points, because P2 leaves by the NW wall and P6's path crosses the house. The
-bridge sits indoors on the NW side. **A bearing that crosses the structure starts ~18 dB down
-before distance is considered**, and the well is not on the gate bearing. If it does not
-close, the answer is an external or relocated bridge antenna — which is B1a's *"bridge antenna
-type and position chosen and recorded"*, and is a decision best made before the antenna is
-fixed rather than after.
+**This directory owes no walk on that bearing**, and a Wio walk there would have measured a
+module with no established connection to the node — WellLink's hardware is undecided, D19 is
+open and its PRD is a placeholder.
 
-**It does not gate D1**, whose four bounds come from M20, M21, W9 and B1b. **It does not block
-bridge firmware** — B2 and B0 depend on a board in hand and the protocol library, neither of
-which this touches.
+**Two things it changed, both in the engineering log's 2026-09-09 entry:**
 
-**So the sequencing is:** worth one session before the bridge antenna is finalized; not worth
-doing with the Wio; and not worth waiting on before firmware starts. Nothing about WellLink
-itself can be settled by it until D19 and that node's hardware exist.
+- **P3's fix is wrong, not coarse.** At 35N two points sharing one arcsecond cell are at most
+  **40.0 m** apart, so 100 m cannot share a cell with P0. The 2026-09-05 retraction treated it
+  as sound-but-coarse and built a defence on that; the coordinate is simply bad. Every other
+  position has a distinct fix and none is impeached.
+- **"The barn costs most" is false.** Recomputed at 100 m the barn's excess loss is **25.1 dB**,
+  fourth of six — below P1's vegetation at 27.8 and P6's structure at 29.1. Clear LOS is still
+  cheapest at 10.4 dB and obstructed paths still cluster 16–29 dB, but the *ordering* is no
+  longer the evidence that the walk is internally consistent.
+
+**Carry into WellLink's design:** P3 is the **thinnest margin any node site showed** and the
+only position in the walk with any `phy_crc_err` — 2 of them, both there. B1b's Wio delta
+(~3 dB on `(TX − RX)`, ~9 dB round trip) translates the Heltec figure if WellLink ends up on
+a Wio.
+
+**M6's wording overstates one bearing.** The gate is ~500 ft; the well is ~100 m and is
+obstruction-limited rather than distance-limited. A 500 ft walk on that bearing would measure
+a place no node occupies.
 
 ## D1 — a decision, against data that already exists
 
@@ -506,9 +514,9 @@ measurement work.
 4. **No measurement is owed on the gate bearing.** B1b closed it.
 5. **If it is D1, it does not start in this directory** — it is a decision against data that
    already exists, and B1b's SF constraint is the newest input.
-6. **If it is the well bearing**, `B1B-FIELD-CARD.md` is the procedure but **not the board
-   assignment** — walk it with a Heltec pair. Read its two 2026-09-09 corrections first, and
-   **reset the initiator if you change responders.**
+6. **Do not schedule a well walk.** It was answered on 2026-09-04 by walk P3. If a field
+   session happens for some other reason, read `B1B-FIELD-CARD.md`'s two 2026-09-09
+   corrections first, and **reset the initiator if you change responders.**
 7. **Do not re-run the §7.6 role permutations.** B1b's A/B is a module figure and can be
    cited as one, with its ±1 dB and its one-pair-of-sweeps caveat attached.
 
@@ -642,10 +650,13 @@ The engineering log has the full account; this is the index.
 - **D1** — nothing external blocks it and no measurement is owed. It needs a decision made
   against the data above. **B1b's SF7 fade tail is the newest input and it pulls against W9's
   backoff finding.**
-- **M6** — **the gate bearing is answered by B1b.** Still **not closed**: it asks for **both
-  bearings** and the well bearing is unwalked. Arcsecond GPS at the house end still cannot
-  support an RSSI-vs-distance curve, so it answers "does it work there", not "what is the path
-  loss".
+- **M6** — **both bearings are now answered.** The gate by B1b (2026-09-09, 0 % PER at the
+  deployed antenna position); the well by walk P3 (2026-09-04, 2.08 % PER), identified as
+  `welllink-well` on 2026-09-09. **Closure is a call, not a measurement** — M6 says "~500 ft on
+  both bearings" and the well is ~100 m, so the wording overstates one of them while the
+  question behind it is answered. Register §5.1 carries the evidence. Arcsecond GPS still
+  cannot support an RSSI-vs-distance curve, so this answers "does it work there", not "what is
+  the path loss".
 - **The Wio's TX/RX split** — **measured for the first time by B1b's A/B**: TX ≈ −6.0 dB and
   RX ≈ −3.2 dB against the Heltec, with ~±1 dB on each and the sum term resting on one pair of
   sweeps. **Not closed, because it wants one repeat** on the same mount; see *Worth doing*.

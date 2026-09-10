@@ -3532,3 +3532,97 @@ that is an option that was not on the table before — alongside SF9, which buys
 **And M6's answer is stronger than it was.** With the deployed antenna landing within 6 in of
 G2, B1b measured the link **where GateLink will radiate**, not near it. That is a better
 answer to "does it work there" than the 2026-09-04 walk could give at any position.
+
+---
+
+## 2026-09-09, later still — P3 is the well site, and its fix is wrong rather than coarse
+
+**The well bearing was measured on 2026-09-04 and nobody knew it.** Two operator
+confirmations, neither recorded on the day:
+
+1. **Walk P3 is survey site 3, `welllink-well`.** The trace's position map names no site, so
+   the only well-bearing link measurement this project has was sitting in a committed file
+   under a number.
+2. **P3 is about 100 m from P0**, not the 0–30 m its fix implies. Operator figure, not a
+   measurement.
+
+**Supersedes two things**: the 2026-09-05 entry *"Retraction: P3 is fine"*, which accepted
+that fix as sound-but-coarse, and its excess-loss table's P3 row and conclusion. It also
+supersedes yesterday's handoff section claiming the well bearing was unwalked.
+
+### The fix is not salvageable by quantisation, and that is a different defect
+
+At 35N one arcsecond is **30.9 m** of latitude and **25.3 m** of longitude, so two points
+sharing one arcsecond cell are **at most 40.0 m apart**. 100 m cannot share a cell with P0.
+
+The 2026-09-05 retraction reasoned that P3 and P0 sharing a fix meant the separation was
+*unresolved within 0–30 m*, and built a defence of the reading on that. **The premise was
+wrong.** The recorded coordinate is bad, not imprecise — a stale GPS reading, most likely,
+since P3 is the only position with a duplicate fix and every other one is distinct.
+
+**The distinction matters more than the position.** "Coarse" is a property of the instrument
+and applies to every fix in the walk. "Wrong" is a property of one reading and needs finding
+rather than budgeting for. The retraction argued the first and should have tested the second:
+the arithmetic above is one line and would have shown P0–P3 could not be 100 m apart *if the
+fix were trusted* — which is exactly the check that turns a plausible defence into a falsified
+one.
+
+### It moves P3 in the excess-loss table, and falsifies the table's conclusion
+
+Recomputed at 100 m, free space −69.7 dBm against P3's measured −94.8 (SF7, CR 4/5, −4 dBm,
+16 B):
+
+| pos | measured | dist | free-space | excess | obstruction noted |
+|---|---|---|---|---|---|
+| 4 | −80.6 | 106 m | −70.2 | **10.4 dB** | LOS |
+| 2 | −77.8 | 40 m | −61.7 | **16.1 dB** | LOS, small shrub |
+| 5 | −92.0 | 80 m | −67.7 | **24.3 dB** | LOS to back of house |
+| 3 | −94.8 | **~100 m** | −69.7 | **25.1 dB** | **barn in path** — was ~35–49 dB |
+| 1 | −96.1 | 85 m | −68.3 | **27.8 dB** | LOS, tree and shrub |
+| 6 | −90.8 | 40 m | −61.7 | **29.1 dB** | LOS to opposite side of house |
+
+**"The barn costs most" is false.** P3 moves from worst by a wide margin to **fourth of six**,
+between the back of the house and a tree. P1's vegetation costs 27.8 dB and P6's structure
+29.1 dB, both more than the barn's 25.1.
+
+**What survives is the coarse story**: clear LOS is cheapest at 10.4 dB and everything
+obstructed clusters at 16–29 dB. **What does not survive is the fine one** — the 2026-09-05
+entry called the ordering *"the strongest evidence yet that the walk is internally
+consistent,"* and that claim rested on the row that just moved. The walk is still internally
+consistent; the ordering is no longer the evidence for it.
+
+### The reading itself is unchanged, and it is the useful part
+
+**The link to the well site closes from the bridge's real indoor location, on a Heltec pair,
+at the D33 ceiling.** 2.08 % PER over 192 probes, init −99.5 and resp −98.7 dBm, through the
+NW exterior wall plus the barn.
+
+**It is also the thinnest margin any node site showed**, and the only position in the walk
+with any `phy_crc_err` — 2 of them, both here. Worth carrying into WellLink's design rather
+than rediscovering.
+
+### M6's "~500 ft on both bearings" overstates one of them
+
+The gate is ~500 ft. **The well is ~100 m**, about 328 ft, and is obstruction-limited rather
+than distance-limited — the barn is the whole cost. A 500 ft walk on that bearing would
+measure a place no node occupies. M6's wording assumed both nodes were far out; one is not.
+
+### What this leaves open at the well, and it is not a walk
+
+- **WellLink's module.** D19 is open and the PRD is a placeholder, so P3's Heltec figure is
+  the reference. B1b's Wio delta is now available to translate it if WellLink ends up on one:
+  about 3 dB on `(TX − RX)` and about 9 dB on the round trip.
+- **Nothing else.** The site is characterised at the bridge's real location, with the right
+  boards, at the ceiling.
+
+### The process point, and it is the third time today
+
+The last three corrections in this log all have the same shape: **a site identity that lived
+in the operator's head and nowhere in the file.** G2 was 2026-09-04's P1. The A/B was on one
+mount. P3 is the well. Each time the analysis reasoned confidently past the gap rather than
+asking, and each time the answer was one question away.
+
+**The position map is where this belongs.** It records a coordinate, an elevation and an
+obstruction, and it has never recorded *which node site a position is*. That is the field
+worth adding — the fix can be wrong and the reading still usable, but a position whose purpose
+is unrecorded is invisible to everyone who did not walk it.
