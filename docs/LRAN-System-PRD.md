@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.8
+**Version:** 0.9
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
-**Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §11)
-**Last updated:** 2026-09-08
+**Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
+**Last updated:** 2026-09-10
 
 ---
 
@@ -661,14 +661,14 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.8 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.9 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.5 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.10 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.6 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.11 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
 | [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
@@ -699,6 +699,12 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.9** — **The header's own cross-reference pointed at the wrong section.** It sent a
+  reader asking why `lran-prd-v0_8` is retired to §11, Third-party code and licenses; the
+  retirement is recorded in §13's v0.1 entry, which is where it now points. Document set
+  table synced for the Bridge PRD (v0.6) and Bridge Implementation Plan (v0.11), both
+  revised in the same audit. **No architectural change.**
 
 - **v0.8** — **§11.1's display row corrected: U8g2 out, the ThingPulse SSD1306 driver in,
   and the license with it** — U8g2 is BSD-2-Clause and the driver actually built is
