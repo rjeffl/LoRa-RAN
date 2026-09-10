@@ -1,7 +1,7 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.6
+**Version:** 0.7
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -214,7 +214,7 @@ live.**
 > controller because it needed four relays and six isolated inputs. **The bridge needs
 > none of that** — its I/O is a radio, WiFi and a status display, all of which the Heltec
 > integrates on one board with an antenna connector and USB-C power. The platform
-> question that forced GateLink's change simply does not arise here. Keeping the Heltec
+> question that forced GateLink's change does not arise here. Keeping the Heltec
 > also preserves it as the **reference radio** for the range test (§8, V-B1), where
 > having two identical known-good radios is worth more than matching the node's hardware.
 
@@ -435,7 +435,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 | # | Must be proven | Why it is not optional |
 |---|---|---|
-| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged. **Both bearings measured; M6 closed 2026-09-09.** The gate is **~87 m** and closed 0 % PER on the deployed pairing (**B1b**, 2026-09-09, within 6 in of the final antenna position); the well is **~100 m** and closed 2.08 % PER (2026-09-04 walk P3, identified as `welllink-well` on 2026-09-09). **The "~500 ft" this row asked for was a guess predating any walk** — Decision Register §5.1.1. **Still outstanding: D1 itself, and the bridge antenna choice** |
+| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured; M6 closed 2026-09-09** — §8.1. **Still outstanding: D1 itself, and the bridge antenna choice** |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
@@ -448,9 +448,46 @@ owning node's PRD. The bridge publishes them; it does not define them.
 | **V-B11** | Full fleet operation with **no node hardware present**, using simulators and dummy publish | **R-5.4b/c.** If this cannot be done, HA integration is blocked behind a workbench |
 | **V-B12** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
 
+### 8.1 V-B1 — what the measurements closed, and what they did not
+
+**The range work is deliberately host-independent.** Two Heltec boards characterize the
+PHY faster than waiting on GateLink's carrier, and the parameter selection transfers
+unchanged. Link margin does not transfer, which is why B1b re-measured on the module
+GateLink will carry (Bridge Implementation Plan §2.3).
+
+**Both bearings are measured and M6 closed 2026-09-09.** The gate is **~87 m** and closed
+0 % PER on the deployed pairing (**B1b**, 2026-09-09, within 6 in of the final antenna
+position). The well is **~100 m** and closed 2.08 % PER — the 2026-09-04 walk's P3,
+identified as `welllink-well` on 2026-09-09.
+
+**The "~500 ft" V-B1 originally asked for was a guess predating any walk**, and the
+measurements retire it rather than confirm it. Decision Register §5.1.1 carries the full
+closure, including which of the two bearings the original wording overstated.
+
+**D1 and the bridge antenna choice remain open.** M6 answered where the nodes are and
+what the link does there; it did not fix a PHY configuration or site the antenna.
+
 ---
 
 ## 9. Changelog
+
+| Version | What changed |
+|---|---|
+| **v0.7** | Readability pass — **new §8.1** takes V-B1's measurement detail out of the table cell; §9 gains a version index |
+| **v0.6** | §8's duplicate `V-B2` resolved — the coexistence row becomes **`V-B12`** |
+| **v0.5** | **§4.4**, the bridge's deliberate lack of LoRa/WiFi mutual exclusion, with **M22** as its falsifier; R-4.3a's confirmed antenna |
+| **v0.4** | Spec v0.8 citation; `cad_backoffs` now has two candidate causes at this end |
+| **v0.3** | Spec v0.7 citation; **D34** reaches an empty set here — the bridge receives no authenticated types |
+| **v0.2** | Spec v0.6 citation, body reconciled first; cross-document links repaired |
+| **v0.1** | Initial release, extracted from `lran-prd-v0_8` and restated as requirements |
+
+- **v0.7** — **Readability pass; no requirement changed and no measurement restated.**
+  **New §8.1** carries what V-B1's table cell had grown to hold — M6's closure, both
+  distances, both PER figures, the retired "~500 ft" and the two items still open. At
+  roughly 700 characters it was a paragraph wearing a table row, in the one column a
+  reader scans to find out what a criterion asks for. The row now states the criterion and
+  its status and points at §8.1. §9 gains a **version index** above the entries, which stay
+  at full length as the dated records they are.
 
 - **v0.6** — **The duplicate `V-B2` in §8 is resolved.** v0.5 added the WiFi/LoRa
   coexistence row as `V-B2`, an identifier §8 already used for the per-node registry
@@ -473,8 +510,22 @@ owning node's PRD. The bridge publishes them; it does not define them.
   the walk's measured structure term: two positions on opposite faces of the house at the
   same range differed by **18.2 dB**. Binding protocol advanced to **v0.9**.
 
-- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Relevant here through `cad_backoffs`.** §12.3 now records that a backoff window shorter than one frame's airtime cannot outlast the frame it backed off for, which spends `cad_retries` against a single neighbour. The bridge is the end §12.3 already expects to see the higher count — it lives where the third-party equipment is — so a raised `cad_backoffs` here has two candidate causes now, not one, and the SF is what separates them.
-- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame layout, header field, authentication scope or schema length**. **R-3.1e** and §5's counter requirements are unaffected: per §9.2 the bridge receives no authenticated types today, so §9.4 steps 4–6 apply to an empty set here and `rx_rejected_seq` / `rx_dup_command` reading zero on the bridge is correct.
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes
+  **W9** (the full-size and fragmented `PING` bench runs both passed over RF on
+  2026-09-05) and changes **no frame layout, header field, authentication scope or
+  schema length**; no vector regenerates. **Relevant here through `cad_backoffs`.**
+  §12.3 now records that a backoff window shorter than one frame's airtime cannot
+  outlast the frame it backed off for, which spends `cad_retries` against a single
+  neighbour. The bridge is the end §12.3 already expects to see the higher count — it
+  lives where the third-party equipment is — so a raised `cad_backoffs` here has two
+  candidate causes now, not one, and the SF is what separates them.
+- **v0.3** — Citation refresh only. Protocol specification **v0.6 → v0.7**, which
+  captures **D34** (Protocol Spec W12: §9.4 steps 4–5 become `CommandGate` in
+  `/lib/lran-protocol/`, dispatch stays in the application) and changes **no frame
+  layout, header field, authentication scope or schema length**. **R-3.1e** and §5's
+  counter requirements are unaffected: per §9.2 the bridge receives no authenticated
+  types today, so §9.4 steps 4–6 apply to an empty set here and `rx_rejected_seq` /
+  `rx_dup_command` reading zero on the bridge is correct.
 - **v0.2** — Housekeeping revision; **no requirement changed**. The binding protocol
   citation moves **v0.2 → v0.6**. The body was reconciled against the v0.3–v0.6 changes
   before the citation was moved: this document states no frame layout, header size,
