@@ -50,9 +50,53 @@
 #                                         separation is unresolved (0-30 m). The
 #                                         reading is sound - see the excess-loss table
 #                                         in the log, 2026-09-05
+#                                         CORRECTED 2026-09-09 - see below. P3 IS THE
+#                                         WELL SITE and is ~100 m out. This fix is
+#                                         WRONG, not merely coarse.
 #   P4  35 02 39 N  83 21 45 W  2100 ft   LOS
 #   P5  35 02 38 N  83 21 43 W  2100 ft   LOS to back of house
 #   P6  35 02 39 N  83 21 40 W  2120 ft   LOS to opposite side of house
+#
+# CORRECTION 2026-09-09: P3 IS THE WELL SITE, AND ITS FIX IS WRONG RATHER THAN COARSE.
+#
+# Two things the operator confirmed on 2026-09-09, neither recorded on the day:
+#
+#   1. P3 is survey site 3, `welllink-well`. The position map above names no site, so
+#      this walk has always held the only well-bearing link measurement without saying
+#      so anywhere a reader would find it.
+#   2. P3 is about 100 m from P0, not the 0-30 m its fix implies. Operator figure, not
+#      a measurement.
+#
+# THE FIX IS NOT SALVAGEABLE BY QUANTISATION. At 35N one arcsecond is 30.9 m of latitude
+# and 25.3 m of longitude, so two points sharing one arcsecond cell are at most 40.0 m
+# apart. 100 m cannot share a cell with P0. The 2026-09-05 retraction in the engineering
+# log treated this fix as sound-but-coarse and that reading was wrong: the recorded
+# coordinate is bad, not imprecise. Nothing else in the map is impeached by it - every
+# other position has a distinct fix - but P3's coordinate should not be used.
+#
+# WHAT IT DOES TO THE EXCESS-LOSS TABLE. Recomputed at 100 m, free space -69.7 dBm
+# against P3's measured -94.8 (SF7, CR 4/5, -4 dBm, 16 B):
+#
+#     pos  measured  dist    free-space  excess  note
+#      4     -80.6   106 m     -70.2     10.4    LOS
+#      2     -77.8    40 m     -61.7     16.1    LOS, small shrub
+#      5     -92.0    80 m     -67.7     24.3    LOS to back of house
+#      3     -94.8  ~100 m     -69.7     25.1    barn in path  <- was ~35-49 dB
+#      1     -96.1    85 m     -68.3     27.8    LOS, tree and shrub
+#      6     -90.8    40 m     -61.7     29.1    LOS to opposite side of house
+#
+# SO "THE BARN COSTS MOST" IS FALSE. P3 moves from worst by a wide margin to fourth of
+# six, between the back of the house and a tree. P1's vegetation costs 27.8 dB and P6's
+# structure 29.1 dB, both more than the barn's 25.1. The coarse story survives - clear
+# LOS is cheapest at 10.4 dB and everything obstructed clusters 16-29 dB - and the log's
+# claim that the ordering was the strongest evidence of internal consistency does not.
+#
+# WHAT THE READING ITSELF STILL SAYS, AND IT IS THE USEFUL PART. The link to the well
+# site closes from the bridge's real indoor location, on a Heltec pair, at the D33
+# ceiling: 2.08 % PER, 192 probes, init -99.5 and resp -98.7 dBm. It is the only position
+# in this walk with any phy_crc_err - 2 of them, both here - and the thinnest margin any
+# node site showed. That is the well bearing answered, five days before anyone went
+# looking for it.
 #
 # POSITION 7 IS NOT A LOCATION - DO NOT USE IT. It was created by a PRG press after
 # position 6 (made to force a save the firmware had already done on the armed beacon).
