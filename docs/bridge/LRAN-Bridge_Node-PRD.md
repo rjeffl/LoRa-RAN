@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `LoRaBridge`, node ID `0x00`
 **Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-10
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -436,7 +436,6 @@ owning node's PRD. The bridge publishes them; it does not define them.
 | # | Must be proven | Why it is not optional |
 |---|---|---|
 | **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged. **Both bearings measured; M6 closed 2026-09-09.** The gate is **~87 m** and closed 0 % PER on the deployed pairing (**B1b**, 2026-09-09, within 6 in of the final antenna position); the well is **~100 m** and closed 2.08 % PER (2026-09-04 walk P3, identified as `welllink-well` on 2026-09-09). **The "~500 ft" this row asked for was a guess predating any walk** — Decision Register §5.1.1. **Still outstanding: D1 itself, and the bridge antenna choice** |
-| **V-B2** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
@@ -447,10 +446,21 @@ owning node's PRD. The bridge publishes them; it does not define them.
 | **V-B9** | OTA succeeds, and **a deliberately bad image rolls back** | An untested rollback is not a rollback |
 | **V-B10** | Version tolerance: a node announcing N−1 decodes correctly; a node announcing an unsupported version is marked unavailable with a distinct reason | This is what makes an incremental protocol rollout possible instead of a flag day |
 | **V-B11** | Full fleet operation with **no node hardware present**, using simulators and dummy publish | **R-5.4b/c.** If this cannot be done, HA integration is blocked behind a workbench |
+| **V-B12** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
 
 ---
 
 ## 9. Changelog
+
+- **v0.6** — **The duplicate `V-B2` in §8 is resolved.** v0.5 added the WiFi/LoRa
+  coexistence row as `V-B2`, an identifier §8 already used for the per-node registry
+  verification, leaving twelve rows under eleven identifiers. The coexistence row becomes
+  **`V-B12`** and moves to the end of the table; the registry row keeps `V-B2`, which is
+  what Bridge Implementation Plan §7.1 and milestone **B3** already resolve it to. The
+  v0.5 entry below is left as written — it records what that revision did — and this entry
+  is the correction. **No requirement changed**, and the coexistence criterion is
+  unaltered apart from its number. Commits and PR descriptions cite these identifiers
+  (root `CLAUDE.md`), so a colliding one is a defect rather than an untidiness.
 
 - **v0.5** — **M21's coexistence and antenna findings folded in.** New **§4.4** records
   that the bridge **deliberately** does not enforce LoRa/WiFi mutual exclusion while

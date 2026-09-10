@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.10
+**Version:** 0.11
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.1
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.1 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-10
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -84,11 +84,11 @@ will eventually serve:
 **No enclosure, no level shifting, no regulator, no carrier.** The bridge's BOM is the
 board, an antenna and a power supply.
 
-### 2.1 How many boards — two is workable, three is right
+### 2.1 How many boards — two Heltecs and the XIAO cover every test
 
-**Two boards develop everything. A third converts one class of test from "logically
-demonstrated" to "actually observed," and doubles as the spare for the system's single
-point of failure.**
+**Two boards develop everything except real RF contention, and the XIAO + Wio-SX1262
+closes that gap (§2.3). A third Heltec is a cold spare, not a test-coverage
+requirement.**
 
 **What two boards get you.** A single simnode board hosts **up to four logical node
 identities simultaneously** (§10.3). Each has its own `node_id`, its own HKDF-derived
@@ -335,7 +335,6 @@ The central data structure. One entry per node, loaded from build configuration 
 | `proto_ver` | learned | Published as a diagnostic |
 | `rssi`, `snr` | learned | Published as diagnostics |
 | `poll_interval_s` | **runtime**, from HA | Per node |
-
 | `is_bench` | derived | True for `0xF0`–`0xFE`. Gates publication per Protocol Spec §16.6 |
 
 **Adding a node is a registry entry plus a decoder plus a discovery template.** If it
@@ -673,12 +672,13 @@ lran/<node>/vedirect/hex/request  (HA -> bridge)
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3 |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
+| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B2 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3 |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
 | §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3 |
 | §16.6 bench publication gate | `simnode_diag_enable` toggled from HA at runtime, both states | B4 |
 | W9 full-size and fragmented `PING` | `ping <id> 202 pattern` and `ping <id> <n> pattern frag` | B3 |
-| Media access under real contention | **Third board required** — two simnode boards transmitting concurrently (§2.1) | B3 |
+| Media access under real contention | **A second transmitter required** — the XIAO + Wio alongside a Heltec simnode, transmitting concurrently (§2.1, §2.3) | B3 |
 
 ### 7.2 Bench harness
 
@@ -705,9 +705,9 @@ test that silently ran at bench power has to be repeated.
 |---|---|---|---|
 | **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
 | **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
-| **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
+| **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` **P6 and P8** | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
-| **B3** | **Protocol and registry, with simnode** | B2, `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **Four logical simnodes registered simultaneously from one board** (§10.3), each with its own derived key, context and sequence space. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Availability marks offline after 3 missed polls and online on the next frame. Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script**, every §14 counter increments as specified, and `hdr_rsv` is accepted rather than discarded. Full-size (222 B) and fragmented `PING` both round-trip (**W9**). *With a third board: two simnode boards transmitting concurrently exercise CAD and backoff* |
+| **B3** | **Protocol and registry, with simnode** | B2, `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **Four logical simnodes registered simultaneously from one board** (§10.3), each with its own derived key, context and sequence space. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Availability marks offline after 3 missed polls and online on the next frame. Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script**, every §14 counter increments as specified, and `hdr_rsv` is accepted rather than discarded. Full-size (222 B) and fragmented `PING` both round-trip (**W9**). *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff* |
 | **B4** | **MQTT, discovery and publication policy — no node hardware** | B3 | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
@@ -718,9 +718,9 @@ work and should be done first in wall-clock terms** — it needs only two Heltec
 `lran-rangetest` (§11.2), gates GateLink's PHY configuration as well as this node's
 antenna siting, and can start before a line of shared code exists.
 
-**B0 depends on the protocol library reaching P6** (see
-[`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md)),
-sits before B3, and can be built in parallel with B2. It is deliberately separated
+**B0 depends on the protocol library reaching P6 and P8** (see
+[`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md)
+§6, which gates B0 on both), sits before B3, and can be built in parallel with B2. It is deliberately separated
 from B3 rather than folded into it: if the simnode's own framing is wrong, every B3
 failure is ambiguous between the instrument and the thing being measured. Prove the
 instrument first, against the committed test vectors (**W4**), before using it to judge
@@ -1211,7 +1211,7 @@ practice means: keep one.
 |---|---|---|
 | 0 | **B1a range walk, Heltec ↔ Heltec** (§11.2) | None — starts today, no shared code |
 | 1 | `/lib/lran-protocol/` **P1–P6**, incl. W4 vectors | Own plan document |
-| 2 | `simnode` **B0** | P6 |
+| 2 | `simnode` **B0** | P6 **and P8** |
 | 3 | `bridge` **B2** | P7 |
 | 4 | **B1b** confirming range pass with the XIAO + Wio | XIAO delivery |
 | 5 | **B3 → B7** | as before |
@@ -1358,6 +1358,26 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.11** — **Defects found by a readability audit of this document, the Bridge PRD and
+  the System PRD.** None changes the bridge design; three were reader-visible errors and
+  two are reconciliations the header citations should have forced earlier.
+  **Header citations moved to the documents that exist:** the Bridge PRD from v0.1 to
+  **v0.6** and the protocol library plan from v0.1 to **v0.5**. Reconciling before moving
+  them surfaced one divergence — the library plan's §6 has said since its v0.3 that
+  **P8 gates simnode B0 alongside P6**, while §8 and §11.1 here still gated B0 on P6
+  alone. Both now name P6 and P8. `tools/checks/spec_citation_version.py` does not see
+  citations like these; it checks the protocol specification only, which is why two of
+  them sat four revisions stale.
+  **§7.1 gains a row for `V-B12`**, the WiFi/LoRa coexistence PER measurement (**M22**),
+  which the Bridge PRD added in its v0.5 under a duplicate `V-B2`. Verified against B2.
+  **§2.1's heading argued the conclusion its own body retired.** It read *"two is
+  workable, three is right"*, written when a third Heltec was the only route to real RF
+  contention; §2.3 has since assigned that role to the XIAO + Wio-SX1262, leaving the
+  third Heltec as a cold spare. The heading and the summary sentence now say what the
+  section concludes, and **§7.1's contention row no longer asks for a third board**.
+  **§4.2's registry table was split in two by a stray blank line**, so `is_bench`
+  rendered as a headerless one-row table.
 
 - **v0.10** — **§5.1's display library is corrected and new §5.1.1 says why.** The table
   named **U8g2**, which no firmware in this repository has ever used: the BMS proof of
