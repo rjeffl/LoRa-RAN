@@ -8,7 +8,7 @@ their target; if guidance applies in two places, it belongs here.
 
 LoRa Remote Automation Network — a property-wide 915 MHz LoRa network linking Home
 Assistant to remote nodes. A mains-powered bridge in the house speaks LoRa to nodes and
-MQTT to HA. GateLink controls and monitors a driveway gate ~500 ft away; WellLink is
+MQTT to HA. GateLink controls and monitors a driveway gate **~87 m (285 ft)** away; WellLink is
 planned. Nodes are solar/battery powered and **have no OTA** — a firmware change means a
 USB reflash in the field.
 

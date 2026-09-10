@@ -41,7 +41,7 @@ telemetry if the node turns out to be battery powered.
 
 | Attribute | Status |
 |---|---|
-| Distance | ~500 ft from the house, similar to GateLink |
+| Distance | **~100 m (330 ft)** from the house, similar to GateLink's ~87 m. **Measured** — walk P3 of 2026-09-04, identified as this site on 2026-09-09. The earlier "~500 ft" was a guess predating any walk (Decision Register §5.1.1) |
 | **Bearing** | **A different direction from GateLink** — a system-level constraint on bridge antenna siting |
 | Power | **Open (D19)** — mains is possible; battery/solar must remain viable |
 | Primary function | Well level monitoring |
@@ -193,7 +193,7 @@ What is already known:
 
 Two are already known:
 
-- **V-W1.** Range and RSSI on the **well bearing** at ~500 ft, measured during the bridge
+- ~~**V-W1.** Range and RSSI on the **well bearing** at ~500 ft~~ — **SATISFIED, and earlier than anyone noticed.** Walk **P3** of 2026-09-04 is this site: a Heltec pair, initiator indoors at the bridge's target location, **~100 m** through the NW wall plus the barn, **2.08 % PER over 192 probes** at the D33 ceiling (init −99.5 / resp −98.7 dBm). **It is the thinnest margin any node site showed and the only position in that walk with any `phy_crc_err`** — carry both into this node's design. If WellLink lands on a Wio rather than a Heltec, B1b's module delta applies: ~3 dB on `(TX − RX)`, ~9 dB round trip. The original wording asked for ~500 ft; the site is ~100 m and is obstruction-limited rather than distance-limited. Measured during the bridge
   range test (**M6**), before the bridge location is committed.
 - **V-W2.** Registration, polling, availability and diagnostics working through schema
   `0xF0` alone, **before the application schema is defined.**
