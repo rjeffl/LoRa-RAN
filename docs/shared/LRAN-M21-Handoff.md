@@ -1,10 +1,38 @@
 # M21 / D33 — Implementation Handoff
 
 **Document:** `LRAN-M21-Handoff`
-**Version:** 0.3
+**Version:** 0.3 — **annotated 2026-09-09, body unchanged** (see the superseding note below)
 **Status:** Handoff. Implementation-facing companion to
 [`LRAN-M21-FCC-Grant-Findings`](./LRAN-M21-FCC-Grant-Findings.md) v0.3.
 **Date:** 2026-09-06
+
+> ### Superseded statements — annotated 2026-09-09, nothing below rewritten
+>
+> **The site engineering, firmware obligations and do-not list all stand.** What has been
+> overtaken is §8's range picture, in two independent ways.
+>
+> **1. There is no 500 ft run. The gate is ~87 m (285 ft) and the well ~100 m (330 ft).**
+> The "~500 ft" was estimated before anything was walked to and never measured. **Decision
+> Register §5.1.1** carries both distances and how each is known.
+>
+> **2. Both bearings are measured and M6 closed 2026-09-09.** The gate by **B1b**
+> (2026-09-09, 192/192 at **0 % PER** across all 24 configurations, on the deployed
+> Heltec↔Wio pairing, within 6 in of where the antenna will sit). The well by **walk P3 of
+> 2026-09-04**, identified as site `welllink-well` only on 2026-09-09.
+>
+> So two statements in §8 are **superseded, and left in place as the record**:
+>
+> | Superseded statement | What replaces it |
+> |---|---|
+> | *"Path characterisation over the 500 ft run… the last ~46 m is unwalked — that is B1b"* | B1b ran. There was also no 46 m remaining to walk — that figure was the gap to a 500 ft gate that is actually at ~87 m |
+> | *"The 500 ft leg itself. B1b. This is the one measurement that would let M6 close."* | Both bearings are done. **M6 is closed and the range-test directory owes no measurement** |
+>
+> **One figure in that same §8 row moved too**, and it is worth carrying: the excess-loss
+> table's *"~35–49 dB through the barn"* was computed against a distance that turned out to
+> be wrong. **The barn's excess loss is 25.1 dB**, fourth of six rather than worst, and
+> *"the barn costs most"* is false. The range-test engineering log's 2026-09-09 entry has
+> the recomputed table. **The banded summary this row quotes — 10.4 dB clear LOS, 16–29 dB
+> vegetation and structure — is unchanged.**
 
 > **Division of labour.** The findings note holds the regulatory determination — grant
 > records, the two envelopes, the EIRP calculation method, and the D1 determination. This
