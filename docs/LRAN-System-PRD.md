@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.9
+**Version:** 0.10
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-10
@@ -319,14 +319,16 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
   similar distances in different directions. Favour an omnidirectional antenna in a
   central, elevated position over anything with a pattern optimized toward the gate.
   **Range-test both bearings before committing to a location.**
-- **FCC Part 15 operating mode: read Protocol Spec §18.2, not §18.1.** The question of
-  *which mode to build against* is closed (**W5**) and the answer is unchanged — a single
-  fixed channel, no hopping, at or below the §15.249 power provisions. What M21 changed is
-  the reasoning: neither module is certified under §15.249, module grants do not transfer,
-  and the operative frame is **§15.23 home-built**, so **no node may be represented as
-  certified anywhere**. **D33 is reopened in the register on that basis.** §18.1 is
-  annotated rather than rewritten and must not be read on its own. Settle this **before**
-  D1 fixes a TX power — and note that **`BW` and the rule section are now one decision**.
+- **FCC Part 15 operating mode — two things to do before D1 fixes a TX power.** Read
+  Protocol Spec **§18.2**, and never §18.1 on its own: §18.1 is annotated rather than
+  rewritten, so its reasoning reads as current when it is not. Then settle **D33**, which
+  the register has reopened — noting that **`BW` and the rule section are now one
+  decision**.
+  **The operating mode itself is not in question.** **W5** closed it and the answer is
+  unchanged: a single fixed channel, no hopping, at or below the §15.249 power provisions.
+  What M21 changed is the reasoning, and that is why D33 reopened — neither module is
+  certified under §15.249, module grants do not transfer, and the operative frame is
+  **§15.23 home-built**, so **no node may be represented as certified anywhere**.
 
 ### 5.2 Fleet-wide protocol obligations
 
@@ -398,7 +400,8 @@ documented, and an independent client was written and validated over **32 consec
 polls with zero CRC failures**, in the `/wattcycle-reader/` PoC workspace. **The protocol
 write-up and reference captures have not yet been lifted out of that workspace into
 `/docs/gatelink/bms-protocol.md`** — doing so is a prerequisite for the GateLink BMS
-port, since the PoC workspace is not part of the LRAN build. The C++ client for GateLink is a port of that implementation,
+port, since the PoC workspace is not part of the LRAN build. The C++ client for GateLink
+is a port of that implementation,
 testable offline against the same captures.
 
 The dead ends — the 20-combination JBD/Daly sweep, the wrong-characteristic writes, the
@@ -642,16 +645,20 @@ assumed now.
 
 ### 11.3 Repo obligations
 
-- `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed 2026-09-08). **Done.**
+- `LICENSE` at root — MIT, `Copyright (c) 2026 Robert J. Lee` (**D31**, closed
+  2026-09-08). **Done.**
 - `THIRD_PARTY_NOTICES.md` at root — MIT and BSD components require attribution
-  retention. **Done 2026-09-08.** It records what is **actually in a build**, which is not
-  the same set as §11.1's planned inventory, and its §3 lists the differences: §11.1 omits
-  **Unity**; its LCD row names M5Unified where the build resolves **M5GFX** (MIT, with
-  LovyanGFX BSD-2-Clause inside), left as a finding because only the proof of concept
-  builds it today; and PubSubClient, ArduinoJson and the VE.Direct parser have no build
-  yet. **The display row is resolved** — see this document's v0.8 entry. **Update the
-  notices file in the same commit as any `lib_deps`, platform-pin or framework-version
-  change.**
+  retention. **Done 2026-09-08.**
+  - **Update it in the same commit as any `lib_deps`, platform-pin or framework-version
+    change.** This is the obligation, and it is the one that decays silently.
+  - **It records what is actually in a build**, which is not the same set as §11.1's
+    planned inventory. Its §3 lists the differences rather than correcting §11.1, because
+    §11.1 describes the design as planned.
+  - **Three differences stand today:** §11.1 omits **Unity**; its LCD row names M5Unified
+    where the build resolves **M5GFX** (MIT, with LovyanGFX BSD-2-Clause inside), left as
+    a finding because only the proof of concept builds it today; and PubSubClient,
+    ArduinoJson and the VE.Direct parser have no build yet. **The display row is
+    resolved** — see this document's v0.8 entry.
 - Vendor reference documents (Nice 1050 manual, TTPCI manual, DMBM integration protocol;
   Victron VE.Direct protocol documents): **link, do not vendor.**
 
@@ -661,14 +668,14 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.9 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.10 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.6 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.6 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.11 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | LoRaBridge goals and requirements | v0.7 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | LoRaBridge BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.12 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
 | [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.5 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
@@ -699,6 +706,35 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+**Every entry below states what changed and why, at the length the change deserved.**
+This index is the scan; the entries are the record.
+
+| Version | What changed |
+|---|---|
+| **v0.10** | Readability pass — §13 gains a version index, §5.1's Part 15 bullet leads with its actions, §11.3's notices bullet becomes sub-bullets |
+| **v0.9** | Header cross-reference corrected — `lran-prd-v0_8`'s retirement is §13, not §11 |
+| **v0.8** | §11.1's display row corrected: U8g2 out, the ThingPulse SSD1306 driver in, MIT with it |
+| **v0.7** | §9.3's CI built rather than described — three parallel jobs, host tools tested, no secrets |
+| **v0.6** | Spec v0.9 citation; §5.1's Part 15 bullet corrected to §18.2; §12's table resynced |
+| **v0.5** | **D31 closed** — copyright holder is Robert J. Lee; `THIRD_PARTY_NOTICES.md` written |
+| **v0.4** | Spec v0.8 citation; range test pass 1 complete; D1 waits only on M21 |
+| **v0.3** | **D34** — the replay and dedup gate becomes `CommandGate`, library milestone **P8** |
+| **v0.2** | `docs/` reorganization: every relative link repaired; §9.1 marked built vs. planned |
+| **v0.1** | Initial release, compartmentalizing `lran-prd-v0_8` into this document set |
+
+- **v0.10** — **Readability pass; no fact, requirement or claim changed.** §13 gains a
+  **version index** — one line per revision above the entries themselves. The entries stay
+  at full length: they are dated records of what each revision did and why, and the repo's
+  own rule is that such a record is corrected by a new entry rather than compressed into
+  one. What the index fixes is that a reader looking for *which* revision touched a thing
+  had to read a hundred lines of argument to find out.
+  **§5.1's Part 15 bullet now leads with what to do** — read §18.2, never §18.1 alone;
+  settle D33 before D1 fixes a TX power — and gives the reasoning after, rather than
+  arriving at the instruction in its last sentence. **§11.3's `THIRD_PARTY_NOTICES.md`
+  bullet becomes four sub-bullets**, with the standing obligation first, because three
+  distinct facts were running together in one nine-line paragraph. Over-long lines
+  rewrapped to the file's prevailing width so their diffs are reviewable.
 
 - **v0.9** — **The header's own cross-reference pointed at the wrong section.** It sent a
   reader asking why `lran-prd-v0_8` is retired to §11, Third-party code and licenses; the
@@ -760,7 +796,13 @@ assumed now.
   here, because §11.1 describes the design as planned and the discrepancies are findings
   about the build. Document set table refreshed: the Decision Register is v0.6 and its
   backlog runs to **M23**, not M21.
-- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. **Pass 1 of the range test firmware is complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on M21**, the modules' FCC grant conditions, which is paperwork rather than bench work — and D1 is what blocks node firmware.
+- **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes
+  **W9** (the full-size and fragmented `PING` bench runs both passed over RF on
+  2026-09-05) and changes **no frame layout, header field, authentication scope or
+  schema length**; no vector regenerates. **Pass 1 of the range test firmware is
+  complete**: R1–R11, M20's occupant inventory and W9 all closed. **D1 now waits only on
+  M21**, the modules' FCC grant conditions, which is paperwork rather than bench work —
+  and D1 is what blocks node firmware.
 - **v0.3** — Document set table refreshed for **D34**, which closes Protocol Spec
   **W12** by splitting §9.4 steps 4–6: the replay and dedup gate becomes `CommandGate`
   in `/lib/lran-protocol/` (library milestone **P8**), dispatch stays in the

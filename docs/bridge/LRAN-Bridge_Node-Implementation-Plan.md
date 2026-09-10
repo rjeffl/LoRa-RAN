@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.11
+**Version:** 0.12
 **Node:** `LoRaBridge`, node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -122,6 +122,23 @@ flashed and known-working is a fifteen-minute recovery rather than a shipping wa
 is a real but separable argument; it is no longer a test-coverage requirement. See §10.7
 for why the bench peers stay in service permanently rather than being reclaimed.
 
+### 2.2 Bench RF hygiene — two ways to damage a board
+
+**Never transmit without an antenna attached.** An unterminated SX1262 PA reflects its
+own output power back into the final stage. On a board that has been keyed up bare, the
+failure is usually not immediate or total — it presents later as degraded TX power and a
+link that is inexplicably worse than the range test predicted. Attach antennas before
+first flash, not before first test.
+
+**Attenuate, or separate, for bench work.** Two boards at +22 dBm sitting a foot apart on
+the same desk put roughly −20 dBm into a receiver designed to work at −120 dBm. The
+result is front-end saturation: RSSI figures that are meaningless, packet errors that
+look like a protocol bug, and — at sustained power — a real risk to the LNA. For bench
+work either **drop TX power to the minimum** the driver allows (this is a configuration
+value already, per **R-4.1b**) or fit a 20–30 dB SMA attenuator. **Restore full power
+before the range test** and record the setting in the log, because a range test run at
+bench power is a range test that will have to be repeated.
+
 ### 2.3 The XIAO + Wio-SX1262 as a target-radio simnode
 
 GateLink's carrier will host a **Seeed Wio-SX1262** module. The XIAO ESP32S3 + Wio-SX1262
@@ -195,6 +212,16 @@ XIAO validates the module; only the carrier validates the carrier.**
 > underside is unreachable. B1b's request for "the exact module part number" is answered
 > by variant, which is what it actually needed.
 
+##### The two findings as they were written, superseded 2026-09-05
+
+**Everything from here to the end of §2.3.1 is the open-question text the note above
+closed.** It is kept verbatim — its present tense, its imperatives and its "on arrival"
+instructions all describe what was true before the boards were assembled — because the
+reasoning is what made the measurement worth taking, and rewriting a dated record into
+today destroys the thing that made it useful (root `CLAUDE.md`). **Read the note above
+for what is true now; read this for why it was asked.** Both sub-questions it raises are
+answered there except finding 1's sleep-current cost, which is still open and still
+belongs to B1b.
 
 **1. The Wio-SX1262 appears to require a host-driven RF switch line.** The module
 datasheet brings out an `RF_SW` pin described as enabling receiver mode on logic high,
@@ -240,23 +267,6 @@ XIAO ESP32-S3 kit, and the "for XIAO" header board is a different product from t
 > **Naming correction.** Earlier revisions referred to this module as `win-sx1262`. The
 > correct designation is **Wio-SX1262** (Seeed Studio), corrected document-wide in v0.3.
 
-### 2.2 Bench RF hygiene — two ways to damage a board
-
-**Never transmit without an antenna attached.** An unterminated SX1262 PA reflects its
-own output power back into the final stage. On a board that has been keyed up bare, the
-failure is usually not immediate or total — it presents later as degraded TX power and a
-link that is inexplicably worse than the range test predicted. Attach antennas before
-first flash, not before first test.
-
-**Attenuate, or separate, for bench work.** Two boards at +22 dBm sitting a foot apart on
-the same desk put roughly −20 dBm into a receiver designed to work at −120 dBm. The
-result is front-end saturation: RSSI figures that are meaningless, packet errors that
-look like a protocol bug, and — at sustained power — a real risk to the LNA. For bench
-work either **drop TX power to the minimum** the driver allows (this is a configuration
-value already, per **R-4.1b**) or fit a 20–30 dB SMA attenuator. **Restore full power
-before the range test** and record the setting in the log, because a range test run at
-bench power is a range test that will have to be repeated.
-
 ---
 
 ## 3. Hardware interconnect
@@ -287,7 +297,8 @@ pin maps are held; do not restate them elsewhere.
 The only physical decision in this node, and **the one with the longest lead time on
 being wrong.**
 
-- GateLink and WellLink are at similar distances — **~87 m and ~100 m**, measured, not the ~500 ft estimated before either was walked to — on **different bearings**.
+- GateLink and WellLink are at similar distances — **~87 m and ~100 m**, measured, not
+  the ~500 ft estimated before either was walked to — on **different bearings**.
 - **Favour an omnidirectional antenna in a central, elevated position.** A pattern
   optimized toward the gate buys margin on one link and may put the other in a null.
 - **Range-test both bearings before committing to a location** (**M6**, **V-B1**).
@@ -382,7 +393,7 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 | esp-mqtt (IDF native) | Apache-2.0 | Most robust reconnect and TLS, but pulls the design toward IDF. Reserve for a later migration |
 
 > The `MQTT_MAX_PACKET_SIZE` default is the single most likely early time-sink on this
-> node: discovery configs simply do not appear, with no error that points at the cause.
+> node: discovery configs do not appear, with no error that points at the cause.
 > **Set it in the build flags on day one.**
 
 ### 4.4 Home Assistant discovery
@@ -720,11 +731,11 @@ antenna siting, and can start before a line of shared code exists.
 
 **B0 depends on the protocol library reaching P6 and P8** (see
 [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md)
-§6, which gates B0 on both), sits before B3, and can be built in parallel with B2. It is deliberately separated
-from B3 rather than folded into it: if the simnode's own framing is wrong, every B3
-failure is ambiguous between the instrument and the thing being measured. Prove the
-instrument first, against the committed test vectors (**W4**), before using it to judge
-the bridge.
+§6, which gates B0 on both), sits before B3, and can be built in parallel with B2. It is
+deliberately separated from B3 rather than folded into it: if the simnode's own framing
+is wrong, every B3 failure is ambiguous between the instrument and the thing being
+measured. Prove the instrument first, against the committed test vectors (**W4**),
+before using it to judge the bridge.
 
 ---
 
@@ -943,7 +954,7 @@ recurring. It is silent by construction: the offending frame belongs to no set, 
 is counted. That is why the expected result is a *set that completes and a counter that
 does not move*, and why no other entry can substitute for it.
 
-### 10.5.1 Two more once **P8** lands — and the direction reverses
+#### 10.5.1 Two more once **P8** lands — and the direction reverses
 
 **D34**'s `CommandGate` is the receiver of these, so they test the **simnode's own** gate,
 driven from `simctl` rather than from the bridge. They belong here because §10.5 is the
@@ -962,7 +973,7 @@ assertion root rule 2 and **BS-3** actually care about. A second pulse at a driv
 is the failure this whole mechanism exists to prevent, and it has never been tested at
 the end that pulses.
 
-### 10.5.2 `/lib/lran-sim/` needs a post-encode patch primitive
+#### 10.5.2 `/lib/lran-sim/` needs a post-encode patch primitive
 
 Three of the new entries cannot be built by post-processing a correct frame the obvious
 way: `oversize` needs a frame longer than `encode()` will emit, `frag_zero` needs a `frag`
@@ -1011,6 +1022,33 @@ be closed at a desk.
    simnode left in a fault mode looks exactly like a broken bridge, and the bench session
    where that costs an hour is the one where you were debugging something else. `ui.cpp`
    shows armed faults on the OLED for the same reason.
+
+### 10.7 Keep a board permanently — five reasons
+
+**Yes: plan on a dedicated Heltec for the life of the system, not just through bring-up.**
+
+1. **GateLink has no OTA.** Every protocol change, schema addition and `ver` bump is a USB
+   reflash at the gate, in whatever weather. Without a bench peer, **the validation
+   vehicle for a protocol change is the production gate.** One board is cheap insurance
+   against a walk down the driveway with a laptop.
+2. **The fault catalogue is a regression suite, not a bring-up tool.** Protocol Spec
+   **W8** anticipates a header extension using `hdr_flags` bit 7; §13.2 anticipates new
+   schema IDs as nodes gain capabilities. Each of those needs the §10.5 ladder re-run.
+   That is a permanent need with a permanent hardware requirement.
+3. **WellLink development.** `ROLE_HEALTH` is WellLink's stand-in today, and WellLink's
+   schema `0x20` will be developed against a simnode before its hardware exists — exactly
+   as GateLink's is now. The pattern repeats for every node added to the property.
+4. **Field triage.** §9.1 argues that a known-good radio pair lets a link failure be
+   bisected into "the path degraded" versus "the node's radio failed." That argument does
+   not expire at commissioning; it is *more* valuable in eighteen months, when the
+   alternative is guessing about a node ~87 m away that has been outdoors through two
+   winters.
+5. **Cold spare.** The bridge is the single point of failure for all property telemetry.
+   A board already flashed, already on the bench and already known to work is a
+   fifteen-minute recovery instead of a shipping wait.
+
+**Retire it only when there is a second permanently-installed bench peer**, which in
+practice means: keep one.
 
 ### 10.8 Hardware profiles, not roles
 
@@ -1174,33 +1212,6 @@ through the preprocessor has not tested that.
 | Heltec #2 | `0xF0`, `0xF2` | `ROLE_FAULT` + `ROLE_HEALTH` | Fault injection needs no radio fidelity |
 | XIAO + Wio | `0xF1` | `ROLE_GATELINK` | **The identity pretending to be GateLink runs GateLink's actual radio** |
 
-### 10.7 Keep a board permanently — five reasons
-
-**Yes: plan on a dedicated Heltec for the life of the system, not just through bring-up.**
-
-1. **GateLink has no OTA.** Every protocol change, schema addition and `ver` bump is a USB
-   reflash at the gate, in whatever weather. Without a bench peer, **the validation
-   vehicle for a protocol change is the production gate.** One board is cheap insurance
-   against a walk down the driveway with a laptop.
-2. **The fault catalogue is a regression suite, not a bring-up tool.** Protocol Spec
-   **W8** anticipates a header extension using `hdr_flags` bit 7; §13.2 anticipates new
-   schema IDs as nodes gain capabilities. Each of those needs the §10.5 ladder re-run.
-   That is a permanent need with a permanent hardware requirement.
-3. **WellLink development.** `ROLE_HEALTH` is WellLink's stand-in today, and WellLink's
-   schema `0x20` will be developed against a simnode before its hardware exists — exactly
-   as GateLink's is now. The pattern repeats for every node added to the property.
-4. **Field triage.** §9.1 argues that a known-good radio pair lets a link failure be
-   bisected into "the path degraded" versus "the node's radio failed." That argument does
-   not expire at commissioning; it is *more* valuable in eighteen months, when the
-   alternative is guessing about a node ~87 m away that has been outdoors through two
-   winters.
-5. **Cold spare.** The bridge is the single point of failure for all property telemetry.
-   A board already flashed, already on the bench and already known to work is a
-   fifteen-minute recovery instead of a shipping wait.
-
-**Retire it only when there is a second permanently-installed bench peer**, which in
-practice means: keep one.
-
 ---
 
 ## 11. Development environment and workflow
@@ -1282,7 +1293,7 @@ The reason is specific and is not about risk to production data. HA's entity reg
 **remembers every `unique_id` it has ever seen.** Iterating on discovery payloads —
 which is the whole of B4 — produces orphaned entities, and the second attempt at
 `sensor.gate_state` arrives as `sensor.gate_state_2`. Cleaning that up is manual, tedious,
-and has to be done again after the next iteration. A dev instance can simply be reverted.
+and has to be done again after the next iteration. A dev instance can be reverted.
 
 The second reason is retained topics. A wrong discovery config published with the retain
 flag **survives a bridge reflash** and will re-register the bad entity on the next HA
@@ -1359,6 +1370,36 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+| Version | What changed |
+|---|---|
+| **v0.12** | Readability pass — §2.2 and §10.7 moved into numeric order, §2.3.1's superseded text labelled as such, §12 gains a version index |
+| **v0.11** | Six defects from a readability audit — duplicate `V-B12`, stale sibling citations, B0 gated on P8, §2.1's heading, §4.2's split table |
+| **v0.10** | §5.1's display library corrected to the ThingPulse SSD1306 driver; **new §5.1.1** says why |
+| **v0.9** | Spec v0.9 citation — regulatory, and it reaches the bridge as a transmitter |
+| **v0.8** | Spec v0.8 citation; **W9** closed; range test pass 1 complete |
+| **v0.7** | §11.2 marked superseded; §10.8.1's Heltec pin map **confirmed** against the vendor variant |
+| **v0.6** | §10.5's fault catalogue rebuilt to 27 entries with a normative counter column; **new §10.5.1, §10.5.2** |
+| **v0.5** | Spec v0.6 citation, body reconciled first; §14.1 is now the counter registry of record |
+| **v0.4** | **New §10.8.1** — the `RadioPins` struct and the populated pin maps |
+| **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
+| **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
+| **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.12** — **Readability pass; no design, requirement or measurement changed.**
+  **Two sections were out of numeric order** and had been since the revisions that added
+  them: §2.2 sat after §2.3.1, and §10.7 after §10.8.1. A reader scanning for §2.2 passed
+  it twice. Both are moved, not renumbered, so every inbound reference still resolves.
+  §10.5.1 and §10.5.2 drop to `####`, the level their numbering already claimed.
+  **§2.3.1 no longer makes a reader read the obsolete version to reach the current one.**
+  Its "BOTH FINDINGS CLOSED 2026-09-05" note is followed by 40 lines of the original
+  open-question text, in present-tense imperatives — *"must be measured on the board"*,
+  *"On arrival, before flashing anything"* — which read as live instructions. The text is
+  kept **verbatim**, because a dated record is not a draft, and now sits under a heading
+  that says what it is and what is still open in it.
+  **§12 gains a version index**, one line per revision; the entries themselves stay at
+  full length. Two empty *simply*s removed, and over-long lines rewrapped to the file's
+  prevailing width.
+
 - **v0.11** — **Defects found by a readability audit of this document, the Bridge PRD and
   the System PRD.** None changes the bridge design; three were reader-visible errors and
   two are reconciliations the header citations should have forced earlier.
@@ -1405,7 +1446,13 @@ that drifts is the one that gets followed.
   section are now one decision with D1, and §12.1's measured survey rules out the range
   test's provisional frequency. B1a's wording is left as written because its intent is
   unchanged; what changed is which document answers it. Read §18.2, not §18.1.
-- **v0.8** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes **W9** (the full-size and fragmented `PING` bench runs both passed over RF on 2026-09-05) and changes **no frame layout, header field, authentication scope or schema length**; no vector regenerates. No build step changes. The range test firmware, whose `lran-simnode` section this plan owns, has completed Pass 1: R1–R11 and W9 are done, and the boards it used are the two this plan's board-count guidance allocates.
+- **v0.8** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes
+  **W9** (the full-size and fragmented `PING` bench runs both passed over RF on
+  2026-09-05) and changes **no frame layout, header field, authentication scope or
+  schema length**; no vector regenerates. No build step changes. The range test
+  firmware, whose `lran-simnode` section this plan owns, has completed Pass 1: R1–R11
+  and W9 are done, and the boards it used are the two this plan's board-count guidance
+  allocates.
 - **v0.7** — **§11.2 superseded and §10.8.1's Heltec column confirmed**, both from the
   range test firmware's R1–R3 build (`docs/rangetest/engineering-log.md`, 2026-08-31).
   §11.2 described a `lran-rangetest` with **no `/lib/` dependency whatsoever**, written
