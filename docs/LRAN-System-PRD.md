@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.11
+**Version:** 0.12
 **Status:** Architecture settled. PHY parameters and several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-10
@@ -680,7 +680,7 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.11 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.12 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.7 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
@@ -688,6 +688,7 @@ assumed now.
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.8 |
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.13 |
+| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.1 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.5 |
 | [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.6 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
@@ -724,6 +725,7 @@ This index is the scan; the entries are the record.
 
 | Version | What changed |
 |---|---|
+| **v0.12** | §12 registers `LRAN-Bridge-Firmware-Tasks` |
 | **v0.11** | `LoRaBridge` retired in favour of **Bridge Node** across the live set; **D17** amended |
 | **v0.10** | Readability pass — §13 gains a version index, §5.1's Part 15 bullet leads with its actions, §11.3's notices bullet becomes sub-bullets |
 | **v0.9** | Header cross-reference corrected — `lran-prd-v0_8`'s retirement is §13, not §11 |
@@ -735,6 +737,12 @@ This index is the scan; the entries are the record.
 | **v0.3** | **D34** — the replay and dedup gate becomes `CommandGate`, library milestone **P8** |
 | **v0.2** | `docs/` reorganization: every relative link repaired; §9.1 marked built vs. planned |
 | **v0.1** | Initial release, compartmentalizing `lran-prd-v0_8` into this document set |
+
+- **v0.12** — §12's document set table registers
+  [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md), a task-level
+  breakdown under the Bridge Implementation Plan's milestones B0–B7. **It owns no
+  requirement and no acceptance criterion** — those stay with the PRD and the plan — so it
+  is registered as an ordering and delegation document rather than as a governing one.
 
 - **v0.11** — **The bridge had two names and this document carried both.** `LoRaBridge`
   predates the set settling on **Bridge Node**, and the two ran side by side in §1.2's

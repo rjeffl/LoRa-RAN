@@ -11,10 +11,10 @@ has not been reconciled with the intervening revisions.**
 |---|---|
 | *(this level)* | [`LRAN-System-PRD`](./LRAN-System-PRD.md) — the parent document |
 | [`shared/`](./shared/) | Documents binding on more than one node: the [Protocol Specification](./shared/LRAN-Protocol-Specification.md) (**authoritative for every byte on the wire and every MQTT topic**), the [Decision Register](./shared/LRAN-Decision-Register.md) (**the only place a decision's status is recorded**), and the [Protocol Library Implementation Plan](./shared/LRAN-Protocol-Library-Implementation-Plan.md) |
-| [`bridge/`](./bridge/) | Bridge Node (`0x00`) PRD and implementation plan. The plan also owns `lran-simnode` (§10) |
+| [`bridge/`](./bridge/) | Bridge Node (`0x00`) PRD, implementation plan and [firmware task list](./bridge/LRAN-Bridge-Firmware-Tasks.md). The plan also owns `lran-simnode` (§10) |
 | [`gatelink/`](./gatelink/) | GateLink (`0x01`) PRD, implementation plan, and the expansion board design |
 | [`welllink/`](./welllink/) | WellLink (`0x02`) PRD — **placeholder**, scope and reserved allocations only |
-| [`rangetest/`](./rangetest/) | Range test firmware tasks and engineering log. **The next firmware target** — it answers D1, M6, M20 and W9 |
+| [`rangetest/`](./rangetest/) | Range test firmware tasks (pass 1 and pass 2) and engineering log. Answered **M6**, **M20** and **W9**, and gathered D1's inputs |
 | [`protocol-lib/`](./protocol-lib/) | Engineering log for `/lib/lran-protocol/` |
 | [`archive/`](./archive/) | Superseded revisions and the Research Archive. **Retained, not deleted:** old material references these by name, and a reader following such a reference needs to land on an explanation rather than a gap |
 
