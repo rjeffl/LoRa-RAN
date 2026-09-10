@@ -13,8 +13,11 @@
 > for what to build, [`engineering-log.md`](./engineering-log.md) for why things are the
 > way they are, [`data/README.md`](./data/README.md) for the trace schemas.
 >
-> **Do not close D1 from this fieldwork.** The frequency needs job B (**M20**); the power
-> figure needs the modules' FCC grant conditions (**M21**), which is not a field task.
+> **D1 closed 2026-09-10 and is not reopened from fieldwork.** The working point is
+> **917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** (Decision Register §3.4). A run
+> that disagrees with it is evidence for a *new* decision, recorded in the register — never a
+> parameter changed in the field and left there. **The firmware still boots on the
+> provisional 915.0 MHz**, so state the channel in the log entry for every run.
 
 ---
 

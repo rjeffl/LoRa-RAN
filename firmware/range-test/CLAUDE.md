@@ -4,7 +4,7 @@
 specific to this target.
 
 **Primary document:** `docs/rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md`.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.9** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.10** (`ver = 2`).
 **Record:** `docs/rangetest/engineering-log.md`.
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. It bites hardest here,
 because most of this target's writing is dated campaign record: engineering-log entries,
@@ -324,11 +324,16 @@ R10 is fieldwork, not a branch.
 **Pass 1 is complete** as of 2026-09-05: R1–R11 built, M20 captured and analysed, W9
 passed on the bench. There is no build work queued here.
 
-**Do not close D1 from range data alone.** The frequency needed R8's survey (**M20**) and
-has it; the power needed the grant conditions (**M21**) and now has them too — both closed
-2026-09-06. **D1 also has a fourth bound now:** `BW` and the Part 15 rule section are one
-decision (Protocol Spec §18.2). Nothing external blocks D1; it is a decision to be made.
+**D1 closed 2026-09-10, and D33 closed with it:** 917.4 MHz, SF9, BW 125 kHz, CR 4/5,
+−4 dBm conducted with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Protocol Spec
+§12.1 states them; Decision Register §3.4 records why. The W9 backoff finding this file used
+to hold open is answered — **§12.3's `backoff_max_ms` default is now 1500**, above SF9's
+1107 ms full-frame airtime.
 
-**Before D1 picks an SF, read the W9 backoff finding**: §12.3's default `backoff_max_ms`
-of 500 covers a full-size frame at SF7 (348 ms) and at no SF above it — 615 ms at SF8,
-1107 ms at SF9. Raised in the engineering log, deliberately not patched.
+**This firmware still transmits on the provisional 915.0 MHz** (`kProvisionalFreqHz`, R8's
+survey starting point), which is `weather-island`'s own peak at −80 dBm. **It is deliberately
+not the D1 channel**: this is a bench instrument, nothing here is deployed, and no task is
+blocked on changing it. But **a re-run on the old channel produces data that will be
+distrusted later**, so move it before capturing anything meant to be compared against a
+deployed link — and expect the change to reach `test_phy_params`, `test_csv` and
+`test_survey`, which pin 915000000 by value.

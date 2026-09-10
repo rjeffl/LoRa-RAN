@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
-**Last updated:** 2026-09-08
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Last updated:** 2026-09-10
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -224,6 +224,19 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.6** — Citation refresh only. Protocol specification **v0.9 → v0.10**: `ver` stays at
+  `2` and nothing on the wire changes. Still a placeholder. **Recorded because v0.10 hands
+  this node its radio configuration rather than leaving it open.** **D1 closed 2026-09-10** —
+  917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with a 3.0 dBi antenna, under §15.249
+  Envelope A — and **R-W6a's "sharing the fleet's PHY configuration" now names specific
+  numbers.** Two consequences arrive with it. The `backoff_max_ms` question this document's
+  v0.4 entry flagged is answered: the default is **1500**, above SF9's 1107 ms full-frame
+  airtime. And the well site is the thinner of the two bearings — **2.08 % PER at ~100 m**,
+  obstruction-limited through the barn, the only position in the 2026-09-04 walk with any
+  `phy_crc_err` — so **SF9's ~13 dB of tail margin matters more here than at the gate**, and
+  a WellLink design that wants to revisit SF is reopening a closed decision rather than
+  making an open one.
 
 - **v0.5** — Citation refresh only. Protocol specification **v0.8 → v0.9**: `ver` stays at
   `2` and nothing on the wire changes. Still a placeholder. **Recorded because a

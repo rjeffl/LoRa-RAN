@@ -2,13 +2,21 @@
 
 **Document:** `LRAN-D1-PHY-Decision-Brief`
 **Version:** 0.1
-**Status:** **D1 is open.** This document presents the options and a recommendation; it does
-not record a decision
+**Status:** **SUPERSEDED 2026-09-10.** D1 closed on this brief's recommendation, unchanged;
+[`LRAN-Decision-Register`](./LRAN-Decision-Register.md) **§3.4** is the record. Kept as the
+dated account of how the choice was framed, and **not edited to agree with the outcome**
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **the only
 place D1's status is recorded**
 **Last updated:** 2026-09-10
+
+> **Superseded 2026-09-10. D1 closed on every recommendation below, unchanged:** 917.4 MHz,
+> SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with the fitted 3.0 dBi antenna, under §15.249
+> Envelope A, with `backoff_max_ms` raised to 1500. **D33 closed in the same motion**, and
+> Protocol Spec **v0.10** states the parameters in §12.1 and §12.3. **Decision Register §3.4
+> is the record**; read it for the outcome and this document only for how the choice was
+> framed.
 
 > **This document decides nothing.** It assembles evidence that is currently spread across
 > the register, the protocol specification, the M21 findings and the range-test engineering

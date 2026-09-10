@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.8
+**Version:** 0.9
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-10
@@ -50,14 +50,17 @@ than one section, or when it is blocking work.
 
 | # | Decision | Owner | Notes | Gate |
 |---|---|---|---|---|
-| **D1** | **LoRa PHY parameters** — SF / BW / CR / TX power | System PRD §5.1 | **Open, but bounded** — see §2.1. **The range test is done: both bearings measured, M6 closed 2026-09-09** at the actual distances (~87 m gate, ~100 m well — §5.1.1), not the ~500 ft this row guessed. The protocol spec's airtime analysis establishes that SF may be chosen on **link margin alone, not on power** — SF9 is affordable if the link wants it. **TX power is capped by D33**; the **frequency requires the ambient survey (M20)** first. Range test results alone do not close this. **All four bounds have now reported** (M6, M20, M21), so what remains is a choice rather than a measurement — options, evidence and a recommendation are assembled in [`LRAN-D1-PHY-Decision-Brief`](./LRAN-D1-PHY-Decision-Brief.md), which **decides nothing**; this row stays the status of record | Phase 1 |
-| **D33** | **FCC Part 15 operating mode** — *reopened 2026-09-06* | Protocol Spec §18.1 | **Reopened by M21**, exactly as standing condition 1 anticipated. Neither module is certified under §15.249; both carry §15.247 DTS **and** DSS grants, and D33's fixed-channel no-hopping mode exists inside those grants **only at BW500**. Two envelopes are documented in `LRAN-M21-FCC-Grant-Findings` §6. **Envelope A (§15.249) is the plan of record** — the 2026-09-04 walk closed at 0 % PER across six positions at its ceiling — with **Envelope B a fallback behind three explicit triggers**. Separately and permanently: the grants **do not transfer**, so the operative frame is **§15.23 home-built**. See §3.3 | Before D1 fixes a number |
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
 | **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor. **Amended 2026-09-06 — see §2.2. Still open, but the margin looks considerably better than this row's premise** | Phase 5 |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
 
 ### 2.1 D1 — what bounds it (2026-08-30)
+
+> **D1 closed on 2026-09-10 and D33 closed with it. §3.4 records what was chosen.** This
+> section and §2.2 are the dated account of what bounded the decision, and they keep their
+> numbers because documents across the set cite them. They are left as written; read §3.4
+> for the outcome.
 
 D1 remains open pending range test results, but it is no longer unbounded. Three
 constraints now apply, and **range test results do not close D1 on their own**:
@@ -162,7 +165,8 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D31** | Copyright holder name | **Robert J. Lee**, a personal name rather than a project or entity name. `LICENSE` now exists at the repo root carrying the MIT text and `Copyright (c) 2026 Robert J. Lee`, and the 87 source files that carried the `<holder>` placeholder carry the name. **The first public push is no longer blocked by this**; §11.3's separate `THIRD_PARTY_NOTICES.md` obligation was written the same day | System PRD §11.2 |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
-| **D33** | FCC Part 15 operating mode (**closes W5**) | **Moved to §2 — reopened 2026-09-06 by M21.** The 2026-08-30 outcome and its standing conditions remain readable in §3.1; what changed is in §3.3 | Protocol Spec §18.1 |
+| **D1** | **LoRa PHY parameters** — SF / BW / CR / frequency / TX power | **SF9, BW 125 kHz, CR 4/5, 917.4 MHz, −4 dBm conducted with the fitted 3.0 dBi antenna**, inside D33's Envelope A. Closed **2026-09-10** on the evidence assembled in `LRAN-D1-PHY-Decision-Brief`, which is superseded by this row. **`backoff_max_ms` rises to 1500** as the one configuration change SF9 forces. See §3.4 | System PRD §5.1, Protocol Spec §12.1 |
+| **D33** | FCC Part 15 operating mode (**closes W5**) | **Envelope A — §15.249, single fixed channel, no hopping, BW 125 kHz, −4 dBm conducted with a 3.0 dBi antenna.** Reopened 2026-09-06 by M21 and **closed again 2026-09-10 in the same motion as D1**, because §2.1's fourth bound makes `BW` and the rule section one decision. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) is retained as a documented fallback behind its three triggers. Permanently: the modules' grants **do not transfer**, so the operative frame is **§15.23 home-built** and **no node may be represented as FCC certified**. Reasoning in §3.1 (2026-08-30), §3.3 (reopened) and §3.4 (closed) | Protocol Spec §18.1, §18.2 |
 | **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2 | Protocol Library Impl Plan §3, §6 (**P8**) |
 
 
@@ -393,6 +397,54 @@ Wio, so its 0 % PER and every margin figure already carry this penalty — **tho
 deployed numbers.** The new option is that **a Heltec at the gate would see ~9 dB more
 margin**, which belongs to GateLink's module choice alongside the SF question in §2.2.
 
+### 3.4 D1 and D33 — what was chosen, 2026-09-10
+
+**Closed on the evidence already in hand. No new measurement was taken, and none was
+owed** — §2.1's four bounds had all reported (M6 2026-09-09, M20 2026-09-05, M21
+2026-09-06). The options were assembled in
+[`LRAN-D1-PHY-Decision-Brief`](./LRAN-D1-PHY-Decision-Brief.md), which is **superseded by
+this section** and is kept as the dated record of how the choice was framed.
+
+| Parameter | Fixed at | Why |
+|---|---|---|
+| Rule section | **§15.249, Envelope A** | Closed 0 % PER at its own ceiling on both bearings. Nothing measured asks for Envelope B |
+| `BW` | **125 kHz** | Forced by Envelope A, and fixed in the same motion per §2.1's fourth bound |
+| Frequency | **917.4 MHz** | §5.4's two independent scorings agree, and 917.4 wins on the one using all seven sites |
+| `SF` | **9** | About 13 dB of tail margin, bought with a runtime-configurable number |
+| `CR` | **4/5** | Nothing measured constrains it, and extra FEC does not repair a packet that never arrived |
+| TX power | **−4 dBm conducted**, 3.0 dBi antenna | The D33 ceiling. The SX1262's −9 dBm floor measured *worse* — 12.5–25 % PER at SF7 on 2026-09-04 |
+
+**The SF choice is the only contested one, and it was decided on the cost of being
+wrong.** W9 wants SF7, which keeps Protocol Spec §12.3's media-access defaults valid as
+written. B1b wants SF9, because the worst single SF7 probe at the gate reached a **2.2 dB
+margin at −119.0 dBm** against 15 dB of per-test-point RSSI spread, and both node sites are
+obstruction-limited rather than distance-limited — seasonal foliage moves a tail that is
+already near zero. **SF9's cost is `backoff_max_ms`, a number changed from an HA dashboard.
+SF7's risk is a USB reflash at a gate with no OTA**, because PHY parameters are deliberately
+not runtime-configurable (Protocol Spec §12.1). Spend the cheap knob to protect the
+expensive one.
+
+**A hardware route to the same margin existed and was not taken.** A Heltec at the gate
+would see about 9 dB more margin than the Wio-based node. It is a board change against a
+configuration change, and the configuration change is cheaper. Recorded because it stays
+available if GateLink's radio is ever revisited for another reason.
+
+**What moved with the decision.** Protocol Spec **v0.10** carries all of it: §12.1 states
+the fixed parameters, §12.3 raises `backoff_max_ms` to **1500** above SF9's 1107 ms
+full-frame airtime, and §15.1's table is confirmed to be on the BW125 / CR 4/5 basis this
+decision fixes, closing **M19** and **W7**.
+
+**Two things stay under observation, and neither reopens D1 on its own.**
+
+- **`cad_backoffs` is the instrument for the channel.** M20 measured 125 kHz every 200 kHz,
+  so **37.5 % of the band was never looked at** and a transmitter sitting entirely in a gap
+  is invisible at any level. §12.3's defaults were also chosen against an empty channel.
+- **The range-test firmware still transmits on the provisional 915.0 MHz**, which is
+  `weather-island`'s own peak. It is a bench instrument and this is not urgent, but a re-run
+  on the old channel produces data that will be distrusted later.
+
+---
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -479,7 +531,7 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M17 | ~~**Copyright holder name for the LICENSE file**~~ | **Done (2026-09-08).** **Robert J. Lee.** `LICENSE` written at the repo root; placeholder replaced in every source file. **D31 resolved.** `THIRD_PARTY_NOTICES.md` (System PRD §11.3) written the same day |
 | M21 | ~~**Confirm the SX1262 modules' own FCC grant conditions**~~ | **Done (2026-09-06).** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`. Heltec `2A2GJ-HTIT` — finished-product, **not modular**, ≈13.9 dBm DTS, internal 3.0 dBi antenna declared and fixed. Seeed `Z4T-WIO-SX1262` — single modular approval, 92 mW, **no-co-location condition**. **Neither is §15.249**, and the fixed-channel no-hopping mode exists in both grants only at BW500. **D33 reopened** (§3.3); **D1 gains a fourth bound** (§2.1). Backlog gains M22 and M23 |
 | M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
-| M19 | Airtime table regeneration once D1 fixes SF/BW/CR | Protocol Spec §15.1 (W7) |
+| M19 | ~~Airtime table regeneration once D1 fixes SF/BW/CR~~ | **Done (2026-09-10).** D1 fixed SF9 / BW125 / CR 4/5, and §15.1's table was already computed on that basis — the SF9 column needed confirming against §12.3's backoff window rather than recomputing. Protocol Spec v0.10 marks SF9 the operating point and raises `backoff_max_ms` to 1500. **W7 closed with it** |
 | M22 | **Bridge LoRa packet error rate with WiFi idle vs. saturated.** Run a sustained MQTT or iperf flood while the bridge receives a known `PING` sequence; compare PER and RSSI against the WiFi-idle baseline | Confirms the deliberate "**no** mutual exclusion on the bridge" policy (Bridge PRD). If PER degrades, the fallback is **physical antenna separation via the IPEX pigtail**, not firmware arbitration — ESP-IDF's coexistence arbitration has no visibility into an SPI-attached SX1262, so there is no hook to build on | Bridge Impl Plan |
 | M23 | **BLE RSSI to the BMS from the Stamp-S3A at its final mounting position**, inside the plastic enclosure inside the closed **steel** gate-controller enclosure, ~6–8 in from the pack. Sample **at least three positions and two orientations** — both ends share one reverberant cavity, so the risk is a standing-wave null, not attenuation. In the same session, measure **LoRa-to-BLE isolation** by logging BLE RSSI with the LoRa transmitter keyed and unkeyed | **D28**, superseding **M5**. Prior figures (−80 dBm, and −50 to −60 dBm) both used a Heltec V3 rather than the Stamp-S3A's internal antenna. Run before committing the mounting hardware; it does **not** gate M6 or B1b. A poor reading is a cable, connector and null question before it is an antenna verdict | GateLink Impl Plan |
 
@@ -548,6 +600,19 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.9** — **D1 is closed, and D33 closed with it.** SF9, BW 125 kHz, CR 4/5, 917.4 MHz,
+  −4 dBm conducted with the fitted 3.0 dBi antenna, inside Envelope A. Both rows moved from
+  §2 to §3 and **§3.4 records what was chosen and why**; §2.1 and §2.2 keep their numbers and
+  their wording, with a pointer added, because 22 documents cite them. The two decisions
+  close together because §2.1's fourth bound makes `BW` and the rule section one decision.
+  **The SF tie-break is the substance:** W9 wants SF7 and B1b's 2.2 dB fade tail wants SF9,
+  and SF9's cost is a runtime-configurable `backoff_max_ms` while SF7's risk is a USB reflash
+  at a gate with no OTA. `LRAN-D1-PHY-Decision-Brief` is **superseded**, not edited to agree.
+  **M19 done and W7 closed** — §15.1's table was already on the BW125 / CR 4/5 basis, so it
+  needed confirming rather than recomputing. Protocol Spec **v0.10** carries §12.1, §12.3's
+  1500 ms window and §15.1. **The range-test firmware still sits on the provisional
+  915.0 MHz**, recorded in §3.4 as the one loose end this decision creates.
 
 - **v0.8** — **D1's row gains a pointer, and its status does not change.** All four bounds
   named in §2.1 have reported — M6 2026-09-09, M20 2026-09-05, M21 2026-09-06 — so D1 is now

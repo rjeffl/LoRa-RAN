@@ -1,8 +1,8 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.13
-**Status:** Architecture settled. PHY parameters and several field measurements remain open.
+**Version:** 0.14
+**Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-10
 
@@ -323,19 +323,22 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
 ### 5.1 LoRa link — system-level parameters
 
 - Band: **US 915 MHz**, point-to-multipoint star (not LoRaWAN), private sync word.
-- SF / BW / CR / TX power: **open (D1)**, to be fixed after the range test. Starting
-  point for ~150 m near-LOS: SF7–9, BW 125 kHz, CR 4/5, moderate TX power. The
-  protocol spec's airtime analysis establishes that **SF may be chosen on link margin
-  alone, not on power**.
+- SF / BW / CR / frequency / TX power: **fixed by D1, 2026-09-10** — **917.4 MHz, SF9,
+  BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249
+  Envelope A. SF9 rather than SF7 for about 13 dB of fade-tail margin at the gate, bought
+  with a `backoff_max_ms` raise to 1500 — the protocol spec's airtime analysis had already
+  established that **SF may be chosen on link margin alone, not on power**. Protocol Spec
+  §12.1 and §12.3 state the parameters; Decision Register §3.4 records the reasoning.
 - **Bridge antenna placement is a two-bearing problem.** GateLink and WellLink are at
   similar distances in different directions. Favour an omnidirectional antenna in a
   central, elevated position over anything with a pattern optimized toward the gate.
   **Range-test both bearings before committing to a location.**
-- **FCC Part 15 operating mode — two things to do before D1 fixes a TX power.** Read
-  Protocol Spec **§18.2**, and never §18.1 on its own: §18.1 is annotated rather than
-  rewritten, so its reasoning reads as current when it is not. Then settle **D33**, which
-  the register has reopened — noting that **`BW` and the rule section are now one
-  decision**.
+- **FCC Part 15 operating mode — settled, and read §18.2 for it.** **D33 closed
+  2026-09-10 with D1**, on **Envelope A**: §15.249, single fixed channel, no hopping,
+  BW 125 kHz, −4 dBm conducted. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) stays a
+  documented fallback behind three triggers, and triggering it reopens **D28** in the same
+  motion. Read Protocol Spec **§18.2**, and never §18.1 on its own: §18.1 is annotated
+  rather than rewritten, so its reasoning reads as current when it is not.
   **The operating mode itself is not in question.** **W5** closed it and the answer is
   unchanged: a single fixed channel, no hopping, at or below the §15.249 power provisions.
   What M21 changed is the reasoning, and that is why D33 reopened — neither module is
@@ -681,10 +684,10 @@ assumed now.
 | Document | Covers | Status |
 |---|---|---|
 | **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.13 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.9** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.8 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.10** (`ver = 2`) |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D34** and the measurement backlog **M1–M23**. Single source of truth for decision status | v0.9 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P7 complete; P8 (`CommandGate`, D34) outstanding** | v0.5 |
-| [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | D1's options and a recommended working point, assembled from five documents. **Decides nothing** — the register holds the status | v0.1 |
+| [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.8 |
@@ -727,6 +730,7 @@ This index is the scan; the entries are the record.
 
 | Version | What changed |
 |---|---|
+| **v0.14** | **D1 and D33 closed** — §5.1 states the PHY parameters; spec v0.10, register v0.9 |
 | **v0.13** | §12 registers the D1 decision brief and the bridge handoff |
 | **v0.12** | §12 registers `LRAN-Bridge-Firmware-Tasks` |
 | **v0.11** | `LoRaBridge` retired in favour of **Bridge Node** across the live set; **D17** amended |
@@ -740,6 +744,18 @@ This index is the scan; the entries are the record.
 | **v0.3** | **D34** — the replay and dedup gate becomes `CommandGate`, library milestone **P8** |
 | **v0.2** | `docs/` reorganization: every relative link repaired; §9.1 marked built vs. planned |
 | **v0.1** | Initial release, compartmentalizing `lran-prd-v0_8` into this document set |
+
+- **v0.14** — **D1 closed on 2026-09-10, and D33 closed with it.** §5.1 states the
+  parameters instead of deferring to a decision: **917.4 MHz, SF9, BW 125 kHz, CR 4/5,
+  −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A, with
+  `backoff_max_ms` raised to 1500 because a maximum `PING` at SF9 runs 1107 ms. §5.1's
+  Part 15 bullet becomes a statement rather than a to-do list, keeping Envelope B and its
+  triggers visible. **This document inherits Protocol Spec v0.10**, which fixes the same
+  parameters in §12.1 and §12.3, confirms §15.1's airtime table on the BW125 / CR 4/5 basis
+  (**W7 closed, M19 done**), and renames §5.3's `0x00` gloss to **Bridge Node** — the one
+  item D17 deferred to the next substantive revision. Nothing on the wire moved: `ver` stays
+  at `2` and no vector regenerates. §12's rows resync, and the D1 brief is marked
+  **superseded** rather than edited to agree with the outcome.
 
 - **v0.13** — §12 registers two documents written for a cold start on this work.
   [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) assembles D1's

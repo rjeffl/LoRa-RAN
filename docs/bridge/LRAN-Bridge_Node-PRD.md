@@ -1,11 +1,11 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.8
+**Version:** 0.9
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
-**Status:** Requirements settled. Antenna siting and PHY parameters pending the range test.
+**Status:** Requirements settled. **PHY parameters fixed by D1, 2026-09-10**; antenna siting still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
 **Last updated:** 2026-09-10
 
@@ -435,7 +435,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 | # | Must be proven | Why it is not optional |
 |---|---|---|
-| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured; M6 closed 2026-09-09** — §8.1. **Still outstanding: D1 itself, and the bridge antenna choice** |
+| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured (M6 closed 2026-09-09) and D1 closed 2026-09-10** — §8.1. **Still outstanding: the bridge antenna choice** |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
@@ -464,8 +464,14 @@ identified as `welllink-well` on 2026-09-09.
 measurements retire it rather than confirm it. Decision Register §5.1.1 carries the full
 closure, including which of the two bearings the original wording overstated.
 
-**D1 and the bridge antenna choice remain open.** M6 answered where the nodes are and
-what the link does there; it did not fix a PHY configuration or site the antenna.
+**D1 closed on 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted, under
+§15.249 Envelope A (Decision Register §3.4, Protocol Spec §12.1). **The SF choice came from
+the tail rather than the mean:** the worst single SF7 probe at the gate reached 2.2 dB of
+margin, and SF9 buys about 13 dB of it for a `backoff_max_ms` raise to 1500.
+
+**The bridge antenna choice remains open.** M6 answered where the nodes are and what the
+link does there; it did not site the antenna, and V-B1 is not met until it is chosen and
+recorded.
 
 ---
 
@@ -473,6 +479,7 @@ what the link does there; it did not fix a PHY configuration or site the antenna
 
 | Version | What changed |
 |---|---|
+| **v0.9** | **D1 closed** — §8.1 states the PHY parameters; V-B1's remaining gap is the antenna |
 | **v0.8** | Header names the node **Bridge Node**, retiring `LoRaBridge` |
 | **v0.7** | Readability pass — **new §8.1** takes V-B1's measurement detail out of the table cell; §9 gains a version index |
 | **v0.6** | §8's duplicate `V-B2` resolved — the coexistence row becomes **`V-B12`** |
@@ -481,6 +488,13 @@ what the link does there; it did not fix a PHY configuration or site the antenna
 | **v0.3** | Spec v0.7 citation; **D34** reaches an empty set here — the bridge receives no authenticated types |
 | **v0.2** | Spec v0.6 citation, body reconciled first; cross-document links repaired |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` and restated as requirements |
+
+- **v0.9** — **D1 closed 2026-09-10, so V-B1 has one gap left rather than two.** §8.1 now
+  states the fixed PHY parameters — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted —
+  and names the reason SF9 won: the fade tail at the gate, not the mean. **The bridge antenna
+  choice is the only part of V-B1 still outstanding.** This document inherits **Protocol Spec
+  v0.10**, which fixes the same parameters in §12.1 and raises §12.3's `backoff_max_ms`
+  default to 1500; nothing on the wire moved and no requirement here changed.
 
 - **v0.8** — **Header renamed:** the node is **Bridge Node**, with `lran-bridge` given as
   the firmware target. `LoRaBridge` predates the document set settling on this document's
@@ -514,7 +528,7 @@ what the link does there; it did not fix a PHY configuration or site the antenna
   **R-4.3a** now carries the confirmed antenna — a 19 cm stick at nominally 3.0 dBi, same
   part both ends — which fixes the conducted ceiling at −4 dBm under Envelope A. §4.3 gains
   the walk's measured structure term: two positions on opposite faces of the house at the
-  same range differed by **18.2 dB**. Binding protocol advanced to **v0.9**.
+  same range differed by **18.2 dB**. Binding protocol advanced to **v0.10**.
 
 - **v0.4** — Citation refresh only. Protocol specification **v0.7 → v0.8**, which closes
   **W9** (the full-size and fragmented `PING` bench runs both passed over RF on

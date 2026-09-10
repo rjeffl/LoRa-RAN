@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.5
+**Version:** 0.6
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-10
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -953,6 +953,18 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.6** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.9 → v0.10**, which fixes the PHY parameters **D1** had been deferring: 917.4 MHz,
+  SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with a 3.0 dBi antenna, under §15.249
+  Envelope A. **This node is a consumer of all of it and decides none of it.** Two parts
+  reach GateLink directly. **`backoff_max_ms` now defaults to 1500** rather than 500,
+  because a maximum `PING` at SF9 runs 1107 ms — §12.3. And **the fade tail at the gate is
+  what chose SF9**: the worst single SF7 probe in B1b reached 2.2 dB of margin at
+  −119.0 dBm, measured within 6 in of where this node's antenna will sit. **R-4.3.1a's
+  3.0 dBi antenna and the −4 dBm conducted ceiling are unchanged**, and Envelope B stays a
+  fallback whose triggering would reopen **D28** in the same motion. Nothing on the wire
+  moved: `ver` stays at `2` and no vector regenerates.
 
 - **v0.5** — **The enclosure stack is confirmed and recorded as requirements.** New
   **§4.3.1** documents the arrangement — a plastic GateLink enclosure inside the steel

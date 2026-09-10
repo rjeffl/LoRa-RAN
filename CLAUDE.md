@@ -17,7 +17,7 @@ USB reflash in the field.
 | Document | Path | Authority over |
 |---|---|---|
 | `LRAN-System-PRD` | `docs/` | Architecture, node roles, repo layout |
-| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.9, `ver = 2`** |
+| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.10, `ver = 2`** |
 | `LRAN-Decision-Register` | `docs/shared/` | **D1–D34** and measurement backlog **M1–M23**. The **only** place a decision's status is recorded |
 | `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
 | `LRAN-Bridge_Node-PRD` / `-Implementation-Plan` | `docs/bridge/` | Bridge requirements and build; the plan also owns `lran-simnode` (§10) |
@@ -82,6 +82,11 @@ discrepancy rather than adjusting the spec to match the code.
    enclosure label or HA device metadata. Protocol Spec §18.2 is authoritative.
    **Do not derate below −4 dBm conducted for conservatism**: −9 dBm is the SX1262's hard
    floor and the site measured 12.5–25 % PER there at SF7.
+   **D1 closed 2026-09-10 and D33 closed with it**, on Envelope A: **917.4 MHz, SF9,
+   BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, and
+   `backoff_max_ms` raised to **1500** because a maximum `PING` at SF9 runs 1107 ms.
+   Protocol Spec §12.1 and §12.3 state them; Decision Register §3.4 is the status of
+   record.
 
 ## Layout
 

@@ -9,6 +9,16 @@
 > the documents below, they win — check the log's last entry against the date above before
 > trusting anything here.
 
+> **Update, 2026-09-10 — D1 closed, so item 1 below is done.** 917.4 MHz, SF9, BW 125 kHz,
+> CR 4/5, −4 dBm conducted with the fitted 3.0 dBi antenna, under §15.249 Envelope A; **D33
+> closed with it**, and `backoff_max_ms` rose to 1500. Protocol Spec **v0.10** §12.1 and
+> §12.3 state the parameters, Decision Register **§3.4** records why, and B1b's fade tail is
+> what chose SF9 over SF7. **W7 closed and M19 is done.** This note is added rather than the
+> file rewritten, because the session that closed D1 did no range-test work; everything below
+> is otherwise as written on 2026-09-09. **One loose end lands here:** the firmware still
+> transmits on the provisional 915.0 MHz, and a re-run on that channel produces data that
+> will be distrusted later.
+
 ## The next job, in one place
 
 **This directory owes no measurements at all.** B1b closed the gate bearing on 2026-09-09,
@@ -185,7 +195,7 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the two commands in *Git state* below |
-| Spec | **`LRAN-Protocol-Specification` is v0.9**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
+| Spec | **`LRAN-Protocol-Specification` is v0.10**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
 | Firmware queue | **Empty.** No code is owed and no reflash is owed |
 

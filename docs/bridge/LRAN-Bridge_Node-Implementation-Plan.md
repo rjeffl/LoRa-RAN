@@ -1,12 +1,12 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.13
+**Version:** 0.14
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-10
@@ -145,6 +145,14 @@ above the design point, so RSSI read at desk range remains a relative number rat
 measurement, but no longer anywhere near the damage region. **Fit a 20–30 dB SMA
 attenuator when the RSSI numbers themselves matter**; reach for it as a data-quality tool
 now, not as protection.
+
+**The working point is fixed, and it is the D33 ceiling.** **D1 closed 2026-09-10**:
+**917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna,
+under §15.249 Envelope A. Protocol Spec §12.1 states them and Decision Register §3.4
+records why. Two consequences for this build: **`backoff_max_ms` defaults to 1500** rather
+than 500, because a maximum `PING` at SF9 runs 1107 ms (§12.3), and **the PHY parameters go
+in the injected radio config beside the pin map**, never in the HA-visible configuration set
+— a node that boots on the wrong channel is a walk to the gate with a laptop.
 
 **"Full power" is the D33 ceiling, not the driver's maximum.** RadioLib accepts −9 to
 +22 dBm and the range test firmware clamps into the permitted envelope
@@ -741,8 +749,8 @@ can be compared with one taken on the Wio.
 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
-| **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
+| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin — **done 2026-09-10**, though the register rather than B1a is where it landed. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
+| **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised — **confirmed**, and B1b's own fade-tail result is what chose SF9 over SF7. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
 | **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` **P6 and P8** | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
 | **B3** | **Protocol and registry, with simnode** | B2, `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **Four logical simnodes registered simultaneously from one board** (§10.3), each with its own derived key, context and sequence space. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Availability marks offline after 3 missed polls and online on the next frame. Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script**, every §14 counter increments as specified, and `hdr_rsv` is accepted rather than discarded. Full-size (222 B) and fragmented `PING` both round-trip (**W9**). *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff* |
@@ -1399,6 +1407,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
 | **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
 | **v0.12** | Readability pass — §2.2 and §10.7 moved into numeric order, §2.3.1's superseded text labelled as such, §12 gains a version index |
 | **v0.11** | Six defects from a readability audit — duplicate `V-B12`, stale sibling citations, B0 gated on P8, §2.1's heading, §4.2's split table |
@@ -1412,6 +1421,17 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.14** — **D1 closed 2026-09-10, so §2.2 states a working point instead of an
+  envelope.** 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with the fitted 3.0 dBi
+  antenna, under §15.249 Envelope A; **D33 closed in the same motion**, because `BW` and the
+  rule section are one decision. Two consequences are written where a builder meets them:
+  **`backoff_max_ms` defaults to 1500** rather than 500, above SF9's 1107 ms full-frame
+  airtime, and **the PHY parameters belong in the injected radio config**, not in the
+  HA-visible set that §12.1 deliberately excludes them from. §8's **B1a** and **B1b** rows
+  are marked where their D1 criteria are discharged — B1b's fade-tail measurement is what
+  chose SF9 over SF7, so the confirming pass did more than confirm. **This plan inherits
+  Protocol Spec v0.10**; nothing on the wire moved and no milestone gate changed.
 
 - **v0.13** — **§2.2 reasoned about a power no configuration in this project uses.** It was
   written against the SX1262's `+22 dBm` maximum: two boards a foot apart putting −20 dBm

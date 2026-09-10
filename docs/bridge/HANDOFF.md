@@ -1,8 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-10, at the end of the session that audited the system and bridge
-documents, retired the `LoRaBridge` name, reconciled bench TX power with D33, and produced
-the bridge firmware task list.** It replaces the previous file wholesale.
+**Written 2026-09-10, at the end of the session that closed D1 and D33.** It replaces the
+earlier 2026-09-10 file — written after the document audit, the `LoRaBridge` retirement and
+the firmware task list — wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -12,53 +12,53 @@ the bridge firmware task list.** It replaces the previous file wholesale.
 
 ## The next job, in one place
 
-**Close D1, and it does not start in this directory.**
-
-D1 fixes SF, BW, CR, frequency and conducted power. **Every input it was waiting on has
-closed** — M6, M20 and M21 have all reported — so this is a decision to make, not a
-measurement to run, and no bench or field work is owed. The options, the evidence and a
-recommendation are assembled in
-[`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md); the outcome is
-recorded in [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md), which is the
-only file that may state D1's status.
-
-**If D1 is not the job you want**, `BF-10` through `BF-14` in
+**Write firmware. `BF-10` through `BF-14` in
 [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) are unblocked and run in
-parallel — bridge board bring-up (**B2**), gated only on protocol library **P7**, which is
+parallel** — bridge board bring-up (**B2**), gated only on protocol library **P7**, which is
 met. **`BF-11`, the task structure, is the one to think hardest about**: `lora_task` is
 highest priority and never blocks on the network, and retrofitting that is not a small edit.
 
+**The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
+CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two
+things that reach code — **`backoff_max_ms` defaults to 1500**, not 500, and **the PHY
+parameters go in the injected radio config beside the pin map**, never in the HA-visible
+configuration set (Protocol Spec §12.1).
+
 **Simnode B0 is blocked** on library milestone **P8** (`CommandGate`, D34), which is the
-only library work outstanding.
+only library work outstanding — and the only remaining alternative to board bring-up.
 
 ## What the last session established
 
-**No firmware was written. This was a documents session**, and the results are findings
-about the document set rather than measurements.
+**No firmware was written, and no measurement was taken. D1 and D33 were closed on the
+evidence already in hand**, on the operator's agreement with the decision brief's
+recommendation, unchanged.
 
-- **D1's inputs have all closed**, which no single document said in one place. The register
-  carries the four bounds in §2.1 and their closures in §2.2 and §5.4; nothing joined them
-  up into "this is now a decision."
-- **`+22 dBm` appeared in four places across two node documents as an operating point.**
-  Neither D33 envelope permits it: Envelope A caps conducted power at **−4 dBm** with the
-  fitted 3.0 dBi antenna, Envelope B's ceiling is the modules' tested **19.6 dBm** (Wio) and
-  **13.9 dBm** (Heltec). Corrected in Bridge Implementation Plan §2.2, §2.3 and §7.2, and in
-  GateLink Implementation Plan §3.4, §8's **M0** and §9.7. **This does not support a claim
-  that any rail or budget decision changed** — every one of them gained headroom.
-- **`LoRaBridge` and `Bridge Node` had both been live names for the whole document set**,
-  and **D17 recorded the retired one**. Because the register is the only place a decision's
-  status lives, nothing else could reconcile until it did.
-- **The Bridge PRD had two verification rows numbered `V-B2`**, so the WiFi/LoRa coexistence
-  criterion added in its v0.5 was verified nowhere. It is now `V-B12`.
-- **Bridge Implementation Plan §8 and §11.1 gated simnode B0 on library P6 alone.** The
-  library plan's §6 has said since its v0.3 that **P8 gates B0 as well**.
+- **The parameters: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted
+  3.0 dBi antenna. Decision Register **§3.4** is the record and the only place the status
+  lives.
+- **`BW` and the rule section are one decision**, so **D33 closed in the same motion**, on
+  Envelope A. Envelope B is untouched and stays a fallback behind three triggers; triggering
+  it reopens **D28** as well.
+- **SF9 rather than SF7 was the only contested knob**, and it was decided on the cost of
+  being wrong rather than on the measurements, which point both ways. W9 wants SF7 and keeps
+  §12.3's defaults valid; B1b's worst single SF7 probe at the gate reached **2.2 dB of
+  margin**. **SF9's cost is a runtime-configurable number; SF7's risk is a USB reflash at a
+  gate with no OTA.**
+- **`backoff_max_ms` rises 500 → 1500**, above SF9's 1107 ms full-frame airtime. It is the
+  one configuration change SF9 forces, and the reason SF9 was affordable.
+- **M19 done, W7 closed** — §15.1's airtime table was already computed at BW125 / CR 4/5, so
+  it needed confirming rather than recomputing. Its basis is now written down, which it was
+  not.
+- **Protocol Spec v0.10** carries §12.1, §12.3 and §15.1, and renames §5.3's `0x00` gloss to
+  **Bridge Node** — the one item D17 deferred to the next substantive revision. **Nothing on
+  the wire moved:** `ver` stays at `2` and no W4 vector regenerates.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md) | the next job. Options, evidence and a recommendation, assembled from five documents |
+| 2 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§3.4** | what D1 fixed and why, including the SF tie-break. The brief it came from is **superseded** and is kept only as the account of how the choice was framed |
 | 3 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | what to build, in what order, and which tasks suit which model |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **owns milestones B0–B7 and their acceptance criteria.** §5.2 task structure and §6 implementation specifics before writing any firmware |
 | 5 | [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) | the requirements the plan implements. §8's `V-B*` rows are what a milestone is checked against |
@@ -71,8 +71,8 @@ about the document set rather than measurements.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P7**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**. **M6**, **M20**, **M21** |
-| Queue | **D1** (decision). Library **P8**. Then **B0** and **B2** in parallel, **B3** after both |
+| Done | Library **P1–P7**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**. **M6**, **M20**, **M21**, **M19**. **D1**, **D33** |
+| Queue | **B2** board bring-up (`BF-10`–`BF-14`), unblocked now. Library **P8**, which gates **B0**. **B3** after both |
 
 ```bash
 pio test -d lib/lran-protocol -e native       # host Unity suite
@@ -151,6 +151,9 @@ something else.
   name**. **Protocol Spec §5.3 still glosses node `0x00` as `(LoRaBridge)`** — deliberately,
   deferred to the next substantive specification revision rather than restaking 22 binding
   citations for a name gloss.
+- **The PHY parameters are stated rather than deferred, 2026-09-10.** A document revision
+  citing Protocol Spec v0.9 or earlier reads §12.1 as "per D1" and §12.3's `backoff_max_ms`
+  as 500. Both are current for when they were written; **v0.10 is where the numbers are**.
 - **`+22 dBm` no longer appears as an operating point** in either node's documents. **A
   document revision that still states it is correct for when it was written** and is not to
   be re-stamped; the archive keeps it throughout.
@@ -184,13 +187,10 @@ something else.
 
 ## Open, and not closable from here
 
-- **D1** — SF/BW/CR/frequency/power. Open, all inputs closed; a decision, not a measurement.
-  Closed by recording the choice in the register. See the brief.
 - **P8** (`CommandGate`, D34) — the only outstanding library work. **Gates simnode B0.**
 - **M22** — bridge LoRa PER with WiFi idle versus saturated. The evidence for §4.4's
   deliberate lack of mutual exclusion; **V-B12** is its verification row. Without it the
   asymmetry rests on argument alone.
-- **M19 / W7** — the airtime table regenerates once D1 fixes SF. Blocked on D1, not on work.
 - **Protocol Spec §5.3's `(LoRaBridge)` gloss** — deferred by choice, recorded in **D17**.
 - **GateLink M0's LDO margin above the operating point** — the rail is sized for Envelope
   B's 19.6 dBm but will be tested only at −4 dBm. M0 says to re-run if Envelope B is ever
@@ -198,6 +198,13 @@ something else.
 
 ### Closed, and not to be reopened by habit
 
+- **D1 and D33 — CLOSED 2026-09-10.** 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted,
+  Envelope A. **The measurements do not settle SF and re-reading them will not**: PER was
+  0 % at every SF at the gate, and the choice came from the fade tail against the cost of
+  being wrong. Reopening needs a new fact — a `cad_backoffs` reading the channel does not
+  explain, or an Envelope B trigger — not a re-reading of B1b.
+- **M19 — DONE 2026-09-10, W7 closed with it.** §15.1's table was already at BW125 / CR 4/5;
+  it was confirmed, not recomputed. **Do not regenerate it expecting different numbers.**
 - **M6 — CLOSED 2026-09-09.** Both bearings measured. The gate is **~87 m**, 0 % PER at all
   24 configurations on the deployed pairing; the well is **~100 m**, 2.08 % PER. **The
   "~500 ft" in M6's own wording was a guess predating any walk** and is retired, not

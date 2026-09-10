@@ -1,7 +1,7 @@
 # LRAN range test firmware — pass 1 tasks (two Heltec V3 boards)
 
 **For:** Claude Code, working in a new `firmware/range-test/`
-**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Depends on:** `/lib/lran-protocol/` — **satisfied.** P1–P7 are complete against v0.6
 (107 host tests, 110 on target, 72 W4 vectors, zero divergence); W9 runs against it

@@ -1,11 +1,11 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.2
+**Version:** 0.3
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.8
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.9
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.13
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-10
@@ -55,30 +55,30 @@ pio test -d lib/lran-protocol -e native
 | `/lib/lran-protocol/` **P8** (`CommandGate`, D34) | **Outstanding.** The only library work between here and simnode B0 |
 | Range test **pass 1 and pass 2** | Complete. **B1a and B1b are done** — the gate closed 0 % PER at the D33 ceiling on the deployed pairing |
 | **M6** (both bearings), **M20** (ambient survey), **M21** (grant conditions) | **Closed** |
-| **D1** (SF / BW / CR / TX power / frequency) | **Open — and this is the constraint that matters** |
+| **D1** (SF / BW / CR / TX power / frequency) | **Closed 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted. **D33 closed with it**, on Envelope A |
 
-### 1.1 D1 is now a decision, not a measurement
+### 1.1 D1 is closed — what the firmware inherits
 
-**Every input D1 was waiting on has closed.** Register §2.1 names four bounds — TX power
-capped by D33, frequency requiring the M20 survey, the site's known occupants, and `BW`
-bound to the rule section — and M6, M20 and M21 have all reported. What remains is
-someone choosing SF, BW, CR, frequency and power *in one motion* and recording it in the
-register.
+**D1 and D33 closed together on 2026-09-10.** The firmware builds against **917.4 MHz,
+SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with a 3.0 dBi antenna, under §15.249
+Envelope A. Protocol Spec §12.1 states them, §12.3 carries the `backoff_max_ms` default
+they moved, and Decision Register §3.4 records why.
 
-**The options, the evidence and a recommendation are in
-[`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md).** Two results
-constrain the choice and are the ones easiest to lose:
+Three consequences reach the code rather than the documents:
 
-- **The provisional 915.0 MHz must move.** It is `weather-island`'s own peak at −80 dBm
-  against a −115 dBm floor (register §2.2). Envelope A's genuinely uncommitted region is
-  roughly **915.2–923.0 MHz**.
-- **The SF7 tail is thinner than the mean suggests.** B1b's margin on the mean is
-  17–25 dB of SNR, but one probe reached **2.2 dB at −119.0 dBm**. That pulls against
-  W9's preference and is a live constraint on the SF choice.
+- **`backoff_max_ms` defaults to 1500, not 500.** A maximum `PING` at SF9 runs 1107 ms, so
+  the old window could not outlast the frame it backed off for. It is runtime-configurable
+  from HA, which is what made SF9 affordable — the SF it protects is not.
+- **The PHY parameters are not runtime-configurable** (Protocol Spec §12.1). A node that
+  boots on the wrong channel is a walk to the gate with a laptop, so they belong in the
+  injected radio config with the pin map, not in the HA-visible config set.
+- **`cad_backoffs` is the instrument to watch after bring-up.** M20 measured 125 kHz every
+  200 kHz, so 37.5 % of the band was never looked at, and §12.3's retry defaults were
+  chosen against an empty channel.
 
-**D1 does not block B0 or B2.** Bench work runs at whatever provisional channel the
-range test used. It blocks anything that ships and it blocks **M19**'s airtime
-regeneration, so close it before B3 rather than after.
+**The range-test firmware still transmits on the provisional 915.0 MHz**, which is
+`weather-island`'s own peak. It is a bench instrument and no task here depends on it, but a
+re-run on the old channel produces data that will be distrusted later.
 
 ---
 
@@ -120,7 +120,7 @@ Neither task is bridge firmware. Both gate it.
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-0** | **Close D1** — fix SF, BW, CR, frequency and conducted power in one motion; record in the register; regenerate the airtime table (**M19**). **Options and a recommendation:** [`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md) | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
+| ~~**BF-0**~~ | ~~**Close D1**~~ — **done 2026-09-10.** SF9 / BW125 / CR 4/5 / 917.4 MHz / −4 dBm conducted, recorded in Decision Register §3.4 and stated in Protocol Spec v0.10 §12.1. **M19 done and W7 closed** — §15.1's table was already on this basis and needed confirming rather than recomputing | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
 | **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
 
 **BF-1 gates B0. BF-0 should close before B3** and can run in parallel with everything.
@@ -236,8 +236,18 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.3** — **D1 and D33 closed on 2026-09-10, so BF-0 is done and the list starts at
+  BF-10.** §1.1 stops arguing that D1 is a decision and states what the firmware inherits
+  instead: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted, and a `backoff_max_ms`
+  default of **1500** rather than 500. The three consequences that reach code are called out
+  where a task author will hit them — the raised window, the PHY parameters staying out of
+  the runtime-configurable set, and `cad_backoffs` as the instrument for a channel whose
+  survey missed 37.5 % of the band. **This document inherits Protocol Spec v0.10 and Bridge
+  PRD v0.9.** Nothing on the wire moved and no task's model column changed.
 
 - **v0.2** — **BF-0 now points at [`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md)**,
   which assembles D1's options and recommends a working point. §1.1 keeps its summary of why
