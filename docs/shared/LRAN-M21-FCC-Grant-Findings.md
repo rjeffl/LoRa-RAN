@@ -1,11 +1,41 @@
 # M21 — SX1262 Module FCC Grant Conditions and the D1 Envelope Determination
 
 **Document:** `LRAN-M21-FCC-Grant-Findings`
-**Version:** 0.3
+**Version:** 0.3 — **annotated 2026-09-09, body unchanged** (see the superseding note below)
 **Status:** Findings note. Closes **M21**; reopens **D33**; adds a fourth bound to **D1**.
 **Parent document:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md)
 **Companion:** [`LRAN-M21-Handoff`](./LRAN-M21-Handoff.md) — implementation obligations and site-specific engineering
 **Last updated:** 2026-09-06
+
+> ### Superseded statements — annotated 2026-09-09, nothing below rewritten
+>
+> **This note's regulatory content stands.** The grants, the two envelopes, the EIRP method,
+> D33's reopening and D1's fourth bound are unaffected by everything here. What has been
+> overtaken is the range picture the note was written against, and it was wrong in two
+> independent ways.
+>
+> **1. There is no 500 ft leg. The gate is ~87 m (285 ft) and the well ~100 m (330 ft).**
+> The "~500 ft" was estimated before anything was walked to and never measured. **Decision
+> Register §5.1.1** carries both distances and how each is known.
+>
+> **2. Both bearings are now measured, and M6 closed 2026-09-09.** The gate by **B1b**
+> (2026-09-09, 192/192 at **0 % PER** across all 24 configurations, on the deployed
+> Heltec↔Wio pairing, within 6 in of the final antenna position). The well by **walk P3 of
+> 2026-09-04**, which was identified as site `welllink-well` only on 2026-09-09 — the
+> measurement existed when this note was written and nobody knew what it was.
+>
+> So these statements in the body are **superseded, and left in place as the record**:
+>
+> | Where | Superseded statement, and what replaces it |
+> |---|---|
+> | §8.2 | *"What is still not measured: the 500 ft leg itself… M6 is not closed and B1b is still owed"* — B1b ran; there is no 152 m link to complete |
+> | §8.2 | *"~14 dB of worst-case margin at 500 ft"* — computed at 152 m. At 87 m free-space path loss is **4.81 dB lower**, so the recorded margin is **conservative, not optimistic**. The real paths are obstruction-limited rather than distance-limited, so treat the correction as a direction and read the excess-loss table for magnitudes |
+> | §9 item 6 | *"The residual question is the 500 ft leg (B1b), not the envelope"* — answered. D1's residual is now the **SF** choice, where B1b's SF7 fade tail pulls against W9's backoff table (Register §2.2) |
+> | §10 backlog, M6 row | Closed. Register §5.1.1 |
+> | §7 | *"At 500 ft, a clean channel is worth more than raw power"* — the argument holds; the distance does not |
+>
+> **The changelog's own entries keep the figure**, as the record of what was believed on
+> 2026-09-06.
 
 > **Not legal advice and not a compliance determination.** This note records what the two
 > grants say and what follows for D1 and D33. It certifies nothing. The §15.23 discussion
