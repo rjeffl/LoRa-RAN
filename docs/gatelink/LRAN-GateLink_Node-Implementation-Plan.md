@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.6
+**Version:** 0.7
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.9**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-10
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -1131,6 +1131,18 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.7** — **Citation refresh; no requirement and no BOM line changed.** Protocol
+  specification **v0.9 → v0.10**, which closes **D1**: 917.4 MHz, SF9, BW 125 kHz, CR 4/5,
+  −4 dBm conducted with the fitted 3.0 dBi antenna, under §15.249 Envelope A. **This node
+  consumes the decision and decides none of it**, and two parts of it land in this plan's
+  own text. §9.7's radio energy figures are computed at SF9 already — a 534 ms `STATUS` at
+  ~5 µAh — so **the power budget is unchanged and was never the constraint**; the MCU
+  dominates while awake. And §12.3's **`backoff_max_ms` default is now 1500**, not 500,
+  because a maximum `PING` at SF9 runs 1107 ms; the media-access row in §7 describes the
+  mechanism rather than the number, so it stands as written. **M0's LDO margin note is
+  untouched** — the rail is still sized against Envelope B's 19.6 dBm and tested at −4 dBm,
+  and Envelope B is still a fallback whose triggering reopens **D28**.
 
 - **v0.6** — **Three statements of TX power reconciled with D33, and one rename.** §3.4
   sized the carrier LDO against *"~120 mA peak SX1262 TX at +22 dBm"*, milestone **M0**

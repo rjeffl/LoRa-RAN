@@ -10,7 +10,7 @@ has not been reconciled with the intervening revisions.**
 | Folder | Contains |
 |---|---|
 | *(this level)* | [`LRAN-System-PRD`](./LRAN-System-PRD.md) — the parent document |
-| [`shared/`](./shared/) | Documents binding on more than one node: the [Protocol Specification](./shared/LRAN-Protocol-Specification.md) (**authoritative for every byte on the wire and every MQTT topic**), the [Decision Register](./shared/LRAN-Decision-Register.md) (**the only place a decision's status is recorded**), the [Protocol Library Implementation Plan](./shared/LRAN-Protocol-Library-Implementation-Plan.md), and the [D1 PHY decision brief](./shared/LRAN-D1-PHY-Decision-Brief.md) |
+| [`shared/`](./shared/) | Documents binding on more than one node: the [Protocol Specification](./shared/LRAN-Protocol-Specification.md) (**authoritative for every byte on the wire and every MQTT topic**), the [Decision Register](./shared/LRAN-Decision-Register.md) (**the only place a decision's status is recorded**), the [Protocol Library Implementation Plan](./shared/LRAN-Protocol-Library-Implementation-Plan.md), and the [D1 PHY decision brief](./shared/LRAN-D1-PHY-Decision-Brief.md) (**superseded** — D1 closed 2026-09-10; the register's §3.4 is the record) |
 | [`bridge/`](./bridge/) | Bridge Node (`0x00`) PRD, implementation plan and [firmware task list](./bridge/LRAN-Bridge-Firmware-Tasks.md) and [session handoff](./bridge/HANDOFF.md). The plan also owns `lran-simnode` (§10) |
 | [`gatelink/`](./gatelink/) | GateLink (`0x01`) PRD, implementation plan, and the expansion board design |
 | [`welllink/`](./welllink/) | WellLink (`0x02`) PRD — **placeholder**, scope and reserved allocations only |

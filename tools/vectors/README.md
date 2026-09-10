@@ -1,6 +1,6 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.9 (`ver = 2`)
+**Binding specification:** `LRAN-Protocol-Specification` v0.10 (`ver = 2`)
 **Vectors last regenerated against:** v0.6 — **and correctly so.** v0.7, v0.8 and v0.9
 changed no frame layout, header field, enumeration value, schema or authentication
 scope, so §13.2's regeneration requirement has not been triggered since.

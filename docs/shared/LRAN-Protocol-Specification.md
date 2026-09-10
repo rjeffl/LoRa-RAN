@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.9
+**Version:** 0.10
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-10
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -248,7 +248,7 @@ Node IDs, one byte each.
 
 | ID | Node |
 |---|---|
-| `0x00` | `lran-bridge` (LoRaBridge) |
+| `0x00` | `lran-bridge` (Bridge Node) |
 | `0x01` | `lran-gatelink` (GateLink) |
 | `0x02` | `lran-welllink` (WellLink, reserved) |
 | `0x03`–`0xEF` | Available for future nodes |
@@ -1626,11 +1626,11 @@ that outgrows a frame is not the moment to find out: GateLink has no OTA and sit
 
 | Parameter | Value | Note |
 |---|---|---|
-| Band | 902–928 MHz ISM | **Single fixed channel, no hopping** (W5 closed; **D33 reopened 2026-09-06**, outcome unchanged). Exact frequency per **D1**, chosen against the ambient survey — see below |
+| Band | **917.4 MHz**, 902–928 MHz ISM | **Single fixed channel, no hopping** (W5 closed; **D33 reopened 2026-09-06 and closed 2026-09-10**, outcome unchanged). **D1 fixed the frequency on 2026-09-10** against M20's survey — see below |
 | Header mode | **Explicit** | Required by §2.1 |
 | CRC | **Enabled** | Required by §2.1 |
 | Sync word | Private (`0x12` / SX126x `0x1424`) | Not the LoRaWAN value |
-| SF / BW / CR / TX power | Per **D1**. TX power **at or below the §15.249 EIRP ceiling**; **`BW` and the rule section are one decision** (§18.1) | §15 gives the airtime consequences; §18.1 gives the ceiling and the envelope coupling |
+| SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10 | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
 | Node-address filtering | Enabled in the SX126x packet handler | Low value while nodes run continuous RX; retained because it matters for any duty-cycled node (§17.1) |
 
 **All nodes share one frequency, SF, BW and sync word.** Per-node channels would
@@ -1665,6 +1665,19 @@ from a measurement will be reopened by the first unexplained `cad_backoffs` read
 > **903.0–914.2 MHz**, and **923.3–927.5 MHz is LoRaWAN US915 downlink** — so under
 > Envelope A the genuinely uncommitted region is roughly **915.2–923.0 MHz**.
 
+> **Fixed, v0.10 — D1 closed on 2026-09-10 and this section states the outcome.**
+> **917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted with the fitted 3.0 dBi antenna**,
+> under Envelope A. The sweep this section requires ran as M20 and 917.4 MHz is its ranked
+> answer on both scorings, ~1.2 MHz clear of the 915.8–916.4 MHz cluster. **SF9 rather than
+> SF7** because the worst single SF7 probe at the gate reached a 2.2 dB margin at
+> −119.0 dBm: SF9 buys about 13 dB of tail margin for a `backoff_max_ms` raise, and the
+> paragraph below is why that trade is one-sided. **`backoff_max_ms` rises to 1500** (§12.3).
+> Decision Register **§3.4** carries the reasoning and is the only place the status lives.
+>
+> **Keep `cad_backoffs` under observation.** The survey measured 125 kHz every 200 kHz, so
+> **37.5 % of the band was never looked at**, and a transmitter sitting entirely in a gap is
+> invisible at any level. It is the instrument that would catch one.
+
 **LoRa PHY parameters are not runtime-configurable.** Changing them from HA means
 changing the link you are changing them over; one mismatch and the node is unreachable
 until someone walks to it with a laptop. If this is ever wanted it needs a
@@ -1686,11 +1699,11 @@ Point-to-point had no contention. A shared channel with N nodes does.
 |---|---|
 | **Bridge serializes polls** | Never more than one outstanding poll across the fleet. Removes the largest predictable collision source for free |
 | **CAD before TX** | Nodes use Channel Activity Detection before transmitting |
-| **Randomized backoff** | On CAD-busy, back off `random(0, backoff_max_ms)` (default 500), retry up to `cad_retries` (default 5), then **transmit regardless** — an event push must not be starved indefinitely |
+| **Randomized backoff** | On CAD-busy, back off `random(0, backoff_max_ms)` (**default 1500**, raised from 500 by D1's SF9 — see below), retry up to `cad_retries` (default 5), then **transmit regardless** — an event push must not be starved indefinitely |
 | **Single channel** | §12.1 |
 
 **CAD sees the neighbours, not just the fleet.** The defaults above —
-`cad_retries` 5, `backoff_max_ms` 500 — were chosen against an empty channel. On a site
+`cad_retries` 5, `backoff_max_ms` 1500 — were chosen against an empty channel. On a site
 sharing the band with unrelated 915 MHz equipment they are a starting point to be
 checked, and `cad_backoffs` in schema `0xF0` is the instrument that checks them.
 
@@ -1717,6 +1730,14 @@ checked, and `cad_backoffs` in schema `0xF0` is the instrument that checks them.
 > site has a confirmed in-channel occupant and another the strongest near-band
 > neighbour, both bursty rather than carriers — which is exactly the shape that spends
 > retries rather than blocking a channel.
+
+> **Resolved, v0.10 — D1 landed on SF9, so the default rises to 1500 ms.** The block above
+> left the number to D1 and named the condition: at SF8 or above the window wants raising
+> above the full-frame airtime. A maximum `PING` at SF9 is **1107 ms** (§15.1), and 1500
+> clears it with margin while staying short enough that a starved event push is not held
+> for seconds. **This is the one configuration change SF9 forces, and it is why SF9 was
+> affordable** — it is runtime-configurable from HA, where the SF it protects is not
+> (§12.1). Decision Register §3.4.
 
 **Expect the counter to read asymmetrically.** Third-party equipment is usually
 clustered around the dwelling, which is where the bridge lives; a remote node several
@@ -1905,7 +1926,13 @@ Computed for BW 125 kHz, CR 4/5, explicit header, CRC on, 8-symbol preamble.
 | `PING`, maximum | 222 | 348 ms | 615 ms | 1107 ms |
 
 Figures are the LoRa time-on-air formula applied to the frame sizes in §19, rounded to
-the millisecond, and should be regenerated once **D1** fixes SF.
+the millisecond, at **BW 125 kHz, CR 4/5**, 8 preamble symbols, explicit header, CRC on
+and no low-data-rate optimization.
+
+> **Confirmed, v0.10 — D1 fixed SF9, and the SF9 column is the operating point.** The table
+> was already computed on the basis D1 fixed, so **M19 is a confirmation rather than a
+> recomputation** and **W7 closes**. The row that matters downstream is the maximum `PING`
+> at **1107 ms**, which is what §12.3's 1500 ms backoff window is set against.
 
 > **Two corrections in this revision.** The frame sizes grew by 4 bytes (16-byte
 > header, §5.9) and by a further 2 for `STATUS` (§7.2.9). Separately, the v0.2 figures
@@ -2176,7 +2203,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W4 | ~~Test vectors~~ | — | **Closed.** `/tools/vectors/` exists: an independent Python generator, a self-check and **72** vectors, cross-checked against a C++ suite on host and on target with zero divergence. The generator was written from this document alone, with the codec off limits, and the four disagreements it produced are the substance of v0.5. Provenance is recorded per vector — 66 derived, 6 adjudicated — so a reader can tell which agreements are evidence and which are bookkeeping. The v0.5 and v0.6 regenerations each changed **no existing frame byte**, independently confirming that neither altered a header field, the authentication scope or a schema layout. §14.1 is enforced by the generator and the checker independently. §13.2's standing requirement to regenerate on every protocol change is unaffected and applies to v0.6 |
 | W5 | ~~FCC Part 15 operating mode~~ | — | **Closed, and the outcome still holds.** Single fixed channel, no hopping, operating at or below the §15.249 power provisions. **§18.1's *reasoning* was substantially replaced in v0.9** — M21 found that neither module is certified under §15.249, that the grants do not transfer at all, and that the operative frame is §15.23 home-built. **D33 is reopened in the register on that basis; W5 is not.** W5 asked which mode to build against and the answer is unchanged. See §18.1 and §18.2 |
 | W6 | **BMS `pack_ma` sign convention** | §7.2.3 | Bit `0x4000` is believed to be the discharge flag but has only ever been observed at 0.0 A. Capture once under charge and once under load. Tracked in the measurement backlog |
-| W7 | Airtime table regeneration | §15.1 | Recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
+| W7 | ~~Airtime table regeneration~~ | — | **Closed 2026-09-10 with D1** (SF9 / BW125 / CR 4/5). The table was already on that basis, so it was **confirmed rather than recomputed**, and §12.3's window was set against its maximum-`PING` row in the same motion — 1107 ms at SF9, window raised to 1500. Original wording: recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
 | W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
 | W10 | **Config entry count vs. one frame** | §7.4, §11 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. Confirm the count once it does: past 21 `uint32` entries the readback fragments, which makes §11 a production path on the first config read rather than a bench feature, and moves W4's fragmentation vectors onto the critical path |
@@ -2326,6 +2353,12 @@ link — and a single combined EIRP figure cannot be re-derived into either.
 nothing on the wire**: no frame layout, no header field, no enumeration, no schema, no
 authentication scope. `ver` stays at `2` and no test vector regenerates.
 
+> **Closed, v0.10 — D1 and D33 closed together on 2026-09-10, on Envelope A.** BW 125 kHz
+> at §15.249, 917.4 MHz, SF9, CR 4/5, −4 dBm conducted with the 3.0 dBi antenna. **Envelope
+> B is untouched and stays a documented fallback behind the three triggers above**, and its
+> D28 consequence stays with it. Nothing in this section's reasoning changed; what changed
+> is that the decision it bounded has been made. Decision Register §3.4.
+
 ---
 
 ## 19. Reference layout summary
@@ -2373,6 +2406,20 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
+- **v0.10** — **D1 closed, and the specification states the parameters instead of deferring
+  to them.** `ver` stays at `2`; **no frame layout, header field, enumeration value, schema
+  or authentication scope changes, and no test vector regenerates.** §12.1 now fixes
+  **917.4 MHz, SF9, BW 125 kHz, CR 4/5 and −4 dBm conducted** with the fitted 3.0 dBi
+  antenna, under §15.249 Envelope A, and records the survey coverage gap that keeps
+  `cad_backoffs` worth watching. §12.3's **`backoff_max_ms` default rises 500 → 1500**,
+  above the 1107 ms maximum-`PING` airtime SF9 implies — the v0.8 block that left this
+  number to D1 is kept as written and answered beneath it. §15.1 gains its computation
+  basis, which was implicit before, and is confirmed rather than recomputed because the
+  table was already at BW125 / CR 4/5: **W7 closes and M19 is done.** §18.2 records D33
+  closing with D1 on Envelope A, leaving Envelope B and its triggers intact. §5.3's node
+  table now reads **Bridge Node** for `0x00`, the one gloss D17 deferred to the next
+  substantive revision. **The decision's status lives in the Decision Register, §3.4** —
+  this document carries the outcome only.
 - **v0.9** — **M21's findings folded in. `ver` stays at `2`; no frame layout, header field,
   enumeration value, schema or authentication scope changes, and no test vector
   regenerates.** New **§18.2** records what M21 falsified in §18.1's reasoning while

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Umbrella header. Binding specification: LRAN-Protocol-Specification v0.9, ver = 2.
+// Umbrella header. Binding specification: LRAN-Protocol-Specification v0.10, ver = 2.
 //
 // v0.4 -> v0.6 brought the one behavioural change this library implements (11.2:
 // a single-frame frame never touches reassembly state). Nothing on the wire has

@@ -1,5 +1,9 @@
 # Range test traces
 
+> **D1 closed 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted (Decision
+> Register §3.4). Passages below that describe D1 as pending are the record of what these
+> traces said when they were written, and are left as written.
+
 Committed output of `firmware/range-test/`. **These files are the evidence for D1** and
 the input to **W7**'s airtime regeneration.
 

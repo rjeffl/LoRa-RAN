@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.5
+**Version:** 0.6
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.9**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.10**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P7 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-10
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -676,6 +676,18 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.6** — Citation refresh only. Protocol specification **v0.9 → v0.10**. **Nothing in
+  this plan or in `/lib/lran-protocol/` changes**: `ver` stays at `2`, no frame layout,
+  header field, enumeration value, schema or authentication scope moves, and **no W4 vector
+  regenerates**, so §13.2's standing regeneration requirement is not triggered. v0.10 closes
+  **D1** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted — which is radio
+  configuration, and **radio configuration is deliberately outside this library** (root
+  `CLAUDE.md` rule 7: no Arduino header, no `millis()`, time passed in). The one number a
+  caller must now carry is §12.3's **`backoff_max_ms` default of 1500**, raised from 500
+  because a maximum `PING` at SF9 runs 1107 ms; it belongs to the node's media-access loop,
+  not to the codec. **P8 (`CommandGate`, D34) is unaffected and remains the outstanding
+  work.**
 
 - **v0.5** — Citation refresh only. Protocol specification **v0.8 → v0.9**. **Nothing in
   this plan or in `/lib/lran-protocol/` changes, and that is the whole entry**: `ver` stays
