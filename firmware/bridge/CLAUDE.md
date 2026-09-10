@@ -3,19 +3,63 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.2 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7
-(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11**
-(`ver = 2`).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.10 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.15
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.3 (**the `BF-*` task order**).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
-only.
+only. **The antenna is decided and is not a choice to revisit here:** the same 3.0 dBi
+19 cm stick the range test ran on (PRD **R-4.3a.1**). Its gain is a term in D1's EIRP
+arithmetic, not a note about a part.
 
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **MQTT topics, discovery keys and the §14.1 counter names are exact tokens**, and
 they are the interface Home Assistant sees. A topic or counter renamed for readability in
 a document is a topic that no longer matches the spec, which owns both (see **Counter
 names come from spec §14.1** below).
+
+## What exists here today
+
+**`BF-10` only — the skeleton.** `platformio.ini` with `heltec` and `native`
+environments, `src/main.cpp` (banner and a boot check), and one `native` test that proves
+the shared codec links and round-trips *from this project*. **No tasks, no radio, no
+WiFi, no MQTT, no OTA partition table.** Each arrives with its own `BF-*` task; do not
+add one early because it is convenient.
+
+```bash
+pio run  -d firmware/bridge -e heltec    # target build - NEEDS secrets.h
+pio test -d firmware/bridge -e native    # host, no secrets
+```
+
+**`secrets.h` is required to build the target, and it is gitignored.** Copy
+`secrets.h.example` from the repo root and fill it in; the build fails with a message
+naming that step rather than a file-not-found. **The template's `LRAN_MASTER_KEY` is 32
+zero bytes and it compiles**, so `main.cpp` checks at boot and says so loudly on a
+placeholder build — a build that cannot authenticate anything must not look healthy in a
+log. Never commit, echo or log the real values.
+
+**CI does not build this target, by decision (2026-09-10).** This is the first firmware
+here that needs `secrets.h`, and `.github/workflows/ci.yml` says in its own header that
+such a target *"needs a decision about CI, not a secret pasted into a workflow"*. The
+decision taken: **the host tests go in the `native` job, which needs no secrets, and the
+target build stays out of CI while it is a banner.** Neither is wired up yet — the
+workflow edit needs a token scope refresh — so **`pio run -d firmware/bridge -e heltec`
+is checked locally only.** Re-open this when the target does something worth a build
+failure, and say which of the two ran.
+
+## The PHY is fixed — D1, closed 2026-09-10
+
+**917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the 3.0 dBi antenna, under
+§15.249 Envelope A. Protocol Spec §12.1 states them; Decision Register §3.4 records why.
+
+- **`backoff_max_ms` defaults to 1500**, not the 500 older material shows. A maximum
+  `PING` at SF9 runs 1107 ms and a window shorter than the frame cannot outlast it.
+- **PHY parameters are not runtime-configurable** (§12.1). They belong in the injected
+  radio config beside the pin map, never in the HA-visible config set — a node that boots
+  on the wrong channel is a walk to the gate with a laptop.
+- **`cad_backoffs` is the instrument to watch** once frames are moving. M20 sampled
+  125 kHz every 200 kHz, so 37.5 % of the band was never looked at.
 
 ## Three properties that must survive every change
 
@@ -105,8 +149,10 @@ node-originated authenticated type appears, the path must already exist. Status 
 ## Milestones
 
 B2 bring-up and OTA → B3 protocol and registry → B4 MQTT/discovery/policy → B5 HEX proxy →
-B6 GateLink integration → B7 soak. B1a/B1b (range) are independent. B3 depends on simnode
-B0, which depends on protocol library P6.
+B6 GateLink integration → B7 soak. B1a/B1b (range) are done. B3 depends on simnode B0,
+which depends on protocol library **P6 and P8** — P8 (`CommandGate`, D34) is the only
+library work outstanding, and Impl Plan §8 gated B0 on P6 alone until an audit corrected
+it.
 
 **Test the OTA rollback with a deliberately bad image.** An untested rollback is not a
 rollback, and this is the one node where losing it costs the whole property's telemetry.

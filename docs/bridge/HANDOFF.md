@@ -13,11 +13,15 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**Write firmware. `BF-10` through `BF-14` in
-[`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) are unblocked and run in
-parallel** — bridge board bring-up (**B2**), gated only on protocol library **P7**, which is
-met. **`BF-11`, the task structure, is the one to think hardest about**: `lora_task` is
-highest priority and never blocks on the network, and retrofitting that is not a small edit.
+**`BF-11`, the task structure — and it is the one to think hardest about.** `lora_task`
+is highest priority and never blocks on the network, and retrofitting that is not a small
+edit. `BF-12` through `BF-14` in
+[`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) run in parallel with it.
+
+**`BF-10` is done: `firmware/bridge/` exists and builds.** A `heltec` environment, a
+`native` environment with three tests that link the shared codec through this project, and
+a `main.cpp` that boots and prints its binding spec version and D1's working point. **It is
+a skeleton — no tasks, no radio, no WiFi, no MQTT, no OTA partition table.**
 
 **The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two
@@ -199,6 +203,12 @@ record, not a swap to make at the bench.
 ## Open, and not closable from here
 
 - **P8** (`CommandGate`, D34) — the only outstanding library work. **Gates simnode B0.**
+- **The bridge target is not in CI**, and by decision rather than oversight (2026-09-10).
+  It is the first firmware here needing `secrets.h`, which the workflow header says is a
+  decision to take rather than a secret to paste. **Taken: the host tests belong in the
+  `native` job, the target build stays out while it is a banner.** Neither is wired up —
+  the workflow edit needs a token scope refresh — so `pio run -d firmware/bridge -e heltec`
+  **is verified locally only, and `main` being green does not cover it.**
 - **M22** — bridge LoRa PER with WiFi idle versus saturated. The evidence for §4.4's
   deliberate lack of mutual exclusion; **V-B12** is its verification row. Without it the
   asymmetry rests on argument alone.

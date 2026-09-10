@@ -82,6 +82,29 @@ re-run on the old channel produces data that will be distrusted later.
 
 ---
 
+### 1.2 The bridge target is not in CI, and that is a decision
+
+**`firmware/bridge/` is the first firmware in this repo that needs `secrets.h`** — it is
+the only one holding `LRAN_MASTER_KEY`, WiFi and broker credentials (Impl Plan §11.4).
+[`ci.yml`](../../.github/workflows/ci.yml) anticipated this in its own header: *"a target
+that starts needing `secrets.h` needs a decision about CI, not a secret pasted into a
+workflow."*
+
+**The decision, 2026-09-10:** the bridge's **host tests belong in the `native` job**, which
+needs no secrets and would have caught every defect BF-10 hit; the **target build stays out
+of CI** while the target is a banner. **Neither is wired into the workflow yet** — editing
+`.github/workflows/` needs a token scope the operator has to refresh — so today:
+
+```bash
+pio test -d firmware/bridge -e native    # runs in CI: NO. Run it yourself
+pio run  -d firmware/bridge -e heltec    # runs in CI: NO. Needs secrets.h
+```
+
+**`main` being green does not mean this project builds.** Revisit when the target does
+something a build failure would be worth catching — BF-12's WiFi and MQTT is the natural
+point — and if the target build is added then, the workflow copies `secrets.h.example`
+rather than gaining a secret.
+
 ## 2. How to read the model column
 
 The split below is a **delegation heuristic, not a capability claim**. It uses one test,
@@ -154,7 +177,7 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-10** | Project skeleton, `secrets.h.example`, `native` environment, `CLAUDE.md` (§5.4, §11.4) | **Sonnet** | Layout is specified. One rule to honour: **`secrets.h` in `.gitignore` in the first commit, before it exists** |
+| ~~**BF-10**~~ | ~~Project skeleton, `secrets.h.example`, `native` environment, `CLAUDE.md` (§5.4, §11.4)~~ — **done 2026-09-10.** `firmware/bridge/` builds on `heltec` and passes three `native` tests that link the shared codec from this project. `secrets.h` was already gitignored and `secrets.h.example` already written; what this task added is the build that consumes them, and a boot check for the template's all-zero key. **The bridge target is not in CI** — see §1.2 | **Sonnet** | Layout is specified. One rule to honour: **`secrets.h` in `.gitignore` in the first commit, before it exists** |
 | **BF-11** | **Task structure** — the seven tasks of §5.2, priorities, and the never-block rule | **Opus** | *"`lora_task` is highest priority and never blocks on the network"* is the one place a naive "publish inline on receive" quietly loses data. Getting the priorities and queue boundaries right is architecture, and retrofitting them is not a small edit |
 | **BF-12** | WiFi station, reconnect, `MqttTransport` interface over PubSubClient, LWT (§4.3) | **Sonnet** | Well-trodden, and the one trap is written down: **`MQTT_MAX_PACKET_SIZE` ≥ 1024 in the build flags on day one**, or discovery configs vanish with no error |
 | **BF-13** | **OTA — A/B partition table and rollback** (§6.5) | **Opus** | The partition table is a build-time decision that *cannot* be retrofitted without a USB flash, and the bridge is the node whose failure takes the whole property's telemetry. **V-B9** requires a deliberately bad image to roll back |
@@ -236,12 +259,13 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
-| **v0.4** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
+| **v0.9** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
+| **v0.4** | **BF-10 done** — the skeleton builds; §1.2 records why CI does not build it |
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
 
-- **v0.4** — Citation refresh. Protocol specification **v0.10 → v0.11**, which answers §9.4's
+- **v0.9** — Citation refresh. Protocol specification **v0.10 → v0.11**, which answers §9.4's
   check/record window: a retry reaching a node mid-execution is counted and not answered
   (D34 amended 2026-09-11). **Library P8 is built on that basis**, host and target, which
   meets the library dependency simnode **B0** was waiting on. No task's scope or model
@@ -249,6 +273,17 @@ only against the bridge, a cached value republished as current.
   `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
   on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
   v0.16.
+
+- **v0.4** — **BF-10 is done: `firmware/bridge/` exists and builds.** A `heltec`
+  environment, a `native` environment with three tests that link `/lib/lran-protocol/`
+  *through this project*, and a `main.cpp` that boots, prints the binding spec version and
+  D1's working point, and says so loudly when it was built against the template's all-zero
+  key. **New §1.2 records a decision this task forced:** the bridge is the first firmware
+  here needing `secrets.h`, CI's own header says that needs a decision rather than a secret
+  in a workflow, and the decision is that **the host tests belong in the `native` job while
+  the target build stays out of CI for now.** Neither is wired up yet, so the target build
+  is verified locally only — which is the kind of thing that goes unnoticed unless it is
+  written where the next task will be read.
 
 - **v0.3** — **D1 and D33 closed on 2026-09-10, so BF-0 is done and the list starts at
   BF-10.** §1.1 stops arguing that D1 is a decision and states what the firmware inherits
