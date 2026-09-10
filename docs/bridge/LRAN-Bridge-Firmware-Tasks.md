@@ -1,7 +1,7 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.1
+**Version:** 0.2
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.8
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.13
@@ -65,7 +65,9 @@ bound to the rule section — and M6, M20 and M21 have all reported. What remain
 someone choosing SF, BW, CR, frequency and power *in one motion* and recording it in the
 register.
 
-Two results constrain the choice and are easy to lose:
+**The options, the evidence and a recommendation are in
+[`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md).** Two results
+constrain the choice and are the ones easiest to lose:
 
 - **The provisional 915.0 MHz must move.** It is `weather-island`'s own peak at −80 dBm
   against a −115 dBm floor (register §2.2). Envelope A's genuinely uncommitted region is
@@ -118,7 +120,7 @@ Neither task is bridge firmware. Both gate it.
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-0** | **Close D1** — fix SF, BW, CR, frequency and conducted power in one motion; record in the register; regenerate the airtime table (**M19**) | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
+| **BF-0** | **Close D1** — fix SF, BW, CR, frequency and conducted power in one motion; record in the register; regenerate the airtime table (**M19**). **Options and a recommendation:** [`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md) | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
 | **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
 
 **BF-1 gates B0. BF-0 should close before B3** and can run in parallel with everything.
@@ -234,7 +236,14 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.2** — **BF-0 now points at [`LRAN-D1-PHY-Decision-Brief`](../shared/LRAN-D1-PHY-Decision-Brief.md)**,
+  which assembles D1's options and recommends a working point. §1.1 keeps its summary of why
+  D1 is a decision rather than a measurement, because that is the fact which sets this list's
+  order, and defers the parameter argument to the brief rather than restating it in a second
+  place.
 
 - **v0.1** — Initial release. Created because Implementation Plan §8 owns **milestones and
   acceptance criteria** but nothing owned the **task-level breakdown or the order**, and
