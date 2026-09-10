@@ -287,7 +287,7 @@ pin maps are held; do not restate them elsewhere.
 The only physical decision in this node, and **the one with the longest lead time on
 being wrong.**
 
-- GateLink and WellLink are at similar distances (~500 ft) on **different bearings**.
+- GateLink and WellLink are at similar distances — **~87 m and ~100 m**, measured, not the ~500 ft estimated before either was walked to — on **different bearings**.
 - **Favour an omnidirectional antenna in a central, elevated position.** A pattern
   optimized toward the gate buys margin on one link and may put the other in a null.
 - **Range-test both bearings before committing to a location** (**M6**, **V-B1**).
@@ -703,7 +703,7 @@ test that silently ran at bench power has to be repeated.
 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured at ~500 ft **on both the gate bearing and the well bearing**, across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
+| **B1a** | **RF path characterization** | Two Heltec boards, `lran-rangetest` (§11.2) | RSSI and SNR measured **at each node site on both the gate bearing and the well bearing** — **~87 m to the gate and ~100 m to the well**, not the ~500 ft this row guessed before anything was walked (Decision Register §5.1.1), across candidate SF/BW/CR settings. **D1 resolved** with a stated link margin. Bridge antenna type and position chosen and recorded. Airtime table regenerated (**M19**). FCC operating mode question (**W5**) settled before a TX power is fixed. **Margin figure carries an explicit "Heltec radio" caveat until B1b** |
 | **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
 | **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
@@ -1192,7 +1192,7 @@ through the preprocessor has not tested that.
 4. **Field triage.** §9.1 argues that a known-good radio pair lets a link failure be
    bisected into "the path degraded" versus "the node's radio failed." That argument does
    not expire at commissioning; it is *more* valuable in eighteen months, when the
-   alternative is guessing about a node 500 ft away that has been outdoors through two
+   alternative is guessing about a node ~87 m away that has been outdoors through two
    winters.
 5. **Cold spare.** The bridge is the single point of failure for all property telemetry.
    A board already flashed, already on the bench and already known to work is a

@@ -340,9 +340,10 @@ only position in the walk with any `phy_crc_err` — 2 of them, both there. B1b'
 (~3 dB on `(TX − RX)`, ~9 dB round trip) translates the Heltec figure if WellLink ends up on
 a Wio.
 
-**M6's wording overstates one bearing.** The gate is ~500 ft; the well is ~100 m and is
-obstruction-limited rather than distance-limited. A 500 ft walk on that bearing would measure
-a place no node occupies.
+**M6 is CLOSED, 2026-09-09**, and its "~500 ft" retired with it. Both node sites are much
+closer than that guess: **the gate is ~87 m (285 ft)** and **the well ~100 m (330 ft)**, and
+both are obstruction-limited rather than distance-limited. Decision Register **§5.1.1** carries
+the distances and how each is known.
 
 ## D1 — a decision, against data that already exists
 
@@ -652,9 +653,8 @@ The engineering log has the full account; this is the index.
   backoff finding.**
 - **M6** — **both bearings are now answered.** The gate by B1b (2026-09-09, 0 % PER at the
   deployed antenna position); the well by walk P3 (2026-09-04, 2.08 % PER), identified as
-  `welllink-well` on 2026-09-09. **Closure is a call, not a measurement** — M6 says "~500 ft on
-  both bearings" and the well is ~100 m, so the wording overstates one of them while the
-  question behind it is answered. Register §5.1 carries the evidence. Arcsecond GPS still
+  `welllink-well` on 2026-09-09. **CLOSED 2026-09-09**, with its "~500 ft" retired as a guess
+  that predated any walk — the gate is ~87 m and the well ~100 m. Register §5.1.1. Arcsecond GPS still
   cannot support an RSSI-vs-distance curve, so this answers "does it work there", not "what is
   the path loss".
 - **The Wio's TX/RX split** — **measured for the first time by B1b's A/B**: TX ≈ −6.0 dB and

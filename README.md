@@ -4,7 +4,7 @@ A property-wide 915 MHz LoRa network linking Home Assistant to remote, solar-pow
 automation nodes that sit outside practical WiFi range. A mains-powered bridge in the
 house speaks LoRa to the nodes and MQTT to Home Assistant.
 
-The first node is **GateLink**, a driveway gate operator about 500 ft from the house.
+The first node is **GateLink**, a driveway gate operator about **87 m (285 ft)** from the house.
 Home Assistant opens and closes the gate, holds it open, reads gate and solar state,
 reads and writes charge-controller configuration, and classifies vehicle traffic through
 the gate. **WellLink**, a shallow-well level monitor, is planned; the network was

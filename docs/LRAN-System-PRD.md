@@ -249,7 +249,7 @@ Detail: [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) ·
 
 ### 4.2 GateLink (`0x01`)
 
-A remote node roughly **500 ft** from the house, inside the existing gate controller
+A remote node roughly **87 m (285 ft)** from the house, inside the existing gate controller
 enclosure. An **M5Stack StamPLC** with an external **SX1262** radio on a carrier board.
 
 - Interfaces to a Nice/Apollo **1050** control board through its **documented accessory
@@ -271,7 +271,7 @@ bearing** — which is a system-level constraint on bridge antenna siting (§5.1
 
 | Attribute | Status |
 |---|---|
-| Distance / bearing | ~500 ft, different direction from GateLink |
+| Distance / bearing | **~100 m (330 ft)**, different direction from GateLink |
 | Power | **TBD** (**D19**) — mains is possible; battery/solar must remain viable |
 | Function | Well level monitoring. Possible expansion later |
 | Reporting | Fixed-interval poll/push, **plus** an event push on rapid level change |
@@ -420,7 +420,7 @@ triggers for reconsidering a LoRa/BLE co-processor.
 
 ### 7.3 RF range and bearing characterization — **system level**
 
-**Question:** what SF/BW/CR/TX power does a ~500 ft link need, on **both** the gate
+**Question:** what SF/BW/CR/TX power does an **~87–100 m** link need, on **both** the gate
 bearing and the well bearing, and where does the bridge antenna go?
 
 **Deliberately host-independent.** Two Heltec V3 boards characterize the PHY faster

@@ -35,7 +35,7 @@
 
 ### 1.1 What GateLink is
 
-A remote LRAN node roughly **500 ft** from the house, controlling and monitoring a
+A remote LRAN node roughly **87 m (285 ft)** from the house, controlling and monitoring a
 solar-powered driveway gate installation. It presents the gate to Home Assistant as a
 `cover` with a hold-open mode, reports gate and solar and battery state, transports
 charge-controller configuration in both directions, and detects and classifies vehicle
@@ -607,7 +607,7 @@ steel gate-controller enclosure  (outdoors, at the gate)
 
 - **R-5.3a. Every timing interval, window, threshold and debounce value GateLink uses
   SHALL be changeable at runtime, from HA, without reflashing** (G-13). GateLink has no
-  OTA, it is 500 ft away, and reflashing means a laptop and a walk.
+  OTA, it is ~87 m away, and reflashing means a laptop and a walk.
 - **R-5.3b.** Configuration SHALL be carried by an **authenticated** frame pair. A
   parameter that changes how the gate is driven is a command.
 - **R-5.3c.** Three layers: **defaults compiled into firmware**, **overrides on
@@ -947,7 +947,7 @@ implementation plan.*
   **without a functioning gate installation**, using the §5.4 tooling — input injection,
   dry-run, loopback, dummy status, and simulated peripherals.
 
-> This is not a convenience. Development that requires a 500 ft walk and a moving gate
+> This is not a convenience. Development that requires an ~87 m walk and a moving gate
 > for every iteration will not get the iteration count it needs.
 
 ---

@@ -841,7 +841,7 @@ Three gates, each of which makes the next stage safe:
 
 Every verification except V-2, V-7 and V-11 must be reachable **without a functioning gate
 installation**, using injection, dry-run, loopback, dummy status and simulated peripherals
-(**R-9.3a**). Development that requires a 500 ft walk and a moving gate for every
+(**R-9.3a**). Development that requires an ~87 m walk and a moving gate for every
 iteration will not get the iteration count it needs.
 
 ### 7.4 Controller bring-up procedure

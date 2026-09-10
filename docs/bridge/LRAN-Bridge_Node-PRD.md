@@ -54,7 +54,7 @@ likely to change after the remote nodes are sealed into their enclosures, lives 
 - link diagnostics and protocol version skew reporting.
 
 > **The single test behind all of it:** *does changing this require a physical visit to a
-> node?* If yes, it belongs on the bridge. GateLink is 500 ft away with no OTA; the
+> node?* If yes, it belongs on the bridge. GateLink is ~87 m away with no OTA; the
 > bridge is in the house on the LAN. Every allocation of responsibility in this document
 > follows from that asymmetry.
 
@@ -346,7 +346,7 @@ publish and when** (Protocol Spec §16.4).
 
 > **The asymmetry is deliberate** (**D16**). The bridge is on the LAN, mains powered,
 > physically accessible, and the node whose firmware changes most often. Remote nodes are
-> 500 ft away, a bad flash is a walk with a laptop, and there is no second radio path to
+> ~87 m away, a bad flash is a walk with a laptop, and there is no second radio path to
 > recover through. **The bridge gets OTA precisely because it can afford to fail at it.**
 
 ### 5.4 Debug and bench tooling requirements
@@ -374,7 +374,7 @@ publish and when** (Protocol Spec §16.4).
   count of nodes currently online.
 
 > **Silent discards are the enemy of field debugging.** The counters are how a marginal
-> link is distinguished from a firmware bug when the node is 500 ft away in the rain, and
+> link is distinguished from a firmware bug when the node is ~87 m away in the rain, and
 > they are worth nothing if they stay inside the bridge.
 
 ---
@@ -435,7 +435,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 
 | # | Must be proven | Why it is not optional |
 |---|---|---|
-| **V-B1** | **Range and RSSI at ~500 ft on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged. **Partly done:** the 2026-09-04 walk closed at six positions to 106 m on the gate bearing at the −4 dBm ceiling; the last ~46 m and the second bearing are outstanding (**M6**, **B1b**) |
+| **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Deliberately host-independent** — two Heltec boards characterize the PHY faster than waiting on GateLink's carrier, and the result transfers unchanged. **Both bearings measured; M6 closed 2026-09-09.** The gate is **~87 m** and closed 0 % PER on the deployed pairing (**B1b**, 2026-09-09, within 6 in of the final antenna position); the well is **~100 m** and closed 2.08 % PER (2026-09-04 walk P3, identified as `welllink-well` on 2026-09-09). **The "~500 ft" this row asked for was a guess predating any walk** — Decision Register §5.1.1. **Still outstanding: D1 itself, and the bridge antenna choice** |
 | **V-B2** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
 | **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
