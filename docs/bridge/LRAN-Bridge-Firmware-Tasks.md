@@ -1,12 +1,12 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.8
+**Version:** 0.9
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.10
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.19
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.20
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.6
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-11
 
@@ -52,7 +52,7 @@ pio test -d lib/lran-protocol -e native
 | Item | State |
 |---|---|
 | `/lib/lran-protocol/` **P1–P7** | Met, against specification v0.6 — 107 host tests, 110 on target, 72 W4 vectors |
-| `/lib/lran-protocol/` **P8** (`CommandGate`, D34) | **Outstanding.** The only library work between here and simnode B0 |
+| `/lib/lran-protocol/` **P8** (`CommandGate`, D34) | **Met 2026-09-11**, on D34 as amended — 127 host tests, 130 on target. No library work stands between here and simnode B0 |
 | Range test **pass 1 and pass 2** | Complete. **B1a and B1b are done** — the gate closed 0 % PER at the D33 ceiling on the deployed pairing |
 | **M6** (both bearings), **M20** (ambient survey), **M21** (grant conditions) | **Closed** |
 | **D1** (SF / BW / CR / TX power / frequency) | **Closed 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted. **D33 closed with it**, on Envelope A |
@@ -150,9 +150,9 @@ Neither task is bridge firmware. Both gate it.
 | # | Task | Model | Why |
 |---|---|---|---|
 | ~~**BF-0**~~ | ~~**Close D1**~~ — **done 2026-09-10.** SF9 / BW125 / CR 4/5 / 917.4 MHz / −4 dBm conducted, recorded in Decision Register §3.4 and stated in Protocol Spec v0.10 §12.1. **M19 done and W7 closed** — §15.1's table was already on this basis and needed confirming rather than recomputing | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
-| **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer. **Read [`LRAN-P8-CommandGate-Brief`](../shared/LRAN-P8-CommandGate-Brief.md) first** — the library plan's API as written double-executes a retry on an asynchronous receiver, and five decisions are open | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
+| ~~**BF-1**~~ | ~~**`CommandGate`**~~ — **done 2026-09-11**, library milestone **P8** on D34 as amended (Decision Register §3.2.1). The mark advances in `check()`; a retry inside the execution window is `InFlight` and gets no answer. The superseded [`LRAN-P8-CommandGate-Brief`](../shared/LRAN-P8-CommandGate-Brief.md) keeps the reasoning | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
 
-**BF-1 gates B0. BF-0 should close before B3** and can run in parallel with everything.
+**Both are done.** BF-1 was the last library gate on B0; BF-0 closed D1 ahead of B3.
 
 ---
 
@@ -283,8 +283,10 @@ only against the bridge, a cached value republished as current.
   meets the library dependency simnode **B0** was waiting on. No task's scope or model
   column changes. **For whoever writes the simnode's command path:** call
   `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
-  on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
-  v0.16.
+  on `InFlight`, send nothing. **BF-1 is marked done** and §1's P8 row reads met. This
+  document inherits Bridge PRD v0.11 and Bridge Impl Plan v0.20. *Numbered v0.9 because
+  B2's rebase onto the P8 merge placed it after BF-10 to BF-14's v0.4–v0.8; it was written
+  as v0.4 on the P8 branch.*
 
 - **v0.8** — **BF-14 is built, and with it B2's code is complete.** The OLED status page
   R-4.1c asks for: a host-tested model of what the page says, a thin renderer, and two

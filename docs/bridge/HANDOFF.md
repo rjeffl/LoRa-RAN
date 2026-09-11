@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-10, at the end of the session that closed D1 and D33 and settled the
-bridge antenna.** It replaces the
-earlier 2026-09-10 file — written after the document audit, the `LoRaBridge` retirement and
-the firmware task list — wholesale.
+**Rewritten 2026-09-11, after library milestone P8 merged and B2's branch was rebased onto
+it.** The 2026-09-10 file it replaces was written at the end of the session that built
+bridge tasks BF-10 to BF-14 — B2's code — and found that P8 could not be built as
+specified. Everything about B2 below is carried over from it; what changed is P8.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -13,118 +13,99 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**B2's code is complete; what is left is one bench session, and it needs the sandbox
-MQTT broker running.** Only a broker, not Home Assistant — HA is needed from B4. With it
-up and `secrets.h` filled in on the build machine, one session on the flat-case Heltec
-checks every B2 criterion in Impl Plan §8 that code alone cannot: WiFi connects and
-reconnects, MQTT connects with the LWT registered, the version is published, the OLED shows
-its page, and **V-B9** — Impl Plan **§6.5.2**, five steps. **Stop at V-B9's step 2 if the
-banner's `Image state:` reads `not_pending`** on the first boot after an upload.
+**Read this file on the B2 milestone branch, not on `main`.** B2's pull request is held as a
+draft until its bench session passes, so `main`'s copy of this file is a session old. `gh pr
+list --state open` shows it; check out its branch first.
 
-**Credentials are the operator's to enter, and the OTA uploads are the operator's to run**
-— `LRAN_OTA_PASSWORD` stays out of any command an assistant writes. The USB flash, the
-serial log and the write-up can be delegated.
+**P8 is done** (task **BF-1**), so simnode **B0** has no library gate left. **Three jobs are
+open:**
 
-**BF-16 (`lora_link.cpp`) opens B3, not B2.** It needs neither the broker nor the bench to
-start, so it is the natural next task while the broker is down — but B3 also needs simnode
-**B0**, which is gated on library **P8**.
-
-**`BF-10` to `BF-14` are built.** `firmware/bridge/` builds on `heltec` and its host suite
-runs in CI — the workflow copies `secrets.h.example` for the target build, so nothing
-secret is in it (Bridge Firmware Tasks §1.2).
-
-- Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off the
-  WiFi core, `log` strictly lowest, queues that **drop the newest item and count it**.
-  Impl Plan **§5.2.1**.
-- WiFi with a **capped, deterministic reconnect**; the `MqttTransport` seam (**D5**); **LWT
-  on `lran/bridge/availability`**. Impl Plan **§4.3.1**.
-- **OTA with a committed A/B table and a rollback verdict that replaces Arduino's**, which
-  marks every image valid before `setup()`. The override is `extern "C"` and CI checks the
-  symbol table. Impl Plan **§6.5.1**.
-- **An OLED page that never stops the bridge when the panel is dead**, reads `--` for what
-  is not yet known, and is designed against burn-in. Impl Plan **§5.1.2**.
-
-**None of the runtime behaviour is proven.** Nothing has been flashed as the bridge. No
-reconnect has reconnected, no LWT has landed, no image has been OTA'd, the page has not
-been looked at, and **V-B9 is not met.**
-
-**The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
-CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two
-things that reach code — **`backoff_max_ms` defaults to 1500**, not 500, and **the PHY
-parameters go in the injected radio config beside the pin map**, never in the HA-visible
-configuration set (Protocol Spec §12.1).
-
-**Simnode B0 is blocked** on library milestone **P8** (`CommandGate`, D34), which is the
-only library work outstanding — and the only remaining alternative to board bring-up.
+1. **The B2 bench session, once the sandbox broker is up.** Only a broker — not Home
+   Assistant, which is needed from B4. One session on the flat-case Heltec checks every B2
+   criterion in Impl Plan §8 that code cannot: WiFi connects and reconnects, MQTT with the
+   LWT registered, version published, **the OLED page**, and **V-B9** — Impl Plan
+   **§6.5.2**, five steps. **Stop at V-B9's step 2 if the banner's `Image state:` reads
+   `not_pending`** on the first boot after an upload. **The operator fills `secrets.h` and
+   runs the three OTA uploads**; `LRAN_OTA_PASSWORD` stays out of any command an assistant
+   writes. The USB flash, the serial log and the write-up can be delegated.
+   **`secrets.h` on the macOS build machine was filled in by the operator on 2026-09-11**,
+   uncommitted and gitignored; do not read it into a command or a log.
+2. **Simnode B0** — unblocked by P8. The simnode's command path calls
+   `CommandGate::check()` before dispatch and sends the `COMMAND_ACK` only after
+   `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11, Bridge Firmware Tasks
+   v0.9). Needs a second board.
+3. **BF-16 (`lora_link.cpp`)** — opens **B3**, not B2, on its own branch. Needs neither the
+   broker nor the bench to start, but B3 cannot finish without B0.
 
 ## What the last session established
 
-**No firmware was written, and no measurement was taken. D1 and D33 were closed on the
-evidence already in hand**, on the operator's agreement with the decision brief's
-recommendation, unchanged.
+**B2's code is complete: tasks BF-10 to BF-14 are built**, host-tested and in CI. **None of
+it has run on a board.** D1 and D33 closed earlier the same day; see *Closed*.
 
-- **The parameters: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted
-  3.0 dBi antenna. Decision Register **§3.4** is the record and the only place the status
-  lives.
-- **`BW` and the rule section are one decision**, so **D33 closed in the same motion**, on
-  Envelope A. Envelope B is untouched and stays a fallback behind three triggers; triggering
-  it reopens **D28** as well.
-- **SF9 rather than SF7 was the only contested knob**, and it was decided on the cost of
-  being wrong rather than on the measurements, which point both ways. W9 wants SF7 and keeps
-  §12.3's defaults valid; B1b's worst single SF7 probe at the gate reached **2.2 dB of
-  margin**. **SF9's cost is a runtime-configurable number; SF7's risk is a USB reflash at a
-  gate with no OTA.**
-- **`backoff_max_ms` rises 500 → 1500**, above SF9's 1107 ms full-frame airtime. It is the
-  one configuration change SF9 forces, and the reason SF9 was affordable.
-- **M19 done, W7 closed** — §15.1's airtime table was already computed at BW125 / CR 4/5, so
-  it needed confirming rather than recomputing. Its basis is now written down, which it was
-  not.
-- **Protocol Spec v0.10** carries §12.1, §12.3 and §15.1, and renames §5.3's `0x00` gloss to
-  **Bridge Node** — the one item D17 deferred to the next substantive revision. **Nothing on
-  the wire moved:** `ver` stays at `2` and no W4 vector regenerates.
-- **The bridge antenna is decided: the 3.0 dBi 19 cm stick the range test ran on**
-  (Bridge PRD **R-4.3a.1**). It is not a new selection — B1a and B1b measured through that
-  part at both ends, and D1's −4 dBm conducted ceiling is computed against its gain, so
-  **swapping it invalidates the measurements and the compliance arithmetic together.**
-  **V-B1's remaining gap is the bridge's position**, not the antenna.
+- **The bridge is in CI, and CI still holds no secret.** The bridge is the first target
+  needing `secrets.h`; the workflow copies the committed template, whose all-zero
+  `LRAN_MASTER_KEY` `main.cpp` reports loudly at boot. Bridge Firmware Tasks **§1.2**.
+- **Task structure, Impl Plan §5.2.1.** Seven statically allocated tasks; `lora` strictly
+  highest and pinned off the WiFi core; queues **drop the newest item and count it**.
+  **Root rule 4 is not stretched to a queue overflow** — a frame dropped there has passed
+  the whole §14 ladder and has no stage; per-queue counters honour the rule's substance.
+  `tools/checks/lora_task_never_blocks.py` makes the never-block rule falsifiable.
+- **Network, Impl Plan §4.3.1.** Capped, deterministic reconnect; boot waits for no network;
+  **spec §16.3's never-retain-an-event rule is enforced twice on the publish path**; LWT on
+  `lran/bridge/availability`.
+- **OTA, Impl Plan §6.5.1.** **Arduino-ESP32 2.0.17 marks every image valid before
+  `setup()` runs**, which would have kept an image that never finds the LAN — the one image
+  this bridge could not be OTA'd back from. `ota.cpp` overrides the core's
+  `verifyRollbackLater()`; **the override must be `extern "C"`**, and CI checks the linked
+  symbol because a C++ definition links cleanly and overrides nothing.
+- **OLED, Impl Plan §5.1.2.** A dead panel never stops the bridge; unknown reads `--`;
+  burn-in is designed against. Host budget tests caught two overruns and a **`millis()`
+  wrap** that would have shown a phantom reboot every seven weeks.
+- **P8 landed 2026-09-11, on D34 as amended** (Decision Register §3.2.1). `check()`
+  advances the `seq` high-water mark before dispatch; a retry inside the execution window
+  is counted and gets no answer. Spec **v0.11** carries it with no wire change. The bridge
+  sees silence there, which takes Impl Plan §6.2's existing `no ACK` path.
+- **One specification gap, recorded, not closed:** §16.2 names `lran/bridge/version` but
+  not its payload (engineering log, BF-13 entry). §9.4/§10.4's execution window, the other
+  gap, closed in v0.11.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **§3.4** | what D1 fixed and why, including the SF tie-break. The brief it came from is **superseded** and is kept only as the account of how the choice was framed |
-| 3 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | what to build, in what order, and which tasks suit which model |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **owns milestones B0–B7 and their acceptance criteria.** §5.2 task structure and §6 implementation specifics before writing any firmware |
-| 5 | [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) | the requirements the plan implements. §8's `V-B*` rows are what a milestone is checked against |
-| 6 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **the only place a decision's status is recorded.** §2 for what is open |
-| 7 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §12, §14, §16 | radio config, the discard ladder and counter registry, MQTT topic grammar. **§18.2, never §18.1 alone** |
-| 8 | root [`CLAUDE.md`](../../CLAUDE.md) | the nine rules that bind everywhere. Rule 2 and rule 10 are the ones this node can break expensively |
+| 2 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) §3.2.1 | D34's amendment — what the simnode's command path must do with `InFlight`. The superseded [P8 brief](../shared/LRAN-P8-CommandGate-Brief.md) keeps the reasoning |
+| 3 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-10 entries, one per task — the reasoning that is not a number |
+| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | what to build, in what order, which model; **§1.2** for the CI decision |
+| 5 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **owns B0–B7 and their acceptance criteria (§8).** §4.3.1, §5.1.2, §5.2.1 and §6.5.1 record what BF-11 to BF-14 fixed; **§6.5.2 is the V-B9 procedure** |
+| 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and the two OTA details that break silently |
+| 7 | [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) | the requirements; §8's `V-B*` rows are what a milestone is checked against |
+| 8 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **the only place a decision's status is recorded.** §3.2 for D34, §3.4 for D1 |
+| 9 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9.4, §10.4, §12, §14, §16 | replay and dedup, radio, the discard ladder, MQTT. **§18.2, never §18.1 alone** |
+| 10 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere. Rule 2 is the one P8 exists for |
 
 ## Where things stand
 
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P7**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**. **M6**, **M20**, **M21**, **M19**. **D1**, **D33** |
-| Queue | **B2** board bring-up (`BF-10`–`BF-14`), unblocked now. Library **P8**, which gates **B0**. **B3** after both |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. Bridge **BF-10 to BF-14 built** — B2's code |
+| Not done | **B2 acceptance** — every criterion but the partition table needs the bench, and **V-B9** among them. **BF-11a**, **BF-11b** split out |
+| Queue | The **B2 bench session** when the broker is up. Simnode **B0**, now unblocked. **BF-16** → B3 |
 
 ```bash
-pio test -d lib/lran-protocol -e native       # host Unity suite
-pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
-python3 tools/vectors/check.py                # W4 vectors, self-check
-python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
-pio test -d firmware/range-test -e native     # range test host suite
-pio run  -d firmware/range-test -e heltec     # Heltec V3 target build
-pio run  -d firmware/range-test -e xiao       # XIAO + Wio-SX1262 Kit target build
-python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned RadioLib
+pio test -d lib/lran-protocol -e native         # library host suite
+pio test -d lib/lran-protocol -e esp32s3        # same suite on a Heltec over USB - P7 and P8 ran it
+python3 tools/vectors/check.py                  # W4 vectors, self-check
+python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
+pio test -d firmware/bridge -e native           # bridge host suite, no secrets
+pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h
+python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
+python3 tools/checks/bridge_partitions.py        # A/B table; add --firmware/--elf after a build
 ```
 
-**CI runs these on every push and pull request.** Run them locally when you are about to
-spend bench time on the result; otherwise a green run already answers it.
-
-**`firmware/bridge/` and `firmware/simnode/` do not exist yet.** Only their `CLAUDE.md`
-context files are written. Nothing in this node builds today.
+**CI runs all of these except the on-target suite**, on every pull request, and builds both
+V-B9 bad images. Run them locally when you are about to spend bench time on the result.
 
 ## Git state — ask git, do not read it here
 
@@ -142,13 +123,17 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 **Run `git fetch` before trusting any of it.** Two machines push to this repository.
 
-**Permanent history is citable; moving state is not.** Two commits worth reading in order
-for how this node's documents reached their current state: `4250e00` (six document defects,
-including the duplicate `V-B2` and the B0-on-P8 gate) and `ebdcf0d` (the `LoRaBridge`
-retirement and the D33 bench-power reconciliation).
+**Permanent history is citable; moving state is not.** For the documents: `4250e00` (six
+defects, including the duplicate `V-B2` and the B0-on-P8 gate) and `ebdcf0d` (the
+`LoRaBridge` retirement and the D33 bench-power reconciliation), and `8253085` (**P8**, with
+D34's amendment and spec v0.11). **For B2's code, one commit per task, each message carrying
+its reasoning** — `git log --oneline origin/main..origin/b2-board-bringup` lists them. They
+are not cited by SHA here: the branch was rebased onto P8 on 2026-09-11, which rewrote every
+one, and it is not permanent history until it merges.
 
-**A push touching `.github/workflows/` fails without workflow token scope.** The refusal
-names the scope; the operator has to refresh auth, and no amount of retrying helps.
+**A push touching `.github/workflows/` needs workflow token scope.** Refused on 2026-09-08,
+accepted on 2026-09-10 from the macOS machine — so try the push. If it is refused, the
+refusal names the scope and the operator refreshes auth; retrying does not help.
 
 **Merging a stack: never pass `--delete-branch`.** Deleting a base branch **closes** the PR
 stacked on it rather than retargeting it, and a closed PR's base cannot be changed while its
@@ -163,7 +148,7 @@ range-test handoff owns them in its own roles and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `range-test` / `heltec`. Never a bridge build | Range-test settings and position log. Nothing this node needs | Was B1b's tethered initiator at the bridge's target location. Powered down |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `range-test` / `heltec`, a **pass-2 build whose banner cites spec v0.8** (read off the port 2026-09-10). Never a bridge build | Range-test settings and position log. Nothing this node needs | On USB to the macOS build machine as `/dev/cu.usbserial-0001`, 2026-09-10. **Boots `INITIATOR` by default, which transmits on 915.0 MHz** |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `range-test` / `heltec`. Never a simnode build | **Whether its stored survey campaign was erased is not recorded** — see the range-test handoff. Irrelevant to this node | Went to the gate for B1b. Powered down |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module, not a Heltec | `range-test` / `xiao`. Never a simnode build | B1b position log, dumped and committed | Was B1b's walking responder. Powered down |
 
@@ -179,6 +164,16 @@ backup**, and none of it is input to this node's work.
 carries no bridge firmware and nothing reserves it, so say so before reflashing it for
 something else.
 
+**`secrets.h` on the macOS build machine was filled in by the operator on 2026-09-11.** It is
+gitignored and uncommitted; never read it into a command, a log or a commit. CI still builds
+against the committed template, whose placeholder key `main.cpp` reports at every boot.
+
+**One Heltec was flashed with P8's Unity test image on 2026-09-11** — the only CP2102 on
+the macOS machine that day. **Which one is not recorded**: `board=` was not read off a
+settings dump first, and the handoff expected the flat-case unit on that port. Whichever it
+was no longer carries the range-test pass-2 build in the table below, which predates that
+run.
+
 **Its antenna stays on it.** The bridge uses the same 3.0 dBi 19 cm stick these boards ran
 the range test with (Bridge PRD **R-4.3a.1**) — the sticks are interchangeable as parts, but
 **the gain is a term in D1's EIRP arithmetic**, so a different antenna is a decision to
@@ -188,9 +183,8 @@ record, not a swap to make at the bench.
 
 - **`LoRaBridge` is retired in favour of `Bridge Node`, 2026-09-10** (**D17** amended).
   `lran-bridge` remains the firmware target and **"LoRa Bridge" remains the HA device
-  name**. **Protocol Spec §5.3 still glosses node `0x00` as `(LoRaBridge)`** — deliberately,
-  deferred to the next substantive specification revision rather than restaking 22 binding
-  citations for a name gloss.
+  name**. **Protocol Spec §5.3's `0x00` gloss was renamed in v0.10**, the substantive
+  revision D17 had deferred it to; a spec revision before v0.10 still reads `(LoRaBridge)`.
 - **The PHY parameters are stated rather than deferred, 2026-09-10.** A document revision
   citing Protocol Spec v0.9 or earlier reads §12.1 as "per D1" and §12.3's `backoff_max_ms`
   as 500. Both are current for when they were written; **v0.10 is where the numbers are**.
@@ -221,26 +215,39 @@ record, not a swap to make at the bench.
 - **A retained discovery config survives a bridge reflash** and re-registers the bad entity
   on the next HA restart. `mosquitto_sub -t 'homeassistant/#' -v --retained-only` and a
   retained-clear pass should be routine during B4.
+- **Opening the serial port can press PRG.** GPIO 0 is both the PRG button and IO0, driven
+  by the CP2102's DTR, and `serial.Serial(port, …)` asserts DTR as it opens. **Construct
+  the port unopened and set `dtr = False` before opening** — setting it afterwards is too
+  late (range-test `CLAUDE.md`). A 2026-09-10 read of the bridge board did it the wrong way;
+  harmless in `INITIATOR`, a stored bogus survey run in `SURVEY`.
+- **A C++ `verifyRollbackLater()` links cleanly and does nothing.** Arduino's weak default
+  is in a C file with no header, so the override must be `extern "C"`. Without it every OTA
+  image is kept. `bridge_partitions.py --elf` is the check.
+- **CI's firmware job takes about seven minutes**, half of it the two V-B9 bad images. That
+  is the price of the test harness not rotting between runs; drop them if speed matters
+  more.
 - **`begin()` succeeding proves nothing about a radio pin map.** A wrong `rf_sw`
   initialises just as cleanly and transmits into a dead end. Only frames out and echoes back
   prove it.
 
 ## Open, and not closable from here
 
-- **P8** (`CommandGate`, D34) — the only outstanding library work. **Gates simnode B0.**
-- **The bridge target is not in CI**, and by decision rather than oversight (2026-09-10).
-  It is the first firmware here needing `secrets.h`, which the workflow header says is a
-  decision to take rather than a secret to paste. **Taken: the host tests belong in the
-  `native` job, the target build stays out while it is a banner.** Neither is wired up —
-  the workflow edit needs a token scope refresh — so `pio run -d firmware/bridge -e heltec`
-  **is verified locally only, and `main` being green does not cover it.**
+- **B2 acceptance, and V-B9 within it** — code complete, bench owed, **blocked on the
+  sandbox broker**.
+- **BF-11a** (log queue drain) and **BF-11b** (hardware watchdog from `sched_task`) — split
+  out of BF-11, named by `TODO`s in the code.
+- **Specification gap for the next revision:** §16.2's `lran/bridge/version` payload.
+- **What GateLink's `COMMAND_ACK` waits for** — pulse complete, or gate confirmed. Sets how
+  often P8's window is hit, and GateLink **M3** needs the answer. GateLink Impl Plan §5.2
+  flags it; D34's amendment left it open deliberately.
 - **M22** — bridge LoRa PER with WiFi idle versus saturated. The evidence for §4.4's
-  deliberate lack of mutual exclusion; **V-B12** is its verification row. Without it the
-  asymmetry rests on argument alone.
-- **Protocol Spec §5.3's `(LoRaBridge)` gloss** — deferred by choice, recorded in **D17**.
+  deliberate lack of mutual exclusion; **V-B12** is its verification row. `lora` is pinned
+  off the WiFi core as one lever if it fails.
 - **GateLink M0's LDO margin above the operating point** — the rail is sized for Envelope
   B's 19.6 dBm but will be tested only at −4 dBm. M0 says to re-run if Envelope B is ever
   triggered.
+- **The range-test firmware still transmits on the provisional 915.0 MHz**, `weather-island`'s
+  peak. Not urgent; a re-run on that channel produces data that will be distrusted.
 
 ### Closed, and not to be reopened by habit
 

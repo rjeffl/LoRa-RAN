@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.10 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.19
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.8 (**the `BF-*` task order**).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.20
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.9 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -202,9 +202,8 @@ node-originated authenticated type appears, the path must already exist. Status 
 
 B2 bring-up and OTA → B3 protocol and registry → B4 MQTT/discovery/policy → B5 HEX proxy →
 B6 GateLink integration → B7 soak. B1a/B1b (range) are done. B3 depends on simnode B0,
-which depends on protocol library **P6 and P8** — P8 (`CommandGate`, D34) is the only
-library work outstanding, and Impl Plan §8 gated B0 on P6 alone until an audit corrected
-it.
+which depends on protocol library **P6 and P8** — both met; P8 (`CommandGate`, D34) landed
+2026-09-11. Impl Plan §8 gated B0 on P6 alone until an audit corrected it.
 
 **Test the OTA rollback with a deliberately bad image.** An untested rollback is not a
 rollback, and this is the one node where losing it costs the whole property's telemetry.

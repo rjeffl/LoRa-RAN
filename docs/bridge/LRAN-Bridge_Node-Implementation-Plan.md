@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.19
+**Version:** 0.20
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1632,7 +1632,10 @@ that drifts is the one that gets followed.
   branch** — silence already takes the `no ACK` path — and gains a paragraph on the one
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
-  one. Nothing on the wire moved; `ver` stays `2`.
+  one. Nothing on the wire moved; `ver` stays `2`. The bridge firmware's banner and
+  `platformio.ini` header cite v0.11 with it. *Numbered v0.20 because B2's rebase onto the
+  P8 merge placed it after BF-11 to BF-14's v0.16–v0.19; it was written as v0.16 on the P8
+  branch.*
 
 - **v0.19** — **§5.1.1's driver choice gains its configuration, in new §5.1.2.** BF-14
   built the OLED status page R-4.1c asks for, and three of its choices are worth a reader's
