@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "mqtt_transport.h"
 #include "queues.h"
 #include "tasks.h"
 
@@ -30,13 +31,23 @@ bool start_tasks();
 bool send_rx(const RxMessage& msg);
 bool send_tx(const TxMessage& msg);
 
-// Publication and logging carry their own payload types, which BF-12 and BF-24
-// define. The queues exist now because their DEPTHS and their drop accounting are
-// part of the task structure, and retrofitting a queue boundary is the edit this
-// task exists to avoid.
+// Queue a publication for mqtt_task. Build the message with make_publish(), which
+// refuses an oversized payload and a retained event topic (spec 16.3).
 //
-// TODO(BF-12): PublishMessage, and mqtt_task's consumption of it.
-// TODO(BF-24): the publication policy that decides what reaches that queue.
+// TODO(BF-24): the publication policy that decides what reaches this queue.
+bool send_publish(const PublishMessage& msg);
+
+// Start WiFi and the broker client. Called from setup() with the values from
+// secrets.h, which main.cpp is the only translation unit to see.
+//
+// Neither connects here: association and the broker handshake happen in mqtt_task,
+// on the backoff in net_policy.h. Boot does not wait for a network.
+bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_host,
+               uint16_t mqtt_port, const char* mqtt_user, const char* mqtt_password);
+
+// The transport, behind its seam. For diagnostics and for the tasks that publish;
+// nothing outside task_runtime.cpp should know which implementation D5 chose.
+MqttTransport& mqtt();
 
 // Whether lora_task is idle. ota_task defers until it is (R-5.3d).
 //

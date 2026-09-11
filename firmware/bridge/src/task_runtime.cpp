@@ -16,6 +16,11 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include "mqtt_pubsub.h"
+#include "mqtt_transport.h"
+#include "net_policy.h"
+#include "wifi_link.h"
+
 namespace bridge {
 namespace {
 
@@ -37,12 +42,17 @@ uint8_t      g_tx_storage[queue_storage_bytes(kTxQueueDepth, sizeof(TxMessage))]
 StaticQueue_t g_tx_queue_buf;
 QueueHandle_t g_tx_queue = nullptr;
 
-// The publish and log queues carry types BF-12 and BF-24 define. Their handles and
-// depths live here from the start so the boundaries are fixed now; the storage
-// arrives with the message type.
-//
-// TODO(BF-12): g_publish_queue, kPublishQueueDepth slots of PublishMessage.
+uint8_t      g_publish_storage[queue_storage_bytes(kPublishQueueDepth,
+                                                  sizeof(PublishMessage))];
+StaticQueue_t g_publish_queue_buf;
+QueueHandle_t g_publish_queue = nullptr;
+
 // TODO(BF-11a): g_log_queue - log_task drains it; until then log_task ticks idle.
+
+// The transport, static like everything else here (root rule 3). The seam is
+// MqttTransport; this is the only line in the firmware that names PubSubClient's
+// implementation, which is what makes D5's designated fallback a one-line swap.
+PubSubTransport g_mqtt;
 
 QueueAccounting g_accounting;
 
@@ -103,14 +113,78 @@ void sched_task(void*) {
   }
 }
 
+// Everything queued, in one pass, while the broker holds. Stops on the first failed
+// publish and leaves the rest queued: a broker that refused one message is about to
+// refuse the next, and draining into a dead socket turns a reconnect into a data loss.
+//
+// THE MESSAGE IS LOST ON A FAILED PUBLISH. It has already been dequeued, and
+// re-queueing it would reorder it behind newer state for the same entity. Counted,
+// not silent - see queues.h on root rule 4.
+void drain_publish_queue() {
+  PublishMessage msg;
+  while (xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
+    if (!g_mqtt.publish(msg)) {
+      g_accounting.record_dropped(QueueId::Publish);
+      return;
+    }
+  }
+}
+
+// Published on every broker connect, not only the first. A broker restart loses
+// retained state unless it was persisted, and the bridge is the only thing that can
+// put its own availability back (spec 16.5).
+void on_mqtt_connected() {
+  char topic[kMaxTopicLen];
+  if (topic_availability("bridge", topic, sizeof(topic)) == 0) {
+    return;
+  }
+  PublishMessage msg;
+  if (make_publish(&msg, topic, kPayloadOnline, /*retain=*/true, /*qos=*/0)) {
+    (void)g_mqtt.publish(msg);
+  }
+
+  // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
+  // reconnect" (R-3.3c). They are generated in this task and published directly
+  // rather than through the queue, which is why the queue is sized for state.
+  // TODO(BF-20): per-node availability, which is a different thing from this one.
+}
+
 // Normal priority, core 0, alongside the WiFi stack it talks to.
+//
+// THIS TASK MAY BLOCK. A publish on a reconnecting broker can occupy it for the
+// socket timeout, and that is exactly what the queue in front of it buys: lora_task
+// keeps receiving throughout (R-3.2b, PRD 1.3 property 2).
 void mqtt_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Mqtt).period_ms);
   TickType_t       last   = xTaskGetTickCount();
+  uint32_t         mqtt_attempt = 0;
+  uint32_t         mqtt_next_ms = 0;
+
   for (;;) {
-    // TODO(BF-12): connection, LWT, subscription dispatch, and draining the
-    // publish queue. This task may block; that is what the queue in front of it is
-    // for.
+    const uint32_t now = millis();
+
+    // WiFi first: there is no point attempting a broker connection without a link,
+    // and each has its own backoff so a flapping AP does not also spend the broker's.
+    wifi_service(now);
+
+    if (wifi_connected()) {
+      if (g_mqtt.connected()) {
+        mqtt_attempt = 0;
+        g_mqtt.loop();
+        drain_publish_queue();
+      } else if (mqtt_next_ms == 0 || static_cast<int32_t>(now - mqtt_next_ms) >= 0) {
+        // Same unsigned-wrap-safe comparison as wifi_link.cpp: millis() wraps at
+        // ~49.7 days and this node is expected to run for years.
+        if (g_mqtt.connect_once()) {
+          mqtt_attempt = 0;
+          on_mqtt_connected();
+        } else {
+          ++mqtt_attempt;
+          mqtt_next_ms = now + reconnect_delay_ms(mqtt_attempt);
+        }
+      }
+    }
+
     vTaskDelayUntil(&last, period);
   }
 }
@@ -179,7 +253,9 @@ bool start_tasks() {
                                   &g_rx_queue_buf);
   g_tx_queue = xQueueCreateStatic(kTxQueueDepth, sizeof(TxMessage), g_tx_storage,
                                   &g_tx_queue_buf);
-  if (g_rx_queue == nullptr || g_tx_queue == nullptr) {
+  g_publish_queue = xQueueCreateStatic(kPublishQueueDepth, sizeof(PublishMessage),
+                                       g_publish_storage, &g_publish_queue_buf);
+  if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr) {
     return false;
   }
 
@@ -223,6 +299,47 @@ bool send_tx(const TxMessage& msg) {
                            static_cast<size_t>(uxQueueMessagesWaiting(g_tx_queue)));
   return true;
 }
+
+bool send_publish(const PublishMessage& msg) {
+  if (g_publish_queue == nullptr || xQueueSend(g_publish_queue, &msg, 0) != pdTRUE) {
+    g_accounting.record_dropped(QueueId::Publish);
+    return false;
+  }
+  g_accounting.record_sent(
+      QueueId::Publish, static_cast<size_t>(uxQueueMessagesWaiting(g_publish_queue)));
+  return true;
+}
+
+bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_host,
+               uint16_t mqtt_port, const char* mqtt_user, const char* mqtt_password) {
+  wifi_begin(ssid, wifi_password);
+
+  // The LWT topic and payload are static storage, not stack: PubSubClient keeps the
+  // pointers it is given and uses them on every reconnect, so a stack buffer here
+  // would publish whatever later occupied those bytes.
+  static char will_topic[kMaxTopicLen];
+  if (topic_availability("bridge", will_topic, sizeof(will_topic)) == 0) {
+    return false;
+  }
+
+  MqttConfig cfg;
+  cfg.host      = mqtt_host;
+  cfg.port      = mqtt_port;
+  cfg.user      = mqtt_user;
+  cfg.password  = mqtt_password;
+  cfg.client_id = "lran-bridge";  // spec 16.1 - the node's own name on the wire
+
+  // spec 16.5 - the broker says this for us if the bridge stops saying anything.
+  // Retained, so a Home Assistant that restarts during an outage learns the bridge
+  // is down rather than waiting for a message that is not coming.
+  cfg.will_topic   = will_topic;
+  cfg.will_payload = kPayloadOffline;
+  cfg.will_retain  = true;
+
+  return g_mqtt.begin(cfg);
+}
+
+MqttTransport& mqtt() { return g_mqtt; }
 
 bool lora_task_idle() {
   return true;  // TODO(BF-16)

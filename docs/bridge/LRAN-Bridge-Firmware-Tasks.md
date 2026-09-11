@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.5
+**Version:** 0.6
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.10
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.16
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.17
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.6
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -82,7 +82,7 @@ re-run on the old channel produces data that will be distrusted later.
 
 ---
 
-### 1.2 The bridge target is not in CI, and that is a decision
+### 1.2 The bridge in CI — the decision, and what it covers
 
 **`firmware/bridge/` is the first firmware in this repo that needs `secrets.h`** — it is
 the only one holding `LRAN_MASTER_KEY`, WiFi and broker credentials (Impl Plan §11.4).
@@ -90,24 +90,26 @@ the only one holding `LRAN_MASTER_KEY`, WiFi and broker credentials (Impl Plan �
 that starts needing `secrets.h` needs a decision about CI, not a secret pasted into a
 workflow."*
 
-**The decision, 2026-09-10:** the bridge's **host tests belong in the `native` job**, which
-needs no secrets and would have caught every defect BF-10 hit; the **target build stays out
-of CI** while the target is a banner. **Neither is wired into the workflow yet** — editing
-`.github/workflows/` needs a token scope the operator has to refresh — so today:
+**The decision, taken 2026-09-10 and wired up at the end of BF-12: CI copies the committed
+template.** `secrets.h.example` holds placeholders and a 32-zero-byte `LRAN_MASTER_KEY`, so
+**nothing secret enters the workflow**, and a build made that way cannot pass for a
+provisioned one — `main.cpp` checks the key at boot and says so on every line of its log.
+What CI tests is that the bridge **compiles**; anything needing a real key is bench work
+against a real broker (**B4**).
+
+All three now run on every pull request:
 
 ```bash
-pio test -d firmware/bridge -e native            # runs in CI: NO. Run it yourself
-pio run  -d firmware/bridge -e heltec            # runs in CI: NO. Needs secrets.h
-python3 tools/checks/lora_task_never_blocks.py   # runs in CI: NO. Added by BF-11
+python3 tools/checks/lora_task_never_blocks.py   # `checks` job, seconds, no toolchain
+pio test -d firmware/bridge -e native            # `native` job, no secrets
+pio run  -d firmware/bridge -e heltec            # `firmware` job, template copied first
 ```
 
-**`main` being green does not mean this project builds, and it does not mean the
-never-block check ran.** Revisit when the target does something a build failure would be
-worth catching — BF-12's WiFi and MQTT is the natural point — and if the target build is
-added then, the workflow copies `secrets.h.example` rather than gaining a secret. **Add all
-three in one edit**, cheapest first: the `checks` job gains `lora_task_never_blocks.py`
-(seconds, no toolchain), the `native` job gains the bridge's host tests, and the `firmware`
-job gains the target build.
+**What CI still does not cover.** Everything that needs a radio, an access point or a
+broker: the reconnect actually reconnecting, the LWT actually landing, a discovery config
+actually appearing in Home Assistant. Those are B2 and B4 bench work, and the host tests are
+deliberately arithmetic and string handling so the bench is spent on what only the bench can
+answer.
 
 ## 2. How to read the model column
 
@@ -185,7 +187,7 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 | ~~**BF-11**~~ | ~~**Task structure** — the seven tasks of §5.2, priorities, and the never-block rule~~ — **done 2026-09-10.** Seven static FreeRTOS tasks, four queue boundaries, drop-newest-and-count on a full queue, and the numbers argued in Impl Plan §5.2.1. The never-block rule has `tools/checks/lora_task_never_blocks.py` rather than only a paragraph. **Two follow-ons split out: BF-11a and BF-11b** | **Opus** | *"`lora_task` is highest priority and never blocks on the network"* is the one place a naive "publish inline on receive" quietly loses data. Getting the priorities and queue boundaries right is architecture, and retrofitting them is not a small edit |
 | **BF-11a** | **Log queue and `log_task`'s drain** — `LogMessage`, the leveled serial log, the raw frame log (§6.6) | **Sonnet** | The queue's depth and its drop accounting exist; what is missing is the message type and the drain. Lowest priority on purpose — a log that can preempt the radio changes what it measures |
 | **BF-11b** | **Hardware watchdog, fed from `sched_task`** (§5.2) | **Sonnet** | One feed point, and it must be the task that would notice a stall. Enabling it before BF-16 means a watchdog reset for a radio that is not there yet |
-| **BF-12** | WiFi station, reconnect, `MqttTransport` interface over PubSubClient, LWT (§4.3) | **Sonnet** | Well-trodden, and the one trap is written down: **`MQTT_MAX_PACKET_SIZE` ≥ 1024 in the build flags on day one**, or discovery configs vanish with no error |
+| ~~**BF-12**~~ | ~~WiFi station, reconnect, `MqttTransport` interface over PubSubClient, LWT (§4.3)~~ — **done 2026-09-10.** Capped exponential reconnect (1 s → 30 s, deterministic), `MqttTransport` with `PubSubTransport` behind it, LWT on `lran/bridge/availability`, and spec §16.3's never-retain-an-event rule enforced on the publish path rather than trusted. **The bridge joined CI with this task** — §1.2 | **Sonnet** | Well-trodden, and the one trap is written down: **`MQTT_MAX_PACKET_SIZE` ≥ 1024 in the build flags on day one**, or discovery configs vanish with no error |
 | **BF-13** | **OTA — A/B partition table and rollback** (§6.5) | **Opus** | The partition table is a build-time decision that *cannot* be retrofitted without a USB flash, and the bridge is the node whose failure takes the whole property's telemetry. **V-B9** requires a deliberately bad image to roll back |
 | **BF-14** | OLED status page (§5.3 `ui.cpp`) | **Sonnet** | R-4.1c is MAY-level — a glanceable "N nodes online". Reuse the ThingPulse driver and the range test's Vext bring-up sequence |
 
@@ -266,6 +268,7 @@ only against the bridge, a cached value republished as current.
 | Version | What changed |
 |---|---|
 | **v0.9** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
+| **v0.6** | **BF-12 done** — WiFi, MQTT, LWT; **the bridge is in CI**, §1.2 rewritten |
 | **v0.5** | **BF-11 done** — seven tasks, four queues; BF-11a and BF-11b split out |
 | **v0.4** | **BF-10 done** — the skeleton builds; §1.2 records why CI does not build it |
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
@@ -280,6 +283,18 @@ only against the bridge, a cached value republished as current.
   `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
   on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
   v0.16.
+
+- **v0.6** — **BF-12 is done, and the bridge is in CI.** WiFi station with a capped
+  exponential reconnect — 1 s to 30 s, deterministic because there is one bridge and a
+  recognizable sequence in a log beats lockstep avoidance — the `MqttTransport` seam D5
+  asked for with `PubSubTransport` behind it, and LWT on `lran/bridge/availability` so
+  "the bridge is gone" is distinguishable from "the bridge has nothing to say" (spec
+  §16.5). **Spec §16.3's hard rule is enforced rather than remembered:** a retained
+  publication on an event topic is refused on the path, twice, because the failure is a
+  2 AM SMS about last Tuesday. **§1.2 is rewritten** — the CI question it recorded is
+  answered: the workflow copies `secrets.h.example`, nothing secret enters it, and all
+  three bridge checks run on every pull request. What CI still cannot cover is named
+  there too.
 
 - **v0.5** — **BF-11 is done: the task structure exists, and it is the part that was
   expensive to get wrong.** Seven statically allocated FreeRTOS tasks in the priority bands

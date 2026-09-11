@@ -21,18 +21,38 @@ names come from spec §14.1** below).
 
 ## What exists here today
 
-**`BF-10` and `BF-11` — the skeleton and the task structure.** `platformio.ini`
-(`heltec` and `native`), `main.cpp` (banner, placeholder-key check, task start),
-`tasks.{h,cpp}` and `queues.{h,cpp}` (the table, the depths, the drop accounting — all
-Arduino-free and host-tested), and `task_runtime.{h,cpp}` (every FreeRTOS call).
-**Still absent: the radio, WiFi, MQTT, OTA and the OLED.** Each arrives with its own
-`BF-*` task; do not add one early because it is convenient.
+**`BF-10`, `BF-11`, `BF-12` — the skeleton, the task structure and the network.**
+`platformio.ini` (`heltec` and `native`), `main.cpp` (banner, placeholder-key check,
+network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime.{h,cpp}`
+(every FreeRTOS call), `net_policy.{h,cpp}` (backoff, topic grammar, the retain rule),
+`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam) and `mqtt_pubsub.{h,cpp}` (D5's
+first implementation). **Still absent: the radio, discovery, the publication policy, OTA
+and the OLED.** Each arrives with its own `BF-*` task; do not add one early because it is
+convenient.
 
 ```bash
 pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
 pio test -d firmware/bridge -e native            # host, no secrets
 python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
 ```
+
+**All three run in CI** (Bridge Firmware Tasks §1.2). The workflow copies
+`secrets.h.example` for the target build, so nothing secret is in it.
+
+## Two network rules that are enforced, not remembered
+
+- **Event topics are never retained** (spec §16.3). `make_publish()` refuses a retained
+  publication on `lran/<node>/event/`, and the transport refuses it again before the
+  wire. **Refused, not silently corrected** — a caller that set the flag believes
+  something untrue. These events drive email and SMS; a retained one replays on every HA
+  restart.
+- **Nothing is truncated.** An oversized topic or payload is refused and counted.
+  Truncated JSON is worse than absent: HA logs a parse error against a topic that looks
+  alive while the entity keeps a stale value.
+
+**Credentials live in `main.cpp` and nowhere else.** Every other file takes what it needs
+as an argument. The SSID and broker address are printed at boot because they make a
+failure diagnosable; **no password, no key, is printed anywhere in this firmware.**
 
 **The Arduino-free/Arduino split is load-bearing, and `build_src_filter` in
 `[env:native]` is where it is declared.** `tasks.cpp` and `queues.cpp` build on the host

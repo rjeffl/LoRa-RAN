@@ -13,23 +13,28 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**`BF-12` (WiFi, `MqttTransport`, LWT) and `BF-14` (the OLED page) are unblocked and run
-in parallel**, in [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md).
 **`BF-13`, the OTA partition table, is the one that cannot be retrofitted** without a USB
-flash — and it has a seam waiting for it, `lora_task_idle()`, so it defers to the radio
-rather than inventing its own signal.
+flash, and it has a seam waiting for it — `lora_task_idle()` — so it defers to the radio
+rather than inventing its own signal. **`BF-14` (the OLED page) runs in parallel**, and
+**`BF-16` (`lora_link.cpp`) is the first task that puts a frame on the air.**
 
-**`BF-10` and `BF-11` are done.** `firmware/bridge/` builds on `heltec` and passes 16 host
-tests. Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off
-the WiFi core, `log` strictly lowest, four queue boundaries that **drop the newest item and
-count it** rather than blocking a producer. The numbers are argued in Impl Plan **§5.2.1**;
-the reasoning that is not a number is in the engineering log's 2026-09-10 entry.
+**`BF-10`, `BF-11` and `BF-12` are done.** `firmware/bridge/` builds on `heltec` and passes
+31 host tests, **and all of it now runs in CI** — the workflow copies `secrets.h.example`
+for the target build, so nothing secret is in it (Bridge Firmware Tasks §1.2).
 
-**The never-block rule is enforced now, not just written down.**
-`tools/checks/lora_task_never_blocks.py` fails on a blocking primitive or a network call in
-the code `lora_task` owns, and there is no blocking send in `task_runtime.h` to reach for.
+- Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off the
+  WiFi core, `log` strictly lowest. Four queue boundaries that **drop the newest item and
+  count it** rather than blocking a producer. Numbers argued in Impl Plan **§5.2.1**.
+- WiFi station with a **capped exponential reconnect, 1 s to 30 s, deterministic**; the
+  `MqttTransport` seam with PubSubClient behind it (**D5**); **LWT on
+  `lran/bridge/availability`**.
+- **The never-block rule and spec §16.3 are enforced, not written down.**
+  `tools/checks/lora_task_never_blocks.py` fails on a blocking primitive in the code
+  `lora_task` owns, and a retained publication on an event topic is refused on the path.
 
-**Still absent: the radio, WiFi, MQTT, OTA and the OLED.**
+**Still absent: the radio, discovery, the publication policy, OTA and the OLED.** **None of
+BF-12's runtime behaviour is proven** — no reconnect has reconnected, no LWT has landed, no
+broker has been spoken to. That is B2 and B4 bench work.
 
 **The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two

@@ -136,7 +136,16 @@ python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's pytho
 python3 tools/rangetest/test_survey_reintegrate.py   # M20 re-integration tool
 python3 tools/rangetest/test_eirp_check.py    # findings 7.6 EIRP sanity check
 python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned RadioLib
+
+pio test -d firmware/bridge -e native         # bridge host suite, no secrets
+pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
+python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
 ```
+
+**`firmware/bridge/` is the one target that needs `secrets.h`.** Copy
+`secrets.h.example` to the repo root and fill it in; the build fails with a message
+naming that step. **CI copies the committed template** — placeholders only, and
+`main.cpp` says so at boot — so no secret enters a workflow.
 
 These are the shape the firmware targets take once they exist:
 

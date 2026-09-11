@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Bridge Node, node 0x00 - boot, banner and task creation. Tasks BF-10 and BF-11,
-// milestone B2.
+// Bridge Node, node 0x00 - boot, banner, network configuration and task creation.
+// Tasks BF-10, BF-11 and BF-12; milestone B2.
 //
-// Init order and task creation only. WiFi and MQTT
-// (BF-12), OTA (BF-13) and the OLED page (BF-14) each land in their own files; the
-// task table and the queue boundaries are in tasks.h and queues.h (Impl Plan 5.2).
+// Init order and task creation. The radio (BF-16), OTA (BF-13) and the OLED page
+// (BF-14) each land in their own files; the task table and the queue boundaries are
+// in tasks.h and queues.h, and the network in wifi_link.h and mqtt_transport.h.
+//
+// THE ONLY TRANSLATION UNIT THAT INCLUDES secrets.h. Everything else takes what it
+// needs as an argument, which keeps the number of files that could log a credential
+// at one - and this one prints only the SSID and the broker address.
 
 #include <Arduino.h>
 
@@ -70,6 +74,28 @@ void setup() {
     Serial.println(F("*** This build cannot authenticate any node. Fill in secrets.h. ***"));
   }
 
+  // BF-12. WiFi and the broker client are configured here, from the only place that
+  // sees secrets.h, and NEITHER CONNECTS YET: association and the MQTT handshake
+  // happen in mqtt_task on its own backoff. Boot does not wait for a network, and a
+  // bridge with no AP still receives LoRa (R-3.2b).
+  //
+  // Nothing below logs a credential. The SSID is printed because it is the one field
+  // whose value makes a connection failure diagnosable; the password, the broker
+  // credentials and the master key are never printed anywhere in this firmware.
+  if (!bridge::net_begin(WIFI_SSID, WIFI_PASSWORD, MQTT_HOST, MQTT_PORT, MQTT_USER,
+                         MQTT_PASSWORD)) {
+    Serial.println(F("FATAL: network configuration rejected. Halting."));
+    for (;;) {
+      delay(1000);
+    }
+  }
+  Serial.print(F("WiFi SSID: "));
+  Serial.println(WIFI_SSID);
+  Serial.print(F("MQTT broker: "));
+  Serial.print(MQTT_HOST);
+  Serial.print(':');
+  Serial.println(MQTT_PORT);
+
   // BF-11. Task creation is the last thing setup() does: everything a task might
   // touch is initialized above it, and after this line the Arduino loop is the
   // lowest-value thing running.
@@ -85,7 +111,7 @@ void setup() {
 
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
-  Serial.println(F("BF-11: structure only. No radio, no WiFi, no MQTT, no OTA yet."));
+  Serial.println(F("BF-12: WiFi and MQTT up. No radio, no discovery, no OTA yet."));
 }
 
 void loop() {

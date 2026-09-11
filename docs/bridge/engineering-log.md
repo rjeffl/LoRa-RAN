@@ -58,3 +58,51 @@ reason for being an Opus task.
 `mqtt` and `app` because ArduinoJson serializes a discovery config on those stacks.
 The way to correct one is `uxTaskGetStackHighWaterMark` through the diagnostic
 topics — not a number doubled after a crash.
+
+---
+
+## 2026-09-10 — BF-12: WiFi, MQTT, and the bridge enters CI
+
+**The network is configured at boot and connects nowhere.** `net_begin()` sets
+credentials and the LWT and returns; association and the broker handshake happen in
+`mqtt_task` on its own backoff. **A bridge with no access point still receives LoRa**,
+which is R-3.2b's actual requirement and is easy to lose by calling
+`WiFi.waitForConnectResult()` in `setup()`.
+
+**Two SDK defaults are turned off deliberately.** `WiFi.persistent(false)` — the
+Arduino core otherwise caches credentials in NVS and re-associates from that copy,
+which produces a bridge connected to a network the build no longer names, and that
+looks like a build that worked. `WiFi.setAutoReconnect(false)` — reconnect cadence
+belongs in one place with host tests, not split between our backoff and the SDK's.
+
+**`millis()` wrap is handled by subtraction, not comparison**, in both the WiFi
+retry and the broker retry. The wrap is at ~49.7 days; this node is mains-powered
+and expected to run for years, so `now >= deadline` stalls the reconnect for the
+remainder of the epoch the first time it happens — about seven weeks after
+commissioning, which is exactly late enough to be blamed on something else.
+
+**Spec §16.3 is enforced on the path, and twice.** A retained publication on an
+`lran/<node>/event/` topic is refused by `make_publish()` and again by the transport
+immediately before the wire. **Refused, not corrected**: silently clearing the flag
+leaves the caller believing something untrue. The match is on the topic *segment* —
+`lran/eventful/gate/state` is not an event topic — because a rule that cannot tell
+those apart gets switched off by whoever it first annoys.
+
+**A failed publish loses the message, and that is the choice.** `drain_publish_queue`
+stops on the first failure and leaves the rest queued, but the one already dequeued is
+gone and counted. Re-queueing it would reorder it behind newer state for the same
+entity, which for state is worse than losing it. **BF-25 owns events**, where the
+answer is different.
+
+**The bridge is in CI as of this task.** The workflow copies `secrets.h.example`, so
+nothing secret enters it; the `native` job builds only the Arduino-free translation
+units, and the repo root is off that include path so a host test cannot quietly depend
+on `secrets.h`. **What CI cannot cover is the whole of what BF-12 does at runtime** —
+the reconnect reconnecting, the LWT landing, a real broker at all. That is B2 and B4
+bench work, and the host tests are arithmetic and string handling precisely so the
+bench is spent on what only the bench can answer.
+
+**`setBufferSize()` is called as well as the build flag.** `MQTT_MAX_PACKET_SIZE` at
+compile time does not reach PubSubClient when the library is built as a separate
+archive, which is the shape this trap takes in PlatformIO — and its failure mode is
+discovery configs that never appear, with no error pointing anywhere.

@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.16
+**Version:** 0.17
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -433,6 +433,35 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 > The `MQTT_MAX_PACKET_SIZE` default is the single most likely early time-sink on this
 > node: discovery configs do not appear, with no error that points at the cause.
 > **Set it in the build flags on day one.**
+
+#### 4.3.1 What BF-12 fixed, 2026-09-10
+
+`firmware/bridge/src/` is the authority; this records the choices §4.3 left open.
+
+- **Reconnect: capped exponential, 1 s doubling to 30 s, no jitter.** One bridge, so
+  lockstep avoidance buys nothing and a recognizable sequence in a log buys a lot. The
+  cap is shorter than the fleet's own poll interval, so a recovery is noticed within
+  one cycle. **WiFi and the broker back off independently** — a flapping AP must not
+  also spend the broker's retries.
+- **Two Arduino-ESP32 defaults are off.** `WiFi.persistent(false)`, because an NVS
+  credential cache produces a bridge on a network the build no longer names; and
+  `WiFi.setAutoReconnect(false)`, because the cadence belongs in one tested place.
+- **Keepalive 30 s, socket timeout 5 s.** PubSubClient's 15 s default is shorter than
+  this bridge's traffic pattern, which produces reconnects that look like faults.
+- **`setBufferSize()` is called as well as the build flag.** The compile-time macro does
+  not reach PubSubClient when it is built as a separate archive, and the failure mode is
+  the one this section already warns about: discovery configs that never appear.
+- **LWT on `lran/bridge/availability`, retained, payload `offline`** (spec §16.5), with
+  `online` republished on **every** connect — a broker restart loses retained state and
+  the bridge is the only thing that can put its own back.
+- **Spec §16.3 is enforced on the publish path, twice.** A retained publication on an
+  `lran/<node>/event/` topic is refused when the message is built and again before the
+  wire, matched on the topic *segment*. **Refused rather than corrected:** clearing the
+  flag silently leaves a caller believing something untrue.
+- **Nothing is truncated.** An oversized topic or payload is refused and counted.
+- **A failed publish loses that message**, counted, and leaves the rest queued.
+  Re-queueing would reorder it behind newer state for the same entity. **BF-25 owns
+  events**, where the answer differs.
 
 ### 4.4 Home Assistant discovery
 
@@ -1482,6 +1511,7 @@ that drifts is the one that gets followed.
 | Version | What changed |
 |---|---|
 | **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.17** | **§4.3.1** — BF-12's reconnect, keepalive, LWT and the enforced retain rule |
 | **v0.16** | **§5.2.1** — BF-11's task priorities, cores, stacks, queue depths and drop policy |
 | **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
 | **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
@@ -1506,6 +1536,16 @@ that drifts is the one that gets followed.
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
   one. Nothing on the wire moved; `ver` stays `2`.
+
+- **v0.17** — **§4.3's library guidance becomes a configuration, in new §4.3.1.** BF-12
+  built the WiFi station, the `MqttTransport` seam and the LWT, and the numbers it had to
+  choose — backoff, keepalive, socket timeout — had no home. Three entries are worth
+  reading even if the list is not: **two Arduino-ESP32 defaults are deliberately off**
+  (persistent credentials, SDK auto-reconnect), **`setBufferSize()` is called as well as
+  the build flag** because the macro does not reach the library when it is built as a
+  separate archive, and **spec §16.3's never-retain-an-event rule is enforced on the path
+  rather than remembered**. The bridge also entered CI with this task; the engineering
+  log's 2026-09-10 entries carry the reasoning that is not a number.
 
 - **v0.16** — **§5.2's bands become numbers, in new §5.2.1.** BF-11 built the task
   structure, and the choices it had to make — priorities, core pinning, stack sizes, queue
