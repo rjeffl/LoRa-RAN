@@ -13,28 +13,30 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**`BF-13`, the OTA partition table, is the one that cannot be retrofitted** without a USB
-flash, and it has a seam waiting for it — `lora_task_idle()` — so it defers to the radio
-rather than inventing its own signal. **`BF-14` (the OLED page) runs in parallel**, and
-**`BF-16` (`lora_link.cpp`) is the first task that puts a frame on the air.**
+**Run V-B9 on the flat-case Heltec — it is the one B2 acceptance test that only the bench
+can answer, and the procedure is written:** Impl Plan **§6.5.2**, five steps, about twenty
+minutes. **Stop at step 2 if the banner's `Image state:` reads `not_pending`** on the first
+boot after an upload; that means rollback is not in effect and every later step would pass
+without meaning anything. Then **`BF-14`** (the OLED page) and **`BF-16`**
+(`lora_link.cpp`, the first task that puts a frame on the air).
 
-**`BF-10`, `BF-11` and `BF-12` are done.** `firmware/bridge/` builds on `heltec` and passes
-31 host tests, **and all of it now runs in CI** — the workflow copies `secrets.h.example`
-for the target build, so nothing secret is in it (Bridge Firmware Tasks §1.2).
+**`BF-10` to `BF-13` are built.** `firmware/bridge/` builds on `heltec` and passes 40 host
+tests, **and all of it runs in CI** — the workflow copies `secrets.h.example` for the target
+build, so nothing secret is in it (Bridge Firmware Tasks §1.2).
 
 - Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off the
-  WiFi core, `log` strictly lowest. Four queue boundaries that **drop the newest item and
-  count it** rather than blocking a producer. Numbers argued in Impl Plan **§5.2.1**.
-- WiFi station with a **capped exponential reconnect, 1 s to 30 s, deterministic**; the
-  `MqttTransport` seam with PubSubClient behind it (**D5**); **LWT on
-  `lran/bridge/availability`**.
-- **The never-block rule and spec §16.3 are enforced, not written down.**
-  `tools/checks/lora_task_never_blocks.py` fails on a blocking primitive in the code
-  `lora_task` owns, and a retained publication on an event topic is refused on the path.
+  WiFi core, `log` strictly lowest, queues that **drop the newest item and count it**.
+  Impl Plan **§5.2.1**.
+- WiFi with a **capped, deterministic reconnect**; the `MqttTransport` seam (**D5**); **LWT
+  on `lran/bridge/availability`**. Impl Plan **§4.3.1**.
+- **OTA with a committed A/B table and a rollback verdict that replaces Arduino's.**
+  Arduino-ESP32 2.0.x marks every image valid before `setup()` runs, which would have kept
+  an image that never finds the LAN. The fix is an **`extern "C"`** override, and CI checks
+  the symbol table because a C++ one links cleanly and does nothing. Impl Plan **§6.5.1**.
 
-**Still absent: the radio, discovery, the publication policy, OTA and the OLED.** **None of
-BF-12's runtime behaviour is proven** — no reconnect has reconnected, no LWT has landed, no
-broker has been spoken to. That is B2 and B4 bench work.
+**Still absent: the radio, discovery, the publication policy and the OLED.** **None of the
+runtime behaviour is proven** — no reconnect has reconnected, no LWT has landed, no image
+has been OTA'd, and **V-B9 is not met.**
 
 **The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two

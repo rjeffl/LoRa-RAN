@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.10 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.15
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.3 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.18
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.7 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -21,14 +21,15 @@ names come from spec §14.1** below).
 
 ## What exists here today
 
-**`BF-10`, `BF-11`, `BF-12` — the skeleton, the task structure and the network.**
+**`BF-10` to `BF-13` — the skeleton, the task structure, the network and OTA.**
 `platformio.ini` (`heltec` and `native`), `main.cpp` (banner, placeholder-key check,
 network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime.{h,cpp}`
 (every FreeRTOS call), `net_policy.{h,cpp}` (backoff, topic grammar, the retain rule),
-`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam) and `mqtt_pubsub.{h,cpp}` (D5's
-first implementation). **Still absent: the radio, discovery, the publication policy, OTA
-and the OLED.** Each arrives with its own `BF-*` task; do not add one early because it is
-convenient.
+`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
+first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
+`ota.{h,cpp}` and `partitions.csv`. **Still absent: the radio, discovery, the
+publication policy and the OLED.** Each arrives with its own `BF-*` task; do not add
+one early because it is convenient.
 
 ```bash
 pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
@@ -36,8 +37,25 @@ pio test -d firmware/bridge -e native            # host, no secrets
 python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
 ```
 
-**All three run in CI** (Bridge Firmware Tasks §1.2). The workflow copies
-`secrets.h.example` for the target build, so nothing secret is in it.
+**All of it runs in CI** (Bridge Firmware Tasks §1.2), plus `bridge_partitions.py` on the
+table, the built image and its symbol table. The workflow copies `secrets.h.example` for
+the target build, so nothing secret is in it.
+
+## OTA — two things that are easy to break and silent when broken
+
+- **Rollback depends on `extern "C" bool verifyRollbackLater()` in `ota.cpp`.** Without
+  it, Arduino-ESP32 marks every image valid before `setup()` runs. A C++ definition links
+  cleanly and overrides nothing; CI's `bridge_partitions.py --elf` fails unless the symbol
+  is strong. **Do not remove the `extern "C"`, and do not move the definition into a
+  library** — an archive member nothing references is not linked, and the weak default
+  wins again.
+- **`partitions.csv` cannot change on a deployed bridge without USB** (Impl Plan §6.5).
+  It is committed rather than taken from the board definition for that reason. Grow the
+  image, not the table.
+
+**V-B9 is not met until Impl Plan §6.5.2 has been run on the bridge board.** The two
+bad-image environments, `v_b9_no_network` and `v_b9_panic`, exist for it and are never a
+production build.
 
 ## Two network rules that are enforced, not remembered
 
@@ -80,15 +98,6 @@ naming that step rather than a file-not-found. **The template's `LRAN_MASTER_KEY
 zero bytes and it compiles**, so `main.cpp` checks at boot and says so loudly on a
 placeholder build — a build that cannot authenticate anything must not look healthy in a
 log. Never commit, echo or log the real values.
-
-**CI does not build this target, by decision (2026-09-10).** This is the first firmware
-here that needs `secrets.h`, and `.github/workflows/ci.yml` says in its own header that
-such a target *"needs a decision about CI, not a secret pasted into a workflow"*. The
-decision taken: **the host tests go in the `native` job, which needs no secrets, and the
-target build stays out of CI while it is a banner.** Neither is wired up yet — the
-workflow edit needs a token scope refresh — so **`pio run -d firmware/bridge -e heltec`
-is checked locally only.** Re-open this when the target does something worth a build
-failure, and say which of the two ran.
 
 ## The PHY is fixed — D1, closed 2026-09-10
 

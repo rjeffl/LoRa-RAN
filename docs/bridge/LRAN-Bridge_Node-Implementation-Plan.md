@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.17
+**Version:** 0.18
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -786,6 +786,79 @@ lran/<node>/vedirect/hex/request  (HA -> bridge)
   not a rollback, and the bridge is the one node where losing this costs the whole
   property's telemetry.
 
+#### 6.5.1 What BF-13 built, and why rollback needed more than a partition table
+
+**The partition table was the easy half.** `firmware/bridge/partitions.csv` is
+Arduino-ESP32's `default_8MB.csv` — two 3.2 MB OTA slots, `otadata`, a reserved
+`spiffs` and a `coredump` — **committed rather than referenced**, so a platform bump
+that changed the board's default cannot change this table silently.
+`tools/checks/bridge_partitions.py` fails CI on an unequal pair, a missing `otadata`, a
+`factory` slot, an overlap, or an image past 90 % of a slot.
+
+**The other half is that Arduino-ESP32 2.0.x defeats rollback by default.** The prebuilt
+bootloader for this board has `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` set (checked in
+the installed framework's `qio_qspi/sdkconfig.h`), so a new image boots in
+`PENDING_VERIFY` and is rolled back if it resets before being marked valid. **But
+`initArduino()` marks it valid itself, before `setup()` runs** — its weak
+`verifyOta()` returns true. Out of the box, any image that reaches `initArduino()` is
+kept, including one that never finds the LAN again. On this node that is the failure
+that matters: **a bridge that cannot reach the network cannot be OTA'd back**, and
+recovery is a USB cable.
+
+**`ota.cpp` takes the decision back** by overriding `verifyRollbackLater()`, and
+`ota_policy.cpp` makes it: keep the image once **every task started and the broker is
+connected, after at least 120 s**; roll it back if that has not happened by **600 s**.
+The minimum stops an image that connects and then falls over from being blessed in its
+first seconds. The deadline outlasts a slow AP plus the broker's 30 s capped backoff;
+when it fires on a *good* image — the broker was down for ten minutes during the update
+— the result is the previous, known-good image, which is the safe direction.
+**TODO(BF-16):** once the radio exists, an image that cannot hear the fleet is bad too.
+
+> **The override has one load-bearing detail, and its falsifier is in CI.** The weak
+> default lives in `esp32-hal-misc.c` — a C file — and no header declares it, so the
+> override must be `extern "C"`. A C++ definition gets a mangled name, overrides
+> nothing, **links cleanly**, and leaves the core blessing every image. The firmware
+> job runs `bridge_partitions.py --elf`, which fails unless the linked image carries
+> `verifyRollbackLater` as a **strong** symbol. On the bench, the boot banner's
+> `Image state:` line must read `pending_verify` on the first boot after an upload.
+
+**ArduinoOTA, not `esp_https_ota`.** The bridge is on the LAN, and a push from
+PlatformIO (`-e heltec_ota`, password from `LRAN_OTA_PASSWORD`, never written into
+`platformio.ini`) needs no server. It authenticates with an MD5 challenge-response
+(R-5.3b) — the password does not cross the network in the clear, but this is an
+authenticated endpoint on a LAN, not a hardened one. **USB stays the recovery path**
+(R-5.3a): an esptool upload rewrites the bootloader, the table and `otadata`.
+
+**R-5.3d is honoured by when ArduinoOTA is serviced**: `ArduinoOTA.handle()` is where
+an upload invitation is answered, and `ota_task` calls it only when `lora_task` is idle.
+An upload in progress runs to completion inside `handle()`; its flash writes stall both
+cores briefly, so `lora_task` can miss a frame during an upload. **R-5.3e**:
+`lran/bridge/version` carries `version`, `git`, `slot` and `ota_state`, retained, on
+every broker connect. **Spec §16.2 names the topic but not its payload**; this document
+is the bridge's choice, recorded in the engineering log as a gap for the next spec
+revision rather than redefined here.
+
+#### 6.5.2 V-B9 — the procedure
+
+**Not yet run. V-B9 is not met until it is.** The flat-case Heltec, the dev broker, and
+`LRAN_OTA_PASSWORD` set to the value in `secrets.h`. Watch the serial log throughout;
+the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is read.
+
+1. **USB-flash the good image:** `pio run -d firmware/bridge -e heltec -t upload`.
+   Expect `Slot: app0`, `Image state: not_pending`.
+2. **OTA a second good build** (change `custom_bridge_version`):
+   `pio run -d firmware/bridge -e heltec_ota -t upload`. Expect `Slot: app1`, **`Image
+   state: pending_verify`**, and after two minutes `OTA: image verified`. **If the state
+   reads `not_pending` here, stop** — the override is not in effect, and step 3 would
+   report a pass it did not earn. **This step is V-B9's "OTA succeeds".**
+3. **OTA the no-network bad image:** `-e v_b9_no_network`. Expect `Slot: app0`,
+   `pending_verify`, the V-B9 banner, then at 90 s `ROLLING BACK` and a reboot into
+   **`Slot: app1`** with step 2's version and git.
+4. **OTA the panic image:** `-e v_b9_panic`. Expect the V-B9 banner once, an abort, and a
+   reboot into the step-2 image with no code of the bad image run again. **If the banner
+   prints twice, the bootloader is not rolling back.**
+5. Record all four in `docs/bridge/engineering-log.md`, with the banner lines verbatim.
+
 ### 6.6 Debug tooling
 
 | Tool | Implementation note |
@@ -1511,6 +1584,7 @@ that drifts is the one that gets followed.
 | Version | What changed |
 |---|---|
 | **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.18** | **§6.5.1–§6.5.2** — BF-13's OTA, why Arduino's default defeats rollback, and V-B9's procedure |
 | **v0.17** | **§4.3.1** — BF-12's reconnect, keepalive, LWT and the enforced retain rule |
 | **v0.16** | **§5.2.1** — BF-11's task priorities, cores, stacks, queue depths and drop policy |
 | **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
@@ -1536,6 +1610,16 @@ that drifts is the one that gets followed.
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
   one. Nothing on the wire moved; `ver` stays `2`.
+
+- **v0.18** — **§6.5 gains what BF-13 found, in new §6.5.1, and V-B9 gains a
+  procedure, in §6.5.2.** §6.5 said to configure an A/B table with rollback, and that was
+  the easy half. **Arduino-ESP32 2.0.x marks every image valid before `setup()` runs**,
+  so with the table alone, an image that never finds the LAN again would be kept — and a
+  bridge that cannot reach the network cannot be OTA'd back. §6.5.1 records the override
+  that takes the decision back, the verdict that replaces it (healthy after 120 s, rolled
+  back at 600 s), and **the one detail that makes the override real — `extern "C"` — with
+  its falsifier in CI** rather than only in prose. §6.5.2 is the bench procedure, stated as
+  **not yet run**: V-B9 is not met until it is.
 
 - **v0.17** — **§4.3's library guidance becomes a configuration, in new §4.3.1.** BF-12
   built the WiFi station, the `MqttTransport` seam and the LWT, and the numbers it had to

@@ -106,3 +106,45 @@ bench is spent on what only the bench can answer.
 compile time does not reach PubSubClient when the library is built as a separate
 archive, which is the shape this trap takes in PlatformIO — and its failure mode is
 discovery configs that never appear, with no error pointing anywhere.
+
+---
+
+## 2026-09-10 — BF-13: OTA, and the default that would have defeated rollback
+
+**The A/B partition table would not have been enough, and nothing would have said so
+until V-B9.** The prebuilt bootloader for this board has
+`CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` set — confirmed in the installed framework's
+`tools/sdk/esp32s3/qio_qspi/include/sdkconfig.h`, the variant this board's `qio` flash
+and absent PSRAM select. But Arduino-ESP32 2.0.17's `initArduino()`
+(`cores/esp32/esp32-hal-misc.c`) checks a weak `verifyRollbackLater()`, which returns
+false, then calls a weak `verifyOta()`, which returns true, and **marks the image valid
+before `setup()` runs**. Every image that reaches `initArduino()` is kept. The case that
+matters here — an image that boots and never finds the LAN, and so can never be OTA'd
+again — is exactly the one it keeps.
+
+**The override needs `extern "C"`, and getting that wrong is silent.** The weak default
+is in a `.c` file and no header declares it. A C++ definition is mangled, overrides
+nothing, links without a diagnostic, and leaves the core in charge. Checked on the first
+build: `nm firmware.elf` shows `T verifyRollbackLater` (ours, strong) beside
+`W verifyOta` (the core's, now never consulted). That check is now permanent —
+`bridge_partitions.py --elf` in CI's firmware job, with a self-test fixture for the
+mangled name `_Z19verifyRollbackLaterv` it must not accept.
+
+**The verdict: all tasks started and the broker connected, after 120 s; otherwise
+rolled back at 600 s.** Reachability is the criterion because reachability is what makes
+a bad image *recoverable* — a bridge on the broker can be OTA'd again. When the deadline
+fires on a good image because the broker was down during the update, the bridge returns
+to the previous known-good image, which is the safe direction. The radio joins the
+verdict with BF-16.
+
+**Spec §16.2 names `lran/bridge/version` and says nothing about its payload.** The
+bridge publishes `{"version","git","slot","ota_state"}` — the last two because they are
+what V-B9 reads from Home Assistant after a rollback. **This is a gap in the
+specification, not a definition by this firmware**, and it belongs in the next
+substantive spec revision alongside whatever discovery (BF-23) needs from the same topic.
+
+**First image: 748 816 bytes, 22.4 % of a 3.2 MB slot.** The CI check fails past 90 %.
+
+**V-B9 has not been run.** Two bad-image environments exist for it — `v_b9_no_network`
+tests this firmware's verdict, `v_b9_panic` tests the bootloader — and Impl Plan §6.5.2 is
+the procedure. Both are built by CI so the harness cannot rot; neither has been flashed.

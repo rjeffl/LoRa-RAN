@@ -16,9 +16,12 @@
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
+#include <atomic>
+
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
+#include "ota.h"
 #include "wifi_link.h"
 
 namespace bridge {
@@ -53,6 +56,12 @@ QueueHandle_t g_publish_queue = nullptr;
 // MqttTransport; this is the only line in the firmware that names PubSubClient's
 // implementation, which is what makes D5's designated fallback a one-line swap.
 PubSubTransport g_mqtt;
+
+// Health, as ota_task sees it. Atomics rather than calls into the objects: PubSubClient
+// is not thread-safe, and ota_task asking g_mqtt.connected() directly would be a read
+// racing mqtt_task's writes. mqtt_task publishes the answer once per tick instead.
+std::atomic<bool> g_mqtt_up{false};
+std::atomic<bool> g_tasks_started{false};
 
 QueueAccounting g_accounting;
 
@@ -143,6 +152,16 @@ void on_mqtt_connected() {
     (void)g_mqtt.publish(msg);
   }
 
+  // R-5.3e - the version, retained, on every connect. It carries the slot and the
+  // image state as well, which is how V-B9 is read from Home Assistant rather than
+  // from a serial cable: after a rollback, `slot` and `git` both change.
+  char version[kMaxPayloadLen];
+  if (topic_bridge_version(topic, sizeof(topic)) > 0 &&
+      ota_version_json(version, sizeof(version)) > 0 &&
+      make_publish(&msg, topic, version, /*retain=*/true, /*qos=*/0)) {
+    (void)g_mqtt.publish(msg);
+  }
+
   // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
   // reconnect" (R-3.3c). They are generated in this task and published directly
   // rather than through the queue, which is why the queue is sized for state.
@@ -166,6 +185,7 @@ void mqtt_task(void*) {
     // WiFi first: there is no point attempting a broker connection without a link,
     // and each has its own backoff so a flapping AP does not also spend the broker's.
     wifi_service(now);
+    g_mqtt_up = wifi_connected() && g_mqtt.connected();
 
     if (wifi_connected()) {
       if (g_mqtt.connected()) {
@@ -206,12 +226,19 @@ void app_task(void*) {
   }
 }
 
+// Low priority. Two jobs: decide whether a freshly flashed image is kept (the
+// verdict runs whether or not WiFi is up - an image that never associates is the
+// one that must go), and service ArduinoOTA when R-5.3d allows an upload to start.
+//
+// An upload runs INSIDE ArduinoOTA.handle(), so this task blocks for its duration.
+// That is correct at this priority. What it costs is flash writes, which stall both
+// cores briefly while the cache is disabled; lora_task can miss a frame during an
+// upload, and R-5.3d's deferral is what keeps an upload from starting mid-transaction.
 void ota_task(void*) {
   for (;;) {
-    // TODO(BF-13): ArduinoOTA or esp_https_ota against the A/B partition table,
-    // and the rollback V-B9 requires. It defers until lora_task_idle() - the seam
-    // exists now so BF-13 does not invent one.
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    ota_service(wifi_connected(), lora_task_idle(), g_mqtt_up, g_tasks_started,
+                millis());
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
@@ -269,6 +296,9 @@ bool start_tasks() {
       return false;
     }
   }
+  // One of the verdict's two health inputs (ota_policy.h). Set only once every row
+  // started, so an image with a missing task cannot be marked valid.
+  g_tasks_started = true;
   return true;
 }
 

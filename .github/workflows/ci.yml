@@ -94,6 +94,15 @@ jobs:
           python3 tools/checks/lora_task_never_blocks.py --self-test
           python3 tools/checks/lora_task_never_blocks.py
 
+      # Impl Plan §6.5, R-5.3c: the bridge's A/B partition table cannot be changed on
+      # a deployed board without a USB flash. Two equal OTA slots, otadata, no factory
+      # partition, no overlap, inside 8 MB. The image-size and symbol checks need a
+      # build, so they run in the `firmware` job.
+      - name: Bridge partition table
+        run: |
+          python3 tools/checks/bridge_partitions.py --self-test
+          python3 tools/checks/bridge_partitions.py
+
   native:
     name: Host Unity suites
     runs-on: ubuntu-latest
@@ -173,6 +182,24 @@ jobs:
 
       - name: Bridge Node (Heltec WiFi LoRa 32 V3)
         run: pio run -d firmware/bridge -e heltec
+
+      # BF-13. Two things only a build can show. The image must leave room in its OTA
+      # slot (past 90 % is one release from USB-only updates). And rollback depends on
+      # ota.cpp's extern "C" verifyRollbackLater() overriding Arduino's weak default -
+      # a C++ definition links cleanly and overrides nothing, so the symbol table is
+      # the one place that is visible without flashing a board.
+      - name: Bridge OTA slot headroom and rollback override
+        run: >
+          python3 tools/checks/bridge_partitions.py
+          --firmware firmware/bridge/.pio/build/heltec/firmware.bin
+          --elf firmware/bridge/.pio/build/heltec/firmware.elf
+
+      # V-B9's two deliberately bad images. Built here so the test harness cannot rot
+      # between the runs that need it; never flashed by CI.
+      - name: Bridge V-B9 bad images
+        run: |
+          pio run -d firmware/bridge -e v_b9_no_network
+          pio run -d firmware/bridge -e v_b9_panic
 
       # Root rule 9. pa_config.cpp mirrors a file-static table inside RadioLib so
       # the applied PA configuration can be logged, because the SX1262 cannot read

@@ -1,0 +1,30 @@
+# firmware/bridge/partitions.csv - the Bridge Node's flash layout. Task BF-13.
+# Copyright (c) 2026 Robert J. Lee - MIT.
+#
+# THIS TABLE CANNOT BE CHANGED ON A DEPLOYED BRIDGE WITHOUT A USB FLASH (Impl Plan
+# 6.5). OTA writes an app slot; it never rewrites the partition table or the
+# bootloader. Everything below is therefore sized for the bridge's LIFE, not for
+# today's image.
+#
+# It is Arduino-ESP32's default_8MB.csv, copied here rather than referenced. The
+# board definition names that file today; a platform bump that changed the board's
+# default would change this table silently, on the one node where the table matters
+# most. Committed, it changes only in a diff.
+#
+# Two equal OTA slots (R-5.3c, A/B with rollback). 3.2 MB each against an image of
+# well under 1 MB today; tools/checks/bridge_partitions.py fails CI when a built
+# image passes 90 % of a slot, which is the warning that has to arrive while there is
+# still a USB-flash-free way to act on it.
+#
+# spiffs is reserved and unused. Nothing needs a filesystem yet, and resizing one
+# later is the same USB flash as everything else here - so the space is held, not
+# spent. coredump keeps the last panic across a reset, which is the evidence a
+# rollback otherwise destroys.
+#
+# Name,   Type, SubType,  Offset,   Size,     Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+otadata,  data, ota,      0xe000,   0x2000,
+app0,     app,  ota_0,    0x10000,  0x330000,
+app1,     app,  ota_1,    0x340000, 0x330000,
+spiffs,   data, spiffs,   0x670000, 0x180000,
+coredump, data, coredump, 0x7F0000, 0x10000,

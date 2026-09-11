@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Bridge Node, node 0x00 - boot, banner, network configuration and task creation.
-// Tasks BF-10, BF-11 and BF-12; milestone B2.
+// Bridge Node, node 0x00 - boot, banner, network and OTA configuration, and task
+// creation. Tasks BF-10 to BF-13; milestone B2.
 //
-// Init order and task creation. The radio (BF-16), OTA (BF-13) and the OLED page
-// (BF-14) each land in their own files; the task table and the queue boundaries are
-// in tasks.h and queues.h, and the network in wifi_link.h and mqtt_transport.h.
+// Init order and task creation. The radio (BF-16) and the OLED page (BF-14) land in
+// their own files; the task table and the queue boundaries are in tasks.h and
+// queues.h, the network in wifi_link.h and mqtt_transport.h, OTA in ota.h.
 //
 // THE ONLY TRANSLATION UNIT THAT INCLUDES secrets.h. Everything else takes what it
 // needs as an argument, which keeps the number of files that could log a credential
@@ -14,6 +14,7 @@
 
 #include <Arduino.h>
 
+#include "ota.h"
 #include "task_runtime.h"
 #include "tasks.h"
 
@@ -74,6 +75,38 @@ void setup() {
     Serial.println(F("*** This build cannot authenticate any node. Fill in secrets.h. ***"));
   }
 
+  // BF-13. Which image is running, and whether it still has to prove itself. V-B9's
+  // procedure reads these three lines. After an OTA the state MUST read
+  // pending_verify: if it reads not_pending on the first boot of a fresh upload, the
+  // core has already blessed the image and ota.cpp's verifyRollbackLater() override is
+  // not the symbol being called.
+  Serial.print(F("Version: "));
+  Serial.print(F(LRAN_BRIDGE_VERSION));
+  Serial.print(F(" ("));
+  Serial.print(F(LRAN_BRIDGE_GIT));
+  Serial.println(')');
+  Serial.print(F("Slot: "));
+  Serial.println(bridge::ota_running_slot());
+  Serial.print(F("Image state: "));
+  Serial.println(bridge::ota_state_name(bridge::ota_image_state()));
+
+#if defined(LRAN_V_B9_BAD_IMAGE) && LRAN_V_B9_BAD_IMAGE == 2
+  // V-B9, the bootloader path. Abort before anything else runs; the reset lands in
+  // PENDING_VERIFY and the bootloader boots the previous slot. If this line prints
+  // twice, rollback is not enabled in the bootloader that is on this board.
+  Serial.println(F("*** V-B9 BAD IMAGE (panic) - aborting; expect a rollback ***"));
+  Serial.flush();
+  abort();
+#endif
+
+  bridge::ota_configure(OTA_PASSWORD);
+
+#if defined(LRAN_V_B9_BAD_IMAGE) && LRAN_V_B9_BAD_IMAGE == 1
+  // V-B9, this firmware's verdict. The network is never configured, so the broker is
+  // never reached, nothing marks the image valid, and ota_task rolls it back at the
+  // shortened deadline set for this environment.
+  Serial.println(F("*** V-B9 BAD IMAGE (no network) - expect a rollback at the deadline ***"));
+#else
   // BF-12. WiFi and the broker client are configured here, from the only place that
   // sees secrets.h, and NEITHER CONNECTS YET: association and the MQTT handshake
   // happen in mqtt_task on its own backoff. Boot does not wait for a network, and a
@@ -81,7 +114,8 @@ void setup() {
   //
   // Nothing below logs a credential. The SSID is printed because it is the one field
   // whose value makes a connection failure diagnosable; the password, the broker
-  // credentials and the master key are never printed anywhere in this firmware.
+  // credentials, the OTA password and the master key are never printed anywhere in
+  // this firmware.
   if (!bridge::net_begin(WIFI_SSID, WIFI_PASSWORD, MQTT_HOST, MQTT_PORT, MQTT_USER,
                          MQTT_PASSWORD)) {
     Serial.println(F("FATAL: network configuration rejected. Halting."));
@@ -95,6 +129,7 @@ void setup() {
   Serial.print(MQTT_HOST);
   Serial.print(':');
   Serial.println(MQTT_PORT);
+#endif
 
   // BF-11. Task creation is the last thing setup() does: everything a task might
   // touch is initialized above it, and after this line the Arduino loop is the
@@ -111,7 +146,7 @@ void setup() {
 
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
-  Serial.println(F("BF-12: WiFi and MQTT up. No radio, no discovery, no OTA yet."));
+  Serial.println(F("BF-13: WiFi, MQTT and OTA configured. No radio, no discovery yet."));
 }
 
 void loop() {
