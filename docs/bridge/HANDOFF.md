@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Rewritten 2026-09-11, after library milestone P8 merged and B2's branch was rebased onto
-it.** The 2026-09-10 file it replaces was written at the end of the session that built
-bridge tasks BF-10 to BF-14 — B2's code — and found that P8 could not be built as
-specified. Everything about B2 below is carried over from it; what changed is P8.
+**Written at the end of the 2026-09-11 session, a clean stop.** That session decided and
+built library milestone P8, merged it, rebased B2's branch onto the merge, and saw CI pass on
+the result. The 2026-09-10 file it replaces was written at the end of the session that built
+bridge tasks BF-10 to BF-14 — B2's code. Everything about B2's code below is carried over
+from it; what changed is P8, the branch, and one board.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -14,14 +15,33 @@ specified. Everything about B2 below is carried over from it; what changed is P8
 ## The next job, in one place
 
 **Read this file on the B2 milestone branch, not on `main`.** B2's pull request is held as a
-draft until its bench session passes, so `main`'s copy of this file is a session old. `gh pr
-list --state open` shows it; check out its branch first.
+draft until its bench session passes, so `main`'s copy of this file predates both the B2 and
+the P8 sessions. `gh pr list --state open` shows it; check out its branch first. **Nothing
+from 2026-09-11 is local-only**: every commit is pushed. The macOS machine holds one older
+stash, `WIP on field-prep` (range-test `capture.py` and firmware), which predates this
+subproject and is the range-test handoff's to judge.
+
+**To resume, in this order:**
+
+```bash
+git fetch origin -p
+git switch b2-board-bringup && git pull --ff-only   # the branch was force-pushed on 2026-09-11
+gh pr checks "$(gh pr list --head b2-board-bringup --json number -q '.[0].number')"
+```
+
+**If the pull refuses to fast-forward**, the other machine still holds the pre-rebase
+branch, or this one does. Reset to `origin/b2-board-bringup` rather than merging — a merge
+resurrects the dropped brief commit and every pre-rebase BF commit alongside its rewrite.
 
 **P8 is done** (task **BF-1**), so simnode **B0** has no library gate left. **Three jobs are
 open:**
 
 1. **The B2 bench session, once the sandbox broker is up.** Only a broker — not Home
-   Assistant, which is needed from B4. One session on the flat-case Heltec checks every B2
+   Assistant, which is needed from B4. **First, identify the board**: one Heltec now runs
+   P8's Unity test image and which one is not recorded (*Hardware state*). Pick the
+   flat-case unit by its enclosure and make it the only Heltec on USB before flashing —
+   the bridge banner does not print a board name, so the enclosure is the check. One
+   session on the flat-case Heltec checks every B2
    criterion in Impl Plan §8 that code cannot: WiFi connects and reconnects, MQTT with the
    LWT registered, version published, **the OLED page**, and **V-B9** — Impl Plan
    **§6.5.2**, five steps. **Stop at V-B9's step 2 if the banner's `Image state:` reads
@@ -37,10 +57,22 @@ open:**
 3. **BF-16 (`lora_link.cpp`)** — opens **B3**, not B2, on its own branch. Needs neither the
    broker nor the bench to start, but B3 cannot finish without B0.
 
-## What the last session established
+## What the last two sessions established
 
-**B2's code is complete: tasks BF-10 to BF-14 are built**, host-tested and in CI. **None of
-it has run on a board.** D1 and D33 closed earlier the same day; see *Closed*.
+**2026-09-11 — P8, and B2 moved onto it.**
+
+- **P8 is built and merged**, on D34 as amended (Decision Register §3.2.1): 127 library tests
+  on host, 130 on a Heltec, and two mutations proving the key tests can fail. Details are in
+  the protocol-lib engineering log's 2026-09-11 entry.
+- **Protocol Spec is v0.11.** It answers §9.4's check/record window with no wire change; no
+  vector regenerated.
+- **B2's branch was rebased onto the P8 merge** and a reconciliation commit added. CI
+  passed on the result: firmware targets, host suites, repository checks.
+- **P8's changelog entries in two bridge documents were renumbered** after B2's own: Tasks
+  v0.9 and Impl Plan v0.20. Each says so.
+
+**2026-09-10 — B2's code.** **Tasks BF-10 to BF-14 are built**, host-tested and in CI.
+**None of it has run on a board.** D1 and D33 closed earlier the same day; see *Closed*.
 
 - **The bridge is in CI, and CI still holds no secret.** The bridge is the first target
   needing `secrets.h`; the workflow copies the committed template, whose all-zero
@@ -75,7 +107,7 @@ it has run on a board.** D1 and D33 closed earlier the same day; see *Closed*.
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
 | 2 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) §3.2.1 | D34's amendment — what the simnode's command path must do with `InFlight`. The superseded [P8 brief](../shared/LRAN-P8-CommandGate-Brief.md) keeps the reasoning |
-| 3 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-10 entries, one per task — the reasoning that is not a number |
+| 3 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-10 entries, one per task — the reasoning that is not a number. For P8, the [protocol-lib log](../protocol-lib/engineering-log.md)'s 2026-09-11 entry |
 | 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | what to build, in what order, which model; **§1.2** for the CI decision |
 | 5 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **owns B0–B7 and their acceptance criteria (§8).** §4.3.1, §5.1.2, §5.2.1 and §6.5.1 record what BF-11 to BF-14 fixed; **§6.5.2 is the V-B9 procedure** |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and the two OTA details that break silently |
@@ -119,7 +151,12 @@ git fetch origin -p                             # prune deleted remote branches 
 git log --oneline -1 origin/main                # where main actually is
 gh pr list --state open                         # what is open, if anything
 git log --branches --not --remotes --oneline    # local-only work; empty is good
+git branch -vv | grep ': gone]'                 # local branches whose remote was deleted
 ```
+
+**Local branches accumulate on each machine** — merged docs branches whose remote is gone,
+and a local `main` behind `origin/main`. They hold nothing unpushed when the command above
+is empty; delete them by hand.
 
 **Run `git fetch` before trusting any of it.** Two machines push to this repository.
 
@@ -142,14 +179,14 @@ still open, then delete branches by hand.
 
 ## Hardware state
 
-**No board has ever been flashed as the bridge or as a simnode.** Every device below is in a
-range-test role today. **This table names them in *this* subproject's terms**; the
+**No board has ever been flashed as the bridge or as a simnode.** Every device below was in
+a range-test role until 2026-09-11, when one Heltec took P8's test image (below). **This table names them in *this* subproject's terms**; the
 range-test handoff owns them in its own roles and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `range-test` / `heltec`, a **pass-2 build whose banner cites spec v0.8** (read off the port 2026-09-10). Never a bridge build | Range-test settings and position log. Nothing this node needs | On USB to the macOS build machine as `/dev/cu.usbserial-0001`, 2026-09-10. **Boots `INITIATOR` by default, which transmits on 915.0 MHz** |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `range-test` / `heltec`. Never a simnode build | **Whether its stored survey campaign was erased is not recorded** — see the range-test handoff. Irrelevant to this node | Went to the gate for B1b. Powered down |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `range-test` / `heltec`, a **pass-2 build whose banner cites spec v0.8** (read off the port 2026-09-10) — **or P8's Unity test image**, if it was the board flashed 2026-09-11. Never a bridge build | Range-test settings and position log. Nothing this node needs | On USB to the macOS build machine as `/dev/cu.usbserial-0001`, 2026-09-10. **With the range-test build it boots `INITIATOR`, which transmits on 915.0 MHz**; the test image transmits nothing |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `range-test` / `heltec` — **or P8's Unity test image**, if it was the board flashed 2026-09-11. Never a simnode build | **Whether its stored survey campaign was erased is not recorded** — see the range-test handoff. Irrelevant to this node | Went to the gate for B1b. Powered down |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module, not a Heltec | `range-test` / `xiao`. Never a simnode build | B1b position log, dumped and committed | Was B1b's walking responder. Powered down |
 
 **A wrong board selection is silent.** It writes the wrong pin map and antenna gain into a
@@ -170,9 +207,9 @@ against the committed template, whose placeholder key `main.cpp` reports at ever
 
 **One Heltec was flashed with P8's Unity test image on 2026-09-11** — the only CP2102 on
 the macOS machine that day. **Which one is not recorded**: `board=` was not read off a
-settings dump first, and the handoff expected the flat-case unit on that port. Whichever it
-was no longer carries the range-test pass-2 build in the table below, which predates that
-run.
+settings dump first, and the handoff expected the flat-case unit on that port. A board
+running the test image prints Unity results once after reset and then nothing; it has no
+settings dump to read. **Tell the two Heltecs apart by enclosure.**
 
 **Its antenna stays on it.** The bridge uses the same 3.0 dBi 19 cm stick these boards ran
 the range test with (Bridge PRD **R-4.3a.1**) — the sticks are interchangeable as parts, but
@@ -226,6 +263,15 @@ record, not a swap to make at the bench.
 - **CI's firmware job takes about seven minutes**, half of it the two V-B9 bad images. That
   is the price of the test harness not rotting between runs; drop them if speed matters
   more.
+- **Rebasing B2 over a documents change on `main` conflicts in every BF commit.** Each BF
+  commit bumps the bridge documents' version and adds a changelog row, so any change on
+  `main` that also bumped them collides five times over. What worked on 2026-09-11: keep
+  B2's entries as written, renumber `main`'s after B2's last with a note saying why, take
+  B2's header lines with the spec citation moved up, and fix every header in one
+  reconciliation commit at the end. **Drop a commit `main` already carries**; don't merge
+  it twice.
+- **`pio test -e esp32s3` overwrites whatever the board was running** with a Unity image
+  that leaves no settings dump. Identify the board before the upload, not after.
 - **`begin()` succeeding proves nothing about a radio pin map.** A wrong `rf_sw`
   initialises just as cleanly and transmits into a dead end. Only frames out and echoes back
   prove it.
