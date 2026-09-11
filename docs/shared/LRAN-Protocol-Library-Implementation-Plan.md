@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.6
+**Version:** 0.7
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.10**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -458,6 +458,14 @@ is one search away and the document stays the authority rather than the code.
 
 ### 3.10 `lran/command_gate.h` — replay and dedup (**D34**)
 
+> **UNDER REVIEW, 2026-09-10 — do not implement this section as written.** `record()`
+> below advances the `seq` high-water mark *after* execution; Protocol Spec §9.4 step 6
+> advances it *before* dispatch. On a receiver that executes on another task — GateLink
+> Impl Plan §5.2 does — a retry inside the execution window would **execute twice**. The
+> precondition further down, which made this moot, is contradicted by that same design.
+> Options and recommendations: [`LRAN-P8-CommandGate-Brief`](./LRAN-P8-CommandGate-Brief.md).
+> This section is corrected when the operator decides, not before.
+
 Protocol Spec §9.4 **steps 4 and 5, and step 6's high-water update**. One instance per
 peer, called once per *completed set*, immediately after `Reassembler` and on
 authenticated types only.
@@ -676,6 +684,15 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.7** — **§3.10 marked under review; nothing else changes.** A handoff review found
+  that `CommandGate` as specified can execute a retried command twice: `record()` advances
+  the high-water mark after execution, where spec §9.4 advances it before dispatch, and
+  the single-threaded-receiver precondition that made the difference moot is contradicted
+  by GateLink Impl Plan §5.2. §3.10 carries a banner pointing at
+  [`LRAN-P8-CommandGate-Brief`](./LRAN-P8-CommandGate-Brief.md) and is **left as written
+  until the operator decides** — correcting it here first would be deciding in the
+  document that is supposed to receive the decision.
 
 - **v0.6** — Citation refresh only. Protocol specification **v0.9 → v0.10**. **Nothing in
   this plan or in `/lib/lran-protocol/` changes**: `ver` stays at `2`, no frame layout,

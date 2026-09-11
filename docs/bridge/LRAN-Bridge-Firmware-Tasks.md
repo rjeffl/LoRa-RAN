@@ -121,7 +121,7 @@ Neither task is bridge firmware. Both gate it.
 | # | Task | Model | Why |
 |---|---|---|---|
 | ~~**BF-0**~~ | ~~**Close D1**~~ — **done 2026-09-10.** SF9 / BW125 / CR 4/5 / 917.4 MHz / −4 dBm conducted, recorded in Decision Register §3.4 and stated in Protocol Spec v0.10 §12.1. **M19 done and W7 closed** — §15.1's table was already on this basis and needed confirming rather than recomputing | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
-| **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
+| **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer. **Read [`LRAN-P8-CommandGate-Brief`](../shared/LRAN-P8-CommandGate-Brief.md) first** — the library plan's API as written double-executes a retry on an asynchronous receiver, and five decisions are open | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
 
 **BF-1 gates B0. BF-0 should close before B3** and can run in parallel with everything.
 
