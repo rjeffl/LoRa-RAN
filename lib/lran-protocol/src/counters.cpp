@@ -35,9 +35,9 @@ const CounterField kCounterRegistry[kCounterRegistryLen] = {
 // No `default:` label. Adding a Status enumerator must be a -Werror=switch failure
 // here, so a new discard reason cannot ship without a counter to report it under.
 //
-// Not every counter has a Status: rx_frag_duplicate and rx_frag_late are raised by
-// the Reassembler directly (they are not discards the codec returns), and
-// rx_rejected_seq / rx_dup_command belong to stage 11, outside this library (W12).
+// Not every counter has a Status: rx_frag_duplicate is raised by the Reassembler
+// directly (it is not a discard the codec returns), and rx_crc_err by the radio
+// driver.
 void Counters::bump(Status s) {
   switch (s) {
     case Status::Ok:                  return;
@@ -62,6 +62,14 @@ void Counters::bump(Status s) {
     // BadMac and CtxMismatch.
     case Status::RejectedMac:         ++rx_rejected_mac; return;
     case Status::RejectedCtx:         ++rx_rejected_ctx; return;
+
+    // spec 14 stage 11, raised by CommandGate (D34). Both duplicate verdicts are
+    // rx_dup_command: spec 14.1 has one counter for "a retry of a command this node
+    // already accepted", and whether the result was ready to resend is the Status's
+    // distinction, not the counter's.
+    case Status::RejectedSeq:         ++rx_rejected_seq; return;
+    case Status::DuplicateCached:     ++rx_dup_command; return;
+    case Status::DuplicateInFlight:   ++rx_dup_command; return;
 
     // Caller errors, not wire conditions. Nothing on the link caused them and no
     // spec 14 stage owns them, so they are not counted as drops.

@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.7
+**Version:** 0.8
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -630,6 +630,15 @@ must never be starved.**
 - No task blocks on the LoRa transmit path; frames are queued.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
   masked by a healthy I/O loop.
+- **`CommandGate::check()` runs in the receive path, before dispatch; `record()` runs
+  after execution, and `app_task` sends the `COMMAND_ACK` after `record()`.** This task
+  split puts an execution window between the two — `lora_task` keeps receiving while
+  `io_task` pulses — and a bridge retry landing in it gets `InFlight` and no answer
+  (Protocol Spec §9.4, D34 amended 2026-09-11). The gate holds no lock, so the two calls
+  are serialized: post the result back to the task that owns the gate, or guard it.
+  **Open:** whether the ACK waits for the pulse to complete or for the gate to confirm
+  movement (`command_confirm_timeout_s`, 5 s). It sets how often the window is hit against
+  the bridge's 3 s ACK timeout. **Decide it before M3.**
 
 ### 5.3 Module map
 
@@ -1131,6 +1140,16 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.8** — **§5.2 gains the rule for where `CommandGate`'s two calls run**, and names the
+  open question it depends on. Protocol specification **v0.10 → v0.11**, which answers
+  the check/record window this plan's own task split creates: `lora_task` receives while
+  `io_task` pulses, so a bridge retry can arrive mid-execution. Under the library plan as
+  first written that retry would have pulsed the relay a second time; under D34 as amended
+  2026-09-11 it is counted and not answered. **This plan is the design that falsified the
+  old precondition**, and nothing had tracked it. What the `COMMAND_ACK` waits for —
+  pulse or confirmed movement — stays open and is flagged for **M3**. No requirement, BOM
+  line or milestone changes.
 
 - **v0.7** — **Citation refresh; no requirement and no BOM line changed.** Protocol
   specification **v0.9 → v0.10**, which closes **D1**: 917.4 MHz, SF9, BW 125 kHz, CR 4/5,

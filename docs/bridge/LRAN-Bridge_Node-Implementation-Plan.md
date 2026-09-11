@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.15
+**Version:** 0.16
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -640,6 +640,14 @@ MQTT command topic
 - **The context resync retries exactly once** before giving up. A resync loop on a shared
   channel is a transmit storm affecting every other node, not just this one.
 
+**A retry that reaches the node while it is still executing gets no answer** (Protocol
+Spec §9.4, v0.11). The node counts it in `rx_dup_command` and stays silent, so the retry
+takes the `no ACK` branch above, and the next retry receives the cached result. No new
+branch is needed. **The consequence to know:** if one execution outlasts every retry —
+`cmd_retries` × `command_ack_timeout_ms` plus backoff, roughly ten seconds at the
+defaults — the bridge publishes failure for a command that ran. The node's
+`rx_dup_command` is how that is told apart from a lost link.
+
 ### 6.3 Publication policy
 
 Implemented in `publish.cpp`, applied uniformly across node types:
@@ -1005,6 +1013,11 @@ exist *only* on a node and would otherwise be verified nowhere.
 |---|---|---|---|
 | `cmd_replay` | The same `(ctx_id, seq)` `COMMAND` twice, after the first has executed | `rx_dup_command` | The **cached** ACK is returned and **the relay does not pulse a second time**. Excluded from `rx_dropped` — the retry mechanism working as §10.4 requires is not a fault |
 | `cmd_stale_seq` | A `COMMAND` whose `seq` is below the high-water mark | `rx_rejected_seq` | `COMMAND_ACK(REJECTED_SEQ)`, counted **into** `rx_dropped` |
+
+**`cmd_replay` sends its second copy after the first has executed.** A copy that arrives
+*during* execution receives nothing (Protocol Spec §9.4, v0.11) and is covered by library
+P8's `test_retry_inside_the_window_never_executes`. It reaches a simnode only if
+`ROLE_GATELINK` executes on another task, which §10 does not require.
 
 `ack_suppress` above already exercises the dedup path, but it asserts it from the
 bridge's side. `cmd_replay` asserts it **at the gate, where the relay is** — which is the
@@ -1411,6 +1424,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.16** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
 | **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
 | **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
 | **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
@@ -1426,6 +1440,14 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.16** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
+  §9.4's check/record window: a node that receives a retry while still executing the
+  command counts it and sends nothing (D34 amended 2026-09-11). **§6.2 needed no new
+  branch** — silence already takes the `no ACK` path — and gains a paragraph on the one
+  consequence, a failure published for an execution that outlasts every retry. §10.5.1
+  records that `cmd_replay` tests the post-execution case and library P8 the in-flight
+  one. Nothing on the wire moved; `ver` stays `2`.
 
 - **v0.15** — **The bridge antenna is decided: the same 3.0 dBi 19 cm stick the range test
   ran on** (Bridge PRD **R-4.3a.1**, 2026-09-10). §2.1's BOM row said "selected after M6",

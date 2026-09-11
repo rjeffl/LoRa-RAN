@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.6
+**Version:** 0.8
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.10**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.11**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
-**Status:** **Built — P1 through P7 complete.** The record is
+**Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -458,18 +458,29 @@ is one search away and the document stays the authority rather than the code.
 
 ### 3.10 `lran/command_gate.h` — replay and dedup (**D34**)
 
-Protocol Spec §9.4 **steps 4 and 5, and step 6's high-water update**. One instance per
-peer, called once per *completed set*, immediately after `Reassembler` and on
-authenticated types only.
+> **Corrected 2026-09-11 (v0.8), D34 as amended.** Until v0.7 this section had
+> `record()` advance the `seq` high-water mark *after* execution, and rested that on a
+> precondition — no frame arrives between `check()` and `record()` — that GateLink Impl
+> Plan §5.2 contradicts. A retry inside the execution window would have **executed
+> twice**. The reasoning is in [`LRAN-P8-CommandGate-Brief`](./LRAN-P8-CommandGate-Brief.md)
+> (superseded) and Decision Register §3.2.1.
+
+Protocol Spec §9.4 **steps 4 and 5, and step 6's state half**. One instance per peer,
+called once per *completed set*, immediately after `Reassembler` and on authenticated
+types only. Built as P8: `include/lran/command_gate.h`, `src/command_gate.cpp`,
+`test/test_gate/`.
 
 ```cpp
 namespace lran {
 
-enum class Verdict : uint8_t { Execute, ReturnCached, Reject };
+inline constexpr uint8_t kDedupCacheCapacity     = 32;  // spec 10.4's range, 1..32
+inline constexpr uint8_t kDefaultDedupCacheDepth = 8;
+
+enum class Verdict : uint8_t { Execute, ReturnCached, InFlight, Reject };
 
 struct GateResult {
   Verdict   verdict;
-  Status    status;         // Ok | DuplicateCached | RejectedSeq
+  Status    status;         // Ok | DuplicateCached | DuplicateInFlight | RejectedSeq
   AckResult cached_result;  // valid ONLY when verdict == ReturnCached
   uint8_t   cached_detail;
 };
@@ -478,22 +489,24 @@ class CommandGate {
  public:
   explicit CommandGate(Counters* counters = nullptr);
 
-  // spec 10.4 - default 8. Runtime-settable: no timing or sizing constant is fixed
-  // at compile time in a node that cannot be reflashed without a walk to the gate.
+  // spec 10.4 - default 8, clamped to 1..32. Runtime-settable: no timing or sizing
+  // constant is fixed at compile time in a node that cannot be reflashed without a
+  // walk to the gate. Shrinking evicts oldest-first.
   void set_cache_depth(uint8_t n);
 
-  // spec 9.4 steps 4-5. Step 4 BEFORE step 5, and the order is load-bearing: a
+  // spec 9.4 steps 4-6. Step 4 BEFORE step 5, and the order is load-bearing: a
   // retry carries seq == high_water, which step 5 rejects. Checking seq first
   // answers REJECTED_SEQ to a frame that must receive the cached ACK.
+  //
+  // On Execute, step 6's state half is already done: the mark is at seq and the
+  // entry is held IN FLIGHT. A retry before record() gets InFlight - never Execute.
   GateResult check(Seq seq);
 
-  // spec 9.4 step 6, state half. Called by the application AFTER executing, with
-  // the result it is about to ACK. Advances the high-water mark and stores the
-  // entry.
-  void record(Seq seq, AckResult result, uint8_t detail);
+  // Stores the result the application is about to ACK. Returns false, changing
+  // nothing, if no in-flight entry for seq is held.
+  bool record(Seq seq, AckResult result, uint8_t detail);
 
-  // spec 10.1, 10.3 - a new context invalidates every cached entry, because the
-  // cache is keyed within a context and a reboot changes it.
+  // spec 10.1, 10.3 - a new context invalidates every cached entry and the mark.
   void reset_context(CtxId new_ctx);
 };
 
@@ -504,22 +517,43 @@ class CommandGate {
 call can produce it, and caching before execution would return a success ACK for a
 command that then failed.
 
-> **PRECONDITION: `check → execute → record` is atomic with respect to frame arrival.**
-> Stated in the manner of `Reassembler`'s monotonic-clock precondition, and for the same
-> reason — it is cheaper to require than to engineer around. A retry landing inside that
-> window finds no cache entry *and* fails the `seq` check, so it would answer
-> `REJECTED_SEQ` where §10.4 requires the cached ACK. Unreachable on a single-threaded
-> receive loop, which is what both the bridge's `lora_task` and every node use.
-> Protocol Spec §9.4 records the silence; do not close it locally.
+**The mark advances in `check()`, before dispatch** — the order spec §9.4 step 6 gives.
+A command whose execution fails has still consumed its `seq`, which is correct because
+`seq` is attacker-visible and must not be reusable; the failure is recorded as its result,
+so a retry receives the cached failure rather than a second attempt.
 
-**Cost is 32 B per peer.** The gate holds one `ctx_id`; entries store
-`(seq, result, detail)`. 32 B on a node, 160 B on a five-node bridge.
+**Between `check()` and `record()` the entry is in flight.** A retry that finds it gets
+`Verdict::InFlight` and `Status::DuplicateInFlight`, is counted in `rx_dup_command`, and
+**the caller sends nothing** (spec §9.4, v0.11). The bridge's next retry lands after
+`record()` and receives `DUPLICATE_CACHED` with the real result. **No threading
+precondition remains**: the receive task and the executing task can be different, and
+the caller need only serialize its own calls into one gate.
 
-**Two new `Status` values**, `DuplicateCached` and `RejectedSeq`, named after the wire
-code per §14.1 and matching `AckResult`. They exist so `Counters::bump()` stays the
-single mapping point — its missing `default:` label is a `-Werror=switch` guard that
-only works if every discard reason is in the enum. `rx_rejected_seq` counts into
-`rx_dropped`; `rx_dup_command` does not.
+**An in-flight entry can be evicted** by `dedup_cache_depth` newer accepted commands, or by
+shrinking the depth. Its retry then sits at or below the mark and step 5 refuses it —
+never re-executed. `record()` returns `false` for it, and the caller should log that: the
+bridge will read `REJECTED_SEQ` for a command that ran.
+
+**Cost is 128 B of cache per peer**: 32 entries of `(seq, result, detail)` at 4 bytes,
+sized for the top of the 1–32 range because static allocation cannot follow a runtime
+depth. One in-flight bit per slot, a `ctx_id`, the mark, the ring indices and the
+`Counters*` bring the object to the figure P8 recorded in
+[`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md). 640 B of
+cache on a five-peer bridge.
+
+**Three new `Status` values.** `DuplicateCached` and `RejectedSeq` are named after the
+wire code per §14.1 and match `AckResult`. `DuplicateInFlight` has no wire code and
+shares `rx_dup_command` with `DuplicateCached`, so its name follows the condition; it
+is held apart so a field log does not read "DuplicateCached" for a frame that received
+no answer. All three exist so `Counters::bump()` stays the single mapping point — its
+missing `default:` label is a `-Werror=switch` guard that only works if every discard
+reason is in the enum. `rx_rejected_seq` counts into `rx_dropped`; `rx_dup_command` does
+not.
+
+**Threading, stated once.** `CommandGate` holds no lock. A receiver that calls `check()`
+from its receive task and `record()` from another must serialize those calls — a mutex,
+or posting the result back to the receive task. The window the amendment closes is
+between the calls, not inside one.
 
 **`dedup_cache_depth`** joins `/lib/lran-config/` (§4) as a node parameter.
 
@@ -631,10 +665,17 @@ widened to provide.
 | **P6** | **W4 vectors committed** | Every vector in §5 passes. **The vector generator and the library disagree nowhere.** Test run wired into CI |
 | **P7** | **Target build** | Compiles for ESP32-S3 under the Arduino framework with the mbedTLS `IMac`. Flash and RAM footprint recorded in `/docs/protocol-lib/engineering-log.md` |
 
-| **P8** | **`CommandGate` — D34** | §9.4 steps 4–5 and step 6's high-water update, per peer. Dedup returns the **cached** ACK without re-executing; `seq` below the high-water mark is refused; the step-4-before-step-5 order is asserted by a test that would fail if reversed. `reset_context()` clears the cache. Exhaustive `seq` tests near the wrap, as P5. `rx_rejected_seq` and `rx_dup_command` move, and `total_dropped()` includes the first and not the second |
+| **P8** | **`CommandGate` — D34, amended 2026-09-11** | §9.4 steps 4–5 and step 6's high-water update, per peer, **the mark advancing in `check()`**. Dedup returns the **cached** ACK without re-executing; `seq` below the high-water mark is refused; the step-4-before-step-5 order is asserted by a test that would fail if reversed. `reset_context()` clears the cache. Exhaustive `seq` tests near the wrap, as P5. `rx_rejected_seq` and `rx_dup_command` move, and `total_dropped()` includes the first and not the second. **Added by the amendment:** a second `check(s)` before `record(s)` returns `InFlight`, never `Execute`, and after `record(s)` returns the recorded result; a failed execution is cached and never retried; runtime depth changes evict oldest-first and never read beyond capacity. The suite runs on the ESP32-S3 as P7's does |
 
 **P6 gates simnode B0. P7 gates bridge B2. P8 gates simnode B0 as well** — `ROLE_GATELINK`
 accepts `COMMAND` and must deduplicate it.
+
+**P8 is met, 2026-09-11**: 20 tests in `test/test_gate/`, **127 under `native` and 130
+on the Heltec V3**, all passing, with the W4 vectors unchanged. Two deliberate mutations
+confirm the suite can fail — advancing the mark in `record()` fails the window test, and
+checking `seq` before the cache fails the order test. `sizeof(CommandGate)` is **148 B
+on the ESP32-S3**. The engineering log's 2026-09-11 entry carries the detail. **Nothing
+in this library now stands between simnode B0 and its start.**
 
 **P1–P7 are met** as of 2026-08-30, against specification **v0.6**: 107 tests under
 `native` and 110 on the Heltec V3, 72 W4 vectors passing on host and on target with zero
@@ -676,6 +717,27 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.8** — **§3.10 corrected and P8 built, on D34 as amended 2026-09-11.** The operator
+  accepted `LRAN-P8-CommandGate-Brief`'s recommendations in full. `check()` now advances
+  the high-water mark, before dispatch, in spec §9.4's order; `Verdict` gains `InFlight`
+  and `Status` gains `DuplicateInFlight` beside the planned `DuplicateCached` and
+  `RejectedSeq`; `record()` returns `bool`; the atomicity precondition is withdrawn and
+  replaced by the in-flight behaviour and one sentence on serializing calls. **The cost
+  sentence was wrong for the parameter range it sat beside**: "32 B per peer" was the
+  default depth, and static allocation has to size for 32 entries — 128 B. P8's acceptance
+  row gains the brief's three tests. Binding specification **v0.10 → v0.11**, which
+  answers the window §9.4 had recorded as a silence and changes nothing on the wire. **§6
+  records P8 met**, on host and on the Heltec V3.
+
+- **v0.7** — **§3.10 marked under review; nothing else changes.** A handoff review found
+  that `CommandGate` as specified can execute a retried command twice: `record()` advances
+  the high-water mark after execution, where spec §9.4 advances it before dispatch, and
+  the single-threaded-receiver precondition that made the difference moot is contradicted
+  by GateLink Impl Plan §5.2. §3.10 carries a banner pointing at
+  [`LRAN-P8-CommandGate-Brief`](./LRAN-P8-CommandGate-Brief.md) and is **left as written
+  until the operator decides** — correcting it here first would be deciding in the
+  document that is supposed to receive the decision.
 
 - **v0.6** — Citation refresh only. Protocol specification **v0.9 → v0.10**. **Nothing in
   this plan or in `/lib/lran-protocol/` changes**: `ver` stays at `2`, no frame layout,

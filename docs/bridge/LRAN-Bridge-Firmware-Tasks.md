@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.3
+**Version:** 0.4
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.9
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.13
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -121,7 +121,7 @@ Neither task is bridge firmware. Both gate it.
 | # | Task | Model | Why |
 |---|---|---|---|
 | ~~**BF-0**~~ | ~~**Close D1**~~ — **done 2026-09-10.** SF9 / BW125 / CR 4/5 / 917.4 MHz / −4 dBm conducted, recorded in Decision Register §3.4 and stated in Protocol Spec v0.10 §12.1. **M19 done and W7 closed** — §15.1's table was already on this basis and needed confirming rather than recomputing | **Opus** | Four bounds interacting across three documents, with a measured SF7 tail pulling against W9 and a frequency that must move off a confirmed occupant. A wrong choice here is re-flashed into every node on the property |
-| **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
+| **BF-1** | **`CommandGate`** — library milestone **P8**, D34. §9.4 steps 4–5 plus step 6's high-water update, per peer. **Read [`LRAN-P8-CommandGate-Brief`](../shared/LRAN-P8-CommandGate-Brief.md) first** — the library plan's API as written double-executes a retry on an asynchronous receiver, and five decisions are open | **Opus** | This *is* root rule 2. Dedup must return the **cached** ACK without re-executing; the step-4-before-step-5 order must be asserted by a test that fails if reversed. The failure mode is a second pulse at a driveway gate |
 
 **BF-1 gates B0. BF-0 should close before B3** and can run in parallel with everything.
 
@@ -236,9 +236,19 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.4** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.4** — Citation refresh. Protocol specification **v0.10 → v0.11**, which answers §9.4's
+  check/record window: a retry reaching a node mid-execution is counted and not answered
+  (D34 amended 2026-09-11). **Library P8 is built on that basis**, host and target, which
+  meets the library dependency simnode **B0** was waiting on. No task's scope or model
+  column changes. **For whoever writes the simnode's command path:** call
+  `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
+  on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
+  v0.16.
 
 - **v0.3** — **D1 and D33 closed on 2026-09-10, so BF-0 is done and the list starts at
   BF-10.** §1.1 stops arguing that D1 is a decision and states what the firmware inherits

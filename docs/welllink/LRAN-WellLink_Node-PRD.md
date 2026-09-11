@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.6
+**Version:** 0.7
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
-**Last updated:** 2026-09-10
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
+**Last updated:** 2026-09-11
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -224,6 +224,13 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.7** — Citation refresh only. Protocol specification **v0.10 → v0.11**: `ver` stays at
+  `2` and nothing on the wire changes. Still a placeholder. v0.11 answers what a node owes a
+  command retry that arrives while the first copy is still executing — it counts it and
+  sends nothing (§9.4, D34 amended 2026-09-11). **If WellLink accepts a `COMMAND`, that
+  obligation is its**, through `CommandGate` like every commandable node; a pump start is no
+  more idempotent than a gate pulse.
 
 - **v0.6** — Citation refresh only. Protocol specification **v0.9 → v0.10**: `ver` stays at
   `2` and nothing on the wire changes. Still a placeholder. **Recorded because v0.10 hands
