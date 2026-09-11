@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.10
+**Version:** 0.11
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -1350,12 +1350,30 @@ the same `Counters` that §7.5's `rx_dropped` sums. See the Decision Register §
 steps 4–6 apply to an empty set on the bridge today. The obligation binds the **first
 firmware that accepts a `COMMAND`**, and it binds it fully.
 
-**One silence remains, recorded rather than closed.** The cached value is the *result*
-of execution, so checking and recording are necessarily two operations, and §10.4 does
-not say what a retry arriving between them should receive — there is no cached ACK
-yet, and the `seq` check has already failed. It is unreachable on a single-threaded
-receive loop, which is what both sides use, so it is stated as a receiver precondition
-rather than given a wire answer. Revisit if a receiver ever dispatches asynchronously.
+**A retry inside the execution window receives nothing.** The cached value is the
+*result* of execution, so checking and recording are two operations, and a receiver may
+execute a command on a different task from the one receiving frames — GateLink does
+(GateLink Impl Plan §5.2). Step 6's state half therefore happens **before** dispatch, in
+the order the list above gives it: the receiver sets `rx_high_water = seq` and holds
+`(ctx_id, seq)` in the dedup cache as **in flight**, then dispatches. A retry that finds
+an in-flight entry at step 4 is counted in `rx_dup_command` and **not answered**. The
+bridge's next retry arrives after execution completes and receives
+`COMMAND_ACK(DUPLICATE_CACHED)` with the real result. A command whose execution fails
+has still consumed its `seq`, and the failure is its cached result.
+
+If one execution outlasts every bridge retry, the bridge reports a failure for a command
+that ran. That misreport is bounded to executions that slow, and the node's
+`rx_dup_command` shows why.
+
+> **Answered in v0.11; a recorded silence until then.** v0.7 to v0.10 stated this window
+> as a receiver precondition — unreachable on a single-threaded receive loop — and said
+> to revisit if a receiver ever dispatched asynchronously. GateLink's plan already did.
+> The other two answers were worse. `REJECTED_SEQ` would have the bridge report a
+> rejection for a command the gate is carrying out. Advancing the mark only after
+> execution, which the library plan had specified, let the retry pass both step 4 and
+> step 5 and **execute a second time**. **No wire change:** no new `AckResult`, `ver`
+> stays `2`, no test vector regenerates. Decision Register §3.2 records D34's amendment
+> of 2026-09-11.
 
 ### 9.5 Accepted limitations — stated plainly
 
@@ -1430,9 +1448,11 @@ peer therefore stores only `(seq, result, detail)` per entry, and clearing the c
 a context change (§10.3) falls out of the same fact.
 
 **Checking and recording are two operations**, because the cached value is the result
-of execution and no single call can produce it. §9.4 records what this section does not
-say — what a retry arriving between them receives — and why it is a receiver
-precondition rather than a wire answer.
+of execution and no single call can produce it. Between them the entry is **in flight**:
+a retry that finds it receives nothing and is counted in `rx_dup_command` (§9.4). An
+in-flight entry occupies a cache slot like any other. If `dedup_cache_depth` newer
+commands are accepted before it completes, it is evicted, and its retry is refused at
+§9.4 step 5 — never executed again.
 
 ### 10.5 Wrap behavior
 
@@ -1876,7 +1896,7 @@ counters are how a marginal link is distinguished from a firmware bug when the n
 | `rx_rejected_seq` | §14 stage 11 / §9.4 step 5 | `REJECTED_SEQ` | yes |
 | `rx_frag_duplicate` | §11.2 — duplicate index within a live set | — | **no** |
 | `rx_frag_late` | §11.2 — fragment matching the last completed set | — | **no** |
-| `rx_dup_command` | §14 stage 11 / §9.4 step 4 — dedup cache hit | `DUPLICATE_CACHED` | **no** |
+| `rx_dup_command` | §14 stage 11 / §9.4 step 4 — dedup cache hit, cached or in flight | `DUPLICATE_CACHED`; none while in flight | **no** |
 
 **Implementations SHOULD name internal status and error identifiers after the wire
 code**, not after a third vocabulary. A decode result meaning `REJECTED_CTX` should not
@@ -2208,7 +2228,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
 | W10 | **Config entry count vs. one frame** | §7.4, §11 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. Confirm the count once it does: past 21 `uint32` entries the readback fragments, which makes §11 a production path on the first config read rather than a bench feature, and moves W4's fragmentation vectors onto the critical path |
 | W13 | ~~No vector reaches §11.2's dead-space clause~~ | — | **Closed. Unit-test coverage is sufficient and no raw-frames vector form will be built.** A duplicate fragment of differing length exhausting staging is a **non-conforming-sender** path: §11.1 fixes every non-final fragment to one length, so a conforming sender cannot produce it, and W4's generator emits conforming senders by construction. That is a **boundary of the method, not a gap in it** — the vector shape witnesses two implementations of a conforming sender against each other, and a frame no conforming sender emits has no second implementation to be witnessed against. `test_duplicate_fragment_of_different_length_overwrites` drives the receiver directly and covers both halves: the overwrite wins, and the superseded copy is charged against staging rather than against the reassembly cap. A raw-frames vector form is a meaningful amount of tooling for one clause, and it would compare the codec against a hand-written frame rather than against an independent reading, which is most of what makes W4 worth having. Revisit if a second non-conforming-sender clause appears: one is a unit test, several are a vector form |
-| W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition |
+| W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition. **v0.11:** the window is answered — a retry inside it is counted and not answered, and the high-water mark advances before dispatch (D34 amended 2026-09-11) |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 
 ### 18.1 W5, resolved — fixed channel at low power
@@ -2405,6 +2425,22 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.11** — **§9.4's recorded silence is answered: a retry inside the execution window
+  receives nothing.** `ver` stays at `2`; **no frame layout, header field, enumeration
+  value, schema or authentication scope changes, and no test vector regenerates** —
+  `generate.py` re-run against this revision reproduces the committed vectors byte for
+  byte. §9.4 had stated the window between check and record as a receiver precondition,
+  unreachable on a single-threaded receive loop, to be revisited if a receiver ever
+  dispatched asynchronously. **GateLink Impl Plan §5.2 already did**: frames arrive in
+  `lora_task`, the pulse runs in `io_task`. §9.4 now says step 6's state half happens
+  before dispatch, the entry is held **in flight** until the result is recorded, and a
+  retry that finds it is counted in `rx_dup_command` and not answered; the bridge's next
+  retry receives the cached result. §10.4 gains the in-flight entry and what eviction
+  does to it; §14.1's `rx_dup_command` row names both cases; §18's W12 note points here.
+  The library plan had advanced the mark after execution, which would have executed such
+  a retry twice — root rule 2's failure. **D34 is amended, not reopened** (Decision
+  Register §3.2), on `LRAN-P8-CommandGate-Brief`, now superseded.
 
 - **v0.10** — **D1 closed, and the specification states the parameters instead of deferring
   to them.** `ver` stays at `2`; **no frame layout, header field, enumeration value, schema

@@ -42,16 +42,21 @@ SKIP_PATHS = (
     pathlib.Path("docs/archive"),
     pathlib.Path("docs/rangetest/engineering-log.md"),
     pathlib.Path("docs/protocol-lib/engineering-log.md"),
+    # Superseded decision briefs. Each cites the specification it was written against,
+    # and the register row that superseded it is the live record; re-stamping a brief
+    # would claim it had been reconciled with a revision it predates.
+    pathlib.Path("docs/shared/LRAN-D1-PHY-Decision-Brief.md"),
+    pathlib.Path("docs/shared/LRAN-P8-CommandGate-Brief.md"),
 )
 
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".
 CITATION_PATTERNS = (
-    # **Binding protocol:** [...](...) **v0.10**   /   `...` v0.10 (`ver = 2`)
+    # **Binding protocol:** [...](...) **v0.11**   /   `...` v0.11 (`ver = 2`)
     re.compile(r"Binding (?:protocol|specification|spec)\b[^\n]*?v(?P<ver>\d+\.\d+)", re.I),
-    # Root CLAUDE.md's document table: **Currently v0.10, `ver = 2`**
+    # Root CLAUDE.md's document table: **Currently v0.11, `ver = 2`**
     re.compile(r"Currently\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
-    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.10
+    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.11
     re.compile(r"LRAN-Protocol-Specification`?\*{0,2}\s+is\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
     # System PRD §12 document-set row.
     re.compile(

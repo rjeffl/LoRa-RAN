@@ -1,9 +1,10 @@
 # LRAN P8 — `CommandGate` decision brief
 
 **Document:** `LRAN-P8-CommandGate-Brief`
-**Version:** 0.1
-**Status:** **Open.** Options and recommendations for the operator; this document decides
-nothing
+**Version:** 0.2
+**Status:** **Superseded 2026-09-11.** The operator accepted every recommendation below;
+the Decision Register's §3.2.1 is the record, and this brief is kept as the reasoning.
+§5's question 5 — what GateLink's ACK waits for — had no recommendation and stays open
 **Parent document:** [`LRAN-Protocol-Library-Implementation-Plan`](./LRAN-Protocol-Library-Implementation-Plan.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.10**
 **Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **D34** is
@@ -220,7 +221,16 @@ pulse at a driveway gate."*
 
 | Version | What changed |
 |---|---|
+| **v0.2** | **Superseded** — the operator accepted the recommendations; the register records D34's amendment |
 | **v0.1** | Initial release — P8's decisions assembled after a handoff review found the plan's API double-executes on an asynchronous receiver |
+
+- **v0.2** — **Superseded, 2026-09-11.** The operator accepted recommendations 4.1 A,
+  4.2 C, 4.3 A and 4.6 A, and §1's item 4: D34 amended, not reopened. For 4.4, which this
+  brief left to the operator, the amendment, Protocol Spec v0.11 and P8's code landed in
+  one branch. The Decision Register's §3.2.1 is the record. **One refinement in the
+  build:** 4.2 C said a retry inside the window is counted in `rx_dup_command`, and it is
+  — but under its own `Status`, `DuplicateInFlight`, not `DuplicateCached`, so a field log
+  does not name a resend that never happened. The body above is unchanged.
 
 - **v0.1** — Written at the end of the 2026-09-10 bridge session. **The finding:** library
   plan §3.10 advances the `seq` high-water mark in `record()`, after execution, where spec

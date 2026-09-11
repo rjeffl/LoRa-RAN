@@ -133,6 +133,21 @@ enum class Status : uint8_t {
   // each identifier follows its own.
   RejectedMac,        // stage 9, spec 9.4 step 3
   RejectedCtx,        // stage 9, spec 9.4 step 2 - spec 10.1's ctx_id check
+
+  // spec 14 stage 11 - raised by CommandGate (D34), named after the wire code like
+  // the two above. RejectedSeq counts into rx_dropped; DuplicateCached is the retry
+  // mechanism working and does not.
+  RejectedSeq,        // stage 11, spec 9.4 step 5
+  DuplicateCached,    // stage 11, spec 9.4 step 4 - the cached ACK is resent
+
+  // spec 10.4 (v0.11) - a retry arriving while the first copy is still executing.
+  // Counted in rx_dup_command like DuplicateCached, but NOTHING is sent: there is no
+  // result to cache yet. Held apart from DuplicateCached because a field log that
+  // read "DuplicateCached" for a frame that received no answer would send whoever
+  // reads it looking for a lost ACK. There is no wire code, so the name follows the
+  // condition (D34 as amended 2026-09-11).
+  DuplicateInFlight,
+
   BufferTooSmall,     // caller error, not a wire condition
 
   // spec 9.2 - an authenticated type was encoded with no IMac or no key. A

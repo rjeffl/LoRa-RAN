@@ -4,7 +4,7 @@
 specific to the simnode.
 
 **Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7 §10.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.10** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **console commands, fault names, role names and schema IDs are exact tokens.**

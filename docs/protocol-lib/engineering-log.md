@@ -888,3 +888,92 @@ status name rather than as a silent pass — checked, not assumed.
   item. It wants settling before the second firmware is written, not after.
 - **W9** — needs the second board *and* an SX1262 driver, both arriving with the range
   test firmware. Nothing built so far has touched the radio.
+
+## 2026-09-11 — P8: `CommandGate`, on D34 as amended
+
+**P8 is met: 127 tests under `native` and 130 on the Heltec V3, all passing, with zero
+host/target divergence.** The 20 new tests are in `test/test_gate/`. The W4 vectors pass
+unchanged, and `generate.py` re-run against spec v0.11 reproduced the committed files byte
+for byte. The operator accepted every recommendation in `LRAN-P8-CommandGate-Brief` the
+same morning; Decision Register §3.2.1 is the record, and spec v0.11 carries the answer.
+
+### What changed from the plan as written
+
+The plan's §3.10 had `record()` advance the `seq` high-water mark after execution. Built
+that way, a bridge retry arriving between `check()` and `record()` passes step 4 (no cache
+entry yet) and step 5 (the mark has not moved), and executes again. GateLink's task split
+makes that window routine rather than rare. What was built instead:
+
+- **`check()` advances the mark when it returns `Execute`**, and holds the entry **in
+  flight** in the same motion. Nothing is left for a retry to slip through.
+- **A retry that finds an in-flight entry gets `Verdict::InFlight`** and
+  `Status::DuplicateInFlight`, bumps `rx_dup_command`, and the caller sends nothing.
+- **`record()` returns `bool`.** It refuses, changing nothing, when no in-flight entry for
+  that `seq` is held: record without check, a second record, or an in-flight entry
+  evicted before execution finished. The last case is safe, because the retry falls to
+  step 5 and is refused, but the caller should log it: the bridge will read
+  `REJECTED_SEQ` for a command that ran.
+- **Storage is sized for the range, not the default.** 32 slots of `(seq, result,
+  detail)`, 4 bytes each, in an oldest-first ring, with one in-flight bit per slot in a
+  `uint32_t`. The bitmask keeps the entry at 4 bytes; a `bool` in the entry would pad it
+  to 6 and the cache to 192 B.
+
+### A third `Status` value the brief did not name
+
+The brief said a retry inside the window is counted in `rx_dup_command`, and it is. **It
+is not counted as `DuplicateCached`**, which was the obvious reuse. `to_string()` is what
+reaches a field log, and a log reading "DuplicateCached" for a frame that received no
+answer would send whoever reads it looking for a lost ACK. `DuplicateInFlight` maps to the
+same counter. It is the one `Status` that `test_status_identifiers_follow_the_wire_code`
+cannot derive — it has no wire code and shares its counter — so that test now checks it as
+a written-down exception rather than letting it sit outside the table. `rx_rejected_seq`
+and `rx_dup_command` leave the test's "no `Status` by design" list, where they had sat
+since P1 marked "outside this library (W12)".
+
+### Proving the tests can fail
+
+Two mutations of `command_gate.cpp`, each reverted after the run:
+
+| Mutation | Tests failing |
+|---|---|
+| The mark advances in `record()` and no in-flight state — the API as first specified | **5 of 20**, `test_retry_inside_the_window_never_executes` among them |
+| Step 5 checked before step 4 | **14 of 20**, `test_dedup_is_checked_before_seq` and the exhaustive sweep among them |
+
+The first is the falsifier the old precondition never had. Before this entry, nothing
+anywhere could have gone red on it.
+
+**The exhaustive test writes its expectation from the distance**, not from `seq_newer()`:
+for each of 36 marks — `0xFFF0` through `0x0010`, and `0x7FFF`, `0x8000`, `0x8001` — every
+one of the 65,536 candidate seqs must return `ReturnCached` at distance 0, `Execute` at
+1–`0x7FFF`, and `Reject` otherwise. 2.36 million checks; the whole suite took 13 s on the
+target, upload included.
+
+### Footprint
+
+| | Native (x86-64) | ESP32-S3 |
+|---|---:|---:|
+| `sizeof(CommandGate)` | 152 B | **148 B** |
+| of which dedup cache | 128 B | 128 B |
+| five-peer bridge | — | 740 B |
+
+The 4 B difference is the `Counters*`. The figures are `test_report_footprint`'s own
+report from each compiler. Total SRAM impact at five peers is 740 B, about 0.14 % of
+the ESP32-S3's 512 KB. The brief's 128 B figure is the cache alone and stands.
+
+### Hardware
+
+The on-target run used a Heltec V3 on `/dev/cu.usbserial-0001`, connected by the operator
+for this run and the only CP2102 on the machine. **Which of the two Heltecs it was is not
+recorded**: the port name cannot tell them apart and `board=` was not read off a settings
+dump before flashing. The bridge handoff expected the flat-case unit on that port. **Either
+way, the board no longer carries the range-test pass-2 build**; it carries the Unity image
+of the last suite run. No state stored on either Heltec was the only copy.
+
+### Open
+
+- **What GateLink's `COMMAND_ACK` waits for** — pulse complete, or gate confirmed. It sets
+  how often the window is hit, not what happens in it. GateLink Impl Plan §5.2 now flags
+  it for **M3**.
+- **The gate holds no lock.** A receiver calling `check()` and `record()` from different
+  tasks must serialize them. Library plan §3.10 and GateLink Impl Plan §5.2 say so; no
+  test can enforce it from inside the library.

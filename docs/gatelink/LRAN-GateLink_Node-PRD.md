@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.6
+**Version:** 0.7
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -953,6 +953,15 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.7** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.10 → v0.11**, which answers the check/record window this node's own design opens:
+  GateLink receives in `lora_task` and pulses in `io_task`, so a bridge retry can arrive
+  mid-pulse. Under v0.11 it is counted in `rx_dup_command` and not answered, and the
+  high-water mark advances before dispatch, so it can never pulse the relay a second time
+  (D34 amended 2026-09-11). Where the two gate calls run is design, and Impl Plan §5.2 v0.8
+  carries it, with what the `COMMAND_ACK` waits for left open for **M3**. Nothing on the
+  wire moved: `ver` stays at `2` and no vector regenerates.
 
 - **v0.6** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.9 → v0.10**, which fixes the PHY parameters **D1** had been deferring: 917.4 MHz,

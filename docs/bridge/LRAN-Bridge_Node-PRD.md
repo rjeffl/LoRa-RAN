@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.10
+**Version:** 0.11
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -492,6 +492,7 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 | Version | What changed |
 |---|---|
+| **v0.11** | Spec v0.11 citation; nothing reaches the bridge's requirements |
 | **v0.10** | **R-4.3a.1** — the bridge uses the range test's own 3.0 dBi stick; V-B1's remaining gap is the position |
 | **v0.9** | **D1 closed** — §8.1 states the PHY parameters; V-B1's remaining gap is the antenna |
 | **v0.8** | Header names the node **Bridge Node**, retiring `LoRaBridge` |
@@ -502,6 +503,15 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 | **v0.3** | Spec v0.7 citation; **D34** reaches an empty set here — the bridge receives no authenticated types |
 | **v0.2** | Spec v0.6 citation, body reconciled first; cross-document links repaired |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` and restated as requirements |
+
+- **v0.11** — Citation refresh only. Protocol specification **v0.10 → v0.11**, which answers
+  §9.4's check/record window on the **receiving** side: a node that gets a retry while
+  still executing counts it and sends nothing (D34 amended 2026-09-11). **No requirement
+  here changes.** The bridge receives no authenticated type (§9.2), so its gates still see
+  an empty set, and **BS-3**'s same-`seq` retry is exactly what the answer relies on. The
+  one behaviour the bridge observes — silence where it once might have read
+  `REJECTED_SEQ` — takes its existing timeout path; Impl Plan §6.2 v0.16 says so. Nothing
+  on the wire moved.
 
 - **v0.10** — **The bridge antenna is decided, and it is the one already measured through.**
   New **R-4.3a.1**: the same nominally 3.0 dBi 19 cm stick the range test ran on, at both

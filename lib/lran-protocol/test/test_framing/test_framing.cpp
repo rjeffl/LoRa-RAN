@@ -583,18 +583,26 @@ void test_counter_mapping_is_total() {
   c.bump(Status::FragmentOverflow);
   c.bump(Status::RejectedMac);
   c.bump(Status::RejectedCtx);
-  TEST_ASSERT_EQUAL_UINT32(15, c.total_dropped());
+  c.bump(Status::RejectedSeq);
+  TEST_ASSERT_EQUAL_UINT32(16, c.total_dropped());
+
+  // spec 14.1 - a dedup hit is the retry mechanism working, cached or in flight.
+  // Counted, and not a drop.
+  c.bump(Status::DuplicateCached);
+  c.bump(Status::DuplicateInFlight);
+  TEST_ASSERT_EQUAL_UINT32(2, c.rx_dup_command);
+  TEST_ASSERT_EQUAL_UINT32(16, c.total_dropped());
 
   // Not wire conditions: no spec 14 stage owns them, so they are not drops.
   c.bump(Status::Ok);
   c.bump(Status::BufferTooSmall);
   c.bump(Status::MissingMac);
   c.bump(Status::NotImplemented);
-  TEST_ASSERT_EQUAL_UINT32(15, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(16, c.total_dropped());
 
   // spec 14 stage 1 belongs to the radio driver but still counts as a drop.
   c.rx_crc_err = 5;
-  TEST_ASSERT_EQUAL_UINT32(20, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(21, c.total_dropped());
 }
 
 void test_status_strings_present() {
@@ -659,6 +667,8 @@ void test_status_identifiers_follow_the_wire_code() {
       {Status::NotFragmentable,     "NotFragmentable",     "BAD_LENGTH",         "rx_not_fragmentable"},
       {Status::RejectedCtx,         "RejectedCtx",         "REJECTED_CTX",       "rx_rejected_ctx"},
       {Status::RejectedMac,         "RejectedMac",         "REJECTED_MAC",       "rx_rejected_mac"},
+      {Status::RejectedSeq,         "RejectedSeq",         "REJECTED_SEQ",       "rx_rejected_seq"},
+      {Status::DuplicateCached,     "DuplicateCached",     "DUPLICATE_CACHED",   "rx_dup_command"},
       {Status::ReassemblyTimeout,   "ReassemblyTimeout",   "REASSEMBLY_TIMEOUT", "rx_reassembly_timeout"},
       {Status::FragmentOverflow,    "FragmentOverflow",    "FRAGMENT_OVERFLOW",  "rx_fragment_overflow"},
       {Status::ReassemblyAbandoned, "ReassemblyAbandoned", nullptr,              "rx_reassembly_abandoned"},
@@ -693,15 +703,28 @@ void test_status_identifiers_follow_the_wire_code() {
     }
   }
 
+  // The one Status the rule cannot derive. spec 10.4 (v0.11) gives a retry inside
+  // the execution window no wire answer, and its counter is shared with
+  // DuplicateCached, so neither source is available; the name follows the condition.
+  // Checked here so the exception is written down rather than merely absent.
+  {
+    TEST_ASSERT_EQUAL_STRING("DuplicateInFlight", to_string(Status::DuplicateInFlight));
+    Counters c;
+    c.bump(Status::DuplicateInFlight);
+    for (const CounterField& f : kCounterRegistry) {
+      const uint32_t want_v = (strcmp(f.name, "rx_dup_command") == 0) ? 1u : 0u;
+      TEST_ASSERT_EQUAL_UINT32_MESSAGE(want_v, c.*(f.field), f.name);
+    }
+  }
+
   // Closure, in both directions. Every registry counter this library can raise
-  // through a Status is in the table above; the four that are not are the ones with
-  // no Status by design, and naming them here is what keeps a fifth from joining
-  // them silently.
+  // through a Status is in the table above; the two that are not are the ones with
+  // no Status by design, and naming them here is what keeps a third from joining
+  // them silently. rx_rejected_seq and rx_dup_command left this list at P8, when
+  // CommandGate brought them into the library (D34).
   static const char* const kUnmapped[] = {
       "rx_crc_err",        // stage 1 - the radio driver's, never the codec's
       "rx_frag_duplicate", // spec 11.2 - the Reassembler bumps it directly
-      "rx_rejected_seq",   // stage 11 - outside this library (W12)
-      "rx_dup_command",    // stage 11 - outside this library (W12)
   };
   for (const CounterField& f : kCounterRegistry) {
     bool mapped = false;

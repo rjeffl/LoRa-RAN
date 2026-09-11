@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.9
+**Version:** 0.10
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -167,7 +167,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
 | **D1** | **LoRa PHY parameters** — SF / BW / CR / frequency / TX power | **SF9, BW 125 kHz, CR 4/5, 917.4 MHz, −4 dBm conducted with the fitted 3.0 dBi antenna**, inside D33's Envelope A. Closed **2026-09-10** on the evidence assembled in `LRAN-D1-PHY-Decision-Brief`, which is superseded by this row. **`backoff_max_ms` rises to 1500** as the one configuration change SF9 forces. See §3.4 | System PRD §5.1, Protocol Spec §12.1 |
 | **D33** | FCC Part 15 operating mode (**closes W5**) | **Envelope A — §15.249, single fixed channel, no hopping, BW 125 kHz, −4 dBm conducted with a 3.0 dBi antenna.** Reopened 2026-09-06 by M21 and **closed again 2026-09-10 in the same motion as D1**, because §2.1's fourth bound makes `BW` and the rule section one decision. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) is retained as a documented fallback behind its three triggers. Permanently: the modules' grants **do not transfer**, so the operative frame is **§15.23 home-built** and **no node may be represented as FCC certified**. Reasoning in §3.1 (2026-08-30), §3.3 (reopened) and §3.4 (closed) | Protocol Spec §18.1, §18.2 |
-| **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2 | Protocol Library Impl Plan §3, §6 (**P8**) |
+| **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2. *Amended 2026-09-11:* the high-water mark advances in `check()`, **before** dispatch, as spec §9.4 step 6 orders it; the single-threaded-receiver precondition is withdrawn; a retry inside the execution window is **in flight** — counted in `rx_dup_command`, not answered; cache storage is 32 entries, **128 B per peer**. Split and placement unchanged. See §3.2.1 | Protocol Library Impl Plan §3, §6 (**P8**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -242,6 +242,11 @@ many.
 
 **Consequences.**
 
+> **Three of these consequences were amended on 2026-09-11** — the precondition, the
+> cost, and where the high-water mark advances. The list is left as written: it is the
+> record of what was decided on 2026-08-31. **§3.2.1 records what changed.** Read them in
+> that order.
+
 - **`check` and `record` are two calls.** The cached value is the *result of
   execution*, so one call cannot produce it, and caching before execution would
   return a success ACK for a command that then failed.
@@ -267,6 +272,48 @@ second firmware is written" but **before the first firmware that accepts a
 `COMMAND`**: simnode `ROLE_GATELINK` at **B0**, and GateLink **M3**. `ROLE_RANGE`
 echoes unauthenticated `PING`, so **W12 does not block the range test firmware**.
 Land `CommandGate` as library milestone **P8**, before B0.
+
+### 3.2.1 D34 amended — the execution window, 2026-09-11
+
+**D34 is amended, not reopened.** The split and the placement stand. Three consequences
+change, on the recommendations of
+[`LRAN-P8-CommandGate-Brief`](./LRAN-P8-CommandGate-Brief.md), which the operator
+accepted in full on 2026-09-11 and which is now superseded.
+
+**What was wrong.** §3.2's second consequence rested on a premise: no frame arrives
+between `check()` and `record()`, because every receiver runs a single-threaded receive
+loop. GateLink Impl Plan §5.2 contradicts it — frames arrive in `lora_task`, commands
+dispatch in `app_task`, the relay pulse runs in `io_task`. The library plan compounded
+it by having `record()` advance the high-water mark after execution, where spec §9.4
+step 6 advances it before dispatch. Together they let a bridge retry arriving mid-pulse
+pass step 4 (no cache entry yet) and step 5 (mark not moved) and **execute a second
+time**. Spec §9.4 had named the falsifier — *revisit if a receiver ever dispatches
+asynchronously* — and nothing tracked it.
+
+**What was decided.**
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | Where the high-water mark advances | **In `check()`, when it returns `Execute`** — spec §9.4's own order. A command whose execution fails has still consumed its `seq`, and the failure is its cached result |
+| 2 | What a retry inside the window receives | **Nothing.** `check()` holds the entry **in flight**; a retry finding it gets the new verdict `InFlight`, is counted in `rx_dup_command` and is not answered. The bridge's next retry receives the real result. Rejected: answering `REJECTED_SEQ`, which has the bridge report "rejected" for a command being carried out; and synchronous execution, which blocks `lora_task` for a pulse |
+| 3 | Cache capacity against the 1–32 runtime depth | **32 entries of static storage, depth runtime-settable 1–32.** 128 B per peer — 640 B on a five-peer bridge. §3.2's "32 B per peer" was the default depth's cost, not the range's |
+| 4 | Where the amendment is recorded | Here, in Protocol Spec **v0.11** §9.4 and §10.4 (**no wire change**), and in the library plan's §3.10 — in the same branch as P8's code |
+| 5 | Sequencing | P8 on its own branch from `main`, independent of B2 |
+
+**Consequences.**
+
+- **`Status` gains three values, not two.** `RejectedSeq` and `DuplicateCached` as §3.2
+  said, and **`DuplicateInFlight`**, which also bumps `rx_dup_command`. It is held apart
+  so a field log does not read "DuplicateCached" for a frame that received no answer.
+- **The precondition is withdrawn**, not restated. Library P8's test suite carries the
+  falsifier it never had: a second `check()` before `record()` must return `InFlight`,
+  never `Execute`, and that test fails against the API as first specified.
+- **An in-flight entry can be evicted** if `dedup_cache_depth` newer commands are
+  accepted before it completes. Its retry then falls to step 5 and is refused — never
+  executed twice — and `record()` reports the loss so the caller can log it.
+- **Still open, and not part of this amendment:** what GateLink's `COMMAND_ACK` waits
+  for — pulse complete, or gate confirmed. It sets how often the window is hit, not what
+  happens in it. GateLink **M3** needs the answer.
 
 ---
 
@@ -600,6 +647,17 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.10** — **D34 amended, not reopened.** A review found that `CommandGate` as the
+  library plan specified it would execute a bridge retry twice on a receiver that
+  dispatches on another task, which GateLink's plan does. The operator accepted
+  `LRAN-P8-CommandGate-Brief`'s recommendations on 2026-09-11: the high-water mark
+  advances in `check()`, a retry inside the execution window is in flight and not
+  answered, and cache storage is sized for the 1–32 range at 128 B per peer. **New
+  §3.2.1** records it; §3.2 is left as written with a pointer, and the D34 row carries the
+  amendment inline in the form D17's took. **No decision changes state.** Protocol Spec
+  **v0.11** carries the outcome; library milestone **P8** implements it. The brief is
+  **superseded**. What GateLink's ACK waits for stays open and is recorded in §3.2.1.
 
 - **v0.9** — **D1 is closed, and D33 closed with it.** SF9, BW 125 kHz, CR 4/5, 917.4 MHz,
   −4 dBm conducted with the fitted 3.0 dBi antenna, inside Envelope A. Both rows moved from

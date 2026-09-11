@@ -51,14 +51,13 @@ struct Counters {
   uint32_t rx_fragment_overflow    = 0;  // spec 11.2 - index >= total, cap, staging
   uint32_t rx_reassembly_abandoned = 0;  // spec 11.3 - live set displaced
 
-  // spec 14 stage 11 / spec 9.4 steps 4-5. NOT raised by this library: replay and
-  // dedup are node behaviour and live outside it (Implementation Plan section 1,
-  // open item W12). Carried here anyway because Counters is the aggregate that
-  // reaches schema 0xF0, and an rx_dropped missing the replay rejections would
-  // understate drops on exactly the frames that matter most - the ones that move a
-  // gate. Whoever implements W12 increments these.
+  // spec 14 stage 11 / spec 9.4 steps 4-5. Raised by CommandGate (D34), through
+  // bump() like every other discard. They live in the same Counters as the rest
+  // because this is the aggregate that reaches schema 0xF0, and an rx_dropped missing
+  // the replay rejections would understate drops on exactly the frames that move a
+  // gate.
   uint32_t rx_rejected_seq = 0;  // step 5 - seq not newer than the high-water mark
-  uint32_t rx_dup_command  = 0;  // step 4 - dedup cache hit, the cached ACK is resent
+  uint32_t rx_dup_command  = 0;  // step 4 - a retry: cached ACK resent, or in flight
 
   // spec 14.1 - counted but EXCLUDED from rx_dropped. Each is normal traffic rather
   // than a fault: an overwrite is not a discard at all, a late fragment is what an RF

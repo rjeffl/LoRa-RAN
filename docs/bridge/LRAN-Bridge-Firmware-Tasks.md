@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.3
+**Version:** 0.4
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.9
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.13
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.10**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-11
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -236,9 +236,19 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.4** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.4** — Citation refresh. Protocol specification **v0.10 → v0.11**, which answers §9.4's
+  check/record window: a retry reaching a node mid-execution is counted and not answered
+  (D34 amended 2026-09-11). **Library P8 is built on that basis**, host and target, which
+  meets the library dependency simnode **B0** was waiting on. No task's scope or model
+  column changes. **For whoever writes the simnode's command path:** call
+  `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
+  on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
+  v0.16.
 
 - **v0.3** — **D1 and D33 closed on 2026-09-10, so BF-0 is done and the list starts at
   BF-10.** §1.1 stops arguing that D1 is a decision and states what the firmware inherits
