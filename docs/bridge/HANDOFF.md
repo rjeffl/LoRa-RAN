@@ -13,30 +13,40 @@ the firmware task list — wholesale.
 
 ## The next job, in one place
 
-**Run V-B9 on the flat-case Heltec — it is the one B2 acceptance test that only the bench
-can answer, and the procedure is written:** Impl Plan **§6.5.2**, five steps, about twenty
-minutes. **Stop at step 2 if the banner's `Image state:` reads `not_pending`** on the first
-boot after an upload; that means rollback is not in effect and every later step would pass
-without meaning anything. Then **`BF-14`** (the OLED page) and **`BF-16`**
-(`lora_link.cpp`, the first task that puts a frame on the air).
+**B2's code is complete; what is left is one bench session, and it needs the sandbox
+MQTT broker running.** Only a broker, not Home Assistant — HA is needed from B4. With it
+up and `secrets.h` filled in on the build machine, one session on the flat-case Heltec
+checks every B2 criterion in Impl Plan §8 that code alone cannot: WiFi connects and
+reconnects, MQTT connects with the LWT registered, the version is published, the OLED shows
+its page, and **V-B9** — Impl Plan **§6.5.2**, five steps. **Stop at V-B9's step 2 if the
+banner's `Image state:` reads `not_pending`** on the first boot after an upload.
 
-**`BF-10` to `BF-13` are built.** `firmware/bridge/` builds on `heltec` and passes 40 host
-tests, **and all of it runs in CI** — the workflow copies `secrets.h.example` for the target
-build, so nothing secret is in it (Bridge Firmware Tasks §1.2).
+**Credentials are the operator's to enter, and the OTA uploads are the operator's to run**
+— `LRAN_OTA_PASSWORD` stays out of any command an assistant writes. The USB flash, the
+serial log and the write-up can be delegated.
+
+**BF-16 (`lora_link.cpp`) opens B3, not B2.** It needs neither the broker nor the bench to
+start, so it is the natural next task while the broker is down — but B3 also needs simnode
+**B0**, which is gated on library **P8**.
+
+**`BF-10` to `BF-14` are built.** `firmware/bridge/` builds on `heltec` and its host suite
+runs in CI — the workflow copies `secrets.h.example` for the target build, so nothing
+secret is in it (Bridge Firmware Tasks §1.2).
 
 - Seven statically allocated FreeRTOS tasks, `lora` strictly highest and pinned off the
   WiFi core, `log` strictly lowest, queues that **drop the newest item and count it**.
   Impl Plan **§5.2.1**.
 - WiFi with a **capped, deterministic reconnect**; the `MqttTransport` seam (**D5**); **LWT
   on `lran/bridge/availability`**. Impl Plan **§4.3.1**.
-- **OTA with a committed A/B table and a rollback verdict that replaces Arduino's.**
-  Arduino-ESP32 2.0.x marks every image valid before `setup()` runs, which would have kept
-  an image that never finds the LAN. The fix is an **`extern "C"`** override, and CI checks
-  the symbol table because a C++ one links cleanly and does nothing. Impl Plan **§6.5.1**.
+- **OTA with a committed A/B table and a rollback verdict that replaces Arduino's**, which
+  marks every image valid before `setup()`. The override is `extern "C"` and CI checks the
+  symbol table. Impl Plan **§6.5.1**.
+- **An OLED page that never stops the bridge when the panel is dead**, reads `--` for what
+  is not yet known, and is designed against burn-in. Impl Plan **§5.1.2**.
 
-**Still absent: the radio, discovery, the publication policy and the OLED.** **None of the
-runtime behaviour is proven** — no reconnect has reconnected, no LWT has landed, no image
-has been OTA'd, and **V-B9 is not met.**
+**None of the runtime behaviour is proven.** Nothing has been flashed as the bridge. No
+reconnect has reconnected, no LWT has landed, no image has been OTA'd, the page has not
+been looked at, and **V-B9 is not met.**
 
 **The radio is no longer a question.** D1 closed 2026-09-10: **917.4 MHz, SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna, under §15.249 Envelope A. Two

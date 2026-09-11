@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.10 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.18
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.7 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.19
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.8 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -21,14 +21,15 @@ names come from spec §14.1** below).
 
 ## What exists here today
 
-**`BF-10` to `BF-13` — the skeleton, the task structure, the network and OTA.**
+**`BF-10` to `BF-14` — B2's code, complete.**
 `platformio.ini` (`heltec` and `native`), `main.cpp` (banner, placeholder-key check,
 network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime.{h,cpp}`
 (every FreeRTOS call), `net_policy.{h,cpp}` (backoff, topic grammar, the retain rule),
 `wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
 first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
-`ota.{h,cpp}` and `partitions.csv`. **Still absent: the radio, discovery, the
-publication policy and the OLED.** Each arrives with its own `BF-*` task; do not add
+`ota.{h,cpp}`, `partitions.csv`, `status_page.{h,cpp}` (what the OLED says, host-tested),
+`ui.{h,cpp}` and `board_ui.h`. **Still absent: the radio, discovery and the publication
+policy** — B3 and B4. Each arrives with its own `BF-*` task; do not add
 one early because it is convenient.
 
 ```bash

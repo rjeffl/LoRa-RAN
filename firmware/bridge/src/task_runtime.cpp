@@ -12,16 +12,20 @@
 #include "task_runtime.h"
 
 #include <Arduino.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
 
 #include <atomic>
 
+#include "board_ui.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
 #include "ota.h"
+#include "status_page.h"
+#include "ui.h"
 #include "wifi_link.h"
 
 namespace bridge {
@@ -242,11 +246,38 @@ void ota_task(void*) {
   }
 }
 
+// 500 ms tick, low priority. R-4.1c's glanceable page.
+//
+// A panel that fails to come up is logged once and then ignored: the display is
+// MAY-level, and nothing else in the bridge waits on it. This task keeps ticking so a
+// later BF can retry without restructuring it.
 void ui_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Ui).period_ms);
   TickType_t       last   = xTaskGetTickCount();
+
+  const bool have_panel = ui_begin(kHeltecV3Ui);
+  if (!have_panel) {
+    Serial.println(F("OLED: no ACK at 0x3C - check Vext. Continuing without a display."));
+  }
+
   for (;;) {
-    // TODO(BF-14): the OLED status page - Vext first, then the ThingPulse driver.
+    if (have_panel) {
+      StatusSnapshot s;
+      // esp_timer, not millis(): millis() wraps at ~49.7 days, and a displayed uptime
+      // that returns to zero every seven weeks reads as a reboot that did not happen.
+      s.uptime_s        = static_cast<uint32_t>(esp_timer_get_time() / 1000000LL);
+      s.wifi_connected  = wifi_connected();
+      s.wifi_rssi_dbm   = wifi_rssi_dbm();
+      s.mqtt_connected  = g_mqtt_up;
+      // TODO(BF-20): nodes_online / nodes_total from the availability watchdog. Until
+      // then kNodesUnknown, which the page renders as `--` rather than as zero.
+      s.any_dropped     = g_accounting.any_dropped();
+      s.ota_in_progress = ota_in_progress();
+      s.ota_pending     = ota_verify_pending();
+      s.slot            = ota_running_slot();
+      s.version         = LRAN_BRIDGE_VERSION;
+      ui_render(build_status_lines(s), pixel_shift_x(s.uptime_s));
+    }
     vTaskDelayUntil(&last, period);
   }
 }

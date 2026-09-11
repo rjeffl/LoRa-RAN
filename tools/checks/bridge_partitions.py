@@ -189,11 +189,18 @@ def main(argv):
     if "--firmware" in argv:
         i = argv.index("--firmware")
         image = pathlib.Path(argv[i + 1])
-        problems += check_image(image.stat().st_size, slot)
+        if image.exists():
+            problems += check_image(image.stat().st_size, slot)
+        else:
+            problems.append(f"{image} not found - build the target first")
 
     if "--elf" in argv:
         i = argv.index("--elf")
-        problems += check_override(pathlib.Path(argv[i + 1]))
+        elf = pathlib.Path(argv[i + 1])
+        if elf.exists():
+            problems += check_override(elf)
+        else:
+            problems.append(f"{elf} not found - build the target first")
         if not problems:
             print("verifyRollbackLater is strong in the linked image - ota.cpp's verdict owns rollback")
 

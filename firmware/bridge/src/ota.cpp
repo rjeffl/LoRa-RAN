@@ -44,6 +44,7 @@ const char*       g_password   = nullptr;
 bool              g_listening  = false;
 std::atomic<bool> g_in_progress{false};
 bool              g_decided    = false;  // the verdict is applied once per boot
+std::atomic<bool> g_pending{false};      // for readers on other tasks; see ota.h
 
 OtaImageState read_image_state() {
   const esp_partition_t* running = esp_ota_get_running_partition();
@@ -124,6 +125,7 @@ void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
     } else {
       apply_verdict(v);
     }
+    g_pending = !g_decided;
   }
 
   if (!wifi_connected) {
@@ -144,6 +146,8 @@ void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
 }
 
 bool ota_in_progress() { return g_in_progress; }
+
+bool ota_verify_pending() { return g_pending; }
 
 OtaImageState ota_image_state() { return read_image_state(); }
 

@@ -27,6 +27,11 @@ void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
 // so a poll is not started into a bridge about to restart.
 bool ota_in_progress();
 
+// True while this boot's image is in PENDING_VERIFY and the verdict has not yet been
+// applied. Cached by ota_service() rather than read from otadata by each caller -
+// ui_task asks twice a second, and the answer changes at most once per boot.
+bool ota_verify_pending();
+
 // What the running image is, for the version topic and the boot banner. V-B9's
 // procedure reads these: after a rollback, the slot changes and git changes.
 OtaImageState ota_image_state();

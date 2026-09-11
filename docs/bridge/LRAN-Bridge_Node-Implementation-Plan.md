@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.18
+**Version:** 0.19
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -518,6 +518,28 @@ library is weaker here than in either firmware that has already declined it. Con
 across the Heltec targets is the argument; nothing forces it. **If a bridge display
 requirement ever needs what U8g2 offers, change this row and say why** rather than
 reaching for a second display library alongside the first.
+
+#### 5.1.2 What BF-14 fixed, 2026-09-10
+
+**The display is the ThingPulse driver, pinned to the range test's version**, driven only
+from `ui_task`. What the page shows and how it is laid out is decided in
+`status_page.cpp`, which is Arduino-free and host-tested; `ui.cpp` only draws it.
+
+- **A dead panel is reported once and then ignored.** R-4.1c is MAY-level, and a bridge
+  that stopped relaying telemetry because its status display failed would have its
+  priorities backwards.
+- **Unknown reads `--`, never `0`** (root rule 6). The node count is unknown until the
+  registry (BF-15) and the availability watchdog (BF-20) exist, and "nodes 0" would read
+  as every node down.
+- **Burn-in is designed against, not hoped about.** The panel is on permanently on a node
+  expected to run for years. Contrast is 96 rather than the range test's 255 — this panel
+  is read indoors — and every element shifts 0–3 px on a five-minute cycle.
+- **The displayed uptime comes from `esp_timer`, not `millis()`.** `millis()` wraps at
+  ~49.7 days, and an uptime that returns to zero every seven weeks reads as a reboot that
+  did not happen.
+- **Every string is held to a per-font character budget by a host test.** The range test's
+  panel truncated two strings on hardware before anyone noticed; this one's budgets caught
+  two overruns before it was ever flashed.
 
 ### 5.2 Task structure
 
@@ -1584,6 +1606,7 @@ that drifts is the one that gets followed.
 | Version | What changed |
 |---|---|
 | **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.19** | **§5.1.2** — BF-14's status page: sentinels, burn-in, and a non-fatal display |
 | **v0.18** | **§6.5.1–§6.5.2** — BF-13's OTA, why Arduino's default defeats rollback, and V-B9's procedure |
 | **v0.17** | **§4.3.1** — BF-12's reconnect, keepalive, LWT and the enforced retain rule |
 | **v0.16** | **§5.2.1** — BF-11's task priorities, cores, stacks, queue depths and drop policy |
@@ -1610,6 +1633,13 @@ that drifts is the one that gets followed.
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
   one. Nothing on the wire moved; `ver` stays `2`.
+
+- **v0.19** — **§5.1.1's driver choice gains its configuration, in new §5.1.2.** BF-14
+  built the OLED status page R-4.1c asks for, and three of its choices are worth a reader's
+  time: **a dead panel never stops the bridge**, **unknown reads `--` rather than `0`**,
+  and **burn-in is designed against** on a panel that is on for years — lower contrast and
+  a slow pixel shift. It also records a `millis()` wrap the page would have shown as a
+  phantom reboot every seven weeks.
 
 - **v0.18** — **§6.5 gains what BF-13 found, in new §6.5.1, and V-B9 gains a
   procedure, in §6.5.2.** §6.5 said to configure an A/B table with rollback, and that was

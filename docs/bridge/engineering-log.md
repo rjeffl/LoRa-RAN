@@ -148,3 +148,36 @@ substantive spec revision alongside whatever discovery (BF-23) needs from the sa
 **V-B9 has not been run.** Two bad-image environments exist for it — `v_b9_no_network`
 tests this firmware's verdict, `v_b9_panic` tests the bootloader — and Impl Plan §6.5.2 is
 the procedure. Both are built by CI so the harness cannot rot; neither has been flashed.
+
+---
+
+## 2026-09-10 — BF-14: the status page, and two overruns caught at a desk
+
+**B2's code is complete with this task.** What is left is the bench, and the bench is
+waiting on the sandbox broker.
+
+**The page's text is built Arduino-free and held to a character budget per font by a host
+test** — ~21 characters for ArialMT_Plain_10 and ~12 for _16 on a 128 px panel. The range
+test's panel truncated two strings on hardware (`RESPONDE`) before anyone noticed. **This
+one caught two overruns before it was ever flashed:** the footer at the widest possible
+uptime (`QUEUE DROPS  up 49710d06h`), which GCC's `-Wformat-truncation` flagged in the same
+build, and a three-digit node count (`nodes 254/254`) in the large font. The footer words
+were shortened; counts past 99 render as `nodes >99`.
+
+**The widest-uptime test exposed a real defect, not just a long string.** The page took its
+uptime from `millis()`, which wraps at ~49.7 days — so the display would have returned to
+zero every seven weeks and read as a reboot that never happened. It uses `esp_timer` now.
+`millis()` remains correct where it is used for intervals (the reconnect and OTA timers,
+which use wrap-safe subtraction).
+
+**Burn-in is designed against.** R-4.1c lets the panel stay on, and it will, for years. An
+SSD1306 driven with the same static layout that long keeps a ghost of it. Contrast is 96
+rather than the range test's outdoor 255, and every element shifts 0–3 px on a five-minute
+cycle, the right-aligned slot label moving opposite so nothing leaves the panel.
+
+**Unknown is `--`.** The node count is not known until BF-15/BF-20, and `nodes 0` would read
+as every node down (root rule 6).
+
+**The page has not been seen.** Vext, orientation and whether the fonts measure as the
+budgets assume are bench questions, and B2's "OLED shows a status page" is not met until
+someone has looked at it.

@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.7
+**Version:** 0.8
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.10
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.18
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.19
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.6
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -189,7 +189,7 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 | **BF-11b** | **Hardware watchdog, fed from `sched_task`** (§5.2) | **Sonnet** | One feed point, and it must be the task that would notice a stall. Enabling it before BF-16 means a watchdog reset for a radio that is not there yet |
 | ~~**BF-12**~~ | ~~WiFi station, reconnect, `MqttTransport` interface over PubSubClient, LWT (§4.3)~~ — **done 2026-09-10.** Capped exponential reconnect (1 s → 30 s, deterministic), `MqttTransport` with `PubSubTransport` behind it, LWT on `lran/bridge/availability`, and spec §16.3's never-retain-an-event rule enforced on the publish path rather than trusted. **The bridge joined CI with this task** — §1.2 | **Sonnet** | Well-trodden, and the one trap is written down: **`MQTT_MAX_PACKET_SIZE` ≥ 1024 in the build flags on day one**, or discovery configs vanish with no error |
 | ~~**BF-13**~~ | ~~**OTA — A/B partition table and rollback** (§6.5)~~ — **built 2026-09-10; V-B9 not yet run.** Committed partition table, ArduinoOTA, and a rollback verdict that replaces Arduino-ESP32's default — which marks every image valid before `setup()` and would have kept an image that never finds the LAN. Impl Plan §6.5.1–§6.5.2 | **Opus** | The partition table is a build-time decision that *cannot* be retrofitted without a USB flash, and the bridge is the node whose failure takes the whole property's telemetry. **V-B9** requires a deliberately bad image to roll back |
-| **BF-14** | OLED status page (§5.3 `ui.cpp`) | **Sonnet** | R-4.1c is MAY-level — a glanceable "N nodes online". Reuse the ThingPulse driver and the range test's Vext bring-up sequence |
+| ~~**BF-14**~~ | ~~OLED status page (§5.3 `ui.cpp`)~~ — **built 2026-09-10; not yet seen on the panel.** Host-tested page model, ThingPulse renderer, Vext order from the range test, burn-in mitigation, `--` for unknown. Impl Plan §5.1.2 | **Sonnet** | R-4.1c is MAY-level — a glanceable "N nodes online". Reuse the ThingPulse driver and the range test's Vext bring-up sequence |
 
 ---
 
@@ -268,6 +268,7 @@ only against the bridge, a cached value republished as current.
 | Version | What changed |
 |---|---|
 | **v0.9** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
+| **v0.8** | **BF-14 built** — **B2's code is complete**; everything left is bench work |
 | **v0.7** | **BF-13 built** — OTA and rollback; **V-B9 still owed on the bench** |
 | **v0.6** | **BF-12 done** — WiFi, MQTT, LWT; **the bridge is in CI**, §1.2 rewritten |
 | **v0.5** | **BF-11 done** — seven tasks, four queues; BF-11a and BF-11b split out |
@@ -284,6 +285,14 @@ only against the bridge, a cached value republished as current.
   `CommandGate::check()` before dispatch and send the `COMMAND_ACK` only after `record()`;
   on `InFlight`, send nothing. This document inherits Bridge PRD v0.11 and Bridge Impl Plan
   v0.16.
+
+- **v0.8** — **BF-14 is built, and with it B2's code is complete.** The OLED status page
+  R-4.1c asks for: a host-tested model of what the page says, a thin renderer, and two
+  things a permanently lit panel needs — `--` rather than `0` for what is not yet known,
+  and burn-in mitigation. **Every B2 acceptance criterion except the partition table now
+  needs the bench**, and the bench needs the sandbox broker. **BF-16 is not a B2 task** —
+  it opens B3 — which earlier revisions of the handoff and of the B2 pull request said
+  otherwise.
 
 - **v0.7** — **BF-13 is built, and its acceptance test is not yet run.** A committed A/B
   partition table, ArduinoOTA over the LAN, and a verdict on each new image. **The finding
