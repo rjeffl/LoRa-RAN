@@ -102,12 +102,12 @@ below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 ```
 lib/        lran-protocol                                    [built]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
-firmware/   bridge/CLAUDE.md, simnode/CLAUDE.md   [context files only, no project yet]
-            range-test/                                      [built]
+firmware/   bridge/, range-test/                             [built]
+            simnode/CLAUDE.md                     [context file only, no project yet]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
-            <node>/engineering-log.md — protocol-lib and rangetest have one
+            <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
 ha/         example discovery payloads                       [planned]
 wattcycle-reader/  BMS BLE proof of concept. Complete, self-contained, its own
             CLAUDE.md. Not part of the LRAN build; the TDT protocol write-up still
@@ -136,7 +136,16 @@ python3 tools/rangetest/test_capture.py       # capture tool, PlatformIO's pytho
 python3 tools/rangetest/test_survey_reintegrate.py   # M20 re-integration tool
 python3 tools/rangetest/test_eirp_check.py    # findings 7.6 EIRP sanity check
 python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned RadioLib
+
+pio test -d firmware/bridge -e native         # bridge host suite, no secrets
+pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
+python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
 ```
+
+**`firmware/bridge/` is the one target that needs `secrets.h`.** Copy
+`secrets.h.example` to the repo root and fill it in; the build fails with a message
+naming that step. **CI copies the committed template** — placeholders only, and
+`main.cpp` says so at boot — so no secret enters a workflow.
 
 These are the shape the firmware targets take once they exist:
 
@@ -155,11 +164,12 @@ wrong.
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
 before merge. **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) enforces it** in
 three parallel jobs: `checks` (the repository invariants and the host tools, seconds, no
-toolchain), `native` (both Unity suites) and `firmware` (both range-test targets, then the
-PA table mirror, which has to run after a build because it reads the installed RadioLib).
-**No secrets are needed or available** — every target built there is secrets-free by
-design, and a target that starts needing `secrets.h` needs a decision about CI rather than
-a secret pasted into a workflow.
+toolchain), `native` (the library, range-test and bridge Unity suites) and `firmware`
+(every target, then the checks that read a built image or the installed RadioLib).
+**No secrets are needed or available.** The bridge is the one target that needs
+`secrets.h`, and the decision its arrival forced is recorded in
+`LRAN-Bridge-Firmware-Tasks` §1.2: CI copies the committed template. A new target that
+needs a *real* secret still needs a decision, not a secret pasted into a workflow.
 
 ## Workflow
 

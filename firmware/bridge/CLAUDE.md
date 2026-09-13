@@ -3,19 +3,117 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.2 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`) and `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7
-(build). **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11**
-(`ver = 2`).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.21
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.9 (**the `BF-*` task order**).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
-only.
+only. **The antenna is decided and is not a choice to revisit here:** the same 3.0 dBi
+19 cm stick the range test ran on (PRD **R-4.3a.1**). Its gain is a term in D1's EIRP
+arithmetic, not a note about a part.
 
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **MQTT topics, discovery keys and the §14.1 counter names are exact tokens**, and
 they are the interface Home Assistant sees. A topic or counter renamed for readability in
 a document is a topic that no longer matches the spec, which owns both (see **Counter
 names come from spec §14.1** below).
+
+## What exists here today
+
+**`BF-10` to `BF-14` — B2's code, complete.**
+`platformio.ini` (`heltec` and `native`), `main.cpp` (banner, placeholder-key check,
+network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime.{h,cpp}`
+(every FreeRTOS call), `net_policy.{h,cpp}` (backoff, topic grammar, the retain rule),
+`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
+first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
+`ota.{h,cpp}`, `partitions.csv`, `status_page.{h,cpp}` (what the OLED says, host-tested),
+`ui.{h,cpp}` and `board_ui.h`. **Still absent: the radio, discovery and the publication
+policy** — B3 and B4. Each arrives with its own `BF-*` task; do not add
+one early because it is convenient.
+
+```bash
+pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
+pio test -d firmware/bridge -e native            # host, no secrets
+python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
+```
+
+**All of it runs in CI** (Bridge Firmware Tasks §1.2), plus `bridge_partitions.py` on the
+table, the built image and its symbol table. The workflow copies `secrets.h.example` for
+the target build, so nothing secret is in it.
+
+## OTA — two things that are easy to break and silent when broken
+
+- **Rollback depends on `extern "C" bool verifyRollbackLater()` in `ota.cpp`.** Without
+  it, Arduino-ESP32 marks every image valid before `setup()` runs. A C++ definition links
+  cleanly and overrides nothing; CI's `bridge_partitions.py --elf` fails unless the symbol
+  is strong. **Do not remove the `extern "C"`, and do not move the definition into a
+  library** — an archive member nothing references is not linked, and the weak default
+  wins again.
+- **`partitions.csv` cannot change on a deployed bridge without USB** (Impl Plan §6.5).
+  It is committed rather than taken from the board definition for that reason. Grow the
+  image, not the table.
+
+**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log). **Re-run
+Impl Plan §6.5.2 after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
+Arduino-ESP32 version**; CI's symbol check catches a lost `extern "C"`, but only a board
+proves a rollback. The two bad-image environments, `v_b9_no_network` and `v_b9_panic`,
+exist for it and are never a production build.
+
+## Two network rules that are enforced, not remembered
+
+- **Event topics are never retained** (spec §16.3). `make_publish()` refuses a retained
+  publication on `lran/<node>/event/`, and the transport refuses it again before the
+  wire. **Refused, not silently corrected** — a caller that set the flag believes
+  something untrue. These events drive email and SMS; a retained one replays on every HA
+  restart.
+- **Nothing is truncated.** An oversized topic or payload is refused and counted.
+  Truncated JSON is worse than absent: HA logs a parse error against a topic that looks
+  alive while the entity keeps a stale value.
+
+**Credentials live in `main.cpp` and nowhere else.** Every other file takes what it needs
+as an argument. The SSID and broker address are printed at boot because they make a
+failure diagnosable; **no password, no key, is printed anywhere in this firmware.**
+
+**The Arduino-free/Arduino split is load-bearing, and `build_src_filter` in
+`[env:native]` is where it is declared.** `tasks.cpp` and `queues.cpp` build on the host
+so §5.2's rules can be *asserted*; a file that needs to move into that group has to be
+added to the filter, which is a visible edit. Keep new policy on the host side.
+
+## The never-block rule is checked, not just stated
+
+**`lora_task` is highest priority and never blocks on the network** — and there is no
+blocking queue send in `task_runtime.h` to reach for. Every send is zero-tick and counts
+its drop. `tools/checks/lora_task_never_blocks.py` fails on `portMAX_DELAY`, `delay()`, a
+WiFi or publish call, or a queue call with a non-zero timeout in the code `lora_task`
+owns. **It reads one function's text** — a tripwire on the shape of the mistake, not a
+proof, and it cannot see into RadioLib.
+
+**A full queue drops the newest item and counts it** (`QueueAccounting`). Those counters
+are **bridge diagnostics and not schema `0xF0`**: §14.1 is the wire's normative registry
+of receive-ladder discards, and a queue overflow happens *after* a frame has passed the
+whole ladder. Root rule 4 is honoured in substance — no silent discard — and the
+engineering log's 2026-09-10 entry says why it is not stretched further.
+
+**`secrets.h` is required to build the target, and it is gitignored.** Copy
+`secrets.h.example` from the repo root and fill it in; the build fails with a message
+naming that step rather than a file-not-found. **The template's `LRAN_MASTER_KEY` is 32
+zero bytes and it compiles**, so `main.cpp` checks at boot and says so loudly on a
+placeholder build — a build that cannot authenticate anything must not look healthy in a
+log. Never commit, echo or log the real values.
+
+## The PHY is fixed — D1, closed 2026-09-10
+
+**917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the 3.0 dBi antenna, under
+§15.249 Envelope A. Protocol Spec §12.1 states them; Decision Register §3.4 records why.
+
+- **`backoff_max_ms` defaults to 1500**, not the 500 older material shows. A maximum
+  `PING` at SF9 runs 1107 ms and a window shorter than the frame cannot outlast it.
+- **PHY parameters are not runtime-configurable** (§12.1). They belong in the injected
+  radio config beside the pin map, never in the HA-visible config set — a node that boots
+  on the wrong channel is a walk to the gate with a laptop.
+- **`cad_backoffs` is the instrument to watch** once frames are moving. M20 sampled
+  125 kHz every 200 kHz, so 37.5 % of the band was never looked at.
 
 ## Three properties that must survive every change
 
@@ -105,8 +203,9 @@ node-originated authenticated type appears, the path must already exist. Status 
 ## Milestones
 
 B2 bring-up and OTA → B3 protocol and registry → B4 MQTT/discovery/policy → B5 HEX proxy →
-B6 GateLink integration → B7 soak. B1a/B1b (range) are independent. B3 depends on simnode
-B0, which depends on protocol library P6.
+B6 GateLink integration → B7 soak. B1a/B1b (range) are done. B3 depends on simnode B0,
+which depends on protocol library **P6 and P8** — both met; P8 (`CommandGate`, D34) landed
+2026-09-11. Impl Plan §8 gated B0 on P6 alone until an audit corrected it.
 
 **Test the OTA rollback with a deliberately bad image.** An untested rollback is not a
 rollback, and this is the one node where losing it costs the whole property's telemetry.

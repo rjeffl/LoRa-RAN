@@ -3,17 +3,29 @@
 # Three jobs, ordered by how fast they tell you something useful:
 #
 #   checks     seconds, no toolchain. Repository invariants and the host tools.
-#   native     the Unity suites on the host, for the library and the range test.
-#   firmware   both range-test targets, then the PA table mirror.
+#   native     the Unity suites on the host: library, range test, bridge.
+#   firmware   both range-test targets and the bridge, then the PA table mirror.
 #
 # `main` stays buildable (root CLAUDE.md), so a pull request runs all three
 # before merge. They are independent and run in parallel; a firmware target
 # breaking does not hide a failing vector.
 #
-# NO SECRETS ARE NEEDED OR AVAILABLE. secrets.h is gitignored and every target
-# built here is secrets-free by design — the range test firmware has no WiFi, no
-# MQTT and no key material (task guardrail 2). A target that starts needing
-# secrets.h needs a decision about CI, not a secret pasted into a workflow.
+# NO SECRETS ARE NEEDED OR AVAILABLE, AND THE BRIDGE DID NOT CHANGE THAT.
+#
+# The range test firmware is secrets-free by design — no WiFi, no MQTT, no key
+# material (task guardrail 2). The bridge is not: it holds LRAN_MASTER_KEY, WiFi
+# and broker credentials, and it is the target this header's older wording
+# anticipated when it said such a target "needs a decision about CI, not a secret
+# pasted into a workflow."
+#
+# The decision, taken 2026-09-10 and recorded in LRAN-Bridge-Firmware-Tasks §1.2:
+# CI copies the COMMITTED TEMPLATE, `secrets.h.example`, whose LRAN_MASTER_KEY is
+# 32 zero bytes. Nothing secret enters this workflow, and a build made this way
+# cannot masquerade as a provisioned one — firmware/bridge/src/main.cpp checks the
+# key at boot and says so on every line of its log.
+#
+# What is being tested here is that the bridge COMPILES. Anything that needs a real
+# key is bench work against a real broker (B4), not a CI job.
 
 name: CI
 
@@ -72,6 +84,25 @@ jobs:
           python3 tools/rangetest/test_survey_reintegrate.py
           python3 tools/rangetest/test_eirp_check.py
 
+      # Impl Plan §5.2 and Bridge PRD §1.3 property 2: lora_task never blocks on the
+      # network. Prose has never stopped anyone writing that line, and the failure is
+      # silent — telemetry lost during an outage that the bridge appeared to survive.
+      # The check reads one function's text, so it is a tripwire on the shape of the
+      # mistake rather than a proof. Its own fixtures run first.
+      - name: lora_task never blocks
+        run: |
+          python3 tools/checks/lora_task_never_blocks.py --self-test
+          python3 tools/checks/lora_task_never_blocks.py
+
+      # Impl Plan §6.5, R-5.3c: the bridge's A/B partition table cannot be changed on
+      # a deployed board without a USB flash. Two equal OTA slots, otadata, no factory
+      # partition, no overlap, inside 8 MB. The image-size and symbol checks need a
+      # build, so they run in the `firmware` job.
+      - name: Bridge partition table
+        run: |
+          python3 tools/checks/bridge_partitions.py --self-test
+          python3 tools/checks/bridge_partitions.py
+
   native:
     name: Host Unity suites
     runs-on: ubuntu-latest
@@ -104,6 +135,13 @@ jobs:
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 
+      # The bridge's host suite needs no secrets: its `native` environment builds only
+      # the Arduino-free translation units (the task table, the queue accounting, the
+      # reconnect backoff and the topic grammar), and the repo root is deliberately off
+      # that include path so a test cannot quietly depend on secrets.h.
+      - name: Bridge firmware
+        run: pio test -d firmware/bridge -e native
+
   firmware:
     name: Firmware targets
     runs-on: ubuntu-latest
@@ -135,6 +173,33 @@ jobs:
 
       - name: XIAO ESP32S3 + Wio-SX1262 Kit
         run: pio run -d firmware/range-test -e xiao
+
+      # See this file's header for why copying the template is the decision rather
+      # than a workaround. The copy is made in the runner's checkout and goes nowhere:
+      # secrets.h is gitignored, and its committed template holds only placeholders.
+      - name: Bridge - secrets.h from the committed template
+        run: cp secrets.h.example secrets.h
+
+      - name: Bridge Node (Heltec WiFi LoRa 32 V3)
+        run: pio run -d firmware/bridge -e heltec
+
+      # BF-13. Two things only a build can show. The image must leave room in its OTA
+      # slot (past 90 % is one release from USB-only updates). And rollback depends on
+      # ota.cpp's extern "C" verifyRollbackLater() overriding Arduino's weak default -
+      # a C++ definition links cleanly and overrides nothing, so the symbol table is
+      # the one place that is visible without flashing a board.
+      - name: Bridge OTA slot headroom and rollback override
+        run: >
+          python3 tools/checks/bridge_partitions.py
+          --firmware firmware/bridge/.pio/build/heltec/firmware.bin
+          --elf firmware/bridge/.pio/build/heltec/firmware.elf
+
+      # V-B9's two deliberately bad images. Built here so the test harness cannot rot
+      # between the runs that need it; never flashed by CI.
+      - name: Bridge V-B9 bad images
+        run: |
+          pio run -d firmware/bridge -e v_b9_no_network
+          pio run -d firmware/bridge -e v_b9_panic
 
       # Root rule 9. pa_config.cpp mirrors a file-static table inside RadioLib so
       # the applied PA configuration can be logged, because the SX1262 cannot read

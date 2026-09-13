@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.16
+**Version:** 0.21
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -434,6 +434,35 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 > node: discovery configs do not appear, with no error that points at the cause.
 > **Set it in the build flags on day one.**
 
+#### 4.3.1 What BF-12 fixed, 2026-09-10
+
+`firmware/bridge/src/` is the authority; this records the choices §4.3 left open.
+
+- **Reconnect: capped exponential, 1 s doubling to 30 s, no jitter.** One bridge, so
+  lockstep avoidance buys nothing and a recognizable sequence in a log buys a lot. The
+  cap is shorter than the fleet's own poll interval, so a recovery is noticed within
+  one cycle. **WiFi and the broker back off independently** — a flapping AP must not
+  also spend the broker's retries.
+- **Two Arduino-ESP32 defaults are off.** `WiFi.persistent(false)`, because an NVS
+  credential cache produces a bridge on a network the build no longer names; and
+  `WiFi.setAutoReconnect(false)`, because the cadence belongs in one tested place.
+- **Keepalive 30 s, socket timeout 5 s.** PubSubClient's 15 s default is shorter than
+  this bridge's traffic pattern, which produces reconnects that look like faults.
+- **`setBufferSize()` is called as well as the build flag.** The compile-time macro does
+  not reach PubSubClient when it is built as a separate archive, and the failure mode is
+  the one this section already warns about: discovery configs that never appear.
+- **LWT on `lran/bridge/availability`, retained, payload `offline`** (spec §16.5), with
+  `online` republished on **every** connect — a broker restart loses retained state and
+  the bridge is the only thing that can put its own back.
+- **Spec §16.3 is enforced on the publish path, twice.** A retained publication on an
+  `lran/<node>/event/` topic is refused when the message is built and again before the
+  wire, matched on the topic *segment*. **Refused rather than corrected:** clearing the
+  flag silently leaves a caller believing something untrue.
+- **Nothing is truncated.** An oversized topic or payload is refused and counted.
+- **A failed publish loses that message**, counted, and leaves the rest queued.
+  Re-queueing would reorder it behind newer state for the same entity. **BF-25 owns
+  events**, where the answer differs.
+
 ### 4.4 Home Assistant discovery
 
 - Published on boot **and on every broker reconnect** (**R-3.3b**). The reconnect path is
@@ -490,6 +519,28 @@ across the Heltec targets is the argument; nothing forces it. **If a bridge disp
 requirement ever needs what U8g2 offers, change this row and say why** rather than
 reaching for a second display library alongside the first.
 
+#### 5.1.2 What BF-14 fixed, 2026-09-10
+
+**The display is the ThingPulse driver, pinned to the range test's version**, driven only
+from `ui_task`. What the page shows and how it is laid out is decided in
+`status_page.cpp`, which is Arduino-free and host-tested; `ui.cpp` only draws it.
+
+- **A dead panel is reported once and then ignored.** R-4.1c is MAY-level, and a bridge
+  that stopped relaying telemetry because its status display failed would have its
+  priorities backwards.
+- **Unknown reads `--`, never `0`** (root rule 6). The node count is unknown until the
+  registry (BF-15) and the availability watchdog (BF-20) exist, and "nodes 0" would read
+  as every node down.
+- **Burn-in is designed against, not hoped about.** The panel is on permanently on a node
+  expected to run for years. Contrast is 96 rather than the range test's 255 — this panel
+  is read indoors — and every element shifts 0–3 px on a five-minute cycle.
+- **The displayed uptime comes from `esp_timer`, not `millis()`.** `millis()` wraps at
+  ~49.7 days, and an uptime that returns to zero every seven weeks reads as a reboot that
+  did not happen.
+- **Every string is held to a per-font character budget by a host test.** The range test's
+  panel truncated two strings on hardware before anyone noticed; this one's budgets caught
+  two overruns before it was ever flashed.
+
 ### 5.2 Task structure
 
 Less delicate than GateLink's — there is no real-time I/O to protect — but two ordering
@@ -515,6 +566,63 @@ properties matter:
   not stall frame reception or the poll schedule.
 - `ota_task` defers until `lora_task` reports idle (**R-5.3d**).
 - Watchdog fed from `sched_task`.
+
+#### 5.2.1 The numbers, chosen by BF-11 on 2026-09-10
+
+§5.2's table gives bands. `firmware/bridge/src/tasks.cpp` gives numbers, and this is
+where they are argued rather than merely declared. **The table there is the
+authority; if these disagree, the code is what runs and this section is stale.**
+
+| Task | Priority | Core | Stack (words) | Trigger |
+|---|---:|---:|---:|---|
+| `lora` | **6** | **1** | 4096 | queue and radio |
+| `sched` | 4 | 1 | 3072 | 1000 ms |
+| `mqtt` | 3 | **0** | 6144 | 100 ms + queue |
+| `app` | 3 | any | 6144 | queue |
+| `ota` | 2 | any | 4096 | on request |
+| `ui` | 2 | any | 3072 | 500 ms |
+| `log` | **1** | any | 3072 | queue |
+
+**The gaps in the priority numbers are deliberate.** A task added later at "just
+above `mqtt`" takes an unused number instead of forcing a renumbering of everything
+above it. **`lora` is strictly highest and `log` strictly lowest**, and both are
+asserted by a host test rather than left to review — a tie at the top means the frame
+path can be made to wait for whatever it tied with.
+
+**Nothing sits below priority 1**, which is where Arduino's own `loopTask` runs. A
+task beneath it is starved by a `loop()` that never yields, which is the default
+shape of an Arduino sketch.
+
+**`lora` is pinned to core 1 and `mqtt` to core 0**, where the WiFi and lwIP stacks
+already run. This is the structural half of the asymmetry PRD §4.4 records at the
+radio level. **If M22 shows LoRa PER degrading with WiFi saturated, this pinning is
+one of the two levers** — the other being antenna separation — and neither rescues a
+design that publishes inline.
+
+**Queue depths: RX 8, publish 32, TX 4, log 16.** The publish queue is the deep one
+because a single status frame fans out into a dozen entities and because it is what
+rides out a broker reconnect. **The TX queue is shallow on purpose**: the bridge
+serializes polls fleet-wide (§6.1, R-3.1d), so depth there would mean something
+upstream had stopped honouring that, and a queue is the wrong place to discover it.
+
+**A full queue drops the newest item and counts it.** Blocking is how a slow consumer
+reaches back and stops `lora_task`, which §5.2 and PRD §1.3 forbid. Dropping the
+oldest suits state, which is idempotent, and is wrong for events, which are not —
+**BF-24 and BF-25 own the per-class refinement** once the publication policy exists.
+Each queue carries `sent`, `dropped` and `high_water`; these are **bridge
+diagnostics, not schema `0xF0`**, because §14.1 is the wire's registry and a queue
+overflow has no §14 stage. The engineering log's 2026-09-10 entry records why root
+rule 4 is not stretched to cover it.
+
+**Everything above is static.** Queue storage and task stacks are fixed arrays
+(root rule 3), so a creation failure is a table defect rather than a memory
+condition — and `setup()` halts on one rather than running a fleet with a task
+missing.
+
+**The never-block rule has a check:** `tools/checks/lora_task_never_blocks.py` fails
+if `portMAX_DELAY`, `delay()`, a WiFi or publish call, or a queue call with a
+non-zero timeout appears in the code `lora_task` owns. It reads one function's text —
+a tripwire on the shape of the mistake, not a proof.
 
 ### 5.3 Module map
 
@@ -700,6 +808,82 @@ lran/<node>/vedirect/hex/request  (HA -> bridge)
   not a rollback, and the bridge is the one node where losing this costs the whole
   property's telemetry.
 
+#### 6.5.1 What BF-13 built, and why rollback needed more than a partition table
+
+**The partition table was the easy half.** `firmware/bridge/partitions.csv` is
+Arduino-ESP32's `default_8MB.csv` — two 3.2 MB OTA slots, `otadata`, a reserved
+`spiffs` and a `coredump` — **committed rather than referenced**, so a platform bump
+that changed the board's default cannot change this table silently.
+`tools/checks/bridge_partitions.py` fails CI on an unequal pair, a missing `otadata`, a
+`factory` slot, an overlap, or an image past 90 % of a slot.
+
+**The other half is that Arduino-ESP32 2.0.x defeats rollback by default.** The prebuilt
+bootloader for this board has `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` set (checked in
+the installed framework's `qio_qspi/sdkconfig.h`), so a new image boots in
+`PENDING_VERIFY` and is rolled back if it resets before being marked valid. **But
+`initArduino()` marks it valid itself, before `setup()` runs** — its weak
+`verifyOta()` returns true. Out of the box, any image that reaches `initArduino()` is
+kept, including one that never finds the LAN again. On this node that is the failure
+that matters: **a bridge that cannot reach the network cannot be OTA'd back**, and
+recovery is a USB cable.
+
+**`ota.cpp` takes the decision back** by overriding `verifyRollbackLater()`, and
+`ota_policy.cpp` makes it: keep the image once **every task started and the broker is
+connected, after at least 120 s**; roll it back if that has not happened by **600 s**.
+The minimum stops an image that connects and then falls over from being blessed in its
+first seconds. The deadline outlasts a slow AP plus the broker's 30 s capped backoff;
+when it fires on a *good* image — the broker was down for ten minutes during the update
+— the result is the previous, known-good image, which is the safe direction.
+**TODO(BF-16):** once the radio exists, an image that cannot hear the fleet is bad too.
+
+> **The override has one load-bearing detail, and its falsifier is in CI.** The weak
+> default lives in `esp32-hal-misc.c` — a C file — and no header declares it, so the
+> override must be `extern "C"`. A C++ definition gets a mangled name, overrides
+> nothing, **links cleanly**, and leaves the core blessing every image. The firmware
+> job runs `bridge_partitions.py --elf`, which fails unless the linked image carries
+> `verifyRollbackLater` as a **strong** symbol. On the bench, the boot banner's
+> `Image state:` line must read `pending_verify` on the first boot after an upload.
+
+**ArduinoOTA, not `esp_https_ota`.** The bridge is on the LAN, and a push from
+PlatformIO (`-e heltec_ota`, password from `LRAN_OTA_PASSWORD`, never written into
+`platformio.ini`) needs no server. It authenticates with an MD5 challenge-response
+(R-5.3b) — the password does not cross the network in the clear, but this is an
+authenticated endpoint on a LAN, not a hardened one. **USB stays the recovery path**
+(R-5.3a): an esptool upload rewrites the bootloader, the table and `otadata`.
+
+**R-5.3d is honoured by when ArduinoOTA is serviced**: `ArduinoOTA.handle()` is where
+an upload invitation is answered, and `ota_task` calls it only when `lora_task` is idle.
+An upload in progress runs to completion inside `handle()`; its flash writes stall both
+cores briefly, so `lora_task` can miss a frame during an upload. **R-5.3e**:
+`lran/bridge/version` carries `version`, `git`, `slot` and `ota_state`, retained, on
+every broker connect. **Spec §16.2 names the topic but not its payload**; this document
+is the bridge's choice, recorded in the engineering log as a gap for the next spec
+revision rather than redefined here.
+
+#### 6.5.2 V-B9 — the procedure
+
+**Run 2026-09-13; all four steps passed.** The banner lines, and one failed OTA attempt
+that a retry cleared, are in the bridge [engineering log](./engineering-log.md). Re-run
+this procedure after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
+Arduino-ESP32 version. The flat-case Heltec, the dev broker, and
+`LRAN_OTA_PASSWORD` set to the value in `secrets.h`. Watch the serial log throughout;
+the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is read.
+
+1. **USB-flash the good image:** `pio run -d firmware/bridge -e heltec -t upload`.
+   Expect `Slot: app0`, `Image state: not_pending`.
+2. **OTA a second good build** (change `custom_bridge_version`):
+   `pio run -d firmware/bridge -e heltec_ota -t upload`. Expect `Slot: app1`, **`Image
+   state: pending_verify`**, and after two minutes `OTA: image verified`. **If the state
+   reads `not_pending` here, stop** — the override is not in effect, and step 3 would
+   report a pass it did not earn. **This step is V-B9's "OTA succeeds".**
+3. **OTA the no-network bad image:** `-e v_b9_no_network`. Expect `Slot: app0`,
+   `pending_verify`, the V-B9 banner, then at 90 s `ROLLING BACK` and a reboot into
+   **`Slot: app1`** with step 2's version and git.
+4. **OTA the panic image:** `-e v_b9_panic`. Expect the V-B9 banner once, an abort, and a
+   reboot into the step-2 image with no code of the bad image run again. **If the banner
+   prints twice, the bootloader is not rolling back.**
+5. Record all four in `docs/bridge/engineering-log.md`, with the banner lines verbatim.
+
 ### 6.6 Debug tooling
 
 | Tool | Implementation note |
@@ -729,7 +913,7 @@ lran/<node>/vedirect/hex/request  (HA -> bridge)
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3 |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
-| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B2 |
+| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B3 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3 |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
 | §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3 |
@@ -1424,7 +1608,12 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.16** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.21** | **V-B9 run on the bench**, §6.5.2 says so; §7.1 moves **V-B12** from B2 to B3 |
+| **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
+| **v0.19** | **§5.1.2** — BF-14's status page: sentinels, burn-in, and a non-fatal display |
+| **v0.18** | **§6.5.1–§6.5.2** — BF-13's OTA, why Arduino's default defeats rollback, and V-B9's procedure |
+| **v0.17** | **§4.3.1** — BF-12's reconnect, keepalive, LWT and the enforced retain rule |
+| **v0.16** | **§5.2.1** — BF-11's task priorities, cores, stacks, queue depths and drop policy |
 | **v0.15** | The bridge keeps the range test's 3.0 dBi stick — §2.1's BOM and §3.2 say so |
 | **v0.14** | **D1 closed** — §2.2 states the working point; B1a and B1b's D1 criteria discharged |
 | **v0.13** | §2.2's bench power reconciled with **D33**; header names the node **Bridge Node** |
@@ -1441,13 +1630,62 @@ that drifts is the one that gets followed.
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
 
-- **v0.16** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
+- **v0.21** — **B2's bench session, 2026-09-13.** §6.5.2 said V-B9 had not been run; it
+  has, all four steps passed on the flat-case Heltec, and the section now points at the
+  bridge engineering log's 2026-09-13 entry for the banner lines. **§7.1 assigned V-B12
+  to B2**, which §8's B2 row never included and which cannot run before BF-16 gives the
+  bridge a radio. It moves to B3, where BF-16 lands. The procedure text is unchanged.
+
+- **v0.20** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
   §9.4's check/record window: a node that receives a retry while still executing the
   command counts it and sends nothing (D34 amended 2026-09-11). **§6.2 needed no new
   branch** — silence already takes the `no ACK` path — and gains a paragraph on the one
   consequence, a failure published for an execution that outlasts every retry. §10.5.1
   records that `cmd_replay` tests the post-execution case and library P8 the in-flight
-  one. Nothing on the wire moved; `ver` stays `2`.
+  one. Nothing on the wire moved; `ver` stays `2`. The bridge firmware's banner and
+  `platformio.ini` header cite v0.11 with it. *Numbered v0.20 because B2's rebase onto the
+  P8 merge placed it after BF-11 to BF-14's v0.16–v0.19; it was written as v0.16 on the P8
+  branch.*
+
+- **v0.19** — **§5.1.1's driver choice gains its configuration, in new §5.1.2.** BF-14
+  built the OLED status page R-4.1c asks for, and three of its choices are worth a reader's
+  time: **a dead panel never stops the bridge**, **unknown reads `--` rather than `0`**,
+  and **burn-in is designed against** on a panel that is on for years — lower contrast and
+  a slow pixel shift. It also records a `millis()` wrap the page would have shown as a
+  phantom reboot every seven weeks.
+
+- **v0.18** — **§6.5 gains what BF-13 found, in new §6.5.1, and V-B9 gains a
+  procedure, in §6.5.2.** §6.5 said to configure an A/B table with rollback, and that was
+  the easy half. **Arduino-ESP32 2.0.x marks every image valid before `setup()` runs**,
+  so with the table alone, an image that never finds the LAN again would be kept — and a
+  bridge that cannot reach the network cannot be OTA'd back. §6.5.1 records the override
+  that takes the decision back, the verdict that replaces it (healthy after 120 s, rolled
+  back at 600 s), and **the one detail that makes the override real — `extern "C"` — with
+  its falsifier in CI** rather than only in prose. §6.5.2 is the bench procedure, stated as
+  **not yet run**: V-B9 is not met until it is.
+
+- **v0.17** — **§4.3's library guidance becomes a configuration, in new §4.3.1.** BF-12
+  built the WiFi station, the `MqttTransport` seam and the LWT, and the numbers it had to
+  choose — backoff, keepalive, socket timeout — had no home. Three entries are worth
+  reading even if the list is not: **two Arduino-ESP32 defaults are deliberately off**
+  (persistent credentials, SDK auto-reconnect), **`setBufferSize()` is called as well as
+  the build flag** because the macro does not reach the library when it is built as a
+  separate archive, and **spec §16.3's never-retain-an-event rule is enforced on the path
+  rather than remembered**. The bridge also entered CI with this task; the engineering
+  log's 2026-09-10 entries carry the reasoning that is not a number.
+
+- **v0.16** — **§5.2's bands become numbers, in new §5.2.1.** BF-11 built the task
+  structure, and the choices it had to make — priorities, core pinning, stack sizes, queue
+  depths and what a full queue does — had no home. §5.2 keeps its bands and its rules;
+  §5.2.1 records what was chosen, argues each number, and **names `firmware/bridge/src/tasks.cpp`
+  as the authority over itself.** Three things in it are worth reading even if the table is
+  not: `lora` is pinned off the WiFi core and **M22 is the measurement that would say that is
+  not enough**; a full queue **drops the newest and counts it**, with BF-24/BF-25 owning the
+  per-class refinement; and the never-block rule now has
+  **`tools/checks/lora_task_never_blocks.py`** rather than only a paragraph. The engineering
+  log's 2026-09-10 entry carries the reasoning that is not a number, including why **root
+  rule 4 is not stretched to cover a queue overflow** — a dropped frame there has already
+  passed the whole §14 ladder and has no stage to map to.
 
 - **v0.15** — **The bridge antenna is decided: the same 3.0 dBi 19 cm stick the range test
   ran on** (Bridge PRD **R-4.3a.1**, 2026-09-10). §2.1's BOM row said "selected after M6",
