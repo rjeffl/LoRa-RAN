@@ -1414,7 +1414,7 @@ struct RadioPins {
   int8_t nss, rst, busy, dio1;
   int8_t sck, miso, mosi;
   int8_t rf_sw;          // RADIOLIB_NC when DIO2 alone drives the switch
-  float  tcxo_v;
+  float  tcxo_v;         // built as uint16_t tcxo_mv - bridge radio_config.h, BF-16
   bool   dio2_as_rf_switch;
 };
 
@@ -1674,7 +1674,8 @@ that drifts is the one that gets followed.
   `lora_link` into. **§5.2.1's stack column was wrong in its unit**: ESP-IDF counts bytes,
   so every task had a quarter of the stack BF-11 intended. `lora` rises to 8192 and the
   rest are marked unmeasured. **§6.5.2 is owed again**, because the OTA verdict now requires
-  the radio. §5.3.1 also raises a discrepancy with spec §12.1's node-address filtering,
+  the radio. §10.8.1's struct sketch notes that the bridge built TCXO voltage as
+  millivolts. §5.3.1 also raises a discrepancy with spec §12.1's node-address filtering,
   without changing the specification.
 
 - **v0.21** — **B2's bench session, 2026-09-13.** §6.5.2 said V-B9 had not been run; it

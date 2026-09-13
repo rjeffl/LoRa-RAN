@@ -145,9 +145,11 @@ log. Never commit, echo or log the real values.
 - **RadioLib, version pinned in `platformio.ini`** (**D32**). Every firmware in the repo
   uses the same driver; letting the version float in one of four is how a fleet-wide
   regression arrives without a commit to blame.
-- **Radio pins come from `RadioPins`, not from `#define`s.** The bridge's values are the
-  `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8 rst=12 busy=13 dio1=14
-  sck=9 miso=11 mosi=10`, `rf_sw=RADIOLIB_NC`, TCXO `1.8f`, `dio2_as_rf_switch=true`.
+- **Radio pins come from `RadioPins` in `radio_config.h`, not from `#define`s.** The
+  bridge's values are the `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8
+  rst=12 busy=13 dio1=14 sck=9 miso=11 mosi=10`, `rf_sw=kPinNone`, `tcxo_mv=1800`,
+  `dio2_as_rf_switch=true`. TCXO is millivolts, not §10.8.1's float, for the range test's
+  reason: a float that prints as 1.8 can compare unequal to 1.8f.
   §10.8.1 is the only home for these; if they need correcting, correct them there.
   R-4.1b exists because GateLink's carrier shares none of these numbers.
 - **TCXO is 1.8 V**, not the 3.3 V some libraries default to. Wrong value presents as a
@@ -160,7 +162,8 @@ log. Never commit, echo or log the real values.
 
 ## Structure
 
-`main` · `registry` · `scheduler` · `lora_link` · `mqtt_transport` · `discovery` ·
+`main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `media_access`,
+`radio_config`) · `mqtt_transport` · `discovery` ·
 `publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` · `debug`.
 Task ownership is in Impl Plan §5.2/§5.3.
 
