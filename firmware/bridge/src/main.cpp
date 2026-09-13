@@ -4,9 +4,10 @@
 // Bridge Node, node 0x00 - boot, banner, network and OTA configuration, and task
 // creation. Tasks BF-10 to BF-13; milestone B2.
 //
-// Init order and task creation. The radio (BF-16) and the OLED page (BF-14) land in
-// their own files; the task table and the queue boundaries are in tasks.h and
-// queues.h, the network in wifi_link.h and mqtt_transport.h, OTA in ota.h.
+// Init order and task creation. The radio is brought up by lora_task itself
+// (lora_link.h, BF-16) and the OLED page by ui_task (BF-14); the task table and the
+// queue boundaries are in tasks.h and queues.h, the network in wifi_link.h and
+// mqtt_transport.h, OTA in ota.h.
 //
 // THE ONLY TRANSLATION UNIT THAT INCLUDES secrets.h. Everything else takes what it
 // needs as an argument, which keeps the number of files that could log a credential
@@ -146,7 +147,7 @@ void setup() {
 
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
-  Serial.println(F("BF-13: WiFi, MQTT and OTA configured. No radio, no discovery yet."));
+  Serial.println(F("BF-16: WiFi, MQTT, OTA and the radio link. No registry or discovery yet."));
 }
 
 void loop() {

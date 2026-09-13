@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.21
+**Version:** 0.22
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -573,15 +573,22 @@ properties matter:
 where they are argued rather than merely declared. **The table there is the
 authority; if these disagree, the code is what runs and this section is stale.**
 
-| Task | Priority | Core | Stack (words) | Trigger |
+| Task | Priority | Core | Stack (bytes) | Trigger |
 |---|---:|---:|---:|---|
-| `lora` | **6** | **1** | 4096 | queue and radio |
+| `lora` | **6** | **1** | **8192** | queue and radio |
 | `sched` | 4 | 1 | 3072 | 1000 ms |
 | `mqtt` | 3 | **0** | 6144 | 100 ms + queue |
 | `app` | 3 | any | 6144 | queue |
 | `ota` | 2 | any | 4096 | on request |
 | `ui` | 2 | any | 3072 | 500 ms |
 | `log` | **1** | any | 3072 | queue |
+
+**Stack sizes are bytes, and until BF-16 this table said words.** ESP-IDF's FreeRTOS
+takes the depth in bytes, and `StackType_t` is `uint8_t` on the ESP32-S3; upstream
+FreeRTOS counts words. Every size here was chosen as though it were four times larger.
+BF-16 raised `lora` to 8192 because it now runs RadioLib's `begin()`, and `lora_link.cpp`
+logs that task's high-water mark after bring-up. **The other six sizes are unmeasured**,
+and `uxTaskGetStackHighWaterMark` is how to correct them.
 
 **The gaps in the priority numbers are deliberate.** A task added later at "just
 above `mqtt`" takes an unused number instead of forcing a renumbering of everything
@@ -632,7 +639,10 @@ a tripwire on the shape of the mistake, not a proof.
     main.cpp            task creation, WiFi/MQTT init, registry load
     registry.cpp        per-node table, key derivation, availability   [sched_task]
     scheduler.cpp       per-node poll scheduling, retry/backoff        [sched_task]
-    lora_link.cpp       RadioLib, frame in/out, MAC, reassembly        [lora_task]
+    lora_link.cpp       RadioLib, frame in/out, CAD, transmit          [lora_task]
+    rx_ladder.cpp       spec 14 stages 1-10: decode, MAC, reassembly   [lora_task]
+    media_access.cpp    spec 12.3 CAD, backoff, transmit regardless     [lora_task]
+    radio_config.h      RadioPins and the fixed PHY (spec 12.1, 12.2)
     mqtt_transport.cpp  MqttTransport iface + PubSubClient impl        [mqtt_task]
     discovery.cpp       Discovery config generation and publication    [mqtt_task]
     publish.cpp         publication policy: on-change, staleness,      [app_task]
@@ -654,6 +664,33 @@ a tripwire on the shape of the mistake, not a proof.
 
 `/docs/bridge/engineering-log.md` carries the dated running record, including the range
 test results and the antenna siting decision.
+
+#### 5.3.1 What BF-16 built, 2026-09-13
+
+**The radio link is split three ways so that its decisions are host-tested.**
+`rx_ladder.{h,cpp}` and `media_access.{h,cpp}` are Arduino-free and covered by
+`test_lora`; `lora_link.cpp` only moves bytes and interrupts between them and the SX1262.
+`tools/checks/lora_task_never_blocks.py` reads all three.
+
+| Choice | Why |
+|---|---|
+| **`lora_task` runs stages 1–10 and queues a decoded header with the complete payload** | §5.2's table already said so. BF-11's `RxMessage` of raw bytes contradicted it, and made a rejected frame cost a queue slot |
+| **A frame that should carry a MAC and was not verified is refused** | The codec returns `Ok` with `mac_verified = false` when it has no key. Keys arrive through `PeerKeys`, which BF-15 implements |
+| **One reassembly slot per peer, eight in all** | §11.3 asks for one per peer the bridge can receive from; six identities are provisioned. A single frame never takes a slot (§11.2). Displacing a live set for capacity counts `rx_reassembly_abandoned` |
+| **CAD and transmit are started, then read back against a deadline** | RadioLib's `scanChannel()` has no timeout and `transmit()` busy-waits. `lora_task`'s one wait is a bounded `ulTaskNotifyTake` on DIO1 |
+| **A backoff is state; `lora_task` keeps receiving** | The busy channel is usually a node, often talking to the bridge |
+| **No CAD while a valid header is less than 1500 ms old** | A CAD takes the radio out of receive and destroys the arriving frame; that case counts as a busy CAD |
+| **`ArduinoHal` in static storage** | RadioLib's `SPIClass` `Module` constructor allocates its HAL on the heap |
+| **The OTA verdict requires `radio_ok`** | An image whose radio never initialises is a bad image. **This is a §6.5.2 re-run trigger** |
+
+**What BF-16 does not do:** ERROR replies (BF-19), N−1 acceptance (BF-22), slots for
+registered nodes only (BF-15), timing from Home Assistant (BF-23), the raw frame log
+(BF-27). **Nothing has been sent or received over the air.**
+
+> **Spec §12.1's node-address filtering has no implementation, and none appears possible
+> in LoRa mode.** RadioLib 7.7.1 exposes no `setNodeAddress()` for the SX126x. The reading
+> that the part filters addresses only in GFSK is **unverified against the datasheet**.
+> Raised in the engineering log's BF-16 entry; the specification is unchanged.
 
 ### 5.4 Repository layout for the bench fleet
 
@@ -865,7 +902,8 @@ revision rather than redefined here.
 **Run 2026-09-13; all four steps passed.** The banner lines, and one failed OTA attempt
 that a retry cleared, are in the bridge [engineering log](./engineering-log.md). Re-run
 this procedure after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
-Arduino-ESP32 version. The flat-case Heltec, the dev broker, and
+Arduino-ESP32 version. **Owed again since BF-16**, which added `radio_ok` to the verdict
+(§5.3.1). The flat-case Heltec, the dev broker, and
 `LRAN_OTA_PASSWORD` set to the value in `secrets.h`. Watch the serial log throughout;
 the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is read.
 
@@ -1608,6 +1646,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.22** | **New §5.3.1** — BF-16's radio link; §5.2.1's stacks are **bytes**, not words |
 | **v0.21** | **V-B9 run on the bench**, §6.5.2 says so; §7.1 moves **V-B12** from B2 to B3 |
 | **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
 | **v0.19** | **§5.1.2** — BF-14's status page: sentinels, burn-in, and a non-fatal display |
@@ -1629,6 +1668,14 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.22** — **BF-16 built the radio link, and §5.3.1 records its choices.** §5.3's module
+  map gains `rx_ladder`, `media_access` and `radio_config`, the three pieces BF-16 split
+  `lora_link` into. **§5.2.1's stack column was wrong in its unit**: ESP-IDF counts bytes,
+  so every task had a quarter of the stack BF-11 intended. `lora` rises to 8192 and the
+  rest are marked unmeasured. **§6.5.2 is owed again**, because the OTA verdict now requires
+  the radio. §5.3.1 also raises a discrepancy with spec §12.1's node-address filtering,
+  without changing the specification.
 
 - **v0.21** — **B2's bench session, 2026-09-13.** §6.5.2 said V-B9 had not been run; it
   has, all four steps passed on the flat-case Heltec, and the section now points at the

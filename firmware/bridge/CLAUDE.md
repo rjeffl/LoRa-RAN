@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.21
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.9 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.22
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.10 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -28,9 +28,19 @@ network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime
 `wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
 first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
 `ota.{h,cpp}`, `partitions.csv`, `status_page.{h,cpp}` (what the OLED says, host-tested),
-`ui.{h,cpp}` and `board_ui.h`. **Still absent: the radio, discovery and the publication
-policy** — B3 and B4. Each arrives with its own `BF-*` task; do not add
-one early because it is convenient.
+`ui.{h,cpp}` and `board_ui.h`.
+
+**`BF-16` — the radio link, built and host-tested, not yet on air.** `radio_config.h`
+(pins, PHY, the EIRP and pin-collision asserts), `rx_ladder.{h,cpp}` (spec 14 stages 1–10,
+per-peer reassembly), `media_access.{h,cpp}` (spec 12.3), and `lora_link.{h,cpp}`, **the
+only file that includes RadioLib**. Impl Plan §5.3.1 records the choices.
+
+**Still absent: the registry, discovery and the publication policy** — B3 and B4. Each
+arrives with its own `BF-*` task; do not add one early because it is convenient.
+
+**Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
+that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
+doubling it after a crash.
 
 ```bash
 pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
@@ -54,7 +64,8 @@ the target build, so nothing secret is in it.
   It is committed rather than taken from the board definition for that reason. Grow the
   image, not the table.
 
-**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log). **Re-run
+**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log), and **is
+owed again since BF-16 added `radio_ok` to the verdict**. **Re-run
 Impl Plan §6.5.2 after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
 Arduino-ESP32 version**; CI's symbol check catches a lost `extern "C"`, but only a board
 proves a rollback. The two bad-image environments, `v_b9_no_network` and `v_b9_panic`,

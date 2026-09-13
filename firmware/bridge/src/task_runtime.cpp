@@ -20,10 +20,12 @@
 #include <atomic>
 
 #include "board_ui.h"
+#include "lora_link.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
 #include "ota.h"
+#include "radio_config.h"
 #include "status_page.h"
 #include "ui.h"
 #include "wifi_link.h"
@@ -70,7 +72,7 @@ std::atomic<bool> g_tasks_started{false};
 QueueAccounting g_accounting;
 
 // Task stacks and control blocks, one pair per row of the table.
-StackType_t g_stack_lora[4096];
+StackType_t g_stack_lora[8192];
 StackType_t g_stack_sched[3072];
 StackType_t g_stack_mqtt[6144];
 StackType_t g_stack_app[6144];
@@ -94,23 +96,32 @@ StackType_t* stack_for(TaskId id) {
   return nullptr;  // unreachable; the switch is exhaustive and -Werror keeps it so
 }
 
-// The declared stack_words must match the array actually reserved. A mismatch is a
+// The declared stack_bytes must match the array actually reserved. A mismatch is a
 // stack overflow that presents as a corrupted neighbour, which is among the worst
-// things to debug on a board at the far end of a property.
-static_assert(sizeof(g_stack_lora) / sizeof(StackType_t) == 4096, "lora stack");
+// things to debug on a board at the far end of a property. StackType_t is one byte
+// on this core, so element count and bytes agree; the first assert makes that a
+// checked premise rather than an assumed one.
+static_assert(sizeof(StackType_t) == 1, "ESP-IDF stack depth is in bytes");
+static_assert(sizeof(g_stack_lora) / sizeof(StackType_t) == 8192, "lora stack");
 static_assert(sizeof(g_stack_mqtt) / sizeof(StackType_t) == 6144, "mqtt stack");
 
 // ---------------------------------------------------------------------------
 // Task bodies.
 // ---------------------------------------------------------------------------
 
-// Highest priority, and it never blocks on the network. Its only outputs are the
-// non-blocking queue sends below.
+// How long lora_task waits for DIO1 before its next pass. It bounds how long a frame
+// queued by another task waits to be picked up, and it is the resolution of a spec 12.3
+// backoff; a reception wakes the task at once regardless.
+constexpr uint32_t kLoraMaxWaitMs = 10;
+
+// Highest priority, and it never blocks on the network or on a queue. Its outputs are
+// the zero-tick queue sends; its one wait is lora_wait(), bounded and on the radio's
+// own interrupt (lora_link.h). BF-16.
 void lora_task(void*) {
-  // TODO(BF-16): RadioLib init from the injected RadioPins (spec 12.2, Impl Plan
-  // 10.8.1), the RX path through the spec 14 ladder, and the TX drain of g_tx_queue.
+  lora_start(kHeltecV3Radio, kPhy);
   for (;;) {
-    vTaskDelay(pdMS_TO_TICKS(10));
+    lora_service(millis());
+    lora_wait(kLoraMaxWaitMs);
   }
 }
 
@@ -241,7 +252,7 @@ void app_task(void*) {
 void ota_task(void*) {
   for (;;) {
     ota_service(wifi_connected(), lora_task_idle(), g_mqtt_up, g_tasks_started,
-                millis());
+                lora_radio_ready(), millis());
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -320,7 +331,7 @@ bool start_tasks() {
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];
     TaskHandle_t    h    = xTaskCreateStaticPinnedToCore(
-        body_for(spec.id), spec.name, spec.stack_words, nullptr, spec.priority,
+        body_for(spec.id), spec.name, spec.stack_bytes, nullptr, spec.priority,
         stack_for(spec.id), &g_tcb[i],
         spec.core == kAnyCore ? tskNO_AFFINITY : spec.core);
     if (h == nullptr) {
@@ -359,6 +370,10 @@ bool send_tx(const TxMessage& msg) {
   g_accounting.record_sent(QueueId::Tx,
                            static_cast<size_t>(uxQueueMessagesWaiting(g_tx_queue)));
   return true;
+}
+
+bool take_tx(TxMessage* out) {
+  return g_tx_queue != nullptr && xQueueReceive(g_tx_queue, out, 0) == pdTRUE;
 }
 
 bool send_publish(const PublishMessage& msg) {
@@ -402,9 +417,7 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() {
-  return true;  // TODO(BF-16)
-}
+bool lora_task_idle() { return lora_idle(); }
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 

@@ -312,3 +312,97 @@ not a bench fix.
   lands. Moved in Impl Plan v0.21, committed with this entry.
 - **The board is left on `app1` running the `0.1.1-dirty` image.** A USB flash of a
   committed build puts it back in a known state before B3.
+
+---
+
+## 2026-09-13 — BF-16: the radio link, and three things the documents had wrong
+
+**BF-16 is built and host-tested, and none of it has run on a board.** `lora_link.cpp` is
+the only file that includes RadioLib. The two decisions `lora_task` makes are
+Arduino-free and covered by 27 host tests in `test_lora`: `rx_ladder.{h,cpp}` runs spec 14
+stages 1 to 10, and `media_access.{h,cpp}` runs spec 12.3's CAD and backoff.
+`radio_config.h` holds the pin map and the D1 PHY, with a `static_assert` on the D33 EIRP
+ceiling and another on radio and panel pin collisions. The operator chose four design
+points before code was written; each is recorded below with the reason.
+
+### Decisions taken with the operator
+
+- **`lora_task` decodes and reassembles, per Impl Plan §5.2.** BF-11's `queues.h` had
+  `lora_task` queue raw frame bytes for `app_task` to decode, which contradicted §5.2's
+  table. `RxMessage` now carries the decoded header and the complete payload, and a frame
+  the ladder rejects no longer costs a queue slot.
+- **Keys arrive through a `PeerKeys` seam.** BF-15's registry supplies them. Until it
+  does, every authenticated frame is refused and counted `rx_rejected_mac`.
+- **A backoff is state, not a delay.** A busy channel here is usually a node talking, often
+  to the bridge. A `lora_task` that slept through a backoff would be deaf for up to 7.5 s
+  at the defaults, to the frame that caused it.
+- **Discards are counted, not answered.** ERROR replies need the node's `ctx_id`, which the
+  registry tracks. `TODO(BF-19)`.
+
+### What the code found
+
+**The codec's MAC check fails open without a key.** `decode_payload` verifies a MAC only
+when it holds both an `IMac` and a key. Without either it returns `Ok` with
+`mac_verified = false`. That is correct for the bench and the vector generator, and it is
+a forged-COMMAND hole in a production receiver. `RxLadder` refuses any frame that should
+carry a MAC and was not verified. The library is unchanged; its `DecodeCtx` comment
+already says a null `IMac` is for the bench.
+
+**RadioLib's `scanChannel()` has no timeout.** It loops on DIO1 until the radio raises
+`CAD_DONE` (`SX126x.cpp`, 7.7.1), so a radio that never answered would hang the
+highest-priority task for good. Blocking `transmit()` busy-waits for up to five times the
+airtime at priority 6. `lora_link` therefore starts a CAD or a transmission and reads its
+completion from the IRQ register on later passes, each against a deadline. `lora_task`'s
+one wait is `ulTaskNotifyTake`, bounded at 10 ms and woken by DIO1.
+
+**Receive routes only `RX_DONE` to DIO1, but `HEADER_VALID` is still recorded.** RadioLib's
+receive defaults enable `HEADER_VALID` and `HEADER_ERR` in the IRQ register and route only
+`RX_DONE` to the pin. Two consequences:
+- Before a CAD, `lora_link` reads the register. A valid header seen within the last
+  1500 ms means a frame is arriving, and a CAD would take the radio out of receive and
+  destroy it. That case counts as a busy CAD (`cad_deferred` records the cause).
+- A LoRa header that fails its own CRC never reaches DIO1. It is found on the 1 s
+  register read and counted `rx_crc_err`, stage 1.
+
+**RadioLib's `Module` allocates on the heap.** The `Module(cs, irq, rst, gpio, SPIClass&)`
+constructor runs `new ArduinoHal`. The range test used that constructor. The bridge builds
+the `ArduinoHal` in static storage and passes it to the constructor that takes a HAL, so
+the radio path does not allocate (root rule 3).
+
+**BF-11's task stacks are in bytes, not words, a quarter of what was intended.** On the
+ESP32-S3, ESP-IDF's `xTaskCreateStaticPinnedToCore` takes the depth in bytes and
+`StackType_t` is `uint8_t` (`portmacro.h`); upstream FreeRTOS counts words. BF-11's
+comments, the field name `stack_words` and Impl Plan §5.2.1's column all said words. B2's
+bench session ran on those sizes without fault, but it had no radio. The field is now
+`stack_bytes`, and a `static_assert` checks `sizeof(StackType_t) == 1`. **`lora_task`
+goes from 4096 to 8192 bytes**, because it now runs RadioLib's `begin()` and a
+`Serial.printf`. `lora_link` logs `lora_task`'s high-water mark after bring-up; that
+number is the check on 8192. **The other six sizes are unchanged and unmeasured.**
+
+### A specification discrepancy, raised and not patched
+
+**Spec §12.1 requires node-address filtering "in the SX126x packet handler", and in LoRa
+mode there appears to be none.** RadioLib 7.7.1 exposes `setNodeAddress()` for the SX127x,
+RF69, LR11x0, CC1101 and LR2021, and for no SX126x class. My reading is that the SX126x's
+address field is a GFSK packet parameter only. **That reading is unverified against the
+datasheet.** Nothing is implemented for it, and the spec is unchanged. §12.1's own note
+says the filtering is "low value while nodes run continuous RX", so no current node loses
+anything; the question matters for a duty-cycled node (§17.1).
+
+### A consequence to know
+
+**The OTA verdict now requires `radio_ok`**, the TODO BF-13 left under BF-16's name. An image
+whose radio never initialises rolls back at the deadline, even on the broker. `radio_ok`
+means the radio initialised, not that it hears nodes. **V-B9 is owed again**: this
+changes `ota_policy.cpp`, which Impl Plan §6.5.2 names as a re-run trigger.
+
+### Not done
+
+- **Nothing has been received or sent over the air.** `begin()` succeeding proves nothing
+  about a pin map. B3 needs frames out and echoes back, which needs a second transmitter
+  at 917.4 MHz, SF9. The range-test firmware sits on 915.0 MHz.
+- **N−1 acceptance** (`TODO(BF-22)`), **slots for registered nodes only**
+  (`TODO(BF-15)`), **runtime timing from Home Assistant** (`lora_configure()` exists,
+  `TODO(BF-23)`), **the raw frame log** (`TODO(BF-27)`).
+- **`lora_task_idle()` does not yet see a poll or command awaiting its reply.**
+  `TODO(BF-17)`, BF-18.

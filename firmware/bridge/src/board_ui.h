@@ -13,9 +13,8 @@
 // test (firmware/range-test/src/board_config.h). The VALUES carry over; the code does
 // not - firmware/range-test/CLAUDE.md forbids migrating its sources into node firmware.
 //
-// No collision with the bridge's radio pins (Impl Plan 10.8.1: nss 8, rst 12, busy 13,
-// dio1 14, sck 9, miso 11, mosi 10). BF-16 adds those; when it does, the range test's
-// has_pin_conflict() pattern belongs here too.
+// No collision with the bridge's radio pins: radio_config.h (BF-16) holds them and
+// checks every GPIO on both lists with a static_assert.
 
 #pragma once
 

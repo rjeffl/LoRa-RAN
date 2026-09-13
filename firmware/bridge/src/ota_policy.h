@@ -37,11 +37,14 @@ struct OtaHealth {
   bool     tasks_started  = false;
   bool     mqtt_connected = false;
 
-  // TODO(BF-16): radio_ok - SX1262 init succeeded against the injected RadioPins.
-  // An image that reaches the broker with a dead radio is reachable, which is what
-  // makes it RECOVERABLE by another OTA; that is why reachability is the verdict
-  // today. Once the radio exists, an image that cannot hear the fleet is a bad image
-  // too, and it belongs in the verdict.
+  // BF-16 - the SX1262 came up against the injected RadioPins. Reachability alone
+  // made an image RECOVERABLE, which is why BF-13's verdict stopped there; with a
+  // radio in the firmware, an image that cannot hear the fleet is a bad image too.
+  //
+  // This is "the radio initialised", not "the radio hears nodes": begin() succeeding
+  // proves nothing about a pin map. Hearing the fleet belongs to the availability
+  // watchdog. TODO(BF-20): consider a first frame heard as a verdict input.
+  bool radio_ok = false;
 };
 
 enum class OtaVerdict : uint8_t {

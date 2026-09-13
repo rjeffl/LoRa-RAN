@@ -111,7 +111,7 @@ void apply_verdict(OtaVerdict v) {
 void ota_configure(const char* password) { g_password = password; }
 
 void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
-                 bool tasks_started, uint32_t uptime_ms) {
+                 bool tasks_started, bool radio_ok, uint32_t uptime_ms) {
   // The verdict runs whether or not WiFi is up: an image that NEVER associates is
   // precisely the one that must be rolled back.
   if (!g_decided) {
@@ -119,6 +119,7 @@ void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
     h.uptime_ms      = uptime_ms;
     h.tasks_started  = tasks_started;
     h.mqtt_connected = mqtt_connected;
+    h.radio_ok       = radio_ok;
     const OtaVerdict v = ota_verdict(read_image_state(), h);
     if (v == OtaVerdict::Nothing) {
       g_decided = true;

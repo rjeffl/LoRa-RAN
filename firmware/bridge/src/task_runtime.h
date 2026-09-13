@@ -31,6 +31,10 @@ bool start_tasks();
 bool send_rx(const RxMessage& msg);
 bool send_tx(const TxMessage& msg);
 
+// lora_task's side of the TX queue. Zero ticks, like every send: true when a frame was
+// waiting and has been copied into *out.
+bool take_tx(TxMessage* out);
+
 // Queue a publication for mqtt_task. Build the message with make_publish(), which
 // refuses an oversized payload and a retained event topic (spec 16.3).
 //
@@ -51,9 +55,9 @@ MqttTransport& mqtt();
 
 // Whether lora_task is idle. ota_task defers until it is (R-5.3d).
 //
-// TODO(BF-16): report the radio's real state. Returning true unconditionally is
-// honest for a build with no radio, and it is why BF-13's OTA must not be written
-// against this until lora_link exists.
+// BF-16: no frame waiting or on the air, the radio receiving, and no reassembly set
+// incomplete. TODO(BF-17): a poll awaiting its reply is outstanding too, and so is a
+// command awaiting its COMMAND_ACK (BF-18); neither exists yet.
 bool lora_task_idle();
 
 // The per-queue counters, for the diagnostic topics and the OLED page.

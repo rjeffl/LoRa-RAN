@@ -12,34 +12,47 @@
 #include <cstdint>
 
 #include "lran/config.h"
+#include "lran/frame.h"
 #include "lran/types.h"
 
 namespace bridge {
 
 // ---------------------------------------------------------------------------
-// The RX queue message.
+// The RX queue message: a COMPLETE payload that has passed spec 14 stages 1 to 10.
 //
-// A COPY, not a view. lran::Frame points into the buffer it was decoded from and
-// "MUST NOT outlive the buffer" (lran/frame.h); a frame handed across a task
-// boundary is exactly that case, and the library says the copy is the caller's
-// responsibility. So lora_task copies the bytes in and app_task decodes from its
-// own copy - the alternative is a Frame whose payload pointer aims at whatever the
-// radio has received since.
+// lora_task runs the ladder and reassembly before queueing (Impl Plan 5.2, BF-16), so
+// what crosses this boundary is the header and the whole payload - a single frame's,
+// or a reassembled set's - and never raw frame bytes. Changed from raw bytes in BF-16:
+// BF-11 had app_task decoding, which contradicted 5.2's table, and a frame the ladder
+// rejects has no business costing a queue slot.
 //
-// 222 bytes per slot times kRxQueueDepth is ~1.8 KB of static queue storage. That
-// is the price of the rule and it is worth paying.
+// A COPY, not a view. lran::Frame and RxDelivery point into buffers that the next
+// reception overwrites (lran/frame.h); a payload handed across a task boundary is
+// exactly that case, so lora_task copies it in.
+//
+// ~240 bytes per slot times kRxQueueDepth is ~2 KB of static queue storage. That is the
+// price of the rule and it is worth paying.
 // ---------------------------------------------------------------------------
 struct RxMessage {
-  uint8_t bytes[lran::kMaxFrame] = {0};
-  size_t  len                    = 0;
+  lran::Header hdr{};
+  uint8_t      payload[lran::kMaxPayloadPlain] = {0};  // spec 11.2's largest set cap
+  size_t       payload_len                     = 0;
+
+  // How many frames the payload arrived in. `hdr.frag` describes only the last one.
+  uint8_t fragments = 1;
+
+  // spec 9.4 step 3 passed. Always false today: every authenticated type is
+  // bridge -> node (spec 9.2), and the ladder refuses one it cannot verify.
+  bool mac_verified = false;
 
   // Radio metadata, from the driver rather than from the frame. Kept alongside
-  // because it is per-reception and is gone by the time app_task looks.
+  // because it is per-reception and is gone by the time app_task looks. For a
+  // reassembled set these describe the fragment that completed it.
   int16_t rssi_dbm  = 0;
   int8_t  snr_db    = 0;
 
-  // millis() at reception. The bridge's own clock, used for staleness and for the
-  // reassembly window; nothing on the wire carries a timestamp.
+  // millis() at reception of the completing frame. The bridge's own clock, used for
+  // staleness; nothing on the wire carries a timestamp.
   uint32_t rx_millis = 0;
 };
 

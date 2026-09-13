@@ -37,10 +37,10 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 BRIDGE_SRC = ROOT / "firmware" / "bridge" / "src"
 
-# Whole files owned by lora_task. Absent files are skipped: lora_link.cpp arrives
-# with BF-16, and a check that fails for a file nobody has written yet trains
-# people to ignore it.
-LORA_FILES = ("lora_link.cpp",)
+# Whole files owned by lora_task. BF-16 split its work three ways - the driver, the
+# receive ladder and media access - and all three run in lora_task. Absent files are
+# skipped, so a check never fails for a file nobody has written yet.
+LORA_FILES = ("lora_link.cpp", "rx_ladder.cpp", "media_access.cpp")
 
 # Functions owned by lora_task inside files that also hold other tasks.
 LORA_FUNCTIONS = (("task_runtime.cpp", "lora_task"),)
