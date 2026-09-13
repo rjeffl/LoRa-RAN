@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.20
+**Version:** 0.21
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -862,7 +862,10 @@ revision rather than redefined here.
 
 #### 6.5.2 V-B9 — the procedure
 
-**Not yet run. V-B9 is not met until it is.** The flat-case Heltec, the dev broker, and
+**Run 2026-09-13; all four steps passed.** The banner lines, and one failed OTA attempt
+that a retry cleared, are in the bridge [engineering log](./engineering-log.md). Re-run
+this procedure after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
+Arduino-ESP32 version. The flat-case Heltec, the dev broker, and
 `LRAN_OTA_PASSWORD` set to the value in `secrets.h`. Watch the serial log throughout;
 the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is read.
 
@@ -910,7 +913,7 @@ the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is r
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3 |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
-| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B2 |
+| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B3 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3 |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
 | §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3 |
@@ -1605,6 +1608,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.21** | **V-B9 run on the bench**, §6.5.2 says so; §7.1 moves **V-B12** from B2 to B3 |
 | **v0.20** | Spec v0.11 citation — §6.2 and §10.5.1 say what a retry during execution receives |
 | **v0.19** | **§5.1.2** — BF-14's status page: sentinels, burn-in, and a non-fatal display |
 | **v0.18** | **§6.5.1–§6.5.2** — BF-13's OTA, why Arduino's default defeats rollback, and V-B9's procedure |
@@ -1625,6 +1629,12 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.21** — **B2's bench session, 2026-09-13.** §6.5.2 said V-B9 had not been run; it
+  has, all four steps passed on the flat-case Heltec, and the section now points at the
+  bridge engineering log's 2026-09-13 entry for the banner lines. **§7.1 assigned V-B12
+  to B2**, which §8's B2 row never included and which cannot run before BF-16 gives the
+  bridge a radio. It moves to B3, where BF-16 lands. The procedure text is unchanged.
 
 - **v0.20** — **Protocol specification v0.10 → v0.11, reconciled first.** v0.11 answers
   §9.4's check/record window: a node that receives a retry while still executing the

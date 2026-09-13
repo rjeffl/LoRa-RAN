@@ -4,7 +4,7 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.20
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.21
 (build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.9 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
@@ -54,9 +54,11 @@ the target build, so nothing secret is in it.
   It is committed rather than taken from the board definition for that reason. Grow the
   image, not the table.
 
-**V-B9 is not met until Impl Plan §6.5.2 has been run on the bridge board.** The two
-bad-image environments, `v_b9_no_network` and `v_b9_panic`, exist for it and are never a
-production build.
+**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log). **Re-run
+Impl Plan §6.5.2 after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
+Arduino-ESP32 version**; CI's symbol check catches a lost `extern "C"`, but only a board
+proves a rollback. The two bad-image environments, `v_b9_no_network` and `v_b9_panic`,
+exist for it and are never a production build.
 
 ## Two network rules that are enforced, not remembered
 
