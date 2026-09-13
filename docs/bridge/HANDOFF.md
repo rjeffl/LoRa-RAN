@@ -33,8 +33,9 @@ broker to start:
    on `InFlight` it sends nothing (spec §9.4 v0.11). It needs a second board. B3 cannot
    finish without it.
 
-**Before any B3 bench work, USB-flash a committed build onto the bridge board.** It is
-parked on an uncommitted test image (*Hardware state*).
+**The bridge board runs a committed build**, USB-flashed at the end of the 2026-09-13
+session (*Hardware state*). Check its banner's git field against the branch before B3's
+first bench session.
 
 ## What the last session established
 
@@ -135,13 +136,14 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge`. **Running on `app1`: `0.1.1 (9893d86-dirty)`**, an OTA test image with an uncommitted version bump, kept as valid by V-B9 step 2. `app0` holds the `v_b9_panic` bad image | NVS: nothing this node depends on yet. OTA data points at `app1` | On USB to the macOS build machine, 2026-09-13, connected to the sandbox broker. **Transmits nothing** — no radio code |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed from a clean tree after V-B9**: banner `Version: 0.1.0`, a git field with no `-dirty`, `Slot: app0`, `Image state: not_pending`. `app1` still holds step 2's `0.1.1` test image, unreachable because the USB flash reset `otadata` to `app0` | NVS: nothing this node depends on yet | On USB to the macOS build machine, 2026-09-13, connected to the sandbox broker. **Transmits nothing** — no radio code |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `range-test` / `heltec`, **or P8's Unity test image** — which Heltec took that image on 2026-09-11 is not recorded, and the flat-case board was USB-flashed on 2026-09-13 without its prior firmware being read. Never a simnode build | Whether its stored survey campaign was erased is not recorded. Irrelevant to this node | Powered down |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. Never a simnode build | B1b position log, dumped and committed | Powered down |
 
 **A USB flash puts the bridge board back in a known state.** `pio run -t upload -e heltec`
 writes the bootloader, the table, `boot_app0.bin` (which resets `otadata` to `app0`) and
-the image. Do it before B3's first session, from a committed tree.
+the image. Flash from a committed tree: a `-dirty` git field on the banner means the
+running image matches no commit.
 
 **A wrong board selection is silent.** It writes the wrong pin map into a normal-looking
 artifact. **Tell the two Heltecs apart by enclosure** — both CP2102 bridges report
