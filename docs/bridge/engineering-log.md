@@ -625,3 +625,55 @@ B| ping f1 -> f2 seq 3: no echo in 30000 ms
   independence are host-tested; the bench run used three identities across two boards.
 - **Identities do not persist.** Every reset returns a Heltec to `f0` and `f2`. Two Heltecs
   booted together both answer to `f0` until one is reconfigured.
+
+## 2026-09-14 — BF-7: malformed frames through the real encoder, checked against W4
+
+**`lib/lran-sim/` exists, and its `FramePatch` rebuilds 18 of the 21 W4 negative vectors
+byte for byte from `encode()` and one stated patch.** BF-8's dependency is met. The simnode
+does not call the library yet; BF-8 is its first caller. Host-tested only; there is nothing
+to put on air until BF-8.
+
+### The surface
+
+`FramePatch` holds a caller-owned 255-byte buffer. It starts from `encode()` or
+`encode_fragment()`, patches single-byte header fields by name, resizes the payload
+(moving the MAC and CRC), strips or flips the MAC, or truncates the body. Then
+`seal(Seal::Crc)` or `seal(Seal::MacAndCrc)` reseals it, and `flip_crc()` can corrupt it
+afterwards. Impl Plan §10.5.2 maps each catalogue entry to its operation.
+
+Two choices, both about rule 1 (never a second serializer):
+
+- **Every patch unseals, and `frame()` is `nullptr` until `seal()`.** Without that, a
+  forgotten reseal sends a frame that also fails its CRC. The receiver counts it at stage 3,
+  and the fault reads as tested while the targeted stage never ran.
+- **No `seq` or `ctx_id` patch.** `ctx_jump`, `seq_jump` and `seq_wrap` are correct frames,
+  so `encode()` emits them from a `Header`. Adding multi-byte patches would be the first step
+  towards a serializer here.
+
+### How it is checked
+
+- **The W4 negative vectors are an independent witness.** `tools/vectors/generate.py` built
+  them the way §10.6 asks the simnode to, by editing a correct frame and resealing it, in
+  Python that never read this code. `test_frame_patch` starts from the C++ encoder instead
+  and must produce the same bytes. The three it skips are `command_ctx_mismatch` and
+  `command_signed_with_wrong_node_key`, both correct frames, and `frag_index_equals_total`,
+  which takes the same path as `frag_index_ge_total`.
+- **`HdrByte`'s offsets are the one layout the library states**, so a test patches each
+  offset and reads it back through `decode_header()`, checking that no other field moved.
+- **The comparison catches a wrong offset.** With `HdrByte::Dst` changed from 3 to 4, two
+  tests failed: `wrong_dst_not_addressed` differed at byte 3, and the offset test failed.
+  Reverted.
+
+16 tests. All passed the first time the suite compiled, and that result is why the mutation
+check was run.
+
+### What the work found
+
+- **Impl Plan §5.4 said `/tools/vectors/` shares `lran-sim`**, "so the on-air fault
+  injector and the host vectors agree byte-for-byte". It cannot and should not. The
+  generator is Python, and Impl Plan §9.3 requires it to stay independent of the C++ code.
+  Shared code would let the simnode and the vectors be wrong in the same way. v0.25
+  corrects §5.4: the two stay separate, and `lran-sim`'s tests compare them.
+- **`oversize` reaches 255 bytes**, the SX1262's 8-bit length maximum, and the codec counts
+  it `rx_oversize` at stage 2a. The W4 vector is 223 bytes, one past `LRAN_MAX_FRAME`;
+  §10.5's entry says 255. Both are now producible.

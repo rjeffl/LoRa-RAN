@@ -100,8 +100,8 @@ that are not. Current counts and status live where they are produced: run the co
 below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 
 ```
-lib/        lran-protocol, lran-link                         [built]
-            lran-config, lran-sim, vedirect, bms-ble        [planned]
+lib/        lran-protocol, lran-link, lran-sim               [built]
+            lran-config, vedirect, bms-ble                  [planned]
 firmware/   bridge/, range-test/, simnode/                   [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
@@ -125,6 +125,7 @@ These work today:
 pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
 pio test -d lib/lran-link -e native           # spec 12.3 media access, bridge and simnode
+pio test -d lib/lran-sim -e native            # fault frames: encode, patch, reseal, vs. W4
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header

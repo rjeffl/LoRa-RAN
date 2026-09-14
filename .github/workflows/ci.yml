@@ -137,6 +137,11 @@ jobs:
       - name: Radio-link library
         run: pio test -d lib/lran-link -e native
 
+      # BF-7's patch-after-encode primitive, checked byte for byte against the W4
+      # negative vectors that the Python generator built the same way.
+      - name: Fault-injection library
+        run: pio test -d lib/lran-sim -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 

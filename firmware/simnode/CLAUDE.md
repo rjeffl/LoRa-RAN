@@ -3,8 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.24 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.12 §4 (BF-2 to BF-9).
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.25 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.13 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -31,8 +31,9 @@ Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec
 `console.{h,cpp}`, `radio.{h,cpp}` (**the only file that includes RadioLib**), `main.cpp`
 (**the only file that includes `secrets.h`**, for `LRAN_MASTER_KEY` alone) and `sink.h`.
 
-**Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), `/lib/lran-sim/`
-(**BF-7**), the fault catalogue and `fault` (**BF-8**), self-disarm and the OLED (**BF-9**).
+**`/lib/lran-sim/` (BF-7) is built** and not yet called from here: `FramePatch`, Impl Plan
+§10.5.2. **Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), the
+fault catalogue and `fault` (**BF-8**), self-disarm and the OLED (**BF-9**).
 Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
 and has not been flashed.**
 
@@ -208,10 +209,18 @@ a set that completes and a counter that stays still.
 counter is not in `kCounterRegistry` is a defect in the table — report it rather than
 adding a name.
 
-**§10.5.2: `/lib/lran-sim/` needs a patch-after-encode primitive** before B0.
-`oversize`, `frag_zero` and `frag_command` all need a frame `encode()` refuses to emit.
-A narrow patch surface keeps rule 2 above intact; discovering the need mid-milestone is
-how a second serializer gets written.
+**§10.5.2: `/lib/lran-sim/`'s patch-after-encode primitive exists (BF-7).** `oversize`,
+`frag_zero` and `frag_command` all need a frame `encode()` refuses to emit. Build every
+malformed frame with `lran::sim::FramePatch`: encode, patch, `seal()`. §10.5.2 maps each
+fault to its operation. Two things to know when BF-8 uses it:
+
+- **`frame()` is `nullptr` after any patch until `seal()` runs.** Check it before queuing.
+- **`Seal::MacAndCrc` re-signs, and so repairs a `flip_mac()`.** `bad_mac` seals with
+  `Seal::Crc`. A patch to an authenticated frame that must still verify seals with
+  `Seal::MacAndCrc`.
+
+If a fault needs a byte that `FramePatch` cannot reach, add an operation there, with a test
+against `decode_header()` or a W4 vector. Do not build the frame by hand.
 
 ## Two faults arrive with P8, and they point the other way
 

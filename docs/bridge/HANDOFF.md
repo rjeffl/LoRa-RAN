@@ -1,7 +1,7 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-14, at the end of the session that brought BF-16 up on the bridge board,
-built BF-15, and built simnode B0's first slice and proved it on air.** It replaces the
+built BF-15, built simnode B0's first slice and proved it on air, and built BF-7.** It replaces the
 2026-09-13 file wholesale; that file's content is carried over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -24,9 +24,10 @@ git switch b0-simnode-bringup && git pull --ff-only
 gh pr list --state open
 ```
 
-**B0's remaining tasks are next, starting with BF-7**, the `/lib/lran-sim/`
-patch-after-encode primitive (Opus). BF-8's fault catalogue must not start before it, and
-BF-9 (self-disarm, OLED) follows BF-8. BF-6, `ROLE_GATELINK`, is independent of all three.
+**B0's remaining tasks are next: BF-8, the fault catalogue (Sonnet), now that BF-7 is
+built.** Build every malformed frame with `lran::sim::FramePatch` (Impl Plan §10.5.2 maps
+fault to operation), and start with `single_frame_interleave`. BF-9 (self-disarm, OLED)
+follows BF-8. BF-6, `ROLE_GATELINK`, is independent of both.
 Its command path calls `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only
 after `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11). Bridge Impl Plan §10.9
 records what exists; `firmware/simnode/CLAUDE.md` lists the traps.
@@ -91,8 +92,8 @@ account.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the two 2026-09-14 entries: the bring-up, then BF-15 and the spec gap |
-| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§10** is the simnode, **§10.9** what B0 has built, **§10.5.2** BF-7's primitive; **§4.2.1** is BF-15; **§8** owns B0's and B3's criteria; **§6.5.2** is V-B9, owed |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-14 entries: the bring-up, BF-15 and the spec gap, B0's first slice, BF-7 |
+| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§10** is the simnode, **§10.9** what B0 has built, **§10.5.2** BF-7's primitive and the fault-to-operation map; **§4.2.1** is BF-15; **§8** owns B0's and B3's criteria; **§6.5.2** is V-B9, owed |
 | 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §4 is B0's tasks, BF-6 to BF-9 left; §6 is B3's order, BF-15 to BF-22 |
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 6 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
@@ -105,15 +106,16 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air |
-| Not done | **B0**: BF-6 to BF-9, and the rest of BF-4. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | **BF-7** → BF-8 → BF-9, with BF-6 alongside → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7** built, host-tested against W4 |
+| Not done | **B0**: BF-6, BF-8, BF-9, and the rest of BF-4. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
+| Queue | **BF-8** → BF-9, with BF-6 alongside → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
 pio test -d firmware/bridge -e native           # bridge host suites, test_registry and test_lora among them
 pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h
 pio test -d lib/lran-link -e native             # spec 12.3 media access, both firmwares
+pio test -d lib/lran-sim -e native              # BF-7's FramePatch, against the W4 negatives
 pio test -d firmware/simnode -e native          # simnode host suites
 pio run  -d firmware/simnode -e simnode-heltec  # simnode target - NEEDS secrets.h (key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio
