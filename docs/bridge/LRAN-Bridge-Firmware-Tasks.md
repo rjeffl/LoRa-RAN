@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.10
+**Version:** 0.11
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.22
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.23
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-13
+**Last updated:** 2026-09-14
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -200,7 +200,7 @@ protocol risk.
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-15** | **Per-node registry** — §4.2's table, HKDF key derivation at load, `is_bench` (§4.2, R-3.1c) | **Opus** | The abstraction the whole fleet story rests on. *"If adding a node requires touching the scheduler, the availability watchdog or the MQTT layer, the abstraction has leaked."* The bench IDs being ordinary entries is itself the test |
+| **BF-15** | **Per-node registry** — §4.2's table, HKDF key derivation at load, `is_bench` (§4.2, R-3.1c). **Built 2026-09-14, host-tested** — Impl Plan §4.2.1 | **Opus** | The abstraction the whole fleet story rests on. *"If adding a node requires touching the scheduler, the availability watchdog or the MQTT layer, the abstraction has leaked."* The bench IDs being ordinary entries is itself the test |
 | **BF-16** | `lora_link.cpp` — RadioLib, frame in and out, MAC verify, reassembly (§5.3). **Built 2026-09-13, host-tested; not yet on air** — Impl Plan §5.3.1 | **Opus** | Where the never-block rule is honoured or lost, and where reassembly state either respects §11.2 or destroys a peer's in-progress set |
 | **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d) | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
 | **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**) | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
@@ -267,6 +267,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.11** | **BF-15 built** — the registry, host-tested; BF-16's radio came up on the board |
 | **v0.10** | **BF-16 built** — the radio link, host-tested and not yet on air |
 | **v0.9** | Spec v0.11 citation; library P8 built, so B0's library dependency is met |
 | **v0.8** | **BF-14 built** — **B2's code is complete**; everything left is bench work |
@@ -277,6 +278,16 @@ only against the bridge, a cached value republished as current.
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.11** — **BF-15 is built.** Marked built rather than done for the same reason as
+  BF-16: B3's criteria need simnode **B0**. BF-15 leaves the §4.2 fields that later tasks
+  write in the struct, each with a `TODO` naming its owner: `cmd_seq` (**BF-18**),
+  `missed_polls` (**BF-17**, **BF-20**), `proto_ver` (**BF-22**) and `poll_interval_s`
+  (**BF-23**). **Decoding per schema has no task of its own**: Impl Plan §5.3's `decode/`
+  is named by no `BF-*` row, and `app_task`'s `TODO` gives it to **BF-24**, whose
+  publication policy is its first consumer. Separately, **BF-16 came up on the bridge
+  board** on 2026-09-14 (engineering log); V-B9's re-run is still owed. No task's scope or
+  model column changes. This document inherits Bridge Impl Plan v0.23.
 
 - **v0.10** — **BF-16 is built, and B3 has started.** The row is marked built rather than
   done: nothing has gone over the air, and B3's acceptance needs simnode **B0** in any case.

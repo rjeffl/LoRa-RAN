@@ -26,6 +26,7 @@
 #include "net_policy.h"
 #include "ota.h"
 #include "radio_config.h"
+#include "registry_runtime.h"
 #include "status_page.h"
 #include "ui.h"
 #include "wifi_link.h"
@@ -234,10 +235,13 @@ void app_task(void*) {
     // A blocking receive is correct HERE and wrong in lora_task: app_task waiting
     // costs nothing, and it is the consumer rather than the producer.
     //
-    // TODO(BF-15): resolve the node from the registry and decode per schema.
+    // BF-15. The ladder refuses a source the registry does not know, so every message
+    // here names a registered node. This learns its ctx_id (spec 10.1) and resets its
+    // command seq on a new one (spec 10.2).
+    (void)registry_observe(msg.hdr, msg.rssi_dbm, msg.snr_db, msg.rx_millis);
     // TODO(BF-19): wire the spec 14 discard ladder counters through.
-    // TODO(BF-24): the publication policy, into the publish queue.
-    (void)msg;
+    // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
+    // policy, into the publish queue.
   }
 }
 

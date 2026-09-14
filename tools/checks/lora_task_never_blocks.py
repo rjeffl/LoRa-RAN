@@ -40,7 +40,11 @@ BRIDGE_SRC = ROOT / "firmware" / "bridge" / "src"
 # Whole files owned by lora_task. BF-16 split its work three ways - the driver, the
 # receive ladder and media access - and all three run in lora_task. Absent files are
 # skipped, so a check never fails for a file nobody has written yet.
-LORA_FILES = ("lora_link.cpp", "rx_ladder.cpp", "media_access.cpp")
+#
+# registry.cpp is here because lora_task calls its lock-free half through PeerKeys
+# (BF-15). Its locked half is registry_runtime.cpp, which is deliberately NOT here: that
+# file waits on a mutex, and lora_task must never reach it.
+LORA_FILES = ("lora_link.cpp", "rx_ladder.cpp", "media_access.cpp", "registry.cpp")
 
 # Functions owned by lora_task inside files that also hold other tasks.
 LORA_FUNCTIONS = (("task_runtime.cpp", "lora_task"),)

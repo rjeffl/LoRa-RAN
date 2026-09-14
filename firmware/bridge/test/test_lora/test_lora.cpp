@@ -2,7 +2,8 @@
 // Copyright (c) 2026 Robert J. Lee
 //
 // BF-16 - the radio's data, and the two decisions lora_task makes: the spec 14 receive
-// ladder up to reassembly, and spec 12.3 media access.
+// ladder up to reassembly, and spec 12.3 media access. BF-15 - the ladder refusing a
+// source the registry does not know.
 //
 // WHAT THIS CANNOT COVER. That the SX1262 is configured as radio_config.h says, that DIO1
 // wakes lora_task, that a CAD reads the air. Those need frames out and echoes back on a
@@ -98,12 +99,24 @@ class TestKeys : public PeerKeys {
     for (size_t i = 0; i < kNodeKeyLen; ++i) key_[i] = static_cast<uint8_t>(seed + i);
   }
   const uint8_t* key_for(NodeId src) const override { return src == id_ ? key_ : nullptr; }
+  bool           is_registered(NodeId src) const override { return src == id_; }
   const uint8_t* key() const { return key_; }
 
  private:
   NodeId  id_;
   uint8_t key_[kNodeKeyLen];
 };
+
+// Registers every source and holds no key. The stage tests below are about the ladder, not
+// the registry; test_registry covers the registry, and the tests at the end of this file
+// cover the ladder refusing what the registry does not know.
+class AnySource : public PeerKeys {
+ public:
+  const uint8_t* key_for(NodeId) const override { return nullptr; }
+  bool           is_registered(NodeId) const override { return true; }
+};
+
+AnySource g_any;
 
 // An authenticated COMMAND addressed to the bridge. No real node sends one - every
 // authenticated type is bridge -> node (spec 9.2) - which is exactly why the bridge must
@@ -304,6 +317,7 @@ void test_a_new_frame_starts_with_fresh_retries() {
 void test_a_status_frame_is_delivered_whole() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    buf[kMaxFrame];
   RxDelivery d;
 
@@ -365,6 +379,7 @@ void test_a_frame_for_another_node_is_counted_and_not_delivered() {
 void test_a_fragmented_ping_reassembles_out_of_order() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -391,6 +406,7 @@ void test_a_fragmented_ping_reassembles_out_of_order() {
 void test_a_single_frame_mid_set_leaves_the_set_intact() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -415,6 +431,7 @@ void test_a_single_frame_mid_set_leaves_the_set_intact() {
 void test_two_peers_interleave_without_abandoning() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -440,6 +457,7 @@ void test_two_peers_interleave_without_abandoning() {
 void test_slot_exhaustion_abandons_the_oldest_set_and_counts() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -461,6 +479,7 @@ void test_slot_exhaustion_abandons_the_oldest_set_and_counts() {
 void test_an_incomplete_set_times_out_on_tick() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -480,6 +499,7 @@ void test_an_incomplete_set_times_out_on_tick() {
 void test_the_reassembly_timeout_is_runtime_settable() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -497,6 +517,7 @@ void test_the_reassembly_timeout_is_runtime_settable() {
 void test_a_late_fragment_is_not_delivered_twice() {
   Counters   c;
   RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
   uint8_t    payload[kMaxPayloadPlain];
   const size_t n = ping_payload(40, payload);
   uint8_t    buf[kMaxFrame];
@@ -564,6 +585,105 @@ void test_an_authenticated_frame_with_its_key_is_delivered_verified() {
   TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
 }
 
+// ---------------------------------------------------------------------------
+// rx_ladder.h - sources the registry does not know (BF-15)
+// ---------------------------------------------------------------------------
+
+// Counted as a bridge diagnostic and kept out of spec 14.1's counters: spec 14 has no stage
+// for it, and rx_dropped must not move for a discard the specification does not define.
+void test_an_unregistered_source_is_refused_and_counted() {
+  Counters     c;
+  RxLadder     ladder(&c);
+  TestKeys     keys(kNodeGateLink, 0x40);
+  uint8_t      buf[kMaxFrame];
+  RxDelivery   d;
+  ladder.set_auth(nullptr, &keys);
+
+  size_t len = status_frame(kNodeGateLink, kNodeBridge, buf);
+  TEST_ASSERT_TRUE(ladder.accept(buf, len, 0, &d));
+  TEST_ASSERT_FALSE(ladder.last_unregistered_src());
+
+  len = status_frame(kNodeWellLink, kNodeBridge, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 1, &d));
+  TEST_ASSERT_TRUE(ladder.last_unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(1, ladder.unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(2, c.rx_frames);
+  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+
+  // The flag describes the last frame only.
+  len = status_frame(kNodeGateLink, kNodeBridge, buf);
+  TEST_ASSERT_TRUE(ladder.accept(buf, len, 2, &d));
+  TEST_ASSERT_FALSE(ladder.last_unregistered_src());
+}
+
+// Before registration is set, nothing is registered.
+void test_a_ladder_with_no_registry_refuses_every_source() {
+  Counters     c;
+  RxLadder     ladder(&c);
+  uint8_t      buf[kMaxFrame];
+  RxDelivery   d;
+  const size_t len = status_frame(kNodeGateLink, kNodeBridge, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 0, &d));
+  TEST_ASSERT_EQUAL_UINT32(1, ladder.unregistered_src());
+}
+
+// The stages spec 14 defines still run for an unregistered sender, and still count.
+void test_an_unregistered_source_still_counts_the_earlier_stages() {
+  Counters     c;
+  RxLadder     ladder(&c);
+  TestKeys     keys(kNodeGateLink, 0x40);
+  uint8_t      buf[kMaxFrame];
+  RxDelivery   d;
+  ladder.set_auth(nullptr, &keys);
+
+  const size_t len = status_frame(kNodeWellLink, kNodeSim0, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 0, &d));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_not_addressed);
+  TEST_ASSERT_EQUAL_UINT32(0, ladder.unregistered_src());
+}
+
+// spec 11.3 - THE REASON THE CHECK SITS BEFORE STAGE 10. Every slot holds a registered
+// peer's live set, and an unprovisioned transmitter's fragment neither takes a slot nor
+// displaces one of them.
+void test_an_unregistered_fragment_takes_no_slot_and_displaces_nothing() {
+  // Registers 0x10 .. 0x10 + kReassemblySlots - 1, and nothing else.
+  class SlotPeers : public PeerKeys {
+   public:
+    const uint8_t* key_for(NodeId) const override { return nullptr; }
+    bool           is_registered(NodeId src) const override {
+      return src >= 0x10 && static_cast<size_t>(src) < 0x10 + kReassemblySlots;
+    }
+  } peers;
+
+  Counters   c;
+  RxLadder   ladder(&c);
+  uint8_t    payload[kMaxPayloadPlain];
+  const size_t n = ping_payload(40, payload);
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+  ladder.set_auth(nullptr, &peers);
+
+  for (uint8_t i = 0; i < kReassemblySlots; ++i) {
+    const size_t len = ping_fragment(static_cast<NodeId>(0x10 + i), 1, payload, n, 0, buf);
+    TEST_ASSERT_FALSE(ladder.accept(buf, len, i, &d));
+  }
+
+  size_t len = ping_fragment(0x30, 1, payload, n, 0, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 100, &d));
+  TEST_ASSERT_TRUE(ladder.last_unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
+
+  // Every registered set is still live and still completes.
+  int delivered = 0;
+  for (uint8_t index = 1; index < 3; ++index) {
+    for (uint8_t i = 0; i < kReassemblySlots; ++i) {
+      len = ping_fragment(static_cast<NodeId>(0x10 + i), 1, payload, n, index, buf);
+      if (ladder.accept(buf, len, 200, &d)) ++delivered;
+    }
+  }
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(kReassemblySlots), delivered);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_heltec_pins_match_impl_plan_10_8_1);
@@ -595,5 +715,10 @@ int main() {
   RUN_TEST(test_an_authenticated_frame_without_keys_is_refused);
   RUN_TEST(test_an_authenticated_frame_with_the_wrong_key_is_refused);
   RUN_TEST(test_an_authenticated_frame_with_its_key_is_delivered_verified);
+
+  RUN_TEST(test_an_unregistered_source_is_refused_and_counted);
+  RUN_TEST(test_a_ladder_with_no_registry_refuses_every_source);
+  RUN_TEST(test_an_unregistered_source_still_counts_the_earlier_stages);
+  RUN_TEST(test_an_unregistered_fragment_takes_no_slot_and_displaces_nothing);
   return UNITY_END();
 }

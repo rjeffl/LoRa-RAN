@@ -32,6 +32,7 @@ void RxLadder::on_phy_crc_error() {
 
 bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDelivery* out) {
   if (counters_ != nullptr) ++counters_->rx_frames;
+  last_unregistered_ = false;
 
   lran::DecodeCtx ctx;
   ctx.self     = lran::kNodeBridge;
@@ -58,6 +59,17 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
   if (lran::frame_has_mac(f.hdr.type, f.payload, f.payload_len) && !f.mac_verified) {
     if (counters_ != nullptr) counters_->bump(lran::Status::RejectedMac);
     last_ = lran::Status::RejectedMac;
+    return false;
+  }
+
+  // BF-15 - A SOURCE THE REGISTRY DOES NOT KNOW GOES NO FURTHER. After stage 9, so every
+  // stage spec 14 does define still counts an unregistered sender's faults as it would a
+  // registered one's. Before stage 10, because spec 11.3 sizes reassembly per provisioned
+  // node: an unprovisioned transmitter must not take a slot, let alone displace a live set.
+  // A single frame is refused here too, so it never costs an RX queue slot.
+  if (keys_ == nullptr || !keys_->is_registered(f.hdr.src)) {
+    ++unregistered_src_;
+    last_unregistered_ = true;
     return false;
   }
 

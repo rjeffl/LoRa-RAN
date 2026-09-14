@@ -30,16 +30,19 @@
 
 namespace bridge {
 
-// Where a peer's key comes from. BF-15's registry implements this.
+// Which peers the bridge knows, and their keys. registry.h implements this (BF-15).
 //
-// Until something does, every authenticated frame is refused: a MAC the bridge cannot
-// check is a MAC that failed (spec 9.4 step 3).
+// Until something does, every frame is refused: a source the bridge does not know goes no
+// further, and a MAC the bridge cannot check is a MAC that failed (spec 9.4 step 3).
 class PeerKeys {
  public:
   virtual ~PeerKeys() = default;
 
   // The kNodeKeyLen-byte key for `src`, or nullptr when the bridge holds none.
   virtual const uint8_t* key_for(lran::NodeId src) const = 0;
+
+  // True when `src` is a provisioned node.
+  virtual bool is_registered(lran::NodeId src) const = 0;
 };
 
 // A complete payload: a single frame's, or a reassembled set's.
@@ -62,9 +65,8 @@ struct RxDelivery {
 // identities are provisioned today (GateLink, WellLink and four simnode identities),
 // so eight leaves two spare. One set is ~520 B, so the pool is ~4 KB of static storage.
 //
-// TODO(BF-15): assign slots to registered nodes only. Until the registry exists a slot
-// goes to any `src`, so an unprovisioned transmitter can occupy one - counted as
-// rx_reassembly_abandoned when it displaces a live set, never silent.
+// Slots go to registered nodes only, so an unprovisioned transmitter cannot occupy one or
+// displace a live set. registry.h asserts that the node table fits.
 inline constexpr size_t kReassemblySlots = 8;
 
 class RxLadder {
@@ -94,8 +96,16 @@ class RxLadder {
   // True while any peer's set is incomplete. One of lora_task's idle conditions.
   bool any_set_active() const;
 
-  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27).
+  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27). Ok with
+  // nothing delivered is an incomplete set, or last_unregistered_src().
   lran::Status last_status() const { return last_; }
+
+  // A FRAME FROM A SOURCE THE REGISTRY DOES NOT KNOW. Spec 14 has no stage for this and
+  // spec 14.1 no counter, so it has no Status value and is a bridge diagnostic, outside
+  // rx_dropped. Raised as a specification gap in the engineering log, 2026-09-14; the
+  // name is deliberately not rx_-prefixed, so it cannot squat the one v0.12 may choose.
+  bool     last_unregistered_src() const { return last_unregistered_; }
+  uint32_t unregistered_src() const { return unregistered_src_; }
 
  private:
   struct Slot {
@@ -112,6 +122,8 @@ class RxLadder {
   const PeerKeys* keys_ = nullptr;
   Slot            slots_[kReassemblySlots];
   lran::Status    last_ = lran::Status::Ok;
+  bool            last_unregistered_ = false;
+  uint32_t        unregistered_src_  = 0;
 };
 
 }  // namespace bridge

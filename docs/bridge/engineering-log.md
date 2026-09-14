@@ -459,3 +459,64 @@ verdict and was not at risk.
 - **V-B9 re-run** — still owed, and it needs the broker.
 - **DIO1 waking `lora_task`, and any frame on air** — still unproven. Both need simnode B0.
 - **The other six task stacks** — still unmeasured.
+
+## 2026-09-14 — BF-15: the registry, and a discard spec §14 has no stage for
+
+**BF-15 is built and host-tested.** `registry.{h,cpp}` holds `kNodeTable` (GateLink,
+WellLink and the four simnode identities), derives each key by HKDF at load and derives
+`is_bench` from the address. `registry_runtime.{h,cpp}` adds mbedTLS and a FreeRTOS mutex.
+The bridge host suites went from 77 to 96 tests: 15 in the new `test_registry` and 4 in
+`test_lora`. The target builds, and all four repo checks pass. Impl Plan §4.2.1 has the
+design table.
+
+### Decisions taken with the operator
+
+- **An unregistered source is a bridge diagnostic, and the spec question is raised.** The
+  alternative was a spec v0.12 stage first, which touches every node's ladder, the W4
+  vectors and the library for a question that has one obvious answer on the bridge today.
+- **A short mutex, any task.** The learned half of an entry is written by whichever task
+  learns it, under a lock. The other option was `sched_task` as sole owner, fed by a queue,
+  which delays learning a `ctx_id` by up to 1 s and adds a queue for no gain.
+- **BF-15 learns a context but does no scheduling.** It records `last_seen`, RSSI, SNR,
+  `proto_ver` and the §10.1 `ctx_id`, and resets `cmd_seq` on a new context (§10.2). The
+  fields other tasks write exist, with sentinels and a `TODO` naming each owner.
+
+### A specification gap, raised and not patched
+
+**A frame from an address the bridge does not provision passes every stage spec §14
+defines.** `STATUS` carries no MAC, so a transmitter using address `0x03`, or the unassigned
+bench address `0xF4`, reaches stage 10 with nothing refusing it. Two consequences:
+
+- **Reassembly.** §11.3 asks for a set "per provisioned node". BF-16 gave a slot to any
+  `src`, so an unprovisioned transmitter could displace a registered node's live set.
+- **Root rule 4.** A discard needs a named counter, a `Status` value and a §14 stage.
+  Refusing the frame can meet only the first.
+
+**What the bridge does:** `RxLadder` refuses the frame after stage 9 and before stage 10,
+counts it as `unregistered_src`, and sets `last_unregistered_src()`. After stage 9, so the
+stages §14 does define still count an unregistered sender's faults. Before stage 10, so the
+frame takes no slot and no RX queue entry. The counter stays out of `rx_dropped`, and its
+name is not `rx_`-prefixed, so it cannot take a name v0.12 might choose.
+
+**The question for spec v0.12:** should §14 gain a stage — for example 5c, "`src`
+provisioned", with an `rx_` counter — or should §11.3 say that an unprovisioned source is a
+receiver's local policy? A node receives only from `0x00`, so the stage would be trivial
+there, but it would still need a test.
+
+### What the code found
+
+- **The library's platform crypto is not part of its build.** `platform/esp32/mbedtls_mac.cpp`
+  sits outside the library's `srcDir`, so a firmware that wants it must add it to its own
+  `build_src_filter`. The bridge does, for `heltec` (and the two V-B9 environments that
+  extend it); `native` adds `platform/native/` for the tests.
+- **Decoding per schema belongs to no task.** Impl Plan §5.3 lists `decode/` and no `BF-*`
+  row names it. `app_task`'s `TODO` now gives it to BF-24, its first consumer.
+- **A `lora_link.cpp` comment still said `lora_task` had 4 KB of stack.** Corrected to 8 KB.
+
+### Not done
+
+- **On the board.** BF-15 needs a flash to show the `Registry:` banner line, and frames from
+  simnode B0 to show a key verifying on air.
+- **Publishing `unregistered_src`** — BF-19, with the other counters.
+- **The mutex is not host-tested.** It needs FreeRTOS. Its callers are `app_task` today
+  and `sched_task` from BF-17.

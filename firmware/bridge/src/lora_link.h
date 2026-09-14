@@ -63,8 +63,9 @@ void lora_wait(uint32_t max_wait_ms);
 // across it; until then only the defaults are ever in effect.
 void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms);
 
-// For BF-15's registry. Until it is called, every authenticated frame is refused.
-// TODO(BF-15): call before start_tasks(), so lora_task never races the assignment.
+// The registry's keys and the platform HMAC. Until it is called nothing is registered, so
+// every frame is refused. registry_begin() calls it before start_tasks(), so lora_task
+// never races the assignment.
 void lora_set_auth(lran::IMac* mac, const PeerKeys* keys);
 
 // Safe from any task.
@@ -78,5 +79,9 @@ bool lora_idle();
 // publication - one field read torn is harmless on this core, a multi-field view is not.
 const lran::Counters& lora_counters();
 const LoraStats&      lora_stats();
+
+// Frames refused because the registry does not know their source. A bridge diagnostic,
+// not spec 14.1: spec 14 has no stage for it (rx_ladder.h).
+uint32_t lora_unregistered_src();
 
 }  // namespace bridge

@@ -66,7 +66,7 @@ uint32_t g_tx_timeout_ms = 0;
 TxMessage g_tx;
 bool      g_have_tx = false;
 
-// Static rather than on lora_task's stack, which is 4 KB in all (tasks.cpp). 256 bytes
+// Static rather than on lora_task's stack, which is 8 KB in all (tasks.cpp). 256 bytes
 // because the SX1262 accepts a 255-byte packet, and spec 14 stage 2a has to see the real
 // length of one to count it.
 uint8_t   g_rx_buf[256];
@@ -482,5 +482,7 @@ bool lora_idle() { return g_idle; }
 const lran::Counters& lora_counters() { return g_counters; }
 
 const LoraStats& lora_stats() { return g_stats; }
+
+uint32_t lora_unregistered_src() { return g_ladder.unregistered_src(); }
 
 }  // namespace bridge
