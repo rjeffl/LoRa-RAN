@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Robert J. Lee
+//
+// lran-simnode - bench nodes 0xF0-0xF3. Boot, banner, default identities, and the loop
+// that drives the console, the protocol engine and the radio. Task BF-2; Impl Plan 10.
+//
+// THE ONLY TRANSLATION UNIT THAT INCLUDES secrets.h, and it takes LRAN_MASTER_KEY and
+// nothing else. The key is never printed.
+
+#include <Arduino.h>
+#include <esp_system.h>
+
+#include "console.h"
+#include "identity.h"
+#include "lran/link/radio_config.h"
+#include "mbedtls_mac.h"
+#include "node.h"
+#include "profiles.h"
+#include "radio.h"
+
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#error "secrets.h not found. Run `cp secrets.h.example secrets.h` at the repo root and fill it in. The simnode reads LRAN_MASTER_KEY only. Never commit the copy."
+#endif
+
+#if !defined(LRAN_PROFILE_HELTEC) && !defined(LRAN_PROFILE_XIAO_WIO_KIT)
+#error "No hardware profile - build env simnode-heltec or simnode-xiao-wio (Impl Plan 10.8)"
+#endif
+
+namespace {
+
+class SerialSink final : public simnode::Sink {
+ public:
+  void line(const char* text) override { Serial.println(text); }
+};
+
+SerialSink               g_sink;
+lran::esp32::MbedtlsMac  g_mac;
+lran::esp32::MbedtlsKdf  g_kdf;
+simnode::IdentityTable   g_ids;
+simnode::Outbox          g_outbox;
+simnode::Node            g_node(&g_ids, &g_outbox, &g_mac, &g_sink);
+simnode::Console         g_console(&g_node, &g_ids, &g_sink);
+
+uint32_t random_u32() { return esp_random(); }
+
+// The template's key is 32 zero bytes and builds, so CI needs no secret. A board flashed
+// with it derives keys no bridge holding a real key shares, and says so.
+bool master_key_is_placeholder(const uint8_t* key) {
+  for (size_t i = 0; i < lran::kMasterKeyLen; ++i) {
+    if (key[i] != 0) return false;
+  }
+  return true;
+}
+
+void add_default(uint8_t id, simnode::Role role) {
+  if (g_ids.add(id, role) == simnode::AddResult::Ok) {
+    const simnode::Identity* e = g_ids.find(id);
+    Serial.printf("id %02x %s ctx 0x%08lx\n", id, simnode::role_name(role),
+                  static_cast<unsigned long>(e->ctx_id));
+  }
+}
+
+}  // namespace
+
+void setup() {
+  Serial.begin(115200);
+  delay(1500);  // the XIAO's USB CDC enumerates late; the banner is the useful part of a log
+
+  // tools/checks/spec_citation_version.py reads the next line.
+  Serial.println(F("LRAN simnode - bench nodes 0xF0-0xF3"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.11 (ver = 2)"));
+  Serial.print(F("Board: "));
+  Serial.println(simnode::kBoardName);
+
+  {
+    const uint8_t master[] = LRAN_MASTER_KEY;
+    static_assert(sizeof(master) == lran::kMasterKeyLen,
+                  "secrets.h: LRAN_MASTER_KEY must be 32 bytes (spec 9.1)");
+    if (master_key_is_placeholder(master)) {
+      Serial.println(F("*** LRAN_MASTER_KEY IS THE ALL-ZERO PLACEHOLDER ***"));
+      Serial.println(F("*** Keys will not match a provisioned bridge. Fill in secrets.h. ***"));
+    }
+    g_ids.init(master, &g_kdf, random_u32);
+  }
+
+  // Impl Plan 10.8.1's assignment, with ROLE_RANGE standing in until ROLE_FAULT (BF-8) and
+  // ROLE_GATELINK (BF-6) exist. Nothing persists: a reboot is a new context for every
+  // identity, which is what a node reboot is.
+#if defined(LRAN_PROFILE_HELTEC)
+  add_default(lran::kNodeSim0, simnode::Role::Range);
+  add_default(lran::kNodeSim2, simnode::Role::Health);
+#else
+  add_default(lran::kNodeSim1, simnode::Role::Range);
+#endif
+
+  simnode::radio_start(simnode::kRadio, lran::link::kPhy, &g_sink);
+  Serial.println(F("B0: identities, console, ROLE_RANGE and ROLE_HEALTH. Type 'help'."));
+}
+
+void loop() {
+  const uint32_t now = millis();
+  while (Serial.available() > 0) {
+    g_console.feed(static_cast<char>(Serial.read()), now);
+  }
+  g_node.tick(now);
+  simnode::radio_service(&g_node, &g_outbox, now);
+  delay(1);  // spec 12.3 backoffs are milliseconds; nothing here needs a finer loop
+}

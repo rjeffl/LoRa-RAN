@@ -147,6 +147,11 @@ jobs:
       - name: Bridge firmware
         run: pio test -d firmware/bridge -e native
 
+      # The simnode's identity table, protocol engine and console. No secrets: the tests use
+      # the committed W4 test key, and the repo root is off the native include path.
+      - name: Simnode firmware
+        run: pio test -d firmware/simnode -e native
+
   firmware:
     name: Firmware targets
     runs-on: ubuntu-latest
@@ -187,6 +192,13 @@ jobs:
 
       - name: Bridge Node (Heltec WiFi LoRa 32 V3)
         run: pio run -d firmware/bridge -e heltec
+
+      # The simnode reads LRAN_MASTER_KEY from the same secrets.h, copied from the template
+      # above, so it builds with the all-zero key and says so at boot. Both profiles.
+      - name: Simnode (Heltec V3, XIAO ESP32S3 + Wio-SX1262 Kit)
+        run: |
+          pio run -d firmware/simnode -e simnode-heltec
+          pio run -d firmware/simnode -e simnode-xiao-wio
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
