@@ -406,3 +406,56 @@ changes `ota_policy.cpp`, which Impl Plan §6.5.2 names as a re-run trigger.
   `TODO(BF-23)`), **the raw frame log** (`TODO(BF-27)`).
 - **`lora_task_idle()` does not yet see a poll or command awaiting its reply.**
   `TODO(BF-17)`, BF-18.
+
+## 2026-09-14 — BF-16 on the bridge board: the radio comes up, V-B9 waits for a broker
+
+**The SX1262 initialises on the configured PHY and `lora_task` stays healthy for 40 s.**
+That is the whole of what this session proves. No frame went out or came in, and V-B9 was
+not re-run, because the MQTT broker was offline and the operator was offsite.
+
+### What ran
+
+The flat-case Heltec, identified by its enclosure, was USB-flashed from a clean tree at
+`54a9265` on `/dev/cu.usbserial-0001`. Before flashing, the four repo checks and the bridge
+host suites passed (77 tests), and `bridge_partitions.py --firmware --elf` passed on the
+built image: 833 360 bytes, 24.9 % of the slot, `verifyRollbackLater` strong. The boot log
+was captured for 40 s with DTR held low, so opening the port did not press PRG.
+
+Banner and radio lines, verbatim:
+
+```
+Version: 0.1.0 (54a9265)
+Slot: app0
+Image state: not_pending
+Tasks started: 7
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 6248 bytes free
+```
+
+### What it shows
+
+- **`begin()` accepted the D1 PHY with the §10.8.1 Heltec pin map.** The TCXO and
+  DIO2-as-RF-switch settings fail by leaving the radio uncalibrated, so a radio-up line is
+  some evidence they are right. It is not proof the radio transmits or receives.
+- **No `LoRa: radio down` in 40 s.** `lora_link` reads the IRQ register once a second, so
+  the capture spans about 40 of those reads.
+- **`lora_task` used 1944 of its 8192 bytes at bring-up.** That is the first stack figure
+  measured on this board. It was taken after `begin()` and before any frame was received,
+  so it is a floor, not a working-load figure. 8192 stays.
+- **MQTT connect attempts time out and back off: 3, 3, 4, 8 and 16 s apart.** No reboot, and
+  `lora_task` kept running through them. That is Impl Plan §5.2's never-block property
+  holding with the broker unreachable, observed once.
+
+### Why V-B9 did not run
+
+**The OTA verdict needs the broker.** `ota_policy.cpp` marks an image valid only when
+`tasks_started && mqtt_connected && radio_ok`. With the broker offline, §6.5.2 step 2's
+good image would roll back at the deadline, and the run would record a broker outage as a
+firmware failure. A USB flash leaves the image `not_pending`, so this boot reached no
+verdict and was not at risk.
+
+### Not done
+
+- **V-B9 re-run** — still owed, and it needs the broker.
+- **DIO1 waking `lora_task`, and any frame on air** — still unproven. Both need simnode B0.
+- **The other six task stacks** — still unmeasured.
