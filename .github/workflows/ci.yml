@@ -132,6 +132,11 @@ jobs:
       - name: Protocol library
         run: pio test -d lib/lran-protocol -e native
 
+      # Spec 12.3 media access, shared by the bridge and the simnode. Moved out of the
+      # bridge on 2026-09-14 so the two firmwares run one implementation of it.
+      - name: Radio-link library
+        run: pio test -d lib/lran-link -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 

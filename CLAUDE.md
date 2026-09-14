@@ -100,7 +100,7 @@ that are not. Current counts and status live where they are produced: run the co
 below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 
 ```
-lib/        lran-protocol                                    [built]
+lib/        lran-protocol, lran-link                         [built]
             lran-config, lran-sim, vedirect, bms-ble        [planned]
 firmware/   bridge/, range-test/                             [built]
             simnode/CLAUDE.md                     [context file only, no project yet]
@@ -125,6 +125,7 @@ These work today:
 ```bash
 pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
+pio test -d lib/lran-link -e native           # spec 12.3 media access, bridge and simnode
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
@@ -164,7 +165,7 @@ wrong.
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
 before merge. **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) enforces it** in
 three parallel jobs: `checks` (the repository invariants and the host tools, seconds, no
-toolchain), `native` (the library, range-test and bridge Unity suites) and `firmware`
+toolchain), `native` (the libraries', range-test and bridge Unity suites) and `firmware`
 (every target, then the checks that read a built image or the installed RadioLib).
 **No secrets are needed or available.** The bridge is the one target that needs
 `secrets.h`, and the decision its arrival forced is recorded in

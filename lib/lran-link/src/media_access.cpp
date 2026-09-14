@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// spec 12.3 media access. Task BF-16; see media_access.h.
+// spec 12.3 media access; see lran/link/media_access.h.
 
-#include "media_access.h"
+#include "lran/link/media_access.h"
 
-namespace bridge {
+namespace lran {
+namespace link {
 
 void MediaAccess::start(uint32_t now_ms) {
   state_         = State::Waiting;
@@ -61,4 +62,5 @@ TxStep MediaAccess::on_cad(CadResult result, uint32_t now_ms, uint32_t random_va
 
 void MediaAccess::finish() { state_ = State::Idle; }
 
-}  // namespace bridge
+}  // namespace link
+}  // namespace lran

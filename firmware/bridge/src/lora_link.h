@@ -6,8 +6,8 @@
 //
 // THE ONLY FILE IN THE BRIDGE THAT INCLUDES RADIOLIB. The two decisions lora_task makes
 // live elsewhere and are host-tested - rx_ladder.h (spec 14 stages 2 to 10) and
-// media_access.h (spec 12.3). This file moves bytes and interrupts between them and the
-// radio.
+// lib/lran-link's media_access.h (spec 12.3), which the simnode shares. This file moves
+// bytes and interrupts between them and the radio.
 //
 // NOTHING HERE WAITS ON THE RADIO EITHER. RadioLib's transmit() and scanChannel() loop
 // until DIO1 rises, and scanChannel()'s loop has no timeout (SX126x.cpp, 7.7.1): a radio
@@ -21,12 +21,17 @@
 #include <cstdint>
 
 #include "lran/counters.h"
+#include "lran/link/media_access.h"
 #include "lran/mac.h"
-#include "media_access.h"
 #include "radio_config.h"
 #include "rx_ladder.h"
 
 namespace bridge {
+
+using lran::link::CadResult;
+using lran::link::MediaAccess;
+using lran::link::MediaAccessConfig;
+using lran::link::TxStep;
 
 // Bridge diagnostics kept beside the spec 14.1 counters. Not schema 0xF0: none of these is
 // a receive-ladder discard (queues.h gives the same reasoning for the queue counters).

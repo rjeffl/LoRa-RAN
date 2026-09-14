@@ -32,7 +32,8 @@ first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
 
 **`BF-16` — the radio link, host-tested; the radio comes up on the board, no frame on air
 yet.** `radio_config.h` (pins, PHY, the EIRP and pin-collision asserts), `rx_ladder.{h,cpp}`
-(spec 14 stages 1–10, per-peer reassembly), `media_access.{h,cpp}` (spec 12.3), and
+(spec 14 stages 1–10, per-peer reassembly), `lib/lran-link`'s `media_access` (spec 12.3,
+shared with the simnode since 2026-09-14), and
 `lora_link.{h,cpp}`, **the only file that includes RadioLib**. Impl Plan §5.3.1 records the
 choices.
 
@@ -171,8 +172,8 @@ log. Never commit, echo or log the real values.
 
 ## Structure
 
-`main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `media_access`,
-`radio_config`) · `mqtt_transport` · `discovery` ·
+`main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `radio_config`, and
+`lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` ·
 `publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` · `debug`.
 Task ownership is in Impl Plan §5.2/§5.3.
 

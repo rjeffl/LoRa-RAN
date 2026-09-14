@@ -2,17 +2,21 @@
 // Copyright (c) 2026 Robert J. Lee
 //
 // Media access for one outgoing frame: CAD before transmitting, a random backoff when the
-// channel is busy, and a transmission regardless once the retries are spent. Task BF-16;
-// spec 12.3.
+// channel is busy, and a transmission regardless once the retries are spent. Spec 12.3.
 //
-// ARDUINO-FREE. The decision lives here; the CAD and the transmission are lora_link.cpp's.
-// Time and randomness are passed in, so a test walks every branch without a radio.
+// Written for the bridge by BF-16 and moved here on 2026-09-14, when simnode B0 became its
+// second user. One implementation of spec 12.3 for every firmware: two copies of a backoff
+// rule drift, and the drift shows up as one node starving another on air.
+//
+// ARDUINO-FREE, and the native build of this library is what proves it. The decision lives
+// here; the CAD and the transmission are each firmware's radio driver's. Time and
+// randomness are passed in, so a test walks every branch without a radio.
 //
 // WHY A STATE MACHINE AND NOT A DELAY. A busy channel on this property is usually a node
-// talking, and often to the bridge. A lora_task that slept through its backoff would be
-// deaf to the very frame that made it back off, for up to cad_retries x backoff_max_ms -
-// 7.5 s at the defaults. So a frame waiting out a backoff is state, and lora_task keeps
-// receiving while it waits.
+// talking, and often to the receiver that wants to transmit. A radio task that slept
+// through its backoff would be deaf to the very frame that made it back off, for up to
+// cad_retries x backoff_max_ms - 7.5 s at the defaults. So a frame waiting out a backoff
+// is state, and the radio task keeps receiving while it waits.
 
 #pragma once
 
@@ -20,7 +24,8 @@
 
 #include "lran/counters.h"
 
-namespace bridge {
+namespace lran {
+namespace link {
 
 // Root rule 8 - runtime-configurable. These are the spec 12.3 defaults.
 struct MediaAccessConfig {
@@ -84,7 +89,7 @@ class MediaAccess {
   // True when the frame waiting now is being transmitted over a channel CAD called busy.
   bool forced() const { return forced_; }
 
-  // CADs that failed outright, since boot. A bridge diagnostic, not a spec 14.1 counter.
+  // CADs that failed outright, since boot. A local diagnostic, not a spec 14.1 counter.
   uint32_t cad_errors() const { return cad_errors_; }
 
  private:
@@ -99,4 +104,5 @@ class MediaAccess {
   uint32_t          cad_errors_    = 0;
 };
 
-}  // namespace bridge
+}  // namespace link
+}  // namespace lran

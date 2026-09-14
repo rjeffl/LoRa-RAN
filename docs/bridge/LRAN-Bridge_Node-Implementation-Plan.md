@@ -669,7 +669,7 @@ a tripwire on the shape of the mistake, not a proof.
     scheduler.cpp       per-node poll scheduling, retry/backoff        [sched_task]
     lora_link.cpp       RadioLib, frame in/out, CAD, transmit          [lora_task]
     rx_ladder.cpp       spec 14 stages 1-10: decode, MAC, reassembly   [lora_task]
-    media_access.cpp    spec 12.3 CAD, backoff, transmit regardless     [lora_task]
+    (lib/lran-link)     spec 12.3 CAD, backoff, transmit regardless     [lora_task]
     radio_config.h      RadioPins and the fixed PHY (spec 12.1, 12.2)
     mqtt_transport.cpp  MqttTransport iface + PubSubClient impl        [mqtt_task]
     discovery.cpp       Discovery config generation and publication    [mqtt_task]
@@ -699,6 +699,10 @@ test results and the antenna siting decision.
 `rx_ladder.{h,cpp}` and `media_access.{h,cpp}` are Arduino-free and covered by
 `test_lora`; `lora_link.cpp` only moves bytes and interrupts between them and the SX1262.
 `tools/checks/lora_task_never_blocks.py` reads all three.
+
+**`media_access` moved to `lib/lran-link/` on 2026-09-14**, with its tests, when simnode
+B0 became its second user. One implementation of §12.3 serves both firmwares; the bridge
+names it through `using` declarations in `lora_link.h`.
 
 | Choice | Why |
 |---|---|
