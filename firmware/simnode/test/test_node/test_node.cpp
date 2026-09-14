@@ -382,7 +382,7 @@ void test_a_phy_crc_error_is_heard_by_every_enabled_identity() {
   b.ids.add(kNodeSim0, Role::Range);
   b.ids.add(kNodeSim1, Role::Range);
   b.ids.find(kNodeSim1)->enabled = false;
-  b.node.on_phy_crc_error();
+  b.node.on_phy_crc_error(0);
   TEST_ASSERT_EQUAL_UINT32(1, b.ids.find(kNodeSim0)->counters.rx_crc_err);
   TEST_ASSERT_EQUAL_UINT32(0, b.ids.find(kNodeSim1)->counters.rx_crc_err);
 }

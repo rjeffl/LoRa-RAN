@@ -24,12 +24,14 @@ git switch b0-simnode-bringup && git pull --ff-only
 gh pr list --state open
 ```
 
-**B0's remaining tasks are BF-9 and BF-6.** BF-8 built the catalogue and `fault` command;
-its count-and-disarm logic is BF-9's, so **BF-9 is now only the OLED** — draw the armed
-fault, identity table and last frame (Impl Plan §10.6, `ui.cpp`). BF-6, `ROLE_GATELINK`,
-is independent, and it unblocks the five command-path faults (`ack_suppress`, `ack_dup`,
-`event_replay`, `cmd_replay`, `cmd_stale_seq`) that `fault` currently refuses naming BF-6.
-After BF-9 and BF-6, B0 is complete bar flashing the XIAO profile.
+**B0's remaining task is BF-6**, `ROLE_GATELINK`. It unblocks the five command-path faults
+(`ack_suppress`, `ack_dup`, `event_replay`, `cmd_replay`, `cmd_stale_seq`) that `fault`
+refuses today, naming BF-6. After it, B0 is complete bar two pieces of bench work: flashing
+the XIAO profile, and seeing BF-9's OLED page on the handheld Heltec.
+
+**BF-9 is built and host-tested, and has never been flashed** (engineering log, 2026-09-14,
+BF-9). **One operator decision is open on it:** the XIAO Kit has no display, so B0's
+"armed state shown on the OLED" does not reach the board that will run `ROLE_GATELINK`.
 Its command path calls `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only
 after `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11). Bridge Impl Plan §10.9
 records what exists; `firmware/simnode/CLAUDE.md` lists the traps.
@@ -43,6 +45,15 @@ rolls back and the test records a broker outage as a firmware failure.
 (Sonnet, per the Tasks document).
 
 ## What the last session established
+
+**BF-9, 2026-09-14, later the same day.** Impl Plan §10.9.1 has the page layout.
+
+- **The OLED page is text first**: `oled_page.{h,cpp}`, 14 host tests that drive the real
+  injector and node. `ui.cpp` draws it with the bridge's ThingPulse pin. Both simnode
+  images build. **Not supported:** anything about the panel itself, or that a 1 Hz redraw
+  leaves the radio's counters unchanged. Both are unmeasured.
+- **The page caught one budget miss**: an impossible RSSI overran row 0. An RSSI outside
+  −199…99 dBm now shows as `?`.
 
 **Simnode B0, first slice, 2026-09-14.** The engineering log's third 2026-09-14 entry has
 the transcript; Impl Plan §10.9 the choices.
@@ -108,9 +119,9 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7** and **BF-8** built, host-tested |
-| Not done | **B0**: BF-6, BF-9's OLED, and the rest of BF-4. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | **BF-9** (OLED only) → BF-6 → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7**, **BF-8** and **BF-9** built, host-tested |
+| Not done | **B0**: BF-6, the rest of BF-4, BF-9 on a panel. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
+| Queue | **BF-6** → flash the Heltec simnode and look at the panel → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -228,6 +239,7 @@ asserts the sum at compile time.
 
 ## Traps that cost real time here
 
+- **A blank XIAO simnode is not "nothing armed".** It has no panel; ask the console.
 - **Two simnode Heltecs boot with the same identities** (`f0`, `f2`), and opening either
   serial port resets its board to them. Reconfigure one in the same session that runs the
   test; `firmware/simnode/CLAUDE.md` has the rest.
@@ -289,7 +301,9 @@ asserts the sum at compile time.
 ## Open, and not closable from here
 
 - **B0's criteria** — "console accepts every command" and "faults arm, fire, self-disarm,
-  OLED". BF-6 to BF-9.
+  OLED". BF-6, and BF-9 on a panel.
+- **B0's OLED criterion on the XIAO** — the Kit has no display. The operator decides whether
+  the Heltec's panel discharges the criterion or the XIAO needs another indicator.
 - **Frames to and from the bridge on air** — DIO1 waking `lora_task`, a key verifying,
   frames both ways. The simnode can now transmit; the bridge still logs nothing per frame
   and answers nothing until BF-17, BF-18 or a PING responder.

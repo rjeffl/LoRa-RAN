@@ -88,6 +88,25 @@ size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint
 // way at SF9, plus backoffs, fits well inside it.
 inline constexpr uint32_t kDefaultPingTimeoutMs = 30000;
 
+// What the radio last handed the node, for the OLED (BF-9). Board-wide, not per identity:
+// it answers "is anything reaching this board", which is the first question at a bench.
+enum class RxKind : uint8_t {
+  None,           // nothing received since boot
+  Frame,          // at least one identity decoded the header; src, dst and type are real
+  HeaderDiscard,  // no identity got past decode_header - not addressed here, or malformed
+  PhyCrc,         // spec 14 stage 1
+};
+
+struct LastRx {
+  RxKind        kind     = RxKind::None;
+  uint32_t      at_ms    = 0;
+  size_t        len      = 0;
+  int16_t       rssi_dbm = lran::kI16NotAvailable;  // PhyCrc carries none
+  lran::NodeId  src      = 0;
+  lran::NodeId  dst      = 0;
+  lran::MsgType type     = lran::MsgType::Poll;
+};
+
 class Node {
  public:
   Node(IdentityTable* ids, Outbox* outbox, lran::IMac* mac, Sink* log);
@@ -97,7 +116,9 @@ class Node {
              uint32_t now_ms);
 
   // spec 14 stage 1 - heard by every enabled identity, as by every node in range.
-  void on_phy_crc_error();
+  void on_phy_crc_error(uint32_t now_ms);
+
+  const LastRx& last_rx() const { return last_rx_; }
 
   // Reassembly expiry (spec 11.2) and echo timeouts. Call often, not only on arrival.
   void tick(uint32_t now_ms);
@@ -146,6 +167,7 @@ class Node {
   LogLevel       level_           = LogLevel::Info;
   uint32_t       ping_timeout_ms_ = kDefaultPingTimeoutMs;
   uint32_t       answers_dropped_ = 0;
+  LastRx         last_rx_;
 };
 
 }  // namespace simnode

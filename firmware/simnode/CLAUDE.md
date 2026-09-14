@@ -3,8 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.26 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.14 §4 (BF-2 to BF-9).
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.27 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.15 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -33,10 +33,10 @@ Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec
 
 **`/lib/lran-sim/` (BF-7)** is built: `FramePatch`, Impl Plan §10.5.2. **The fault catalogue
 and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against the codec's
-receive ladder. **Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), and
-the command-path faults that need them; **self-disarm's OLED display (BF-9)** — the count-and-
-disarm logic is in the injector, but nothing draws the armed state.
-Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
+receive ladder. **The OLED page (BF-9)** is `oled_page.{h,cpp}` (text, host-tested in
+`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. It has not been seen on a panel.
+**Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), and the command-path
+faults that need them. Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
 and has not been flashed.**
 
 ```bash
@@ -58,6 +58,11 @@ bridge. Change them there, and run both firmwares' tests.
 - **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
   each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
   (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
+- **The XIAO + Wio-SX1262 Kit has no display.** `kPanel` is `nullptr` there, and an armed
+  fault shows only on the console. Do not read a blank XIAO as "nothing armed".
+- **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks
+  a cut token. Type the full name from `fault list`.
+- **`Node::on_phy_crc_error()` takes `now_ms`** since BF-9, so the page can age the event.
 - **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
   `rx_dropped`, on every other identity on the board. That is what four boards would count.
 
@@ -215,8 +220,8 @@ adding a name.
 <hex32>]` (BF-8).** Each malformed frame is a real `0xF0` health status put through
 `FramePatch`. `silent` withholds answers rather than sending. `fault list` prints the table
 with each row's counter; `fault <hex> off` disarms. A fault fires its first injection on arm
-and the rest as the outbox drains, then self-disarms — **the count-and-disarm half of BF-9 is
-here; only the OLED is left.** `test/test_fault` asserts each fault moves the §14 counter its
+and the rest as the outbox drains, then self-disarms. On the Heltec the OLED draws it as an
+inverted bar until then (BF-9). `test/test_fault` asserts each fault moves the §14 counter its
 row names, feeding the frames through the codec's own ladder.
 
 **§10.5.2: `/lib/lran-sim/`'s patch-after-encode primitive exists (BF-7).** `oversize`,

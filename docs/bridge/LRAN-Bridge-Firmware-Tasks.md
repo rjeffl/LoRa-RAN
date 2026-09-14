@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.14
+**Version:** 0.15
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.26
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.27
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -170,7 +170,7 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 | **BF-6** | `ROLE_GATELINK` — `0xFE` status, `0x11` events, `COMMAND_ACK`, `0x12` config (§10.2) | **Opus** | The only role that accepts a `COMMAND`, so it is where `CommandGate` is exercised and where the synthetic marking rule bites. Synthetic data reaching HA history unmarked is **a bug in both nodes at once**, and it looks like real history |
 | **BF-7** | `/lib/lran-sim/` — the **patch-after-encode primitive** (§10.5.2). **Built 2026-09-14**; host-tested against the W4 negative vectors, and not called by the simnode until BF-8 | **Opus** | §10.6 rule 1: never a second serializer. The primitive's surface is what keeps that true while making `oversize`, `frag_zero` and `frag_command` reachable. Scope it before B0, not during — "discovering it mid-milestone is how a second serializer gets written" |
 | **BF-8** | The §10.5 fault catalogue — 27 entries against the primitive from BF-7. **Built 2026-09-14**; host-tested against the codec's receive ladder, command-path entries wait for BF-6 | **Sonnet** | Each row states the frame, the counter and the expected behaviour, and §14.1 is the normative counter registry. Table-driven, verifiable, high volume — the best delegation candidate in the list |
-| **BF-9** | Fault self-disarm and OLED armed-state display (§10.6 rule 2) | **Sonnet** | Bounded count, then disarm. A short rule with an obvious test |
+| **BF-9** | Fault self-disarm and OLED armed-state display (§10.6 rule 2). **Built 2026-09-14, host-tested; not yet seen on a panel.** Self-disarm came with BF-8. The XIAO Kit has no display (Impl Plan §10.9.1) | **Sonnet** | Bounded count, then disarm. A short rule with an obvious test |
 
 > **BF-8 depends on BF-7 and must not start before it.** Handing the catalogue out while
 > the primitive is still undesigned is the exact path §10.5.2 warns about.
@@ -267,6 +267,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.15** | **BF-9 built** — the simnode's OLED page; the XIAO Kit has no panel |
 | **v0.14** | **BF-8 built** — the fault catalogue and `fault` command; command-path entries wait for BF-6 |
 | **v0.13** | **BF-7 built** — `lib/lran-sim/`'s patch primitive; BF-8 may start |
 | **v0.12** | **B0 started** — BF-2, BF-3, BF-5 built and BF-4's core; two boards echo on air |
@@ -281,6 +282,13 @@ only against the bridge, a cached value republished as current.
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.15** — **BF-9 is built.** The Heltec simnode's OLED shows the last frame, the identity
+  table, and each armed fault as an inverted bar until it disarms. Host-tested; not yet seen
+  on a panel. **B0's remaining task is BF-6.** The XIAO + Wio-SX1262 Kit has no display, so
+  B0's "armed state shown on the OLED" does not reach the board that will run
+  `ROLE_GATELINK`. That is raised in the engineering log for the operator, not settled here.
+  No scope or model column changes. This document inherits Bridge Impl Plan v0.27.
 
 - **v0.14** — **BF-8 is built.** `firmware/simnode/fault.{h,cpp}` and the `fault` console
   command arm every §10.5 and §10.5.1 entry, each frame from BF-7's `FramePatch`. The

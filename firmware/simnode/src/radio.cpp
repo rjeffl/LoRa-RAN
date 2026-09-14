@@ -174,7 +174,7 @@ void service_receive(Node* node, uint32_t now_ms) {
   if ((irq & RADIOLIB_SX126X_IRQ_RX_DONE) == 0) {
     // spec 14 stage 1, the header half: a LoRa header failing its own CRC raises no RX_DONE.
     if ((irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0) {
-      node->on_phy_crc_error();
+      node->on_phy_crc_error(now_ms);
       start_receive(now_ms);
     }
     return;
@@ -191,7 +191,7 @@ void service_receive(Node* node, uint32_t now_ms) {
   g_header_seen      = false;
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
-    node->on_phy_crc_error();
+    node->on_phy_crc_error(now_ms);
     return;
   }
   if (st != RADIOLIB_ERR_NONE) {

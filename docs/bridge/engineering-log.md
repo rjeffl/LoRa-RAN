@@ -721,3 +721,53 @@ identity's next `count` answers.
   §14 stage 1 is closed only at the far edge of a real link (§10.5.2).
 - **The OLED (BF-9)** is not started. The bounded-count self-disarm it shares with BF-9 is
   built and tested here; only the display is left.
+
+## 2026-09-14 — BF-9: the simnode's OLED page
+
+**The Heltec simnode now draws its identity table, the last frame it heard, and every armed
+fault as an inverted bar**, and the bar clears when the fault disarms itself. The page is
+host-tested (`test/test_oled`, 14 tests, run against the real injector and node). **Both
+target images build. Neither has been flashed, and nobody has seen the page on a panel.**
+
+### The page
+
+Five rows of ArialMT_Plain_10, 13 px apart:
+
+```
+f1>f0 PING -42        12s     last frame: src>dst, type, RSSI, age
+f0 bad_crc              2     inverted: armed fault, injections left
+f2 ROLE_HEALTH                identity, exact role token
+```
+
+- **Row 0 is the last frame the board received**, whichever identity it was for. A frame no
+  identity decoded shows as `<len>B <rssi> drop`, a PHY CRC failure as `phy crc error`, and
+  a radio that is not up as an inverted `RADIO DOWN` over everything else.
+- **`Node` records the last frame only from a successful `decode_header`.** Reading `src` and
+  `type` from raw offsets would be a second parser, which §10.6 rule 1 forbids for writing.
+  `on_phy_crc_error()` now takes `now_ms` so its row has an age.
+- **`silent` is read from `Identity::silent_left`**, not from the injector, because that is
+  where BF-8 keeps it.
+- **A fault name too long for the row is cut and ends in `~`.** `single_frame_interleave`
+  with a three-digit count is the widest case. A cut token has to look cut, or an operator
+  types the fragment and gets `unknown fault`.
+- **Role tokens are shown whole** (`ROLE_GATELINK`, not `GATELINK`), per the simnode's rule
+  on exact tokens. The `ctx_id` did not fit beside them, and `id list` has it.
+- **The panel redraws only when the text changes**, checked every 200 ms. Ages tick once a
+  second, so it redraws at about 1 Hz. A redraw is about 1 KB over I2C, well inside
+  `radio.cpp`'s 500 ms CAD deadline, and DIO1 is latched by its ISR during it. **That
+  reasoning is unmeasured**: no `radio` counter has been read with the panel running.
+
+### What the tests caught
+
+`test_the_top_row_fits_at_its_widest` failed on the first run. An RSSI of −32767 pushed the
+row past the 21-character budget. No SX1262 reading lands there, but the budget has to hold
+for any input, so a reading outside −199…99 dBm now shows as `?`.
+
+### A gap in B0's criterion
+
+**The XIAO + Wio-SX1262 Kit has no display.** Impl Plan §8's B0 criterion says armed state
+shows "on the OLED", and §10.8.1 assigns `0xF1 ROLE_GATELINK` to the XIAO, which is the board
+that will carry the command-path faults once BF-6 lands. On that board an armed fault is
+visible only from the console. Its boot banner now says so (`OLED: none on this board`).
+This is not patched in the criterion. The operator decides whether the Heltec's panel
+discharges it, or whether the XIAO needs another indicator such as its user LED.

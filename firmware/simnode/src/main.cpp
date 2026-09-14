@@ -18,8 +18,10 @@
 #include "lran/link/radio_config.h"
 #include "mbedtls_mac.h"
 #include "node.h"
+#include "oled_page.h"
 #include "profiles.h"
 #include "radio.h"
+#include "ui.h"
 
 #if __has_include("secrets.h")
 #include "secrets.h"
@@ -71,6 +73,26 @@ simnode::Console         g_console(&g_node, &g_ids, &g_faults, &g_sink, radio_co
 
 uint32_t random_u32() { return esp_random(); }
 
+// The page is rebuilt this often and redrawn only when its text changed. A redraw is about
+// 1 KB over I2C, tens of milliseconds, taken in loop(): well inside radio.cpp's 500 ms CAD
+// deadline, and the DIO1 flag is latched by its ISR, so a frame arriving meanwhile waits
+// rather than being lost. Ages move once a second, so in practice the panel redraws at 1 Hz.
+constexpr uint32_t kUiPollMs = 200;
+
+simnode::PageLines g_page_shown;
+uint32_t           g_ui_last_ms = 0;
+
+void ui_service(uint32_t now) {
+  if (now - g_ui_last_ms < kUiPollMs) return;
+  g_ui_last_ms = now;
+  const simnode::PageLines page = simnode::build_page(
+      simnode::take_snapshot(g_ids, g_faults, g_node, simnode::radio_ready(), now));
+  // Byte comparison of a local, fixed-layout struct - it never leaves this board.
+  if (std::memcmp(&page, &g_page_shown, sizeof(page)) == 0) return;
+  g_page_shown = page;
+  simnode::ui_render(page);
+}
+
 // The template's key is 32 zero bytes and builds, so CI needs no secret. A board flashed
 // with it derives keys no bridge holding a real key shares, and says so.
 bool master_key_is_placeholder(const uint8_t* key) {
@@ -121,8 +143,16 @@ void setup() {
   add_default(lran::kNodeSim1, simnode::Role::Range);
 #endif
 
+  if (simnode::kPanel == nullptr) {
+    Serial.println(F("OLED: none on this board - armed faults show on the console only"));
+  } else if (simnode::ui_begin(simnode::kPanel)) {
+    Serial.println(F("OLED: up"));
+  } else {
+    Serial.println(F("OLED: no ACK - check Vext; continuing without it"));
+  }
+
   simnode::radio_start(simnode::kRadio, lran::link::kPhy, &g_sink);
-  Serial.println(F("B0: identities, console, ROLE_RANGE and ROLE_HEALTH. Type 'help'."));
+  Serial.println(F("B0: identities, console, faults, OLED; ROLE_RANGE and ROLE_HEALTH. Type 'help'."));
 }
 
 void loop() {
@@ -133,5 +163,6 @@ void loop() {
   g_node.tick(now);
   g_faults.tick(now);
   simnode::radio_service(&g_node, &g_outbox, now);
+  ui_service(now);
   delay(1);  // spec 12.3 backoffs are milliseconds; nothing here needs a finer loop
 }

@@ -90,7 +90,10 @@ const char* ping_result_name(PingResult r) {
 Node::Node(IdentityTable* ids, Outbox* outbox, lran::IMac* mac, Sink* log)
     : ids_(ids), out_(outbox), mac_(mac), log_(log) {}
 
-void Node::on_phy_crc_error() {
+void Node::on_phy_crc_error(uint32_t now_ms) {
+  last_rx_       = LastRx{};
+  last_rx_.kind  = RxKind::PhyCrc;
+  last_rx_.at_ms = now_ms;
   for (size_t i = 0; i < kMaxIdentities; ++i) {
     Identity& e = ids_->slot(i);
     if (!e.used || !e.enabled) continue;
@@ -101,6 +104,15 @@ void Node::on_phy_crc_error() {
 
 void Node::on_rx(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_db10,
                  uint32_t now_ms) {
+  // Upgraded to Frame below when any identity decodes the header. The header fields are read
+  // only from a successful decode_header - never from raw offsets, which would be a second
+  // parser (Impl Plan 10.6 rule 1's reasoning, applied to reading).
+  last_rx_          = LastRx{};
+  last_rx_.kind     = RxKind::HeaderDiscard;
+  last_rx_.at_ms    = now_ms;
+  last_rx_.len      = len;
+  last_rx_.rssi_dbm = rssi_dbm;
+
   for (size_t i = 0; i < kMaxIdentities; ++i) {
     Identity& e = ids_->slot(i);
     if (!e.used || !e.enabled) continue;
@@ -122,6 +134,11 @@ void Node::on_rx(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_d
       }
       continue;
     }
+
+    last_rx_.kind = RxKind::Frame;
+    last_rx_.src  = f.hdr.src;
+    last_rx_.dst  = f.hdr.dst;
+    last_rx_.type = f.hdr.type;
 
     e.heard         = true;
     e.last_rssi_dbm = rssi_dbm;
