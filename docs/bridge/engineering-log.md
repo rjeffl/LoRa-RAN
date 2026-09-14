@@ -677,3 +677,47 @@ check was run.
 - **`oversize` reaches 255 bytes**, the SX1262's 8-bit length maximum, and the codec counts
   it `rx_oversize` at stage 2a. The W4 vector is 223 bytes, one past `LRAN_MAX_FRAME`;
   §10.5's entry says 255. Both are now producible.
+
+## 2026-09-14 — BF-8: the fault catalogue, each entry checked against the receive ladder
+
+**`firmware/simnode/fault.{h,cpp}` and the `fault` console command are built**, and the host
+suite `test/test_fault` (33 tests) proves each fault moves the spec §14 counter its §10.5 row
+names. B0's fault criterion is met bar the OLED (BF-9). Host-tested only; nothing new has been
+on air.
+
+### The model, chosen with the operator
+
+`fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>]` **arms** a fault on one
+identity. The first injection fires on arm; the rest fire as the outbox drains and the gap
+allows, then it self-disarms (§10.6 rule 2). An injection is the whole frame sequence a row
+describes — `bad_ver` two frames, `set_displaced` two, `single_frame_interleave` four. The
+alternative considered was arming every fault against the identity's *next* answers; it was
+rejected because it cannot be driven until the bridge polls (BF-17) and is harder to script.
+`silent` is the one behaviour fault in this slice and does work that way: it withholds the
+identity's next `count` answers.
+
+### What holds it to the rules
+
+- **Every malformed frame comes from `lran::sim::FramePatch`** (BF-7): a real `0xF0` health
+  status, one patch, an explicit reseal. No second serializer (§10.6 rule 1). The carrier is
+  the status the node really sends, so a fault differs from an accepted frame in exactly the
+  way its row states.
+- **Authenticated faults carry `COMMAND(NOP)`.** If a receiver defect ever accepts one,
+  nothing moves at a gate.
+- **The counter column is the assertion.** `test_fault` feeds each fault into the codec's own
+  `decode_header` / `decode_payload` / `Reassembler` — the ladder the bridge runs — and checks
+  the named counter, and only it, moves. `hdr_rsv`, `seq_wrap` and `single_frame_interleave`
+  assert the opposite: `rx_dropped` does not move. A fault malformed the wrong way lands on a
+  different stage and fails.
+- **`oversize` is 255 bytes**, the PHY ceiling, not the W4 vector's 223.
+
+### Deferred, and why
+
+- **The five command-path faults** — `ack_suppress`, `ack_dup`, `event_replay` and §10.5.1's
+  `cmd_replay`, `cmd_stale_seq` — need `ROLE_GATELINK`'s command path. `arm()` refuses them
+  with `WaitsForTask` and the console names **BF-6**. `ctx_jump` sends its node-side half (a
+  status from a fresh context); the `REJECTED_CTX` reply half is also BF-6.
+- **`bad_phy_crc` is refused as uninjectable.** The SX1262 computes the PHY CRC in hardware;
+  §14 stage 1 is closed only at the far edge of a real link (§10.5.2).
+- **The OLED (BF-9)** is not started. The bounded-count self-disarm it shares with BF-9 is
+  built and tested here; only the display is left.

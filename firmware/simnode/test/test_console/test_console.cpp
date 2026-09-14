@@ -64,7 +64,8 @@ struct Rig {
   Outbox        out;
   Transcript    t;
   Node          node{&ids, &out, &g_mac, &t};
-  Console       console{&node, &ids, &t};
+  FaultInjector faults{&ids, &out, &node, &g_mac, &t};
+  Console       console{&node, &ids, &faults, &t};
   Rig() { ids.init(lran_test::kTestMasterKey, &g_kdf, counting_random); }
 
   void run(const char* line) {
@@ -157,13 +158,43 @@ void test_ping_forms() {
 
 void test_unbuilt_commands_say_which_task_brings_them() {
   Rig r;
-  r.run("fault f0 runt 3");
-  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR not implemented"));
-  TEST_ASSERT_TRUE(r.t.any_contains("BF-8"));
+  // The command-path commands still wait for ROLE_GATELINK.
+  r.run("push f0 boot");
+  TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
   r.run("ack f0 suppress");
+  TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
+  // A command-path fault names its task through the injector, not the parser.
+  r.run("id add f0 ROLE_HEALTH");
+  r.run("fault f0 ack_suppress");
   TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
   r.run("frobnicate");
   TEST_ASSERT_TRUE(r.t.any_starts_with("ERR unknown command 'frobnicate'"));
+}
+
+void test_fault_command_arms_and_disarms() {
+  Rig r;
+  r.run("id add f0 ROLE_HEALTH");
+
+  r.run("fault list");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("OK"));
+  TEST_ASSERT_TRUE(r.t.any_contains("single_frame_interleave"));
+  TEST_ASSERT_TRUE(r.t.any_contains("bad_phy_crc"));
+
+  r.run("fault f0 runt");  // one-shot, fires immediately
+  TEST_ASSERT_TRUE(r.t.any_contains("runt armed"));
+  TEST_ASSERT_EQUAL_size_t(1, r.out.size());
+
+  r.run("fault f0 off");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("OK fault f0"));
+
+  r.run("fault f0 nonsense");
+  TEST_ASSERT_TRUE(r.t.any_contains("unknown fault"));
+
+  r.run("fault f0 bad_phy_crc");
+  TEST_ASSERT_TRUE(r.t.any_contains("cannot be injected"));
+
+  r.run("fault f9 runt");
+  TEST_ASSERT_TRUE(r.t.any_contains("no such identity"));
 }
 
 void test_log_and_stats() {
@@ -216,6 +247,7 @@ int main() {
   RUN_TEST(test_enable_disable_ver_and_ctx);
   RUN_TEST(test_ping_forms);
   RUN_TEST(test_unbuilt_commands_say_which_task_brings_them);
+  RUN_TEST(test_fault_command_arms_and_disarms);
   RUN_TEST(test_log_and_stats);
   RUN_TEST(test_blank_lines_crlf_and_overlong_lines);
   RUN_TEST(test_hex_byte_parsing);

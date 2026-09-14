@@ -44,8 +44,9 @@ bool parse_hex_byte(const char* token, uint8_t* out) {
   return true;
 }
 
-Console::Console(Node* node, IdentityTable* ids, Sink* out, BoardCommand board)
-    : node_(node), ids_(ids), out_(out), board_(board) {}
+Console::Console(Node* node, IdentityTable* ids, FaultInjector* faults, Sink* out,
+                 BoardCommand board)
+    : node_(node), ids_(ids), faults_(faults), out_(out), board_(board) {}
 
 void Console::feed(char c, uint32_t now_ms) {
   if (c == '\r' || c == '\n') {
@@ -94,11 +95,11 @@ void Console::execute(char* line, uint32_t now_ms) {
     cmd_stats(argv, argc);
   } else if (std::strcmp(cmd, "log") == 0) {
     cmd_log(argv, argc);
+  } else if (std::strcmp(cmd, "fault") == 0) {
+    cmd_fault(argv, argc, now_ms);
   } else if (std::strcmp(cmd, "push") == 0 || std::strcmp(cmd, "event") == 0 ||
              std::strcmp(cmd, "ack") == 0 || std::strcmp(cmd, "field") == 0) {
     sink_printf(out_, "ERR not implemented: %s arrives with ROLE_GATELINK (BF-6)", cmd);
-  } else if (std::strcmp(cmd, "fault") == 0) {
-    sink_printf(out_, "ERR not implemented: fault arrives with the catalogue (BF-7, BF-8)");
   } else if (board_ != nullptr && board_(argv, argc, out_)) {
     return;
   } else {
@@ -118,7 +119,9 @@ void Console::cmd_help() {
       "  stats <hex>",
       "  radio          (the driver's counters: frames actually on air)",
       "  log <quiet|info|debug>",
-      "  push, event, ack, field (BF-6) and fault (BF-8) are not implemented yet",
+      "  fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>]",
+      "  fault <hex> off   |  fault list",
+      "  push, event, ack, field are not implemented yet (BF-6)",
   };
   for (const char* l : kLines) out_->line(l);
 }
@@ -287,6 +290,92 @@ void Console::cmd_stats(char** argv, int argc) {
   sink_printf(out_, "  cad_backoffs %lu (radio) answers_dropped %lu (node)",
               static_cast<unsigned long>(node_->radio_counters()->cad_backoffs),
               static_cast<unsigned long>(node_->answers_dropped()));
+}
+
+namespace {
+
+bool parse_hex32(const char* token, uint32_t* out) {
+  if (token == nullptr || *token == '\0') return false;
+  char*               end = nullptr;
+  const unsigned long v   = std::strtoul(token, &end, 16);
+  if (*end != '\0') return false;
+  *out = static_cast<uint32_t>(v);
+  return true;
+}
+
+}  // namespace
+
+void Console::fault_list() {
+  sink_printf(out_, "OK %u faults (Impl Plan 10.5)", static_cast<unsigned>(kFaultCatalogueLen));
+  for (size_t i = 0; i < kFaultCatalogueLen; ++i) {
+    const FaultInfo& f = kFaultCatalogue[i];
+    if (f.waits_for != nullptr) {
+      sink_printf(out_, "  %-24s waits for %s", f.name, f.waits_for);
+    } else {
+      sink_printf(out_, "  %-24s counter %-22s %s", f.name, counter_name(f.counter), f.expect);
+    }
+  }
+}
+
+// fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>]
+// fault <hex> off  |  fault list
+void Console::cmd_fault(char** argv, int argc, uint32_t now_ms) {
+  if (argc == 2 && std::strcmp(argv[1], "list") == 0) {
+    fault_list();
+    return;
+  }
+  uint8_t id = 0;
+  if (argc < 3 || !parse_hex_byte(argv[1], &id)) {
+    sink_printf(out_, "ERR usage: fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>]"
+                      " | fault <hex> off | fault list");
+    return;
+  }
+
+  if (std::strcmp(argv[2], "off") == 0) {
+    sink_printf(out_, faults_->disarm(id) ? "OK fault %02x disarmed" : "OK fault %02x: none armed",
+                id);
+    return;
+  }
+
+  FaultRequest  req;
+  int           i = 3;
+  unsigned long count = 1;
+  // An optional count directly after the name, before any keyword.
+  if (i < argc && parse_uint(argv[i], 0xFFFF, &count)) ++i;
+  req.count = static_cast<uint16_t>(count);
+
+  for (; i < argc; ++i) {
+    unsigned long v = 0;
+    if (std::strcmp(argv[i], "gap") == 0 && i + 1 < argc && parse_uint(argv[i + 1], 600000, &v)) {
+      req.has_gap = true;
+      req.gap_ms  = static_cast<uint32_t>(v);
+      ++i;
+    } else if (std::strcmp(argv[i], "to") == 0 && i + 1 < argc &&
+               parse_hex_byte(argv[i + 1], &req.dst)) {
+      ++i;
+    } else if (std::strcmp(argv[i], "ctx") == 0 && i + 1 < argc &&
+               parse_hex32(argv[i + 1], &req.ctx)) {
+      req.has_ctx = true;
+      ++i;
+    } else {
+      sink_printf(out_, "ERR unexpected '%s'", argv[i]);
+      return;
+    }
+  }
+
+  const FaultResult r = faults_->arm(id, argv[2], req, now_ms);
+  if (r != FaultResult::Ok) {
+    const FaultInfo* info = find_fault(argv[2]);
+    if (r == FaultResult::WaitsForTask && info != nullptr) {
+      sink_printf(out_, "ERR fault %s: %s - waits for %s", argv[2], fault_result_name(r),
+                  info->waits_for);
+    } else if (r == FaultResult::NotInjectable && info != nullptr) {
+      sink_printf(out_, "ERR fault %s: %s (%s)", argv[2], fault_result_name(r), info->expect);
+    } else {
+      sink_printf(out_, "ERR fault %02x %s: %s", id, argv[2], fault_result_name(r));
+    }
+  }
+  // arm() logs its own OK line, so a successful arm needs nothing more here.
 }
 
 void Console::cmd_log(char** argv, int argc) {

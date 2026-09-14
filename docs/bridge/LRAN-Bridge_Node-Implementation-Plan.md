@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.25
+**Version:** 0.26
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1222,6 +1222,22 @@ Each entry drives one stage of Protocol Spec §14 or one rule in §9.4/§10. **T
 only mechanism that produces these frames**, and without it every discard counter in the
 bridge ships unverified.
 
+**Built by BF-8, 2026-09-14: `firmware/simnode/fault.{h,cpp}`.** `fault <hex> <name>
+[count] [gap <ms>] [to <hex>] [ctx <hex32>]` arms `name` on one identity; the first
+injection fires at once and the rest as the outbox drains, then the fault self-disarms
+(§10.6 rule 2). An injection is the whole frame sequence the row describes — `bad_ver` is
+two frames, `set_displaced` two, `single_frame_interleave` four. Every malformed frame is
+built with `lran::sim::FramePatch` (BF-7); the carrier is a real schema `0xF0` health
+status, so each fault differs from an accepted frame in exactly the way its row states, and
+authenticated faults carry `COMMAND(NOP)` so a receiver defect that accepts one moves
+nothing. `silent` withholds the identity's next `count` answers instead of sending. The
+five command-path entries (§10.5.1's two plus `ack_suppress`, `ack_dup`, `event_replay`)
+answer `ERR` naming **BF-6**, and `bad_phy_crc` is refused as uninjectable (§10.5.2). The
+host suite in `test/test_fault` feeds each fault into the codec's own receive ladder and
+asserts that the §14 counter its row names — and only that counter — moves; the
+forward-compatibility rows (`hdr_rsv`, `seq_wrap`, `single_frame_interleave`) assert that
+`rx_dropped` does **not** move.
+
 **The counter column is normative and comes from Protocol Spec §14.1**, not from this
 table. §14.1 gained a wire-code column in spec v0.6 for exactly the reason this column
 exists here: the bridge publishes these names to MQTT, Home Assistant charts them, and a
@@ -1757,6 +1773,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.26** | **§10.5** — BF-8's catalogue built: `fault.{h,cpp}`, `fault` console command, `silent`, and the host suite that checks each counter |
 | **v0.25** | **§10.5.2** — BF-7's patch primitive, built; §5.4's claim that the vectors share `lran-sim` corrected |
 | **v0.24** | **New §10.9** — B0's first slice; `media_access` and the PHY move to `lib/lran-link/` |
 | **v0.23** | **New §4.2.1** — BF-15's registry; spec §14 has no stage for an unregistered source |
@@ -1782,6 +1799,15 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.26** — **BF-8 built the fault catalogue.** `firmware/simnode/fault.{h,cpp}` arms every
+  §10.5 and §10.5.1 entry on one identity through `fault <hex> <name> [count]`; each malformed
+  frame comes from `lran::sim::FramePatch` (BF-7), never a second serializer. `silent` withholds
+  answers; the command-path faults (`ack_suppress`, `ack_dup`, `event_replay`, `cmd_replay`,
+  `cmd_stale_seq`) answer ERR naming BF-6, and `bad_phy_crc` is refused as uninjectable. The
+  host suite feeds each fault into the codec's own receive ladder and asserts the spec §14
+  counter its row names moves. No catalogue entry, counter or milestone criterion changes; the
+  faults' behaviour column is now executable rather than prose.
 
 - **v0.25** — **BF-7 built `lib/lran-sim/`, and §10.5.2 records its surface**, with the
   catalogue entry each operation serves. **§5.4 was wrong**: its tree said `/tools/vectors/`

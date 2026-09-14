@@ -91,6 +91,11 @@ struct Identity {
   uint32_t unhandled = 0;
 
   PendingPing ping;
+
+  // The `silent` fault (Impl Plan 10.5): answers still to withhold, and answers withheld.
+  // Local, like `unhandled`: the frames that went unanswered were valid.
+  uint16_t silent_left        = 0;
+  uint32_t answers_suppressed = 0;
 };
 
 enum class AddResult : uint8_t { Ok, BadId, Exists, Full, NotReady };
@@ -120,6 +125,11 @@ class IdentityTable {
   // Counters survive, as they would not on a real reboot - kept so a resync test can read
   // what the old context counted.
   bool new_context(lran::NodeId id);
+
+  // The key of simnode `id` (0xF0-0xF3), whether or not this board holds that identity, so
+  // an authenticated fault can be signed for a simnode on another board. Refuses every other
+  // id: this is a bench tool, and it signs for no production node.
+  bool derive_simnode_key(lran::NodeId id, uint8_t out[lran::kNodeKeyLen]) const;
 
  private:
   lran::CtxId random_ctx();

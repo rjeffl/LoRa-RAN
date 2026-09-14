@@ -36,9 +36,14 @@ namespace simnode {
 // A fragmented PING's full set is 15 frames (spec 6.6.2). One more for a health answer.
 inline constexpr size_t kOutboxDepth = 16;
 
+// Not LRAN_MAX_FRAME: the SX1262 transmits up to 255 bytes, and the `oversize` fault (Impl
+// Plan 10.5) exists to put one on the air. fault.cpp asserts this equals lran-sim's
+// kPhyMaxFrame.
+inline constexpr size_t kOutFrameMax = 255;
+
 struct OutFrame {
-  uint8_t bytes[lran::kMaxFrame] = {0};
-  size_t  len                    = 0;
+  uint8_t bytes[kOutFrameMax] = {0};
+  size_t  len                 = 0;
 };
 
 // Encoded frames waiting for the radio. Fixed storage (root rule 3). A frame that does not
@@ -72,6 +77,12 @@ enum class PingResult : uint8_t {
   EncodeFailed,
 };
 const char* ping_result_name(PingResult r);
+
+// spec 7.5 - identity `e`'s schema 0xF0 payload, marked synthetic through health_flags bit 0.
+// Writes lran::schema::kNodeHealthV1Len bytes; returns the count, or 0 on failure. Shared by
+// the POLL answer and the fault carrier frame, so both report the same thing.
+size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint32_t now_ms,
+                            uint8_t* out, size_t cap);
 
 // How long an initiator waits for an echo before reporting none. A 15-fragment set each
 // way at SF9, plus backoffs, fits well inside it.
@@ -114,6 +125,10 @@ class Node {
   void deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
                uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
   void answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms);
+
+  // The `silent` fault (Impl Plan 10.5): true when this answer is to be withheld, which uses
+  // one of the armed count.
+  bool silenced(Identity& e, const char* what, const lran::Header& hdr);
   void on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
                uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
 

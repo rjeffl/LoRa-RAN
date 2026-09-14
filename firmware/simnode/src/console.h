@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "fault.h"
 #include "identity.h"
 #include "node.h"
 #include "sink.h"
@@ -31,7 +32,8 @@ using BoardCommand = bool (*)(char** argv, int argc, Sink* out);
 
 class Console {
  public:
-  Console(Node* node, IdentityTable* ids, Sink* out, BoardCommand board = nullptr);
+  Console(Node* node, IdentityTable* ids, FaultInjector* faults, Sink* out,
+          BoardCommand board = nullptr);
 
   // One received character. A line runs to CR or LF; an empty line is ignored.
   void feed(char c, uint32_t now_ms);
@@ -48,10 +50,13 @@ class Console {
   void cmd_ping(char** argv, int argc, uint32_t now_ms);
   void cmd_stats(char** argv, int argc);
   void cmd_log(char** argv, int argc);
+  void cmd_fault(char** argv, int argc, uint32_t now_ms);
+  void fault_list();
   void list_identity(const Identity& e);
 
   Node*          node_;
   IdentityTable* ids_;
+  FaultInjector* faults_;
   Sink*          out_;
   BoardCommand   board_;
 

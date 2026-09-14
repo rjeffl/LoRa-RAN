@@ -3,8 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.25 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.13 §4 (BF-2 to BF-9).
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.26 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.14 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -31,9 +31,11 @@ Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec
 `console.{h,cpp}`, `radio.{h,cpp}` (**the only file that includes RadioLib**), `main.cpp`
 (**the only file that includes `secrets.h`**, for `LRAN_MASTER_KEY` alone) and `sink.h`.
 
-**`/lib/lran-sim/` (BF-7) is built** and not yet called from here: `FramePatch`, Impl Plan
-§10.5.2. **Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), the
-fault catalogue and `fault` (**BF-8**), self-disarm and the OLED (**BF-9**).
+**`/lib/lran-sim/` (BF-7)** is built: `FramePatch`, Impl Plan §10.5.2. **The fault catalogue
+and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against the codec's
+receive ladder. **Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), and
+the command-path faults that need them; **self-disarm's OLED display (BF-9)** — the count-and-
+disarm logic is in the injector, but nothing draws the armed state.
 Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
 and has not been flashed.**
 
@@ -208,6 +210,14 @@ a set that completes and a counter that stays still.
 **§10.5's counter column comes from Protocol Spec §14.1**, not from the table. A row whose
 counter is not in `kCounterRegistry` is a defect in the table — report it rather than
 adding a name.
+
+**The catalogue is armed through `fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx
+<hex32>]` (BF-8).** Each malformed frame is a real `0xF0` health status put through
+`FramePatch`. `silent` withholds answers rather than sending. `fault list` prints the table
+with each row's counter; `fault <hex> off` disarms. A fault fires its first injection on arm
+and the rest as the outbox drains, then self-disarms — **the count-and-disarm half of BF-9 is
+here; only the OLED is left.** `test/test_fault` asserts each fault moves the §14 counter its
+row names, feeding the frames through the codec's own ladder.
 
 **§10.5.2: `/lib/lran-sim/`'s patch-after-encode primitive exists (BF-7).** `oversize`,
 `frag_zero` and `frag_command` all need a frame `encode()` refuses to emit. Build every

@@ -13,6 +13,7 @@
 #include <cstring>
 
 #include "console.h"
+#include "fault.h"
 #include "identity.h"
 #include "lran/link/radio_config.h"
 #include "mbedtls_mac.h"
@@ -65,7 +66,8 @@ lran::esp32::MbedtlsKdf  g_kdf;
 simnode::IdentityTable   g_ids;
 simnode::Outbox          g_outbox;
 simnode::Node            g_node(&g_ids, &g_outbox, &g_mac, &g_sink);
-simnode::Console         g_console(&g_node, &g_ids, &g_sink, radio_command);
+simnode::FaultInjector   g_faults(&g_ids, &g_outbox, &g_node, &g_mac, &g_sink);
+simnode::Console         g_console(&g_node, &g_ids, &g_faults, &g_sink, radio_command);
 
 uint32_t random_u32() { return esp_random(); }
 
@@ -129,6 +131,7 @@ void loop() {
     g_console.feed(static_cast<char>(Serial.read()), now);
   }
   g_node.tick(now);
+  g_faults.tick(now);
   simnode::radio_service(&g_node, &g_outbox, now);
   delay(1);  // spec 12.3 backoffs are milliseconds; nothing here needs a finer loop
 }

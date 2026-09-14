@@ -1,7 +1,7 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-14, at the end of the session that brought BF-16 up on the bridge board,
-built BF-15, built simnode B0's first slice and proved it on air, and built BF-7.** It replaces the
+built BF-15, built simnode B0's first slice and proved it on air, and built BF-7 and BF-8.** It replaces the
 2026-09-13 file wholesale; that file's content is carried over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -24,10 +24,12 @@ git switch b0-simnode-bringup && git pull --ff-only
 gh pr list --state open
 ```
 
-**B0's remaining tasks are next: BF-8, the fault catalogue (Sonnet), now that BF-7 is
-built.** Build every malformed frame with `lran::sim::FramePatch` (Impl Plan §10.5.2 maps
-fault to operation), and start with `single_frame_interleave`. BF-9 (self-disarm, OLED)
-follows BF-8. BF-6, `ROLE_GATELINK`, is independent of both.
+**B0's remaining tasks are BF-9 and BF-6.** BF-8 built the catalogue and `fault` command;
+its count-and-disarm logic is BF-9's, so **BF-9 is now only the OLED** — draw the armed
+fault, identity table and last frame (Impl Plan §10.6, `ui.cpp`). BF-6, `ROLE_GATELINK`,
+is independent, and it unblocks the five command-path faults (`ack_suppress`, `ack_dup`,
+`event_replay`, `cmd_replay`, `cmd_stale_seq`) that `fault` currently refuses naming BF-6.
+After BF-9 and BF-6, B0 is complete bar flashing the XIAO profile.
 Its command path calls `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only
 after `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11). Bridge Impl Plan §10.9
 records what exists; `firmware/simnode/CLAUDE.md` lists the traps.
@@ -106,9 +108,9 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7** built, host-tested against W4 |
-| Not done | **B0**: BF-6, BF-8, BF-9, and the rest of BF-4. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | **BF-8** → BF-9, with BF-6 alongside → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7** and **BF-8** built, host-tested |
+| Not done | **B0**: BF-6, BF-9's OLED, and the rest of BF-4. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
+| Queue | **BF-9** (OLED only) → BF-6 → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -116,7 +118,7 @@ pio test -d firmware/bridge -e native           # bridge host suites, test_regis
 pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h
 pio test -d lib/lran-link -e native             # spec 12.3 media access, both firmwares
 pio test -d lib/lran-sim -e native              # BF-7's FramePatch, against the W4 negatives
-pio test -d firmware/simnode -e native          # simnode host suites
+pio test -d firmware/simnode -e native          # simnode host suites, test_fault (BF-8) among them
 pio run  -d firmware/simnode -e simnode-heltec  # simnode target - NEEDS secrets.h (key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing; reads the LoRa files and registry.cpp

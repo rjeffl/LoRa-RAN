@@ -27,7 +27,7 @@ uint8_t plain_fill(size_t i) { return static_cast<uint8_t>(0xA5 ^ i); }
 // ---------------------------------------------------------------------------
 
 bool Outbox::push(const uint8_t* bytes, size_t len) {
-  if (count_ == kOutboxDepth || len > lran::kMaxFrame) return false;
+  if (count_ == kOutboxDepth || len > kOutFrameMax) return false;
   OutFrame& f = frames_[(head_ + count_) % kOutboxDepth];
   std::memcpy(f.bytes, bytes, len);  // bytes already encoded; not a struct
   f.len = len;
@@ -184,24 +184,40 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
   ++e.unhandled;
 }
 
-// spec 6.4 / 7.5 - a POLL is answered with STATUS schema 0xF0, from this identity's own
-// context and status seq space.
-void Node::answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms) {
+size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint32_t now_ms,
+                            uint8_t* out, size_t cap) {
   lran::schema::NodeHealthV1 h;
   h.uptime_s      = now_ms / 1000;  // millis() wraps at 49.7 days; a bench board reboots first
   h.boot_count    = lran::kU16NotAvailable;  // nothing persists across a simnode reboot
   h.rx_frames     = sat16(e.counters.rx_frames);
   h.tx_frames     = sat16(e.counters.tx_frames);
   h.rx_dropped    = sat16(e.counters.total_dropped());
-  h.cad_backoffs  = sat16(radio_counters_.cad_backoffs);
+  h.cad_backoffs  = sat16(radio.cad_backoffs);
   h.last_rssi_dbm = e.heard ? e.last_rssi_dbm : lran::kI16NotAvailable;
   h.last_snr_db10 = e.heard ? e.last_snr_db10 : lran::kI16NotAvailable;
   h.proto_ver     = e.proto_ver;
   h.health_flags  = lran::schema::kHealthFlagDebugActive;  // the synthetic marker - node.h
 
+  size_t n = 0;
+  return lran::schema::serialize(h, out, cap, &n) == lran::Status::Ok ? n : 0;
+}
+
+bool Node::silenced(Identity& e, const char* what, const lran::Header& hdr) {
+  if (e.silent_left == 0) return false;
+  --e.silent_left;
+  ++e.answers_suppressed;
+  sink_printf(log_, "fault %02x silent: %s from %02x seq %u not answered, %u left", e.id, what,
+              hdr.src, static_cast<unsigned>(hdr.seq), static_cast<unsigned>(e.silent_left));
+  return true;
+}
+
+// spec 6.4 / 7.5 - a POLL is answered with STATUS schema 0xF0, from this identity's own
+// context and status seq space.
+void Node::answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms) {
+  if (silenced(e, "poll", hdr)) return;
+
   uint8_t      payload[lran::schema::kNodeHealthV1Len];
-  size_t       n  = 0;
-  const auto   st = lran::schema::serialize(h, payload, sizeof(payload), &n);
+  const size_t n = build_health_payload(e, radio_counters_, now_ms, payload, sizeof(payload));
   lran::Header out;
   out.ver    = e.proto_ver;
   out.type   = lran::MsgType::Status;
@@ -211,7 +227,7 @@ void Node::answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms) {
   out.ctx_id = e.ctx_id;
   out.schema = lran::kSchemaNodeHealthV1;
 
-  if (st != lran::Status::Ok || !send(e, out, payload, n, 0)) {
+  if (n == 0 || !send(e, out, payload, n, 0)) {
     ++answers_dropped_;
     sink_printf(log_, "poll %02x <- %02x: answer not queued", e.id, hdr.src);
   }
@@ -262,6 +278,7 @@ void Node::on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload,
     ++e.unhandled;
     return;
   }
+  if (silenced(e, "ping", hdr)) return;
 
   // spec 6.6 / 17.3 - swap src and dst, preserve seq, ping_flags and the echo bytes. The
   // header's ctx_id and ver are this node's own. A fragmented PING is re-fragmented at the

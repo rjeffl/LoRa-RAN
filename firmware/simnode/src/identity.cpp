@@ -58,6 +58,14 @@ void IdentityTable::clear(Identity& e) {
   e.last_snr_db10 = lran::kI16NotAvailable;
   e.unhandled     = 0;
   e.ping          = PendingPing{};
+  e.silent_left        = 0;
+  e.answers_suppressed = 0;
+}
+
+bool IdentityTable::derive_simnode_key(lran::NodeId id, uint8_t out[lran::kNodeKeyLen]) const {
+  if (kdf_ == nullptr || !is_simnode_id(id)) return false;
+  kdf_->derive_node_key(master_, id, out);
+  return true;
 }
 
 lran::CtxId IdentityTable::random_ctx() {
