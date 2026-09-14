@@ -44,7 +44,8 @@ bool parse_hex_byte(const char* token, uint8_t* out) {
   return true;
 }
 
-Console::Console(Node* node, IdentityTable* ids, Sink* out) : node_(node), ids_(ids), out_(out) {}
+Console::Console(Node* node, IdentityTable* ids, Sink* out, BoardCommand board)
+    : node_(node), ids_(ids), out_(out), board_(board) {}
 
 void Console::feed(char c, uint32_t now_ms) {
   if (c == '\r' || c == '\n') {
@@ -98,6 +99,8 @@ void Console::execute(char* line, uint32_t now_ms) {
     sink_printf(out_, "ERR not implemented: %s arrives with ROLE_GATELINK (BF-6)", cmd);
   } else if (std::strcmp(cmd, "fault") == 0) {
     sink_printf(out_, "ERR not implemented: fault arrives with the catalogue (BF-7, BF-8)");
+  } else if (board_ != nullptr && board_(argv, argc, out_)) {
+    return;
   } else {
     sink_printf(out_, "ERR unknown command '%s' - try help", cmd);
   }
@@ -113,6 +116,7 @@ void Console::cmd_help() {
       "  ctx <hex> [new]",
       "  ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]   (dst defaults to 00)",
       "  stats <hex>",
+      "  radio          (the driver's counters: frames actually on air)",
       "  log <quiet|info|debug>",
       "  push, event, ack, field (BF-6) and fault (BF-8) are not implemented yet",
   };

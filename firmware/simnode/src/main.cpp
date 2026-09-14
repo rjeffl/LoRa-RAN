@@ -10,6 +10,8 @@
 #include <Arduino.h>
 #include <esp_system.h>
 
+#include <cstring>
+
 #include "console.h"
 #include "identity.h"
 #include "lran/link/radio_config.h"
@@ -35,13 +37,35 @@ class SerialSink final : public simnode::Sink {
   void line(const char* text) override { Serial.println(text); }
 };
 
+// `radio` - what the driver saw. `stats` counts frames an identity queued; this counts
+// TX_DONE, which is the only evidence on this board that a frame reached the air.
+bool radio_command(char** argv, int argc, simnode::Sink* out) {
+  if (std::strcmp(argv[0], "radio") != 0) return false;
+  if (argc != 1) {
+    simnode::sink_printf(out, "ERR usage: radio");
+    return true;
+  }
+  const simnode::RadioStats& r = simnode::radio_stats();
+  simnode::sink_printf(out, "OK radio %s", simnode::radio_ready() ? "up" : "DOWN");
+  simnode::sink_printf(out, "  tx_frames %lu tx_errors %lu tx_timeouts %lu tx_forced %lu",
+                       static_cast<unsigned long>(r.tx_frames), static_cast<unsigned long>(r.tx_errors),
+                       static_cast<unsigned long>(r.tx_timeouts),
+                       static_cast<unsigned long>(r.tx_forced));
+  simnode::sink_printf(out, "  cad_errors %lu cad_deferred %lu rx_driver_errors %lu begin_failures %lu",
+                       static_cast<unsigned long>(r.cad_errors),
+                       static_cast<unsigned long>(r.cad_deferred),
+                       static_cast<unsigned long>(r.rx_driver_errors),
+                       static_cast<unsigned long>(r.begin_failures));
+  return true;
+}
+
 SerialSink               g_sink;
 lran::esp32::MbedtlsMac  g_mac;
 lran::esp32::MbedtlsKdf  g_kdf;
 simnode::IdentityTable   g_ids;
 simnode::Outbox          g_outbox;
 simnode::Node            g_node(&g_ids, &g_outbox, &g_mac, &g_sink);
-simnode::Console         g_console(&g_node, &g_ids, &g_sink);
+simnode::Console         g_console(&g_node, &g_ids, &g_sink, radio_command);
 
 uint32_t random_u32() { return esp_random(); }
 
