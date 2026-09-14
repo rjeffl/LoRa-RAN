@@ -1,9 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-13, at the end of the session that ran B2's bench session, merged B2 and
-built BF-16.** BF-16 is the first B3 task and has not run on a board. It replaces the
-earlier 2026-09-13 file wholesale; that file's B2 content is carried over where it is
-still true.
+**Written 2026-09-14, at the end of the session that brought BF-16 up on the bridge board
+and built BF-15.** It replaces the 2026-09-13 file wholesale; that file's content is
+carried over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -15,7 +14,7 @@ still true.
 
 **Read this file on the B3 milestone branch, `b3-protocol-registry`, not on `main`.** B3's
 pull request stays a draft until the operator accepts the milestone, so `main`'s copy of
-this file predates BF-16.
+this file predates BF-15 and BF-16.
 
 ```bash
 git fetch origin -p
@@ -23,68 +22,64 @@ git switch b3-protocol-registry && git pull --ff-only
 gh pr list --state open
 ```
 
-**Three jobs are open. Start with the first; it needs only the bridge board.**
+**Simnode B0 is next.** It needs no MQTT broker, and B3 cannot finish without it: it is the
+second transmitter on 917.4 MHz / SF9 that every frame-on-air check needs, since the
+range-test firmware still transmits on 915.0 MHz. Its procedure lives in Bridge Impl Plan
+§10 and its tasks in `LRAN-Bridge-Firmware-Tasks` §4. Its command path calls
+`CommandGate::check()` before dispatch and sends `COMMAND_ACK` only after `record()`; on
+`InFlight` it sends nothing (spec §9.4 v0.11).
 
-1. **BF-16's on-air bring-up, and V-B9 again.** USB-flash the branch to the flat-case
-   Heltec and read three lines off the boot log: `LoRa: radio up - 917400000 Hz, SF9, ...`,
-   `LoRa: stack high-water N bytes free`, and no repeating `LoRa: radio down`. **Then re-run
-   Impl Plan §6.5.2**: BF-16 changed `ota_policy.cpp`, so V-B9's 2026-09-13 pass no longer
-   covers the verdict in the image. Receiving and sending frames needs job 3's second
-   transmitter.
-2. **BF-15, the registry.** It supplies `PeerKeys` and an `IMac` to `lora_set_auth()`
-   (call it before `start_tasks()`), and it restricts reassembly slots to registered nodes
-   (`TODO(BF-15)` in `rx_ladder.h`). Opus, per the Tasks document.
-3. **Simnode B0.** No library gate is left since P8. Its command path calls
-   `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only after `record()`; on
-   `InFlight` it sends nothing (spec §9.4 v0.11). **It is also the second transmitter on
-   917.4 MHz / SF9 that BF-16 needs**: the range-test firmware sits on 915.0 MHz. B3
-   cannot finish without it.
+**When the broker is reachable again, run V-B9 (Impl Plan §6.5.2) before anything else on
+the bench.** It is owed since BF-16 changed `ota_policy.cpp`, and **it cannot run without
+the broker**: the verdict marks an image valid only with `mqtt_connected`, so a good image
+rolls back and the test records a broker outage as a firmware failure.
+
+**Desk work that needs neither the broker nor a second board:** BF-17, the poll scheduler
+(Sonnet, per the Tasks document).
 
 ## What the last session established
 
-**BF-16, 2026-09-13.** The bridge engineering log's BF-16 entry and Impl Plan §5.3.1 have
-the full account.
-
-- **The radio link is built in four pieces**: `radio_config.h`, `rx_ladder.{h,cpp}`,
-  `media_access.{h,cpp}` and `lora_link.{h,cpp}`. The middle two are Arduino-free and
-  covered by 27 host tests in `test_lora`. `lora_link` is the only file that includes
-  RadioLib.
-- **`lora_task` runs spec §14 stages 1–10** and queues a decoded header with the complete
-  payload. A backoff is state, so `lora_task` receives through it.
-- **The codec skips MAC verification when it has no key** and returns `Ok` with
-  `mac_verified = false`. `RxLadder` refuses any frame that should carry a MAC and was not
-  verified. The library is unchanged.
-- **ESP-IDF task stacks are bytes; BF-11 sized them as words.** Every task had a quarter
-  of the stack intended. `lora_task` is now 8192 bytes; **the other six are unmeasured.**
-- **The OTA verdict requires `radio_ok`.** An image whose radio never initialises rolls
-  back at the deadline.
-- **Not supported by this session:** that the radio is configured as `radio_config.h`
-  says, that DIO1 wakes `lora_task`, or that any frame goes out or comes in.
-  `begin()` succeeding would prove none of it.
-
-**B2's bench session, 2026-09-13.** The engineering log's earlier 2026-09-13 entry has the
+**BF-16 on the board, 2026-09-14.** The engineering log's first 2026-09-14 entry has the
 banner lines verbatim.
 
-- **All seven B2 criteria passed** on the flat-case Heltec: WiFi and MQTT reconnect
-  without a reboot, the LWT fired on unplug and on a WiFi drop, A/B partitioning, OTA,
-  both bad images rolled back, version published, OLED page.
-- **One OTA upload failed** with `Receive Failed` 1 s after it started; the retry passed in
-  8.5 s. **Suspected, not proven:** WiFi modem sleep against ArduinoOTA's 1000 ms
-  first-data timeout. Nothing was changed for one failure; the fix candidates touch M22's
-  premise.
+- **The SX1262 comes up on D1's PHY** with Impl Plan §10.8.1's Heltec pin map, and no
+  `radio down` line appeared in 40 s. That is evidence the TCXO and RF-switch settings are
+  right. **It is not evidence that a frame goes out or comes in, or that DIO1 wakes
+  `lora_task`.**
+- **`lora_task` used about 1.7–1.9 KB of its 8192-byte stack at bring-up**: 6248 and 6496
+  bytes free on two boots. Taken before any frame arrived, so it is a floor, not a working
+  load.
+- **MQTT connect attempts back off and nothing reboots** with the broker unreachable, and
+  `lora_task` kept running. Observed once.
+
+**BF-15, 2026-09-14.** The engineering log's BF-15 entry and Impl Plan §4.2.1 have the full
+account.
+
+- **`registry.{h,cpp}` is the registry**: `kNodeTable` with six rows, HKDF keys at load,
+  `is_bench`, and the learned fields. `registry_runtime.{h,cpp}` adds mbedTLS and a mutex.
+  **Every derived key matches its W4 vector** (`test_registry`).
+- **What a node is** is written once, before `start_tasks()`, and read lock-free by
+  `lora_task`. **What the bridge learns** is written under a mutex, today only by
+  `app_task`: `ctx_id` (reset `cmd_seq` to 1 on a new one), `last_seen`, RSSI, SNR,
+  `proto_ver`.
+- **`RxLadder` refuses a source the registry does not know**, after stage 9 and before
+  stage 10, counted as `unregistered_src`. **Spec §14 has no stage for it** — raised for
+  v0.12, not patched.
+- **On the board**, the `Registry:` banner line lists all six rows and the radio still comes
+  up. **Not supported:** that a key verifies a frame on air.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the two 2026-09-13 entries: the bench session, then BF-16's decisions and findings |
-| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§5.3.1** for BF-16; **§8** owns B3's acceptance criteria; **§6.5.2** is V-B9, owed again; §10 is the simnode |
-| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | B3's task order — BF-15 to BF-22 — and which model each suits |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the two 2026-09-14 entries: the bring-up, then BF-15 and the spec gap |
+| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§10** is the simnode, next; **§4.2.1** is BF-15; **§8** owns B3's criteria; **§6.5.2** is V-B9, owed |
+| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §4 is B0's tasks; §6 is B3's order, BF-15 to BF-22 |
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
-| 6 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) §3.2.1 | D34's amendment, which the simnode's command path follows |
-| 7 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9.4, §11, §12, §14 | replay, reassembly, radio, the discard ladder. **§18.2, never §18.1 alone** |
-| 8 | [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) | the requirements; §8's `V-B*` rows are what a milestone is checked against |
+| 6 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | the simnode's context file; no project exists yet |
+| 7 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) §3.2.1 | D34's amendment, which the simnode's command path follows |
+| 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9, §10, §11, §12, §14 | keys, context, reassembly, radio, the discard ladder. **§18.2, never §18.1 alone** |
 | 9 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
 ## Where things stand
@@ -92,15 +87,16 @@ banner lines verbatim.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-16 built**, host-tested only |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board |
 | Not done | **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | BF-16 on-air bring-up and V-B9 → **BF-15** → simnode **B0** → BF-17 to BF-22 |
+| Queue | Simnode **B0** → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
-pio test -d firmware/bridge -e native           # bridge host suites, test_lora among them
+pio test -d firmware/bridge -e native           # bridge host suites, test_registry and test_lora among them
 pio run  -d firmware/bridge -e heltec           # bridge target - NEEDS secrets.h
-python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing; reads all three LoRa files
+python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing; reads the LoRa files and registry.cpp
+python3 tools/checks/no_mbedtls_hkdf.py         # HKDF built from HMAC, spec 9.1
 python3 tools/checks/bridge_partitions.py       # A/B table; add --firmware/--elf after a build
 python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
 python3 tools/vectors/check.py                  # W4 vectors, self-check
@@ -130,8 +126,7 @@ git branch -vv | grep ': gone]'                 # local branches whose remote wa
 defects, including the duplicate `V-B2` and the B0-on-P8 gate), `ebdcf0d` (the
 `LoRaBridge` retirement and the D33 bench-power reconciliation) and `8253085` (**P8**, with
 D34's amendment and spec v0.11). **B2 is merged history**: `git log --oneline --merges -5
-origin/main` finds the merge, and its BF-10 to BF-14 commits read in order. **BF-16 is not
-cited by SHA** until it merges.
+origin/main` finds the merge. **BF-15 and BF-16 are not cited by SHA** until they merge.
 
 **A push touching `.github/workflows/` needs workflow token scope.** Refused once, on
 2026-09-08; accepted since. Try the push; if it is refused, the operator refreshes auth.
@@ -147,13 +142,12 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **B2's code, USB-flashed from a clean tree after V-B9**: banner `Version: 0.1.0`, no `-dirty`, `Slot: app0`, `Image state: not_pending`. **No BF-16 radio code on it yet** | NVS: nothing this node depends on yet | On USB to the macOS build machine, connected to the sandbox broker. **Transmits nothing** |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **BF-15's code, USB-flashed from `5222b1d`, a clean tree**: banner `Version: 0.1.0 (5222b1d)`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows | NVS: nothing this node depends on yet | On USB to the macOS build machine. **Receives on 917.4 MHz; transmits nothing.** Broker unreachable at the last boot |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `range-test` / `heltec`, **or P8's Unity test image** — which Heltec took that image on 2026-09-11 is not recorded. Never a simnode build | Whether its stored survey campaign was erased is not recorded. Irrelevant to this node | Powered down |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. Never a simnode build | B1b position log, dumped and committed | Powered down |
 
-**Flashing BF-16 still transmits nothing on its own.** `lora_task` sends only what the TX
-queue holds, and nothing queues a frame until BF-17 or BF-18. It will receive, and it will
-print the radio-up and stack lines.
+**The bridge board still transmits nothing on its own.** `lora_task` sends only what the TX
+queue holds, and nothing queues a frame until BF-17 or BF-18.
 
 **A USB flash puts the bridge board back in a known state.** `pio run -t upload -e heltec`
 writes the bootloader, the table, `boot_app0.bin` (which resets `otadata` to `app0`) and
@@ -167,23 +161,28 @@ artifact. **Tell the two Heltecs apart by enclosure** — both CP2102 bridges re
 **No stored state on any of these boards is the only copy.** Every survey site and every
 B1b position is committed under `docs/rangetest/data/`.
 
-**`secrets.h` on the macOS build machine was corrected by the operator on 2026-09-13.** It
-is gitignored and uncommitted; never read it into a command, a log or a commit.
+**`secrets.h` on the macOS build machine holds a real master key**: the 2026-09-14 boot
+printed no placeholder warning. It is gitignored and uncommitted; never read it into a
+command, a log or a commit.
 
 **Its antenna stays on it.** The bridge uses the range test's 3.0 dBi 19 cm stick (Bridge
-PRD **R-4.3a.1**); the gain is a term in D1's EIRP arithmetic, and `radio_config.h` now
+PRD **R-4.3a.1**); the gain is a term in D1's EIRP arithmetic, and `radio_config.h`
 asserts the sum at compile time.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **The ladder refuses unregistered sources since BF-15.** Before it, a frame from any
+  `src` could be delivered and take a reassembly slot. BF-16's text describing slots for
+  any peer is correct for when it was written.
+- **The boot banner gains a `Registry:` line since BF-15**, and its last line names BF-15.
 - **`RxMessage` carries a decoded header and complete payload since BF-16**, not raw frame
   bytes. BF-11-era text describing `app_task` as the decoder is correct for when it was
   written.
 - **`TaskSpec::stack_words` is `stack_bytes` since BF-16**, and Impl Plan §5.2.1's column
-  reads bytes from v0.22. The numbers did not change except `lora`, 4096 → 8192; only the
-  unit was corrected.
+  reads bytes from v0.22. Only `lora` changed, 4096 → 8192.
 - **The OTA verdict requires `radio_ok` since BF-16.** V-B9's 2026-09-13 pass tested the
   verdict before that change.
+- **Impl Plan §5.3 no longer places `registry.cpp` in `sched_task`**, from v0.23.
 - **V-B12 moved from B2 to B3 in Impl Plan v0.21.** An older revision lists it under B2;
   that listing was a defect, not a different plan.
 - **`LoRaBridge` is retired in favour of `Bridge Node`, 2026-09-10** (**D17** amended).
@@ -191,16 +190,27 @@ asserts the sum at compile time.
   name**.
 - **The PHY parameters are stated rather than deferred, 2026-09-10.** A document revision
   citing Protocol Spec v0.9 or earlier reads §12.1 as "per D1" and `backoff_max_ms` as 500.
-- **`V-B2` means the per-node registry verification and nothing else.** A revision before
-  Bridge PRD v0.6 may use it for the coexistence measurement, which is now `V-B12`.
 
 ## Traps that cost real time here
 
+- **V-B9 needs the broker.** The verdict requires `mqtt_connected`, so with the broker down
+  a good image rolls back and reads as a firmware failure.
+- **An `RxLadder` with no `PeerKeys` refuses every frame**, as `unregistered_src`. A new
+  ladder test that expects delivery must register its sources (`test_lora`'s `AnySource`).
+- **`unregistered_src` is not a §14.1 counter** and is outside `rx_dropped`. Do not rename
+  it to an `rx_` name before spec v0.12 decides.
+- **`registry_begin()` must run before `start_tasks()`**, and **`lora_task` must never call
+  `registry_runtime`**, which waits on a mutex. The never-block check reads `registry.cpp`
+  but deliberately not `registry_runtime.cpp`.
+- **The library's platform crypto is not in its build.** `platform/esp32/` and
+  `platform/native/` are added by each firmware's `build_src_filter`; a new firmware that
+  forgets gets an undefined `MbedtlsKdf` at link.
 - **The codec returns `Ok` for an authenticated frame it had no key to check.** Test
   `mac_verified`, never the status alone. `RxLadder` does; anything else decoding frames
   must too.
 - **ESP-IDF stack depth is bytes.** Upstream FreeRTOS documentation says words, and BF-11
-  followed it. Size a stack from `uxTaskGetStackHighWaterMark`.
+  followed it. Size a stack from `uxTaskGetStackHighWaterMark`, and read it as a range: two
+  boots differed by 248 bytes.
 - **RadioLib's `scanChannel()` has no timeout and `transmit()` busy-waits.** Start the
   operation and read the IRQ register against a deadline, as `lora_link` does.
 - **Receive routes only `RX_DONE` to DIO1.** `HEADER_VALID` and `HEADER_ERR` are in the
@@ -213,7 +223,8 @@ asserts the sum at compile time.
   reaches it over its tunnel; the bridge cannot. Use the broker's LAN address.
 - **`4WAY_HANDSHAKE_TIMEOUT` on every WiFi attempt is a wrong passphrase**, not a range
   problem.
-- **The serial log is silent on WiFi and MQTT state.** Only the OLED and the broker show it.
+- **The serial log is silent on WiFi and MQTT state.** Only the OLED and the broker show it;
+  an unreachable broker shows in the log only as `WiFiClient` connect timeouts.
 - **The sandbox broker refuses anonymous clients** (`CONNACK 5`). The operator runs the
   subscription; a prompt keeps the password out of history. Set `BROKER` and `MQTT_USER`
   first:
@@ -236,27 +247,30 @@ asserts the sum at compile time.
 
 ## Open, and not closable from here
 
-- **BF-16 on air** — radio up, stack high-water mark, then frames both ways once simnode B0
-  exists.
-- **V-B9 re-run** — owed since BF-16 changed the verdict.
+- **Frames on air** — DIO1 waking `lora_task`, a key verifying, frames both ways. Needs
+  simnode B0.
+- **V-B9 re-run** — owed since BF-16 changed the verdict; needs the broker.
+- **Spec gap for v0.12: a frame from an unregistered source** — §14 has no stage for it.
+  The bridge counts `unregistered_src` meanwhile (engineering log, 2026-09-14).
+- **Spec gap for v0.12: §16.2's `lran/bridge/version` payload.**
 - **Spec §12.1's node-address filtering** — RadioLib 7.7.1 has no SX126x setter, and the
   reading that the part filters only in GFSK is unverified against the datasheet. Needs a
   specification decision before a duty-cycled node relies on it (§17.1).
-- **Six task stacks unmeasured** — every size but `lora` is still BF-11's figure, now
-  known to be bytes.
-- **The OTA first-data timeout** — one failure in two uploads. If it recurs, decide between
-  `ArduinoOTA.setTimeout()` and `WiFi.setSleep(false)`; the second changes what M22
-  measures.
+- **Decoding per schema has no task** — Impl Plan §5.3's `decode/`; `app_task`'s `TODO`
+  gives it to BF-24.
+- **Six task stacks unmeasured** — every size but `lora` is still BF-11's figure.
+- **The OTA first-data timeout** — one failure in two uploads on 2026-09-13. If it recurs,
+  decide between `ArduinoOTA.setTimeout()` and `WiFi.setSleep(false)`; the second changes
+  what M22 measures.
 - **R-5.3d on hardware** — an OTA upload deferred during a LoRa transaction.
 - **A serial log line per network state change** — proposed, not assigned to a task.
 - **BF-11a** (log queue drain) and **BF-11b** (hardware watchdog from `sched_task`).
-- **Specification gap for the next revision:** §16.2's `lran/bridge/version` payload.
 - **What GateLink's `COMMAND_ACK` waits for** — pulse complete, or gate confirmed. GateLink
   **M3** needs the answer.
 - **M22 / V-B12** — bridge LoRa PER with WiFi idle versus saturated, under B3.
 - **GateLink M0's LDO margin** — sized for Envelope B's 19.6 dBm, tested only at −4 dBm.
-- **The range-test firmware still transmits on the provisional 915.0 MHz**, which is also
-  why it cannot stand in for simnode B0 against BF-16.
+- **The range-test firmware still transmits on the provisional 915.0 MHz**, which is why it
+  cannot stand in for simnode B0.
 
 ### Closed, and not to be reopened by habit
 

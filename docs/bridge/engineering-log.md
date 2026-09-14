@@ -513,10 +513,26 @@ there, but it would still need a test.
   row names it. `app_task`'s `TODO` now gives it to BF-24, its first consumer.
 - **A `lora_link.cpp` comment still said `lora_task` had 4 KB of stack.** Corrected to 8 KB.
 
+### On the board
+
+The bridge board was USB-flashed from `5222b1d`, a clean tree, and boots:
+
+```
+Version: 0.1.0 (5222b1d)
+Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+Tasks started: 7
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 6496 bytes free
+```
+
+No placeholder-key warning, so the board holds the operator's real key. **`lora_task`'s
+high-water reading was 6496 bytes free here and 6248 on the BF-16 boot**, two readings
+taken at the same point in bring-up. The figure varies by a few hundred bytes from boot to
+boot, so read it as a range, not a constant.
+
 ### Not done
 
-- **On the board.** BF-15 needs a flash to show the `Registry:` banner line, and frames from
-  simnode B0 to show a key verifying on air.
+- **A key verifying on air** — needs frames from simnode B0.
 - **Publishing `unregistered_src`** — BF-19, with the other counters.
 - **The mutex is not host-tested.** It needs FreeRTOS. Its callers are `app_task` today
   and `sched_task` from BF-17.
