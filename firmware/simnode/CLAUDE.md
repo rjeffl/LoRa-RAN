@@ -3,7 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7 §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.24 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.12 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -21,6 +22,41 @@ without a walk to the gate**. Treat it as permanent infrastructure, not scaffold
 
 It is a protocol-level peer. It has no gate state machine, no relays, no I/O, and its
 telemetry values are plausible rather than physical.
+
+## What exists here today
+
+**BF-2, BF-3, BF-5 and the core of BF-4, built 2026-09-14 and proven on air between two
+Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec`,
+`simnode-xiao-wio`, `native`), `profiles.h`, `identity.{h,cpp}`, `node.{h,cpp}`,
+`console.{h,cpp}`, `radio.{h,cpp}` (**the only file that includes RadioLib**), `main.cpp`
+(**the only file that includes `secrets.h`**, for `LRAN_MASTER_KEY` alone) and `sink.h`.
+
+**Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), `/lib/lran-sim/`
+(**BF-7**), the fault catalogue and `fault` (**BF-8**), self-disarm and the OLED (**BF-9**).
+Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
+and has not been flashed.**
+
+```bash
+pio test -d firmware/simnode -e native              # host, no secrets
+pio run  -d firmware/simnode -e simnode-heltec      # NEEDS secrets.h
+pio run  -d firmware/simnode -e simnode-xiao-wio
+```
+
+**Spec §12.3 media access and the PHY constants are `lib/lran-link/`'s**, shared with the
+bridge. Change them there, and run both firmwares' tests.
+
+### Traps found building it
+
+- **Two Heltecs boot with the same identities**, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`.
+  Nothing persists, so both answer to `f0` until one is reconfigured, and every reset
+  restores the defaults. Opening the serial port resets the board.
+- **`stats` counts frames an identity queued; `radio` counts `TX_DONE`.** Only `radio` shows
+  a frame reached the air.
+- **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
+  each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
+  (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
+- **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
+  `rx_dropped`, on every other identity on the board. That is what four boards would count.
 
 ## Hardware profiles — build environments, not roles
 
@@ -54,9 +90,8 @@ Wio-SX1262 products that are not pin-compatible outside the three SPI nets. Conf
   nss=41 rst=42 busy=40 dio1=39  sck=7 miso=8  mosi=9
   rf_sw=38           tcxo_mv=1800  dio2_as_rf_switch=true
 
-// TCXO in millivolts, not a float: the range test's board_config.h and the bridge's
-//   radio_config.h (BF-16) both settled on uint16_t tcxo_mv. The bridge's rx_ladder and
-//   media_access are Arduino-free and worth reading before writing the simnode's own.
+// TCXO in millivolts, not a float: the range test's board_config.h, the bridge and
+//   lib/lran-link's RadioPins all settled on uint16_t tcxo_mv.
 
 // The OTHER Wio product — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers — is
 //   GateLink's module, NOT the board in hand, and its map is deliberately not
@@ -117,9 +152,10 @@ flashed with only its own derived key.
 ## Rules specific to this target
 
 1. **Every emitted payload is marked synthetic.** `status_reason = DEBUG_SYNTHETIC`, and
-   schema `0xFE` rather than `0x10` for status. Synthetic data reaching HA history unmarked
-   is a bug in two nodes at once, and it fails silently — it looks like real history until
-   someone tries to explain a reading.
+   schema `0xFE` rather than `0x10` for status. **Schema `0xF0` has no `status_reason`**, so
+   every `0xF0` sets `health_flags` bit 0 instead (spec §7.5, found 2026-09-14). Synthetic
+   data reaching HA history unmarked is a bug in two nodes at once, and it fails silently —
+   it looks like real history until someone tries to explain a reading.
 2. **`/lib/lran-sim/` builds malformed frames by post-processing a correct frame from
    `/lib/lran-protocol/`.** Never write a second serializer. A separate one drifts, and
    then a fault test passes while testing a frame the system would never produce.
@@ -140,9 +176,9 @@ logic in the way can produce a symptom indistinguishable from poor link margin.
 
 ## Fault catalogue
 
-21 entries in Impl Plan §10.5, each mapped to one Protocol Spec §14 stage or §9.4/§10 rule.
-This is the only mechanism that produces these frames — without it every discard counter in
-the bridge ships unverified.
+Impl Plan §10.5's entries (27, below, plus §10.5.1's two) each map to one Protocol Spec §14
+stage or §9.4/§10 rule. This is the only mechanism that produces these frames — without it
+every discard counter in the bridge ships unverified.
 
 **`bad_phy_crc` cannot be injected.** The SX1262 computes the PHY CRC in hardware, so no
 transmitter can emit a frame that fails it. §14 stage 1 is verified only at the far edge of

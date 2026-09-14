@@ -536,3 +536,92 @@ boot, so read it as a range, not a constant.
 - **Publishing `unregistered_src`** — BF-19, with the other counters.
 - **The mutex is not host-tested.** It needs FreeRTOS. Its callers are `app_task` today
   and `sched_task` from BF-17.
+
+## 2026-09-14 — Simnode B0, first slice: two boards echo each other on 917.4 MHz
+
+**`firmware/simnode/` exists, and two Heltecs running it complete every PING round trip
+spec §6.6 defines, on the D1 PHY.** That slice is BF-2, BF-3, BF-5 and the core of BF-4.
+BF-6 (`ROLE_GATELINK`), BF-7 (the patch primitive), BF-8 (the fault catalogue) and BF-9
+(self-disarm and the OLED) are not started. B0 is on its own branch, `b0-simnode-bringup`,
+stacked on B3's.
+
+### Decisions taken with the operator
+
+- **Spec §12.3 media access moved to `lib/lran-link/`**, with its seven tests, and the
+  simnode uses it. The alternative was a second copy on a branch from `main`; two copies of a
+  backoff rule drift, and the drift shows on air as one node starving another. The cost is a
+  stacked branch: B0 cannot merge before B3. `RadioPins`, `kPhy` and the D33 EIRP assert
+  moved into the same library afterwards, so the fleet has one copy of the PHY constants.
+- **The simnode reads `LRAN_MASTER_KEY` from the root `secrets.h`**, the file the bridge
+  reads, and nothing else from it. Both firmwares then derive the same node keys. CI builds
+  both simnode profiles against the committed template, as it does the bridge.
+- **The bridge board was flashed as a second simnode for the on-air check**, then flashed
+  back. The XIAO was not connected, and the bridge logs nothing per frame.
+
+### What was built
+
+- **`identity.{h,cpp}`** — up to four identities, `0xF0`–`0xF3`. Each has its own HKDF key
+  (checked against the W4 vectors), random non-zero `ctx_id`, status seq, counters,
+  `CommandGate` and reassembler.
+- **`node.{h,cpp}`** — every enabled identity decodes every frame, with itself as `self`.
+  A frame for `0xF2` is counted `rx_not_addressed` by `0xF0`, exactly as a second board would
+  count it. `ROLE_RANGE` echoes PING and answers POLL with `0xF0`; `ROLE_HEALTH` answers
+  POLL only.
+- **`console.{h,cpp}`** — `id`, `enable`, `disable`, `ver`, `ctx`, `ping`, `stats`, `log`,
+  and `radio` from `main.cpp`. `push`, `event`, `ack`, `field` and `fault` answer `ERR not
+  implemented` and name BF-6 or BF-8.
+- **`radio.{h,cpp}`** — follows the bridge's `lora_link.cpp` state machine: CAD and transmit
+  started, then read back from the IRQ register against a deadline.
+- 31 host tests across `test_identity`, `test_node` and `test_console`.
+
+### On the bench
+
+The handheld Heltec (A, `/dev/cu.usbserial-3`) and the flat-case Heltec (B,
+`/dev/cu.usbserial-0001`) both ran `simnode-heltec` from `cab05e8`, about 1 m apart. A kept
+its boot identities, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`; B was reconfigured to
+`f1 ROLE_RANGE` alone. Verbatim:
+
+```
+A| ping f0 -> f1 seq 1: echo ok, n 8, 1 frame(s) out, 1 back, rssi -19 dBm, snr 10.3 dB, 520 ms
+A| ping f0 -> f1 seq 2: echo ok, n 202, 1 frame(s) out, 1 back, rssi -18 dBm, snr 10.5 dB, 2289 ms
+A| ping f0 -> f1 seq 3: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.5 dB, 8617 ms
+B| ping f1 -> f0 seq 1: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.8 dB, 8492 ms
+B| ping f1 -> f0 seq 2: echo ok, n 40, 1 frame(s) out, 1 back, rssi -18 dBm, snr 11.0 dB, 812 ms
+B| ping f1 -> f2 seq 3: no echo in 30000 ms
+```
+
+- **The full-size frame's round trip is 2289 ms**, about two of spec §15.1's 1107 ms SF9
+  frames plus a CAD each way. That is the airtime table checked at one more point.
+- **Every counter reconciles.** A's driver saw 33 `TX_DONE`s against its identities' 33
+  queued frames; B's saw 34 against 34. `f0` heard B's 34 frames. `f2` counted 33 of them
+  `rx_not_addressed` and the one PING addressed to it as `unhandled`. No TX error, timeout,
+  forced transmission or CAD error on either board. B recorded one CAD backoff.
+- **`ROLE_HEALTH` did not echo**, which is the correct result.
+- **The bridge, flashed back from `cab05e8`**, boots with the lifted `lran-link` code: the
+  radio comes up on D1's PHY, and `lora_task` has 6188 bytes of stack free.
+
+### What the code found
+
+- **Schema `0xF0` cannot carry `DEBUG_SYNTHETIC`.** Impl Plan §10.1 says every simnode
+  payload sets `status_reason = DEBUG_SYNTHETIC`, but spec §7.5's health schema has no
+  `status_reason`. The simnode sets `health_flags` bit 0, "any debug mode active", on every
+  `0xF0`, and §10.1 now says so. A bridge that publishes `0xF0` from a bench node must read
+  that bit to mark the data synthetic.
+- **The bridge does not answer PING.** Spec §17.3 makes RF loopback "required of every node
+  build", and no `BF-*` task gives it to the bridge. Until one does, a PING from a simnode to
+  `0x00` reports no echo. That is a bridge gap, not a simnode fault.
+- **`lib_extra_dirs = ..` breaks a library's own test project.** PlatformIO picks the
+  project up as a library of itself, and the test build loses Unity's include path
+  (`unity.h` not found). `lib/lran-link/platformio.ini` uses `lib_deps = symlink://` instead.
+- **`0xF0`'s `tx_frames` never counts the frame that carries it.** The payload is built
+  before the frame is queued, so each report counts the frames before it.
+
+### Not done
+
+- **B0's criteria not met:** "console accepts every command" (five commands are
+  placeholders), and "faults arm, fire the specified count, self-disarm, and show armed
+  state on the OLED" (BF-7 to BF-9). **The XIAO profile builds and has not been flashed.**
+- **Four identities on one board have not been on air at the same time.** The table and its
+  independence are host-tested; the bench run used three identities across two boards.
+- **Identities do not persist.** Every reset returns a Heltec to `f0` and `f2`. Two Heltecs
+  booted together both answer to `f0` until one is reconfigured.

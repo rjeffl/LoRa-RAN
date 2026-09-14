@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.23
+**Version:** 0.24
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1138,6 +1138,11 @@ installed and unreachable without a walk to the gate** (§10.7).
 the failure is silent — it looks like real history until someone tries to explain a
 reading.
 
+**Schema `0xF0` carries no `status_reason`** (Protocol Spec §7.5), so it cannot be marked
+`DEBUG_SYNTHETIC`. Every `0xF0` a simnode emits sets `health_flags` bit 0, "any debug mode
+active", instead. Found building B0, 2026-09-14: the rule above was written for status
+schemas, and the health schema has one field that can carry it.
+
 ### 10.2 Roles
 
 One firmware, four selectable roles. A role is a **behaviour profile**, assigned per
@@ -1194,7 +1199,9 @@ serial, driven by hand or by `/tools/simctl/`.
 | `push <hex> [reason]` | Emit an unsolicited status with a given `status_reason` |
 | `event <hex> <type>` | Emit an event; repeat the same `event_id` to test bridge-side dedup |
 | `ack <hex> <mode>` | `normal` \| `suppress` \| `delay <ms>` \| `dup` — command-path tests |
-| `ping <hex> <n> [pattern] [frag]` | Emit a `PING` of length `n`, optionally `PATTERN_FILL`, optionally forced-fragmented (**W9**) |
+| `ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]` | Emit a `PING` of length `n`, optionally `PATTERN_FILL`, optionally forced-fragmented (**W9**; a bare `frag` is §6.6.2's 14-byte chunk). `to` sets the destination, `00` by default, so two simnodes can echo each other — added 2026-09-14 |
+| `stats <hex>` | One identity's §14.1 counters, plus the radio's `cad_backoffs` — added 2026-09-14 |
+| `radio` | The driver's own counts: `TX_DONE`, TX errors and timeouts, forced transmissions, CAD errors. The only evidence on the board that a frame reached the air — added 2026-09-14 |
 | `fault <hex> <name> [count]` | Inject a fault from §10.5, once or `count` times |
 | `field <hex> <name> <value>` | Override a generated telemetry field — sentinels, out-of-range, stale flags |
 | `log <level>` | Serial verbosity |
@@ -1370,8 +1377,12 @@ build_flags = -DLRAN_PROFILE_HELTEC
 
 [env:simnode-xiao-wio]
 board = seeed_xiao_esp32s3
-build_flags = -DLRAN_PROFILE_XIAO_WIO
+build_flags = -DLRAN_PROFILE_XIAO_WIO_KIT
 ```
+
+The flag names the **Kit**, as the profile below does: a flag that said only `XIAO_WIO`
+would fit the header board too, which is GateLink's module and has a different map.
+Corrected 2026-09-14, when `firmware/simnode/platformio.ini` was written from this sketch.
 
 The profile supplies exactly one thing: a `RadioPins` struct — NSS, RST, BUSY, DIO1, the
 SPI pins, TCXO voltage, DIO2-as-RF-switch, and (pending §2.3.1) an optional RF-switch pin.
@@ -1517,6 +1528,30 @@ through the preprocessor has not tested that.
 |---|---|---|---|
 | Heltec #2 | `0xF0`, `0xF2` | `ROLE_FAULT` + `ROLE_HEALTH` | Fault injection needs no radio fidelity |
 | XIAO + Wio | `0xF1` | `ROLE_GATELINK` | **The identity pretending to be GateLink runs GateLink's actual radio** |
+
+### 10.9 What B0's first slice built, 2026-09-14
+
+**BF-2, BF-3, BF-5 and the core of BF-4.** Two Heltecs running it completed every PING
+round trip §6.6 defines on the D1 PHY: 8 bytes, the 222-byte frame, and the 15-fragment
+set in both directions. The engineering log has the transcript.
+
+| Choice | Why |
+|---|---|
+| **§12.3 media access and the PHY constants live in `lib/lran-link/`**, shared with the bridge | Two copies of a backoff rule drift. The cost is that B0's branch is stacked on B3's |
+| **The simnode reads `LRAN_MASTER_KEY` from the root `secrets.h`**, and nothing else | The simnode and the bridge derive the same keys. CI builds against the template, as for the bridge |
+| **Every enabled identity decodes every frame, with itself as `self`** | A frame for another identity is `rx_not_addressed`, exactly as on a second board, so four identities count what four boards would |
+| **The identity table, protocol engine and console are Arduino-free**, 31 host tests | Only `radio.cpp` and `main.cpp` need a board. Identity keys are checked against the W4 vectors |
+| **`radio.cpp` follows the bridge's `lora_link.cpp`** | Same RadioLib traps: no `scanChannel()`, no blocking `transmit()`, no `getPacketLength()` as an arrival test, no heap `Module` |
+| **Boot identities: Heltec `0xF0 ROLE_RANGE` and `0xF2 ROLE_HEALTH`; XIAO `0xF1 ROLE_RANGE`** | §10.8.1's assignment, with `ROLE_RANGE` standing in for the roles that do not exist yet. Nothing persists |
+| **A frame set is queued whole or not at all** | A fragmented echo missing its tail would time out at the far end and read as RF loss |
+
+**What this slice does not do:** `ROLE_GATELINK`, `push`, `event`, `ack` and `field`
+(BF-6); `/lib/lran-sim/` (BF-7); the fault catalogue and `fault` (BF-8); self-disarm and
+the OLED (BF-9). **The XIAO profile builds and has not been flashed.**
+
+> **A gap on the bridge, not the simnode.** §17.3 makes RF loopback "required of every node
+> build", and no `BF-*` task gives it to the bridge. Until one does, a simnode's PING to
+> `0x00` reports no echo.
 
 ---
 
@@ -1678,6 +1713,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.24** | **New §10.9** — B0's first slice; `media_access` and the PHY move to `lib/lran-link/` |
 | **v0.23** | **New §4.2.1** — BF-15's registry; spec §14 has no stage for an unregistered source |
 | **v0.22** | **New §5.3.1** — BF-16's radio link; §5.2.1's stacks are **bytes**, not words |
 | **v0.21** | **V-B9 run on the bench**, §6.5.2 says so; §7.1 moves **V-B12** from B2 to B3 |
@@ -1701,6 +1737,12 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.24** — **Simnode B0's first slice is built, and §10.9 records its choices.** §10.4
+  gains `stats`, `radio`, and `ping`'s `to` and chunk arguments. §10.1 says how `0xF0` is
+  marked synthetic, since it has no `status_reason`. §10.8's sketch names the Kit flag,
+  `LRAN_PROFILE_XIAO_WIO_KIT`. §5.3 and §5.3.1 record that `media_access` moved to
+  `lib/lran-link/`. **One bridge gap raised**: §17.3's RF loopback has no task.
 
 - **v0.23** — **BF-15 built the registry, and §4.2.1 records its choices.** §5.3's module
   map no longer places `registry.cpp` in `sched_task`: its keys are read lock-free by

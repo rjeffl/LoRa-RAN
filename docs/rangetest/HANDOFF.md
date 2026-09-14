@@ -247,13 +247,14 @@ the same host separates transport from authentication in one command.
 
 **All three boards were reflashed 2026-09-06 from `main` at 3a9843d** — the build carrying
 the PA record — and verified by reading the record back off each one. Nothing under
-`firmware/range-test/` has changed since **except a comment in `main.cpp`**, so the
-handheld Heltec and the XIAO are current and no reflash is owed. **The flat-case Heltec is
-not**: it was flashed with bridge firmware for B2's bench session on 2026-09-13.
+`firmware/range-test/` has changed since **except a comment in `main.cpp`**, so the XIAO is
+current and no reflash is owed. **Neither Heltec is**: the flat-case one was flashed with
+bridge firmware for B2's bench session on 2026-09-13, and the handheld one with simnode
+firmware for simnode B0 on 2026-09-14 (bridge engineering log).
 
 | Board | Env | State after 2026-09-09 | Notes |
 |---|---|---|---|
-| Heltec V3 — **Heltec dev board handheld case** | `heltec` | **Went to the gate for B1b's A/B.** Powered down after | The B1b card's **Heltec #1**. **Whether its stored survey campaign was erased before the trip is not recorded** — check before relying on it, below |
+| Heltec V3 — **Heltec dev board handheld case** | `heltec` | **Went to the gate for B1b's A/B.** Powered down after. **Runs simnode firmware since 2026-09-14** — no range-test build is on it | The B1b card's **Heltec #1**, and **the simnode Heltec now** (bridge handoff). Reflash `firmware/range-test -e heltec` before any range work, and say so in the bridge handoff first. **Whether its stored survey campaign was erased before the trip is not recorded**, and the simnode flash may have overwritten it; the data is committed either way, below |
 | Heltec V3 — **Meshtastic flat case** | `heltec` | **B1b's INITIATOR**, tethered in the office. **Runs bridge firmware since 2026-09-13** — no range-test build is on it | **The bridge board now** (bridge handoff). The B1b card's **Heltec #2**. Reflash `firmware/range-test -e heltec` before any range work, and say so in the bridge handoff first |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** | `xiao` | **B1b's walking RESPONDER.** Position log holds G1 and G2 | Log cleared before the run and dumped after; both committed. `/dev/cu.usbmodem1101` |
 
