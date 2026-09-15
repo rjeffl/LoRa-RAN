@@ -56,8 +56,8 @@ MqttTransport& mqtt();
 // Whether lora_task is idle. ota_task defers until it is (R-5.3d).
 //
 // BF-16: no frame waiting or on the air, the radio receiving, and no reassembly set
-// incomplete. TODO(BF-17): a poll awaiting its reply is outstanding too, and so is a
-// command awaiting its COMMAND_ACK (BF-18); neither exists yet.
+// incomplete. BF-17: no poll awaiting its reply. TODO(BF-18): no command awaiting its
+// COMMAND_ACK either.
 bool lora_task_idle();
 
 // The per-queue counters, for the diagnostic topics and the OLED page.

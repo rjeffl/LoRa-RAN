@@ -907,3 +907,53 @@ Impl Plan §10.4 command. The host suites pass: 108 tests, 23 of them in the new
 
 **Not supported by anything here:** a bridge that retries on its own (BF-18), and any of it on
 air.
+
+## 2026-09-14 — BF-17: the poll scheduler
+
+**The bridge now polls.** `firmware/bridge/src/scheduler.{h,cpp}` decides which node to poll
+and when; `sched_task` builds the `POLL` and queues it each 1 s tick. **Never more than one
+poll is outstanding across the fleet** (R-3.1d). An unanswered poll increments the node's
+`missed_polls`, and any valid frame from the node clears it. The host suite passes: 103
+tests, 14 of them the new `test_scheduler`. The target builds, and the never-block check is
+clean. **No poll has been transmitted**: the bridge board was not flashed.
+
+Built on a new branch, `b3-poll-scheduler`, stacked on B0's. B3's own branch carries
+documents several versions older than B0's, and every doc change there would have conflicted
+on the way back up the stack (decided with the operator).
+
+### Who is polled — decided with the operator
+
+**Production rows from boot; a bench row once the bridge has heard any frame from it.**
+GateLink and WellLink are polled whether or not they answer, so a GateLink that never comes
+up still counts missed polls for BF-20. `f0`–`f3` cost no airtime until a simnode speaks, and
+a simnode's `push` enrols it. Nothing removes a row once enrolled; going offline is BF-20's.
+
+### Choices the documents left open
+
+- **The reply window is 10 s, and no document gives the number.** A node that finds the
+  channel busy may wait `cad_retries` × `backoff_max_ms` = 5 × 1500 = 7.5 s before it
+  transmits regardless (spec §12.3), and its `0xFE` answer is about 0.6 s at SF9. A shorter
+  window would count a node that obeyed media access as missing. It is runtime-settable;
+  **BF-23 takes it from Home Assistant.** The Impl Plan should name the parameter.
+- **The next poll falls one interval after the send**, not after the due time, so a poll
+  that waited behind another does not pull the next one early.
+- **A `POLL` takes its `seq` from a scheduler counter, not the command `seq`.** `POLL` is not
+  authenticated (spec §9.2), so no node checks its `seq`, and spending command seqs on it
+  would muddle the space BF-18 owns. Spec §10.2 names two sequence spaces and does not place
+  bridge-originated unauthenticated frames in either.
+- **An OTA upload holds new polls** (`ota_in_progress()`), and **an outstanding poll holds an
+  upload**: `lora_task_idle()` now also requires no poll outstanding (R-5.3d).
+- **A zero interval is held to 1 s.** Refusing it belongs where the value is set, BF-23.
+
+### Two things the tests found before any board did
+
+- **A due time of 0 fails after about 24.8 days.** The first version marked a never-polled
+  row due at time 0. After `millis()` passes half its range, 0 reads as the future, so a bench
+  row enrolled that late would never be polled. Rows now carry a "not yet polled" flag, and
+  `test_a_row_enrolled_late_in_uptime_is_polled` holds it.
+- **The mutation check:** letting `next()` start a poll while one was outstanding failed
+  three tests. Reverted.
+
+**Not supported by anything here:** a poll on air, a simnode answering one, and the reply
+window measured against a real exchange. B3's bench run needs the XIAO or the bridge board
+flashed with this build.

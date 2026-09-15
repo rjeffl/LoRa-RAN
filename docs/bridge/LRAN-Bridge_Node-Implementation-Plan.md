@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.28
+**Version:** 0.29
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -798,6 +798,20 @@ platform dependency, and the place that surfaces is the host build.
 - An unanswered poll increments `missed_polls`; a valid frame from that node resets it.
 - Node-initiated pushes are **not** polls and do not reset the schedule, but they do reset
   `missed_polls` and `last_seen`.
+
+#### 6.1.1 What BF-17 built, 2026-09-14
+
+`scheduler.{h,cpp}` decides, host-tested; `sched_task` sends. The engineering log's BF-17
+entry argues each choice.
+
+| Parameter or rule | Value |
+|---|---|
+| `poll_reply_timeout_ms` | **10 000**, runtime-settable. A poll is outstanding until a frame from that node arrives or this window closes. Derived from spec §12.3's worst-case node backoff (7.5 s) plus an SF9 answer; this section is its first home |
+| Who is polled | Production rows from boot. **A bench row, `0xF0`–`0xF3`, once any frame from it has been heard** this boot (decided with the operator) |
+| Next due | One `poll_interval_s` after the send. A zero interval is held to 1 s |
+| Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
+| `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
+| OTA | An upload in progress holds new polls; an outstanding poll keeps `lora_task_idle()` false (R-5.3d) |
 
 ### 6.2 Command path and retry
 
@@ -1808,6 +1822,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.29** | **New §6.1.1** — BF-17's scheduler; names `poll_reply_timeout_ms`, which no document did |
 | **v0.28** | **New §10.9.2** — BF-6's `ROLE_GATELINK`; four operator decisions; three spec questions |
 | **v0.27** | **New §10.9.1** — BF-9's OLED page, on both profiles |
 | **v0.26** | **§10.5** — BF-8's catalogue built: `fault.{h,cpp}`, `fault` console command, `silent`, and the host suite that checks each counter |
@@ -1836,6 +1851,11 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.29** — **BF-17 built the poll scheduler**, new §6.1.1. §6.1 said when a poll is
+  unanswered without saying how long to wait: **`poll_reply_timeout_ms`, default 10 000**, is
+  named here for the first time and argued in the engineering log. Bench rows are polled only
+  once heard, decided with the operator. No requirement or milestone criterion changes.
 
 - **v0.28** — **BF-6 built `ROLE_GATELINK`**, new §10.9.2: `0xFE` on poll, `COMMAND_ACK`
   through the command gate, `CONFIG_ACK` from a RAM store, `0x11` events, the console's

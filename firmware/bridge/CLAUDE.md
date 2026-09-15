@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.28
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.16 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.29
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.17 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -44,6 +44,13 @@ its mutex, mbedTLS). Impl Plan §4.2.1 records the choices. **Two rules to keep:
 lock; and **`lora_task` never calls into `registry_runtime`**, which waits on a mutex.
 **`unregistered_src` is a bridge diagnostic, not a §14.1 counter** — spec §14 has no stage
 for it, and its name is not `rx_`-prefixed on purpose.
+
+**`BF-17` — the poll scheduler, built and host-tested; no poll on air yet.**
+`scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Three things to
+keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a registry call or
+a queue send**, so it never nests with the registry's; a bench row is polled only after it
+has been heard; and `lora_task_idle()` is false while a poll is outstanding, which an OTA
+upload waits on.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.

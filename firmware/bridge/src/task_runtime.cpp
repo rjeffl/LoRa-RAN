@@ -15,6 +15,7 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <atomic>
@@ -27,6 +28,7 @@
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
+#include "scheduler.h"
 #include "status_page.h"
 #include "ui.h"
 #include "wifi_link.h"
@@ -107,6 +109,71 @@ static_assert(sizeof(g_stack_lora) / sizeof(StackType_t) == 8192, "lora stack");
 static_assert(sizeof(g_stack_mqtt) / sizeof(StackType_t) == 6144, "mqtt stack");
 
 // ---------------------------------------------------------------------------
+// The poll scheduler (BF-17). sched_task decides and sends, app_task reports what it heard,
+// ota_task asks whether a poll is outstanding. The mutex is held only across the scheduler's
+// own calls - never across a registry call or a queue send - so it never nests with the
+// registry's.
+// ---------------------------------------------------------------------------
+
+PollScheduler     g_scheduler;
+StaticSemaphore_t g_sched_lock_buf;
+SemaphoreHandle_t g_sched_lock = nullptr;
+
+// Read by lora_task_idle() from ota_task without the lock; written under it.
+std::atomic<bool> g_poll_outstanding{false};
+
+class SchedLock {
+ public:
+  SchedLock() { xSemaphoreTake(g_sched_lock, portMAX_DELAY); }
+  ~SchedLock() { xSemaphoreGive(g_sched_lock); }
+  SchedLock(const SchedLock&)            = delete;
+  SchedLock& operator=(const SchedLock&) = delete;
+};
+
+void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
+  SchedLock lock;
+  g_scheduler.on_heard(src, now_ms);
+  g_poll_outstanding = g_scheduler.outstanding();
+}
+
+// One tick: close an expired reply window, then start at most one poll. A POLL the TX queue
+// refuses is counted by send_tx() and not reported to the scheduler, so the node stays due
+// and the next tick tries again.
+void sched_polls(uint32_t now_ms) {
+  for (int step = 0; step < 2; ++step) {  // at most a Missed, then a Poll
+    PollStep  st;
+    lran::Seq seq = 0;
+    {
+      SchedLock lock;
+      st = g_scheduler.next(now_ms, !ota_in_progress());
+      if (st.action == PollAction::Poll) seq = g_scheduler.take_poll_seq();
+    }
+    switch (st.action) {
+      case PollAction::None:
+        return;
+      case PollAction::Missed:
+        g_poll_outstanding = false;
+        registry_note_poll_missed(st.node);
+        continue;
+      case PollAction::Poll:
+        break;
+    }
+
+    NodeState ns;
+    if (!registry_state(st.node, &ns)) return;
+    TxMessage tx;
+    tx.dst = st.node;
+    tx.len = build_poll_frame(st.node, ns.ctx_id, seq, tx.bytes, sizeof(tx.bytes));
+    if (tx.len == 0 || !send_tx(tx)) return;
+
+    SchedLock lock;
+    g_scheduler.on_sent(st.node, ns.poll_interval_s, now_ms);
+    g_poll_outstanding = true;
+    return;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Task bodies.
 // ---------------------------------------------------------------------------
 
@@ -131,7 +198,7 @@ void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
-    // TODO(BF-17): per-node poll scheduling with fleet-wide serialization (6.1).
+    sched_polls(millis());  // BF-17 - Impl Plan 6.1, R-3.1d
     // TODO(BF-20): the availability watchdog (3.4).
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
     vTaskDelayUntil(&last, period);
@@ -239,6 +306,9 @@ void app_task(void*) {
     // here names a registered node. This learns its ctx_id (spec 10.1) and resets its
     // command seq on a new one (spec 10.2).
     (void)registry_observe(msg.hdr, msg.rssi_dbm, msg.snr_db, msg.rx_millis);
+    // BF-17. Answers an outstanding poll to this node, and enrols a bench node in the
+    // schedule the first time it is heard.
+    sched_on_heard(msg.hdr.src, msg.rx_millis);
     // TODO(BF-19): wire the spec 14 discard ladder counters through.
     // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
     // policy, into the publish queue.
@@ -322,6 +392,10 @@ TaskFunction_t body_for(TaskId id) {
 }  // namespace
 
 bool start_tasks() {
+  g_sched_lock = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
+  if (g_sched_lock == nullptr) {
+    return false;
+  }
   g_rx_queue = xQueueCreateStatic(kRxQueueDepth, sizeof(RxMessage), g_rx_storage,
                                   &g_rx_queue_buf);
   g_tx_queue = xQueueCreateStatic(kTxQueueDepth, sizeof(TxMessage), g_tx_storage,
@@ -421,7 +495,7 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() { return lora_idle(); }
+bool lora_task_idle() { return lora_idle() && !g_poll_outstanding.load(); }
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 

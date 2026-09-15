@@ -13,15 +13,17 @@ and BF-6.** It replaces the
 
 ## The next job, in one place
 
-**Read this file on the B0 branch, `b0-simnode-bringup`, which is stacked on B3's
-`b3-protocol-registry`.** Both pull requests stay drafts until the operator accepts each
-milestone, so `main`'s copy of this file predates all of it, and B3's predates B0. **B0
-cannot merge before B3**: it moves `media_access` into `lib/lran-link/`, out of code B3
-adds.
+**Read this file on `b3-poll-scheduler`, the top of a three-branch stack:** BF-17 on
+`b3-poll-scheduler`, on B0's `b0-simnode-bringup`, on B3's `b3-protocol-registry`. Each
+pull request stays a draft until its milestone is accepted, so every lower branch's copy of
+this file is older. **The stack merges bottom-up**: B0 moves `media_access` out of code B3
+adds, and BF-17 was branched from B0 because B3's branch carries documents several
+versions older (decided with the operator, 2026-09-14). B3's later tasks go on top of this
+branch.
 
 ```bash
 git fetch origin -p
-git switch b0-simnode-bringup && git pull --ff-only
+git switch b3-poll-scheduler && git pull --ff-only
 gh pr list --state open
 ```
 
@@ -29,9 +31,11 @@ gh pr list --state open
 flash the XIAO profile, which now boots as `0xF1 ROLE_GATELINK`, and run its command path on
 air against the handheld Heltec. The XIAO was not with the operator on 2026-09-14.
 
-**Desk work while the XIAO is away:** BF-17, the poll scheduler, below. **Before BF-18 is
-built**, spec v0.12 should answer the three questions in the engineering log's BF-6 entry;
-the first of them is how BF-18 reads a `DUPLICATE_CACHED` ACK.
+**BF-17, the poll scheduler, is built** (engineering log, BF-17). **Desk work while the XIAO
+is away:** BF-19 (counter wiring) or BF-20 (availability watchdog, which reads BF-17's
+`missed_polls`). **Before BF-18 is built**, spec v0.12 should answer the three questions in
+the engineering log's BF-6 entry; the first of them is how BF-18 reads a `DUPLICATE_CACHED`
+ACK.
 
 **BF-9 is built, and the handheld Heltec runs it** (engineering log, 2026-09-14, BF-9 and
 its correction). Its panel answers at boot. **Both profiles drive a panel**: the XIAO's is
@@ -49,7 +53,16 @@ rolls back and the test records a broker outage as a firmware failure.
 
 ## What the last session established
 
-**BF-6, 2026-09-14, the last work of the day.** The engineering log's BF-6 entry has the
+**BF-17, 2026-09-14, after BF-6.** Impl Plan §6.1.1 has the parameters.
+
+- **One poll outstanding fleet-wide; a miss after a 10 s reply window.** No document gave
+  that number; §6.1.1 now does, derived from spec §12.3's worst-case node backoff. 103 bridge
+  host tests pass; a mutation allowing a second outstanding poll failed three. **Not
+  supported:** any poll on air.
+- **Production rows are polled from boot; `f0`–`f3` only once heard** (decided with the
+  operator). A simnode enrols itself with `push`.
+
+**BF-6, 2026-09-14.** The engineering log's BF-6 entry has the
 decisions and the spec questions; Impl Plan §10.9.2 the summary.
 
 - **`ROLE_GATELINK` answers `POLL` (`0xFE`), `COMMAND` (through `CommandGate`) and `CONFIG`
@@ -141,9 +154,9 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel. **BF-17** built, host-tested |
 | Not done | **B0**: the XIAO flashed, `ROLE_GATELINK` on air, the operator's acceptance. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | BF-17 (desk) → flash the XIAO, `ROLE_GATELINK` on air → B0 accepted → BF-18 to BF-22, BF-18 after spec v0.12. **V-B9** as soon as the broker is reachable |
+| Queue | BF-19 or BF-20 (desk) → flash the XIAO, `ROLE_GATELINK` on air, a simnode answering BF-17's polls → B0 accepted → BF-18 after spec v0.12, BF-21, BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -188,8 +201,9 @@ D34's amendment and spec v0.11). **B2 is merged history**: `git log --oneline --
 origin/main` finds the merge. **BF-15, BF-16 and B0's commits are not cited by SHA** until
 they merge; the one exception below is the firmware provenance a board's banner prints.
 
-**Merging B0 and B3: B3 first.** Merge B3's pull request without `--delete-branch`, retarget
-B0's to `main` while it is still open, then delete B3's branch by hand.
+**Merging the stack: bottom-up.** Merge B3's pull request without `--delete-branch`, retarget
+B0's to `main` while it is still open, then delete B3's branch by hand. Repeat for B0's, with
+`b3-poll-scheduler`'s pull request retargeted to `main`.
 
 **A push touching `.github/workflows/` needs workflow token scope.** Refused once, on
 2026-09-08; accepted since. Try the push; if it is refused, the operator refreshes auth.
@@ -338,6 +352,9 @@ asserts the sum at compile time.
 - **Spec gap for v0.12: a frame from an unregistered source** — §14 has no stage for it.
   The bridge counts `unregistered_src` meanwhile (engineering log, 2026-09-14).
 - **Spec gap for v0.12: §16.2's `lran/bridge/version` payload.**
+- **`poll_reply_timeout_ms` = 10 000 is a derived default**, never measured against a real
+  exchange (Impl Plan §6.1.1). The first bench run of BF-17 should read how long answers
+  actually take.
 - **Spec questions for v0.12 from BF-6** — how a `DUPLICATE_CACHED` ACK carries the cached
   result; what a node answers to a repeated `CONFIG`; §7.4's fragmented config sets against
   §3.1's 196-byte cap on a reassembled set. The engineering log's BF-6 entry has each one.

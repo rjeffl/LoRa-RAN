@@ -59,6 +59,11 @@ Observed registry_observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr_
   return g_registry.observe(hdr, rssi_dbm, snr_db, now_ms);
 }
 
+bool registry_note_poll_missed(lran::NodeId id) {
+  Lock lock;
+  return g_registry.note_poll_missed(id);
+}
+
 bool registry_state(lran::NodeId id, NodeState* out) {
   Lock             lock;
   const NodeState* s = g_registry.state(id);
