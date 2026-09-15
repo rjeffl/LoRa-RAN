@@ -817,3 +817,25 @@ operator reports the board is rotated 180° from its range-test mounting. The ra
 `flipScreenVertically()` is a 180° rotation (`SEGREMAP | 0x01` with `COMSCANDEC`), not a
 mirror, so a board turned 180° reads upright without it. The pins still come from the range
 test; the orientation does not. Unverified on the panel: the XIAO image has not been flashed.
+
+### The Heltec's page, confirmed by eye
+
+**The operator confirmed every staged element on the handheld Heltec's panel**, running
+`c3ef4ca`. One serial connection drove four stages over 166 s, and every command answered
+`OK`:
+
+1. Idle: `rx: nothing yet`, `f0 ROLE_RANGE`, `f2 ROLE_HEALTH`.
+2. `id add f1 ROLE_GATELINK`, `id add f3 ROLE_FAULT`, `disable f1`. `f1` showed `off`.
+3. `fault f0 silent 5`, `fault f2 bad_crc 3 gap 20000` and
+   `fault f3 single_frame_interleave 999 gap 60000`, all as inverted bars. `f2` counted down
+   and cleared when the console logged `3 injection(s) done, disarmed` at 99 s. `f3`'s name
+   was cut with `~`, and its count stayed visible.
+4. `fault f0 off`, `fault f3 off`, `enable f1`. Every row returned to plain.
+
+- **Rows follow slot order, not identity order.** `f1`, added after `f2`, drew below it, which
+  matches `id list`.
+- **Not shown:** row 0's frame format and `RADIO DOWN`. The Heltec does not hear its own
+  transmissions, and the bridge board sends nothing, so a received frame needs a second
+  transmitting simnode.
+- **The XIAO is not with the operator offsite**, so its panel, pins and orientation wait for
+  its first flash.

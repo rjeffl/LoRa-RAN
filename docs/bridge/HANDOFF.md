@@ -50,7 +50,9 @@ rolls back and the test records a broker outage as a firmware failure.
 
 - **The OLED page is text first**: `oled_page.{h,cpp}`, 14 host tests that drive the real
   injector and node. `ui.cpp` draws it with the bridge's ThingPulse pin. Both simnode
-  images build. The handheld Heltec was flashed and printed `OLED: up`. **Not supported:**
+  images build. **On the handheld Heltec the operator confirmed the page by eye**:
+  identities, `off`, inverted fault bars, the countdown and self-clear, and the `~` cut.
+  Row 0's frame format is not confirmed; it needs a second transmitting board. **Not supported:**
   that a 1 Hz redraw leaves the radio's counters unchanged, which is unmeasured, or
   anything on the XIAO, which has not been flashed.
 - **The XIAO's panel is on its Seeeduino expansion board.** BF-9 first claimed the XIAO had
@@ -188,7 +190,7 @@ them in its own roles, and its rows do not transfer here.
 |---|---|---|---|---|---|
 | Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed from `cab05e8` on the B0 branch, a clean tree**: banner `Version: 0.1.0 (cab05e8)`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows. It ran `simnode-heltec` as `f1` for the B0 on-air check in between | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Receives on 917.4 MHz; transmits nothing.** Broker unreachable at the last boot |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, **USB-flashed from `c3ef4ca` (BF-9)**, MAC `44:1b:f6:fa:bc:2c`. Boots as `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`, with `OLED: up`. **It ran an old range-test image (spec v0.8 banner) until 2026-09-14** | Nothing persists; identities reset on every boot. Any range-test NVS from before is not the only copy of anything | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-3` |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. **`simnode-xiao-wio` builds and has never been flashed** | B1b position log, dumped and committed | Powered down |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. **`simnode-xiao-wio` builds and has never been flashed** | B1b position log, dumped and committed | Powered down. **Not with the operator offsite as of 2026-09-14**, so its first simnode flash waits for the bench |
 
 **The bridge board still transmits nothing on its own.** `lora_task` sends only what the TX
 queue holds, and nothing queues a frame until BF-17 or BF-18.
