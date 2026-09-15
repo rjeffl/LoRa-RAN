@@ -31,9 +31,9 @@ gh pr list --state open
 flash the XIAO profile, which now boots as `0xF1 ROLE_GATELINK`, and run its command path on
 air against the handheld Heltec. The XIAO was not with the operator on 2026-09-14.
 
-**BF-17, the poll scheduler, is built** (engineering log, BF-17). **Desk work while the XIAO
-is away:** BF-19 (counter wiring) or BF-20 (availability watchdog, which reads BF-17's
-`missed_polls`). **Before BF-18 is built**, spec v0.12 should answer the three questions in
+**BF-17, the poll scheduler, and BF-20, the availability watchdog, are built** (engineering
+log, BF-17 and BF-20). **Desk work while the XIAO is away:** BF-19 (counter wiring), or BF-26
+(`simnode_diag_enable`), which a simnode's availability waits on. **Before BF-18 is built**, spec v0.12 should answer the three questions in
 the engineering log's BF-6 entry; the first of them is how BF-18 reads a `DUPLICATE_CACHED`
 ACK.
 
@@ -48,10 +48,20 @@ the bench.** It is owed since BF-16 changed `ota_policy.cpp`, and **it cannot ru
 the broker**: the verdict marks an image valid only with `mqtt_connected`, so a good image
 rolls back and the test records a broker outage as a firmware failure.
 
-**Desk work that needs neither the broker nor a second board:** BF-17, the poll scheduler
-(Sonnet, per the Tasks document).
+**Desk work that needs neither the broker nor a second board:** BF-19 or BF-26 (Sonnet, per
+the Tasks document).
 
 ## What the last session established
+
+**BF-20, 2026-09-14, after BF-17.** Impl Plan §6.1.2 has the rules.
+
+- **`offline` at 3 missed polls, `online` on any frame, retained.** A node not yet judged
+  since boot publishes nothing. 116 bridge host tests pass; two mutations failed one and six.
+  **Not supported:** any publication seen at a broker, or V-B3 on the bench.
+- **A simnode's availability is printed, not published**, until BF-26 (spec §16.6). V-B3
+  reads `availability: simnode1 offline ...` on the bridge's serial console.
+- **CI's GCC 13 crashed on BF-6's `gatelink.cpp`**; fixed in `10e3d6c` on B0's branch and
+  merged up. A clean macOS `native` run does not prove CI's compiler agrees.
 
 **BF-17, 2026-09-14, after BF-6.** Impl Plan §6.1.1 has the parameters.
 
@@ -154,9 +164,9 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel. **BF-17** built, host-tested |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel. **BF-17** and **BF-20** built, host-tested |
 | Not done | **B0**: the XIAO flashed, `ROLE_GATELINK` on air, the operator's acceptance. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | BF-19 or BF-20 (desk) → flash the XIAO, `ROLE_GATELINK` on air, a simnode answering BF-17's polls → B0 accepted → BF-18 after spec v0.12, BF-21, BF-22. **V-B9** as soon as the broker is reachable |
+| Queue | BF-19 or BF-26 (desk) → flash the XIAO, `ROLE_GATELINK` on air, a simnode answering BF-17's polls → B0 accepted → BF-18 after spec v0.12, BF-21, BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite

@@ -62,6 +62,11 @@ size_t topic_availability(const char* node, char* out, size_t cap);
 // `lran/bridge/version` - retained (spec 16.2).
 size_t topic_bridge_version(char* out, size_t cap);
 
+// A node's `<node>` token (spec 16.1): `gatelink`, `welllink`, `simnode0`-`simnode3`. BF-20.
+// Returns the length written, or 0 for an address spec 16.1 gives no token or a short
+// `cap`. A node without a token has no topics, rather than a topic invented for it.
+size_t node_topic_name(uint8_t node_id, char* out, size_t cap);
+
 inline constexpr const char* kPayloadOnline  = "online";
 inline constexpr const char* kPayloadOffline = "offline";
 

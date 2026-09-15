@@ -25,6 +25,7 @@
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
+#include "node_availability.h"
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
@@ -174,6 +175,63 @@ void sched_polls(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
+// The availability watchdog (BF-20). sched_task owns it outright - it is written and read in
+// no other task - so it needs no lock. mqtt_task asks for a republish through an atomic, and
+// ui_task reads the counts through two more.
+// ---------------------------------------------------------------------------
+
+AvailabilityWatchdog g_availability;
+std::atomic<bool>    g_availability_republish{false};
+std::atomic<uint8_t> g_nodes_online{kNodesUnknown};
+std::atomic<uint8_t> g_nodes_watched{kNodesUnknown};
+
+// spec 16.6 - bench publication is off by default. TODO(BF-26): simnode_diag_enable, settable
+// from lran/bridge/config/set, and a mark_known_pending() when it is switched on. Until then
+// a simnode's availability is judged and logged, and not published.
+constexpr bool kSimnodeDiagEnable = false;
+
+void sched_availability() {
+  if (g_availability_republish.exchange(false)) g_availability.mark_known_pending();
+
+  for (size_t i = 0; i < registry_size(); ++i) {
+    const NodeInfo& info = registry_info_at(i);
+    NodeState       ns;
+    if (!registry_state(info.id, &ns)) continue;
+
+    const AvailabilityChange c = g_availability.evaluate(i, info, ns);
+    char                     name[16];
+    if (node_topic_name(info.id, name, sizeof(name)) == 0) {
+      g_availability.clear_pending(i);  // no spec 16.1 token, so no topic
+      continue;
+    }
+    if (c.changed) {
+      // The bench record of V-B3 while bench publication is off.
+      Serial.printf("availability: %s %s (missed_polls %u, threshold %u)\n", name,
+                    availability_payload(c.to), static_cast<unsigned>(ns.missed_polls),
+                    static_cast<unsigned>(g_availability.threshold()));
+    }
+    if (!g_availability.pending(i)) continue;
+    if (!availability_publishable(info, kSimnodeDiagEnable)) {
+      g_availability.clear_pending(i);
+      continue;
+    }
+
+    char           topic[kMaxTopicLen];
+    PublishMessage msg;
+    // R-3.4c - retained. A queue that refuses it leaves the row pending for the next tick.
+    if (topic_availability(name, topic, sizeof(topic)) > 0 &&
+        make_publish(&msg, topic, availability_payload(g_availability.state(i)),
+                     /*retain=*/true, /*qos=*/0) &&
+        send_publish(msg)) {
+      g_availability.clear_pending(i);
+    }
+  }
+
+  g_nodes_online  = g_availability.online_count();
+  g_nodes_watched = g_availability.watched_count();
+}
+
+// ---------------------------------------------------------------------------
 // Task bodies.
 // ---------------------------------------------------------------------------
 
@@ -199,7 +257,7 @@ void sched_task(void*) {
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
     sched_polls(millis());  // BF-17 - Impl Plan 6.1, R-3.1d
-    // TODO(BF-20): the availability watchdog (3.4).
+    sched_availability();   // BF-20 - PRD 3.4, spec 16.5
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
     vTaskDelayUntil(&last, period);
   }
@@ -248,7 +306,9 @@ void on_mqtt_connected() {
   // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
   // reconnect" (R-3.3c). They are generated in this task and published directly
   // rather than through the queue, which is why the queue is sized for state.
-  // TODO(BF-20): per-node availability, which is a different thing from this one.
+  // Per-node availability (BF-20), which is a different thing from this one. sched_task
+  // owns the watchdog and publishes through the queue on its next tick.
+  g_availability_republish = true;
 }
 
 // Normal priority, core 0, alongside the WiFi stack it talks to.
@@ -354,8 +414,10 @@ void ui_task(void*) {
       s.wifi_connected  = wifi_connected();
       s.wifi_rssi_dbm   = wifi_rssi_dbm();
       s.mqtt_connected  = g_mqtt_up;
-      // TODO(BF-20): nodes_online / nodes_total from the availability watchdog. Until
-      // then kNodesUnknown, which the page renders as `--` rather than as zero.
+      // BF-20 - online out of watched. kNodesUnknown, rendered `--`, until sched_task's
+      // first tick.
+      s.nodes_online    = g_nodes_online;
+      s.nodes_total     = g_nodes_watched;
       s.any_dropped     = g_accounting.any_dropped();
       s.ota_in_progress = ota_in_progress();
       s.ota_pending     = ota_verify_pending();

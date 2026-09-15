@@ -975,3 +975,51 @@ an initialized array member, and CI compiled both.
 
 **Trap:** a clean local `pio test -e native` on macOS does not show that CI's GCC will compile
 the code. Read the PR's `Host Unity suites` job before calling a change verified.
+
+## 2026-09-14 — BF-20: the availability watchdog
+
+**The bridge now judges each watched node `online` or `offline` and publishes the result,
+retained, to `lran/<node>/availability`** (PRD R-3.4a–c, spec §16.5). It is host-tested: 13
+tests in `test_availability`, 116 bridge host tests in all. Nothing has been published to a
+broker, and no node on air has been judged. Impl Plan §6.1.2 has the rules.
+
+The fix in the entry above passed CI's host suites at `10e3d6c`.
+
+### What it does
+
+- `sched_task` runs the watchdog once a tick, after the scheduler. A node goes `offline` when
+  `missed_polls` reaches `missed_poll_threshold` (default 3, runtime-settable, 0 held to 1) and
+  `online` on any valid frame.
+- **A node that has neither answered nor missed enough polls since boot is Unknown, and
+  nothing is published for it.** Whatever the broker retained from before the reboot stands
+  until the node settles it. The alternative, `offline` for every node at boot, would flap a
+  live GateLink off and on at every bridge restart.
+- Every broker connect publishes each judged node again: `mqtt_task` sets a flag and
+  `sched_task` publishes through the queue on its next tick. A publication the queue refuses
+  leaves the node pending, and the next tick retries it.
+- **The watched nodes are the ones BF-17 polls.** The status page's `nodes n/m` now reads
+  online out of watched, so a bridge with no WellLink shows `nodes 1/2` once GateLink answers.
+- R-3.4d needs no code here. BF-23's discovery configs must list the bridge's LWT topic and the
+  node's availability topic together.
+
+### Decisions made while building it
+
+1. **A simnode's availability is not published yet.** Spec §16.6 publishes bench availability
+   only while `simnode_diag_enable` is set, default `false`, and BF-26 owns that flag. Until
+   BF-26, the bridge judges a simnode and prints each change on the serial console, for
+   example `availability: simnode1 offline (missed_polls 3, threshold 3)`. **V-B3 reads that
+   line on the bench** until the flag exists.
+2. **The watchdog detects a frame from a new registry count, `frames_heard`**, not from
+   `missed_polls == 0`. A frame followed by a closed reply window inside one 1 s tick would
+   leave `missed_polls` at 1 and hide the frame. BF-17's scheduler makes that unlikely, since
+   any frame clears the node's outstanding poll, but the watchdog should not depend on it. A
+   mutation back to `missed_polls == 0` failed one test; changing `>=` to `>` at the threshold
+   failed six.
+
+### Trap
+
+**A source file named `availability.h` breaks the macOS native build.** macOS's filesystem is
+case-insensitive, `src/` is on the include path, and the SDK's `stdio.h` includes
+`<Availability.h>`, so the project's header replaced the SDK's in every translation unit. The
+errors appear inside `string.h` and name nothing in the project. The files are
+`node_availability.{h,cpp}`.

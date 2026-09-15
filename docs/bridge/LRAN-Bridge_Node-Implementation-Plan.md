@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.29
+**Version:** 0.30
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -812,6 +812,23 @@ entry argues each choice.
 | Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
 | `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
 | OTA | An upload in progress holds new polls; an outstanding poll keeps `lora_task_idle()` false (R-5.3d) |
+
+#### 6.1.2 What BF-20 built, 2026-09-14
+
+`node_availability.{h,cpp}` judges, host-tested; `sched_task` publishes, once a tick after the
+scheduler. The engineering log's BF-20 entry argues each choice.
+
+| Parameter or rule | Value |
+|---|---|
+| `missed_poll_threshold` | **3**, runtime-settable (PRD R-3.4b). 0 is held to 1 |
+| `offline` | `missed_polls` at or above the threshold |
+| `online` | Any valid frame since the previous tick: the registry's new `frames_heard` count moved |
+| Unknown | Neither, since boot. **Not published**: the broker's retained value stands until the node settles it |
+| Watched | The rows §6.1.1 polls: production from boot, bench once heard |
+| Publication | `lran/<node>/availability`, retained, QoS 0, through the publish queue. A refused publication is retried on the next tick; every judged node is published again after each broker connect |
+| Bench rows | Judged and printed on the serial console. **Published only with `simnode_diag_enable`** (spec §16.6), which BF-26 builds; until then, never |
+| Status page | `nodes <online>/<watched>` |
+| R-3.4d | No bridge code. BF-23's discovery configs must list the bridge's LWT topic and the node's availability topic together |
 
 ### 6.2 Command path and retry
 
@@ -1822,6 +1839,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.30** | **New §6.1.2** — BF-20's availability watchdog; bench availability waits for BF-26 |
 | **v0.29** | **New §6.1.1** — BF-17's scheduler; names `poll_reply_timeout_ms`, which no document did |
 | **v0.28** | **New §10.9.2** — BF-6's `ROLE_GATELINK`; four operator decisions; three spec questions |
 | **v0.27** | **New §10.9.1** — BF-9's OLED page, on both profiles |
@@ -1851,6 +1869,11 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.30** — **BF-20 built the availability watchdog**, new §6.1.2. A node neither heard nor
+  judged since boot is published as nothing, so a bridge restart does not flap a live node.
+  Bench availability is judged and logged but not published until BF-26 builds
+  `simnode_diag_enable` (spec §16.6). No requirement or milestone criterion changes.
 
 - **v0.29** — **BF-17 built the poll scheduler**, new §6.1.1. §6.1 said when a poll is
   unanswered without saying how long to wait: **`poll_reply_timeout_ms`, default 10 000**, is

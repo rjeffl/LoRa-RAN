@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.29
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.17 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.30
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.18 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -51,6 +51,14 @@ keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a reg
 a queue send**, so it never nests with the registry's; a bench row is polled only after it
 has been heard; and `lora_task_idle()` is false while a poll is outstanding, which an OTA
 upload waits on.
+
+**`BF-20` — the availability watchdog, built and host-tested.** `node_availability.{h,cpp}`
+judges and `sched_task` publishes; Impl Plan §6.1.2. **Three things to keep:** the watchdog
+belongs to `sched_task` alone, so other tasks reach it only through atomics; it detects a
+frame from `NodeState::frames_heard`, never from `missed_polls == 0`; and **a bench node's
+availability is not published** until BF-26's `simnode_diag_enable` exists (spec §16.6).
+**Do not name a source file `availability.h`**: on macOS's case-insensitive filesystem it
+shadows the SDK's `<Availability.h>` and breaks every native build.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.

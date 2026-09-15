@@ -58,6 +58,7 @@ Observed Registry::observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr
   NodeState& s   = entries_[i].state;
   s.heard        = true;
   s.last_seen_ms = now_ms;
+  ++s.frames_heard;
   s.proto_ver    = hdr.ver;
   s.rssi_dbm     = rssi_dbm;
   s.snr_db       = snr_db;

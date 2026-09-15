@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.17
+**Version:** 0.18
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.29
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.30
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -205,7 +205,7 @@ protocol risk.
 | **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d). **Built 2026-09-14, host-tested; no poll on air yet** — Impl Plan §6.1.1 | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
 | **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**) | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
 | **BF-19** | §14 discard ladder wiring — every counter in `kCounterRegistry`, named and published | **Sonnet** | The registry is normative and the fault catalogue tests each stage. Mechanical, high-volume, and caught immediately by BF-8's faults |
-| **BF-20** | Availability watchdog — `missed_poll_threshold`, retained publication (§3.4) | **Sonnet** | Four requirements, a default of 3, and **V-B3** tests it by stopping one logical identity |
+| **BF-20** | Availability watchdog — `missed_poll_threshold`, retained publication (§3.4). **Built 2026-09-14, host-tested; bench availability unpublished until BF-26** — Impl Plan §6.1.2 | **Sonnet** | Four requirements, a default of 3, and **V-B3** tests it by stopping one logical identity |
 | **BF-21** | `simctl` scenario scripts for the whole §10.5 catalogue (§7.2) | **Sonnet** | Scripting a table that already exists. The entries most likely to be skipped by hand are the ones whose correct result is *nothing happens*, which is exactly what a script does not skip |
 | **BF-22** | Version tolerance — accept N and N−1, per-node downgrade, distinct reason for unsupported (**V-B10**, R-3.1e/f) | **Opus** | This is what makes an incremental rollout possible instead of a flag day, on a fleet where a flag day means a walk to the gate |
 
@@ -267,6 +267,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.18** | **BF-20 built** — the availability watchdog; bench publication waits for BF-26 |
 | **v0.17** | **BF-17 built** — the poll scheduler, on a branch stacked on B0's |
 | **v0.16** | **BF-6 built** — `ROLE_GATELINK`; B0's tasks are all built, bench work remains |
 | **v0.15** | **BF-9 built** — the simnode's OLED page; B0 leaves only BF-6 |
@@ -284,6 +285,12 @@ only against the bridge, a cached value republished as current.
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.18** — **BF-20 is built**: `offline` after `missed_poll_threshold` missed polls,
+  `online` on any valid frame, retained per node and republished on every broker connect. A
+  simnode's availability is judged and logged but not published, because spec §16.6 gates it
+  on `simnode_diag_enable` and **BF-26** has not built that flag. V-B3 reads the serial log
+  until then. No scope or model column changes. This document inherits Bridge Impl Plan v0.30.
 
 - **v0.17** — **BF-17 is built**: per-node poll intervals, one outstanding poll fleet-wide,
   `missed_polls` counted and cleared. It is the first B3 task built after B0, on
