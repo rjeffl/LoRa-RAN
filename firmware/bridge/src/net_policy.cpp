@@ -58,6 +58,21 @@ size_t topic_bridge_version(char* out, size_t cap) {
   return write_topic(out, cap, "lran/bridge/version", nullptr);
 }
 
+size_t topic_diag(const char* node, const char* item, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || (item != nullptr && item[0] == '\0')) {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = item == nullptr ? std::snprintf(out, cap, "lran/%s/diag/state", node)
+                                : std::snprintf(out, cap, "lran/%s/diag/%s/state", node, item);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 size_t node_topic_name(uint8_t node_id, char* out, size_t cap) {
   // spec 5.3's addresses, spec 16.1's tokens. The bench token counts from 0xF0.
   static const char* const kBench[] = {"simnode0", "simnode1", "simnode2", "simnode3"};

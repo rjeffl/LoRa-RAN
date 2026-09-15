@@ -222,9 +222,9 @@ void test_a_broker_connect_republishes_every_known_node() {
 // spec 16.6 - a bench node's availability is gated on simnode_diag_enable; production is not.
 void test_bench_availability_is_published_only_with_simnode_diag_enable() {
   Rig r;
-  TEST_ASSERT_TRUE(availability_publishable(r.info(kGate), false));
-  TEST_ASSERT_FALSE(availability_publishable(r.info(kSim0), false));
-  TEST_ASSERT_TRUE(availability_publishable(r.info(kSim0), true));
+  TEST_ASSERT_TRUE(bench_publication_allowed(r.info(kGate), false));
+  TEST_ASSERT_FALSE(bench_publication_allowed(r.info(kSim0), false));
+  TEST_ASSERT_TRUE(bench_publication_allowed(r.info(kSim0), true));
 }
 
 // spec 16.1's tokens, and no topic for an address it does not name.

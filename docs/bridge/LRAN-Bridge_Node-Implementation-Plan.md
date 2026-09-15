@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.30
+**Version:** 0.31
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -489,6 +489,30 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 - **A failed publish loses that message**, counted, and leaves the rest queued.
   Re-queueing would reorder it behind newer state for the same entity. **BF-25 owns
   events**, where the answer differs.
+
+#### 4.3.2 What BF-19 publishes, 2026-09-14
+
+Every §14.1 counter reaches the broker under its normative name. `diag_json.{h,cpp}` builds
+the documents, host-tested; `sched_task` publishes them, retained, every
+`diag_publish_interval_s` and on the tick after each broker connect. Spec §16.2 names
+`lran/<node>/diag/state` and defines no payload, so these documents are the bridge's choice,
+as `lran/bridge/version`'s was (BF-13).
+
+| Topic | Carries |
+|---|---|
+| `lran/bridge/diag/state` | The 21 §14.1 counters in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, `unregistered_src` |
+| `lran/bridge/diag/radio/state` | `tx_frames`, `cad_backoffs`, the driver's `LoraStats`, and each queue's `dropped` and `high_water` |
+| `lran/<node>/diag/state` | `rssi_dbm`, `snr_db`, `last_seen_s` (an age), `missed_polls`, `proto_ver`. Watched nodes only; a bench node only with `simnode_diag_enable` (§4.2a) |
+
+| Rule | Value |
+|---|---|
+| **Discard counters are the bridge's, not a node's** (decided with the operator) | Most discards happen before the MAC check, where `src` may be corrupt or forged. §14.1's "per node by the bridge" is raised for spec v0.12 |
+| Sentinels | `null`, never a number (root rule 6) |
+| `diag_publish_interval_s` | **60**, runtime-settable. No document gave a cadence; one default poll interval |
+| Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
+| `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
+| A refused publication | Not retried; the next interval carries newer numbers |
+| `ERROR` replies (spec §14) | **Not built** (decided with the operator). **BF-19a**, after spec v0.12 says whether the bridge must answer and to which `src` and `ctx_id` when the header is unauthenticated |
 
 ### 4.4 Home Assistant discovery
 
@@ -1839,6 +1863,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.31** | **New §4.3.2** — BF-19's diagnostic documents; `kMaxPayloadLen` 768; ERROR replies split to BF-19a |
 | **v0.30** | **New §6.1.2** — BF-20's availability watchdog; bench availability waits for BF-26 |
 | **v0.29** | **New §6.1.1** — BF-17's scheduler; names `poll_reply_timeout_ms`, which no document did |
 | **v0.28** | **New §10.9.2** — BF-6's `ROLE_GATELINK`; four operator decisions; three spec questions |
@@ -1869,6 +1894,13 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.31** — **BF-19 publishes every §14.1 counter**, new §4.3.2. The discard counters are
+  published as the bridge's, not per node, and the ERROR replies §14 asks of a receiver are
+  not built; both were decided with the operator and both are raised for spec v0.12. **BF-26
+  is deferred**: §4.2a's `simnode_diag_enable` needs `/lib/lran-config/`, an MQTT receive path
+  and a `config/set` payload, and none of the three exists or has a task. No requirement or
+  milestone criterion changes.
 
 - **v0.30** — **BF-20 built the availability watchdog**, new §6.1.2. A node neither heard nor
   judged since boot is published as nothing, so a bridge restart does not flap a live node.

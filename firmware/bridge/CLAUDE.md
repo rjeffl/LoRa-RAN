@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.30
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.18 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.31
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.19 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -59,6 +59,13 @@ frame from `NodeState::frames_heard`, never from `missed_polls == 0`; and **a be
 availability is not published** until BF-26's `simnode_diag_enable` exists (spec §16.6).
 **Do not name a source file `availability.h`**: on macOS's case-insensitive filesystem it
 shadows the SDK's `<Availability.h>` and breaks every native build.
+
+**`BF-19` — the diagnostic publication, built and host-tested.** `diag_json.{h,cpp}` formats
+and `sched_task` publishes; Impl Plan §4.3.2. **Three things to keep:** counter names come
+from `lran::kCounterRegistry` and are never spelled as literals; **read `lora_task`'s
+counters only through `lora_diag_snapshot()`**, never field by field; and `sched_task`
+publishes from its static `g_sched_msg`, because a `PublishMessage` is ~872 bytes and its
+stack is 3072. **`ERROR` replies are BF-19a**, waiting for spec v0.12.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.

@@ -1023,3 +1023,66 @@ case-insensitive, `src/` is on the include path, and the SDK's `stdio.h` include
 `<Availability.h>`, so the project's header replaced the SDK's in every translation unit. The
 errors appear inside `string.h` and name nothing in the project. The files are
 `node_availability.{h,cpp}`.
+
+## 2026-09-14 — BF-19: every §14.1 counter published, and BF-26 deferred
+
+**The bridge now publishes all 21 §14.1 discard counters by their normative names**, with
+`rx_dropped`, retained, on `lran/bridge/diag/state`. The radio's and queues' diagnostics go
+to `lran/bridge/diag/radio/state`, and each watched node's link to `lran/<node>/diag/state`.
+It is host-tested: 10 tests in `test_diag`, 126 bridge host tests in all. Nothing has been
+seen at a broker, and no counter has been moved by a frame on air. Impl Plan §4.3.2 has the
+topics and rules.
+
+### BF-26 first, and why it stopped
+
+BF-26 was asked for first and deferred with the operator. Impl Plan §4.2a makes
+`simnode_diag_enable` a `/lib/lran-config/` parameter set over `lran/bridge/config/set`, and
+three pieces of that do not exist:
+
+1. **`/lib/lran-config/`.** System PRD §9.4 describes it; no plan section builds it and no
+   task owns it.
+2. **An MQTT receive path.** The bridge can subscribe but installs no message callback and
+   has no inbound queue. BF-18's command topics need the same path, and no task owns it
+   either.
+3. **A `config/set` and `config/ack` payload.** Spec §16.2 names the topics and defines no
+   payload, and the specification owns every MQTT topic.
+
+**Decided with the operator for when BF-26 is built:** until Home Assistant can set the flag,
+the bench toggle is a serial `diag on|off` command, RAM only, off at every boot. It keeps
+one binary, which is §16.6's argument against a build-time switch.
+
+### Decisions
+
+1. **The discard counters are the bridge's, not per node** (operator). §14.1 says every
+   counter is "published: per node by the bridge", but stages 1–2a have no header to read,
+   and until stage 9 checks the MAC the `src` byte may be corrupt or forged. Charging a
+   stranger's frame to GateLink would make a healthy node look sick. **Raised for spec
+   v0.12:** how a pre-MAC discard is attributed, if at all.
+2. **`ERROR` replies are not built** (operator). §14 has a receiver answer stages 5a–10 with
+   `ERROR`, and stages 3–4 optionally. On the bridge, each reply goes to a solar node's `src`
+   taken from an unauthenticated header, addressed to a `ctx_id` the frame has not proved.
+   **Raised for spec v0.12:** whether the bridge must answer, and to which `src` and
+   `ctx_id`. The work is the new BF-19a.
+3. **The payloads are the bridge's choice.** Spec §16.2 defines no `diag/state` payload, as
+   it defines none for `lran/bridge/version`. The keys are the §14.1 names from
+   `kCounterRegistry`, and a sentinel is `null`. **Raised for spec v0.12** with the other
+   payload gaps.
+4. **`diag_publish_interval_s` is 60 s**, runtime-settable. No document gave a cadence.
+
+### Found on the way
+
+- **The counter document does not fit the old queue payload.** With every counter at
+  `UINT32_MAX` it is 681 bytes, and `kMaxPayloadLen` was 512. A counter document refused
+  months into uptime would have been counted and silent on the broker. `kMaxPayloadLen` is
+  768 and a test asserts the worst case fits; the publish queue's static RAM grows from ~19 KB
+  to ~28 KB. The Heltec build reports 38.3 % RAM.
+- **`sched_task`'s 3072-byte stack could not hold a publication as a local.** A
+  `PublishMessage` is now ~872 bytes and the JSON buffer 768. `sched_task` publishes from
+  one static message, BF-20's availability included.
+- **`lora_task`'s counters were readable only field by field**, so a reader could combine
+  values from two moments and publish an `rx_dropped` that disagreed with its parts.
+  `lora_task` now copies them under a spinlock once a second. A spinlock rather than a
+  mutex, because `lora_task` never waits on another task.
+
+Mutation checks: skipping the first registry counter failed two tests; publishing an
+unknown RSSI as a number failed one.

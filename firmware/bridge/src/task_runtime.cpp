@@ -21,6 +21,7 @@
 #include <atomic>
 
 #include "board_ui.h"
+#include "diag_json.h"
 #include "lora_link.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
@@ -175,6 +176,22 @@ void sched_polls(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
+// sched_task's publications. One static message and one JSON buffer, not locals: at ~872
+// and 768 bytes they would take over half of sched_task's 3072-byte stack. Only sched_task
+// touches them.
+// ---------------------------------------------------------------------------
+
+PublishMessage g_sched_msg;
+char           g_sched_json[kMaxPayloadLen];
+
+// Retained, QoS 0, like the bridge's own availability. False when the queue refused it,
+// which send_publish() has already counted.
+bool sched_publish(const char* topic, const char* payload) {
+  return make_publish(&g_sched_msg, topic, payload, /*retain=*/true, /*qos=*/0) &&
+         send_publish(g_sched_msg);
+}
+
+// ---------------------------------------------------------------------------
 // The availability watchdog (BF-20). sched_task owns it outright - it is written and read in
 // no other task - so it needs no lock. mqtt_task asks for a republish through an atomic, and
 // ui_task reads the counts through two more.
@@ -211,24 +228,78 @@ void sched_availability() {
                     static_cast<unsigned>(g_availability.threshold()));
     }
     if (!g_availability.pending(i)) continue;
-    if (!availability_publishable(info, kSimnodeDiagEnable)) {
+    if (!bench_publication_allowed(info, kSimnodeDiagEnable)) {
       g_availability.clear_pending(i);
       continue;
     }
 
-    char           topic[kMaxTopicLen];
-    PublishMessage msg;
+    char topic[kMaxTopicLen];
     // R-3.4c - retained. A queue that refuses it leaves the row pending for the next tick.
     if (topic_availability(name, topic, sizeof(topic)) > 0 &&
-        make_publish(&msg, topic, availability_payload(g_availability.state(i)),
-                     /*retain=*/true, /*qos=*/0) &&
-        send_publish(msg)) {
+        sched_publish(topic, availability_payload(g_availability.state(i)))) {
       g_availability.clear_pending(i);
     }
   }
 
   g_nodes_online  = g_availability.online_count();
   g_nodes_watched = g_availability.watched_count();
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics (BF-19). Every g_diag_interval_s, and on the tick after a broker connect: the
+// bridge's discard counters, its radio and queues, and each watched node's link. diag_json.h
+// says why the discard counters are the bridge's and not a node's.
+//
+// A publication the queue refuses is not retried: the next one carries newer numbers.
+// ---------------------------------------------------------------------------
+
+// TODO(BF-23): set from Home Assistant.
+std::atomic<uint16_t> g_diag_interval_s{kDiagPublishIntervalDefaultS};
+std::atomic<bool>     g_diag_republish{false};
+bool                  g_diag_published = false;
+uint32_t              g_diag_last_ms   = 0;
+
+void sched_diag(uint32_t now_ms) {
+  const bool     reconnect = g_diag_republish.exchange(false);
+  const uint32_t interval  = (g_diag_interval_s == 0 ? 1u : g_diag_interval_s.load()) * 1000u;
+  if (!reconnect && g_diag_published && now_ms - g_diag_last_ms < interval) return;
+  g_diag_published = true;
+  g_diag_last_ms   = now_ms;
+
+  lran::Counters c;
+  RadioDiag      r;
+  uint32_t       unregistered = 0;
+  lora_diag_snapshot(&c, &r.stats, &unregistered);
+  r.tx_frames    = c.tx_frames;
+  r.cad_backoffs = c.cad_backoffs;
+  for (size_t q = 0; q < kQueueCount; ++q) r.queues[q] = g_accounting.stat(static_cast<QueueId>(q));
+
+  char topic[kMaxTopicLen];
+  if (topic_diag("bridge", nullptr, topic, sizeof(topic)) > 0 &&
+      diag_rx_json(c, unregistered, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+  if (topic_diag("bridge", "radio", topic, sizeof(topic)) > 0 &&
+      diag_radio_json(r, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+
+  for (size_t i = 0; i < registry_size(); ++i) {
+    const NodeInfo& info = registry_info_at(i);
+    // The nodes the scheduler polls, and spec 16.6's bench gate.
+    if (!g_availability.watched(i) || !bench_publication_allowed(info, kSimnodeDiagEnable)) {
+      continue;
+    }
+    char      name[16];
+    NodeState ns;
+    if (node_topic_name(info.id, name, sizeof(name)) == 0 || !registry_state(info.id, &ns)) {
+      continue;
+    }
+    if (topic_diag(name, nullptr, topic, sizeof(topic)) > 0 &&
+        diag_node_json(ns, now_ms, g_sched_json, sizeof(g_sched_json)) > 0) {
+      (void)sched_publish(topic, g_sched_json);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +329,7 @@ void sched_task(void*) {
   for (;;) {
     sched_polls(millis());  // BF-17 - Impl Plan 6.1, R-3.1d
     sched_availability();   // BF-20 - PRD 3.4, spec 16.5
+    sched_diag(millis());   // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
     vTaskDelayUntil(&last, period);
   }
@@ -309,6 +381,8 @@ void on_mqtt_connected() {
   // Per-node availability (BF-20), which is a different thing from this one. sched_task
   // owns the watchdog and publishes through the queue on its next tick.
   g_availability_republish = true;
+  // Diagnostics are retained too (spec 16.2), so they are put back the same way (BF-19).
+  g_diag_republish = true;
 }
 
 // Normal priority, core 0, alongside the WiFi stack it talks to.
@@ -369,7 +443,7 @@ void app_task(void*) {
     // BF-17. Answers an outstanding poll to this node, and enrols a bench node in the
     // schedule the first time it is heard.
     sched_on_heard(msg.hdr.src, msg.rx_millis);
-    // TODO(BF-19): wire the spec 14 discard ladder counters through.
+    // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
     // policy, into the publish queue.
   }

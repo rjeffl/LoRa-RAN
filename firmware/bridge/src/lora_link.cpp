@@ -48,6 +48,14 @@ LoraStats      g_stats;
 RxLadder       g_ladder(&g_counters);
 MediaAccess    g_access;
 
+// The copy other tasks read (lora_diag_snapshot). Written only by lora_task, under the mux.
+constexpr uint32_t kDiagSnapshotMs = 1000;
+portMUX_TYPE       g_diag_mux      = portMUX_INITIALIZER_UNLOCKED;
+lran::Counters     g_diag_counters;
+LoraStats          g_diag_stats;
+uint32_t           g_diag_unregistered = 0;
+uint32_t           g_diag_copied_ms    = 0;
+
 // Read by other tasks: ota_task for R-5.3d and the image verdict.
 std::atomic<bool> g_ready{false};
 std::atomic<bool> g_idle{true};
@@ -458,6 +466,18 @@ void lora_service(uint32_t now_ms) {
 
   g_ladder.tick(now_ms);
 
+  // BF-19. Another task reading g_counters field by field could see rx_dropped's parts
+  // from two moments. A spinlock, not a mutex: lora_task never waits on another task, and
+  // this holds the other core off for one ~150-byte copy, once a second.
+  if (elapsed(now_ms, g_diag_copied_ms) >= kDiagSnapshotMs) {
+    g_diag_copied_ms = now_ms;
+    portENTER_CRITICAL(&g_diag_mux);
+    g_diag_counters    = g_counters;
+    g_diag_stats       = g_stats;
+    g_diag_unregistered = g_ladder.unregistered_src();
+    portEXIT_CRITICAL(&g_diag_mux);
+  }
+
   g_idle = (g_mode == Mode::Receive || g_mode == Mode::Down) && !g_have_tx &&
            !g_ladder.any_set_active();
 }
@@ -479,10 +499,12 @@ bool lora_radio_ready() { return g_ready; }
 
 bool lora_idle() { return g_idle; }
 
-const lran::Counters& lora_counters() { return g_counters; }
-
-const LoraStats& lora_stats() { return g_stats; }
-
-uint32_t lora_unregistered_src() { return g_ladder.unregistered_src(); }
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src) {
+  portENTER_CRITICAL(&g_diag_mux);
+  if (counters != nullptr) *counters = g_diag_counters;
+  if (stats != nullptr) *stats = g_diag_stats;
+  if (unregistered_src != nullptr) *unregistered_src = g_diag_unregistered;
+  portEXIT_CRITICAL(&g_diag_mux);
+}
 
 }  // namespace bridge

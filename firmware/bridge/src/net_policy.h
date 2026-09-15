@@ -67,6 +67,10 @@ size_t topic_bridge_version(char* out, size_t cap);
 // `cap`. A node without a token has no topics, rather than a topic invented for it.
 size_t node_topic_name(uint8_t node_id, char* out, size_t cap);
 
+// `lran/<node>/diag/state`, or `lran/<node>/diag/<item>/state` when `item` is not null
+// (spec 16.1's optional item). BF-19. Returns the length written, or 0.
+size_t topic_diag(const char* node, const char* item, char* out, size_t cap);
+
 inline constexpr const char* kPayloadOnline  = "online";
 inline constexpr const char* kPayloadOffline = "offline";
 

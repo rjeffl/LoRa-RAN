@@ -81,9 +81,10 @@ class AvailabilityWatchdog {
   Row      rows_[kNodeCount];
 };
 
-// spec 16.6 - a bench node's availability is published only while simnode_diag_enable is
-// set. The watchdog still judges it; only the publication is gated (Impl Plan 4.2a).
-inline bool availability_publishable(const NodeInfo& info, bool simnode_diag_enable) {
+// spec 16.6 - a bench node's availability and diagnostics are published only while
+// simnode_diag_enable is set. The node is still judged and counted; only the publication is
+// gated (Impl Plan 4.2a).
+inline bool bench_publication_allowed(const NodeInfo& info, bool simnode_diag_enable) {
   return !info.is_bench || simnode_diag_enable;
 }
 
