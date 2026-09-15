@@ -31,6 +31,15 @@ namespace {
 
 using lran::schema::GateLinkStatusV1;
 
+// Resets copy from these rather than assigning a braced temporary. GCC 13.3 (CI's
+// ubuntu-24.04 native build) hits an internal compiler error gimplifying
+// `x = lran::schema::GateLinkConfigAckV1{};` - an aggregate whose array member carries
+// a default member initializer. Clang and the Xtensa GCC compile it; the copy is the
+// same bytes either way.
+const GateLinkStatusV1                  kEmptyStatus{};
+const lran::schema::GateLinkConfigV1    kEmptyConfig{};
+const lran::schema::GateLinkConfigAckV1 kEmptyConfigAck{};
+
 struct ReasonName {
   const char*        name;
   lran::StatusReason value;
@@ -289,7 +298,7 @@ const char* cmd_name(uint8_t cmd) {
 // ---------------------------------------------------------------------------
 
 void reset_gatelink_telemetry(GateLinkStatusV1* s) {
-  *s                      = GateLinkStatusV1{};
+  *s                      = kEmptyStatus;
   s->gate_state           = static_cast<uint8_t>(lran::GateState::Closed);
   s->last_traversal_age_s = 3600;
   s->batt_mv              = 13300;
@@ -566,7 +575,7 @@ bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::Ga
 void Node::apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
                         lran::schema::GateLinkConfigAckV1* out) {
   namespace sc = lran::schema;
-  *out                = sc::GateLinkConfigAckV1{};
+  *out                = kEmptyConfigAck;
   out->op             = in.op;
   // Honest (spec 7.4): the store is RAM, so nothing is ever persisted.
   out->persist_status = lran::PersistStatus::AppliedNotPersisted;
@@ -636,7 +645,7 @@ void Node::apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
 }
 
 bool Node::send_config_readback(Identity& e, lran::NodeId dst) {
-  cfg_rx_    = lran::schema::GateLinkConfigV1{};
+  cfg_rx_    = kEmptyConfig;
   cfg_rx_.op = lran::ConfigOp::GetAll;
   apply_config(e, cfg_rx_, &cfg_ack_);
   return send_config_ack(e, dst, cfg_ack_);
@@ -812,7 +821,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
 
   if (lran::schema::deserialize(payload, len, &cfg_rx_) != lran::Status::Ok) {
     e.gate.record(hdr.seq, lran::AckResult::RejectedArg, 0);
-    cfg_ack_                = lran::schema::GateLinkConfigAckV1{};
+    cfg_ack_                = kEmptyConfigAck;
     cfg_ack_.op             = static_cast<lran::ConfigOp>(len > 0 ? payload[0] : 0);
     cfg_ack_.persist_status = lran::PersistStatus::NotApplied;
     sink_printf(log_, "config %02x <- %02x seq %u: body did not parse, NOT_APPLIED", e.id, hdr.src,
