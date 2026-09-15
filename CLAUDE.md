@@ -254,6 +254,23 @@ revising, not as a cleanup pass afterward. It carries the reader-first rules: re
 first, named actor, condition before instruction, one term per concept, and a list of
 stock machine-writing patterns to keep out.
 
+**Opening an existing document for edits means reviewing all of it with the skill.** This
+covers the protocol specification, PRDs, implementation plans, task documents, READMEs
+and this file. Review the whole document, not only the lines the change needs, and keep
+that review from burying the change it rides with:
+
+- **Fix the sections the change touches in the same commit.**
+- **Fix the rest of the document in a separate commit** on the same branch, marked
+  style-only in its message. That commit changes no fact, identifier, value, requirement
+  or version, so a reviewer can read it as wording alone.
+- **If the review finds more than the branch should carry, list the findings instead.**
+  Put them in the PR description and fix them on their own branch. The same applies when
+  another open branch is already editing the document.
+- **Leave dated records alone.** Changelog entries, engineering-log entries and handoff
+  files follow the dated-records rule below.
+- **A wrong fact, a contradiction or drift from the specification is not a style
+  finding.** Raise it, as *Working style* says; do not fix it in the style-only commit.
+
 Order of precedence when the skill and this repo disagree:
 
 1. This file and the governing documents in `docs/`.
