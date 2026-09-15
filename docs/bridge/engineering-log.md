@@ -1108,3 +1108,111 @@ is still a derived number. B4 follows B3a.
 
 **The next session has every board and the broker.** The handoff orders it so that B0 and
 B3a can be accepted and the stack merged in one sitting.
+
+## 2026-09-15 — V-B9 re-run, B0 accepted, and B3a on air
+
+**The bench session the B3 split was made for.** Every board and the dev broker were on the
+desk: the bridge board, the simnode Heltec, and the XIAO with the Wio-SX1262 Kit, which had
+never run a simnode image. Everything ran from the tip of `b3-poll-scheduler`, so the bench
+tested what `main` will run.
+
+Desk check first, from a clean tree: 127 protocol, 7 link, 16 sim, 126 bridge and 108 simnode
+host tests pass, the three targets build, and the five repository checks pass.
+
+### V-B9 — all four steps passed
+
+Owed since BF-16 added `radio_ok` to the verdict (Impl Plan §6.5.2). Step 2's image carried
+`custom_bridge_version = 0.1.1-vb9`, so its banner reads `-dirty`; the bump was reverted and
+the board reflashed from a clean tree afterwards.
+
+1. **USB flash.** `Version: 0.1.0 (c5f021f)`, `Slot: app0`, `Image state: not_pending`.
+2. **OTA a second good build.** `Slot: app1`, `pending_verify`, then 120 s after boot
+   `OTA: image verified - marked valid, rollback cancelled`.
+3. **The no-network image.** `Slot: app0`, `pending_verify`, the V-B9 banner, then at 90 s
+   `OTA: image did not prove itself in time - ROLLING BACK`, and a reboot into `Slot: app1`
+   carrying step 2's version.
+4. **The panic image.** The V-B9 banner once, `abort() was called at PC 0x4200284b`, and a
+   reboot into step 2's image. One banner, so the bootloader rolled back.
+
+**What this run did not test.** The no-network image's radio came up, so its rollback proves
+the network half of the verdict, not the `radio_ok` half BF-16 added. No image with a dead
+radio was built.
+
+**`AUTH_FAIL` (reason 202) on the first WiFi attempt of every good boot**, five boots out of
+five, with a later attempt connecting each time. Nothing here depends on it. Recorded because
+the serial log otherwise says nothing about WiFi state.
+
+### B0 — accepted by the operator
+
+The XIAO ran `simnode-xiao-wio` for the first time: `Board: xiao_esp32s3+wio_sx1262_kit`,
+`id f1 ROLE_GATELINK`, `OLED: up`, radio up on 917.4 MHz. The operator confirmed the
+expansion board's panel reads the right way up, and watched `f3`'s inverted fault bar count
+down and clear.
+
+```
+H| ping f2 -> f0 seq 1: echo ok, n 8, 1 frame(s) out, 1 back, rssi -34 dBm, snr 11.8 dB, 524 ms
+X| fault f3 bad_crc: 5 injection(s) done, disarmed
+X| OK event f1 -> 00 event_id 1 (repeat)
+```
+
+`H` is the handheld Heltec, `X` the XIAO. Four identities `f0`–`f3` were loaded on the XIAO at
+once, each with its own `ctx_id`, and every command in `help` was typed on a board. #60 carries
+the clause-by-clause record.
+
+### B3a — what went on air
+
+- **The bridge polls and the simnodes answer.** All four identities on the XIAO were enrolled,
+  polled and `online` at once: `simnode0` through `simnode3`, each with its own `ctx_id`.
+- **Poll-to-answer times, 21 measurements** against `poll_reply_timeout_ms` = 10 000, in ms:
+
+  | Identity | Role | Answers |
+  |---|---|---|
+  | `f0` | `ROLE_RANGE` | 522, 525, 528, 529, 531, 533, 606 |
+  | `f1` | `ROLE_GATELINK` | 788, 793, 795, 796, 798, 987, 1013 |
+  | `f2` | `ROLE_HEALTH` | 522, 527, 527, 531 |
+  | `f3` | `ROLE_HEALTH` | 523, 524, **1686** |
+
+  Minimum 522, mean 694, maximum 1686. A schema `0xF0` answer sits near 525 ms and
+  `ROLE_GATELINK`'s larger `0xFE` near 795 ms, which is the airtime difference. **The single
+  1686 ms is the interesting one**: about 1100 ms longer than that identity's other answers,
+  which is the shape of one media-access backoff (`backoff_max_ms` = 1500) rather than a lost
+  frame. `cad_backoffs` stood at 2 on the XIAO's radio counters. **Even so, the window is
+  nearly six times the slowest answer measured.**
+
+  These are one-hop, about 1 m apart, with four identities on one board and no other traffic,
+  so they are a floor for the margin rather than a worst case. Impl Plan §6.1.1's derivation
+  stands; nothing here argues for changing the number.
+- **V-B3 passed.** `disable f0` gave `availability: simnode0 offline (missed_polls 3,
+  threshold 3)` 2 min 46 s later; `enable f0` gave `simnode0 online` on the next poll, about
+  40 s after.
+- **Retained `offline` at the broker for both production nodes.** `lran/gatelink/availability`
+  and `lran/welllink/availability` arrived live while subscribed, about 130 s and 140 s after
+  boot, and neither node exists.
+- **Discard counters, read at the broker.** `bad_crc` ×5 moved `rx_bad_crc` to 5 and
+  `rx_dropped` to 5, and nothing else. Two `PING` frames between simnodes, which the bridge
+  also hears, moved `rx_not_addressed` to 2 and `rx_dropped` to 7. **`hdr_rsv` moved no
+  counter and was delivered** — the frame enrolled `f0`, which is how it shows as accepted.
+  The rest of the §10.5 catalogue was not run.
+- **No simnode topic reached the broker**, as spec §16.6 requires until BF-26. Only
+  `lran/bridge/*`, `lran/gatelink/*` and `lran/welllink/*` appeared.
+
+### The poll-to-answer measurement needed an instrument (`28ffd82`)
+
+B3a requires poll-to-answer times recorded, and **nothing logged one**: the bridge printed
+nothing per poll, and the simnode's debug log timestamps the `POLL` it receives but not the
+answer it sends. Decided with the operator: add the instrument rather than estimate.
+
+`PollScheduler::on_heard()` now returns the time from `on_sent()` to the answering frame's
+receive time, or `kNotAnAnswer`, and `sched_on_heard()` prints
+`poll: <node> answered in N ms (window N ms)` after releasing the scheduler lock. The time
+includes the POLL's queue wait and its own media access, because the reply window starts at
+`on_sent()` too. One new host test; a mutation returning a time for every frame failed it.
+
+### `ROLE_FAULT` answers no POLL, by design
+
+`f3` was added as `ROLE_FAULT` for the four-identity check and never answered a poll.
+`node.cpp` answers `POLL` for `ROLE_RANGE`, `ROLE_HEALTH` and `ROLE_GATELINK` only, so a
+`ROLE_FAULT` identity that is polled will always go `offline` after three misses. It is the
+role's purpose, not a defect, but it reads as a node failure on the bridge's console. `f3` was
+re-created as `ROLE_HEALTH` for the check. **A bench operator arming faults on a polled
+identity should expect that node to go offline.**
