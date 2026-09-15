@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.31
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.19 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.32
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.20 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -248,8 +248,10 @@ node-originated authenticated type appears, the path must already exist. Status 
 
 ## Milestones
 
-B2 bring-up and OTA → B3 protocol and registry → B4 MQTT/discovery/policy → B5 HEX proxy →
-B6 GateLink integration → B7 soak. B1a/B1b (range) are done. B3 depends on simnode B0,
+B2 bring-up and OTA → B3a radio, registry, polling, availability, counters → B3b command
+path, version tolerance, scripted catalogue → B4 MQTT/discovery/policy (after B3a) → B5 HEX
+proxy → B6 GateLink integration → B7 soak. B3 was split into B3a/B3b on 2026-09-14 (Impl
+Plan v0.32). B1a/B1b (range) are done. B3a depends on simnode B0,
 which depends on protocol library **P6 and P8** — both met; P8 (`CommandGate`, D34) landed
 2026-09-11. Impl Plan §8 gated B0 on P6 alone until an audit corrected it.
 

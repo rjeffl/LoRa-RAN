@@ -1086,3 +1086,25 @@ one binary, which is §16.6's argument against a build-time switch.
 
 Mutation checks: skipping the first registry counter failed two tests; publishing an
 unknown RSSI as a number failed one.
+
+## 2026-09-14 — B3 split into B3a and B3b, so the stack can merge
+
+**Milestone B3 is now two milestones** (Impl Plan v0.32 §8, decided with the operator). B3a
+covers what is built: the radio link, the registry, the poll scheduler, the availability
+watchdog and the counter publication (BF-15, BF-16, BF-17, BF-19, BF-20). B3b covers the command
+path, `ERROR` replies, version tolerance, the `simctl` catalogue, CAD under real contention
+and V-B12 (BF-18, BF-19a, BF-21, BF-22).
+
+**Why.** Three draft PRs are stacked, and they merge bottom-up from B3's. B3 as written could
+not be accepted before spec v0.12, BF-18, BF-21 and BF-22, so nothing could merge and every
+new task made the stack taller. B1a/B1b is the precedent for splitting a milestone at the
+point where a bench can prove the first half.
+
+**What moved and what did not.** No criterion was dropped. Two were narrowed in B3a and
+completed in B3b: keys are proven by a command round-trip in B3b, because a `STATUS` carries
+no MAC; and the §10.5 catalogue runs by hand in B3a and from `simctl` in B3b. B3a gained one
+criterion B3 lacked, a measured poll-to-answer time, because `poll_reply_timeout_ms` = 10 000
+is still a derived number. B4 follows B3a.
+
+**The next session has every board and the broker.** The handoff orders it so that B0 and
+B3a can be accepted and the stack merged in one sitting.

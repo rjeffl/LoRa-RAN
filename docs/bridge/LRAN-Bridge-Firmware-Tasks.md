@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.19
+**Version:** 0.20
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.31
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.32
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -196,7 +196,9 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 ## 6. B3 — protocol and registry
 
 **Gated on B2 and B0.** The largest milestone, and the one carrying most of the
-protocol risk.
+protocol risk. **Split on 2026-09-14 into B3a and B3b** (Impl Plan §8 v0.32): **B3a** is
+BF-15, BF-16, BF-17, BF-19 and BF-20, accepted on the bench; **B3b** is BF-18, BF-19a, BF-21
+and BF-22.
 
 | # | Task | Model | Why |
 |---|---|---|---|
@@ -268,6 +270,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.20** | **B3 split** into B3a (BF-15–17, 19, 20) and B3b (BF-18, 19a, 21, 22) |
 | **v0.19** | **BF-19 built** — counters published; BF-19a split out; **BF-26 deferred** |
 | **v0.18** | **BF-20 built** — the availability watchdog; bench publication waits for BF-26 |
 | **v0.17** | **BF-17 built** — the poll scheduler, on a branch stacked on B0's |
@@ -287,6 +290,10 @@ only against the bridge, a cached value republished as current.
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.20** — **B3 is split into B3a and B3b**, following Impl Plan v0.32, so the built half
+  can be accepted and merged while BF-18 waits for spec v0.12. No task's scope or model
+  column changes. This document inherits Bridge Impl Plan v0.32.
 
 - **v0.19** — **BF-19 is built**: all 21 §14.1 counters, `rx_dropped` and the radio and
   queue diagnostics are published under `lran/bridge/diag/`, and each watched node's link

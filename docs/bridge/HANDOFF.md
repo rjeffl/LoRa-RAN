@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-14, at the end of the session that brought BF-16 up on the bridge board,
-built BF-15, built simnode B0's first slice and proved it on air, and built BF-7, BF-8, BF-9
-and BF-6.** It replaces the
-2026-09-13 file wholesale; that file's content is carried over where it is still true.
+built BF-15, built simnode B0 and proved it on air, built BF-17, BF-19 and BF-20, and split B3
+into B3a and B3b.** It replaces the 2026-09-13 file wholesale; that file's content is carried
+over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -13,47 +13,91 @@ and BF-6.** It replaces the
 
 ## The next job, in one place
 
-**Read this file on `b3-poll-scheduler`, the top of a three-branch stack:** BF-17 on
-`b3-poll-scheduler`, on B0's `b0-simnode-bringup`, on B3's `b3-protocol-registry`. Each
-pull request stays a draft until its milestone is accepted, so every lower branch's copy of
-this file is older. **The stack merges bottom-up**: B0 moves `media_access` out of code B3
-adds, and BF-17 was branched from B0 because B3's branch carries documents several
-versions older (decided with the operator, 2026-09-14). B3's later tasks go on top of this
-branch.
+**The next session has every board and the broker. Its goal is to accept B0 and B3a on the
+bench and merge the three-PR stack**, before B3b's work makes the stack taller. B3 was split
+for exactly this (Impl Plan v0.32 §8; engineering log, "B3 split into B3a and B3b").
+
+**Read this file on `b3-poll-scheduler`, the top of the stack:** BF-17, BF-19 and BF-20 on
+`b3-poll-scheduler`, on B0's `b0-simnode-bringup`, on BF-15 and BF-16's
+`b3-protocol-registry`. Every lower branch's copy of this file is older.
 
 ```bash
 git fetch origin -p
 git switch b3-poll-scheduler && git pull --ff-only
 gh pr list --state open
+for n in $(gh pr list --state open --json number -q '.[].number'); do gh pr checks "$n"; done
 ```
 
-**Every B0 task is built.** What remains is bench work, then the operator's acceptance:
-flash the XIAO profile, which now boots as `0xF1 ROLE_GATELINK`, and run its command path on
-air against the handheld Heltec. The XIAO was not with the operator on 2026-09-14.
+### Do these in order — each one unblocks the next
 
-**BF-17, BF-19 and BF-20 are built**: the poll scheduler, the diagnostic publication and the
-availability watchdog (engineering log). **BF-26 is deferred** until something owns
-`/lib/lran-config/` and the bridge's MQTT receive path (Tasks v0.19). **Desk work while the
-XIAO is away:** BF-21's `simctl` scripts, or BF-22's version tolerance. **Before BF-18 is built**, spec v0.12 should answer the three questions in
-the engineering log's BF-6 entry; the first of them is how BF-18 reads a `DUPLICATE_CACHED`
-ACK.
+**Test on the stack's tip, from a clean tree.** The three PRs merge together, so the tip is
+what `main` will run. A fix found on the bench goes on `b3-poll-scheduler`, whichever PR
+first introduced the code.
 
-**BF-9 is built, and the handheld Heltec runs it** (engineering log, 2026-09-14, BF-9 and
-its correction). Its panel answers at boot. **Both profiles drive a panel**: the XIAO's is
-on the Seeeduino expansion board.
-Bridge Impl Plan §10.9, §10.9.1 and §10.9.2 record what B0 built;
-`firmware/simnode/CLAUDE.md` lists the traps.
+1. **Desk check, before touching a board.** CI green on all three PRs; the host suites and
+   the `heltec`, `simnode-heltec` and `simnode-xiao-wio` builds pass locally (*Where things
+   stand* lists them). Confirm `secrets.h` names the broker's **LAN** address (see *Traps*).
+2. **V-B9 re-run on the bridge board** (Impl Plan §6.5.2), broker up. Owed since BF-16 changed
+   the OTA verdict, and it is the one B2 obligation #59 carries. **It needs the broker**: with
+   it down, a good image rolls back and reads as a firmware failure.
+3. **The bridge board on the stack's tip, with the broker watched.** USB-flash `heltec`, then
+   subscribe to `lran/#` (the `mosquitto_sub` line in *Traps*). Expect, and record:
+   - `lran/bridge/availability online` and `lran/bridge/version` on connect;
+     `lran/bridge/diag/state` and `lran/bridge/diag/radio/state` on the next tick.
+   - **`lran/gatelink/availability` and `lran/welllink/availability` `offline`, retained**,
+     about 2½ minutes after boot. Neither node exists, so each misses three polls. This is
+     B3a's "retained `offline` seen at the broker".
+   - The OLED reads `nodes 0/2`. The bridge's `POLL`s are now on air.
+4. **Flash the XIAO** with `simnode-xiao-wio`, for the first time. Check the banner, that the
+   expansion-board panel reads the right way up (`flip_vertically` is false; the board is
+   rotated 180° from its range-test mounting), and that it boots as `f1 ROLE_GATELINK`.
+5. **B0 acceptance** — the operator, against Impl Plan §8's B0 row, clause by clause. Record
+   it in the engineering log and in #60's criteria section. Every clause has code behind it;
+   what was missing was the XIAO flashing and running.
+6. **B3a on air**, with the bridge board, the simnode Heltec and the XIAO. Impl Plan §8's
+   B3a row is the list; in bench terms:
+   1. **Polls answered.** On the simnode Heltec, `push f0`: the bridge enrols `f0` and polls
+      it. Read the bridge's serial `availability: simnode0 online` and the OLED's `nodes 1/3`.
+      **Time about 20 poll-to-answer exchanges** and record them against
+      `poll_reply_timeout_ms` = 10 000 (Impl Plan §6.1.1). No measurement of it exists.
+   2. **Four identities from one board.** `id add` until `f0`–`f3` exist on one board, `push`
+      each, and see four `online` lines and four identities answering polls. A simnode's
+      availability and per-node diagnostics are **not published** until BF-26 (spec §16.6), so
+      the bridge's serial console is the record.
+   3. **V-B3.** `disable f0`: after three missed polls the bridge prints
+      `availability: simnode0 offline (missed_polls 3, threshold 3)`. `enable f0` and `push f0`:
+      `online` on that frame.
+   4. **The discard counters, by hand.** A fault's `dst` defaults to the bridge. Arm the §10.5
+      entries one at a time (`fault f0 <name>`), and after each read
+      `lran/bridge/diag/state`: **exactly the named counter moves**, and `rx_dropped` moves only
+      for counters §14.1 marks yes. It publishes every 60 s. **`hdr_rsv` must move nothing** and be
+      delivered. Stage 1 is not injectable.
+   5. **W9** was observed between two simnode Heltecs on 2026-09-14 (engineering log); B3a cites
+      it. The bridge answers no `PING` (spec §17.3 gap, below), so do not aim one at `00`.
+7. **B3a acceptance by the operator, then merge bottom-up**, in the same sitting. Before each
+   merge, update that PR's criteria section to B3a/B0 and mark it ready.
+   ```bash
+   gh pr ready 59 && gh pr merge 59 --merge          # never --delete-branch
+   gh pr edit 60 --base main && gh pr ready 60 && gh pr merge 60 --merge
+   gh pr edit 61 --base main && gh pr ready 61 && gh pr merge 61 --merge
+   git push origin --delete b3-protocol-registry b0-simnode-bringup b3-poll-scheduler
+   ```
+   Retarget each PR **before** deleting the branch under it, or GitHub closes it. After the
+   merges, this handoff's *Git state* rule applies again: cite the merges as history.
+8. **Then B3b, from `main`.** A spec v0.12 revision is B3b's real gate: BF-18, BF-19a and BF-26
+   each wait on it (*Open*, the consolidated list). BF-21's `simctl` scripts and BF-22's version
+   tolerance need no spec change and can start on a new branch meanwhile.
 
-**When the broker is reachable again, run V-B9 (Impl Plan §6.5.2) before anything else on
-the bench.** It is owed since BF-16 changed `ota_policy.cpp`, and **it cannot run without
-the broker**: the verdict marks an image valid only with `mqtt_connected`, so a good image
-rolls back and the test records a broker outage as a firmware failure.
-
-**Desk work that needs neither the broker nor a second board:** BF-21 or BF-22 (per the Tasks
-document). **Before BF-18, BF-19a or BF-26**, spec v0.12 should answer the questions in the
-BF-6 and BF-19 engineering-log entries.
+**If B3a fails a clause on the bench**, fix it on `b3-poll-scheduler`, re-run that clause, and
+keep the merge in the same session if you can. A B3a that waits a week is the tall stack again.
 
 ## What the last session established
+
+**B3 split, 2026-09-14, at the end of the session.** Impl Plan v0.32 §8; engineering log.
+
+- **B3a** (BF-15, BF-16, BF-17, BF-19, BF-20) is accepted on the bench; **B3b** (BF-18, BF-19a,
+  BF-21, BF-22) after spec v0.12. Decided with the operator so the stack can merge.
+- **CI was green on all three PRs** at the end of the session, including the GCC fix.
 
 **BF-19, 2026-09-14, after BF-20.** Impl Plan §4.3.2 has the topics and rules.
 
@@ -162,9 +206,9 @@ account.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-14 entries: the bring-up, BF-15 and the spec gap, B0's first slice, BF-7 |
-| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§10** is the simnode, **§10.9** what B0 has built, **§10.5.2** BF-7's primitive and the fault-to-operation map; **§4.2.1** is BF-15; **§8** owns B0's and B3's criteria; **§6.5.2** is V-B9, owed |
-| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §4 is B0's tasks, BF-6 to BF-9 left; §6 is B3's order, BF-15 to BF-22 |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-14 entries, last first: the B3 split, BF-19 (and BF-26 deferred), BF-20, BF-17, BF-6's spec questions |
+| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§10** is the simnode, **§10.9** what B0 has built, **§10.5.2** BF-7's primitive and the fault-to-operation map; **§4.2.1** is BF-15; **§6.1.1–§6.1.2** BF-17 and BF-20; **§4.3.2** BF-19; **§8** owns B0's, B3a's and B3b's criteria; **§6.5.2** is V-B9, owed |
+| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §4 is B0's tasks, all built; §6 is B3a's and B3b's, with BF-19a new and BF-26 (§7) deferred |
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 6 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
 | 7 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) §3.2.1 | D34's amendment, which the simnode's command path follows |
@@ -177,8 +221,8 @@ account.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel. **BF-17**, **BF-19** and **BF-20** built, host-tested |
-| Not done | **B0**: the XIAO flashed, `ROLE_GATELINK` on air, the operator's acceptance. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | BF-21 or BF-22 (desk) → flash the XIAO, `ROLE_GATELINK` on air, a simnode answering BF-17's polls → B0 accepted → BF-18 after spec v0.12, BF-21, BF-22. **V-B9** as soon as the broker is reachable |
+| Not done | **B0**: the XIAO flashed and the operator's acceptance. **B3a**: every criterion needs the bench (steps 3 and 6 above). **B3b**: BF-18, BF-19a, BF-21, BF-22. **V-B9's re-run.** **BF-26** deferred. **BF-11a**, **BF-11b** |
+| Queue | *The next job*'s eight steps: V-B9 → bridge on the tip → XIAO → B0 accepted → B3a on air → B3a accepted → merge #59, #60, #61 → spec v0.12, then B3b |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -242,11 +286,12 @@ them in its own roles, and its rows do not transfer here.
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed from `cab05e8` on the B0 branch, a clean tree**: banner `Version: 0.1.0 (cab05e8)`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows. It ran `simnode-heltec` as `f1` for the B0 on-air check in between | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Receives on 917.4 MHz; transmits nothing.** Broker unreachable at the last boot |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, **USB-flashed from `c3ef4ca` (BF-9)**, MAC `44:1b:f6:fa:bc:2c`. Boots as `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`, with `OLED: up`. **It ran an old range-test image (spec v0.8 banner) until 2026-09-14** | Nothing persists; identities reset on every boot. Any range-test NVS from before is not the only copy of anything | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-3` |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. **`simnode-xiao-wio` builds and has never been flashed** | B1b position log, dumped and committed | Powered down. **Not with the operator offsite as of 2026-09-14**, so its first simnode flash waits for the bench |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, **USB-flashed from `c3ef4ca` (BF-9)**, MAC `44:1b:f6:fa:bc:2c`. Boots as `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`, with `OLED: up`. **It ran an old range-test image (spec v0.8 banner) until 2026-09-14** | Nothing persists; identities reset on every boot. Any range-test NVS from before is not the only copy of anything | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-3`. **Its image predates BF-6**: reflash it from the stack's tip before B3a so both simnodes run the same code |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. **`simnode-xiao-wio` builds and has never been flashed** | B1b position log, dumped and committed | Powered down. **Back on the bench for the next session**; its first simnode flash is step 4 |
 
-**The bridge board still transmits nothing on its own.** `lora_task` sends only what the TX
-queue holds, and nothing queues a frame until BF-17 or BF-18.
+**The bridge board, as flashed, transmits nothing.** It runs `cab05e8`, which predates
+BF-17. **The stack's tip polls from boot**: flashed with it, the bridge transmits a `POLL` to
+`0x01` and `0x02` about once a minute, and to each simnode identity it has heard.
 
 **A USB flash puts the bridge board back in a known state.** `pio run -t upload -e heltec`
 writes the bootloader, the table, `boot_app0.bin` (which resets `otadata` to `app0`) and
@@ -362,27 +407,37 @@ asserts the sum at compile time.
 
 ## Open, and not closable from here
 
-- **B0's acceptance** — every criterion has code behind it; "flashes and runs" is unmet for
-  the XIAO, and the operator has not accepted the milestone.
-- **Frames to and from the bridge on air** — DIO1 waking `lora_task`, a key verifying,
-  frames both ways. The simnode can now transmit; the bridge still logs nothing per frame
-  and answers nothing until BF-17, BF-18 or a PING responder.
-- **Spec §17.3: the bridge answers no PING.** RF loopback is "required of every node build"
-  and no `BF-*` task assigns it to the bridge.
+- **B0's and B3a's acceptance** — *The next job*, steps 5–7.
+- **Frames to and from the bridge on air** — DIO1 waking `lora_task`, frames both ways. B3a's
+  polls prove the first exchange; **a key verifying a frame on air waits for BF-18** (B3b),
+  because nothing a node sends the bridge carries a MAC.
+- **`poll_reply_timeout_ms` = 10 000 is a derived default**, never measured (Impl Plan
+  §6.1.1). B3a now requires the measurement.
+
+#### Spec v0.12 — every open question, in one place
+
+B3b's gate. Each is raised in the engineering log entry named; none is patched.
+
+| # | Question | Raised by | Blocks |
+|---|---|---|---|
+| 1 | §14 has no stage for a frame from an unregistered source | BF-15 | naming `unregistered_src` |
+| 2 | How a `DUPLICATE_CACHED` `COMMAND_ACK` carries the cached result | BF-6 | **BF-18** |
+| 3 | What a node answers to a repeated `CONFIG` | BF-6 | BF-18, GateLink |
+| 4 | §7.4 relies on fragmenting config sets that §3.1's 196-byte reassembly cap rules out | BF-6 | GateLink config |
+| 5 | §10.2 places a bridge-originated unauthenticated frame (`POLL`'s `seq`) in neither sequence space | BF-17 | nothing yet |
+| 6 | §14.1's "per node by the bridge" for a discard made before the MAC check | BF-19 | per-node counters |
+| 7 | Whether the bridge must send §14's `ERROR` replies, and to which `src` and `ctx_id` before the MAC is checked | BF-19 | **BF-19a** |
+| 8 | §16.2 names `lran/bridge/version`, `lran/<node>/diag/state`, `config/set` and `config/ack` but defines no payload | BF-13, BF-19, BF-26 | **BF-26**, BF-23 |
+| 9 | §12.1's node-address filtering appears unavailable in LoRa mode; unverified against the datasheet | BF-16 | duty-cycled nodes (§17.1) |
+
+#### Work no task owns
+
+- **`/lib/lran-config/`** — System PRD §9.4 describes it; BF-26 and BF-23 need it.
+- **The bridge's MQTT receive path** — subscribe exists, no callback or inbound queue; BF-18
+  and BF-26 need it.
+- **A PING responder on the bridge** — spec §17.3 requires RF loopback of every node build.
 - **The XIAO simnode profile on hardware** — builds, never flashed.
-- **V-B9 re-run** — owed since BF-16 changed the verdict; needs the broker.
-- **Spec gap for v0.12: a frame from an unregistered source** — §14 has no stage for it.
-  The bridge counts `unregistered_src` meanwhile (engineering log, 2026-09-14).
-- **Spec gap for v0.12: §16.2's `lran/bridge/version` payload.**
-- **`poll_reply_timeout_ms` = 10 000 is a derived default**, never measured against a real
-  exchange (Impl Plan §6.1.1). The first bench run of BF-17 should read how long answers
-  actually take.
-- **Spec questions for v0.12 from BF-6** — how a `DUPLICATE_CACHED` ACK carries the cached
-  result; what a node answers to a repeated `CONFIG`; §7.4's fragmented config sets against
-  §3.1's 196-byte cap on a reassembled set. The engineering log's BF-6 entry has each one.
-- **Spec §12.1's node-address filtering** — RadioLib 7.7.1 has no SX126x setter, and the
-  reading that the part filters only in GFSK is unverified against the datasheet. Needs a
-  specification decision before a duty-cycled node relies on it (§17.1).
+- **V-B9 re-run** — owed since BF-16 changed the verdict; *The next job*, step 2.
 - **Decoding per schema has no task** — Impl Plan §5.3's `decode/`; `app_task`'s `TODO`
   gives it to BF-24.
 - **Six task stacks unmeasured** — every size but `lora` is still BF-11's figure.
