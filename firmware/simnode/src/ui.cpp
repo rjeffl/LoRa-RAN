@@ -21,9 +21,8 @@ constexpr int16_t kPitch = 13;
 constexpr uint8_t kContrast = 96;
 
 // Static storage (root rule 3). The driver only records pins at construction; nothing touches
-// I2C until init(), which runs only for a board whose profile names a panel.
-constexpr PanelPins kCtorPins = kPanel != nullptr ? *kPanel : kHeltecV3Panel;
-SSD1306Wire g_display(kCtorPins.addr, kCtorPins.sda, kCtorPins.scl);
+// I2C until init().
+SSD1306Wire g_display(kPanel->addr, kPanel->sda, kPanel->scl);
 bool        g_ok = false;
 
 }  // namespace
@@ -32,16 +31,21 @@ bool ui_begin(const PanelPins* pins) {
   if (pins == nullptr) return false;
 
   // Vext first. The Heltec powers the panel THROUGH it; skip this and the probe finds
-  // nothing, which looks exactly like a dead panel or a wrong address.
-  pinMode(pins->vext, OUTPUT);
-  digitalWrite(pins->vext, LOW);  // LOW = Vext ON
-  delay(100);
+  // nothing, which looks exactly like a dead panel or a wrong address. The XIAO expansion
+  // board has neither Vext nor a reset line, so both steps are absent there, not different.
+  if (pins->vext != kPinNone) {
+    pinMode(pins->vext, OUTPUT);
+    digitalWrite(pins->vext, LOW);  // LOW = Vext ON
+    delay(100);
+  }
 
-  pinMode(pins->rst, OUTPUT);
-  digitalWrite(pins->rst, LOW);
-  delay(20);
-  digitalWrite(pins->rst, HIGH);
-  delay(50);
+  if (pins->rst != kPinNone) {
+    pinMode(pins->rst, OUTPUT);
+    digitalWrite(pins->rst, LOW);
+    delay(20);
+    digitalWrite(pins->rst, HIGH);
+    delay(50);
+  }
 
   Wire.begin(pins->sda, pins->scl);
   Wire.beginTransmission(pins->addr);

@@ -65,16 +65,18 @@ inline constexpr RadioPins kXiaoWioKitRadio = {
 // The OLED, where a board has one (BF-9). A second peripheral, so a second struct - the
 // radio's rule applied again, and the shape the bridge's board_ui.h settled on.
 //
-// PROVENANCE. The bridge's board_ui.h values (SDA_OLED 17, SCL_OLED 18, RST_OLED 21, Vext 36,
-// from the vendor variant), confirmed on this board model by the bridge, /wattcycle-reader
-// and the range test. Values carry over; the bridge's code does not.
+// PROVENANCE. The range test's board_config.h (kHeltecV3Ui, kXiaoWioKitUi), where both panels
+// are confirmed on hardware; the Heltec values also match the bridge's board_ui.h. Values
+// carry over; range-test code does not.
 struct PanelPins {
   uint8_t addr;             // SSD1306 I2C address
   int8_t  sda;
   int8_t  scl;
-  int8_t  rst;              // panel reset line
-  int8_t  vext;             // Vext enable, ACTIVE LOW - the panel is powered through it
-  bool    flip_vertically;  // the V3 mounts its panel rotated
+  int8_t  rst;              // panel reset line, or kPinNone when the panel has none
+  int8_t  vext;             // Vext enable, ACTIVE LOW, or kPinNone when powered directly
+  // Set for two different reasons: the V3 mounts its panel rotated; the XIAO expansion
+  // board does not, but its enclosure holds the stack inverted. The draw site need not know.
+  bool    flip_vertically;
 };
 
 inline constexpr PanelPins kHeltecV3Panel = {
@@ -86,17 +88,34 @@ inline constexpr PanelPins kHeltecV3Panel = {
     /* flip_vertically */ true,
 };
 
+// Seeeduino XIAO Expansion Board, under the XIAO + Wio-SX1262 Kit. The SSD1306 sits on the
+// XIAO's D4/D5 I2C pads, with no reset line and no Vext. The Kit's radio lines cross the B2B
+// connector (GPIO 38-42) and never reach those pads; the header-board Wio (p-6379) would
+// put NSS and RF_SW on GPIO 5 and 6, straight onto this bus.
+inline constexpr PanelPins kXiaoExpansionPanel = {
+    /* addr            */ 0x3C,
+    /* sda             */ 5,
+    /* scl             */ 6,
+    /* rst             */ kPinNone,
+    /* vext            */ kPinNone,
+    /* flip_vertically */ true,
+};
+
 // A silent collision between the two pin maps would be a panel that blanks the radio, or the
-// reverse. Checked here because both structs are here.
+// reverse. Checked here because both structs are here. kPinNone collides with nothing.
 constexpr bool pin_in_radio(int8_t pin, const RadioPins& r) {
+  if (pin == kPinNone) return false;
   return pin == r.nss || pin == r.rst || pin == r.busy || pin == r.dio1 || pin == r.sck ||
-         pin == r.miso || pin == r.mosi || (r.rf_sw != kPinNone && pin == r.rf_sw);
+         pin == r.miso || pin == r.mosi || pin == r.rf_sw;
 }
-static_assert(!pin_in_radio(kHeltecV3Panel.sda, kHeltecV3Radio) &&
-                  !pin_in_radio(kHeltecV3Panel.scl, kHeltecV3Radio) &&
-                  !pin_in_radio(kHeltecV3Panel.rst, kHeltecV3Radio) &&
-                  !pin_in_radio(kHeltecV3Panel.vext, kHeltecV3Radio),
+constexpr bool panel_collides(const PanelPins& p, const RadioPins& r) {
+  return pin_in_radio(p.sda, r) || pin_in_radio(p.scl, r) || pin_in_radio(p.rst, r) ||
+         pin_in_radio(p.vext, r);
+}
+static_assert(!panel_collides(kHeltecV3Panel, kHeltecV3Radio),
               "Heltec V3: an OLED pin collides with a radio pin");
+static_assert(!panel_collides(kXiaoExpansionPanel, kXiaoWioKitRadio),
+              "XIAO Kit: an expansion-board OLED pin collides with a radio pin");
 
 #if defined(LRAN_PROFILE_HELTEC)
 inline constexpr const char*      kBoardName = "heltec_wifi_lora_32_V3";
@@ -105,9 +124,7 @@ inline constexpr const PanelPins* kPanel     = &kHeltecV3Panel;
 #elif defined(LRAN_PROFILE_XIAO_WIO_KIT)
 inline constexpr const char*      kBoardName = "xiao_esp32s3+wio_sx1262_kit";
 inline constexpr RadioPins        kRadio     = kXiaoWioKitRadio;
-// The Kit is the XIAO and the Wio module on a B2B connector. There is no display on it, so
-// armed faults on this board show only on the console (`fault list`, `id list`).
-inline constexpr const PanelPins* kPanel     = nullptr;
+inline constexpr const PanelPins* kPanel     = &kXiaoExpansionPanel;
 #endif
 
 }  // namespace simnode

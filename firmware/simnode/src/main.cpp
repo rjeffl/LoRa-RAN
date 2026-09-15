@@ -143,12 +143,10 @@ void setup() {
   add_default(lran::kNodeSim1, simnode::Role::Range);
 #endif
 
-  if (simnode::kPanel == nullptr) {
-    Serial.println(F("OLED: none on this board - armed faults show on the console only"));
-  } else if (simnode::ui_begin(simnode::kPanel)) {
+  if (simnode::ui_begin(simnode::kPanel)) {
     Serial.println(F("OLED: up"));
   } else {
-    Serial.println(F("OLED: no ACK - check Vext; continuing without it"));
+    Serial.println(F("OLED: no ACK - check Vext on a Heltec, the expansion board on a XIAO; continuing without it"));
   }
 
   simnode::radio_start(simnode::kRadio, lran::link::kPhy, &g_sink);

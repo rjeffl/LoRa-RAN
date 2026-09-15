@@ -771,3 +771,40 @@ that will carry the command-path faults once BF-6 lands. On that board an armed 
 visible only from the console. Its boot banner now says so (`OLED: none on this board`).
 This is not patched in the criterion. The operator decides whether the Heltec's panel
 discharges it, or whether the XIAO needs another indicator such as its user LED.
+
+## 2026-09-14 — Correction to the BF-9 entry: the XIAO has a panel
+
+> **Supersedes "A gap in B0's criterion" in the BF-9 entry above.** That section is wrong.
+
+**The XIAO + Wio-SX1262 Kit is mounted on a Seeeduino XIAO expansion board, and that board
+has an SSD1306.** The range test already drives it: `firmware/range-test/src/board_config.h`
+`kXiaoWioKitUi` has SDA 5, SCL 6, no reset line, no Vext, and `flip_vertically` set because
+the enclosure holds the stack upside down. BF-9 was written from the Kit's description and
+never checked against the range test's board config, which already covered this. The
+operator caught it.
+
+**Fixed:** `profiles.h` gains `kXiaoExpansionPanel`, and `ui_begin()` skips the Vext and reset
+steps when a pin is `kPinNone`, as the range test's `ui_oled.cpp` does. The pin-collision
+`static_assert` now covers both profiles. Both images build, and the 79 host tests pass.
+**The XIAO image has still never been flashed.** B0's OLED criterion needs no decision.
+
+### The Heltec simnode, flashed from `c3ef4ca`
+
+Flashed from `c3ef4ca` on the handheld Heltec at `/dev/cu.usbserial-3` (MAC
+`44:1b:f6:fa:bc:2c`). Boot log:
+
+```
+Board: heltec_wifi_lora_32_V3
+id f0 ROLE_RANGE ctx 0x1bd0fe32
+id f2 ROLE_HEALTH ctx 0xeff12a5e
+[  1784][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+OLED: up
+radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+```
+
+- **`OLED: up` means the panel ACKed its address.** It does not show what the panel draws.
+- **The `Wire` warning is harmless.** `ui_begin()` starts I2C to probe the panel, and
+  ThingPulse's `init()` starts it again.
+- **Opening the port with DTR and RTS held low still rebooted the board**, so faults armed
+  over a fresh connection land on a fresh boot. `fault f0 silent 5` and
+  `fault f2 bad_crc 3 gap 30000` were armed after it, for the panel check.

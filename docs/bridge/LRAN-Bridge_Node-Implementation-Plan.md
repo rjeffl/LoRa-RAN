@@ -1617,16 +1617,14 @@ slice and is described in §10.5.2; the simnode does not call it until BF-8.
 
 `oled_page.{h,cpp}` builds the page as text, and it is host-tested. `ui.cpp` draws it with
 the bridge's ThingPulse driver at the bridge's pinned version. The panel's pins are a
-`PanelPins` struct in `profiles.h`, checked against the radio's pins at compile time.
+`PanelPins` struct in `profiles.h`, checked against the radio's pins at compile time. Both
+profiles have one: the Heltec's own panel, and the XIAO's on the Seeeduino XIAO expansion
+board (SDA 5, SCL 6, no reset line, no Vext), with the values the range test confirmed.
 
 | Row | Shows |
 |---|---|
 | 0 | The last frame received: `src>dst`, type, RSSI and age. Otherwise `<len>B <rssi> drop`, `phy crc error`, or an inverted `RADIO DOWN` |
 | 1–4 | One identity per row, with its exact role token and `off` when disabled. **An armed fault replaces the row as an inverted bar** with the injections left, or the answers left for `silent` |
-
-**The XIAO + Wio-SX1262 Kit has no panel**, so `kPanel` is `nullptr` there, and an armed
-fault on that board shows only on the console. §8's B0 criterion says "on the OLED" and
-does not cover this case. See the engineering log, 2026-09-14, BF-9.
 
 ---
 
@@ -1788,7 +1786,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.27** | **New §10.9.1** — BF-9's OLED page; the XIAO Kit has no panel, which §8's B0 criterion does not cover |
+| **v0.27** | **New §10.9.1** — BF-9's OLED page, on both profiles |
 | **v0.26** | **§10.5** — BF-8's catalogue built: `fault.{h,cpp}`, `fault` console command, `silent`, and the host suite that checks each counter |
 | **v0.25** | **§10.5.2** — BF-7's patch primitive, built; §5.4's claim that the vectors share `lran-sim` corrected |
 | **v0.24** | **New §10.9** — B0's first slice; `media_access` and the PHY move to `lib/lran-link/` |
@@ -1818,9 +1816,8 @@ that drifts is the one that gets followed.
 
 - **v0.27** — **BF-9 built the simnode's OLED page**, new §10.9.1: the last frame, the
   identity table, and each armed fault as an inverted bar that clears when the fault
-  disarms. Host-tested; not yet seen on a panel. **The XIAO + Wio-SX1262 Kit has no
-  display**, so on the board §10.8.1 gives `ROLE_GATELINK`, armed state shows only on the
-  console. §8's B0 criterion is left as written, pending the operator's decision.
+  disarms. Host-tested. The Heltec's panel answers at boot; the XIAO's, on the Seeeduino
+  expansion board, has not been flashed. No milestone criterion changes.
 
 - **v0.26** — **BF-8 built the fault catalogue.** `firmware/simnode/fault.{h,cpp}` arms every
   §10.5 and §10.5.1 entry on one identity through `fault <hex> <name> [count]`; each malformed

@@ -29,9 +29,9 @@ gh pr list --state open
 refuses today, naming BF-6. After it, B0 is complete bar two pieces of bench work: flashing
 the XIAO profile, and seeing BF-9's OLED page on the handheld Heltec.
 
-**BF-9 is built and host-tested, and has never been flashed** (engineering log, 2026-09-14,
-BF-9). **One operator decision is open on it:** the XIAO Kit has no display, so B0's
-"armed state shown on the OLED" does not reach the board that will run `ROLE_GATELINK`.
+**BF-9 is built, and the handheld Heltec runs it** (engineering log, 2026-09-14, BF-9 and
+its correction). Its panel answers at boot. **Both profiles drive a panel**: the XIAO's is
+on the Seeeduino expansion board.
 Its command path calls `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only
 after `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11). Bridge Impl Plan §10.9
 records what exists; `firmware/simnode/CLAUDE.md` lists the traps.
@@ -50,8 +50,11 @@ rolls back and the test records a broker outage as a firmware failure.
 
 - **The OLED page is text first**: `oled_page.{h,cpp}`, 14 host tests that drive the real
   injector and node. `ui.cpp` draws it with the bridge's ThingPulse pin. Both simnode
-  images build. **Not supported:** anything about the panel itself, or that a 1 Hz redraw
-  leaves the radio's counters unchanged. Both are unmeasured.
+  images build. The handheld Heltec was flashed and printed `OLED: up`. **Not supported:**
+  that a 1 Hz redraw leaves the radio's counters unchanged, which is unmeasured, or
+  anything on the XIAO, which has not been flashed.
+- **The XIAO's panel is on its Seeeduino expansion board.** BF-9 first claimed the XIAO had
+  no panel. The operator corrected it, and `profiles.h` now carries the range test's values.
 - **The page caught one budget miss**: an impossible RSSI overran row 0. An RSSI outside
   −199…99 dBm now shows as `?`.
 
@@ -121,7 +124,7 @@ account.
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7**, **BF-8** and **BF-9** built, host-tested |
 | Not done | **B0**: BF-6, the rest of BF-4, BF-9 on a panel. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | **BF-6** → flash the Heltec simnode and look at the panel → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
+| Queue | **BF-6** → flash the XIAO simnode → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -184,7 +187,7 @@ them in its own roles, and its rows do not transfer here.
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed from `cab05e8` on the B0 branch, a clean tree**: banner `Version: 0.1.0 (cab05e8)`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows. It ran `simnode-heltec` as `f1` for the B0 on-air check in between | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Receives on 917.4 MHz; transmits nothing.** Broker unreachable at the last boot |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, **USB-flashed from `cab05e8`**. Boots as `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`. **It ran an old range-test image (spec v0.8 banner) until 2026-09-14** | Nothing persists; identities reset on every boot. Any range-test NVS from before is not the only copy of anything | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-3` |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, **USB-flashed from `c3ef4ca` (BF-9)**, MAC `44:1b:f6:fa:bc:2c`. Boots as `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`, with `OLED: up`. **It ran an old range-test image (spec v0.8 banner) until 2026-09-14** | Nothing persists; identities reset on every boot. Any range-test NVS from before is not the only copy of anything | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-3` |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `range-test` / `xiao`. **`simnode-xiao-wio` builds and has never been flashed** | B1b position log, dumped and committed | Powered down |
 
 **The bridge board still transmits nothing on its own.** `lora_task` sends only what the TX
@@ -239,7 +242,8 @@ asserts the sum at compile time.
 
 ## Traps that cost real time here
 
-- **A blank XIAO simnode is not "nothing armed".** It has no panel; ask the console.
+- **Opening a Heltec's serial port reboots it, even with DTR and RTS held low.** Arm faults
+  after the banner, in the same connection you check them from.
 - **Two simnode Heltecs boot with the same identities** (`f0`, `f2`), and opening either
   serial port resets its board to them. Reconfigure one in the same session that runs the
   test; `firmware/simnode/CLAUDE.md` has the rest.
@@ -301,9 +305,7 @@ asserts the sum at compile time.
 ## Open, and not closable from here
 
 - **B0's criteria** — "console accepts every command" and "faults arm, fire, self-disarm,
-  OLED". BF-6, and BF-9 on a panel.
-- **B0's OLED criterion on the XIAO** — the Kit has no display. The operator decides whether
-  the Heltec's panel discharges the criterion or the XIAO needs another indicator.
+  OLED". BF-6 remains.
 - **Frames to and from the bridge on air** — DIO1 waking `lora_task`, a key verifying,
   frames both ways. The simnode can now transmit; the bridge still logs nothing per frame
   and answers nothing until BF-17, BF-18 or a PING responder.

@@ -34,7 +34,8 @@ Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec
 **`/lib/lran-sim/` (BF-7)** is built: `FramePatch`, Impl Plan §10.5.2. **The fault catalogue
 and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against the codec's
 receive ladder. **The OLED page (BF-9)** is `oled_page.{h,cpp}` (text, host-tested in
-`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. It has not been seen on a panel.
+`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. The Heltec's panel answers at
+boot; the XIAO's has not been flashed.
 **Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), and the command-path
 faults that need them. Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
 and has not been flashed.**
@@ -58,8 +59,10 @@ bridge. Change them there, and run both firmwares' tests.
 - **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
   each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
   (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
-- **The XIAO + Wio-SX1262 Kit has no display.** `kPanel` is `nullptr` there, and an armed
-  fault shows only on the console. Do not read a blank XIAO as "nothing armed".
+- **The XIAO's panel is on the Seeeduino expansion board**, not the Kit: SDA 5, SCL 6, no
+  reset line, no Vext. A dark XIAO panel is the expansion board's seating, not Vext. BF-9
+  first shipped believing the XIAO had no panel; check `firmware/range-test/src/board_config.h`
+  before describing either board.
 - **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks
   a cut token. Type the full name from `fault list`.
 - **`Node::on_phy_crc_error()` takes `now_ms`** since BF-9, so the page can age the event.
