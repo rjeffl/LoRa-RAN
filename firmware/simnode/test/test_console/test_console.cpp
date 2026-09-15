@@ -156,17 +156,74 @@ void test_ping_forms() {
   TEST_ASSERT_TRUE(r.t.any_starts_with("ERR ping f1: no such identity"));
 }
 
-void test_unbuilt_commands_say_which_task_brings_them() {
+// BF-6's four commands. Tokens are exact: a spec 8.7 or 8.9 name in its own spelling, or ERR.
+void test_gatelink_commands() {
   Rig r;
-  // The command-path commands still wait for ROLE_GATELINK.
-  r.run("push f0 boot");
-  TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
-  r.run("ack f0 suppress");
-  TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
-  // A command-path fault names its task through the injector, not the parser.
+  r.run("push f0");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR push f0: no such identity"));
   r.run("id add f0 ROLE_HEALTH");
+  r.run("push f0");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR push f0: needs ROLE_GATELINK"));
   r.run("fault f0 ack_suppress");
-  TEST_ASSERT_TRUE(r.t.any_contains("BF-6"));
+  TEST_ASSERT_TRUE(r.t.any_contains("needs ROLE_GATELINK"));
+
+  r.run("id add f1 ROLE_GATELINK");
+  Identity* e = r.ids.find(0xF1);
+  r.run("push f1");
+  TEST_ASSERT_EQUAL_STRING("OK push f1 -> 00 schema 0xFE DEBUG_SYNTHETIC", r.t.first());
+  r.run("push f1 GATE_STATE_CHANGE");
+  TEST_ASSERT_EQUAL_STRING("OK push f1 -> 00 schema 0xFE GATE_STATE_CHANGE", r.t.first());
+  r.run("push f1 boot");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR bad reason 'boot'"));
+
+  r.run("event f1 again");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR event f1: no earlier event to repeat"));
+  r.run("event f1 VEHICLE_DETECTED");
+  TEST_ASSERT_EQUAL_STRING("OK event f1 -> 00 event_id 1", r.t.first());
+  r.run("event f1 again");
+  TEST_ASSERT_EQUAL_STRING("OK event f1 -> 00 event_id 1 (repeat)", r.t.first());
+  r.run("event f1 follow");
+  TEST_ASSERT_EQUAL_STRING("OK event f1 -> 00 event_id 1 (follow-up)", r.t.first());
+  r.run("event f1 vehicle");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR bad event type 'vehicle'"));
+
+  r.run("ack f0 delay 5");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR ack f0: needs ROLE_GATELINK"));
+  r.run("ack f1 delay 250");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("OK ack f1 delay 250 ms"));
+  TEST_ASSERT_EQUAL_UINT32(250, e->gl.ack_delay_ms);
+  r.run("ack f1 suppress 3");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("OK fault f1 ack_suppress"));
+  TEST_ASSERT_EQUAL_UINT16(3, e->gl.ack_suppress_left);
+  r.run("ack f1 dup");
+  TEST_ASSERT_EQUAL_UINT16(1, e->gl.ack_dup_left);
+  r.run("id list");
+  TEST_ASSERT_TRUE(r.t.any_contains("gatelink ack_delay 250 ms"));
+  r.run("ack f1 normal");
+  TEST_ASSERT_EQUAL_STRING("OK ack f1 normal", r.t.first());
+  TEST_ASSERT_EQUAL_UINT32(0, e->gl.ack_delay_ms);
+  TEST_ASSERT_EQUAL_UINT16(0, e->gl.ack_suppress_left);
+  TEST_ASSERT_EQUAL_UINT16(0, e->gl.ack_dup_left);
+  r.run("ack f1 sideways");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR usage: ack"));
+
+  r.run("field f1 batt_mv 12100");
+  TEST_ASSERT_EQUAL_STRING("OK field f1 batt_mv = 12100", r.t.first());
+  TEST_ASSERT_EQUAL_UINT16(12100, e->gl.status.batt_mv);
+  r.run("field f1 load_ma na");
+  TEST_ASSERT_EQUAL_INT16(INT16_MIN, e->gl.status.load_ma);
+  r.run("field f1 gate_state na");
+  TEST_ASSERT_TRUE(r.t.any_contains("no not-available sentinel"));
+  r.run("field f1 batt_mv 70000");
+  TEST_ASSERT_TRUE(r.t.any_contains("out of range"));
+  r.run("field f1 nope 1");
+  TEST_ASSERT_TRUE(r.t.any_contains("unknown field"));
+  r.run("field f1 list");
+  TEST_ASSERT_TRUE(r.t.any_contains("batt_mv=12100"));
+  TEST_ASSERT_TRUE(r.t.any_contains("node_flags="));
+  r.run("field f1 reset");
+  TEST_ASSERT_EQUAL_UINT16(13300, e->gl.status.batt_mv);
+
   r.run("frobnicate");
   TEST_ASSERT_TRUE(r.t.any_starts_with("ERR unknown command 'frobnicate'"));
 }
@@ -246,7 +303,7 @@ int main() {
   RUN_TEST(test_bad_ids_and_roles_are_refused_by_name);
   RUN_TEST(test_enable_disable_ver_and_ctx);
   RUN_TEST(test_ping_forms);
-  RUN_TEST(test_unbuilt_commands_say_which_task_brings_them);
+  RUN_TEST(test_gatelink_commands);
   RUN_TEST(test_fault_command_arms_and_disarms);
   RUN_TEST(test_log_and_stats);
   RUN_TEST(test_blank_lines_crlf_and_overlong_lines);

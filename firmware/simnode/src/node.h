@@ -10,9 +10,11 @@
 // EACH IDENTITY HEARS EVERY FRAME, as a physical node would. A frame for 0xF2 is counted
 // rx_not_addressed by 0xF0, exactly as a board at 0xF0 across the room would count it.
 //
-// WHAT THIS SLICE ANSWERS. ROLE_RANGE echoes PING (spec 6.6, 17.3) and answers POLL with
-// schema 0xF0; ROLE_HEALTH answers POLL with 0xF0 (Impl Plan 10.2). ROLE_GATELINK and
-// ROLE_FAULT can be assigned and answer nothing yet: TODO(BF-6), TODO(BF-8).
+// WHAT EACH ROLE ANSWERS (Impl Plan 10.2). ROLE_RANGE echoes PING (spec 6.6, 17.3) and answers
+// POLL with schema 0xF0; ROLE_HEALTH answers POLL with 0xF0. ROLE_GATELINK (BF-6, gatelink.cpp)
+// answers POLL with 0xFE, COMMAND with COMMAND_ACK through its CommandGate, CONFIG with
+// CONFIG_ACK, and sends 0x11 events on request. ROLE_FAULT answers nothing: every fault is
+// armed from the console on any identity (BF-8).
 //
 // THE SYNTHETIC MARKER ON 0xF0. Schema 0xF0 has no status_reason, so it cannot carry
 // DEBUG_SYNTHETIC. Every 0xF0 this firmware emits sets health_flags bit 0, "any debug mode
@@ -29,6 +31,9 @@
 #include "lran/counters.h"
 #include "lran/frame.h"
 #include "lran/mac.h"
+#include "lran/messages.h"
+#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/gatelink_event_v1.h"
 #include "sink.h"
 
 namespace simnode {
@@ -84,6 +89,29 @@ const char* ping_result_name(PingResult r);
 size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint32_t now_ms,
                             uint8_t* out, size_t cap);
 
+// spec 7.2 / 7.1 - identity `e`'s schema 0xFE payload with `reason`, from its synthetic
+// telemetry. Writes kGateLinkStatusV1Len bytes; returns the count, or 0. gatelink.cpp.
+size_t build_gatelink_status(const Identity& e, lran::StatusReason reason, uint32_t now_ms,
+                             uint8_t* out, size_t cap);
+
+// spec 7.3 - a new event from `e`, consuming the next event_id. gatelink.cpp.
+lran::schema::GateLinkEventV1 make_event(Identity& e, lran::EventType type, uint32_t now_ms);
+
+enum class EmitResult : uint8_t {
+  Ok,
+  NoIdentity,
+  Disabled,
+  WrongRole,        // push and event are ROLE_GATELINK's
+  NothingToRepeat,  // `event <hex> again|follow` before any event
+  OutboxFull,
+  EncodeFailed,
+};
+const char* emit_result_name(EmitResult r);
+
+// `event <hex> <type>` sends a new event_id; `again` resends the last event byte for byte;
+// `follow` resends its event_id with the spec 7.3 follow-up bit and a classified direction.
+enum class EventMode : uint8_t { New, Again, FollowUp };
+
 // How long an initiator waits for an echo before reporting none. A 15-fragment set each
 // way at SF9, plus backoffs, fits well inside it.
 inline constexpr uint32_t kDefaultPingTimeoutMs = 30000;
@@ -129,6 +157,13 @@ class Node {
   PingResult ping(lran::NodeId id, uint8_t n, bool pattern, uint8_t frag_chunk,
                   lran::NodeId dst, uint32_t now_ms);
 
+  // `push <hex> [reason]` - an unsolicited 0xFE status to the bridge (Impl Plan 10.4).
+  EmitResult push(lran::NodeId id, lran::StatusReason reason, uint32_t now_ms);
+
+  // `event <hex> ...` - a 0x11 event to the bridge. `event_id` receives the id sent.
+  EmitResult event(lran::NodeId id, lran::EventType type, EventMode mode, uint32_t now_ms,
+                   uint32_t* event_id = nullptr);
+
   // The radio's spec 12.3 instrument. Shared, because the channel is: every identity reports
   // it in 0xF0.
   lran::Counters* radio_counters() { return &radio_counters_; }
@@ -158,6 +193,30 @@ class Node {
   bool send(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
             uint8_t chunk);
 
+  // ROLE_GATELINK - gatelink.cpp.
+  void            on_command(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                             size_t len, uint32_t now_ms);
+  void            on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                            size_t len);
+  void            answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                                       size_t len, uint32_t now_ms);
+  void            refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why);
+  lran::AckResult execute(Identity& e, const lran::msg::Command& c, AfterAck* after);
+  void            finish_command(Identity& e, const PendingAck& p, uint32_t now_ms);
+  void            tick_gatelink(Identity& e, uint32_t now_ms);
+  bool            send_ack(Identity& e, lran::NodeId peer, lran::Seq ack_seq,
+                           lran::AckResult result, uint8_t detail);
+  void            send_fresh_ack(Identity& e, lran::NodeId peer, lran::Seq seq,
+                                 lran::AckResult result, uint8_t detail);
+  bool            send_status(Identity& e, lran::NodeId dst, lran::StatusReason reason,
+                              uint32_t now_ms);
+  bool            send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLinkEventV1& ev);
+  bool            send_config_ack(Identity& e, lran::NodeId dst,
+                                  const lran::schema::GateLinkConfigAckV1& ack);
+  bool            send_config_readback(Identity& e, lran::NodeId dst);
+  void            apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
+                               lran::schema::GateLinkConfigAckV1* out);
+
   IdentityTable* ids_;
   Outbox*        out_;
   lran::IMac*    mac_;
@@ -168,6 +227,11 @@ class Node {
   uint32_t       ping_timeout_ms_ = kDefaultPingTimeoutMs;
   uint32_t       answers_dropped_ = 0;
   LastRx         last_rx_;
+
+  // A full CONFIG and CONFIG_ACK are several hundred bytes each; held here rather than on
+  // the loop task's stack. Only one config is ever in progress, because the node is one loop.
+  lran::schema::GateLinkConfigV1    cfg_rx_;
+  lran::schema::GateLinkConfigAckV1 cfg_ack_;
 };
 
 }  // namespace simnode

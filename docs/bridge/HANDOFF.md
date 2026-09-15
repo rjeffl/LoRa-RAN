@@ -1,7 +1,8 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-14, at the end of the session that brought BF-16 up on the bridge board,
-built BF-15, built simnode B0's first slice and proved it on air, and built BF-7 and BF-8.** It replaces the
+built BF-15, built simnode B0's first slice and proved it on air, and built BF-7, BF-8, BF-9
+and BF-6.** It replaces the
 2026-09-13 file wholesale; that file's content is carried over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -24,17 +25,19 @@ git switch b0-simnode-bringup && git pull --ff-only
 gh pr list --state open
 ```
 
-**B0's remaining task is BF-6**, `ROLE_GATELINK`. It unblocks the five command-path faults
-(`ack_suppress`, `ack_dup`, `event_replay`, `cmd_replay`, `cmd_stale_seq`) that `fault`
-refuses today, naming BF-6. After it, B0 is complete bar two pieces of bench work: flashing
-the XIAO profile, and seeing BF-9's OLED page on the handheld Heltec.
+**Every B0 task is built.** What remains is bench work, then the operator's acceptance:
+flash the XIAO profile, which now boots as `0xF1 ROLE_GATELINK`, and run its command path on
+air against the handheld Heltec. The XIAO was not with the operator on 2026-09-14.
+
+**Desk work while the XIAO is away:** BF-17, the poll scheduler, below. **Before BF-18 is
+built**, spec v0.12 should answer the three questions in the engineering log's BF-6 entry;
+the first of them is how BF-18 reads a `DUPLICATE_CACHED` ACK.
 
 **BF-9 is built, and the handheld Heltec runs it** (engineering log, 2026-09-14, BF-9 and
 its correction). Its panel answers at boot. **Both profiles drive a panel**: the XIAO's is
 on the Seeeduino expansion board.
-Its command path calls `CommandGate::check()` before dispatch and sends `COMMAND_ACK` only
-after `record()`; on `InFlight` it sends nothing (spec §9.4 v0.11). Bridge Impl Plan §10.9
-records what exists; `firmware/simnode/CLAUDE.md` lists the traps.
+Bridge Impl Plan §10.9, §10.9.1 and §10.9.2 record what B0 built;
+`firmware/simnode/CLAUDE.md` lists the traps.
 
 **When the broker is reachable again, run V-B9 (Impl Plan §6.5.2) before anything else on
 the bench.** It is owed since BF-16 changed `ota_policy.cpp`, and **it cannot run without
@@ -45,6 +48,20 @@ rolls back and the test records a broker outage as a firmware failure.
 (Sonnet, per the Tasks document).
 
 ## What the last session established
+
+**BF-6, 2026-09-14, the last work of the day.** The engineering log's BF-6 entry has the
+decisions and the spec questions; Impl Plan §10.9.2 the summary.
+
+- **`ROLE_GATELINK` answers `POLL` (`0xFE`), `COMMAND` (through `CommandGate`) and `CONFIG`
+  (a 21-entry RAM store), and sends events.** `push`, `event`, `ack` and `field` exist, and
+  all five command-path faults arm. 108 host tests pass; a mutation that let a cached retry
+  actuate failed five of them. **Not supported:** anything on air, or a bridge that retries.
+- **Four decisions with the operator:** schema `0xFE` is the synthetic marker; `CONFIG` uses
+  a generic RAM store; `ack suppress|dup` are bounded faults and `ack delay` a setting;
+  `cmd_replay` and `cmd_stale_seq` to a same-board target never transmit.
+- **Three spec questions for v0.12**: the `DUPLICATE_CACHED` ACK's encoding, what answers a
+  repeated `CONFIG`, and §7.4's reliance on fragmentation that §3.1's 196-byte set cap rules
+  out. Not patched.
 
 **BF-9, 2026-09-14, later the same day.** Impl Plan §10.9.1 has the page layout.
 
@@ -124,9 +141,9 @@ account.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-7**, **BF-8** and **BF-9** built, host-tested |
-| Not done | **B0**: BF-6, the rest of BF-4, BF-9 on a panel. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
-| Queue | **BF-6** → flash the XIAO simnode → B0 accepted → BF-17 to BF-22. **V-B9** as soon as the broker is reachable |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **BF-15** and **BF-16** built; BF-16's radio up on the board. **BF-2**, **BF-3**, **BF-5** and BF-4's core built; PING echo on air. **BF-4**, **BF-6**, **BF-7** and **BF-8** built, host-tested; **BF-9** confirmed on the Heltec's panel |
+| Not done | **B0**: the XIAO flashed, `ROLE_GATELINK` on air, the operator's acceptance. **B3**, every criterion. **V-B9's re-run.** **BF-11a**, **BF-11b** |
+| Queue | BF-17 (desk) → flash the XIAO, `ROLE_GATELINK` on air → B0 accepted → BF-18 to BF-22, BF-18 after spec v0.12. **V-B9** as soon as the broker is reachable |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -217,6 +234,9 @@ asserts the sum at compile time.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **The XIAO simnode boots as `0xF1 ROLE_GATELINK` since BF-6**, not `ROLE_RANGE`. Text
+  describing `push`, `event`, `ack`, `field` or the command-path faults as `ERR not
+  implemented` is correct for before BF-6.
 - **`media_access` and the PHY constants moved to `lib/lran-link/` on the B0 branch.**
   BF-16-era text placing `media_access.{h,cpp}` in `firmware/bridge/src/`, or its seven tests
   in `test_lora`, is correct for when it was written.
@@ -306,8 +326,8 @@ asserts the sum at compile time.
 
 ## Open, and not closable from here
 
-- **B0's criteria** — "console accepts every command" and "faults arm, fire, self-disarm,
-  OLED". BF-6 remains.
+- **B0's acceptance** — every criterion has code behind it; "flashes and runs" is unmet for
+  the XIAO, and the operator has not accepted the milestone.
 - **Frames to and from the bridge on air** — DIO1 waking `lora_task`, a key verifying,
   frames both ways. The simnode can now transmit; the bridge still logs nothing per frame
   and answers nothing until BF-17, BF-18 or a PING responder.
@@ -318,6 +338,9 @@ asserts the sum at compile time.
 - **Spec gap for v0.12: a frame from an unregistered source** — §14 has no stage for it.
   The bridge counts `unregistered_src` meanwhile (engineering log, 2026-09-14).
 - **Spec gap for v0.12: §16.2's `lran/bridge/version` payload.**
+- **Spec questions for v0.12 from BF-6** — how a `DUPLICATE_CACHED` ACK carries the cached
+  result; what a node answers to a repeated `CONFIG`; §7.4's fragmented config sets against
+  §3.1's 196-byte cap on a reassembled set. The engineering log's BF-6 entry has each one.
 - **Spec §12.1's node-address filtering** — RadioLib 7.7.1 has no SX126x setter, and the
   reading that the part filters only in GFSK is unverified against the datasheet. Needs a
   specification decision before a duty-cycled node relies on it (§17.1).

@@ -45,11 +45,11 @@ constexpr auto kRxAbandoned     = &lran::Counters::rx_reassembly_abandoned;
 constexpr auto kRxFragDup       = &lran::Counters::rx_frag_duplicate;
 constexpr auto kRxFragLate      = &lran::Counters::rx_frag_late;
 
+constexpr auto kRxRejectedSeq  = &lran::Counters::rx_rejected_seq;
+constexpr auto kRxDupCommand   = &lran::Counters::rx_dup_command;
+
 using C = uint32_t lran::Counters::*;
 constexpr C kNone = nullptr;
-
-// The one place waits_for is spelled, so the catalogue and the console name the same task.
-constexpr const char* kBF6 = "BF-6 (ROLE_GATELINK command path)";
 
 }  // namespace
 
@@ -84,18 +84,25 @@ const FaultInfo kFaultCatalogue[] = {
      "set completes; rx_reassembly_abandoned still", nullptr, 0},
     {"set_displaced", FaultId::SetDisplaced, 2, kRxAbandoned, "live set displaced", nullptr, 0},
 
-    {"ctx_jump", FaultId::CtxJump, 1, kNone, "bridge adopts, resets cmd_seq", nullptr, 0},
+    {"ctx_jump", FaultId::CtxJump, 1, kNone,
+     "bridge adopts; its next COMMAND gets REJECTED_CTX, one retry", nullptr, 0},
     {"seq_jump", FaultId::SeqJump, 1, kNone, "accepted, RFC 1982", nullptr, 0},
     {"seq_wrap", FaultId::SeqWrap, 2, kNone, "accepted through 0xFFFF", nullptr, 0},
 
     {"flood", FaultId::Flood, 1, kNone, "bridge stays responsive", nullptr, 0},
     {"silent", FaultId::Silent, 0, kNone, "answers withheld, availability offline", nullptr, 0},
 
-    {"ack_suppress", FaultId::AckSuppress, 0, kNone, "COMMAND received, no ACK", kBF6, 0},
-    {"ack_dup", FaultId::AckDup, 0, kNone, "two ACKs, second ignored", kBF6, 0},
-    {"event_replay", FaultId::EventReplay, 0, kNone, "same event_id twice", kBF6, 0},
-    {"cmd_replay", FaultId::CmdReplay, 0, nullptr, "cached ACK, relay does not pulse", kBF6, 0},
-    {"cmd_stale_seq", FaultId::CmdStaleSeq, 0, nullptr, "COMMAND_ACK(REJECTED_SEQ)", kBF6, 0},
+    // BF-6. The two ack faults act on the identity's own fresh ACKs; event_replay sends.
+    {"ack_suppress", FaultId::AckSuppress, 0, kNone,
+     "no ACK; bridge retries same seq, gets DUPLICATE_CACHED", nullptr, 0},
+    {"ack_dup", FaultId::AckDup, 0, kNone, "two ACKs, second ignored", nullptr, 0},
+    {"event_replay", FaultId::EventReplay, 2, kNone, "same event_id twice, published once", nullptr,
+     0},
+    // 10.5.1 - the counter is the TARGET node's, not the bridge's.
+    {"cmd_replay", FaultId::CmdReplay, 2, kRxDupCommand, "cached ACK, relay does not pulse",
+     nullptr, 0},
+    {"cmd_stale_seq", FaultId::CmdStaleSeq, 2, kRxRejectedSeq, "COMMAND_ACK(REJECTED_SEQ)",
+     nullptr, 0},
 
     {"bad_phy_crc", FaultId::BadPhyCrc, 0, kNone, "cannot be injected - hardware PHY CRC",
      "the B1 range walk", 0},
@@ -126,6 +133,9 @@ const char* fault_result_name(FaultResult r) {
     case FaultResult::WaitsForTask:  return "not implemented";
     case FaultResult::NotInjectable: return "cannot be injected";
     case FaultResult::BadCount:      return "count must be 1 or more";
+    case FaultResult::WrongRole:     return "needs ROLE_GATELINK";
+    case FaultResult::NeedsCtx:      return "a target on another board needs ctx <hex32>";
+    case FaultResult::BadTarget:     return "target must be a simnode, f0-f3";
   }
   return "?";
 }
@@ -151,6 +161,29 @@ FaultResult FaultInjector::arm(lran::NodeId id, const char* name, const FaultReq
   if (info->id == FaultId::BadPhyCrc) return FaultResult::NotInjectable;
   if (info->waits_for != nullptr) return FaultResult::WaitsForTask;
   if (req.count == 0) return FaultResult::BadCount;
+
+  switch (info->id) {
+    case FaultId::AckSuppress:
+    case FaultId::AckDup: {
+      if (e->role != Role::GateLink) return FaultResult::WrongRole;
+      const bool suppress = info->id == FaultId::AckSuppress;
+      (suppress ? e->gl.ack_suppress_left : e->gl.ack_dup_left) = req.count;
+      sink_printf(log_, "OK fault %02x %s: next %u ACK(s) %s", id, info->name,
+                  static_cast<unsigned>(req.count), suppress ? "withheld" : "sent twice");
+      return FaultResult::Ok;
+    }
+    case FaultId::EventReplay:
+      if (e->role != Role::GateLink) return FaultResult::WrongRole;
+      break;
+    case FaultId::CmdReplay:
+    case FaultId::CmdStaleSeq: {
+      const FaultResult t = check_command_target(*e, req);
+      if (t != FaultResult::Ok) return t;
+      break;
+    }
+    default:
+      break;
+  }
 
   // `silent` withholds answers rather than sending frames; it lives on the identity so the
   // receive path can see it without reaching into the injector.
@@ -207,11 +240,25 @@ bool FaultInjector::disarm(lran::NodeId id) {
     }
   }
   Identity* e = ids_->find(id);
-  if (e != nullptr && e->silent_left != 0) {
-    e->silent_left = 0;
-    any            = true;
+  if (e != nullptr && (e->silent_left != 0 || e->gl.ack_suppress_left != 0 || e->gl.ack_dup_left != 0)) {
+    e->silent_left          = 0;
+    e->gl.ack_suppress_left = 0;
+    e->gl.ack_dup_left      = 0;
+    any                     = true;
   }
   return any;
+}
+
+FaultResult FaultInjector::check_command_target(const Identity& e, const FaultRequest& r) const {
+  const Identity* local = r.dst == lran::kNodeBridge ? &e : ids_->find(r.dst);
+  if (local != nullptr) {
+    if (local->role != Role::GateLink) return FaultResult::WrongRole;
+    if (!local->enabled) return FaultResult::Disabled;
+    return FaultResult::Ok;
+  }
+  if (!is_simnode_id(r.dst)) return FaultResult::BadTarget;  // signs for no production node
+  if (!r.has_ctx) return FaultResult::NeedsCtx;
+  return FaultResult::Ok;
 }
 
 void FaultInjector::tick(uint32_t now_ms) {
@@ -229,16 +276,29 @@ void FaultInjector::tick(uint32_t now_ms) {
 }
 
 bool FaultInjector::fire(ArmedFault& a, Identity& e, uint32_t now_ms) {
-  staged_ = 0;
+  staged_   = 0;
+  loopback_ = false;
   if (!build(a, e, now_ms)) {
     // A build failure is a defect in this file, not a bench event; disarm rather than spin.
     sink_printf(log_, "fault %02x %s: build failed - disarmed", e.id, a.info->name);
     a.active = false;
     return false;
   }
-  if (out_->free_slots() < staged_) return false;  // wait for the radio to drain
+  // Wait for the radio to drain. A loopback injection sends nothing itself, but its target
+  // answers each frame with a COMMAND_ACK, which needs the same room.
+  if (out_->free_slots() < staged_) return false;
 
-  for (size_t i = 0; i < staged_; ++i) out_->push(stage_[i], stage_len_[i]);
+  if (loopback_) {
+    // Delivered in order, synchronously: the first copy has executed before the second
+    // arrives, as 10.5.1 requires - unless `ack delay` holds it in flight, which then tests
+    // spec 9.4's in-flight answer instead.
+    for (size_t i = 0; i < staged_; ++i) {
+      node_->on_rx(stage_[i], stage_len_[i], lran::kI16NotAvailable, lran::kI16NotAvailable,
+                   now_ms);
+    }
+  } else {
+    for (size_t i = 0; i < staged_; ++i) out_->push(stage_[i], stage_len_[i]);
+  }
   ++a.fired;
   a.last_ms = now_ms;
   ++injections_;
@@ -314,6 +374,33 @@ bool FaultInjector::add_command(Identity& e, const FaultRequest& r, bool frag, b
     if (fp.seal(Seal::MacAndCrc) != lran::sim::PatchStatus::Ok) return false;
   }
   return push_stage(fp.frame(), fp.len());
+}
+
+bool FaultInjector::add_bridge_command(const Identity* local, lran::NodeId target,
+                                       const FaultRequest& r, lran::Cmd cmd, lran::Seq seq) {
+  lran::Header h;
+  h.ver    = local != nullptr ? local->proto_ver : lran::kProtoVer;
+  h.type   = lran::MsgType::Command;
+  h.src    = lran::kNodeBridge;
+  h.dst    = target;
+  h.seq    = seq;
+  h.ctx_id = local != nullptr ? local->ctx_id : r.ctx;
+
+  uint8_t key[lran::kNodeKeyLen];
+  if (!ids_->derive_simnode_key(target, key)) return false;
+  lran::EncodeCtx ectx;
+  ectx.mac      = mac_;
+  ectx.node_key = key;
+
+  const lran::msg::Command c{static_cast<uint8_t>(cmd), 0, 0};
+  uint8_t                  payload[lran::msg::kCommandLen];
+  size_t                   plen = 0;
+  if (lran::msg::serialize(c, payload, sizeof(payload), &plen) != lran::Status::Ok) return false;
+
+  uint8_t buf[lran::kMaxFrame];
+  size_t  len = 0;
+  if (lran::encode(h, payload, plen, ectx, buf, sizeof(buf), &len) != lran::Status::Ok) return false;
+  return push_stage(buf, len);
 }
 
 // Fragments of `payload` at kFaultChunk, queued in `order`. A null order sends 0..total-1.
@@ -549,14 +636,66 @@ bool FaultInjector::build(const ArmedFault& a, Identity& e, uint32_t now_ms) {
       // stay responsive and lora_task must not block (Impl Plan 1.3).
       return one([](FramePatch& fp) { return fp.seal(Seal::Crc) == PS::Ok; });
 
-    // Behaviour and command-path faults reach build() only if arm() let them through, which it
-    // does not. Present so the switch is exhaustive and a new FaultId is a compile error.
+    case FaultId::EventReplay: {
+      // One new event, sent twice under two status seqs. spec 7.3's key is (src, ctx_id,
+      // event_id), so the bridge must publish once even though the frames differ.
+      const lran::schema::GateLinkEventV1 ev = make_event(e, lran::EventType::VehicleDetected, now_ms);
+      e.gl.last_event     = ev;
+      e.gl.has_last_event = true;
+      uint8_t payload[lran::schema::kGateLinkEventV1Len];
+      size_t  plen = 0;
+      if (lran::schema::serialize(ev, payload, sizeof(payload), &plen) != lran::Status::Ok) return false;
+      lran::EncodeCtx ectx;
+      for (int i = 0; i < 2; ++i) {
+        lran::Header h;
+        h.ver    = e.proto_ver;
+        h.type   = lran::MsgType::Event;
+        h.src    = e.id;
+        h.dst    = r.dst;
+        h.seq    = e.tx_seq++;
+        h.ctx_id = e.ctx_id;
+        h.schema = lran::kSchemaGateLinkEventV1;
+        uint8_t buf[lran::kMaxFrame];
+        size_t  len = 0;
+        if (lran::encode(h, payload, plen, ectx, buf, sizeof(buf), &len) != lran::Status::Ok) {
+          return false;
+        }
+        if (!push_stage(buf, len)) return false;
+      }
+      return true;
+    }
+
+    case FaultId::CmdReplay:
+    case FaultId::CmdStaleSeq: {
+      const Identity*    local  = r.dst == lran::kNodeBridge ? &e : ids_->find(r.dst);
+      const lran::NodeId target = local != nullptr ? local->id : r.dst;
+      loopback_                 = local != nullptr;
+
+      lran::Seq base = 0;
+      if (local != nullptr) {
+        base = static_cast<lran::Seq>(local->gate.high_water() + 1);
+      } else {
+        base        = (r.has_seq && a.fired == 0) ? r.seq : remote_seq_;
+        remote_seq_ = static_cast<lran::Seq>(base + 2);
+      }
+
+      if (a.info->id == FaultId::CmdReplay) {
+        // The same COMMAND twice. OPEN, not NOP: the target counts actuations, and a replay
+        // that moved that count would be a second relay pulse at a real gate.
+        return add_bridge_command(local, target, r, lran::Cmd::Open, base) &&
+               add_bridge_command(local, target, r, lran::Cmd::Open, base);
+      }
+      // base+1 executes; base is then below the high-water mark and was never executed, so it
+      // is not in the dedup cache - step 5 refuses it rather than step 4 answering it.
+      return add_bridge_command(local, target, r, lran::Cmd::Nop, static_cast<lran::Seq>(base + 1)) &&
+             add_bridge_command(local, target, r, lran::Cmd::Nop, base);
+    }
+
+    // Behaviour faults reach build() only if arm() let them through, which it does not.
+    // Present so the switch is exhaustive and a new FaultId is a compile error.
     case FaultId::Silent:
     case FaultId::AckSuppress:
     case FaultId::AckDup:
-    case FaultId::EventReplay:
-    case FaultId::CmdReplay:
-    case FaultId::CmdStaleSeq:
     case FaultId::BadPhyCrc:
       return false;
   }

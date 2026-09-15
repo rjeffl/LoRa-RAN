@@ -141,9 +141,14 @@ PageSnapshot take_snapshot(const IdentityTable& ids, const FaultInjector& faults
       v.fault      = a->info->name;
       v.fault_left = a->left;
     } else if (e.silent_left > 0) {
-      const FaultInfo* silent = find_fault("silent");
-      v.fault      = silent != nullptr ? silent->name : "silent";
+      v.fault      = "silent";
       v.fault_left = e.silent_left;
+    } else if (e.gl.ack_suppress_left > 0) {
+      v.fault      = "ack_suppress";
+      v.fault_left = e.gl.ack_suppress_left;
+    } else if (e.gl.ack_dup_left > 0) {
+      v.fault      = "ack_dup";
+      v.fault_left = e.gl.ack_dup_left;
     }
   }
   return s;

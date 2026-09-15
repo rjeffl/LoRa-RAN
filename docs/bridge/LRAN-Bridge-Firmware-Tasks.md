@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.15
+**Version:** 0.16
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.27
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.28
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -165,9 +165,9 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 |---|---|---|---|
 | **BF-2** | Project skeleton, two PlatformIO environments, `RadioPins` profiles for Heltec and XIAO+Wio Kit (§10.8, §10.8.1). **Built 2026-09-14; Heltec proven on air, XIAO builds but not flashed** — Impl Plan §10.9 | **Sonnet** | The pin maps are transcribed and already proven over the air — 192 frames out, 192 echoes back. Wrong values fail loudly at `begin()` or at the first probe |
 | **BF-3** | Identity table — up to four logical nodes, independent key, `ctx_id`, sequence spaces, `enabled` (§10.3). **Built 2026-09-14, host-tested; three identities across two boards on air** | **Opus** | The bridge must not be able to tell four identities on one radio from four radios. If anything keys on the radio rather than `node_id`, **BG-2** is already broken and the seam stays hidden until WellLink |
-| **BF-4** | Serial console — every command in §10.4's table. **Core built 2026-09-14**; `push`, `event`, `ack`, `field` wait for BF-6 and `fault` for BF-8 | **Sonnet** | A closed command table with defined effects. Wrong parsing is immediately visible at the prompt |
+| **BF-4** | Serial console — every command in §10.4's table. **Built 2026-09-14**: the core first, `fault` with BF-8, and `push`, `event`, `ack`, `field` with BF-6 | **Sonnet** | A closed command table with defined effects. Wrong parsing is immediately visible at the prompt |
 | **BF-5** | `ROLE_RANGE` and `ROLE_HEALTH` (§10.2). **Built 2026-09-14; PING echo proven on air**, single, full-size and 15-fragment | **Sonnet** | Deliberately impoverished by design. `PING` echo and `0xF0` on poll |
-| **BF-6** | `ROLE_GATELINK` — `0xFE` status, `0x11` events, `COMMAND_ACK`, `0x12` config (§10.2) | **Opus** | The only role that accepts a `COMMAND`, so it is where `CommandGate` is exercised and where the synthetic marking rule bites. Synthetic data reaching HA history unmarked is **a bug in both nodes at once**, and it looks like real history |
+| **BF-6** | `ROLE_GATELINK` — `0xFE` status, `0x11` events, `COMMAND_ACK`, `0x12` config (§10.2). **Built 2026-09-14, host-tested; not yet on air** — Impl Plan §10.9.2. The five command-path faults came with it | **Opus** | The only role that accepts a `COMMAND`, so it is where `CommandGate` is exercised and where the synthetic marking rule bites. Synthetic data reaching HA history unmarked is **a bug in both nodes at once**, and it looks like real history |
 | **BF-7** | `/lib/lran-sim/` — the **patch-after-encode primitive** (§10.5.2). **Built 2026-09-14**; host-tested against the W4 negative vectors, and not called by the simnode until BF-8 | **Opus** | §10.6 rule 1: never a second serializer. The primitive's surface is what keeps that true while making `oversize`, `frag_zero` and `frag_command` reachable. Scope it before B0, not during — "discovering it mid-milestone is how a second serializer gets written" |
 | **BF-8** | The §10.5 fault catalogue — 27 entries against the primitive from BF-7. **Built 2026-09-14**; host-tested against the codec's receive ladder, command-path entries wait for BF-6 | **Sonnet** | Each row states the frame, the counter and the expected behaviour, and §14.1 is the normative counter registry. Table-driven, verifiable, high volume — the best delegation candidate in the list |
 | **BF-9** | Fault self-disarm and OLED armed-state display (§10.6 rule 2). **Built 2026-09-14; confirmed on the Heltec's panel by eye, XIAO not flashed.** Self-disarm came with BF-8. Both profiles drive a panel (Impl Plan §10.9.1) | **Sonnet** | Bounded count, then disarm. A short rule with an obvious test |
@@ -267,6 +267,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.16** | **BF-6 built** — `ROLE_GATELINK`; B0's tasks are all built, bench work remains |
 | **v0.15** | **BF-9 built** — the simnode's OLED page; B0 leaves only BF-6 |
 | **v0.14** | **BF-8 built** — the fault catalogue and `fault` command; command-path entries wait for BF-6 |
 | **v0.13** | **BF-7 built** — `lib/lran-sim/`'s patch primitive; BF-8 may start |
@@ -282,6 +283,12 @@ only against the bridge, a cached value republished as current.
 | **v0.3** | **D1 closed** — BF-0 done, §1.1 becomes what the firmware inherits |
 | **v0.2** | BF-0 points at the D1 decision brief; §1.1's D1 summary defers to it |
 | **v0.1** | Initial release — task breakdown under B0–B7, with model suitability |
+
+- **v0.16** — **BF-6 is built**, and with it the rest of **BF-4**. `ROLE_GATELINK` answers
+  `POLL`, `COMMAND` and `CONFIG` and sends events; the five command-path faults arm. **Every
+  B0 task is built.** What remains of B0 is bench work, flashing the XIAO profile and running
+  `ROLE_GATELINK` on air, then the operator's acceptance. No scope or model column changes.
+  This document inherits Bridge Impl Plan v0.28.
 
 - **v0.15** — **BF-9 is built.** The Heltec simnode's OLED shows the last frame, the identity
   table, and each armed fault as an inverted bar until it disarms. Host-tested, and the

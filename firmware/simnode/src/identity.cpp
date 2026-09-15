@@ -60,6 +60,8 @@ void IdentityTable::clear(Identity& e) {
   e.ping          = PendingPing{};
   e.silent_left        = 0;
   e.answers_suppressed = 0;
+  e.gl                 = GateLinkState{};
+  reset_gatelink_telemetry(&e.gl.status);
 }
 
 bool IdentityTable::derive_simnode_key(lran::NodeId id, uint8_t out[lran::kNodeKeyLen]) const {
@@ -136,6 +138,14 @@ bool IdentityTable::new_context(lran::NodeId id) {
   e->reassembler.forget_completed();
   e->rx_chunk = 0;
   e->ping     = PendingPing{};
+
+  // What a GateLink reboot loses: RAM-only config, event ids, a command mid-execution. The
+  // synthetic telemetry and the ack settings are the operator's bench setup and survive.
+  e->gl.next_event_id  = 1;
+  e->gl.has_last_event = false;
+  e->gl.pending        = PendingAck{};
+  for (StoredParam& p : e->gl.params) p = StoredParam{};
+  if (e->gl.status.boot_count < 0xFFFF) ++e->gl.status.boot_count;
   return true;
 }
 

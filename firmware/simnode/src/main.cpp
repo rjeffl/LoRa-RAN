@@ -133,14 +133,15 @@ void setup() {
     g_ids.init(master, &g_kdf, random_u32);
   }
 
-  // Impl Plan 10.8.1's assignment, with ROLE_RANGE standing in until ROLE_FAULT (BF-8) and
-  // ROLE_GATELINK (BF-6) exist. Nothing persists: a reboot is a new context for every
-  // identity, which is what a node reboot is.
+  // Impl Plan 10.8.1's assignment: the XIAO carries the target radio, so it is 0xF1
+  // ROLE_GATELINK (BF-6). The Heltec's 0xF0 stays ROLE_RANGE, because faults arm on any
+  // identity and a range peer is what a first bring-up wants. Nothing persists: a reboot is
+  // a new context for every identity, which is what a node reboot is.
 #if defined(LRAN_PROFILE_HELTEC)
   add_default(lran::kNodeSim0, simnode::Role::Range);
   add_default(lran::kNodeSim2, simnode::Role::Health);
 #else
-  add_default(lran::kNodeSim1, simnode::Role::Range);
+  add_default(lran::kNodeSim1, simnode::Role::GateLink);
 #endif
 
   if (simnode::ui_begin(simnode::kPanel)) {
@@ -150,7 +151,7 @@ void setup() {
   }
 
   simnode::radio_start(simnode::kRadio, lran::link::kPhy, &g_sink);
-  Serial.println(F("B0: identities, console, faults, OLED; ROLE_RANGE and ROLE_HEALTH. Type 'help'."));
+  Serial.println(F("B0: identities, console, faults, OLED; all four roles. Type 'help'."));
 }
 
 void loop() {

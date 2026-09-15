@@ -3,8 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.27 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.15 §4 (BF-2 to BF-9).
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.28 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.16 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -36,8 +36,9 @@ and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against t
 receive ladder. **The OLED page (BF-9)** is `oled_page.{h,cpp}` (text, host-tested in
 `test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. The Heltec's panel answers at
 boot; the XIAO's has not been flashed.
-**Not yet:** `ROLE_GATELINK` and `push`/`event`/`ack`/`field` (**BF-6**), and the command-path
-faults that need them. Those commands answer `ERR not implemented` and name their task. **The XIAO profile builds
+**`ROLE_GATELINK` (BF-6)** is `gatelink.{h,cpp}`, with `push`, `event`, `ack`, `field` and the
+five command-path faults; Impl Plan §10.9.2, host-tested in `test/test_gatelink`, not yet on
+air. **Every Impl Plan §10.4 command exists.** **The XIAO profile builds
 and has not been flashed.**
 
 ```bash
@@ -68,6 +69,16 @@ bridge. Change them there, and run both firmwares' tests.
 - **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks
   a cut token. Type the full name from `fault list`.
 - **`Node::on_phy_crc_error()` takes `now_ms`** since BF-9, so the page can age the event.
+- **`ack <hex> delay <ms>` outlives a reboot of the identity and is not a fault.** It shows in
+  `id list`, not on the OLED. Clear it with `ack <hex> normal`, which also disarms
+  `ack_suppress` and `ack_dup`.
+- **`cmd_replay` and `cmd_stale_seq` to a target on this board never reach the air**, but the
+  target's `COMMAND_ACK`s do, addressed to `00`. To another board they need `ctx <hex32>`, and
+  `seq <n>` above that board's `cmd_hw` once it has taken a command.
+- **A `DUPLICATE_CACHED` ACK carries the cached result in `detail`.** The encoding is the
+  simnode's reading of spec §9.4, raised for v0.12; BF-18 must not treat it as settled.
+- **A `CONFIG_ACK` is cut at 196 bytes and the cut is logged.** 24 `u32` results do not fit,
+  and spec §3.1 lets no fragmented set exceed that either. The RAM store holds 21 entries.
 - **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
   `rx_dropped`, on every other identity on the board. That is what four boards would count.
 
@@ -164,8 +175,10 @@ flashed with only its own derived key.
 
 ## Rules specific to this target
 
-1. **Every emitted payload is marked synthetic.** `status_reason = DEBUG_SYNTHETIC`, and
-   schema `0xFE` rather than `0x10` for status. **Schema `0xF0` has no `status_reason`**, so
+1. **Every emitted payload is marked synthetic.** A status is schema `0xFE`, never `0x10`,
+   and the schema is the marker (spec §7.1, decided with the operator 2026-09-14): `push`
+   defaults to `status_reason = DEBUG_SYNTHETIC` and may send any spec §8.7 reason, so the
+   bridge's handling of real reasons can be tested. **Schema `0xF0` has no `status_reason`**, so
    every `0xF0` sets `health_flags` bit 0 instead (spec §7.5, found 2026-09-14). Synthetic
    data reaching HA history unmarked is a bug in two nodes at once, and it fails silently —
    it looks like real history until someone tries to explain a reading.

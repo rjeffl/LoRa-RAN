@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.27
+**Version:** 0.28
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1626,6 +1626,28 @@ board (SDA 5, SCL 6, no reset line, no Vext), with the values the range test con
 | 0 | The last frame received: `src>dst`, type, RSSI and age. Otherwise `<len>B <rssi> drop`, `phy crc error`, or an inverted `RADIO DOWN` |
 | 1–4 | One identity per row, with its exact role token and `off` when disabled. **An armed fault replaces the row as an inverted bar** with the injections left, or the answers left for `silent` |
 
+#### 10.9.2 `ROLE_GATELINK` (BF-6)
+
+`gatelink.{h,cpp}` holds the role, and `test_gatelink` its host suite. Four points left open
+by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
+
+| Point | Decision |
+|---|---|
+| Synthetic marking | **Schema `0xFE` is the marker.** `push <hex> [reason]` takes any spec §8.7 name and defaults to `DEBUG_SYNTHETIC` |
+| `CONFIG` without `/lib/lran-config/` | **A generic RAM store** of 21 entries: any `param_id` with a consistent `ptype` and `len`, always `APPLIED_NOT_PERSISTED`. No `param_id` is declared here |
+| `ack` modes | `suppress [count]` and `dup [count]` **arm the bounded `ack_suppress` and `ack_dup` faults**. `delay <ms>` is a setting that lasts until `ack <hex> normal` |
+| `cmd_replay`, `cmd_stale_seq` targets | **A target on the same board is fed through the node's receive path and never transmitted.** Another board's target needs `to <hex> ctx <hex32>`, and `seq <n>` when its high-water mark is above zero |
+
+**What a command does on a simnode.** No output exists. `NOP`, the settings commands and the
+actuation commands answer per spec §8.2, and an actuation command is counted in `actuations`.
+`SET_RELAY_DRY_RUN 1` turns later actuations into `DRY_RUN`. `REQUEST_STATUS` and
+`REQUEST_CONFIG` follow their ACK with a status or a readback. `REBOOT` with `0xA5` follows
+its ACK with a new context and a `BOOT` status.
+
+The engineering log's BF-6 entry records three questions for spec v0.12: how a
+`DUPLICATE_CACHED` ACK carries the cached result, what answers a repeated `CONFIG`, and
+§7.4's reliance on fragmentation that §3.1's cap on a reassembled set rules out.
+
 ---
 
 ## 11. Development environment and workflow
@@ -1786,6 +1808,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.28** | **New §10.9.2** — BF-6's `ROLE_GATELINK`; four operator decisions; three spec questions |
 | **v0.27** | **New §10.9.1** — BF-9's OLED page, on both profiles |
 | **v0.26** | **§10.5** — BF-8's catalogue built: `fault.{h,cpp}`, `fault` console command, `silent`, and the host suite that checks each counter |
 | **v0.25** | **§10.5.2** — BF-7's patch primitive, built; §5.4's claim that the vectors share `lran-sim` corrected |
@@ -1813,6 +1836,12 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.28** — **BF-6 built `ROLE_GATELINK`**, new §10.9.2: `0xFE` on poll, `COMMAND_ACK`
+  through the command gate, `CONFIG_ACK` from a RAM store, `0x11` events, the console's
+  `push`, `event`, `ack` and `field`, and the five command-path faults. Every §10.4 command
+  now exists. §10.9.2 records four decisions made with the operator. No catalogue entry,
+  counter or milestone criterion changes. Not yet on air.
 
 - **v0.27** — **BF-9 built the simnode's OLED page**, new §10.9.1: the last frame, the
   identity table, and each armed fault as an inverted bar that clears when the fault

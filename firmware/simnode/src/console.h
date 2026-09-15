@@ -51,6 +51,10 @@ class Console {
   void cmd_stats(char** argv, int argc);
   void cmd_log(char** argv, int argc);
   void cmd_fault(char** argv, int argc, uint32_t now_ms);
+  void cmd_push(char** argv, int argc, uint32_t now_ms);
+  void cmd_event(char** argv, int argc, uint32_t now_ms);
+  void cmd_ack(char** argv, int argc, uint32_t now_ms);
+  void cmd_field(char** argv, int argc);
   void fault_list();
   void list_identity(const Identity& e);
 

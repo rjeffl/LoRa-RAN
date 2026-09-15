@@ -11,8 +11,9 @@
 // bridge ships tested only against prose.
 //
 // WHAT THIS CANNOT COVER: that the frame reaches the air (radio.cpp needs a board), and
-// bad_phy_crc, which the SX1262 makes unproducible (Impl Plan 10.5.2). The command-path
-// faults wait for ROLE_GATELINK (BF-6) and are asserted here only to be refused by arm().
+// bad_phy_crc, which the SX1262 makes unproducible (Impl Plan 10.5.2). The command-path faults
+// (BF-6) are checked against the TARGET node's gate, which is where 10.5.1 puts the assertion;
+// the behaviour of the ROLE_GATELINK command path itself is test_gatelink's.
 
 #include <unity.h>
 
@@ -59,8 +60,8 @@ struct Sim {
   CtxId ctx() const { return ids.find(kNodeSim0)->ctx_id; }
 };
 
-// The bridge's receive path for frames from one peer: stages 2-10, counters and all. Stage 11
-// (the command gate) is BF-6's; nothing here reaches it.
+// The bridge's receive path for frames from one peer: stages 2-10, counters and all. Stage 11,
+// the command gate, is a node's; the command-path faults below use a second simnode instead.
 struct Receiver {
   Counters    counters;
   Reassembler reasm{&counters};
@@ -385,14 +386,184 @@ void test_flood_fires_the_whole_count_across_ticks() {
 // Arming rules
 // ---------------------------------------------------------------------------
 
-void test_command_path_faults_wait_for_bf6() {
-  Sim s;
-  for (const char* name : {"ack_suppress", "ack_dup", "event_replay", "cmd_replay",
-                           "cmd_stale_seq"}) {
-    const FaultResult r = s.faults.arm(kNodeSim0, name, FaultRequest{}, 1000);
-    TEST_ASSERT_EQUAL_INT_MESSAGE(static_cast<int>(FaultResult::WaitsForTask),
-                                  static_cast<int>(r), name);
+// ---------------------------------------------------------------------------
+// Command-path faults (BF-6) - Impl Plan 10.5, 10.5.1
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// The next outbox frame as the bridge reads it, which must be a COMMAND_ACK.
+bool pop_ack(Outbox& out, Header* h, msg::CommandAck* ack) {
+  OutFrame f;
+  if (!out.pop(&f)) return false;
+  DecodeCtx ctx;
+  ctx.self = kNodeBridge;
+  Frame fr;
+  if (decode_header(f.bytes, f.len, ctx, &fr) != Status::Ok) return false;
+  if (decode_payload(f.bytes, f.len, ctx, &fr) != Status::Ok) return false;
+  if (fr.hdr.type != MsgType::CommandAck) return false;
+  *h = fr.hdr;
+  return msg::deserialize(fr.payload, fr.payload_len, ack) == Status::Ok;
+}
+
+}  // namespace
+
+// Every catalogue row is built now, except the one no transmitter can produce.
+void test_only_bad_phy_crc_waits() {
+  for (size_t i = 0; i < kFaultCatalogueLen; ++i) {
+    const FaultInfo& f = kFaultCatalogue[i];
+    if (f.id == FaultId::BadPhyCrc) continue;
+    TEST_ASSERT_NULL_MESSAGE(f.waits_for, f.name);
   }
+}
+
+// 10.5.1 - the assertion at the end that pulses: the replay is answered from the cache and the
+// relay count does not move. Target f1 is on this board, so the frames never reach the air.
+void test_cmd_replay_is_answered_from_the_cache_and_does_not_actuate() {
+  Sim s;
+  s.ids.add(kNodeSim1, Role::GateLink);
+  FaultRequest req;
+  req.dst = kNodeSim1;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim0, "cmd_replay", req, 1000)));
+
+  const Identity* t = s.ids.find(kNodeSim1);
+  TEST_ASSERT_EQUAL_UINT32(1, t->gl.actuations);
+  TEST_ASSERT_EQUAL_UINT32(1, t->counters.rx_dup_command);
+  TEST_ASSERT_EQUAL_UINT32(0, t->counters.total_dropped());  // a dedup hit is not a drop
+
+  Header          h;
+  msg::CommandAck a;
+  TEST_ASSERT_TRUE(pop_ack(s.out, &h, &a));
+  TEST_ASSERT_EQUAL_UINT8(kNodeSim1, h.src);
+  TEST_ASSERT_EQUAL_UINT16(1, a.ack_seq);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::Accepted), a.result);
+  TEST_ASSERT_TRUE(pop_ack(s.out, &h, &a));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::DuplicateCached), a.result);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::Accepted), a.detail);
+  TEST_ASSERT_EQUAL_size_t(0, s.out.size());
+}
+
+void test_cmd_stale_seq_is_refused_below_the_high_water_mark() {
+  Sim s;
+  s.ids.add(kNodeSim1, Role::GateLink);
+  FaultRequest req;
+  req.dst = kNodeSim1;
+  s.faults.arm(kNodeSim0, "cmd_stale_seq", req, 1000);
+
+  const Identity* t = s.ids.find(kNodeSim1);
+  TEST_ASSERT_EQUAL_UINT32(1, t->counters.rx_rejected_seq);
+  TEST_ASSERT_EQUAL_UINT32(1, t->gl.executions);
+
+  Header          h;
+  msg::CommandAck a;
+  TEST_ASSERT_TRUE(pop_ack(s.out, &h, &a));
+  TEST_ASSERT_EQUAL_UINT16(2, a.ack_seq);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::Accepted), a.result);
+  TEST_ASSERT_TRUE(pop_ack(s.out, &h, &a));
+  TEST_ASSERT_EQUAL_UINT16(1, a.ack_seq);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::RejectedSeq), a.result);
+}
+
+// A target that is not ROLE_GATELINK has no command path to test. With no `to`, the target is
+// the arming identity itself.
+void test_command_faults_need_a_gatelink_target() {
+  Sim s;  // f0 is ROLE_FAULT
+  for (const char* name : {"cmd_replay", "cmd_stale_seq", "ack_suppress", "ack_dup", "event_replay"}) {
+    TEST_ASSERT_EQUAL_INT_MESSAGE(static_cast<int>(FaultResult::WrongRole),
+                                  static_cast<int>(s.faults.arm(kNodeSim0, name, FaultRequest{}, 1)),
+                                  name);
+  }
+  s.ids.add(kNodeSim1, Role::GateLink);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim1, "cmd_replay", FaultRequest{}, 1)));
+  TEST_ASSERT_EQUAL_UINT32(1, s.ids.find(kNodeSim1)->counters.rx_dup_command);
+}
+
+// Over the air to a simnode on another board: that board's ctx is required, and nothing but a
+// simnode is ever signed for. The frames then drive the other board's gate exactly as above.
+void test_cmd_replay_to_another_board_needs_its_ctx_and_hits_its_gate() {
+  Sim other;  // the board holding the target
+  other.ids.add(kNodeSim2, Role::GateLink);
+  const Identity* t = other.ids.find(kNodeSim2);
+
+  Sim          s;
+  FaultRequest req;
+  req.dst = kNodeSim2;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::NeedsCtx),
+                        static_cast<int>(s.faults.arm(kNodeSim0, "cmd_replay", req, 1)));
+  req.has_ctx = true;
+  req.ctx     = t->ctx_id;
+  req.dst     = kNodeGateLink;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::BadTarget),
+                        static_cast<int>(s.faults.arm(kNodeSim0, "cmd_replay", req, 1)));
+  req.dst = kNodeSim2;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim0, "cmd_replay", req, 1)));
+
+  TEST_ASSERT_EQUAL_size_t(2, s.out.size());
+  OutFrame first;
+  OutFrame second;
+  TEST_ASSERT_TRUE(s.out.pop(&first));
+  TEST_ASSERT_TRUE(s.out.pop(&second));
+  TEST_ASSERT_EQUAL_size_t(first.len, second.len);
+  TEST_ASSERT_EQUAL_MEMORY(first.bytes, second.bytes, first.len);  // the same frame, twice
+
+  other.node.on_rx(first.bytes, first.len, -60, 50, 2000);
+  other.node.on_rx(second.bytes, second.len, -60, 50, 3000);
+  TEST_ASSERT_EQUAL_UINT32(1, t->gl.actuations);
+  TEST_ASSERT_EQUAL_UINT32(1, t->counters.rx_dup_command);
+}
+
+void test_ack_faults_arm_on_the_identity_and_disarm() {
+  Sim s;
+  s.ids.add(kNodeSim1, Role::GateLink);
+  FaultRequest req;
+  req.count = 2;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim1, "ack_suppress", req, 1)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim1, "ack_dup", req, 1)));
+  TEST_ASSERT_EQUAL_UINT16(2, s.ids.find(kNodeSim1)->gl.ack_suppress_left);
+  TEST_ASSERT_EQUAL_UINT16(2, s.ids.find(kNodeSim1)->gl.ack_dup_left);
+  TEST_ASSERT_EQUAL_size_t(0, s.out.size());  // behaviour faults send nothing
+  TEST_ASSERT_TRUE(s.faults.disarm(kNodeSim1));
+  TEST_ASSERT_EQUAL_UINT16(0, s.ids.find(kNodeSim1)->gl.ack_suppress_left);
+  TEST_ASSERT_EQUAL_UINT16(0, s.ids.find(kNodeSim1)->gl.ack_dup_left);
+}
+
+// spec 7.3 - the dedup key is (src, ctx_id, event_id), so the two frames carry different seqs
+// and the same event_id: the bridge must publish once although the frames differ.
+void test_event_replay_sends_one_event_id_under_two_seqs() {
+  Sim s;
+  s.ids.add(kNodeSim1, Role::GateLink);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(FaultResult::Ok),
+                        static_cast<int>(s.faults.arm(kNodeSim1, "event_replay", FaultRequest{}, 1)));
+  TEST_ASSERT_EQUAL_size_t(2, s.out.size());
+
+  uint32_t ids[2]  = {0, 0};
+  Seq      seqs[2] = {0, 0};
+  for (int i = 0; i < 2; ++i) {
+    OutFrame f;
+    TEST_ASSERT_TRUE(s.out.pop(&f));
+    DecodeCtx ctx;
+    ctx.self = kNodeBridge;
+    Frame fr;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(decode_header(f.bytes, f.len, ctx, &fr)));
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(decode_payload(f.bytes, f.len, ctx, &fr)));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Event), static_cast<uint8_t>(fr.hdr.type));
+    TEST_ASSERT_EQUAL_UINT8(kSchemaGateLinkEventV1, fr.hdr.schema);
+    schema::GateLinkEventV1 ev;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::deserialize(fr.payload, fr.payload_len, &ev)));
+    ids[i]  = ev.event_id;
+    seqs[i] = fr.hdr.seq;
+  }
+  TEST_ASSERT_EQUAL_UINT32(1, ids[0]);
+  TEST_ASSERT_EQUAL_UINT32(ids[0], ids[1]);
+  TEST_ASSERT_NOT_EQUAL(seqs[0], seqs[1]);
 }
 
 void test_bad_phy_crc_cannot_be_injected() {
@@ -477,7 +648,13 @@ int main() {
   RUN_TEST(test_silent_withholds_answers_then_resumes);
   RUN_TEST(test_flood_fires_the_whole_count_across_ticks);
 
-  RUN_TEST(test_command_path_faults_wait_for_bf6);
+  RUN_TEST(test_only_bad_phy_crc_waits);
+  RUN_TEST(test_cmd_replay_is_answered_from_the_cache_and_does_not_actuate);
+  RUN_TEST(test_cmd_stale_seq_is_refused_below_the_high_water_mark);
+  RUN_TEST(test_command_faults_need_a_gatelink_target);
+  RUN_TEST(test_cmd_replay_to_another_board_needs_its_ctx_and_hits_its_gate);
+  RUN_TEST(test_ack_faults_arm_on_the_identity_and_disarm);
+  RUN_TEST(test_event_replay_sends_one_event_id_under_two_seqs);
   RUN_TEST(test_bad_phy_crc_cannot_be_injected);
   RUN_TEST(test_unknown_fault_and_missing_identity_and_zero_count);
   RUN_TEST(test_a_fault_disarms_when_its_identity_is_removed);

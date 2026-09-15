@@ -13,17 +13,21 @@
 // fault on one identity for `count` injections. The first fires at once; the rest fire as
 // the outbox has room and the gap allows, and then the fault disarms itself (10.6 rule 2).
 // An injection is the whole frame sequence the catalogue row describes - bad_ver is two
-// frames, set_displaced five. `silent` is the one behaviour fault in this slice: it arms
-// against the identity's next `count` answers instead of sending anything.
+// frames, set_displaced five. Three are behaviour faults and send nothing: `silent` withholds
+// the identity's next `count` answers, and `ack_suppress` and `ack_dup` (BF-6) act on its next
+// `count` fresh COMMAND_ACKs. All three live on the identity, where the receive path sees them.
 //
 // THE CARRIER FRAME is schema 0xF0 node health, the status a simnode really sends, so every
 // fault differs from a frame the receiver would accept in exactly the way its row says.
 // Authenticated faults carry COMMAND(NOP): if a receiver defect ever accepts one, nothing
 // moves.
 //
-// NOT IN THIS SLICE: ack_suppress, ack_dup, event_replay, cmd_replay and cmd_stale_seq need
-// ROLE_GATELINK's command path and answer ERR naming BF-6. ctx_jump sends its half - a new
-// context and a status from it - and the node-side REJECTED_CTX half also waits for BF-6.
+// cmd_replay AND cmd_stale_seq POINT THE OTHER WAY (Impl Plan 10.5.1). They test a simnode's
+// OWN CommandGate, so the frames are COMMANDs as the bridge would send them: src 00, the
+// target's key, the target's ctx. A target on this board - the arming identity by default,
+// or `to <hex>` naming another - is fed through Node::on_rx and never transmitted (decided
+// with the operator 2026-09-14). A target on another board goes over the air and needs its
+// ctx_id from `ctx <hex32>`.
 
 #pragma once
 
@@ -92,6 +96,9 @@ enum class FaultResult : uint8_t {
   WaitsForTask,   // in the catalogue, not built yet
   NotInjectable,  // bad_phy_crc
   BadCount,
+  WrongRole,      // needs ROLE_GATELINK on the identity, or on the command target
+  NeedsCtx,       // a command target on another board needs `ctx <hex32>`
+  BadTarget,      // a command target that is not a simnode, f0-f3
 };
 const char* fault_result_name(FaultResult r);
 
@@ -106,6 +113,11 @@ struct FaultRequest {
   // right for the bridge: the bridge checks no ctx of its own.
   bool        has_ctx = false;
   lran::CtxId ctx     = 0;
+  // cmd_replay / cmd_stale_seq to another board: the first command seq. That board's
+  // high-water mark is not visible from here, so the operator reads `cmd_hw` from its
+  // `id list`. Later injections advance from it. A target on this board ignores it.
+  bool      has_seq = false;
+  lran::Seq seq     = 0;
 };
 
 struct ArmedFault {
@@ -149,6 +161,15 @@ class FaultInjector {
   bool push_stage(const uint8_t* frame, size_t len);
 
   lran::Header status_header(const Identity& e, const FaultRequest& r) const;
+
+  // cmd_replay / cmd_stale_seq. A COMMAND from src 00 to `target`, signed with its key. `local`
+  // is the target when it is on this board, which supplies ctx and ver; else r.ctx.
+  bool        add_bridge_command(const Identity* local, lran::NodeId target, const FaultRequest& r,
+                                 lran::Cmd cmd, lran::Seq seq);
+  FaultResult check_command_target(const Identity& e, const FaultRequest& r) const;
+
+  bool      loopback_   = false;  // this injection is fed to Node::on_rx, not the outbox
+  lran::Seq remote_seq_ = 1;      // the next remote command seq when `seq` was not given
 
   IdentityTable* ids_;
   Outbox*        out_;

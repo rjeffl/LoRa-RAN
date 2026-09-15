@@ -151,11 +151,22 @@ void Node::on_rx(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_d
     ctx.expect_ctx_id = e.ctx_id;
     const lran::Status body = lran::decode_payload(buf, len, ctx, &f);  // stages 7-9
     if (body != lran::Status::Ok) {
-      // TODO(BF-6): COMMAND_ACK(REJECTED_CTX / REJECTED_MAC) for an authenticated COMMAND.
-      if (level_ == LogLevel::Debug) {
+      if (e.role == Role::GateLink &&
+          (body == lran::Status::RejectedCtx || body == lran::Status::RejectedMac)) {
+        refuse_authenticated(e, f.hdr, body);  // spec 9.4 steps 2-3
+      } else if (level_ == LogLevel::Debug) {
         sink_printf(log_, "rx %02x: discarded at payload, status %u", e.id,
                     static_cast<unsigned>(body));
       }
+      continue;
+    }
+
+    // The codec answers Ok for an authenticated frame whose MAC it had no key to check. mac_
+    // and the key are always set here, so this cannot fire; the check is what keeps that true.
+    if (lran::frame_has_mac(f.hdr.type, f.payload, f.payload_len) && !f.mac_verified) {
+      ++e.unhandled;
+      sink_printf(log_, "rx %02x <- %02x seq %u: authenticated type with no verified MAC, ignored",
+                  e.id, f.hdr.src, static_cast<unsigned>(f.hdr.seq));
       continue;
     }
 
@@ -192,6 +203,22 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
     case lran::MsgType::Poll:
       if (e.role == Role::Range || e.role == Role::Health) {
         answer_poll(e, hdr, now_ms);
+        return;
+      }
+      if (e.role == Role::GateLink) {
+        answer_poll_gatelink(e, hdr, payload, len, now_ms);
+        return;
+      }
+      break;
+    case lran::MsgType::Command:
+      if (e.role == Role::GateLink) {
+        on_command(e, hdr, payload, len, now_ms);
+        return;
+      }
+      break;
+    case lran::MsgType::Config:
+      if (e.role == Role::GateLink) {
+        on_config(e, hdr, payload, len);
         return;
       }
       break;
@@ -354,6 +381,7 @@ void Node::tick(uint32_t now_ms) {
     Identity& e = ids_->slot(i);
     if (!e.used) continue;
     e.reassembler.tick(now_ms);
+    tick_gatelink(e, now_ms);
     if (e.ping.active && now_ms - e.ping.sent_ms >= ping_timeout_ms_) {
       sink_printf(log_, "ping %02x -> %02x seq %u: no echo in %u ms", e.id, e.ping.peer,
                   static_cast<unsigned>(e.ping.seq), static_cast<unsigned>(ping_timeout_ms_));

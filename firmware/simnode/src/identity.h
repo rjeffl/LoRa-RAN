@@ -23,6 +23,9 @@
 #include "lran/counters.h"
 #include "lran/mac.h"
 #include "lran/reassembly.h"
+#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/gatelink_event_v1.h"
+#include "lran/schema/gatelink_status_v1.h"
 #include "lran/types.h"
 
 namespace simnode {
@@ -42,6 +45,75 @@ inline constexpr size_t kMaxIdentities = 4;
 constexpr bool is_simnode_id(lran::NodeId id) {
   return id >= lran::kNodeSim0 && id <= lran::kNodeSim3;
 }
+
+// ---------------------------------------------------------------------------
+// ROLE_GATELINK state (BF-6). Every identity carries it; only ROLE_GATELINK reads it.
+// ---------------------------------------------------------------------------
+
+// spec 7.4 / 3.1 - a CONFIG_ACK result entry for a u32 is 9 bytes and the whole ACK must fit
+// kMaxSchemaPayload: (196 - 3) / 9 = 21, the figure spec 7.4 gives. A store any deeper could
+// answer a GET_ALL that no CONFIG_ACK can carry.
+inline constexpr size_t kConfigStoreDepth = 21;
+
+// One parameter held by the generic RAM store (decided with the operator 2026-09-14). No
+// param_id is invented here: they belong to /lib/lran-config/, which does not exist yet.
+struct StoredParam {
+  bool        used     = false;
+  uint16_t    param_id = 0;
+  lran::PType ptype    = lran::PType::U8;
+  uint8_t     len      = 0;
+  uint8_t     value[lran::schema::kMaxParamValueLen] = {0, 0, 0, 0};
+};
+
+// What follows a command's COMMAND_ACK.
+enum class AfterAck : uint8_t { None, Status, ConfigReadback, Reboot };
+
+// A command dispatched and not yet acknowledged - `ack <hex> delay <ms>` stretches this into
+// the spec 9.4 execution window, where a retry is in flight and receives nothing.
+struct PendingAck {
+  bool            active   = false;
+  lran::NodeId    peer     = 0;
+  lran::Seq       seq      = 0;
+  uint8_t         cmd      = 0;
+  lran::AckResult result   = lran::AckResult::Accepted;
+  uint8_t         detail   = 0;
+  AfterAck        after    = AfterAck::None;
+  uint32_t        start_ms = 0;
+  uint32_t        delay_ms = 0;
+};
+
+struct GateLinkState {
+  // Synthetic telemetry for schema 0xFE, edited by `field`. uptime_s is generated unless set;
+  // node_flags bits 2-4 are generated from the three settings below.
+  lran::schema::GateLinkStatusV1 status;
+  bool                           uptime_set = false;
+
+  // spec 7.3 - monotonic per boot, never reused within a ctx_id; restarts at 1 on a new one.
+  uint32_t                      next_event_id  = 1;
+  bool                          has_last_event = false;
+  lran::schema::GateLinkEventV1 last_event;
+
+  uint32_t   ack_delay_ms      = 0;  // persistent until `ack <hex> normal`
+  uint16_t   ack_suppress_left = 0;  // the ack_suppress fault: ACKs still to withhold
+  uint16_t   ack_dup_left      = 0;  // the ack_dup fault: ACKs still to send twice
+  PendingAck pending;
+
+  bool     dry_run     = false;  // SET_RELAY_DRY_RUN
+  bool     bms_polling = true;   // SET_BMS_POLLING
+  uint16_t debug_modes = 0;      // SET_DEBUG_MODE
+
+  // Local diagnostics, not spec 14.1 counters. `actuations` is what a relay would have
+  // pulsed: cmd_replay's assertion is that a replay leaves it unchanged.
+  uint32_t executions      = 0;
+  uint32_t actuations      = 0;
+  uint32_t acks_suppressed = 0;
+
+  StoredParam params[kConfigStoreDepth];
+};
+
+// Plausible, not physical, values: a charged 4-cell LiFePO4 pack, a closed gate, sentinels
+// where a sensor is absent. Defined in gatelink.cpp.
+void reset_gatelink_telemetry(lran::schema::GateLinkStatusV1* s);
 
 // A PING this identity sent and has not yet seen echoed.
 struct PendingPing {
@@ -96,6 +168,8 @@ struct Identity {
   // Local, like `unhandled`: the frames that went unanswered were valid.
   uint16_t silent_left        = 0;
   uint32_t answers_suppressed = 0;
+
+  GateLinkState gl;
 };
 
 enum class AddResult : uint8_t { Ok, BadId, Exists, Full, NotReady };

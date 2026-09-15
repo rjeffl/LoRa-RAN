@@ -839,3 +839,71 @@ test; the orientation does not. Unverified on the panel: the XIAO image has not 
   transmitting simnode.
 - **The XIAO is not with the operator offsite**, so its panel, pins and orientation wait for
   its first flash.
+
+## 2026-09-14 — BF-6: ROLE_GATELINK, and the five command-path faults
+
+**`ROLE_GATELINK` is built** in `firmware/simnode/gatelink.{h,cpp}`. It answers `POLL` with
+schema `0xFE`, `COMMAND` with `COMMAND_ACK` through the identity's `CommandGate`, and
+`CONFIG` with `CONFIG_ACK`, and it sends `0x11` events on request. The console's `push`,
+`event`, `ack` and `field` exist, and all five command-path faults arm. That completes every
+Impl Plan §10.4 command. The host suites pass: 108 tests, 23 of them in the new
+`test_gatelink`. Both images build. **Nothing from this task has been on air.**
+
+### Four choices, made with the operator
+
+| Question | Decided |
+|---|---|
+| What marks a `ROLE_GATELINK` status synthetic, given `push <hex> [reason]` sets the reason | **Schema `0xFE` itself** (spec §7.1, bench only). `push` defaults to `DEBUG_SYNTHETIC`, and a given spec §8.7 name overrides it. The simnode `CLAUDE.md` rule that said every status carries `DEBUG_SYNTHETIC` is corrected |
+| `CONFIG` needs parameter IDs, which only the unbuilt `/lib/lran-config/` may declare | **A generic RAM store.** `SET` holds any `param_id` whose `ptype` and `len` agree; `persist_status` is always `APPLIED_NOT_PERSISTED`. `GET` of an unset id is `UNKNOWN_PARAM`. No id is invented. `CLAMPED` and `READ_ONLY` cannot occur until the library exists |
+| Impl Plan §10.4's `ack` modes read as persistent; simnode rule 3 bounds every fault | **`suppress` and `dup` arm the bounded `ack_suppress` / `ack_dup` faults**, which self-disarm and show on the OLED. **`delay <ms>` is a setting**, kept until `ack <hex> normal` and shown in `id list` |
+| `cmd_replay` and `cmd_stale_seq` impersonate the bridge; where may the frames go | **A target on the same board is fed through `Node::on_rx` and never transmitted**, so the node's own gate can be tested with one board and in host tests. A target on another board is reached over the air with `to <hex> ctx <hex32>` |
+
+### How the command path holds to spec §9.4 and D34
+
+- **Steps 2 and 3 answer.** A `COMMAND` or `CONFIG` failing its context check or its MAC gets
+  `COMMAND_ACK(REJECTED_CTX)` or `(REJECTED_MAC)`, from the node's own `ctx_id`, and moves
+  nothing, the high-water mark included. `ctx_jump`'s missing half, the `REJECTED_CTX` reply,
+  exists as a result.
+- **`check()` before dispatch, `record()` before the ACK.** `ack <hex> delay <ms>` holds a
+  command in flight. A retry landing in that window is counted in `rx_dup_command` and
+  answered with nothing; the retry after it gets `DUPLICATE_CACHED`
+  (`test_a_retry_inside_the_execution_window_receives_nothing`). A new command during the
+  window is `ACTUATOR_BUSY`, its `seq` consumed.
+- **`actuations` counts what a relay would have pulsed.** `cmd_replay` sends `OPEN`, not `NOP`,
+  so its assertion is that this count stays at 1.
+- **`REBOOT` with the `0xA5` guard** sends its ACK under the old context, then a `BOOT` status
+  under a new one. The config store, event ids and any in-flight command go with it.
+- **The mutation check:** making a cached retry increment `actuations` failed five tests, three
+  in `test_gatelink` and two in `test_fault`. Reverted.
+
+### Three questions for spec v0.12, not settled here
+
+1. **How a `DUPLICATE_CACHED` ACK carries the cached result.** §9.4 step 4 says
+   "`COMMAND_ACK(DUPLICATE_CACHED)` with the cached result", and §6.3 has one `result` byte and
+   one `detail` byte. The simnode sends `result = DUPLICATE_CACHED` with the cached result in
+   `detail`, so the bridge can see the dedup hit (V-B5). The gate's cached `detail` is lost.
+   BF-18 will read whatever v0.12 decides.
+2. **What answers a repeated `CONFIG`.** §9.4 applies steps 4–6 to every authenticated type
+   and words the answers as `COMMAND_ACK`. The simnode follows that wording. §7.4 says a lost
+   `CONFIG_ACK` is recovered by readback, so a bridge should never repeat a `CONFIG`, but the
+   specification does not say what a node sends if one does.
+3. **§7.4 expects fragmentation to carry config sets that §3.1 forbids.** §7.4 says 24
+   `u32` entries fill a `CONFIG` and 21 results fill a `CONFIG_ACK`, "the first fragmented
+   frames the system is expected to produce." But 24 `u32` entries are 194 bytes, which fits one
+   authenticated frame, and §3.1 caps a *reassembled* set at the same 196 bytes, so
+   fragmentation cannot carry a 22nd result. The simnode cuts the `CONFIG_ACK` at what fits and
+   logs the cut (`test_a_config_ack_that_cannot_fit_is_cut_and_logged`). Its store holds 21
+   entries so that a `GET_ALL` always fits.
+
+### Other changes
+
+- **The XIAO now boots as `0xF1 ROLE_GATELINK`**, §10.8.1's assignment. The Heltec is unchanged.
+- **A loopback command fault shows on the OLED's top row** as `00>f1 CMD --`: it goes through
+  the same receive path as a frame off the air. The target's `COMMAND_ACK`s do go on air, to
+  `00`.
+- **`field` names are the `GateLinkStatusV1` member names** (`batt_mv`, `cell_mv2`), and `na`
+  writes the width's sentinel where the specification has one. `status_reason` is not a
+  field: `push` owns it.
+
+**Not supported by anything here:** a bridge that retries on its own (BF-18), and any of it on
+air.
