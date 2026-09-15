@@ -907,3 +907,21 @@ Impl Plan §10.4 command. The host suites pass: 108 tests, 23 of them in the new
 
 **Not supported by anything here:** a bridge that retries on its own (BF-18), and any of it on
 air.
+
+## 2026-09-14 — CI's GCC crashes on BF-6's `gatelink.cpp`
+
+**The simnode's `native` suite did not build in CI after BF-6.** GCC 13 on the `ubuntu-24.04`
+runner stops with an internal compiler error (`in gimple_add_tmp_var, at gimplify.cc:774`) at
+`cfg_ack_ = lran::schema::GateLinkConfigAckV1{};`. The macOS host build uses Clang and the
+target builds use Xtensa GCC, and both compile it, so every local check passed. The PR checks on
+#60 and #61 were the first place it showed.
+
+The pattern is assigning a braced temporary of an aggregate whose array member has a default
+member initializer (`entries[kMaxConfigAckEntries] = {}`). `gatelink.cpp` now copies from
+file-scope empty constants instead, at all four places it reset such a struct. The bytes are the
+same. **Unverified locally:** no Linux GCC is installed on this machine, so the next CI run is
+the check. `identity.cpp` and the bridge's `registry.cpp` use the same idiom on structs without
+an initialized array member, and CI compiled both.
+
+**Trap:** a clean local `pio test -e native` on macOS does not show that CI's GCC will compile
+the code. Read the PR's `Host Unity suites` job before calling a change verified.
