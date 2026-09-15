@@ -60,7 +60,9 @@ bridge. Change them there, and run both firmwares' tests.
   each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
   (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
 - **The XIAO's panel is on the Seeeduino expansion board**, not the Kit: SDA 5, SCL 6, no
-  reset line, no Vext. A dark XIAO panel is the expansion board's seating, not Vext. BF-9
+  reset line, no Vext. A dark XIAO panel is the expansion board's seating, not Vext.
+  **It is not flipped here, and the range test flips it**: as a simnode the board is mounted
+  rotated 180° from its range-test enclosure. Copy pins from the range test, not orientation. BF-9
   first shipped believing the XIAO had no panel; check `firmware/range-test/src/board_config.h`
   before describing either board.
 - **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks

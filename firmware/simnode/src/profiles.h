@@ -74,8 +74,8 @@ struct PanelPins {
   int8_t  scl;
   int8_t  rst;              // panel reset line, or kPinNone when the panel has none
   int8_t  vext;             // Vext enable, ACTIVE LOW, or kPinNone when powered directly
-  // Set for two different reasons: the V3 mounts its panel rotated; the XIAO expansion
-  // board does not, but its enclosure holds the stack inverted. The draw site need not know.
+  // ThingPulse's flipScreenVertically(), which turns the image 180 degrees, not a mirror.
+  // Describes the board AS MOUNTED, so it can differ between firmwares on the same hardware.
   bool    flip_vertically;
 };
 
@@ -92,13 +92,18 @@ inline constexpr PanelPins kHeltecV3Panel = {
 // XIAO's D4/D5 I2C pads, with no reset line and no Vext. The Kit's radio lines cross the B2B
 // connector (GPIO 38-42) and never reach those pads; the header-board Wio (p-6379) would
 // put NSS and RF_SW on GPIO 5 and 6, straight onto this bus.
+//
+// flip_vertically FALSE, where the range test's kXiaoWioKitUi says TRUE. The range test
+// flipped the image because its enclosure held the stack upside down. As a simnode the
+// board is mounted rotated 180 degrees from that (operator, 2026-09-14), so the panel reads
+// upright unflipped. Pins are shared with the range test; orientation is not.
 inline constexpr PanelPins kXiaoExpansionPanel = {
     /* addr            */ 0x3C,
     /* sda             */ 5,
     /* scl             */ 6,
     /* rst             */ kPinNone,
     /* vext            */ kPinNone,
-    /* flip_vertically */ true,
+    /* flip_vertically */ false,
 };
 
 // A silent collision between the two pin maps would be a panel that blanks the radio, or the

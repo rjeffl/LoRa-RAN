@@ -808,3 +808,12 @@ radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi a
 - **Opening the port with DTR and RTS held low still rebooted the board**, so faults armed
   over a fresh connection land on a fresh boot. `fault f0 silent 5` and
   `fault f2 bad_crc 3 gap 30000` were armed after it, for the panel check.
+
+### The XIAO is mounted the other way up as a simnode
+
+**The simnode's XIAO profile does not flip the panel, although the range test's does.** The
+operator reports the board is rotated 180° from its range-test mounting. The range test set
+`flip_vertically` only because its enclosure held the stack inverted. ThingPulse's
+`flipScreenVertically()` is a 180° rotation (`SEGREMAP | 0x01` with `COMSCANDEC`), not a
+mirror, so a board turned 180° reads upright without it. The pins still come from the range
+test; the orientation does not. Unverified on the panel: the XIAO image has not been flashed.
