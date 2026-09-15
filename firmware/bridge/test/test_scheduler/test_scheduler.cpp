@@ -131,6 +131,18 @@ void test_a_bench_node_joins_the_schedule_once_heard() {
   expect(s.next(400, true), PollAction::Poll, kNodeSim1);
 }
 
+// B3a records poll-to-answer times (Impl Plan 6.1.1). Only the frame that answers the
+// outstanding poll returns a time, measured from on_sent() and correct across the millis() wrap.
+void test_on_heard_returns_the_poll_to_answer_time_only_for_an_answer() {
+  PollScheduler s;
+  const uint32_t t0 = UINT32_MAX - 200;
+  poll_now(s, t0);
+  TEST_ASSERT_EQUAL_UINT32(PollScheduler::kNotAnAnswer, s.on_heard(kNodeWellLink, t0 + 100));
+  TEST_ASSERT_EQUAL_UINT32(700, s.on_heard(kNodeGateLink, t0 + 700));
+  TEST_ASSERT_EQUAL_UINT32(PollScheduler::kNotAnAnswer, s.on_heard(kNodeGateLink, t0 + 900));
+  TEST_ASSERT_EQUAL_UINT32(PollScheduler::kNotAnAnswer, s.on_heard(0x7E, t0 + 950));  // not a row
+}
+
 // An upload about to restart the bridge holds new polls, but a closing window is still counted.
 void test_an_ota_upload_holds_new_polls_but_still_counts_a_miss() {
   PollScheduler s;
@@ -246,6 +258,7 @@ int main() {
   RUN_TEST(test_the_next_poll_is_one_interval_after_the_send);
   RUN_TEST(test_a_push_does_not_move_the_schedule);
   RUN_TEST(test_a_bench_node_joins_the_schedule_once_heard);
+  RUN_TEST(test_on_heard_returns_the_poll_to_answer_time_only_for_an_answer);
   RUN_TEST(test_an_ota_upload_holds_new_polls_but_still_counts_a_miss);
   RUN_TEST(test_the_schedule_survives_the_millis_wrap);
   RUN_TEST(test_a_row_enrolled_late_in_uptime_is_polled);

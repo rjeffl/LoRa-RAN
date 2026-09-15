@@ -133,9 +133,20 @@ class SchedLock {
 };
 
 void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
-  SchedLock lock;
-  g_scheduler.on_heard(src, now_ms);
-  g_poll_outstanding = g_scheduler.outstanding();
+  uint32_t answer_ms = PollScheduler::kNotAnAnswer;
+  uint32_t window_ms = 0;
+  {
+    SchedLock lock;
+    answer_ms          = g_scheduler.on_heard(src, now_ms);
+    window_ms          = g_scheduler.reply_timeout_ms();
+    g_poll_outstanding = g_scheduler.outstanding();
+  }
+  // B3a's poll-to-answer record (Impl Plan 6.1.1). Printed after the lock is released, so a
+  // slow serial write never holds up sched_task.
+  if (answer_ms != PollScheduler::kNotAnAnswer) {
+    Serial.printf("poll: %02x answered in %u ms (window %u ms)\n", static_cast<unsigned>(src),
+                  static_cast<unsigned>(answer_ms), static_cast<unsigned>(window_ms));
+  }
 }
 
 // One tick: close an expired reply window, then start at most one poll. A POLL the TX queue

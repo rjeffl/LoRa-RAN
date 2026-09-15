@@ -85,18 +85,20 @@ void PollScheduler::on_sent(lran::NodeId node, uint16_t interval_s, uint32_t now
   ++stats_.sent;
 }
 
-void PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
+uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
   const int i = index_of(node);
-  if (i < 0) return;
+  if (i < 0) return kNotAnAnswer;
+  uint32_t answer_ms = kNotAnAnswer;
   if (outstanding_ && outstanding_node_ == node) {
     outstanding_ = false;
     ++stats_.answered;
+    answer_ms = now_ms - sent_ms_;  // unsigned, so correct across the millis() wrap
   }
-  (void)now_ms;  // kept for the watchdog's use of the same call (BF-20)
   if (!rows_[i].enrolled) {
     rows_[i].enrolled = true;  // a bench node that just spoke is polled at the next free slot
     rows_[i].due_set  = false;
   }
+  return answer_ms;
 }
 
 size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t* buf, size_t cap) {

@@ -76,8 +76,13 @@ class PollScheduler {
   // waited behind another does not make the next one early.
   void on_sent(lran::NodeId node, uint16_t interval_s, uint32_t now_ms);
 
-  // A frame from `node` passed the receive ladder.
-  void on_heard(lran::NodeId node, uint32_t now_ms);
+  // A frame from `node` passed the receive ladder. Returns the poll-to-answer time: ms from
+  // on_sent() to `now_ms`, when this frame answers the outstanding poll. Returns
+  // kNotAnAnswer otherwise. The time includes the POLL's wait in the TX queue and its own
+  // media access, because the reply window starts there too; B3a records it against
+  // reply_timeout_ms() (Impl Plan 6.1.1).
+  static constexpr uint32_t kNotAnAnswer = UINT32_MAX;
+  uint32_t on_heard(lran::NodeId node, uint32_t now_ms);
 
   // The seq for the next POLL. POLL is unauthenticated (spec 9.2), so it takes no command seq:
   // spending one would move nothing a node checks, but it would muddle the space BF-18 owns.
