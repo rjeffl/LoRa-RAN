@@ -1,8 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-16, at the end of the bench session that ran B3a's §10.5 discard
-catalogue and W9, took B3a's acceptance, and merged the three-PR stack.** It replaces the
-2026-09-15 file wholesale; that file's content is carried over where it is still true.
+**Written 2026-09-16, at the end of the session that ran B3a's §10.5 catalogue and W9,
+took B3a's acceptance, merged the three-PR stack, and landed protocol spec v0.12.** It
+replaces the 2026-09-15 file wholesale; that file's content is carried over where it is
+still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -12,15 +13,24 @@ catalogue and W9, took B3a's acceptance, and merged the three-PR stack.** It rep
 
 ## The next job, in one place
 
-**B3b, from `main`.** B3a is accepted and merged; nothing is left open behind it.
+**B3b, from `main`. Nothing gates it any more.** B3a is accepted and merged, and
+**spec v0.12 answered every question B3b was waiting on** (D35–D42, 2026-09-16).
 
-**A spec v0.12 revision is B3b's real gate.** BF-18, BF-19a and BF-26 each wait on it
-(*Spec v0.12*, below). **Two B3b tasks need no spec change and can start now:**
+Five tasks, in the order the gate cleared them:
 
-- **BF-21** — the §10.5 catalogue as a committed `simctl` script. This session drove the
-  catalogue from a throwaway harness, so BF-21 is unstarted but no longer unmapped: the
-  shape that worked is one entry per 60 s `diag/state` window, armed on one identity, with
-  the previous window's reading as the next entry's baseline.
+- **BF-15a** — move `unregistered_src` into the codec as **`rx_unknown_src`** (spec §14
+  stage 9a, §14.1). The registry becomes 22 rows and the counter joins `rx_dropped`, which
+  changes a published number. **Do this before B4 builds discovery on the old name.**
+- **BF-19a** — `ERROR` replies to spec **§14.2**: registered sources only, rate-limited by
+  `error_min_interval_ms` (default 1000), `ctx_id` `0`. The rate limit is the load-bearing
+  part.
+- **BF-18** — the command path. §6.3 now says a `DUPLICATE_CACHED` result travels in
+  `detail`; §7.4 says a repeated `CONFIG` is answered from the dedup cache.
+- **BF-21** — the §10.5 catalogue as a committed `simctl` script. This session drove it
+  from a throwaway harness, so BF-21 is unstarted but no longer unmapped: one entry per
+  60 s `diag/state` window, armed on one identity, with the previous window's reading as
+  the next entry's baseline. **BF-21 also decides** whether `fault.cpp` should complete
+  `set_displaced`'s displacing set.
 - **BF-22** — version tolerance. `bad_ver` cannot pass §10.5 until this lands.
 
 ```bash
@@ -74,8 +84,8 @@ the bridge accepts and counts nowhere. **A fault's `dst` defaults to the bridge.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-17**, **BF-19**, **BF-20** |
-| Not done | **B3b**: BF-18, BF-19a, BF-21, BF-22. **BF-26** deferred. **BF-11a**, **BF-11b** |
-| Queue | Spec v0.12 answers → BF-18 and BF-19a. BF-21 and BF-22 need nothing and can start now |
+| Not done | **B3b**: BF-15a, BF-18, BF-19a, BF-21, BF-22. **BF-26** deferred. **BF-11a**, **BF-11b** |
+| Queue | BF-15a → BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -222,8 +232,9 @@ the sum at compile time.
   `lib_deps = symlink://../<dep>`, as `lib/lran-link/platformio.ini` does.
 - **A simnode PING to `00` reports no echo.** The bridge does not answer PING yet.
 - **An `RxLadder` with no `PeerKeys` refuses every frame**, as `unregistered_src`.
-- **`unregistered_src` is not a §14.1 counter** and is outside `rx_dropped`. Do not rename it
-  to an `rx_` name before spec v0.12 decides.
+- **`unregistered_src` is the old name for what spec v0.12 calls `rx_unknown_src`** (§14
+  stage 9a). Until **BF-15a**, the bridge publishes the old name outside `rx_dropped`. Do
+  not introduce a third name.
 - **`registry_begin()` must run before `start_tasks()`**, and **`lora_task` must never call
   `registry_runtime`**, which waits on a mutex.
 - **The library's platform crypto is not in its build.** `platform/esp32/` and
@@ -265,21 +276,24 @@ the sum at compile time.
 - **`set_displaced`'s second counter** — §10.5 records the behaviour; **BF-21** decides
   whether `fault.cpp` should complete the displacing set instead.
 
-#### Spec v0.12 — every open question, in one place
+#### Spec v0.12 — landed 2026-09-16, and what it left open
 
-B3b's gate. Each is raised in the engineering log entry named; none is patched.
+**All nine questions are answered.** Eight became **D35–D42** in the Decision Register;
+the ninth was a fact, verified against the datasheet as **M24**. `LRAN-Spec-v0.12-Brief`
+holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerates** —
+`generate.py` re-run against v0.12 reproduced the committed files byte for byte.
 
-| # | Question | Raised by | Blocks |
-|---|---|---|---|
-| 1 | §14 has no stage for a frame from an unregistered source | BF-15 | naming `unregistered_src` |
-| 2 | How a `DUPLICATE_CACHED` `COMMAND_ACK` carries the cached result | BF-6 | **BF-18** |
-| 3 | What a node answers to a repeated `CONFIG` | BF-6 | BF-18, GateLink |
-| 4 | §7.4 relies on fragmenting config sets that §3.1's 196-byte reassembly cap rules out | BF-6 | GateLink config |
-| 5 | §10.2 places a bridge-originated unauthenticated frame (`POLL`'s `seq`) in neither sequence space | BF-17 | nothing yet |
-| 6 | §14.1's "per node by the bridge" for a discard made before the MAC check | BF-19 | per-node counters |
-| 7 | Whether the bridge must send §14's `ERROR` replies, and to which `src` and `ctx_id` before the MAC is checked | BF-19 | **BF-19a** |
-| 8 | §16.2 names `lran/bridge/version`, `lran/<node>/diag/state`, `config/set` and `config/ack` but defines no payload | BF-13, BF-19, BF-26 | **BF-26**, BF-23 |
-| 9 | §12.1's node-address filtering appears unavailable in LoRa mode; unverified against the datasheet | BF-16 | duty-cycled nodes (§17.1) |
+**What it opened rather than closed:**
+
+- **W14** — §17.1's duty-cycling design assumed a silicon address filter that LoRa does
+  not have, so its power model is unquantified. Owed before WellLink is built on that
+  profile, moot if **D19** makes WellLink mains-powered.
+- **W10** is now a counting question: `CONFIG` and `CONFIG_ACK` are single-frame, so a
+  configuration larger than one frame is several messages with no atomicity across them.
+  Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
+  designed.
+- **BF-15a** — the code still publishes `unregistered_src` outside `rx_dropped`. The
+  specification is right and the code follows it.
 
 #### Work no task owns
 

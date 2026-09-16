@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.20
+**Version:** 0.21
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.11
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.32
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.8
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.33
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.9
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-16
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -197,8 +197,13 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 
 **Gated on B2 and B0.** The largest milestone, and the one carrying most of the
 protocol risk. **Split on 2026-09-14 into B3a and B3b** (Impl Plan §8 v0.32): **B3a** is
-BF-15, BF-16, BF-17, BF-19 and BF-20, accepted on the bench; **B3b** is BF-18, BF-19a, BF-21
-and BF-22.
+BF-15, BF-16, BF-17, BF-19 and BF-20, **accepted 2026-09-16**; **B3b** is BF-15a, BF-18,
+BF-19a, BF-21 and BF-22.
+
+**Spec v0.12 answered what B3b was waiting for** (2026-09-16, `LRAN-Spec-v0.12-Brief`,
+Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED` result and
+§7.4's rule for a repeated `CONFIG`; BF-19a has §14.2; BF-15a is new and exists because
+§14 now names the stage the bridge has been counting without one.
 
 | # | Task | Model | Why |
 |---|---|---|---|
@@ -207,7 +212,8 @@ and BF-22.
 | **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d). **Built 2026-09-14, host-tested; no poll on air yet** — Impl Plan §6.1.1 | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
 | **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**) | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
 | **BF-19** | §14 discard ladder wiring — every counter in `kCounterRegistry`, named and published. **Built 2026-09-14, host-tested; the discard counters are the bridge's, not per node** — Impl Plan §4.3.2 | **Sonnet** | The registry is normative and the fault catalogue tests each stage. Mechanical, high-volume, and caught immediately by BF-8's faults |
-| **BF-19a** | `ERROR` replies for §14 stages 3–10. **Waits for spec v0.12**: whether the bridge must answer, and to which `src` and `ctx_id` before the MAC is checked. Split from BF-19 with the operator, 2026-09-14 | **Opus** | Every reply goes to a solar node on the strength of an unauthenticated header and competes with polls for airtime. Getting the addressing wrong is a transmit aimed at nobody, or at the wrong node |
+| **BF-19a** | `ERROR` replies for §14 stages 3–10, **to spec v0.12 §14.2**: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. `BAD_CRC` and `BAD_VERSION` stay optional and stay unbuilt. Split from BF-19 with the operator, 2026-09-14 | **Opus** | Every reply goes to a solar node on the strength of an unauthenticated header and competes with polls for airtime. **The rate limit is the load-bearing part**: without it a forged frame makes the bridge transmit at a rate someone else chooses |
+| **BF-15a** | Move the bridge's `unregistered_src` into the codec as **`rx_unknown_src`** — spec v0.12 §14 stage 9a and §14.1. `lran::Counters`, `kCounterRegistry` (22 rows), the `sizeof` `static_assert`, the ladder's `Status`, and the `lran/bridge/diag/state` payload | **Sonnet** | A rename with a `static_assert` behind it, and the counter joins `rx_dropped`, which changes a published number. Home Assistant charts the old name, so the change is breaking and is better made before B4 builds discovery on it |
 | **BF-20** | Availability watchdog — `missed_poll_threshold`, retained publication (§3.4). **Built 2026-09-14, host-tested; bench availability unpublished until BF-26** — Impl Plan §6.1.2 | **Sonnet** | Four requirements, a default of 3, and **V-B3** tests it by stopping one logical identity |
 | **BF-21** | `simctl` scenario scripts for the whole §10.5 catalogue (§7.2) | **Sonnet** | Scripting a table that already exists. The entries most likely to be skipped by hand are the ones whose correct result is *nothing happens*, which is exactly what a script does not skip |
 | **BF-22** | Version tolerance — accept N and N−1, per-node downgrade, distinct reason for unsupported (**V-B10**, R-3.1e/f) | **Opus** | This is what makes an incremental rollout possible instead of a flag day, on a fleet where a flag day means a walk to the gate |
@@ -267,6 +273,14 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.21** — **Protocol specification v0.11 → v0.12; §6 gains BF-15a and BF-19a is
+  unblocked.** **BF-15a** moves the bridge's `unregistered_src` into the codec as
+  **`rx_unknown_src`** (spec §14 stage 9a, §14.1), which makes `kCounterRegistry` 22 rows
+  and changes a published number — better before B4 builds discovery on the old name.
+  **BF-19a** now has spec §14.2 to build against rather than a question. **BF-18** has
+  §6.3's `detail` for a `DUPLICATE_CACHED` result and §7.4's rule for a repeated `CONFIG`.
+  B3a is recorded as accepted 2026-09-16. Decision Register **D35–D42**.
 
 | Version | What changed |
 |---|---|

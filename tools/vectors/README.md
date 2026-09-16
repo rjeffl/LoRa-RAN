@@ -1,10 +1,13 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.11 (`ver = 2`)
-**Vectors last regenerated against:** v0.6 — **and correctly so.** v0.7 through v0.11
+**Binding specification:** `LRAN-Protocol-Specification` v0.12 (`ver = 2`)
+**Vectors last regenerated against:** v0.6 — **and correctly so.** v0.7 through v0.12
 changed no frame layout, header field, enumeration value, schema or authentication
 scope, so §13.2's regeneration requirement has not been triggered since. `generate.py`
-re-run against v0.11 reproduced the committed files byte for byte.
+re-run against v0.12 on 2026-09-16 reproduced the committed files byte for byte.
+**v0.12 adds a counter** (`rx_unknown_src`, §14 stage 9a) and the vectors are unaffected:
+§14.1 is enforced by the generator and the checker through the registry's names, and no
+vector carries a counter value.
 **Consumed by:** `/lib/lran-protocol/test/test_vectors/` (C++, Unity, `native`)
 **Produced by:** `generate.py` (Python 3, this directory)
 

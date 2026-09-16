@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.7
+**Version:** 0.8
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
-**Last updated:** 2026-09-11
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Last updated:** 2026-09-16
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -176,7 +176,11 @@ What is already known:
   before its application schema exists.
 - **R-W7c.** If **D19** resolves to battery power, the RX duty-cycling and extended-preamble
   design in Protocol Spec §17.1 SHALL be evaluated — **and adopted only if the measured
-  budget justifies it.**
+  budget justifies it.** **That evaluation now has to answer W14 first.** §17.1 assumed the
+  SX126x would discard a frame addressed elsewhere in silicon; **LoRa has no hardware
+  address filter** (Protocol Spec §12.1, corrected in v0.12 against the datasheet as
+  **M24**), so every frame on the channel wakes the receiver and is judged in software.
+  The power model that made the design attractive is unquantified until that is costed.
 
 > **Do not adopt the duty-cycling design by default.** Measured against GateLink's storage
 > it bought single-digit percentages of the budget at real cost in complexity, latency and
@@ -224,6 +228,14 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.8** — **Protocol specification v0.11 → v0.12, and R-W7c gains a precondition.**
+  §17.1's RX duty-cycling design assumed the SX126x would discard a frame addressed
+  elsewhere **in silicon**. It cannot: node-address filtering is a GFSK feature and LoRa
+  has no address field, verified against the datasheet as **M24**. Every frame on the
+  channel therefore wakes a duty-cycled receiver and is judged in software, so the power
+  model behind the design is unquantified — Protocol Spec **W14** owns it, and it is owed
+  before this node is built on that profile. **Moot if D19 resolves to mains power.**
 
 - **v0.7** — Citation refresh only. Protocol specification **v0.10 → v0.11**: `ver` stays at
   `2` and nothing on the wire changes. Still a placeholder. v0.11 answers what a node owes a

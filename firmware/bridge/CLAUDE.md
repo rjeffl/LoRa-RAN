@@ -3,10 +3,10 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.32
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.20 (**the `BF-*` task order**).
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.12 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.33
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.21 (**the `BF-*` task order**).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only. **The antenna is decided and is not a choice to revisit here:** the same 3.0 dBi
@@ -42,8 +42,10 @@ keys at load, `is_bench`, the learned fields) and `registry_runtime.{h,cpp}` (th
 its mutex, mbedTLS). Impl Plan §4.2.1 records the choices. **Two rules to keep:**
 `registry_begin()` runs before `start_tasks()`, because `lora_task` reads keys without a
 lock; and **`lora_task` never calls into `registry_runtime`**, which waits on a mutex.
-**`unregistered_src` is a bridge diagnostic, not a §14.1 counter** — spec §14 has no stage
-for it, and its name is not `rx_`-prefixed on purpose.
+**`unregistered_src` is still a bridge diagnostic, and the specification has moved.**
+Spec v0.12 gives this discard **§14 stage 9a** and the counter **`rx_unknown_src`**, inside
+`rx_dropped`. Until **BF-15a** lands the rename, the bridge publishes the old name beside
+the registry rather than in it. Do not add a third name for it.
 
 **`BF-17` — the poll scheduler, built and host-tested; no poll on air yet.**
 `scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Three things to

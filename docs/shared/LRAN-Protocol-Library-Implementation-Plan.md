@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.8
+**Version:** 0.9
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.11**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -334,6 +334,7 @@ struct Counters {
   uint32_t rx_not_addressed, rx_unknown_hdr_ext, rx_bad_frag;
   uint32_t rx_unknown_type, rx_unknown_schema, rx_bad_length, rx_not_fragmentable;
   uint32_t rx_rejected_ctx, rx_rejected_mac;
+  uint32_t rx_unknown_src;                       // spec v0.12 - 14 stage 9a
   uint32_t rx_reassembly_timeout, rx_fragment_overflow, rx_reassembly_abandoned;
   uint32_t rx_rejected_seq, rx_dup_command;      // D34 - raised by CommandGate
   uint32_t rx_frag_duplicate, rx_frag_late;      // counted, NOT in rx_dropped
@@ -358,6 +359,12 @@ nothing anywhere listed the names together; `kCounterRegistry` is that list, and
 `total_dropped()` sums only the registry rows §14.1 marks — `rx_frag_duplicate`,
 `rx_frag_late` and `rx_dup_command` are normal traffic and must not make a health metric
 climb during correct operation.
+
+**`rx_unknown_src` arrived with spec v0.12** (§14 stage 9a): a frame from a `src` the
+receiver holds no key for. It counts into `rx_dropped`, and it is never answered. The
+registry is **22** rows, so `kCounterRegistryLen` and the `sizeof(Counters)`
+`static_assert` both move; that assert is what makes the addition impossible to make
+halfway. A node holds one peer, so the check is a single comparison.
 
 `bump(Status)` being the only place the mapping exists is what guarantees the bridge and
 every node report the same thing under the same name. It carries **no `default:` label**,
@@ -717,6 +724,15 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.9** — **Protocol specification v0.11 → v0.12; `Counters` gains a field.**
+  **`rx_unknown_src`** joins the struct and `kCounterRegistry` (spec §14 stage 9a, §14.1),
+  making the registry **22** rows and moving both `kCounterRegistryLen` and the
+  `sizeof(Counters)` `static_assert` — which is what makes a half-made addition fail the
+  build. It counts into `rx_dropped`. §3.6 records it. Nothing else in the library moves:
+  no frame layout, no schema, no authentication scope, and **no vector regenerates**.
+  `CommandGate` is unaffected, though §6.3's answer for a `DUPLICATE_CACHED` result —
+  the cached `result` travels in `detail` — is what its callers now build against.
 
 - **v0.8** — **§3.10 corrected and P8 built, on D34 as amended 2026-09-11.** The operator
   accepted `LRAN-P8-CommandGate-Brief`'s recommendations in full. `check()` now advances

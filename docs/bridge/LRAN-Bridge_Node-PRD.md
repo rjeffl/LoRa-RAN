@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.11
+**Version:** 0.12
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -489,6 +489,13 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.12** — **Citation refresh, Protocol specification v0.11 → v0.12.** No requirement
+  changes. What the bridge inherits: a new discard stage and counter (§14 stage 9a,
+  `rx_unknown_src`), the rule that a pre-authentication counter is the receiver's own
+  rather than a node's (§14.1), an `ERROR` policy for unauthenticated senders (§14.2),
+  and normative payloads for `lran/bridge/version` and `lran/<node>/diag/state`
+  (§16.2.1) — the two this node already publishes. Decision Register **D35–D42**.
 
 | Version | What changed |
 |---|---|

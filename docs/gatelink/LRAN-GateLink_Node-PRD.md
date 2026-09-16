@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.7
+**Version:** 0.8
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -953,6 +953,15 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.8** — **Protocol specification v0.11 → v0.12.** Two things reach this node.
+  **`CONFIG` and `CONFIG_ACK` are single-frame in v1** (§11.4): §3.1's reassembly cap and
+  the single-frame payload cap are both 196 B, so fragmenting them could never carry more
+  — a configuration larger than one frame is **several messages**, with no atomicity
+  across them, and the full-set readback this node's requirements imply must fit 21 result
+  entries or be split. **A repeated `CONFIG` is answered from the dedup cache** (§7.4),
+  which is also a correct readback because the ACK carries effective values. Decision
+  Register **D37**, **D38**.
 
 - **v0.7** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.10 → v0.11**, which answers the check/record window this node's own design opens:

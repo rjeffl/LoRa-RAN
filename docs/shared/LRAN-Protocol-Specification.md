@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.11
+**Version:** 0.12
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -452,6 +452,16 @@ The ACK reports **two distinct things** and callers must not conflate them:
 the local actuator. It does **not** mean the gate moved. Motion is confirmed only by
 a subsequent `STATUS` with `status_reason = GATE_STATE_CHANGE`.
 
+**When `result = DUPLICATE_CACHED`, `detail` carries the cached `result`** — the §8.2
+value the first execution produced. §9.4 step 4 requires the cached result to reach the
+sender and this field is where it travels; a receiver MUST NOT answer a dedup hit with
+`detail = 0`, which would report a retry as a result-less success.
+
+**The original answer's own `detail` is not reproduced.** One byte carries the cached
+result, so a detail the first ACK carried is lost on the replay. The sender holds the
+first ACK where it needs both, and a receiver that needs to convey more defines a new
+schema rather than overloading this field (§13.2).
+
 ### 6.4 `POLL` — 1 byte
 
 | Offset | Type | Field |
@@ -855,6 +865,18 @@ Carried by both `CONFIG` and `CONFIG_ACK`.
 | 1 | `uint8` | `persist_status` — §8.11 |
 | 2 | `uint8` | `count` |
 | 3.. | result entries | `uint16 param_id`, `uint8 status` (§8.12), `uint8 ptype`, `uint8 len`, `uint8[len]` *effective* value |
+
+**A repeated `CONFIG` is answered from the dedup cache, not re-applied.** `CONFIG` is
+authenticated, so §9.4 steps 4–6 govern it exactly as they govern `COMMAND`: a second
+arrival bearing the same `(ctx_id, seq)` is a dedup hit, counted in `rx_dup_command` and
+answered with the cached `CONFIG_ACK`. Because that ACK carries **effective** values
+rather than requested ones, the cached answer is also a correct readback of what the set
+achieved. A caller that needs current values asks for them with §6.4's `poll_flags`
+bit 1, which exists for that purpose.
+
+> **Decided in v0.12.** The alternative — re-applying the set — is safe only while every
+> §8.10 `op` is idempotent, a property nothing commits to preserving. One rule for every
+> authenticated type costs a receiver nothing it does not already implement.
 
 Three properties are load-bearing and must survive into the implementation:
 
@@ -1416,6 +1438,16 @@ The bridge MUST treat status `seq` as advisory. It is useful for discarding dupl
 within a short window and for detecting loss in diagnostics. **It MUST NOT be used to
 reject frames**, because a status frame arriving out of order is still current data.
 
+**A bridge-originated unauthenticated frame's `seq` belongs to neither space.** `POLL`
+carries a `seq` so an answer can be matched to the poll that asked for it (§6.4), and
+that value is **local to the sender and advisory**: it is not replay-relevant, it MUST
+NOT advance any high-water mark, and a receiver MUST NOT reject on it. The two spaces
+above remain the only two that carry replay meaning.
+
+> **Stated in v0.12.** The table described two spaces while a third kind of `seq` was
+> already on the air, which left an implementer to decide whether a `POLL` should move
+> the command high-water mark. Moving it would make the next real command look stale.
+
 ### 10.3 Resync procedure
 
 1. A node receives a `COMMAND` whose `ctx_id` does not match → replies
@@ -1605,13 +1637,35 @@ serial-number arithmetic (RFC 1982 style), not a plain `>`.
 
 | Type | Fragmentable | Note |
 |---|---|---|
-| `CONFIG` | **Yes** | Authenticated; exceeds one frame at 24 `uint32` entries (§7.4) |
-| `CONFIG_ACK` | **Yes** | Exceeds one frame at 21 result entries; loss recovery is readback, not retransmission (§7.4) |
+| `CONFIG` | **No in v1** | See below. A set is capped at what one authenticated frame carries — 24 `uint32` entries (§7.4) |
+| `CONFIG_ACK` | **No in v1** | Capped at 21 result entries (§7.4). Loss recovery is readback, not retransmission |
 | `PING` | **Yes** | The bench vehicle for this section (§6.6.2) |
 | `STATUS`, `EVENT` | Permitted, unused in v1 | Every defined schema is fixed and fits. Fire-and-forget: a dropped fragment discards the set with no retry |
 | `COMMAND` | **No** | 4 bytes. Single-frame commands keep authentication and replay logic simple |
 | `COMMAND_ACK`, `POLL`, `ERROR` | **No** | Fixed and small |
 | `HEX_REQ`, `HEX_RSP` | **No in v1** | See below |
+
+**`CONFIG` and `CONFIG_ACK` are single-frame in v1, because fragmenting them buys
+nothing.** §3.1 caps a reassembled schema-bearing set at `LRAN_MAX_SCHEMA_PAYLOAD`,
+196 bytes, which is **exactly what one authenticated frame already carries**. A
+fragmented config set therefore cannot carry one byte more than an unfragmented one, and
+a set that needs more is unreachable by any legal encoding. A sender MUST NOT fragment
+these types; a receiver MUST discard a fragmented one with `ERROR(BAD_LENGTH)` (§14
+stage 8a), as it does for `HEX_REQ` and `HEX_RSP`.
+
+**A configuration larger than one frame is sent as several `CONFIG` messages**, each
+complete and each answered. Nothing in v1 makes such a group atomic, so a sender that
+needs all-or-nothing semantics must not split; §7.4's per-entry results are what make a
+partial application diagnosable.
+
+> **Corrected in v0.12.** v0.4 through v0.11 listed both types fragmentable and noted that
+> `CONFIG` *"exceeds one frame at 24 `uint32` entries"*, which described an encoding no
+> conforming sender could produce: the reassembly cap and the single-frame payload cap are
+> the same 196 bytes. **The contradiction was found by reading §7.4 against §3.1 while
+> answering BF-6's question about repeated config sets**, not by a failure — no
+> implementation had reached a config set that large. If a real set ever exceeds the
+> ceiling, the answer is batching semantics on §8.10's `op` (BEGIN / CONTINUE / COMMIT),
+> which is a v2 change and is recorded as such rather than taken now.
 
 **`HEX_REQ` / `HEX_RSP` are single-frame in v1.** A VE.Direct HEX string is tens of
 bytes against a 194-byte authenticated single-frame cap, so the case does not arise in
@@ -1627,17 +1681,22 @@ worth taking for a case the transport cannot reach.
 ### 11.5 Why fragmentation exists at all
 
 v0.3 recorded that no defined schema needs fragmentation, the largest being 78 bytes.
-That remains true of the **fixed-length** schemas and is no longer true of the system.
-§7.4's `CONFIG` and `CONFIG_ACK` are variable, and GateLink's requirement that every
-timing interval be reconfigurable without reflashing makes a full-set push and a
-full-set readback realistic frames. Fragmentation moved from insurance to a live path
-between v0.3 and v0.4 **with no change to the wire format** — which is precisely what
-the v0.2 decision to specify it early was buying.
+That remains true of every schema this version defines, and **v0.12 returns the situation
+to it**: `CONFIG` and `CONFIG_ACK` are single-frame (§11.4), so `PING` is the only
+fragmentable type in v1.
 
-It is nonetheless **first exercised from the bench, by `PING`** (§6.6.2). A
-specified-but-never-executed path is not a working path, and the first config readback
-that outgrows a frame is not the moment to find out: GateLink has no OTA and sits
-500 ft from the house.
+> **What v0.4 through v0.11 said, and why it was wrong.** This section argued that
+> §7.4's variable-length config made fragmentation a live path rather than insurance,
+> on GateLink's requirement that every timing interval be reconfigurable without
+> reflashing. The argument does not survive §3.1: the reassembly cap and the
+> single-frame payload cap are the same 196 bytes, so a config set that outgrows a frame
+> outgrows a **set** as well. A configuration that large is sent as several messages.
+
+**The mechanism is kept, and it is exercised by `PING`** (§6.6.2), which is a real path
+rather than a rehearsal for one: W9 ran 32 fragmented round trips over RF at the
+15-fragment ceiling on 2026-09-05. Fragmentation stays specified because the wire format
+must reserve it before any schema needs it — a `frag` field added later is a `ver` bump
+(§13.2), and on a fleet with no OTA that is a walk to every node.
 ---
 
 ## 12. Radio configuration and media access
@@ -1651,10 +1710,25 @@ that outgrows a frame is not the moment to find out: GateLink has no OTA and sit
 | CRC | **Enabled** | Required by §2.1 |
 | Sync word | Private (`0x12` / SX126x `0x1424`) | Not the LoRaWAN value |
 | SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10 | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
-| Node-address filtering | Enabled in the SX126x packet handler | Low value while nodes run continuous RX; retained because it matters for any duty-cycled node (§17.1) |
+| Node-address filtering | **Unavailable in LoRa mode. Not used** | The SX126x address filter is a **GFSK** feature; the LoRa packet handler has no address field. Verified against the datasheet — see below. Addressing is entirely §14's stage 5, in software |
 
 **All nodes share one frequency, SF, BW and sync word.** Per-node channels would
 require the bridge to listen on multiple configurations, which one SX1262 cannot do.
+
+> **Corrected in v0.12, against the datasheet.** v0.1 through v0.11 required hardware
+> node-address filtering to be enabled, and §17.1 relied on it so a duty-cycled node
+> could discard a frame meant for someone else in silicon. **The feature does not exist
+> in LoRa mode.** In SX1261/2 Rev 1.1 (`DS.SX1261-2.W.APP`, December 2017), `AddrComp` is
+> **GFSK `PacketParam5`** (Table 13-56), with `NodeAddrReg` at `0x06CD` and `BroadcastReg`
+> at `0x06CE` (Tables 13-57 and 13-58), all under §13.4.6.1 *GFSK Packet Parameters*. The
+> LoRa packet parameters in §13.4.6.2 are preamble length, header type, payload length,
+> CRC type and invert-IQ (Tables 13-66 to 13-70) — **there is no address parameter and no
+> address register**. LoRa discriminates by sync word (`0x1424` here), which is shared by
+> the whole fleet and cannot separate one node from another.
+>
+> **Raised by BF-16** during bridge radio bring-up and carried as unverified through two
+> revisions; the datasheet read that settles it is **M24**. **§17.1 loses a mechanism it
+> was counting on** — see **W14**.
 
 **The frequency is chosen against a measured ambient survey, not picked.** The 902–928
 band at a given site is rarely empty — consumer 915 MHz devices are common, and their
@@ -1802,8 +1876,13 @@ make rollout incremental rather than a flag day:
 every node at once; a new schema ID breaks nothing, because the bridge decodes whatever
 each node announces. Prefer a schema ID over a header change whenever there is a choice.
 
-Every change of either kind requires an entry in `/docs/protocol-changelog.md` and a
-regenerated set of test vectors.
+Every change of either kind requires an entry in **§20, this document's changelog**, and
+a regenerated set of test vectors.
+
+> **Corrected in v0.12.** This clause named `/docs/protocol-changelog.md`, a file that has
+> never existed; the changelog has always been §20. Eleven revisions were recorded
+> correctly in §20 while the rule pointed somewhere else, so the requirement was met by
+> practice and not by the text.
 
 Mixed-`ver` operation between a node and the bridge is a supported field condition
 (N/N−1 only). Mixed operation outside that window must **fail loudly and diagnosably,
@@ -1831,6 +1910,7 @@ Counter names are normative; §14.1 is the registry.
 | 8 | Payload length matches `(type, schema)` — **unfragmented frames only** | `ERROR(BAD_LENGTH)` | `rx_bad_length` |
 | 8a | Type is fragmentable (§11.4), when `frag` declares a total > 1 | `ERROR(BAD_LENGTH)` | `rx_not_fragmentable` |
 | 9 | Per-frame authentication (§9.4 steps 1–3), authenticated types only | `COMMAND_ACK(REJECTED_CTX)` / `(REJECTED_MAC)` | `rx_rejected_ctx` / `rx_rejected_mac` |
+| 9a | `src` is a peer this receiver holds a key for (§9.1) | Discard, **never answered** | `rx_unknown_src` |
 | 10 | Fragment reassembly (§11) | `ERROR(REASSEMBLY_TIMEOUT)` / `ERROR(FRAGMENT_OVERFLOW)` | §14.1 |
 | 11 | Per-set replay checks (§9.4 steps 4–6), then type-specific handling | `COMMAND_ACK(DUPLICATE_CACHED)` / `(REJECTED_SEQ)` | `rx_dup_command` / `rx_rejected_seq` |
 
@@ -1857,6 +1937,23 @@ a reassembled set has a length that can be matched against `(type, schema)`, and
 check belongs to stage 10 together with §11.2's reassembly cap. Applying stage 8 per
 frame would reject every valid multi-fragment set.
 
+**Stage 9a is a distinct diagnosis from stage 5, and it is never answered.** Stage 5
+means *not addressed to me*; stage 9a means *addressed to me by someone I do not know*.
+On a link whose whole diagnostic story is counters read at a distance, those two lead an
+operator to different places — a misconfigured `dst` against a node missing from the
+receiver's key set. **No `ERROR` is sent**, because answering an unknown source makes the
+receiver transmit at a stranger's request (§14.2), and because there is no key to
+authenticate either direction of the exchange.
+
+**Stage 9a sits after authentication rather than before it** so an unauthenticated frame
+claiming a known `src` is still rejected by the MAC check, and so ordering the ladder
+does not reveal which addresses a receiver knows. A receiver holding exactly one peer —
+which is every node — satisfies this stage with a single comparison.
+
+> **Added in v0.12.** The check existed in the bridge from BF-15 and had no stage, so root
+> rule 4 — every discard has a counter, a `Status` and a stage — could be satisfied only
+> in part, and the counter sat outside §14.1 under a name of the bridge's own.
+
 **Stage 8a is general, not a `HEX_REQ` special case.** §11.4's table also rules out
 `COMMAND`, `COMMAND_ACK`, `POLL` and `ERROR`. Because stage 8's fixed-length check is
 skipped for fragments, a fragmented `COMMAND` passes every other stage; stage 8a is
@@ -1868,11 +1965,22 @@ rather than a documented one.
 
 ### 14.1 Counter registry
 
-Every counter below is published: per node by the bridge, and aggregated into
-`rx_dropped` in schema `0xF0` by the node itself. Names are normative. **Silent
-discards are the enemy of field debugging** on a link with no console access — the
-counters are how a marginal link is distinguished from a firmware bug when the node is
-500 ft away in the rain.
+Every counter below is aggregated into `rx_dropped` in schema `0xF0` by the node itself,
+and published by the bridge. Names are normative. **Silent discards are the enemy of
+field debugging** on a link with no console access — the counters are how a marginal link
+is distinguished from a firmware bug when the node is 500 ft away in the rain.
+
+**A counter raised before stage 9 is the receiver's own, not a node's.** Stages 1
+through 8a run before the MAC is checked, where `src` is a claim rather than an identity.
+Attributing those discards to the node they name would let any transmitter move another
+node's counters, and through them another node's history in Home Assistant. **Only
+counters raised at stage 9 and later may be published per node**; the receiver publishes
+the rest as its own aggregate.
+
+> **Stated in v0.12.** Through v0.11 this section opened *"published: per node by the
+> bridge"* without qualification, which BF-19 could not implement as written. The bridge
+> ships the aggregate form; this is the specification catching up to the reasoning rather
+> than the other way round.
 
 | Counter | Raised at | Wire code | In `rx_dropped` |
 |---|---|---|:---:|
@@ -1890,6 +1998,7 @@ counters are how a marginal link is distinguished from a firmware bug when the n
 | `rx_not_fragmentable` | §14 stage 8a | `BAD_LENGTH` | yes |
 | `rx_rejected_ctx` | §14 stage 9 / §9.4 step 2 | `REJECTED_CTX` | yes |
 | `rx_rejected_mac` | §14 stage 9 / §9.4 step 3 | `REJECTED_MAC` | yes |
+| `rx_unknown_src` | §14 stage 9a — `src` is not a known peer | — (never answered) | yes |
 | `rx_reassembly_timeout` | §11.2 — incomplete set expired | `REASSEMBLY_TIMEOUT` | yes |
 | `rx_fragment_overflow` | §11.2 — index ≥ total, cap exceeded, staging exhausted | `FRAGMENT_OVERFLOW` | yes |
 | `rx_reassembly_abandoned` | §11.3 — live **set** displaced by another set | — (local) | yes |
@@ -1927,6 +2036,47 @@ thing a health metric must not do.
 > foreign transmitter on the band or a misconfigured PHY; a bad length means a peer's
 > encoder is wrong; a fragmented `COMMAND` means a peer violated §11.4. Three faults,
 > three fixes, and on a link with no console the counter is the whole diagnosis.
+
+### 14.2 `ERROR` replies, which are sent before the sender is authenticated
+
+Every `ERROR` in §14 is raised at stage 8a or earlier, so **the receiver answers a frame
+whose `src` it has not authenticated and cannot attribute.** This section says what it
+may send and to whom.
+
+**A receiver SHALL send an `ERROR` only to a `src` it holds a key for** (§9.1) — a
+registered peer. A frame from any other source is discarded at stage 9a and never
+answered. This bounds what an unauthenticated frame can make the receiver do: a forged
+frame still has to borrow a fleet address to produce a single reply, and it produces no
+reply at all from an address the receiver does not know.
+
+**A receiver SHALL rate-limit `ERROR` replies per source.** The minimum interval between
+two `ERROR`s to one peer is `error_min_interval_ms`, **default 1000**, runtime-settable.
+An `ERROR` suppressed by the limit is not counted separately — the discard that produced
+it is already counted by §14.1.
+
+**Header fields on an `ERROR`:**
+
+| Field | Value |
+|---|---|
+| `src` | The sending receiver's own address |
+| `dst` | The `src` of the offending frame |
+| `ctx_id` | **`0x00000000`** — unknown (§5.5). The bridge has no context of its own (§10.1), and a node answering before authentication has no confirmed context for this peer |
+| `seq` | The sender's own, local and advisory (§10.2) |
+| `ref_seq` (payload) | The `seq` of the offending frame, or `0` when it could not be read |
+
+**A receiver MUST NOT adopt a `ctx_id` of `0x00000000`.** §5.5 makes zero the unknown
+value and no node ever sends it as its own; a receiver treating it as a context to learn
+would reset a live session on a forged frame. §10.3's resync is driven by
+`COMMAND_ACK(REJECTED_CTX)`, which is authenticated, and never by an `ERROR`.
+
+**The two optional `ERROR`s stay optional.** §14 marks `BAD_CRC` and `BAD_VERSION`
+optional, and this section does not promote them: a frame failing CRC has a `src` field
+that cannot be trusted to name the sender at all.
+
+> **Decided in v0.12.** BF-19 left these unbuilt rather than guess, and the obvious
+> reading — answer whoever asked — is a reflection vector: a spoofed frame makes the
+> bridge transmit, on a shared channel, at a rate an attacker chooses. Silence was the
+> other candidate and it costs the field diagnosis these counters exist to give.
 ---
 
 ## 15. Airtime and power analysis
@@ -2032,6 +2182,45 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/vedirect/write_enable/{state,set}` | both | **Yes** | Armed write-enable, default off, auto-expiry |
 | `lran/<node>/diag/state` | bridge → HA | **Yes** | RSSI/SNR, missed polls, counters, protocol version |
 | `lran/bridge/version` | bridge → HA | **Yes** | Bridge firmware version |
+
+#### 16.2.1 Payloads, where one is defined
+
+**Two of the topics above have a payload defined here, because the bridge publishes them
+today and Home Assistant breaks on a rename.** Every other payload in §16.2 is the
+bridge's to choose under §16.4, which keeps publication policy where it belongs.
+
+**`lran/bridge/version`** — a JSON object, retained:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `version` | string | Firmware version |
+| `git` | string | Short commit the image was built from; a `-dirty` suffix means it matches no commit |
+| `slot` | string | The running OTA slot |
+| `ota_state` | string | The image state as the bootloader sees it |
+
+**`lran/<node>/diag/state`** — a JSON object, retained, describing the node's link **as
+the bridge last heard it**:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `rssi_dbm` | number or `null` | Last received frame's RSSI |
+| `snr_db` | number or `null` | Last received frame's SNR |
+| `last_seen_s` | number or `null` | Age in seconds of the last frame heard |
+| `missed_polls` | number | Consecutive unanswered polls (§16.5) |
+| `proto_ver` | number or `null` | `ver` last announced by the node |
+
+**An unavailable value is `null`, never a number.** §7.5's sentinels do not survive into
+JSON: a consumer must be able to tell "no reading" from a reading of zero, and `null` is
+how JSON says it.
+
+**The bridge's own counters are published under `lran/bridge/diag/state`**, carrying
+every §14.1 counter by its normative name plus `rx_dropped` and `rx_frames`. §14.1 says
+why they are the bridge's rather than each node's.
+
+**`config/set` and `config/ack` are deliberately left undefined.** Neither has an
+implementation, a configuration library or an inbound path, and a payload specified
+before its first caller is a guess carrying a version number. They are defined when that
+work is scheduled.
 
 ### 16.3 Event topics are never retained — a hard rule
 
@@ -2166,8 +2355,11 @@ optimistic choice costs a lost command.
 
 **Multi-node caveat.** An extended preamble is address-agnostic: **every** duty-cycled
 node on the channel wakes and receives the header before discarding a frame not
-addressed to it. Enable SX126x hardware node-address filtering (§12.1) so the discard
-happens in silicon.
+addressed to it. **The silicon cannot help with that discard** (§12.1): LoRa has no
+hardware address filter, so every frame on the channel wakes the receiver and is judged
+in software at §14 stage 5. A duty-cycled node therefore pays MCU time for the fleet's
+whole traffic, not only its own. **W14 owns the answer**, and it is owed before any node
+is built on this profile.
 
 > **Do not adopt this design for a node that does not need it.** Measured against
 > adequate storage it buys single-digit percentages of the budget at real cost in
@@ -2226,9 +2418,10 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W7 | ~~Airtime table regeneration~~ | — | **Closed 2026-09-10 with D1** (SF9 / BW125 / CR 4/5). The table was already on that basis, so it was **confirmed rather than recomputed**, and §12.3's window was set against its maximum-`PING` row in the same motion — 1107 ms at SF9, window raised to 1500. Original wording: recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
 | W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
-| W10 | **Config entry count vs. one frame** | §7.4, §11 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. Confirm the count once it does: past 21 `uint32` entries the readback fragments, which makes §11 a production path on the first config read rather than a bench feature, and moves W4's fragmentation vectors onto the critical path |
+| W10 | **Config entry count vs. one frame** | §7.4 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. **v0.12 changes what the answer costs**: `CONFIG` and `CONFIG_ACK` are now single-frame (§11.4), so exceeding 24 entries or 21 results is not a fragmentation path but a **split into several messages**, with no atomicity across them. Count GateLink's real parameters against those ceilings before `/lib/lran-config/` is designed. Fragmentation is no longer on the config critical path, which is what this item used to put there |
 | W13 | ~~No vector reaches §11.2's dead-space clause~~ | — | **Closed. Unit-test coverage is sufficient and no raw-frames vector form will be built.** A duplicate fragment of differing length exhausting staging is a **non-conforming-sender** path: §11.1 fixes every non-final fragment to one length, so a conforming sender cannot produce it, and W4's generator emits conforming senders by construction. That is a **boundary of the method, not a gap in it** — the vector shape witnesses two implementations of a conforming sender against each other, and a frame no conforming sender emits has no second implementation to be witnessed against. `test_duplicate_fragment_of_different_length_overwrites` drives the receiver directly and covers both halves: the overwrite wins, and the superseded copy is charged against staging rather than against the reassembly cap. A raw-frames vector form is a meaningful amount of tooling for one clause, and it would compare the codec against a hand-written frame rather than against an independent reading, which is most of what makes W4 worth having. Revisit if a second non-conforming-sender clause appears: one is a unit test, several are a vector form |
 | W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition. **v0.11:** the window is answered — a retry inside it is counted and not answered, and the high-water mark advances before dispatch (D34 amended 2026-09-11) |
+| W14 | **How a duty-cycled node avoids waking on the whole fleet's traffic** | §17.1 | §17.1 assumed the SX126x would discard a frame addressed elsewhere in silicon. **It cannot: LoRa has no hardware address filter** (§12.1, confirmed against the datasheet as **M24**). Every frame on the channel wakes a duty-cycled receiver and is judged in software at stage 5, so the power model that made §17.1 worth building is unquantified. Owed before WellLink is built on that profile, and **not owed at all if D19 makes WellLink mains-powered** |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 
 ### 18.1 W5, resolved — fixed channel at low power
@@ -2402,9 +2595,11 @@ HEX_RSP    (20+N B)  header + [status][n][hex:N]                          + crc:
 STATUS 0xF0  (38 B)  header + [ 20-byte payload, §7.5 ]                   + crc:2
 ```
 
-Sizes above are single-frame. A fragmented `CONFIG` or `CONFIG_ACK` is a set of
-frames each carrying its own 16-byte header, its own CRC16 and — for `CONFIG` — its
-own 8-byte MAC (§11.1); the overhead is per fragment, not per set.
+Sizes above are single-frame, and in v1 **every defined type except `PING` is
+single-frame** (§11.4). A fragmented `PING` is a set of frames each carrying its own
+16-byte header and its own CRC16 (§11.1); the overhead is per fragment, not per set.
+`CONFIG` and `CONFIG_ACK` became single-frame in v0.12 — the reassembly cap and the
+single-frame payload cap are both 196 bytes, so fragmenting them carried nothing.
 
 > **Corrected in v0.4.** The `HEX_RSP` line read `21+N` while its own layout computes
 > to `20+N`, and §6's message table gave the payload as `3+N` against §7.6's `2+N`.
@@ -2425,6 +2620,36 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.12** — **Nine questions raised during bridge B3a and simnode B0 are answered, and
+  one datasheet premise is corrected.** `ver` stays at `2`; **no frame layout, header
+  field, enumeration value, schema or authentication scope changes, and no test vector
+  regenerates.** §14 gains **stage 9a**, `src` is a peer the receiver holds a key for,
+  counted as **`rx_unknown_src`** and never answered — the check the bridge has run since
+  BF-15 with no stage to map it to. §14.1 gains that counter, making the registry 22, and
+  states what BF-19 could not implement as written: **a counter raised before stage 9 is
+  the receiver's own**, because `src` before the MAC check is a claim rather than an
+  identity. New **§14.2** rules the `ERROR` replies that are sent before the sender is
+  authenticated: **registered sources only**, rate-limited by `error_min_interval_ms`
+  (default 1000), `ctx_id = 0`, and a receiver MUST NOT adopt that zero — answering any
+  `src` would make the receiver transmit at a stranger's chosen rate. §6.3 says where a
+  `DUPLICATE_CACHED` result travels (**`detail`**) and what is lost with it; §7.4 answers
+  a repeated `CONFIG` **from the dedup cache**, which is also a correct readback because
+  the ACK carries effective values. §10.2 states that a bridge-originated unauthenticated
+  `seq` — `POLL`'s — is local and advisory and advances no high-water mark.
+  **§11.4 makes `CONFIG` and `CONFIG_ACK` single-frame in v1**: §3.1's reassembly cap and
+  the single-frame payload cap are both 196 bytes, so fragmenting them could never carry
+  one byte more, and v0.4 through v0.11 described an encoding no conforming sender could
+  produce. §16.2.1 defines the two MQTT payloads that ship today, `lran/bridge/version`
+  and `lran/<node>/diag/state`, and leaves `config/*` undefined until it has a caller.
+  **§12.1's node-address filtering is withdrawn**: `AddrComp` is a GFSK packet parameter
+  and the LoRa packet handler has no address field, verified against SX1261/2 Rev 1.1
+  §13.4.6.1 against §13.4.6.2 — raised by BF-16, settled as **M24**, and it costs §17.1 a
+  mechanism, now **W14**. §13.2's changelog rule pointed at
+  `/docs/protocol-changelog.md`, which has never existed, and now points at §20. W10 is
+  rewritten: config size is a split question, not a fragmentation one. Reasoning in
+  `LRAN-Spec-v0.12-Brief`, now superseded; **D35–D42** in the Decision Register are the
+  status of record.
 
 - **v0.11** — **§9.4's recorded silence is answered: a retry inside the execution window
   receives nothing.** `ver` stays at `2`; **no frame layout, header field, enumeration

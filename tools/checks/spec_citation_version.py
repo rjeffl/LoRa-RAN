@@ -52,11 +52,11 @@ SKIP_PATHS = (
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".
 CITATION_PATTERNS = (
-    # **Binding protocol:** [...](...) **v0.11**   /   `...` v0.11 (`ver = 2`)
+    # **Binding protocol:** [...](...) **v0.12**   /   `...` v0.12 (`ver = 2`)
     re.compile(r"Binding (?:protocol|specification|spec)\b[^\n]*?v(?P<ver>\d+\.\d+)", re.I),
-    # Root CLAUDE.md's document table: **Currently v0.11, `ver = 2`**
+    # Root CLAUDE.md's document table: **Currently v0.12, `ver = 2`**
     re.compile(r"Currently\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
-    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.11
+    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.12
     re.compile(r"LRAN-Protocol-Specification`?\*{0,2}\s+is\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
     # System PRD §12 document-set row.
     re.compile(
