@@ -67,6 +67,19 @@ struct TxMessage {
 };
 
 // ---------------------------------------------------------------------------
+// The inbound command queue - BF-18. mqtt_task parses `lran/<node>/cmd/<action>/set`
+// and queues one of these; sched_task runs it against the command path.
+//
+// WHY A QUEUE AND NOT A DIRECT CALL. The parse happens inside PubSubClient's
+// callback, on mqtt_task, and the command path belongs to sched_task - which is
+// where every airtime decision already lives. A direct call would need the
+// scheduler's lock taken from inside a broker callback, and the rule that lock has
+// kept since BF-17 is that it is never held across a queue send or a registry call.
+//
+// CommandRequest is in command.h, with the state machine that consumes it.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Queues and their overflow accounting.
 // ---------------------------------------------------------------------------
 
@@ -75,6 +88,7 @@ enum class QueueId : uint8_t {
   Publish,  // app_task  -> mqtt_task
   Tx,       // anything  -> lora_task
   Log,      // anything  -> log_task
+  Command,  // mqtt_task -> sched_task (BF-18)
   kCount,
 };
 

@@ -8,6 +8,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "command.h"
 #include "lora_link.h"
 #include "mbedtls_mac.h"
 
@@ -70,6 +71,30 @@ bool registry_state(lran::NodeId id, NodeState* out) {
   if (s == nullptr) return false;
   *out = *s;
   return true;
+}
+
+bool registry_take_cmd_seq(lran::NodeId id, lran::Seq* out) {
+  Lock lock;
+  return g_registry.take_cmd_seq(id, out);
+}
+
+bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx) {
+  Lock lock;
+  return g_registry.adopt_ctx(id, ctx);
+}
+
+size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+                              const lran::msg::Command& cmd, uint8_t* buf, size_t cap) {
+  // key_for() is lock-free by construction (registry.h): keys are derived in
+  // registry_begin() before start_tasks() and never written again. The lock guards
+  // what the bridge has LEARNED, and a key is not that.
+  const uint8_t* key = g_registry.key_for(dst);
+  if (key == nullptr) return 0;
+
+  lran::EncodeCtx ectx;
+  ectx.mac      = &g_mac;
+  ectx.node_key = key;
+  return build_command_frame(dst, ctx, seq, cmd, ectx, buf, cap);
 }
 
 }  // namespace bridge

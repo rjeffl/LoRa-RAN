@@ -58,6 +58,41 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos);
 
 // ---------------------------------------------------------------------------
+// The inbound direction - BF-18. `lran/<node>/cmd/<action>/set` is the only thing
+// subscribed today (spec 16.2); BF-26 adds `config/set` and B5 the HEX request.
+//
+// TINY ON PURPOSE. An inbound payload is a Home Assistant button or switch value -
+// `PRESS`, `ON`, a small decimal (net_policy.h). 64 bytes is far more than any of
+// them and far less than the 768 an outbound state message needs, and the asymmetry
+// is the point: nothing the bridge ACTS on should arrive in a large buffer.
+//
+// REFUSED, NOT TRUNCATED, like every other size limit here. A truncated topic
+// addresses something real and wrong, and a truncated payload is a different command.
+// ---------------------------------------------------------------------------
+
+inline constexpr size_t kMaxInboundPayloadLen = 64;
+
+struct InboundMessage {
+  char   topic[kMaxTopicLen]            = {0};
+  char   payload[kMaxInboundPayloadLen] = {0};
+  size_t payload_len                    = 0;
+};
+
+// Fills `out` from what the transport received, refusing rather than truncating.
+// `payload` need not be NUL-terminated; `out->payload` always is.
+bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload,
+                  size_t payload_len);
+
+// Where a received publication goes. The transport calls this from its own loop(),
+// which runs on mqtt_task - so an implementation must not block, and must not do
+// anything a queue send cannot do.
+class MqttInbound {
+ public:
+  virtual ~MqttInbound()                             = default;
+  virtual void on_message(const InboundMessage& msg) = 0;
+};
+
+// ---------------------------------------------------------------------------
 // The transport.
 // ---------------------------------------------------------------------------
 
@@ -95,6 +130,19 @@ class MqttTransport {
 
   virtual bool publish(const PublishMessage& msg) = 0;
   virtual bool subscribe(const char* topic, uint8_t qos) = 0;
+
+  // Where loop() delivers what arrives. Null detaches. Set it BEFORE the first
+  // connect_once(): a subscription made before a sink exists delivers to nothing,
+  // and the broker will not send a retained command again to make up for it.
+  //
+  // THIS IS THE SEAM'S ONE CONCESSION TO PubSubClient. The header above says a
+  // method that exists because PubSubClient needs it called means the seam has
+  // leaked - this one exists because PubSubClient's callback is a bare function
+  // pointer with no user context, so the implementation needs somewhere to keep the
+  // sink. espMqttClient takes a std::function and would not need it. Kept because
+  // the alternative is every caller knowing which library is underneath, which is
+  // the thing the seam is for.
+  virtual void set_inbound(MqttInbound* sink) = 0;
 
   // Connection attempts and failures, for the diagnostic topics. Not the publish
   // counts: those belong to the queue accounting, which is where a drop is visible.

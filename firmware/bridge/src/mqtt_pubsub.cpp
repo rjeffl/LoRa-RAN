@@ -8,6 +8,34 @@
 #include "net_policy.h"
 
 namespace bridge {
+namespace {
+
+// The one instance, for the callback trampoline. See mqtt_pubsub.h on why a file
+// static rather than a context pointer: PubSubClient's callback signature has no
+// room for one.
+PubSubTransport* g_instance = nullptr;
+
+}  // namespace
+
+// Static. PubSubClient hands back the topic as a NUL-terminated C string and the
+// payload as a length-counted buffer that is NOT terminated - make_inbound() is
+// written for exactly that pair.
+void PubSubTransport::dispatch(char* topic, uint8_t* payload, unsigned int len) {
+  PubSubTransport* self = g_instance;
+  if (self == nullptr) return;
+  if (self->inbound_ == nullptr) {
+    ++self->inbound_refused_;
+    return;
+  }
+  InboundMessage msg;
+  if (!make_inbound(&msg, topic, payload, len)) {
+    ++self->inbound_refused_;  // refused, never truncated
+    return;
+  }
+  self->inbound_->on_message(msg);
+}
+
+void PubSubTransport::set_inbound(MqttInbound* sink) { inbound_ = sink; }
 
 bool PubSubTransport::begin(const MqttConfig& cfg) {
   cfg_ = cfg;
@@ -34,6 +62,17 @@ bool PubSubTransport::begin(const MqttConfig& cfg) {
   // This task may block; that is what the queue in front of it is for. The one that
   // may not is lora_task, which never touches this object.
   client_.setSocketTimeout(5);
+
+  // The trampoline, installed last so a begin() that failed above leaves no callback
+  // pointing at a half-configured transport. A SECOND INSTANCE IS REFUSED rather than
+  // allowed to steal the first's callbacks - a bridge with two transports is a defect,
+  // and one that silently delivered every command to the wrong one would be a hard
+  // afternoon.
+  if (g_instance != nullptr && g_instance != this) {
+    return false;
+  }
+  g_instance = this;
+  client_.setCallback(&PubSubTransport::dispatch);
   return true;
 }
 

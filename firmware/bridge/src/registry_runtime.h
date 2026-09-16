@@ -13,6 +13,7 @@
 
 #include "lran/frame.h"
 #include "lran/mac.h"
+#include "lran/messages.h"
 #include "registry.h"
 
 namespace bridge {
@@ -36,5 +37,24 @@ bool registry_note_poll_missed(lran::NodeId id);
 
 // A copy, so the caller never holds a pointer into state another task is writing.
 bool registry_state(lran::NodeId id, NodeState* out);
+
+// --- BF-18, the command path. --------------------------------------------------
+
+// spec 10.2 - takes this node's next command seq and advances it. False when
+// unregistered. A RETRY DOES NOT CALL THIS (root rule 2).
+bool registry_take_cmd_seq(lran::NodeId id, lran::Seq* out);
+
+// spec 10.3 step 2 - adopt a ctx_id from a REJECTED_CTX and reset cmd_seq to 1.
+bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx);
+
+// Builds an authenticated COMMAND to `dst` with that node's derived key (spec 9.2).
+// Returns the frame length, or 0 - for an unregistered node as well as an encode
+// failure, because a node with no key has no command that can reach it.
+//
+// THE KEY DOES NOT LEAVE THIS FILE. command.cpp builds the frame from an EncodeCtx
+// the caller supplies, which is what keeps it host-testable; this is the one place
+// that fills the EncodeCtx in, so no task holds a pointer to key material.
+size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+                              const lran::msg::Command& cmd, uint8_t* buf, size_t cap);
 
 }  // namespace bridge

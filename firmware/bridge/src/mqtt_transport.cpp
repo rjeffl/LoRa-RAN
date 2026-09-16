@@ -40,4 +40,30 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
   return true;
 }
 
+// BF-18. A payload from the wire is NOT NUL-terminated and its length is the only
+// thing that bounds it, which is why this takes a length rather than a C string:
+// the one place a stray strlen would read past a broker-supplied buffer.
+bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload,
+                  size_t payload_len) {
+  if (out == nullptr || topic == nullptr) {
+    return false;
+  }
+  if (payload == nullptr && payload_len != 0) {
+    return false;
+  }
+
+  const size_t tlen = std::strlen(topic);
+  if (tlen == 0 || tlen >= kMaxTopicLen || payload_len >= kMaxInboundPayloadLen) {
+    return false;  // refused, never truncated
+  }
+
+  std::memcpy(out->topic, topic, tlen + 1);
+  if (payload_len != 0) {
+    std::memcpy(out->payload, payload, payload_len);
+  }
+  out->payload[payload_len] = '\0';  // the parsers take a length, but a log does not
+  out->payload_len          = payload_len;
+  return true;
+}
+
 }  // namespace bridge

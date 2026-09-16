@@ -75,6 +75,51 @@ inline constexpr const char* kPayloadOnline  = "online";
 inline constexpr const char* kPayloadOffline = "offline";
 
 // ---------------------------------------------------------------------------
+// The inbound command topic - `lran/<node>/cmd/<action>/set` (spec 16.2). BF-18.
+//
+// THE ACTION TOKENS ARE THE BRIDGE'S TO CHOOSE, and this is where they are chosen.
+// Spec 16.2.1 leaves every payload but two to the bridge under 16.4, and the same is
+// true of `<action>`: 16.1 fixes the shape, not the vocabulary. They are spec 8.1's
+// `cmd` names lowercased - `open`, `hold_open`, `request_status` - so one term names
+// one concept from Home Assistant to the wire, and a reader needs no table to get
+// from a topic to a spec row.
+//
+// A TOKEN PUBLISHED IS A TOKEN FROZEN. Home Assistant's entity registry remembers
+// every unique_id it has seen, so these are breaking to rename after B4 builds
+// discovery on them (this node's CLAUDE.md).
+// ---------------------------------------------------------------------------
+
+// What the bridge subscribes to, once, covering every node and action.
+inline constexpr const char* kTopicCmdFilter = "lran/+/cmd/+/set";
+
+// What arrived on one. `cmd` is spec 8.1's value; `arg` and `arg2` come from the
+// payload (parse_cmd_payload).
+struct CmdTopic {
+  uint8_t node_id = 0;
+  uint8_t cmd     = 0;
+};
+
+// Parses `lran/<node>/cmd/<action>/set` into an address and a spec 8.1 `cmd`. False
+// for any topic that is not exactly that shape, an unknown node token, or an action
+// this bridge does not name - each of which is a subscription the bridge should not
+// have received, and none of which may be guessed at.
+bool parse_cmd_topic(const char* topic, CmdTopic* out);
+
+// The payload. Deliberately small, and NOT JSON: these arrive from a Home Assistant
+// button or switch, whose native payloads are exactly these shapes.
+//
+//   empty, or `PRESS`   arg 0, arg2 0   - a button
+//   `ON` / `OFF`        arg 1 / 0       - a switch
+//   `N`                 arg N           - spec 8.1's arg, e.g. CLOSE's release-only
+//   `N,M`               arg N, arg2 M   - e.g. SET_DEBUG_MODE's bitmask in arg2
+//
+// False on anything else, INCLUDING a value out of range. A payload the bridge
+// cannot read is refused rather than defaulted to 0: `arg` carries REBOOT's 0xA5
+// confirmation guard, and a default that silently became 0 would turn an unreadable
+// payload into a command that means something else.
+bool parse_cmd_payload(const char* payload, size_t len, uint8_t* arg, uint16_t* arg2);
+
+// ---------------------------------------------------------------------------
 // The retain rule, enforced where every publication passes rather than trusted.
 //
 // Spec 16.3 is a HARD RULE: every topic under `lran/<node>/event/` is published with
