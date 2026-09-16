@@ -1,19 +1,22 @@
 # LRAN spec v0.12 — decision brief
 
 **Document:** `LRAN-Spec-v0.12-Brief`
-**Version:** 0.1
-**Status:** Open. Awaiting the operator's decisions on §§2–10
+**Version:** 0.2
+**Status:** **Superseded 2026-09-16.** The operator accepted every recommendation below.
+Protocol Spec **v0.12** carries the outcomes and the Decision Register's **§3.5** and
+**D35–D42** are the record; this brief is kept as the reasoning. Question 9 was a fact
+rather than a decision and became **M24**, with its consequence for §17.1 as **W14**
 **Parent document:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.11** (`ver = 2`)
-**Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — nothing here has a `D` number yet
+**Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12** (`ver = 2`)
+**Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **D35–D42**, resolved
 **Last updated:** 2026-09-16
 
-> **This document decides nothing.** Nine questions were raised during bridge B3a and
-> simnode B0 and deliberately left unpatched, each recorded in the engineering log entry
-> that raised it. Bridge milestone **B3b** is gated on three of them. This brief collects
-> all nine, gives the options for each, and recommends one. When the operator decides, the
-> Decision Register records it, the specification carries the change, and this brief is
-> marked superseded.
+> **This document decided nothing; it is the reasoning behind decisions recorded
+> elsewhere.** Nine questions raised during bridge B3a and simnode B0 were collected here
+> with options and a recommendation each. **The operator accepted all nine on 2026-09-16**,
+> the specification carries them as v0.12, and the Decision Register is the status of
+> record. The options *not* taken are why this file is kept: three of them are wrong in
+> ways that are not obvious until written down.
 
 ---
 

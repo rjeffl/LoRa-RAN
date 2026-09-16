@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.32
+**Version:** 0.33
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-14
+**Last updated:** 2026-09-16
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -410,18 +410,24 @@ and hands `lora_task` its `PeerKeys` and `IMac`.
 | **An entry has two halves.** What a node *is* (id, type, key, `is_bench`) is written once at load and read lock-free, `lora_task` included. What the bridge has *learned* is written under a mutex, never from `lora_task` | `lora_task` needs keys on every frame and must never wait. Nothing writes the first half after the tasks start, so no lock is needed there |
 | **Keys are checked against the W4 vectors** | A registry that fed HKDF the wrong address byte would agree with itself and with no node. `test_registry` compares every row's key with `tools/vectors`' independently generated one |
 | **`app_task` records each reception**: `last_seen`, RSSI, SNR, `proto_ver`, and the §10.1 `ctx_id`, resetting `cmd_seq` to 1 on a new one (§10.2) | Spec 10.1 says the bridge learns a context from any frame. A zero `ctx_id` is not adopted |
-| **The ladder refuses a source the registry does not know**, after stage 9 and before stage 10 | §11.3 sizes reassembly per provisioned node, so an unprovisioned transmitter must not take a slot. **Spec §14 has no stage for this**, so the discard is the bridge diagnostic `unregistered_src`, outside `rx_dropped` — see below |
+| **The ladder refuses a source the registry does not know**, after stage 9 and before stage 10 | §11.3 sizes reassembly per provisioned node, so an unprovisioned transmitter must not take a slot. **Spec v0.12 gives this stage 9a and the counter `rx_unknown_src`**, inside `rx_dropped` — see below |
 
 **What BF-15 does not do:** advance `cmd_seq` (BF-18), count `missed_polls` (BF-17) or act
 on them (BF-20), downgrade on `proto_ver` (BF-22), take `poll_interval_s` from Home
 Assistant (BF-23), or gate bench publication (BF-26).
 
-> **A specification gap, raised and not patched.** A `STATUS` carries no MAC, so a frame
-> from an address no row provisions passes all ten stages §14 defines. Root rule 4 wants
-> every discard to have a named counter, a `Status` value and a §14 stage, and this one can
-> have only the first. The bridge counts it as `unregistered_src` — deliberately not
-> `rx_`-prefixed, so it does not squat a name spec v0.12 may choose. The engineering log's
-> 2026-09-14 BF-15 entry records the question for the next revision.
+> **The gap this raised is closed, and the code owes the specification a rename.** A
+> `STATUS` carries no MAC, so a frame from an address no row provisions passes all ten
+> stages §14 defined through v0.11. Root rule 4 wants every discard to have a named
+> counter, a `Status` value and a §14 stage, and this one had only the first. **Spec v0.12
+> adds stage 9a and names the counter `rx_unknown_src`**, counted into `rx_dropped` and
+> never answered.
+>
+> **Until the rename lands, the bridge publishes `unregistered_src`, outside
+> `rx_dropped`** — the name BF-15 chose precisely so it would not squat the one the
+> specification might pick. The specification is right and the code follows it: the
+> counter moves into `lran::Counters` and `kCounterRegistry`, which makes the registry 22
+> rows. Tracked as **BF-15a**.
 
 ### 4.2a Bench-node publication gate (`simnode_diag_enable`)
 
@@ -500,19 +506,19 @@ as `lran/bridge/version`'s was (BF-13).
 
 | Topic | Carries |
 |---|---|
-| `lran/bridge/diag/state` | The 21 §14.1 counters in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, `unregistered_src` |
+| `lran/bridge/diag/state` | Every §14.1 counter in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, and — until **BF-15a** — `unregistered_src` beside them rather than in them. Spec v0.12 makes the registry 22 rows and §16.2.1 fixes this payload's shape |
 | `lran/bridge/diag/radio/state` | `tx_frames`, `cad_backoffs`, the driver's `LoraStats`, and each queue's `dropped` and `high_water` |
 | `lran/<node>/diag/state` | `rssi_dbm`, `snr_db`, `last_seen_s` (an age), `missed_polls`, `proto_ver`. Watched nodes only; a bench node only with `simnode_diag_enable` (§4.2a) |
 
 | Rule | Value |
 |---|---|
-| **Discard counters are the bridge's, not a node's** (decided with the operator) | Most discards happen before the MAC check, where `src` may be corrupt or forged. §14.1's "per node by the bridge" is raised for spec v0.12 |
+| **Discard counters are the bridge's, not a node's** (decided with the operator) | Most discards happen before the MAC check, where `src` may be corrupt or forged. **Spec v0.12's §14.1 now says this normatively**: a counter raised before stage 9 is the receiver's own, and only stage 9 onward may be attributed per node |
 | Sentinels | `null`, never a number (root rule 6) |
 | `diag_publish_interval_s` | **60**, runtime-settable. No document gave a cadence; one default poll interval |
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
 | `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
 | A refused publication | Not retried; the next interval carries newer numbers |
-| `ERROR` replies (spec §14) | **Not built** (decided with the operator). **BF-19a**, after spec v0.12 says whether the bridge must answer and to which `src` and `ctx_id` when the header is unauthenticated |
+| `ERROR` replies (spec §14) | **Not built. BF-19a builds them to spec v0.12 §14.2**: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered |
 
 ### 4.4 Home Assistant discovery
 
@@ -743,10 +749,12 @@ names it through `using` declarations in `lora_link.h`.
 registered nodes only (BF-15), timing from Home Assistant (BF-23), the raw frame log
 (BF-27). **Nothing has been sent or received over the air.**
 
-> **Spec §12.1's node-address filtering has no implementation, and none appears possible
-> in LoRa mode.** RadioLib 7.7.1 exposes no `setNodeAddress()` for the SX126x. The reading
-> that the part filters addresses only in GFSK is **unverified against the datasheet**.
-> Raised in the engineering log's BF-16 entry; the specification is unchanged.
+> **Spec §12.1's node-address filtering has no implementation, and none is possible in
+> LoRa mode.** RadioLib 7.7.1 exposes no `setNodeAddress()` for the SX126x, and the
+> datasheet says why: `AddrComp` is a **GFSK** packet parameter and the LoRa packet
+> handler has no address field (SX1261/2 Rev 1.1, §13.4.6.1 against §13.4.6.2).
+> **Verified 2026-09-16 as M24, and spec v0.12 withdraws the requirement** — addressing is
+> §14 stage 5, in software. Raised in the engineering log's BF-16 entry.
 
 ### 5.4 Repository layout for the bench fleet
 
@@ -1861,6 +1869,21 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.33** — **Protocol specification v0.11 → v0.12, and B3a accepted.** Four things land
+  on this node. **§4.2.1's specification gap is closed**: the ladder's refusal of an
+  unknown source is now §14 stage 9a with the counter **`rx_unknown_src`**, inside
+  `rx_dropped`, so the bridge owes a rename — **BF-15a** in the tasks document, and until
+  it lands the published name stays `unregistered_src` beside the registry rather than in
+  it. **§4.3.2's "counters are the bridge's, not a node's" is now the specification's own
+  rule**, not a decision taken locally and raised upward. **BF-19a has its answer**: spec
+  §14.2 rules `ERROR` replies to registered sources only, rate-limited by
+  `error_min_interval_ms` (default 1000), `ctx_id` `0`. **§5.3.1's node-address-filtering
+  discrepancy is settled against the datasheet** as M24 — the feature is GFSK-only, and
+  v0.12 withdraws the §12.1 requirement. **B3a was accepted on 2026-09-16** on the §10.5
+  catalogue and W9; §10.5's `set_displaced` row gains the second counter that entry
+  necessarily moves, and §8's B3a row states the `n` the console's `ping` takes. Decision
+  Register **D35–D42**.
 
 | Version | What changed |
 |---|---|

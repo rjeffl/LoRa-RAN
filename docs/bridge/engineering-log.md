@@ -1340,3 +1340,82 @@ The injections were armed over the simnode console by a script holding the port 
 counters differenced from the broker log. That is the same evidence a typed run produces,
 and it is **not** BF-21: nothing is committed, the harness lives in this session's
 scratchpad, and B3b still owes the catalogue as a `simctl` script.
+
+---
+
+## 2026-09-16 — spec v0.12: the nine questions, answered
+
+**Every question B3a and B0 raised and left unpatched is decided, and B3b's gate is
+clear.** Eight are **D35–D42** in the Decision Register; the ninth was a fact rather than
+a choice and is **M24**. `LRAN-Spec-v0.12-Brief` carries the options and is superseded.
+
+**One property was checked across the whole set rather than asserted.** No answer changes
+a frame layout, a header field, an enumeration value, a schema or the authentication
+scope, so `ver` stays `2`. **`generate.py` re-run against v0.12 reproduced all 72
+committed vectors byte for byte**, and `check.py` re-derived them: 62 distinct valid
+frames, 21 negative, no overlap. On a fleet with no OTA this is the difference between a
+document change and a walk to every node.
+
+### Two answers that changed shape while being written
+
+**The obvious answer to the `ERROR` question is a reflection vector.** §14's `ERROR`
+replies all fire before the sender is authenticated. Answering whoever asked means one
+spoofed frame produces one transmission, at a rate the sender chooses, on a channel the
+whole fleet shares. Silence was the other candidate, and it costs the field diagnosis
+these counters exist to provide. **§14.2 takes the middle**: registered sources only,
+rate-limited per source by `error_min_interval_ms` (default 1000), `ctx_id` `0`, and a
+receiver must never adopt that zero as a context.
+
+**`CONFIG` fragmentation was a contradiction, not a gap.** §11.4 called `CONFIG`
+fragmentable and noted it exceeds one frame at 24 `uint32` entries. §3.1 caps a
+reassembled schema-bearing set at 196 bytes — **exactly what one authenticated frame
+already carries**. A fragmented config set could never carry one byte more than an
+unfragmented one, so v0.4 through v0.11 described an encoding no conforming sender could
+produce. Both sections had been read many times; neither had been read against the other
+until BF-6 asked what a repeated `CONFIG` does. **v0.12 makes both types single-frame**,
+and §11.5's argument for why fragmentation exists is rewritten, because that argument
+rested on the same claim.
+
+### M24 — the SX126x cannot filter node addresses in LoRa mode
+
+BF-16 suspected this during bridge radio bring-up and recorded it as **unverified against
+the datasheet**, where it sat through two revisions. It is now read:
+
+- **`AddrComp` is GFSK `PacketParam5`** — SX1261/2 Rev 1.1, `DS.SX1261-2.W.APP`,
+  December 2017, Table 13-56, under §13.4.6.1 *GFSK Packet Parameters*. `NodeAddrReg` is
+  `0x06CD` and `BroadcastReg` `0x06CE` (Tables 13-57, 13-58).
+- **The LoRa packet parameters are preamble length, header type, payload length, CRC type
+  and invert-IQ** — §13.4.6.2, Tables 13-66 to 13-70. No address parameter, no address
+  register.
+
+LoRa discriminates by sync word, which the whole fleet shares. **§12.1's requirement is
+withdrawn** and addressing is §14 stage 5, in software, which is what every firmware here
+already does.
+
+**The cost lands on §17.1**, which assumed a duty-cycled node could let the silicon drop a
+frame addressed elsewhere. It cannot: every frame on the channel wakes the receiver and is
+judged in software, so the power model that justified the design is unquantified. That is
+**W14**, owed before WellLink is built on the profile and moot if **D19** makes WellLink
+mains-powered. **The premise named no check for two revisions** — the falsification rule in
+root `CLAUDE.md` exists for exactly this, and this is the second time it has caught
+something after the fact rather than before.
+
+### Two document defects found while editing
+
+- **§13.2 required a changelog entry in `/docs/protocol-changelog.md`, a file that has
+  never existed.** The changelog has always been §20. Eleven revisions were recorded
+  correctly while the rule pointed elsewhere, so the requirement was met by practice and
+  not by the text.
+- **System PRD §12's version column was wrong in eight rows**, the Bridge Implementation
+  Plan by fourteen revisions. The protocol citation is enforced by
+  `tools/checks/spec_citation_version.py`; that column is enforced by nothing, and it
+  drifts the moment any document is edited. Corrected, with a note saying which half is
+  checked.
+
+### The code now owes the specification one rename
+
+**`unregistered_src` becomes `rx_unknown_src`** (§14 stage 9a), inside `rx_dropped`, which
+makes `kCounterRegistry` 22 rows and changes a published number. It is **BF-15a**, and it
+should land before B4 builds Home Assistant discovery on the old name. Until then the
+bridge publishes the old name beside the registry rather than in it — deliberately, since
+BF-15 chose a non-`rx_` name so it would not squat whatever the specification picked.

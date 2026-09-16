@@ -118,7 +118,7 @@ void setup() {
 
   // tools/checks/spec_citation_version.py reads the next line.
   Serial.println(F("LRAN simnode - bench nodes 0xF0-0xF3"));
-  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.11 (ver = 2)"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.12 (ver = 2)"));
   Serial.print(F("Board: "));
   Serial.println(simnode::kBoardName);
 

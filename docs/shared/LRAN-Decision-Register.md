@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.10
+**Version:** 0.11
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,8 +39,8 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D34** for
-decisions and **M23** for measurement-backlog items.
+**Adding a decision.** New numbers continue from the highest issued, currently **D42** for
+decisions and **M24** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -168,6 +168,14 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D1** | **LoRa PHY parameters** — SF / BW / CR / frequency / TX power | **SF9, BW 125 kHz, CR 4/5, 917.4 MHz, −4 dBm conducted with the fitted 3.0 dBi antenna**, inside D33's Envelope A. Closed **2026-09-10** on the evidence assembled in `LRAN-D1-PHY-Decision-Brief`, which is superseded by this row. **`backoff_max_ms` rises to 1500** as the one configuration change SF9 forces. See §3.4 | System PRD §5.1, Protocol Spec §12.1 |
 | **D33** | FCC Part 15 operating mode (**closes W5**) | **Envelope A — §15.249, single fixed channel, no hopping, BW 125 kHz, −4 dBm conducted with a 3.0 dBi antenna.** Reopened 2026-09-06 by M21 and **closed again 2026-09-10 in the same motion as D1**, because §2.1's fourth bound makes `BW` and the rule section one decision. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) is retained as a documented fallback behind its three triggers. Permanently: the modules' grants **do not transfer**, so the operative frame is **§15.23 home-built** and **no node may be represented as FCC certified**. Reasoning in §3.1 (2026-08-30), §3.3 (reopened) and §3.4 (closed) | Protocol Spec §18.1, §18.2 |
 | **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2. *Amended 2026-09-11:* the high-water mark advances in `check()`, **before** dispatch, as spec §9.4 step 6 orders it; the single-threaded-receiver precondition is withdrawn; a retry inside the execution window is **in flight** — counted in `rx_dup_command`, not answered; cache storage is 32 entries, **128 B per peer**. Split and placement unchanged. See §3.2.1 | Protocol Library Impl Plan §3, §6 (**P8**) |
+| **D35** | A frame from a source the receiver holds no key for (**Protocol Spec §14**) | **New stage 9a, counter `rx_unknown_src`, counted into `rx_dropped`, never answered.** Placed after authentication so a forged `src` is still rejected by the MAC check first, and separate from `rx_not_addressed` because *not for me* and *I do not know you* lead an operator to different places. See §3.5 | Protocol Spec §14, §14.1 (**BF-15a**) |
+| **D36** | How a `DUPLICATE_CACHED` `COMMAND_ACK` carries the cached result | **In `detail`**, which §6.3 already defines as result-specific. No wire change. The original answer's own `detail` is not reproduced, and §6.3 now says so rather than leaving it to be discovered. Codifies what simnode BF-6 shipped | Protocol Spec §6.3, §9.4 (**BF-18**) |
+| **D37** | What a node answers to a repeated `CONFIG` | **The cached `CONFIG_ACK`, from the dedup cache**, exactly as for any authenticated type (§9.4 steps 4–6). Because the ACK carries *effective* values it is also a correct readback. Re-applying the set was rejected: it is safe only while every §8.10 `op` is idempotent, which nothing commits to | Protocol Spec §7.4 (**BF-18**, GateLink M3) |
+| **D38** | `CONFIG` / `CONFIG_ACK` fragmentation, against §3.1's reassembly cap | **Single-frame in v1.** §3.1's cap and the single-frame payload cap are both 196 B, so fragmenting these types could never carry one byte more — v0.4 through v0.11 described an encoding no conforming sender could produce. A larger configuration is **several messages**, with no atomicity across them. Batching on §8.10's `op` is recorded as the v2 path. **W10 is rewritten** and is now a counting question, not a fragmentation one | Protocol Spec §7.4, §11.4, §11.5 |
+| **D39** | Which sequence space a bridge-originated unauthenticated `seq` belongs to | **Neither. It is local and advisory**, advances no high-water mark, and MUST NOT be used to reject. `POLL` carries one so an answer can be matched to its poll | Protocol Spec §10.2, §6.4 (**BF-17**) |
+| **D40** | Whether a discard made before the MAC check may be attributed to the `src` it names | **No.** A counter raised before stage 9 is the **receiver's own**; only stage 9 onward may be published per node. Before authentication `src` is a claim, and attributing those discards would let any transmitter move another node's counters and another node's Home Assistant history | Protocol Spec §14.1 (**BF-19**) |
+| **D41** | Whether the bridge sends §14's `ERROR` replies, and how they are addressed | **Registered sources only, rate-limited.** `error_min_interval_ms` default **1000**, runtime-settable; `src` the sender's own, `ctx_id` **`0`** (unknown, §5.5), `ref_seq` the offending frame's. A receiver MUST NOT adopt a zero `ctx_id`. Answering any `src` was rejected as a reflection vector: a spoofed frame would make the receiver transmit at an attacker's chosen rate. `BAD_CRC` and `BAD_VERSION` stay optional. New **§14.2** | Protocol Spec §14.2 (**BF-19a**) |
+| **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -492,6 +500,43 @@ decision fixes, closing **M19** and **W7**.
 
 ---
 
+### 3.5 D35–D42 — the spec v0.12 set, 2026-09-16
+
+**Eight questions raised during bridge B3a and simnode B0, decided together because they
+were holding B3b.** Each had been recorded in the engineering-log entry that raised it and
+left unpatched; `LRAN-Spec-v0.12-Brief` collected them with options, the operator accepted
+every recommendation on 2026-09-16, and the brief is **superseded**.
+
+**One property was checked across the whole set, and it holds.** No answer changes a frame
+layout, a header field, an enumeration value, a schema or the authentication scope, so
+`ver` stays `2` and no test vector regenerates. On a fleet with no OTA that is the
+difference between a document change and a walk to every node. Two of the rejected options
+would have broken it: spending a `reserved` bit in `COMMAND_ACK` (D36) and raising §3.1's
+reassembly cap (D38).
+
+**Three answers are worth reading for their reasoning rather than their outcome:**
+
+- **D41 rejected the obvious answer.** Answering any `src` with an `ERROR` before the
+  sender is authenticated makes the receiver a reflection: one spoofed frame, one
+  transmission, at a rate the attacker picks, on a channel the whole fleet shares. Silence
+  was the other candidate and costs the field diagnosis the counters exist to give. The
+  rate-limited middle keeps the diagnosis and bounds the exposure to addresses already in
+  the registry.
+- **D38 is a contradiction, not a gap.** §11.4 called `CONFIG` fragmentable and §3.1 capped
+  a reassembled set at exactly what one frame already carries. Both statements had been
+  read many times; neither had been read against the other until BF-6 asked what a repeated
+  `CONFIG` does.
+- **D40 is the specification catching up to an implementation that was right.** BF-19 could
+  not build §14.1's "per node by the bridge" as written and published the aggregate
+  instead, recording why. The rule now says what the bridge does.
+
+**Not decisions, and recorded elsewhere.** The ninth question — whether the SX126x can
+filter node addresses in LoRa mode — was a fact, not a choice: it is **M24**, verified
+against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied on, now
+**W14**.
+
+---
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -579,6 +624,7 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M21 | ~~**Confirm the SX1262 modules' own FCC grant conditions**~~ | **Done (2026-09-06).** Both grants recorded in `LRAN-M21-FCC-Grant-Findings`. Heltec `2A2GJ-HTIT` — finished-product, **not modular**, ≈13.9 dBm DTS, internal 3.0 dBi antenna declared and fixed. Seeed `Z4T-WIO-SX1262` — single modular approval, 92 mW, **no-co-location condition**. **Neither is §15.249**, and the fixed-channel no-hopping mode exists in both grants only at BW500. **D33 reopened** (§3.3); **D1 gains a fourth bound** (§2.1). Backlog gains M22 and M23 |
 | M18 | ~~Protocol test vectors — fixed key, known frames, expected MACs and CRCs~~ | **Done.** `/tools/vectors/` holds 72 vectors from an independent Python generator, passing on host and on target with zero divergence. Protocol Spec **W4 is closed**; §13.2's standing requirement to regenerate on every protocol change continues to apply |
 | M19 | ~~Airtime table regeneration once D1 fixes SF/BW/CR~~ | **Done (2026-09-10).** D1 fixed SF9 / BW125 / CR 4/5, and §15.1's table was already computed on that basis — the SF9 column needed confirming against §12.3's backoff window rather than recomputing. Protocol Spec v0.10 marks SF9 the operating point and raises `backoff_max_ms` to 1500. **W7 closed with it** |
+| M24 | ~~**Whether the SX126x can filter node addresses in LoRa mode**~~ | **Done (2026-09-16).** **It cannot.** In SX1261/2 Rev 1.1 (`DS.SX1261-2.W.APP`, December 2017) `AddrComp` is GFSK `PacketParam5` (Table 13-56) with `NodeAddrReg` `0x06CD` and `BroadcastReg` `0x06CE` (Tables 13-57, 13-58), all under §13.4.6.1 **GFSK Packet Parameters**; the LoRa packet parameters in §13.4.6.2 are preamble length, header type, payload length, CRC type and invert-IQ (Tables 13-66 to 13-70) — **no address parameter, no address register**. Raised by **BF-16** and carried unverified through two revisions. **Protocol Spec v0.12 withdraws the §12.1 requirement**; addressing is §14 stage 5, in software. **§17.1 loses the silicon discard it assumed for duty-cycled nodes — now W14**, owed before WellLink is built on that profile and moot if **D19** makes WellLink mains-powered |
 | M22 | **Bridge LoRa packet error rate with WiFi idle vs. saturated.** Run a sustained MQTT or iperf flood while the bridge receives a known `PING` sequence; compare PER and RSSI against the WiFi-idle baseline | Confirms the deliberate "**no** mutual exclusion on the bridge" policy (Bridge PRD). If PER degrades, the fallback is **physical antenna separation via the IPEX pigtail**, not firmware arbitration — ESP-IDF's coexistence arbitration has no visibility into an SPI-attached SX1262, so there is no hook to build on | Bridge Impl Plan |
 | M23 | **BLE RSSI to the BMS from the Stamp-S3A at its final mounting position**, inside the plastic enclosure inside the closed **steel** gate-controller enclosure, ~6–8 in from the pack. Sample **at least three positions and two orientations** — both ends share one reverberant cavity, so the risk is a standing-wave null, not attenuation. In the same session, measure **LoRa-to-BLE isolation** by logging BLE RSSI with the LoRa transmitter keyed and unkeyed | **D28**, superseding **M5**. Prior figures (−80 dBm, and −50 to −60 dBm) both used a Heltec V3 rather than the Stamp-S3A's internal antenna. Run before committing the mounting hardware; it does **not** gate M6 or B1b. A poor reading is a cable, connector and null question before it is an antenna verdict | GateLink Impl Plan |
 
@@ -647,6 +693,15 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.11** — **D35–D42 resolved: the spec v0.12 set.** Eight questions raised during
+  bridge B3a and simnode B0, collected in `LRAN-Spec-v0.12-Brief` and accepted by the
+  operator on 2026-09-16; the brief is **superseded**. New **§3.5** carries the reasoning,
+  including the property checked across the whole set — no answer changes a frame layout,
+  so `ver` stays `2` and no vector regenerates. **M24 is done**: the SX126x cannot filter
+  node addresses in LoRa mode, verified against the datasheet, which withdraws a §12.1
+  requirement and opens **W14** against §17.1. Protocol Spec **v0.12** carries every
+  outcome. Highest issued numbers are now **D42** and **M24**.
 
 - **v0.10** — **D34 amended, not reopened.** A review found that `CommandGate` as the
   library plan specified it would execute a bridge retry twice on a receiver that

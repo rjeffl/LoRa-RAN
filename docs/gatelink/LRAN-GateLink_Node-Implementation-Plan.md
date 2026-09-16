@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.8
+**Version:** 0.9
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.11**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-11
+**Last updated:** 2026-09-16
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -397,7 +397,7 @@ restated. Implementation obligations for this node:
 | Driver | RadioLib, SX1262 |
 | Pin map / TCXO / RF switch | **Injected by configuration**, never compiled in (System PRD §3.5) |
 | Media access | CAD before TX; `random(0, backoff_max_ms)` on busy, `cad_retries` attempts, then transmit regardless |
-| Address filtering | Enabled in the SX126x packet handler |
+| Address filtering | **None — unavailable in LoRa mode** (spec §12.1, corrected v0.12). `dst` is checked in software at §14 stage 5 |
 
 ### 4.2 VE.Direct — electrical
 
@@ -1140,6 +1140,16 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.9** — **Protocol specification v0.11 → v0.12.** §4.1's radio table loses its
+  address-filtering row: the SX126x filters node addresses in **GFSK only**, verified
+  against the datasheet as **M24**, so `dst` is checked in software at §14 stage 5 on this
+  node as on every other. **`CONFIG` and `CONFIG_ACK` are single-frame** (§11.4), so the
+  config path here is a message-splitting problem rather than a fragmentation one — **W10**
+  is now a counting question and should be answered against this node's real parameter
+  list. A repeated `CONFIG` is answered from the dedup cache (§7.4, **D37**). **M3's
+  configuration round-trip is unchanged** in what it must show. Decision Register
+  **D37**, **D38**, and **M24**.
 
 - **v0.8** — **§5.2 gains the rule for where `CommandGate`'s two calls run**, and names the
   open question it depends on. Protocol specification **v0.10 → v0.11**, which answers
