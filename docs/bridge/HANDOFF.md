@@ -296,12 +296,11 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   configuration larger than one frame is several messages with no atomicity across them.
   Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
   designed.
-- **BF-15a and BF-19a are done** — `rx_unknown_src` is a registry row inside `rx_dropped`,
-  and the bridge answers §14's `ERROR`s under §14.2's two bounds. **Neither has been
-  flashed**, so the bench board still publishes the old document and still answers nothing.
-  **The §10.5 catalogue is the test for both**: each entry that names an `ERROR` should now
-  produce one at the simnode, and `crit_ext`, `frag_zero`, `unknown_type`, `unknown_schema`,
-  `bad_length` and `frag_command` are the six that do.
+- **BF-15a and BF-19a are done and on air**, 2026-09-16 — `rx_unknown_src` is a registry
+  row inside `rx_dropped`, and the bridge answers §14's `ERROR`s under §14.2's two bounds.
+  The §10.5 catalogue tested both: every one of the eight §14 stages that names an `ERROR`
+  produced one at the simnode, and `errors_suppressed` reached 2.
+  **§14.2's bound 1 is what v0.12 left untested on air** — see *The next job* above.
 
 #### Work no task owns
 
