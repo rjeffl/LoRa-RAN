@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.34
+**Version:** 0.35
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -697,12 +697,14 @@ a tripwire on the shape of the mistake, not a proof.
     main.cpp            task creation, WiFi/MQTT init, registry load
     registry.cpp        per-node table, key derivation (§4.2.1)        [any; keys lock-free]
     registry_runtime.cpp  the instance, its mutex, mbedTLS HMAC/HKDF
-    scheduler.cpp       per-node poll scheduling, retry/backoff        [sched_task]
+    scheduler.cpp       per-node poll scheduling                      [sched_task]
+    command.cpp         §6.2's command state machine, retry/backoff    [sched_task]
     lora_link.cpp       RadioLib, frame in/out, CAD, transmit          [lora_task]
     rx_ladder.cpp       spec 14 stages 1-10: decode, MAC, reassembly   [lora_task]
     (lib/lran-link)     spec 12.3 CAD, backoff, transmit regardless     [lora_task]
     radio_config.h      RadioPins and the fixed PHY (spec 12.1, 12.2)
-    mqtt_transport.cpp  MqttTransport iface + PubSubClient impl        [mqtt_task]
+    mqtt_transport.cpp  MqttTransport iface + PubSubClient impl,       [mqtt_task]
+                        inbound dispatch (§6.2.1)
     discovery.cpp       Discovery config generation and publication    [mqtt_task]
     publish.cpp         publication policy: on-change, staleness,      [app_task]
                         bench-node publication gate (§4.2a)
@@ -894,6 +896,39 @@ branch is needed. **The consequence to know:** if one execution outlasts every r
 `cmd_retries` × `command_ack_timeout_ms` plus backoff, roughly ten seconds at the
 defaults — the bridge publishes failure for a command that ran. The node's
 `rx_dup_command` is how that is told apart from a lost link.
+
+#### 6.2.1 What BF-18 built, 2026-09-16
+
+**The command path is `command.{h,cpp}`, built like the poll scheduler**: Arduino-free,
+doing no I/O, deciding while `sched_task` acts. 20 host tests, and the on-air record is
+in the engineering log's 2026-09-16 entry.
+
+**BF-18 also built the bridge's MQTT receive path**, which no task owned. The Firmware
+Tasks changelog (v0.19) raised the gap and left it unassigned; `subscribe()` had no
+caller and the transport had no way to hand anything back, so §6.2's first line — *"MQTT
+command topic"* — had nothing behind it. Folded into BF-18 rather than given a new task
+number, because a command path with no command source cannot be tested.
+
+| Decision | Why |
+|---|---|
+| `MqttTransport` gains an inbound sink | The seam's one concession to PubSubClient, whose callback is a bare function pointer with no user context. A second instance is refused rather than allowed to steal the first's callbacks |
+| Action tokens are spec §8.1's `cmd` names lowercased — `open`, `hold_open` | §16.1 fixes the topic shape and §16.2.1 leaves the vocabulary to the bridge. One term names one concept from Home Assistant to the wire. **Breaking to rename once B4 builds discovery on them** |
+| Inbound payload buffer is 64 bytes against the outbound 768 | Nothing the bridge *acts on* should arrive in a large buffer |
+| An unreadable payload is refused, never defaulted to `0` | `arg` carries `REBOOT`'s `0xA5` guard, so a silent default turns something unreadable into a different command |
+| One command in flight across the fleet | Not airtime, which the poll scheduler already serializes. A resync resets a node's command `seq` to 1, so a second command in flight during one would be refused as a replay and read at the bridge as a node fault |
+| The resync's retry restarts the attempt budget | It is the first attempt in a sequence space the node will accept. Spending the pre-resync attempts against the new context would give a late resync fewer tries than an early one |
+| `seq` allocation and §10.5's wrap live in the registry | The wrap belongs with the counter it wraps, and there is then one place to read when asking what the next `seq` will be. The wrap skips `0` |
+| A simnode is allowed every command | A bench identity takes a role at runtime and the bridge cannot know from the address which one. Refusing actuation there makes the bench exercise a different path from the fleet, which is what §4.2a says defeats having bench nodes. They are gated at publication, never here |
+
+**`lran/bridge/diag/cmd/state` was added during the bench run, not designed before it.**
+A resync and a command that never resynced publish the same `cmd/ack`, so the only
+evidence of one was a serial cable. `cmd_resyncs` is the number that separates a healthy
+link from a node rebooting underneath it.
+
+**What is not proved on hardware: the second `REJECTED_CTX`.** §10.3 step 3's stop is
+host-tested and the bench could not force it — the window between the node's rejection
+and the bridge's retry is under one second. A simnode `ctx_reject` fault would make it
+deterministic; raised for **BF-21**.
 
 ### 6.3 Publication policy
 
@@ -1897,6 +1932,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.35** | **New §6.2.1** — BF-18's command path, and the MQTT receive path it had to build first; §5.3 names `command.cpp` |
 | **v0.34** | **§10.5** — a multi-frame row cannot confirm its own ERROR from the same board, measured 2026-09-16; what that costs BF-21 |
 | **v0.32** | **§8** — B3 split into **B3a** and **B3b**; §7.1's milestone column follows |
 | **v0.31** | **New §4.3.2** — BF-19's diagnostic documents; `kMaxPayloadLen` 768; ERROR replies split to BF-19a |

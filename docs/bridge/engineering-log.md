@@ -1609,3 +1609,103 @@ reason to grow one. The simnode still acts on none of it.
 `rx_frames` 49, `rx_dropped` 21, `q_rx_dropped` 0, `q_rx_high_water` 1, `tx_frames` 60,
 `errors_suppressed` 2. `rx_unknown_type` reads 6 because that row was used for the spacing
 and burst experiments as well as its own catalogue entry.
+
+---
+
+## 2026-09-16 — BF-18: the first authenticated frame the bridge has ever sent
+
+**A command from Home Assistant reached a simnode, executed, and its `COMMAND_ACK`
+came back.** Every authenticated type is bridge → node (spec §9.2), so until today the
+bridge had sent none: `bad_mac` proved the rejection path on air this morning, and
+nothing had proved the accepting one. Bridge flashed from `5f8e3f7`, XIAO simnode from
+the same tree.
+
+### What ran, and what each entry proves
+
+The bridge published to `lran/<node>/cmd/ack` and the simnode's own log was read at
+`log debug`. Times are the ack's arrival at the broker.
+
+| Published | Ack | Proves |
+|---|---|---|
+| `cmd/nop/set` | `acked`, seq 1, attempts 1, result 0 | The derived key verifies at the node. **B3b's first criterion** |
+| `cmd/set_relay_dry_run/set` `1` | `acked`, seq 1, **attempts 2**, result 7 | A lost ACK is retried with the SAME seq |
+| `cmd/open/set` | `acked`, seq 2, attempts 1, **result 16** | The node's own `DRY_RUN` reaches Home Assistant unchanged |
+| `cmd/close/set` `5` | `acked`, attempts 2, result 7, **detail 5** | Spec §6.3 — `DUPLICATE_CACHED` carries the CACHED result |
+| `cmd/request_status/set` | `acked`, seq 1, attempts 1 | Spec §10.3 — the resync, below |
+
+**The retry does not execute a second time, and the simnode says so in those words:**
+
+```
+cmd f1 <- 00 seq 1: OPEN ACCEPTED
+fault f1 ack_suppress: ACK for seq 1 withheld, 0 left
+rx  f1 <- 00 type 0x01 seq 1, 4 B in 1 frame(s)
+cmd f1 <- 00 seq 1: dedup hit, DUPLICATE_CACHED (ACCEPTED), not executed
+```
+
+That is root rule 2 and **BS-3** on air, and **B3b's third criterion**. The retry
+carries `seq 1` exactly as the first attempt did; at the gate the difference is a
+second relay pulse.
+
+**`detail 5` is the one worth keeping.** `close` with `arg 5` is out of range, so the
+node cached `REJECTED_ARG` and the dedup hit replayed it in `detail` — a non-zero
+cached result, travelling as spec §6.3 v0.12 requires. Read against a cached
+`ACCEPTED`, `detail 0` is correct and indistinguishable from the field being unset,
+which is why this entry was run with a rejection rather than a success.
+
+### The resync happened, and it is invisible in the ack topic
+
+`ctx f1 new` on the simnode, then a command, with the bridge still holding the old
+context:
+
+```
+cmd f1 <- 00 seq 1: REJECTED_CTX (frame ctx 0x424b192b, own 0x1b0cadf8)
+rx  f1 <- 00 type 0x01 seq 1, 4 B in 1 frame(s)
+cmd f1 <- 00 seq 1: REQUEST_STATUS ACCEPTED
+```
+
+Spec §10.3 steps 1 and 2: the node rejected with its own `ctx_id`, the bridge adopted
+it, reset the command seq to 1 and retried once. **The published ack read `attempts 1`**
+— the resync restarts the attempt budget, which is a decision recorded at the code and
+not a spec requirement. The consequence found here: *a resync and a command that never
+resynced publish the same ack*, so **`lran/bridge/diag/cmd/state` was added in the same
+session** rather than leaving the only evidence on a serial cable. It read
+`cmd_submitted 2, cmd_sent 3, cmd_acked 2, cmd_resyncs 1` across two commands — the
+third transmission is the resync, and `cmd_retries 0` is what separates it from a
+timeout retry.
+
+### A second REJECTED_CTX was not forced, after three attempts
+
+**`ResyncFailed` stays host-tested.** Spec §10.3 step 3 stops the command rather than
+resyncing again, and `test_a_second_rejected_ctx_stops_rather_than_looping` covers it,
+but the bench could not produce it. The window between the node's rejection and the
+bridge's retry is **under one second**, and the method available — racing `ctx f1 new`
+from a second process against a command whose flight time varied between 4 and 9
+seconds — has no resolution at that scale. Three attempts, all of which landed both
+context changes on the same side of the exchange.
+
+**What would make it deterministic is a simnode fault**, along the lines of
+`ctx_reject <count>`: arm it and the identity answers the next N `COMMAND`s with
+`REJECTED_CTX` whatever context they carry. That is a console race replaced by an
+armed behaviour, which is what every other entry in the §10.5 catalogue already is.
+Raised for **BF-21**, which owns the catalogue.
+
+### Traps this run cost time on
+
+- **A simnode command's flight time is 4–9 s from the MQTT publish**, not the ~1 s the
+  radio alone suggests. `sched_task`'s 1 s tick, the TX queue behind the poll
+  scheduler, and media access each add to it. Any bench step timed against a command
+  needs that budget, and three of this session's attempts were lost to assuming ~2 s.
+- **The XIAO simnode was still running a pre-v0.12 image**, banner `v0.11`. The
+  2026-09-16 reflash that added `Node::on_error` went to the simnode Heltec only, and
+  the hardware table's per-board rows are what say so. Reflashed before the run.
+- **Opening the simnode's serial port reboots it and changes its `ctx_id`**, so the
+  bridge's learned context goes stale on every reconnect. Useful for reaching the
+  resync, and a nuisance for everything else: announce with `push f1` after each open.
+- **A background capture piped into `tail` produced an empty file**, because the pipe
+  buffers until the process exits. Redirect to a file instead.
+
+### Counters at the end of the run
+
+`rx_frames` 33, `tx_frames` 58, `cad_backoffs` 1, and **every §14.1 counter zero** —
+`rx_dropped` 0. The command traffic produced no discards at either end.
+`q_command_dropped` 0, `q_command_high_water` 1.
