@@ -12,7 +12,7 @@ OtaVerdict ota_verdict(OtaImageState state, const OtaHealth& health) {
     return OtaVerdict::Nothing;
   }
 
-  const bool healthy = health.tasks_started && health.mqtt_connected;
+  const bool healthy = health.tasks_started && health.mqtt_connected && health.radio_ok;
 
   // Proven: healthy AND old enough. Health alone is not enough - an image that
   // connects and then falls over must not be blessed in its first few seconds.

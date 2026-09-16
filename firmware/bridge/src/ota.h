@@ -21,7 +21,7 @@ void ota_configure(const char* password);
 // Called from ota_task's tick. Starts the listener on the first WiFi association,
 // services it when R-5.3d allows, and applies the image verdict.
 void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
-                 bool tasks_started, uint32_t uptime_ms);
+                 bool tasks_started, bool radio_ok, uint32_t uptime_ms);
 
 // True from an upload's first byte to its reboot. BF-17's scheduler consults this
 // so a poll is not started into a bridge about to restart.

@@ -312,3 +312,227 @@ not a bench fix.
   lands. Moved in Impl Plan v0.21, committed with this entry.
 - **The board is left on `app1` running the `0.1.1-dirty` image.** A USB flash of a
   committed build puts it back in a known state before B3.
+
+---
+
+## 2026-09-13 — BF-16: the radio link, and three things the documents had wrong
+
+**BF-16 is built and host-tested, and none of it has run on a board.** `lora_link.cpp` is
+the only file that includes RadioLib. The two decisions `lora_task` makes are
+Arduino-free and covered by 27 host tests in `test_lora`: `rx_ladder.{h,cpp}` runs spec 14
+stages 1 to 10, and `media_access.{h,cpp}` runs spec 12.3's CAD and backoff.
+`radio_config.h` holds the pin map and the D1 PHY, with a `static_assert` on the D33 EIRP
+ceiling and another on radio and panel pin collisions. The operator chose four design
+points before code was written; each is recorded below with the reason.
+
+### Decisions taken with the operator
+
+- **`lora_task` decodes and reassembles, per Impl Plan §5.2.** BF-11's `queues.h` had
+  `lora_task` queue raw frame bytes for `app_task` to decode, which contradicted §5.2's
+  table. `RxMessage` now carries the decoded header and the complete payload, and a frame
+  the ladder rejects no longer costs a queue slot.
+- **Keys arrive through a `PeerKeys` seam.** BF-15's registry supplies them. Until it
+  does, every authenticated frame is refused and counted `rx_rejected_mac`.
+- **A backoff is state, not a delay.** A busy channel here is usually a node talking, often
+  to the bridge. A `lora_task` that slept through a backoff would be deaf for up to 7.5 s
+  at the defaults, to the frame that caused it.
+- **Discards are counted, not answered.** ERROR replies need the node's `ctx_id`, which the
+  registry tracks. `TODO(BF-19)`.
+
+### What the code found
+
+**The codec's MAC check fails open without a key.** `decode_payload` verifies a MAC only
+when it holds both an `IMac` and a key. Without either it returns `Ok` with
+`mac_verified = false`. That is correct for the bench and the vector generator, and it is
+a forged-COMMAND hole in a production receiver. `RxLadder` refuses any frame that should
+carry a MAC and was not verified. The library is unchanged; its `DecodeCtx` comment
+already says a null `IMac` is for the bench.
+
+**RadioLib's `scanChannel()` has no timeout.** It loops on DIO1 until the radio raises
+`CAD_DONE` (`SX126x.cpp`, 7.7.1), so a radio that never answered would hang the
+highest-priority task for good. Blocking `transmit()` busy-waits for up to five times the
+airtime at priority 6. `lora_link` therefore starts a CAD or a transmission and reads its
+completion from the IRQ register on later passes, each against a deadline. `lora_task`'s
+one wait is `ulTaskNotifyTake`, bounded at 10 ms and woken by DIO1.
+
+**Receive routes only `RX_DONE` to DIO1, but `HEADER_VALID` is still recorded.** RadioLib's
+receive defaults enable `HEADER_VALID` and `HEADER_ERR` in the IRQ register and route only
+`RX_DONE` to the pin. Two consequences:
+- Before a CAD, `lora_link` reads the register. A valid header seen within the last
+  1500 ms means a frame is arriving, and a CAD would take the radio out of receive and
+  destroy it. That case counts as a busy CAD (`cad_deferred` records the cause).
+- A LoRa header that fails its own CRC never reaches DIO1. It is found on the 1 s
+  register read and counted `rx_crc_err`, stage 1.
+
+**RadioLib's `Module` allocates on the heap.** The `Module(cs, irq, rst, gpio, SPIClass&)`
+constructor runs `new ArduinoHal`. The range test used that constructor. The bridge builds
+the `ArduinoHal` in static storage and passes it to the constructor that takes a HAL, so
+the radio path does not allocate (root rule 3).
+
+**BF-11's task stacks are in bytes, not words, a quarter of what was intended.** On the
+ESP32-S3, ESP-IDF's `xTaskCreateStaticPinnedToCore` takes the depth in bytes and
+`StackType_t` is `uint8_t` (`portmacro.h`); upstream FreeRTOS counts words. BF-11's
+comments, the field name `stack_words` and Impl Plan §5.2.1's column all said words. B2's
+bench session ran on those sizes without fault, but it had no radio. The field is now
+`stack_bytes`, and a `static_assert` checks `sizeof(StackType_t) == 1`. **`lora_task`
+goes from 4096 to 8192 bytes**, because it now runs RadioLib's `begin()` and a
+`Serial.printf`. `lora_link` logs `lora_task`'s high-water mark after bring-up; that
+number is the check on 8192. **The other six sizes are unchanged and unmeasured.**
+
+### A specification discrepancy, raised and not patched
+
+**Spec §12.1 requires node-address filtering "in the SX126x packet handler", and in LoRa
+mode there appears to be none.** RadioLib 7.7.1 exposes `setNodeAddress()` for the SX127x,
+RF69, LR11x0, CC1101 and LR2021, and for no SX126x class. My reading is that the SX126x's
+address field is a GFSK packet parameter only. **That reading is unverified against the
+datasheet.** Nothing is implemented for it, and the spec is unchanged. §12.1's own note
+says the filtering is "low value while nodes run continuous RX", so no current node loses
+anything; the question matters for a duty-cycled node (§17.1).
+
+### A consequence to know
+
+**The OTA verdict now requires `radio_ok`**, the TODO BF-13 left under BF-16's name. An image
+whose radio never initialises rolls back at the deadline, even on the broker. `radio_ok`
+means the radio initialised, not that it hears nodes. **V-B9 is owed again**: this
+changes `ota_policy.cpp`, which Impl Plan §6.5.2 names as a re-run trigger.
+
+### Not done
+
+- **Nothing has been received or sent over the air.** `begin()` succeeding proves nothing
+  about a pin map. B3 needs frames out and echoes back, which needs a second transmitter
+  at 917.4 MHz, SF9. The range-test firmware sits on 915.0 MHz.
+- **N−1 acceptance** (`TODO(BF-22)`), **slots for registered nodes only**
+  (`TODO(BF-15)`), **runtime timing from Home Assistant** (`lora_configure()` exists,
+  `TODO(BF-23)`), **the raw frame log** (`TODO(BF-27)`).
+- **`lora_task_idle()` does not yet see a poll or command awaiting its reply.**
+  `TODO(BF-17)`, BF-18.
+
+## 2026-09-14 — BF-16 on the bridge board: the radio comes up, V-B9 waits for a broker
+
+**The SX1262 initialises on the configured PHY and `lora_task` stays healthy for 40 s.**
+That is the whole of what this session proves. No frame went out or came in, and V-B9 was
+not re-run, because the MQTT broker was offline and the operator was offsite.
+
+### What ran
+
+The flat-case Heltec, identified by its enclosure, was USB-flashed from a clean tree at
+`54a9265` on `/dev/cu.usbserial-0001`. Before flashing, the four repo checks and the bridge
+host suites passed (77 tests), and `bridge_partitions.py --firmware --elf` passed on the
+built image: 833 360 bytes, 24.9 % of the slot, `verifyRollbackLater` strong. The boot log
+was captured for 40 s with DTR held low, so opening the port did not press PRG.
+
+Banner and radio lines, verbatim:
+
+```
+Version: 0.1.0 (54a9265)
+Slot: app0
+Image state: not_pending
+Tasks started: 7
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 6248 bytes free
+```
+
+### What it shows
+
+- **`begin()` accepted the D1 PHY with the §10.8.1 Heltec pin map.** The TCXO and
+  DIO2-as-RF-switch settings fail by leaving the radio uncalibrated, so a radio-up line is
+  some evidence they are right. It is not proof the radio transmits or receives.
+- **No `LoRa: radio down` in 40 s.** `lora_link` reads the IRQ register once a second, so
+  the capture spans about 40 of those reads.
+- **`lora_task` used 1944 of its 8192 bytes at bring-up.** That is the first stack figure
+  measured on this board. It was taken after `begin()` and before any frame was received,
+  so it is a floor, not a working-load figure. 8192 stays.
+- **MQTT connect attempts time out and back off: 3, 3, 4, 8 and 16 s apart.** No reboot, and
+  `lora_task` kept running through them. That is Impl Plan §5.2's never-block property
+  holding with the broker unreachable, observed once.
+
+### Why V-B9 did not run
+
+**The OTA verdict needs the broker.** `ota_policy.cpp` marks an image valid only when
+`tasks_started && mqtt_connected && radio_ok`. With the broker offline, §6.5.2 step 2's
+good image would roll back at the deadline, and the run would record a broker outage as a
+firmware failure. A USB flash leaves the image `not_pending`, so this boot reached no
+verdict and was not at risk.
+
+### Not done
+
+- **V-B9 re-run** — still owed, and it needs the broker.
+- **DIO1 waking `lora_task`, and any frame on air** — still unproven. Both need simnode B0.
+- **The other six task stacks** — still unmeasured.
+
+## 2026-09-14 — BF-15: the registry, and a discard spec §14 has no stage for
+
+**BF-15 is built and host-tested.** `registry.{h,cpp}` holds `kNodeTable` (GateLink,
+WellLink and the four simnode identities), derives each key by HKDF at load and derives
+`is_bench` from the address. `registry_runtime.{h,cpp}` adds mbedTLS and a FreeRTOS mutex.
+The bridge host suites went from 77 to 96 tests: 15 in the new `test_registry` and 4 in
+`test_lora`. The target builds, and all four repo checks pass. Impl Plan §4.2.1 has the
+design table.
+
+### Decisions taken with the operator
+
+- **An unregistered source is a bridge diagnostic, and the spec question is raised.** The
+  alternative was a spec v0.12 stage first, which touches every node's ladder, the W4
+  vectors and the library for a question that has one obvious answer on the bridge today.
+- **A short mutex, any task.** The learned half of an entry is written by whichever task
+  learns it, under a lock. The other option was `sched_task` as sole owner, fed by a queue,
+  which delays learning a `ctx_id` by up to 1 s and adds a queue for no gain.
+- **BF-15 learns a context but does no scheduling.** It records `last_seen`, RSSI, SNR,
+  `proto_ver` and the §10.1 `ctx_id`, and resets `cmd_seq` on a new context (§10.2). The
+  fields other tasks write exist, with sentinels and a `TODO` naming each owner.
+
+### A specification gap, raised and not patched
+
+**A frame from an address the bridge does not provision passes every stage spec §14
+defines.** `STATUS` carries no MAC, so a transmitter using address `0x03`, or the unassigned
+bench address `0xF4`, reaches stage 10 with nothing refusing it. Two consequences:
+
+- **Reassembly.** §11.3 asks for a set "per provisioned node". BF-16 gave a slot to any
+  `src`, so an unprovisioned transmitter could displace a registered node's live set.
+- **Root rule 4.** A discard needs a named counter, a `Status` value and a §14 stage.
+  Refusing the frame can meet only the first.
+
+**What the bridge does:** `RxLadder` refuses the frame after stage 9 and before stage 10,
+counts it as `unregistered_src`, and sets `last_unregistered_src()`. After stage 9, so the
+stages §14 does define still count an unregistered sender's faults. Before stage 10, so the
+frame takes no slot and no RX queue entry. The counter stays out of `rx_dropped`, and its
+name is not `rx_`-prefixed, so it cannot take a name v0.12 might choose.
+
+**The question for spec v0.12:** should §14 gain a stage — for example 5c, "`src`
+provisioned", with an `rx_` counter — or should §11.3 say that an unprovisioned source is a
+receiver's local policy? A node receives only from `0x00`, so the stage would be trivial
+there, but it would still need a test.
+
+### What the code found
+
+- **The library's platform crypto is not part of its build.** `platform/esp32/mbedtls_mac.cpp`
+  sits outside the library's `srcDir`, so a firmware that wants it must add it to its own
+  `build_src_filter`. The bridge does, for `heltec` (and the two V-B9 environments that
+  extend it); `native` adds `platform/native/` for the tests.
+- **Decoding per schema belongs to no task.** Impl Plan §5.3 lists `decode/` and no `BF-*`
+  row names it. `app_task`'s `TODO` now gives it to BF-24, its first consumer.
+- **A `lora_link.cpp` comment still said `lora_task` had 4 KB of stack.** Corrected to 8 KB.
+
+### On the board
+
+The bridge board was USB-flashed from `5222b1d`, a clean tree, and boots:
+
+```
+Version: 0.1.0 (5222b1d)
+Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+Tasks started: 7
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 6496 bytes free
+```
+
+No placeholder-key warning, so the board holds the operator's real key. **`lora_task`'s
+high-water reading was 6496 bytes free here and 6248 on the BF-16 boot**, two readings
+taken at the same point in bring-up. The figure varies by a few hundred bytes from boot to
+boot, so read it as a range, not a constant.
+
+### Not done
+
+- **A key verifying on air** — needs frames from simnode B0.
+- **Publishing `unregistered_src`** — BF-19, with the other counters.
+- **The mutex is not host-tested.** It needs FreeRTOS. Its callers are `app_task` today
+  and `sched_task` from BF-17.

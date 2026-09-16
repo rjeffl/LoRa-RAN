@@ -64,7 +64,10 @@ struct TaskSpec {
   TaskId      id;
   const char* name;         // FreeRTOS task name; appears in a panic backtrace
   uint8_t     priority;
-  uint32_t    stack_words;  // FreeRTOS counts words here, not bytes
+  // BYTES. ESP-IDF's FreeRTOS takes the depth in bytes and StackType_t is uint8_t on
+  // the ESP32-S3 (portmacro.h). This field was `stack_words` until BF-16 found the unit
+  // wrong: upstream FreeRTOS counts words, ESP-IDF does not.
+  uint32_t    stack_bytes;
   int         core;
 
   // 0 for a task that waits on a queue rather than a tick. Impl Plan 5.2's

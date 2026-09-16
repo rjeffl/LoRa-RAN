@@ -4,9 +4,10 @@
 // Bridge Node, node 0x00 - boot, banner, network and OTA configuration, and task
 // creation. Tasks BF-10 to BF-13; milestone B2.
 //
-// Init order and task creation. The radio (BF-16) and the OLED page (BF-14) land in
-// their own files; the task table and the queue boundaries are in tasks.h and
-// queues.h, the network in wifi_link.h and mqtt_transport.h, OTA in ota.h.
+// Init order and task creation. The radio is brought up by lora_task itself
+// (lora_link.h, BF-16) and the OLED page by ui_task (BF-14); the task table and the
+// queue boundaries are in tasks.h and queues.h, the network in wifi_link.h and
+// mqtt_transport.h, OTA in ota.h.
 //
 // THE ONLY TRANSLATION UNIT THAT INCLUDES secrets.h. Everything else takes what it
 // needs as an argument, which keeps the number of files that could log a credential
@@ -15,6 +16,7 @@
 #include <Arduino.h>
 
 #include "ota.h"
+#include "registry_runtime.h"
 #include "task_runtime.h"
 #include "tasks.h"
 
@@ -131,6 +133,27 @@ void setup() {
   Serial.println(MQTT_PORT);
 #endif
 
+  // BF-15. Before start_tasks(): lora_task reads the keys without a lock, which is safe
+  // only because they are complete before it runs. Node addresses are printed, never a
+  // key.
+  {
+    const uint8_t master[] = LRAN_MASTER_KEY;
+    static_assert(sizeof(master) == lran::kMasterKeyLen,
+                  "secrets.h: LRAN_MASTER_KEY must be 32 bytes (spec 9.1)");
+    if (!bridge::registry_begin(master)) {
+      Serial.println(F("FATAL: registry lock creation failed. Halting."));
+      for (;;) {
+        delay(1000);
+      }
+    }
+  }
+  Serial.print(F("Registry:"));
+  for (size_t i = 0; i < bridge::registry_size(); ++i) {
+    const bridge::NodeInfo& n = bridge::registry_info_at(i);
+    Serial.printf(" 0x%02X%s", n.id, n.is_bench ? "(bench)" : "");
+  }
+  Serial.println();
+
   // BF-11. Task creation is the last thing setup() does: everything a task might
   // touch is initialized above it, and after this line the Arduino loop is the
   // lowest-value thing running.
@@ -146,7 +169,7 @@ void setup() {
 
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
-  Serial.println(F("BF-13: WiFi, MQTT and OTA configured. No radio, no discovery yet."));
+  Serial.println(F("BF-15: WiFi, MQTT, OTA, the radio link and the registry. No discovery yet."));
 }
 
 void loop() {

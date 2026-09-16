@@ -45,14 +45,18 @@ Wio-SX1262 products that are not pin-compatible outside the three SPI nets. Conf
 ```c
 // LRAN_PROFILE_HELTEC   — Heltec WiFi LoRa 32 V3
   nss=8  rst=12 busy=13 dio1=14  sck=9 miso=11 mosi=10
-  rf_sw=RADIOLIB_NC  tcxo=1.8f  dio2_as_rf_switch=true
+  rf_sw=RADIOLIB_NC  tcxo_mv=1800  dio2_as_rf_switch=true
 
 // LRAN_PROFILE_XIAO_WIO_KIT  — "Wio-SX1262 with XIAO ESP32S3" (p-5982), B2B connector
 //   THE BOARD IN HAND. Control lines cross the B2B connector, which is why they are
 //   GPIO 38-42 and not D-pad numbers. Transcribed from meshtastic/firmware
 //   variants/esp32s3/seeed_xiao_s3/variant.h.
   nss=41 rst=42 busy=40 dio1=39  sck=7 miso=8  mosi=9
-  rf_sw=38           tcxo=1.8f  dio2_as_rf_switch=true
+  rf_sw=38           tcxo_mv=1800  dio2_as_rf_switch=true
+
+// TCXO in millivolts, not a float: the range test's board_config.h and the bridge's
+//   radio_config.h (BF-16) both settled on uint16_t tcxo_mv. The bridge's rx_ladder and
+//   media_access are Arduino-free and worth reading before writing the simnode's own.
 
 // The OTHER Wio product — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers — is
 //   GateLink's module, NOT the board in hand, and its map is deliberately not

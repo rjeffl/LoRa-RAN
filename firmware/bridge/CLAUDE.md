@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.21
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.9 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.23
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.11 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -28,9 +28,28 @@ network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime
 `wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
 first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
 `ota.{h,cpp}`, `partitions.csv`, `status_page.{h,cpp}` (what the OLED says, host-tested),
-`ui.{h,cpp}` and `board_ui.h`. **Still absent: the radio, discovery and the publication
-policy** — B3 and B4. Each arrives with its own `BF-*` task; do not add
-one early because it is convenient.
+`ui.{h,cpp}` and `board_ui.h`.
+
+**`BF-16` — the radio link, host-tested; the radio comes up on the board, no frame on air
+yet.** `radio_config.h` (pins, PHY, the EIRP and pin-collision asserts), `rx_ladder.{h,cpp}`
+(spec 14 stages 1–10, per-peer reassembly), `media_access.{h,cpp}` (spec 12.3), and
+`lora_link.{h,cpp}`, **the only file that includes RadioLib**. Impl Plan §5.3.1 records the
+choices.
+
+**`BF-15` — the registry, built and host-tested.** `registry.{h,cpp}` (`kNodeTable`, HKDF
+keys at load, `is_bench`, the learned fields) and `registry_runtime.{h,cpp}` (the instance,
+its mutex, mbedTLS). Impl Plan §4.2.1 records the choices. **Two rules to keep:**
+`registry_begin()` runs before `start_tasks()`, because `lora_task` reads keys without a
+lock; and **`lora_task` never calls into `registry_runtime`**, which waits on a mutex.
+**`unregistered_src` is a bridge diagnostic, not a §14.1 counter** — spec §14 has no stage
+for it, and its name is not `rx_`-prefixed on purpose.
+
+**Still absent: discovery and the publication policy** — B4. Each arrives with its own
+`BF-*` task; do not add one early because it is convenient.
+
+**Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
+that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
+doubling it after a crash.
 
 ```bash
 pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
@@ -54,7 +73,8 @@ the target build, so nothing secret is in it.
   It is committed rather than taken from the board definition for that reason. Grow the
   image, not the table.
 
-**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log). **Re-run
+**V-B9 was run on the bridge board on 2026-09-13 and passed** (engineering log), and **is
+owed again since BF-16 added `radio_ok` to the verdict**. **Re-run
 Impl Plan §6.5.2 after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.csv` or the
 Arduino-ESP32 version**; CI's symbol check catches a lost `extern "C"`, but only a board
 proves a rollback. The two bad-image environments, `v_b9_no_network` and `v_b9_panic`,
@@ -134,9 +154,11 @@ log. Never commit, echo or log the real values.
 - **RadioLib, version pinned in `platformio.ini`** (**D32**). Every firmware in the repo
   uses the same driver; letting the version float in one of four is how a fleet-wide
   regression arrives without a commit to blame.
-- **Radio pins come from `RadioPins`, not from `#define`s.** The bridge's values are the
-  `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8 rst=12 busy=13 dio1=14
-  sck=9 miso=11 mosi=10`, `rf_sw=RADIOLIB_NC`, TCXO `1.8f`, `dio2_as_rf_switch=true`.
+- **Radio pins come from `RadioPins` in `radio_config.h`, not from `#define`s.** The
+  bridge's values are the `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8
+  rst=12 busy=13 dio1=14 sck=9 miso=11 mosi=10`, `rf_sw=kPinNone`, `tcxo_mv=1800`,
+  `dio2_as_rf_switch=true`. TCXO is millivolts, not §10.8.1's float, for the range test's
+  reason: a float that prints as 1.8 can compare unequal to 1.8f.
   §10.8.1 is the only home for these; if they need correcting, correct them there.
   R-4.1b exists because GateLink's carrier shares none of these numbers.
 - **TCXO is 1.8 V**, not the 3.3 V some libraries default to. Wrong value presents as a
@@ -149,7 +171,8 @@ log. Never commit, echo or log the real values.
 
 ## Structure
 
-`main` · `registry` · `scheduler` · `lora_link` · `mqtt_transport` · `discovery` ·
+`main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `media_access`,
+`radio_config`) · `mqtt_transport` · `discovery` ·
 `publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` · `debug`.
 Task ownership is in Impl Plan §5.2/§5.3.
 

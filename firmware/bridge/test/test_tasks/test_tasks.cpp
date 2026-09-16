@@ -17,6 +17,7 @@
 
 #include <unity.h>
 
+#include "lran/wire.h"
 #include "queues.h"
 #include "tasks.h"
 
@@ -57,7 +58,7 @@ void test_every_row_is_populated() {
     TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(i), static_cast<uint8_t>(s.id));
     TEST_ASSERT_NOT_NULL(s.name);
     TEST_ASSERT_TRUE(s.name[0] != '\0');
-    TEST_ASSERT_TRUE(s.stack_words > 0);
+    TEST_ASSERT_TRUE(s.stack_bytes > 0);
   }
 }
 
@@ -99,13 +100,16 @@ void test_queue_storage_is_depth_times_item() {
                            queue_storage_bytes(kRxQueueDepth, sizeof(RxMessage)));
 }
 
-// The RX message is a COPY of the frame bytes, not a view into the radio buffer.
-// lran::Frame must not outlive that buffer (lran/frame.h), and a queue is exactly
-// the boundary where it would.
-void test_rx_message_carries_a_full_frame_by_value() {
+// The RX message is a COPY of a complete payload, not a view into the radio's buffer or
+// the reassembler's - both are overwritten by the next reception, and a queue is exactly
+// the boundary a view would not survive (lran/frame.h). BF-16 changed it from raw frame
+// bytes; it must still hold the largest set spec 11.2 allows.
+void test_rx_message_carries_a_complete_payload_by_value() {
   RxMessage m;
-  TEST_ASSERT_EQUAL_size_t(lran::kMaxFrame, sizeof(m.bytes));
-  TEST_ASSERT_EQUAL_size_t(0, m.len);
+  TEST_ASSERT_EQUAL_size_t(lran::kMaxPayloadPlain, sizeof(m.payload));
+  TEST_ASSERT_TRUE(sizeof(m.payload) >= lran::reassembly_cap(lran::MsgType::Ping));
+  TEST_ASSERT_EQUAL_size_t(0, m.payload_len);
+  TEST_ASSERT_FALSE(m.mac_verified);
 }
 
 void test_accounting_starts_clean() {
@@ -151,7 +155,7 @@ int main() {
   RUN_TEST(test_periods_match_the_trigger_column);
   RUN_TEST(test_queue_depths_reflect_their_jobs);
   RUN_TEST(test_queue_storage_is_depth_times_item);
-  RUN_TEST(test_rx_message_carries_a_full_frame_by_value);
+  RUN_TEST(test_rx_message_carries_a_complete_payload_by_value);
   RUN_TEST(test_accounting_starts_clean);
   RUN_TEST(test_a_drop_is_counted_and_raises_the_health_flag);
   RUN_TEST(test_high_water_holds_the_deepest_occupancy);

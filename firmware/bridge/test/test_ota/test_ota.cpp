@@ -28,6 +28,7 @@ OtaHealth healthy_at(uint32_t uptime_ms) {
   h.uptime_ms      = uptime_ms;
   h.tasks_started  = true;
   h.mqtt_connected = true;
+  h.radio_ok       = true;
   return h;
 }
 
@@ -84,6 +85,20 @@ void test_an_image_whose_tasks_did_not_start_rolls_back() {
                         static_cast<int>(ota_verdict(OtaImageState::PendingVerify, h)));
 }
 
+// BF-16 - a radio that never came up makes a bad image, even one on the broker. It waits
+// out the deadline like any unproven image rather than rolling back at once: a radio
+// that needs one retry must not cost a good image.
+void test_an_image_whose_radio_did_not_start_rolls_back() {
+  OtaHealth h = healthy_at(kOtaMinUptimeMs);
+  h.radio_ok  = false;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaVerdict::Wait),
+                        static_cast<int>(ota_verdict(OtaImageState::PendingVerify, h)));
+
+  h.uptime_ms = kOtaVerifyDeadlineMs;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(OtaVerdict::RollBack),
+                        static_cast<int>(ota_verdict(OtaImageState::PendingVerify, h)));
+}
+
 // Healthy on the very tick the deadline passes: kept, not thrown away on a
 // technicality.
 void test_healthy_at_the_deadline_is_kept() {
@@ -121,6 +136,7 @@ int main() {
   RUN_TEST(test_healthy_and_old_enough_is_kept);
   RUN_TEST(test_an_image_that_never_reaches_the_broker_rolls_back);
   RUN_TEST(test_an_image_whose_tasks_did_not_start_rolls_back);
+  RUN_TEST(test_an_image_whose_radio_did_not_start_rolls_back);
   RUN_TEST(test_healthy_at_the_deadline_is_kept);
   RUN_TEST(test_the_deadline_outlasts_a_slow_reconnect);
   RUN_TEST(test_ota_waits_for_lora_idle_and_wifi);

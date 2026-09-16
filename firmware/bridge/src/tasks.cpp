@@ -10,10 +10,12 @@
 namespace bridge {
 namespace {
 
-// Stack sizes are FreeRTOS WORDS (4 bytes on ESP32-S3), which is the unit
-// xTaskCreateStatic takes. They are starting points, and the way to correct one is
-// uxTaskGetStackHighWaterMark reported through the diagnostic topics - not a guess
-// doubled after a crash.
+// Stack sizes are BYTES, the unit ESP-IDF's xTaskCreateStaticPinnedToCore takes;
+// StackType_t is uint8_t on the ESP32-S3. BF-11 wrote these believing they were
+// 4-byte words, so every task had a quarter of the stack it was sized for - found
+// in BF-16, engineering log 2026-09-13. They are starting points, and the way to
+// correct one is uxTaskGetStackHighWaterMark, reported through the diagnostic topics -
+// not a guess doubled after a crash.
 //
 // mqtt_task and app_task are the deep ones because ArduinoJson serializes a
 // discovery config on their stacks; a Discovery payload is the largest single thing
@@ -21,7 +23,12 @@ namespace {
 constexpr TaskSpec kTable[kTaskCount] = {
     // Highest, and never blocks on the network. Owns RadioLib, the frame codec,
     // MAC verification and reassembly.
-    {TaskId::Lora, "lora", kPriorityLora, 4096, kCore1, 0},
+    //
+    // 8192, raised from 4096 in BF-16: this task runs RadioLib's begin() and a
+    // Serial.printf of the configured PHY, and 4096 was a quarter of what BF-11
+    // intended. lora_link.cpp logs the high-water mark after bring-up; that number,
+    // not this comment, is what says whether 8192 is enough.
+    {TaskId::Lora, "lora", kPriorityLora, 8192, kCore1, 0},
 
     // 1 s tick: per-node poll scheduling, retry and backoff, the availability
     // watchdog. Feeds the hardware watchdog (Impl Plan 5.2).
