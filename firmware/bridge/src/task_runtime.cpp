@@ -15,18 +15,22 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <atomic>
 
 #include "board_ui.h"
+#include "diag_json.h"
 #include "lora_link.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
+#include "node_availability.h"
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
+#include "scheduler.h"
 #include "status_page.h"
 #include "ui.h"
 #include "wifi_link.h"
@@ -107,6 +111,209 @@ static_assert(sizeof(g_stack_lora) / sizeof(StackType_t) == 8192, "lora stack");
 static_assert(sizeof(g_stack_mqtt) / sizeof(StackType_t) == 6144, "mqtt stack");
 
 // ---------------------------------------------------------------------------
+// The poll scheduler (BF-17). sched_task decides and sends, app_task reports what it heard,
+// ota_task asks whether a poll is outstanding. The mutex is held only across the scheduler's
+// own calls - never across a registry call or a queue send - so it never nests with the
+// registry's.
+// ---------------------------------------------------------------------------
+
+PollScheduler     g_scheduler;
+StaticSemaphore_t g_sched_lock_buf;
+SemaphoreHandle_t g_sched_lock = nullptr;
+
+// Read by lora_task_idle() from ota_task without the lock; written under it.
+std::atomic<bool> g_poll_outstanding{false};
+
+class SchedLock {
+ public:
+  SchedLock() { xSemaphoreTake(g_sched_lock, portMAX_DELAY); }
+  ~SchedLock() { xSemaphoreGive(g_sched_lock); }
+  SchedLock(const SchedLock&)            = delete;
+  SchedLock& operator=(const SchedLock&) = delete;
+};
+
+void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
+  uint32_t answer_ms = PollScheduler::kNotAnAnswer;
+  uint32_t window_ms = 0;
+  {
+    SchedLock lock;
+    answer_ms          = g_scheduler.on_heard(src, now_ms);
+    window_ms          = g_scheduler.reply_timeout_ms();
+    g_poll_outstanding = g_scheduler.outstanding();
+  }
+  // B3a's poll-to-answer record (Impl Plan 6.1.1). Printed after the lock is released, so a
+  // slow serial write never holds up sched_task.
+  if (answer_ms != PollScheduler::kNotAnAnswer) {
+    Serial.printf("poll: %02x answered in %u ms (window %u ms)\n", static_cast<unsigned>(src),
+                  static_cast<unsigned>(answer_ms), static_cast<unsigned>(window_ms));
+  }
+}
+
+// One tick: close an expired reply window, then start at most one poll. A POLL the TX queue
+// refuses is counted by send_tx() and not reported to the scheduler, so the node stays due
+// and the next tick tries again.
+void sched_polls(uint32_t now_ms) {
+  for (int step = 0; step < 2; ++step) {  // at most a Missed, then a Poll
+    PollStep  st;
+    lran::Seq seq = 0;
+    {
+      SchedLock lock;
+      st = g_scheduler.next(now_ms, !ota_in_progress());
+      if (st.action == PollAction::Poll) seq = g_scheduler.take_poll_seq();
+    }
+    switch (st.action) {
+      case PollAction::None:
+        return;
+      case PollAction::Missed:
+        g_poll_outstanding = false;
+        registry_note_poll_missed(st.node);
+        continue;
+      case PollAction::Poll:
+        break;
+    }
+
+    NodeState ns;
+    if (!registry_state(st.node, &ns)) return;
+    TxMessage tx;
+    tx.dst = st.node;
+    tx.len = build_poll_frame(st.node, ns.ctx_id, seq, tx.bytes, sizeof(tx.bytes));
+    if (tx.len == 0 || !send_tx(tx)) return;
+
+    SchedLock lock;
+    g_scheduler.on_sent(st.node, ns.poll_interval_s, now_ms);
+    g_poll_outstanding = true;
+    return;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sched_task's publications. One static message and one JSON buffer, not locals: at ~872
+// and 768 bytes they would take over half of sched_task's 3072-byte stack. Only sched_task
+// touches them.
+// ---------------------------------------------------------------------------
+
+PublishMessage g_sched_msg;
+char           g_sched_json[kMaxPayloadLen];
+
+// Retained, QoS 0, like the bridge's own availability. False when the queue refused it,
+// which send_publish() has already counted.
+bool sched_publish(const char* topic, const char* payload) {
+  return make_publish(&g_sched_msg, topic, payload, /*retain=*/true, /*qos=*/0) &&
+         send_publish(g_sched_msg);
+}
+
+// ---------------------------------------------------------------------------
+// The availability watchdog (BF-20). sched_task owns it outright - it is written and read in
+// no other task - so it needs no lock. mqtt_task asks for a republish through an atomic, and
+// ui_task reads the counts through two more.
+// ---------------------------------------------------------------------------
+
+AvailabilityWatchdog g_availability;
+std::atomic<bool>    g_availability_republish{false};
+std::atomic<uint8_t> g_nodes_online{kNodesUnknown};
+std::atomic<uint8_t> g_nodes_watched{kNodesUnknown};
+
+// spec 16.6 - bench publication is off by default. TODO(BF-26): simnode_diag_enable, settable
+// from lran/bridge/config/set, and a mark_known_pending() when it is switched on. Until then
+// a simnode's availability is judged and logged, and not published.
+constexpr bool kSimnodeDiagEnable = false;
+
+void sched_availability() {
+  if (g_availability_republish.exchange(false)) g_availability.mark_known_pending();
+
+  for (size_t i = 0; i < registry_size(); ++i) {
+    const NodeInfo& info = registry_info_at(i);
+    NodeState       ns;
+    if (!registry_state(info.id, &ns)) continue;
+
+    const AvailabilityChange c = g_availability.evaluate(i, info, ns);
+    char                     name[16];
+    if (node_topic_name(info.id, name, sizeof(name)) == 0) {
+      g_availability.clear_pending(i);  // no spec 16.1 token, so no topic
+      continue;
+    }
+    if (c.changed) {
+      // The bench record of V-B3 while bench publication is off.
+      Serial.printf("availability: %s %s (missed_polls %u, threshold %u)\n", name,
+                    availability_payload(c.to), static_cast<unsigned>(ns.missed_polls),
+                    static_cast<unsigned>(g_availability.threshold()));
+    }
+    if (!g_availability.pending(i)) continue;
+    if (!bench_publication_allowed(info, kSimnodeDiagEnable)) {
+      g_availability.clear_pending(i);
+      continue;
+    }
+
+    char topic[kMaxTopicLen];
+    // R-3.4c - retained. A queue that refuses it leaves the row pending for the next tick.
+    if (topic_availability(name, topic, sizeof(topic)) > 0 &&
+        sched_publish(topic, availability_payload(g_availability.state(i)))) {
+      g_availability.clear_pending(i);
+    }
+  }
+
+  g_nodes_online  = g_availability.online_count();
+  g_nodes_watched = g_availability.watched_count();
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics (BF-19). Every g_diag_interval_s, and on the tick after a broker connect: the
+// bridge's discard counters, its radio and queues, and each watched node's link. diag_json.h
+// says why the discard counters are the bridge's and not a node's.
+//
+// A publication the queue refuses is not retried: the next one carries newer numbers.
+// ---------------------------------------------------------------------------
+
+// TODO(BF-23): set from Home Assistant.
+std::atomic<uint16_t> g_diag_interval_s{kDiagPublishIntervalDefaultS};
+std::atomic<bool>     g_diag_republish{false};
+bool                  g_diag_published = false;
+uint32_t              g_diag_last_ms   = 0;
+
+void sched_diag(uint32_t now_ms) {
+  const bool     reconnect = g_diag_republish.exchange(false);
+  const uint32_t interval  = (g_diag_interval_s == 0 ? 1u : g_diag_interval_s.load()) * 1000u;
+  if (!reconnect && g_diag_published && now_ms - g_diag_last_ms < interval) return;
+  g_diag_published = true;
+  g_diag_last_ms   = now_ms;
+
+  lran::Counters c;
+  RadioDiag      r;
+  uint32_t       unregistered = 0;
+  lora_diag_snapshot(&c, &r.stats, &unregistered);
+  r.tx_frames    = c.tx_frames;
+  r.cad_backoffs = c.cad_backoffs;
+  for (size_t q = 0; q < kQueueCount; ++q) r.queues[q] = g_accounting.stat(static_cast<QueueId>(q));
+
+  char topic[kMaxTopicLen];
+  if (topic_diag("bridge", nullptr, topic, sizeof(topic)) > 0 &&
+      diag_rx_json(c, unregistered, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+  if (topic_diag("bridge", "radio", topic, sizeof(topic)) > 0 &&
+      diag_radio_json(r, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+
+  for (size_t i = 0; i < registry_size(); ++i) {
+    const NodeInfo& info = registry_info_at(i);
+    // The nodes the scheduler polls, and spec 16.6's bench gate.
+    if (!g_availability.watched(i) || !bench_publication_allowed(info, kSimnodeDiagEnable)) {
+      continue;
+    }
+    char      name[16];
+    NodeState ns;
+    if (node_topic_name(info.id, name, sizeof(name)) == 0 || !registry_state(info.id, &ns)) {
+      continue;
+    }
+    if (topic_diag(name, nullptr, topic, sizeof(topic)) > 0 &&
+        diag_node_json(ns, now_ms, g_sched_json, sizeof(g_sched_json)) > 0) {
+      (void)sched_publish(topic, g_sched_json);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Task bodies.
 // ---------------------------------------------------------------------------
 
@@ -131,8 +338,9 @@ void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
-    // TODO(BF-17): per-node poll scheduling with fleet-wide serialization (6.1).
-    // TODO(BF-20): the availability watchdog (3.4).
+    sched_polls(millis());  // BF-17 - Impl Plan 6.1, R-3.1d
+    sched_availability();   // BF-20 - PRD 3.4, spec 16.5
+    sched_diag(millis());   // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
     vTaskDelayUntil(&last, period);
   }
@@ -181,7 +389,11 @@ void on_mqtt_connected() {
   // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
   // reconnect" (R-3.3c). They are generated in this task and published directly
   // rather than through the queue, which is why the queue is sized for state.
-  // TODO(BF-20): per-node availability, which is a different thing from this one.
+  // Per-node availability (BF-20), which is a different thing from this one. sched_task
+  // owns the watchdog and publishes through the queue on its next tick.
+  g_availability_republish = true;
+  // Diagnostics are retained too (spec 16.2), so they are put back the same way (BF-19).
+  g_diag_republish = true;
 }
 
 // Normal priority, core 0, alongside the WiFi stack it talks to.
@@ -239,7 +451,10 @@ void app_task(void*) {
     // here names a registered node. This learns its ctx_id (spec 10.1) and resets its
     // command seq on a new one (spec 10.2).
     (void)registry_observe(msg.hdr, msg.rssi_dbm, msg.snr_db, msg.rx_millis);
-    // TODO(BF-19): wire the spec 14 discard ladder counters through.
+    // BF-17. Answers an outstanding poll to this node, and enrols a bench node in the
+    // schedule the first time it is heard.
+    sched_on_heard(msg.hdr.src, msg.rx_millis);
+    // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
     // policy, into the publish queue.
   }
@@ -284,8 +499,10 @@ void ui_task(void*) {
       s.wifi_connected  = wifi_connected();
       s.wifi_rssi_dbm   = wifi_rssi_dbm();
       s.mqtt_connected  = g_mqtt_up;
-      // TODO(BF-20): nodes_online / nodes_total from the availability watchdog. Until
-      // then kNodesUnknown, which the page renders as `--` rather than as zero.
+      // BF-20 - online out of watched. kNodesUnknown, rendered `--`, until sched_task's
+      // first tick.
+      s.nodes_online    = g_nodes_online;
+      s.nodes_total     = g_nodes_watched;
       s.any_dropped     = g_accounting.any_dropped();
       s.ota_in_progress = ota_in_progress();
       s.ota_pending     = ota_verify_pending();
@@ -322,6 +539,10 @@ TaskFunction_t body_for(TaskId id) {
 }  // namespace
 
 bool start_tasks() {
+  g_sched_lock = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
+  if (g_sched_lock == nullptr) {
+    return false;
+  }
   g_rx_queue = xQueueCreateStatic(kRxQueueDepth, sizeof(RxMessage), g_rx_storage,
                                   &g_rx_queue_buf);
   g_tx_queue = xQueueCreateStatic(kTxQueueDepth, sizeof(TxMessage), g_tx_storage,
@@ -421,7 +642,7 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() { return lora_idle(); }
+bool lora_task_idle() { return lora_idle() && !g_poll_outstanding.load(); }
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 

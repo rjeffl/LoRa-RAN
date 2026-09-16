@@ -908,6 +908,56 @@ Impl Plan §10.4 command. The host suites pass: 108 tests, 23 of them in the new
 **Not supported by anything here:** a bridge that retries on its own (BF-18), and any of it on
 air.
 
+## 2026-09-14 — BF-17: the poll scheduler
+
+**The bridge now polls.** `firmware/bridge/src/scheduler.{h,cpp}` decides which node to poll
+and when; `sched_task` builds the `POLL` and queues it each 1 s tick. **Never more than one
+poll is outstanding across the fleet** (R-3.1d). An unanswered poll increments the node's
+`missed_polls`, and any valid frame from the node clears it. The host suite passes: 103
+tests, 14 of them the new `test_scheduler`. The target builds, and the never-block check is
+clean. **No poll has been transmitted**: the bridge board was not flashed.
+
+Built on a new branch, `b3-poll-scheduler`, stacked on B0's. B3's own branch carries
+documents several versions older than B0's, and every doc change there would have conflicted
+on the way back up the stack (decided with the operator).
+
+### Who is polled — decided with the operator
+
+**Production rows from boot; a bench row once the bridge has heard any frame from it.**
+GateLink and WellLink are polled whether or not they answer, so a GateLink that never comes
+up still counts missed polls for BF-20. `f0`–`f3` cost no airtime until a simnode speaks, and
+a simnode's `push` enrols it. Nothing removes a row once enrolled; going offline is BF-20's.
+
+### Choices the documents left open
+
+- **The reply window is 10 s, and no document gives the number.** A node that finds the
+  channel busy may wait `cad_retries` × `backoff_max_ms` = 5 × 1500 = 7.5 s before it
+  transmits regardless (spec §12.3), and its `0xFE` answer is about 0.6 s at SF9. A shorter
+  window would count a node that obeyed media access as missing. It is runtime-settable;
+  **BF-23 takes it from Home Assistant.** The Impl Plan should name the parameter.
+- **The next poll falls one interval after the send**, not after the due time, so a poll
+  that waited behind another does not pull the next one early.
+- **A `POLL` takes its `seq` from a scheduler counter, not the command `seq`.** `POLL` is not
+  authenticated (spec §9.2), so no node checks its `seq`, and spending command seqs on it
+  would muddle the space BF-18 owns. Spec §10.2 names two sequence spaces and does not place
+  bridge-originated unauthenticated frames in either.
+- **An OTA upload holds new polls** (`ota_in_progress()`), and **an outstanding poll holds an
+  upload**: `lora_task_idle()` now also requires no poll outstanding (R-5.3d).
+- **A zero interval is held to 1 s.** Refusing it belongs where the value is set, BF-23.
+
+### Two things the tests found before any board did
+
+- **A due time of 0 fails after about 24.8 days.** The first version marked a never-polled
+  row due at time 0. After `millis()` passes half its range, 0 reads as the future, so a bench
+  row enrolled that late would never be polled. Rows now carry a "not yet polled" flag, and
+  `test_a_row_enrolled_late_in_uptime_is_polled` holds it.
+- **The mutation check:** letting `next()` start a poll while one was outstanding failed
+  three tests. Reverted.
+
+**Not supported by anything here:** a poll on air, a simnode answering one, and the reply
+window measured against a real exchange. B3's bench run needs the XIAO or the bridge board
+flashed with this build.
+
 ## 2026-09-14 — CI's GCC crashes on BF-6's `gatelink.cpp`
 
 **The simnode's `native` suite did not build in CI after BF-6.** GCC 13 on the `ubuntu-24.04`
@@ -925,3 +975,368 @@ an initialized array member, and CI compiled both.
 
 **Trap:** a clean local `pio test -e native` on macOS does not show that CI's GCC will compile
 the code. Read the PR's `Host Unity suites` job before calling a change verified.
+
+## 2026-09-14 — BF-20: the availability watchdog
+
+**The bridge now judges each watched node `online` or `offline` and publishes the result,
+retained, to `lran/<node>/availability`** (PRD R-3.4a–c, spec §16.5). It is host-tested: 13
+tests in `test_availability`, 116 bridge host tests in all. Nothing has been published to a
+broker, and no node on air has been judged. Impl Plan §6.1.2 has the rules.
+
+The fix in the entry above passed CI's host suites at `10e3d6c`.
+
+### What it does
+
+- `sched_task` runs the watchdog once a tick, after the scheduler. A node goes `offline` when
+  `missed_polls` reaches `missed_poll_threshold` (default 3, runtime-settable, 0 held to 1) and
+  `online` on any valid frame.
+- **A node that has neither answered nor missed enough polls since boot is Unknown, and
+  nothing is published for it.** Whatever the broker retained from before the reboot stands
+  until the node settles it. The alternative, `offline` for every node at boot, would flap a
+  live GateLink off and on at every bridge restart.
+- Every broker connect publishes each judged node again: `mqtt_task` sets a flag and
+  `sched_task` publishes through the queue on its next tick. A publication the queue refuses
+  leaves the node pending, and the next tick retries it.
+- **The watched nodes are the ones BF-17 polls.** The status page's `nodes n/m` now reads
+  online out of watched, so a bridge with no WellLink shows `nodes 1/2` once GateLink answers.
+- R-3.4d needs no code here. BF-23's discovery configs must list the bridge's LWT topic and the
+  node's availability topic together.
+
+### Decisions made while building it
+
+1. **A simnode's availability is not published yet.** Spec §16.6 publishes bench availability
+   only while `simnode_diag_enable` is set, default `false`, and BF-26 owns that flag. Until
+   BF-26, the bridge judges a simnode and prints each change on the serial console, for
+   example `availability: simnode1 offline (missed_polls 3, threshold 3)`. **V-B3 reads that
+   line on the bench** until the flag exists.
+2. **The watchdog detects a frame from a new registry count, `frames_heard`**, not from
+   `missed_polls == 0`. A frame followed by a closed reply window inside one 1 s tick would
+   leave `missed_polls` at 1 and hide the frame. BF-17's scheduler makes that unlikely, since
+   any frame clears the node's outstanding poll, but the watchdog should not depend on it. A
+   mutation back to `missed_polls == 0` failed one test; changing `>=` to `>` at the threshold
+   failed six.
+
+### Trap
+
+**A source file named `availability.h` breaks the macOS native build.** macOS's filesystem is
+case-insensitive, `src/` is on the include path, and the SDK's `stdio.h` includes
+`<Availability.h>`, so the project's header replaced the SDK's in every translation unit. The
+errors appear inside `string.h` and name nothing in the project. The files are
+`node_availability.{h,cpp}`.
+
+## 2026-09-14 — BF-19: every §14.1 counter published, and BF-26 deferred
+
+**The bridge now publishes all 21 §14.1 discard counters by their normative names**, with
+`rx_dropped`, retained, on `lran/bridge/diag/state`. The radio's and queues' diagnostics go
+to `lran/bridge/diag/radio/state`, and each watched node's link to `lran/<node>/diag/state`.
+It is host-tested: 10 tests in `test_diag`, 126 bridge host tests in all. Nothing has been
+seen at a broker, and no counter has been moved by a frame on air. Impl Plan §4.3.2 has the
+topics and rules.
+
+### BF-26 first, and why it stopped
+
+BF-26 was asked for first and deferred with the operator. Impl Plan §4.2a makes
+`simnode_diag_enable` a `/lib/lran-config/` parameter set over `lran/bridge/config/set`, and
+three pieces of that do not exist:
+
+1. **`/lib/lran-config/`.** System PRD §9.4 describes it; no plan section builds it and no
+   task owns it.
+2. **An MQTT receive path.** The bridge can subscribe but installs no message callback and
+   has no inbound queue. BF-18's command topics need the same path, and no task owns it
+   either.
+3. **A `config/set` and `config/ack` payload.** Spec §16.2 names the topics and defines no
+   payload, and the specification owns every MQTT topic.
+
+**Decided with the operator for when BF-26 is built:** until Home Assistant can set the flag,
+the bench toggle is a serial `diag on|off` command, RAM only, off at every boot. It keeps
+one binary, which is §16.6's argument against a build-time switch.
+
+### Decisions
+
+1. **The discard counters are the bridge's, not per node** (operator). §14.1 says every
+   counter is "published: per node by the bridge", but stages 1–2a have no header to read,
+   and until stage 9 checks the MAC the `src` byte may be corrupt or forged. Charging a
+   stranger's frame to GateLink would make a healthy node look sick. **Raised for spec
+   v0.12:** how a pre-MAC discard is attributed, if at all.
+2. **`ERROR` replies are not built** (operator). §14 has a receiver answer stages 5a–10 with
+   `ERROR`, and stages 3–4 optionally. On the bridge, each reply goes to a solar node's `src`
+   taken from an unauthenticated header, addressed to a `ctx_id` the frame has not proved.
+   **Raised for spec v0.12:** whether the bridge must answer, and to which `src` and
+   `ctx_id`. The work is the new BF-19a.
+3. **The payloads are the bridge's choice.** Spec §16.2 defines no `diag/state` payload, as
+   it defines none for `lran/bridge/version`. The keys are the §14.1 names from
+   `kCounterRegistry`, and a sentinel is `null`. **Raised for spec v0.12** with the other
+   payload gaps.
+4. **`diag_publish_interval_s` is 60 s**, runtime-settable. No document gave a cadence.
+
+### Found on the way
+
+- **The counter document does not fit the old queue payload.** With every counter at
+  `UINT32_MAX` it is 681 bytes, and `kMaxPayloadLen` was 512. A counter document refused
+  months into uptime would have been counted and silent on the broker. `kMaxPayloadLen` is
+  768 and a test asserts the worst case fits; the publish queue's static RAM grows from ~19 KB
+  to ~28 KB. The Heltec build reports 38.3 % RAM.
+- **`sched_task`'s 3072-byte stack could not hold a publication as a local.** A
+  `PublishMessage` is now ~872 bytes and the JSON buffer 768. `sched_task` publishes from
+  one static message, BF-20's availability included.
+- **`lora_task`'s counters were readable only field by field**, so a reader could combine
+  values from two moments and publish an `rx_dropped` that disagreed with its parts.
+  `lora_task` now copies them under a spinlock once a second. A spinlock rather than a
+  mutex, because `lora_task` never waits on another task.
+
+Mutation checks: skipping the first registry counter failed two tests; publishing an
+unknown RSSI as a number failed one.
+
+## 2026-09-14 — B3 split into B3a and B3b, so the stack can merge
+
+**Milestone B3 is now two milestones** (Impl Plan v0.32 §8, decided with the operator). B3a
+covers what is built: the radio link, the registry, the poll scheduler, the availability
+watchdog and the counter publication (BF-15, BF-16, BF-17, BF-19, BF-20). B3b covers the command
+path, `ERROR` replies, version tolerance, the `simctl` catalogue, CAD under real contention
+and V-B12 (BF-18, BF-19a, BF-21, BF-22).
+
+**Why.** Three draft PRs are stacked, and they merge bottom-up from B3's. B3 as written could
+not be accepted before spec v0.12, BF-18, BF-21 and BF-22, so nothing could merge and every
+new task made the stack taller. B1a/B1b is the precedent for splitting a milestone at the
+point where a bench can prove the first half.
+
+**What moved and what did not.** No criterion was dropped. Two were narrowed in B3a and
+completed in B3b: keys are proven by a command round-trip in B3b, because a `STATUS` carries
+no MAC; and the §10.5 catalogue runs by hand in B3a and from `simctl` in B3b. B3a gained one
+criterion B3 lacked, a measured poll-to-answer time, because `poll_reply_timeout_ms` = 10 000
+is still a derived number. B4 follows B3a.
+
+**The next session has every board and the broker.** The handoff orders it so that B0 and
+B3a can be accepted and the stack merged in one sitting.
+
+## 2026-09-15 — V-B9 re-run, B0 accepted, and B3a on air
+
+**The bench session the B3 split was made for.** Every board and the dev broker were on the
+desk: the bridge board, the simnode Heltec, and the XIAO with the Wio-SX1262 Kit, which had
+never run a simnode image. Everything ran from the tip of `b3-poll-scheduler`, so the bench
+tested what `main` will run.
+
+Desk check first, from a clean tree: 127 protocol, 7 link, 16 sim, 126 bridge and 108 simnode
+host tests pass, the three targets build, and the five repository checks pass.
+
+### V-B9 — all four steps passed
+
+Owed since BF-16 added `radio_ok` to the verdict (Impl Plan §6.5.2). Step 2's image carried
+`custom_bridge_version = 0.1.1-vb9`, so its banner reads `-dirty`; the bump was reverted and
+the board reflashed from a clean tree afterwards.
+
+1. **USB flash.** `Version: 0.1.0 (c5f021f)`, `Slot: app0`, `Image state: not_pending`.
+2. **OTA a second good build.** `Slot: app1`, `pending_verify`, then 120 s after boot
+   `OTA: image verified - marked valid, rollback cancelled`.
+3. **The no-network image.** `Slot: app0`, `pending_verify`, the V-B9 banner, then at 90 s
+   `OTA: image did not prove itself in time - ROLLING BACK`, and a reboot into `Slot: app1`
+   carrying step 2's version.
+4. **The panic image.** The V-B9 banner once, `abort() was called at PC 0x4200284b`, and a
+   reboot into step 2's image. One banner, so the bootloader rolled back.
+
+**What this run did not test.** The no-network image's radio came up, so its rollback proves
+the network half of the verdict, not the `radio_ok` half BF-16 added. No image with a dead
+radio was built.
+
+**`AUTH_FAIL` (reason 202) on the first WiFi attempt of every good boot**, five boots out of
+five, with a later attempt connecting each time. Nothing here depends on it. Recorded because
+the serial log otherwise says nothing about WiFi state.
+
+### B0 — accepted by the operator
+
+The XIAO ran `simnode-xiao-wio` for the first time: `Board: xiao_esp32s3+wio_sx1262_kit`,
+`id f1 ROLE_GATELINK`, `OLED: up`, radio up on 917.4 MHz. The operator confirmed the
+expansion board's panel reads the right way up, and watched `f3`'s inverted fault bar count
+down and clear.
+
+```
+H| ping f2 -> f0 seq 1: echo ok, n 8, 1 frame(s) out, 1 back, rssi -34 dBm, snr 11.8 dB, 524 ms
+X| fault f3 bad_crc: 5 injection(s) done, disarmed
+X| OK event f1 -> 00 event_id 1 (repeat)
+```
+
+`H` is the handheld Heltec, `X` the XIAO. Four identities `f0`–`f3` were loaded on the XIAO at
+once, each with its own `ctx_id`, and every command in `help` was typed on a board. #60 carries
+the clause-by-clause record.
+
+### B3a — what went on air
+
+- **The bridge polls and the simnodes answer.** All four identities on the XIAO were enrolled,
+  polled and `online` at once: `simnode0` through `simnode3`, each with its own `ctx_id`.
+- **Poll-to-answer times, 21 measurements** against `poll_reply_timeout_ms` = 10 000, in ms:
+
+  | Identity | Role | Answers |
+  |---|---|---|
+  | `f0` | `ROLE_RANGE` | 522, 525, 528, 529, 531, 533, 606 |
+  | `f1` | `ROLE_GATELINK` | 788, 793, 795, 796, 798, 987, 1013 |
+  | `f2` | `ROLE_HEALTH` | 522, 527, 527, 531 |
+  | `f3` | `ROLE_HEALTH` | 523, 524, **1686** |
+
+  Minimum 522, mean 694, maximum 1686. A schema `0xF0` answer sits near 525 ms and
+  `ROLE_GATELINK`'s larger `0xFE` near 795 ms, which is the airtime difference. **The single
+  1686 ms is the interesting one**: about 1100 ms longer than that identity's other answers,
+  which is the shape of one media-access backoff (`backoff_max_ms` = 1500) rather than a lost
+  frame. `cad_backoffs` stood at 2 on the XIAO's radio counters. **Even so, the window is
+  nearly six times the slowest answer measured.**
+
+  These are one-hop, about 1 m apart, with four identities on one board and no other traffic,
+  so they are a floor for the margin rather than a worst case. Impl Plan §6.1.1's derivation
+  stands; nothing here argues for changing the number.
+- **V-B3 passed.** `disable f0` gave `availability: simnode0 offline (missed_polls 3,
+  threshold 3)` 2 min 46 s later; `enable f0` gave `simnode0 online` on the next poll, about
+  40 s after.
+- **Retained `offline` at the broker for both production nodes.** `lran/gatelink/availability`
+  and `lran/welllink/availability` arrived live while subscribed, about 130 s and 140 s after
+  boot, and neither node exists.
+- **Discard counters, read at the broker.** `bad_crc` ×5 moved `rx_bad_crc` to 5 and
+  `rx_dropped` to 5, and nothing else. Two `PING` frames between simnodes, which the bridge
+  also hears, moved `rx_not_addressed` to 2 and `rx_dropped` to 7. **`hdr_rsv` moved no
+  counter and was delivered** — the frame enrolled `f0`, which is how it shows as accepted.
+  The rest of the §10.5 catalogue was not run.
+- **No simnode topic reached the broker**, as spec §16.6 requires until BF-26. Only
+  `lran/bridge/*`, `lran/gatelink/*` and `lran/welllink/*` appeared.
+
+### The poll-to-answer measurement needed an instrument (`28ffd82`)
+
+B3a requires poll-to-answer times recorded, and **nothing logged one**: the bridge printed
+nothing per poll, and the simnode's debug log timestamps the `POLL` it receives but not the
+answer it sends. Decided with the operator: add the instrument rather than estimate.
+
+`PollScheduler::on_heard()` now returns the time from `on_sent()` to the answering frame's
+receive time, or `kNotAnAnswer`, and `sched_on_heard()` prints
+`poll: <node> answered in N ms (window N ms)` after releasing the scheduler lock. The time
+includes the POLL's queue wait and its own media access, because the reply window starts at
+`on_sent()` too. One new host test; a mutation returning a time for every frame failed it.
+
+### `ROLE_FAULT` answers no POLL, by design
+
+`f3` was added as `ROLE_FAULT` for the four-identity check and never answered a poll.
+`node.cpp` answers `POLL` for `ROLE_RANGE`, `ROLE_HEALTH` and `ROLE_GATELINK` only, so a
+`ROLE_FAULT` identity that is polled will always go `offline` after three misses. It is the
+role's purpose, not a defect, but it reads as a node failure on the bridge's console. `f3` was
+re-created as `ROLE_HEALTH` for the check. **A bench operator arming faults on a polled
+identity should expect that node to go offline.**
+
+---
+
+## 2026-09-16 — B3a's §10.5 catalogue at the broker, and W9 between two boards
+
+**Every §10.5 entry B3a owns was injected and read back, and one row cannot pass as
+written.** The bench carried the bridge board on `28ffd82`, the XIAO running
+`simnode-xiao-wio` as the injecting node, and the handheld Heltec as the second
+transmitter for W9. Counters were read from `lran/bridge/diag/state` at the sandbox
+broker, which publishes every 60 s — measured across 24 consecutive publications, so the
+`kDiagPublishIntervalDefaultS` default is what runs.
+
+Desk check first: 127 protocol, 7 link, 16 sim, 127 bridge, 108 simnode and 191 range-test
+host tests pass, and the six repository checks pass.
+
+**The counters started from zero because opening the bridge's serial port rebooted it.**
+That is the documented trap doing what it does; it happened before the first injection, so
+every number below is from one uninterrupted image.
+
+### The catalogue, one entry per publication window
+
+An entry was armed on identity `f1`, then the next window's counters were differenced
+against the previous window's. `rx_dropped` is shown where it moved.
+
+| `fault` | Counter movement | Against §10.5 |
+|---|---|---|
+| `runt` | `rx_runt` +1, `rx_dropped` +1 | as specified |
+| `oversize` | `rx_oversize` +1, `rx_dropped` +1 | as specified |
+| `bad_ver` | `rx_bad_ver` **+2**, `rx_dropped` +2 | **both frames rejected** — see below |
+| `crit_ext` | `rx_unknown_hdr_ext` +1, `rx_dropped` +1 | as specified |
+| `frag_zero` | `rx_bad_frag` +1, `rx_dropped` +1 | as specified |
+| `unknown_type` | `rx_unknown_type` +1, `rx_dropped` +1 | as specified |
+| `unknown_schema` | `rx_unknown_schema` +1, `rx_dropped` +1 | as specified |
+| `bad_length` | `rx_bad_length` +2, `rx_dropped` +2 | as specified — the row sends one short frame and one long |
+| `frag_command` | `rx_not_fragmentable` +1, `rx_dropped` +1 | as specified |
+| `bad_mac` | `rx_rejected_mac` +1, `rx_dropped` +1 | as specified |
+| `frag_timeout` | `rx_reassembly_timeout` +1, `rx_dropped` +1 | as specified, and it fired from the tick with nothing sent after the fragment |
+| `frag_overflow` | `rx_fragment_overflow` +1, `rx_dropped` +1 | as specified |
+| `frag_oversize` | `rx_fragment_overflow` +1, `rx_dropped` +1 | as specified — 15 frames, one discard, at the point the set exceeds the cap |
+| `frag_dup` | `rx_frag_duplicate` +1, **`rx_dropped` still** | as specified |
+| `frag_late` | `rx_frag_late` +1, **`rx_dropped` still** | as specified |
+| `single_frame_interleave` | **nothing moved**, `rx_frames` +5 | as specified |
+| `set_displaced` | `rx_reassembly_abandoned` +1 **and `rx_reassembly_timeout` +1**, `rx_dropped` +2 | **a second counter moves** — see below |
+| `seq_jump` | nothing moved, `rx_frames` +2 | as specified |
+| `seq_wrap` | nothing moved, `rx_frames` +3 | as specified |
+| `flood` | nothing dropped, `rx_frames` +51 | as specified |
+
+**A silent pass and a frame that never arrived look identical, so the four rows whose
+correct result is "nothing happens" were checked against `rx_frames` as well.** Each shows
+the injected frames arriving in the window it was armed in: `single_frame_interleave` +5,
+`seq_jump` +2, `seq_wrap` +3, and the set completing with `rx_dropped` unmoved. Without
+that second reading, a dead radio would have passed three entries.
+
+**`flood` needs an explicit count.** `fault f1 flood` sends one frame, because the row is
+one correct frame per injection and the count carries the burst. `fault f1 flood 50 gap 0`
+delivered all 50 in a single window with none dropped: `q_rx_dropped` 0, receive-queue
+high-water 1, and `diag/state` kept its 60 s tick. The queue never builds because SF9
+airtime paces arrivals far below the drain rate, so this run says the bridge stays
+responsive at the rate one simnode can transmit — not that the queue has headroom under a
+faster source.
+
+### `set_displaced` moves two counters, and §10.5's row cannot hold
+
+**Run twice, an hour apart, with the same result: `rx_reassembly_abandoned` +1 and
+`rx_reassembly_timeout` +1, both inside the window the fault was armed in.** §10.5 asks
+that exactly the named counter move, and the table's introduction makes that the standard
+for every row.
+
+The cause looks like the row's construction rather than a receiver defect. The injection
+sends a live set, then fragment 0 of a *different* set from the same peer. The first set is
+displaced, which is the `rx_reassembly_abandoned` the row asks for. The displacing set is
+then left incomplete by design, so it expires on the tick and counts a timeout. Nothing in
+the receiver had a choice about the second counter.
+
+**Raised, not patched.** Either §10.5's row states that a timeout necessarily follows, or
+the fault completes the displacing set so only the displacement is counted. The second
+changes `fault.cpp` and belongs with BF-21, which owns the scripted catalogue.
+
+### `bad_ver` rejects both frames, and cannot pass until BF-22
+
+The row expects `ver` N−1 accepted and N−2 rejected with a distinct reason (**V-B10**).
+Both frames were rejected: `rx_bad_ver` +2. **This is version tolerance, which is BF-22 and
+sits in B3b** — the Impl Plan §8 row for B3b names it. The row is not wrong and the bridge
+is not defective; the entry simply has nothing to pass against until BF-22 lands.
+
+### W9 — full-size and fragmented `PING` between two boards
+
+The handheld Heltec sent from `f0` to a `ROLE_RANGE` identity `f3` added on the XIAO, so
+the round trip crossed two radios rather than two identities sharing one.
+
+```
+H| ping f0 -> f3 seq 1: echo ok, n 202, 1 frame(s) out, 1 back, rssi -37 dBm, snr 11.0 dB, 2283 ms
+H| ping f0 -> f3 seq 2: echo ok, n 202, 4 frame(s) out, 4 back, rssi -35 dBm, snr 11.3 dB, 3587 ms
+```
+
+Both identities ended with no reassembly errors, no CRC errors and no CAD backoffs.
+
+**`n` is payload and caps at 202; the 222 in B3a's criterion is the frame.**
+`ping f0 222` answers `ERR ping f0: n above 202`. With `kMaxFrame` 222, `kHdrLen` 16 and
+`kCrcLen` 2, `kMaxPayloadPlain` is 204, and the ping header takes the last two bytes. A
+full-size frame on the wire is `n` = 202.
+
+### Two things that cost time, neither of them the firmware
+
+**The broker address was wrong by one octet, and `mosquitto_sub` reported it as
+`Error: Bad file descriptor`.** The bridge's banner prints `MQTT broker:` and settled it.
+An unreachable host reads as a file-descriptor fault rather than a connect failure, which
+sends the reader looking at the wrong layer.
+
+**`mosquitto_sub` block-buffers into a pipe**, so `| tee` showed an empty file for minutes
+while the subscriber was working. A Python subscriber with line buffering replaced it, and
+is what produced the log this entry is built from.
+
+**Bench cross-traffic moves the bridge's counters.** The W9 pings are addressed to `f3`, and
+the bridge heard them: `rx_not_addressed` and `rx_dropped` both climbed by 8 in that window.
+A catalogue entry read across a window that carries other traffic will not difference
+cleanly.
+
+### How this was driven, and what it is not
+
+The injections were armed over the simnode console by a script holding the port open, with
+counters differenced from the broker log. That is the same evidence a typed run produces,
+and it is **not** BF-21: nothing is committed, the harness lives in this session's
+scratchpad, and B3b still owes the catalogue as a `simctl` script.

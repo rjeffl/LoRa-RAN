@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.11 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.28
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.16 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.32
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.20 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -44,6 +44,28 @@ its mutex, mbedTLS). Impl Plan §4.2.1 records the choices. **Two rules to keep:
 lock; and **`lora_task` never calls into `registry_runtime`**, which waits on a mutex.
 **`unregistered_src` is a bridge diagnostic, not a §14.1 counter** — spec §14 has no stage
 for it, and its name is not `rx_`-prefixed on purpose.
+
+**`BF-17` — the poll scheduler, built and host-tested; no poll on air yet.**
+`scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Three things to
+keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a registry call or
+a queue send**, so it never nests with the registry's; a bench row is polled only after it
+has been heard; and `lora_task_idle()` is false while a poll is outstanding, which an OTA
+upload waits on.
+
+**`BF-20` — the availability watchdog, built and host-tested.** `node_availability.{h,cpp}`
+judges and `sched_task` publishes; Impl Plan §6.1.2. **Three things to keep:** the watchdog
+belongs to `sched_task` alone, so other tasks reach it only through atomics; it detects a
+frame from `NodeState::frames_heard`, never from `missed_polls == 0`; and **a bench node's
+availability is not published** until BF-26's `simnode_diag_enable` exists (spec §16.6).
+**Do not name a source file `availability.h`**: on macOS's case-insensitive filesystem it
+shadows the SDK's `<Availability.h>` and breaks every native build.
+
+**`BF-19` — the diagnostic publication, built and host-tested.** `diag_json.{h,cpp}` formats
+and `sched_task` publishes; Impl Plan §4.3.2. **Three things to keep:** counter names come
+from `lran::kCounterRegistry` and are never spelled as literals; **read `lora_task`'s
+counters only through `lora_diag_snapshot()`**, never field by field; and `sched_task`
+publishes from its static `g_sched_msg`, because a `PublishMessage` is ~872 bytes and its
+stack is 3072. **`ERROR` replies are BF-19a**, waiting for spec v0.12.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.
@@ -226,8 +248,10 @@ node-originated authenticated type appears, the path must already exist. Status 
 
 ## Milestones
 
-B2 bring-up and OTA → B3 protocol and registry → B4 MQTT/discovery/policy → B5 HEX proxy →
-B6 GateLink integration → B7 soak. B1a/B1b (range) are done. B3 depends on simnode B0,
+B2 bring-up and OTA → B3a radio, registry, polling, availability, counters → B3b command
+path, version tolerance, scripted catalogue → B4 MQTT/discovery/policy (after B3a) → B5 HEX
+proxy → B6 GateLink integration → B7 soak. B3 was split into B3a/B3b on 2026-09-14 (Impl
+Plan v0.32). B1a/B1b (range) are done. B3a depends on simnode B0,
 which depends on protocol library **P6 and P8** — both met; P8 (`CommandGate`, D34) landed
 2026-09-11. Impl Plan §8 gated B0 on P6 alone until an audit corrected it.
 

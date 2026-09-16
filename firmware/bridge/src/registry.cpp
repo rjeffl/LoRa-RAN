@@ -58,10 +58,12 @@ Observed Registry::observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr
   NodeState& s   = entries_[i].state;
   s.heard        = true;
   s.last_seen_ms = now_ms;
+  ++s.frames_heard;
   s.proto_ver    = hdr.ver;
   s.rssi_dbm     = rssi_dbm;
   s.snr_db       = snr_db;
-  // TODO(BF-20): a valid frame resets missed_polls (Impl Plan 6.1).
+  // Impl Plan 6.1 - any valid frame from the node, a push included, resets the count.
+  s.missed_polls = 0;
 
   // spec 10.1 - learned from any received frame. A zero ctx_id is not a context, and
   // adopting it would make the bridge address its next command to no context at all.
@@ -71,6 +73,14 @@ Observed Registry::observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr
   s.ctx_id  = hdr.ctx_id;
   s.cmd_seq = 1;
   return Observed::NewContext;
+}
+
+bool Registry::note_poll_missed(lran::NodeId id) {
+  const int i = index_of(id);
+  if (i < 0) return false;
+  uint16_t& m = entries_[i].state.missed_polls;
+  if (m < UINT16_MAX) ++m;
+  return true;
 }
 
 }  // namespace bridge

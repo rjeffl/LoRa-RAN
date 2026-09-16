@@ -17,8 +17,8 @@
 
 namespace bridge {
 
-// "Not known yet" for the node counts. The registry does not exist until BF-15, and
-// the availability watchdog until BF-20; until then the page says `--`, never `0`.
+// "Not known yet" for the node counts: before sched_task's first tick, the availability
+// watchdog (BF-20) has counted nothing, and the page says `--`, never `0`.
 // Root rule 6: a reader must be able to tell "no nodes online" from "not counted".
 inline constexpr uint8_t kNodesUnknown = 0xFF;
 

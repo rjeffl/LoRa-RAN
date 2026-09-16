@@ -96,7 +96,13 @@ struct NodeState {
   bool     heard        = false;
   uint32_t last_seen_ms = 0;
 
-  // TODO(BF-17): counted by the poll scheduler. TODO(BF-20): read by the watchdog.
+  // Every frame observe() recorded, wrapping. The availability watchdog (BF-20) compares it
+  // between ticks to see that a frame arrived: last_seen_ms cannot say so, because
+  // missed_polls may have climbed again since the frame reset it.
+  uint32_t frames_heard = 0;
+
+  // Counted by the poll scheduler (BF-17), cleared by any valid frame (Impl Plan 6.1), read
+  // by the availability watchdog (BF-20). Saturates.
   uint16_t missed_polls = 0;
 
   // TODO(BF-22): the downgrade decision reads this. Recorded, not yet acted on.
@@ -139,6 +145,9 @@ class Registry final : public PeerKeys {
 
   // Records one reception from hdr.src. Call only for a frame the ladder delivered.
   Observed observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr_db, uint32_t now_ms);
+
+  // A poll to `id` went unanswered (BF-17). False when unregistered.
+  bool note_poll_missed(lran::NodeId id);
 
   const NodeState* state(lran::NodeId id) const;  // nullptr when unregistered
 

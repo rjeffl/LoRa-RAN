@@ -14,7 +14,8 @@
 //
 // DISCARDS ARE COUNTED, NOT ANSWERED. spec 14 answers several stages with an ERROR
 // frame, and the bridge addresses a frame to a node by that node's ctx_id, which the
-// registry tracks. TODO(BF-19): ERROR replies, once the registry (BF-15) holds ctx_id.
+// registry tracks. TODO(BF-19a): ERROR replies, after spec v0.12 says whether the bridge MUST
+// answer and to which src and ctx_id when the header is not yet authenticated.
 
 #pragma once
 

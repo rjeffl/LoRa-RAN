@@ -3,8 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.28 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.16 §4 (BF-2 to BF-9).
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.32 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.20 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific

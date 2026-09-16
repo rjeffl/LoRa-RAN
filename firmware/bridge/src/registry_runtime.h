@@ -31,6 +31,9 @@ const NodeInfo& registry_info_at(size_t i);
 Observed registry_observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr_db,
                           uint32_t now_ms);
 
+// BF-17 - sched_task counts an unanswered poll.
+bool registry_note_poll_missed(lran::NodeId id);
+
 // A copy, so the caller never holds a pointer into state another task is writing.
 bool registry_state(lran::NodeId id, NodeState* out);
 

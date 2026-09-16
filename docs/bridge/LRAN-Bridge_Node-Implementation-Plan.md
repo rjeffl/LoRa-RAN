@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.28
+**Version:** 0.32
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -490,6 +490,30 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
   Re-queueing would reorder it behind newer state for the same entity. **BF-25 owns
   events**, where the answer differs.
 
+#### 4.3.2 What BF-19 publishes, 2026-09-14
+
+Every §14.1 counter reaches the broker under its normative name. `diag_json.{h,cpp}` builds
+the documents, host-tested; `sched_task` publishes them, retained, every
+`diag_publish_interval_s` and on the tick after each broker connect. Spec §16.2 names
+`lran/<node>/diag/state` and defines no payload, so these documents are the bridge's choice,
+as `lran/bridge/version`'s was (BF-13).
+
+| Topic | Carries |
+|---|---|
+| `lran/bridge/diag/state` | The 21 §14.1 counters in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, `unregistered_src` |
+| `lran/bridge/diag/radio/state` | `tx_frames`, `cad_backoffs`, the driver's `LoraStats`, and each queue's `dropped` and `high_water` |
+| `lran/<node>/diag/state` | `rssi_dbm`, `snr_db`, `last_seen_s` (an age), `missed_polls`, `proto_ver`. Watched nodes only; a bench node only with `simnode_diag_enable` (§4.2a) |
+
+| Rule | Value |
+|---|---|
+| **Discard counters are the bridge's, not a node's** (decided with the operator) | Most discards happen before the MAC check, where `src` may be corrupt or forged. §14.1's "per node by the bridge" is raised for spec v0.12 |
+| Sentinels | `null`, never a number (root rule 6) |
+| `diag_publish_interval_s` | **60**, runtime-settable. No document gave a cadence; one default poll interval |
+| Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
+| `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
+| A refused publication | Not retried; the next interval carries newer numbers |
+| `ERROR` replies (spec §14) | **Not built** (decided with the operator). **BF-19a**, after spec v0.12 says whether the bridge must answer and to which `src` and `ctx_id` when the header is unauthenticated |
+
 ### 4.4 Home Assistant discovery
 
 - Published on boot **and on every broker reconnect** (**R-3.3b**). The reconnect path is
@@ -799,6 +823,37 @@ platform dependency, and the place that surfaces is the host build.
 - Node-initiated pushes are **not** polls and do not reset the schedule, but they do reset
   `missed_polls` and `last_seen`.
 
+#### 6.1.1 What BF-17 built, 2026-09-14
+
+`scheduler.{h,cpp}` decides, host-tested; `sched_task` sends. The engineering log's BF-17
+entry argues each choice.
+
+| Parameter or rule | Value |
+|---|---|
+| `poll_reply_timeout_ms` | **10 000**, runtime-settable. A poll is outstanding until a frame from that node arrives or this window closes. Derived from spec §12.3's worst-case node backoff (7.5 s) plus an SF9 answer; this section is its first home |
+| Who is polled | Production rows from boot. **A bench row, `0xF0`–`0xF3`, once any frame from it has been heard** this boot (decided with the operator) |
+| Next due | One `poll_interval_s` after the send. A zero interval is held to 1 s |
+| Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
+| `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
+| OTA | An upload in progress holds new polls; an outstanding poll keeps `lora_task_idle()` false (R-5.3d) |
+
+#### 6.1.2 What BF-20 built, 2026-09-14
+
+`node_availability.{h,cpp}` judges, host-tested; `sched_task` publishes, once a tick after the
+scheduler. The engineering log's BF-20 entry argues each choice.
+
+| Parameter or rule | Value |
+|---|---|
+| `missed_poll_threshold` | **3**, runtime-settable (PRD R-3.4b). 0 is held to 1 |
+| `offline` | `missed_polls` at or above the threshold |
+| `online` | Any valid frame since the previous tick: the registry's new `frames_heard` count moved |
+| Unknown | Neither, since boot. **Not published**: the broker's retained value stands until the node settles it |
+| Watched | The rows §6.1.1 polls: production from boot, bench once heard |
+| Publication | `lran/<node>/availability`, retained, QoS 0, through the publish queue. A refused publication is retried on the next tick; every judged node is published again after each broker connect |
+| Bench rows | Judged and printed on the serial console. **Published only with `simnode_diag_enable`** (spec §16.6), which BF-26 builds; until then, never |
+| Status page | `nodes <online>/<watched>` |
+| R-3.4d | No bridge code. BF-23's discovery configs must list the bridge's LWT topic and the node's availability topic together |
+
 ### 6.2 Command path and retry
 
 ```
@@ -979,23 +1034,23 @@ the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is r
 | Requirement | Verified by | Milestone |
 |---|---|---|
 | V-B1 range, both bearings | Two Heltec boards, field walk | B1 |
-| V-B2 multi-node registry | `simnode` ×2 on the bench | B3 |
-| V-B3 availability watchdog | Power down a simnode mid-poll | B3 |
+| V-B2 multi-node registry | `simnode` ×2 on the bench | B3a; keys by command in B3b |
+| V-B3 availability watchdog | Power down a simnode mid-poll | B3a |
 | V-B4 discovery incl. reconnect | Restart the broker with entities live | B4 |
-| V-B5 command retry / dedup | Suppress an ACK deliberately | B3 |
+| V-B5 command retry / dedup | Suppress an ACK deliberately | B3b |
 | V-B6 HEX three gates | Each gate tested independently | B5 |
 | V-B7 publication policy | Injected jitter, staleness flags, sentinels | B4 |
 | V-B8 events fire once | HA restart + discovery refresh with an event in history | B4 |
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
-| V-B10 version tolerance | simnode announcing N−1, then N−2 | B3 |
+| V-B10 version tolerance | simnode announcing N−1, then N−2 | B3b |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
-| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B3 |
-| §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3 |
+| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B3b |
+| §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3a by hand; B3b scripted |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
-| §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3 |
+| §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3a |
 | §16.6 bench publication gate | `simnode_diag_enable` toggled from HA at runtime, both states | B4 |
-| W9 full-size and fragmented `PING` | `ping <id> 202 pattern` and `ping <id> <n> pattern frag` | B3 |
-| Media access under real contention | **A second transmitter required** — the XIAO + Wio alongside a Heltec simnode, transmitting concurrently (§2.1, §2.3) | B3 |
+| W9 full-size and fragmented `PING` | `ping <id> 202 pattern` and `ping <id> <n> pattern frag` | B3a |
+| Media access under real contention | **A second transmitter required** — the XIAO + Wio alongside a Heltec simnode, transmitting concurrently (§2.1, §2.3) | B3b |
 
 ### 7.2 Bench harness
 
@@ -1025,13 +1080,14 @@ can be compared with one taken on the Wio.
 | **B1b** | **Target-radio confirmation** | B1a, XIAO + Wio-SX1262 delivered | Range re-measured on the gate bearing with the **Wio-SX1262** at the B1a settings. Delta from B1a recorded — this is the module contribution to link margin. **D1 confirmed** or revised — **confirmed**, and B1b's own fade-tail result is what chose SF9 over SF7. §2.3.1 findings settled by measurement: whether an RXEN-style line is required, and the exact module part number. **PHY-CRC discard counters observed at the far edge of the link** (§10.5) |
 | **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` **P6 and P8** | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
-| **B3** | **Protocol and registry, with simnode** | B2, `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **Four logical simnodes registered simultaneously from one board** (§10.3), each with its own derived key, context and sequence space. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Availability marks offline after 3 missed polls and online on the next frame. Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script**, every §14 counter increments as specified, and `hdr_rsv` is accepted rather than discarded. Full-size (222 B) and fragmented `PING` both round-trip (**W9**). *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff* |
-| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3 | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only |
+| **B3a** | **Radio, registry, polling, availability and counters, with simnode** | B2 (**V-B9 re-run**), `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **The bridge polls simnode identities on air and each answers** (BF-17): four logical simnodes from one board heard and polled simultaneously, each with its own learned context, **with poll-to-answer times recorded against `poll_reply_timeout_ms`**. Availability marks offline after 3 missed polls and online on the next frame (**V-B3**), and a production node's retained `offline` is seen at the broker. **Every §14 counter the console can drive at the bridge increments as specified**, one hand-run fault at a time, read from `lran/bridge/diag/state` at the broker (BF-19), and `hdr_rsv` is accepted rather than discarded. Full-size (a 222 B frame, which the console's `ping` takes as `n` = 202) and fragmented `PING` both round-trip between simnodes (**W9**) |
+| **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **V-B12** measured |
+| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
 
-**Critical path:** B2 → B3 → B4 → B5 → B6 → B7. **B1a is independent of all firmware
+**Critical path:** B2 → B3a → B3b → B5 → B6 → B7, with B4 after B3a. **B3 was split into B3a and B3b on 2026-09-14** (with the operator), so that the half provable on the bench could be accepted and merged while BF-18 waits for spec v0.12; B1a/B1b is the precedent. **B1a is independent of all firmware
 work and should be done first in wall-clock terms** — it needs only two Heltecs and
 `lran-rangetest` (§11.2), gates GateLink's PHY configuration as well as this node's
 antenna siting, and can start before a line of shared code exists.
@@ -1264,7 +1320,7 @@ rename after that is breaking. A row whose counter does not appear in
 | `frag_dup` | A duplicate index within a live set | `rx_frag_duplicate` | **Set still completes.** Counted but **excluded from `rx_dropped`** — assert `rx_dropped` does not move |
 | `frag_late` | A complete set, then a repeat of one of its fragments | `rx_frag_late` | Discarded, **not** started as a new set. Excluded from `rx_dropped`. A late RF echo and a sender retry both produce this legitimately |
 | **`single_frame_interleave`** | Fragment 0 of a set, then a **single-frame** frame sharing `(src, ctx_id, schema)`, then the remaining fragments | **none** | **The set completes normally and `rx_reassembly_abandoned` does not move.** See below |
-| `set_displaced` | A live set, then fragment 0 of a **different** set from the same peer | `rx_reassembly_abandoned` | Protocol Spec §11.3 displacement, scoped to `frag` total > 1 |
+| `set_displaced` | A live set, then fragment 0 of a **different** set from the same peer | `rx_reassembly_abandoned`, **then `rx_reassembly_timeout`** | Protocol Spec §11.3 displacement, scoped to `frag` total > 1. **This row moves two counters, and the second is not optional**: the displacing set is left incomplete by construction, so it expires on the tick and counts a timeout. Measured twice on 2026-09-16, both counters inside one 60 s window. The alternative is to complete the displacing set in `fault.cpp`, which is **BF-21**'s to decide |
 | `bad_mac` | Authenticated frame, one MAC byte flipped | `rx_rejected_mac` | §9.4 step 3 rejection, **no state change**, and the fragment is **not buffered** |
 | `ctx_jump` | New `ctx_id` mid-session with no reboot | `rx_rejected_ctx` on the node side | Bridge adopts, resets `cmd_seq`, **retries once only** (§6.2) |
 | `seq_jump` | Large forward `seq` step | — | Accepted — RFC 1982 arithmetic, no lockout |
@@ -1808,6 +1864,10 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.32** | **§8** — B3 split into **B3a** and **B3b**; §7.1's milestone column follows |
+| **v0.31** | **New §4.3.2** — BF-19's diagnostic documents; `kMaxPayloadLen` 768; ERROR replies split to BF-19a |
+| **v0.30** | **New §6.1.2** — BF-20's availability watchdog; bench availability waits for BF-26 |
+| **v0.29** | **New §6.1.1** — BF-17's scheduler; names `poll_reply_timeout_ms`, which no document did |
 | **v0.28** | **New §10.9.2** — BF-6's `ROLE_GATELINK`; four operator decisions; three spec questions |
 | **v0.27** | **New §10.9.1** — BF-9's OLED page, on both profiles |
 | **v0.26** | **§10.5** — BF-8's catalogue built: `fault.{h,cpp}`, `fault` console command, `silent`, and the host suite that checks each counter |
@@ -1836,6 +1896,32 @@ that drifts is the one that gets followed.
 | **v0.3** | **New §2.3** the XIAO + Wio as target-radio simnode, **§10.8** profiles, **§11** workflow; B1 split into B1a/B1b |
 | **v0.2** | **New §10**, `simnode` as buildable firmware: roles, multi-identity, console, fault catalogue |
 | **v0.1** | Initial release, extracted from `lran-prd-v0_8` with requirements moved to the PRD |
+
+- **v0.32** — **B3 is split into B3a and B3b** (§8, decided with the operator 2026-09-14).
+  B3 as written could not be accepted until spec v0.12, BF-18, BF-21 and BF-22, and the
+  three-PR stack could not merge until it was. B3a holds what BF-15, BF-16, BF-17, BF-19
+  and BF-20 built and a bench can prove; B3b holds the command path, version tolerance, the
+  scripted catalogue, real contention and V-B12. **No criterion is dropped**; two are
+  narrowed in B3a and completed in B3b: keys are verified by command in B3b, and the
+  catalogue runs by hand in B3a and from `simctl` in B3b. B3a adds a criterion B3 lacked, the
+  measured poll-to-answer time. B4 now follows B3a.
+
+- **v0.31** — **BF-19 publishes every §14.1 counter**, new §4.3.2. The discard counters are
+  published as the bridge's, not per node, and the ERROR replies §14 asks of a receiver are
+  not built; both were decided with the operator and both are raised for spec v0.12. **BF-26
+  is deferred**: §4.2a's `simnode_diag_enable` needs `/lib/lran-config/`, an MQTT receive path
+  and a `config/set` payload, and none of the three exists or has a task. No requirement or
+  milestone criterion changes.
+
+- **v0.30** — **BF-20 built the availability watchdog**, new §6.1.2. A node neither heard nor
+  judged since boot is published as nothing, so a bridge restart does not flap a live node.
+  Bench availability is judged and logged but not published until BF-26 builds
+  `simnode_diag_enable` (spec §16.6). No requirement or milestone criterion changes.
+
+- **v0.29** — **BF-17 built the poll scheduler**, new §6.1.1. §6.1 said when a poll is
+  unanswered without saying how long to wait: **`poll_reply_timeout_ms`, default 10 000**, is
+  named here for the first time and argued in the engineering log. Bench rows are polled only
+  once heard, decided with the operator. No requirement or milestone criterion changes.
 
 - **v0.28** — **BF-6 built `ROLE_GATELINK`**, new §10.9.2: `0xFE` on poll, `COMMAND_ACK`
   through the command gate, `CONFIG_ACK` from a RAM store, `0x11` events, the console's

@@ -25,12 +25,15 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 512 bytes of payload against MQTT_MAX_PACKET_SIZE of 1024. The largest
+// SIZES. 768 bytes of payload against MQTT_MAX_PACKET_SIZE of 1024. The largest
 // thing this firmware builds is a discovery config, and discovery does NOT pass
 // through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
 // from there, so the queue is sized for state and diagnostics rather than for the one
-// payload that dwarfs them. 32 slots x 608 bytes is ~19 KB of static RAM, which is
+// payload that dwarfs them. 32 slots x ~872 bytes is ~28 KB of static RAM, which is
 // the cost of never blocking a producer.
+//
+// 768, not 512, since BF-19: lran/bridge/diag/state carries all 21 spec 14.1 counters
+// by name, 681 bytes when every one reads UINT32_MAX. test_diag asserts it fits.
 //
 // A payload that does not fit is REFUSED AND COUNTED, never truncated. Truncated JSON
 // is worse than absent: Home Assistant logs a parse error against a topic that looks
@@ -38,7 +41,7 @@ namespace bridge {
 // ---------------------------------------------------------------------------
 
 inline constexpr size_t kMaxTopicLen   = 96;
-inline constexpr size_t kMaxPayloadLen = 512;
+inline constexpr size_t kMaxPayloadLen = 768;
 
 struct PublishMessage {
   char   topic[kMaxTopicLen]     = {0};

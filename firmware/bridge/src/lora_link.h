@@ -23,6 +23,7 @@
 #include "lran/counters.h"
 #include "lran/link/media_access.h"
 #include "lran/mac.h"
+#include "lora_stats.h"
 #include "radio_config.h"
 #include "rx_ladder.h"
 
@@ -32,23 +33,6 @@ using lran::link::CadResult;
 using lran::link::MediaAccess;
 using lran::link::MediaAccessConfig;
 using lran::link::TxStep;
-
-// Bridge diagnostics kept beside the spec 14.1 counters. Not schema 0xF0: none of these is
-// a receive-ladder discard (queues.h gives the same reasoning for the queue counters).
-struct LoraStats {
-  uint32_t begin_failures      = 0;  // radio init attempts that returned an error
-  int16_t  last_begin_status   = 0;  // RadioLib's code from the latest attempt
-  uint32_t rx_driver_errors    = 0;  // readData() failed other than on the PHY CRC
-  uint32_t tx_forced           = 0;  // spec 12.3's "transmit regardless"
-  uint32_t tx_errors           = 0;  // startTransmit() refused the frame
-  uint32_t tx_timeouts         = 0;  // TX_DONE never came
-  uint32_t tx_dropped_no_radio = 0;  // queued frames discarded while the radio was down
-  uint32_t cad_errors          = 0;  // CADs that failed outright (MediaAccess)
-
-  // A CAD not started because a frame was arriving. Counted separately because it also
-  // counts as a busy CAD in cad_backoffs, and the two causes read differently.
-  uint32_t cad_deferred = 0;
-};
 
 // Records the calling task as the one DIO1 wakes, then brings the radio up against the
 // injected pin map (spec 12.2) and the fixed PHY (spec 12.1). Call once, at the top of
@@ -80,13 +64,12 @@ bool lora_radio_ready();
 // and the radio is receiving - or is down, when there is nothing an OTA could interrupt.
 bool lora_idle();
 
-// lora_task's own counters. TODO(BF-19): a consistent snapshot for the diagnostic
-// publication - one field read torn is harmless on this core, a multi-field view is not.
-const lran::Counters& lora_counters();
-const LoraStats&      lora_stats();
-
-// Frames refused because the registry does not know their source. A bridge diagnostic,
-// not spec 14.1: spec 14 has no stage for it (rx_ladder.h).
-uint32_t lora_unregistered_src();
+// lora_task's counters, as one consistent view, for the diagnostic publication (BF-19).
+// Safe from any task. lora_task copies them under a spinlock once a second, so the view is
+// up to a second old; rx_dropped computed from it always agrees with the counters beside it.
+//
+// `unregistered_src`: frames refused because the registry does not know their source. A
+// bridge diagnostic, not spec 14.1: spec 14 has no stage for it (rx_ladder.h).
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src);
 
 }  // namespace bridge
