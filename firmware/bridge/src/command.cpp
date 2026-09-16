@@ -27,18 +27,26 @@ bool command_allowed(NodeType type, uint8_t cmd) {
       return true;
 
     // Actuation - spec 8.1's 0x00-0x0F, the only values that reach a physical output.
-    // GateLink has the relays; nothing else does.
+    // GateLink has the relays; WellLink does not.
+    //
+    // A SIMNODE IS ALLOWED EVERY COMMAND, and that is not a hole in the filter. A
+    // bench identity takes a ROLE at runtime (Impl Plan 10.2) and the bridge cannot
+    // know from the address which one - 0xF1 is ROLE_GATELINK today and was
+    // ROLE_RANGE before BF-6. Refusing it here would mean the bench exercises a
+    // different code path from the fleet, which this node's CLAUDE.md names as the
+    // thing that defeats having bench nodes at all. They are gated at PUBLICATION
+    // (spec 16.6, BF-26), never at the radio and not here.
     case lran::Cmd::Open:
     case lran::Cmd::Close:
     case lran::Cmd::HoldOpen:
     case lran::Cmd::ReleaseHold:
     case lran::Cmd::SetRelayDryRun:
-      return type == NodeType::GateLink;
+      return type == NodeType::GateLink || type == NodeType::Simnode;
 
     // GateLink's BMS. WellLink's battery is a different part with no BLE link
     // (System PRD); a node that does not poll a BMS has nothing to switch off.
     case lran::Cmd::SetBmsPolling:
-      return type == NodeType::GateLink;
+      return type == NodeType::GateLink || type == NodeType::Simnode;
   }
   // An unrecognized value is refused here rather than sent for the node to refuse.
   // Spec 8.1 is a closed table and a value outside it is a bridge-side defect or a

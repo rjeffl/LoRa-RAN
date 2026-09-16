@@ -328,6 +328,28 @@ void test_the_capability_filter_matches_spec_8_1s_split() {
   TEST_ASSERT_FALSE(command_allowed(NodeType::GateLink, 0x55));
 }
 
+// A bench identity takes a ROLE at runtime and the bridge cannot know from the address
+// which one, so refusing an actuation command here would make the bench exercise a
+// different code path from the fleet - the thing the bridge's CLAUDE.md says defeats
+// having bench nodes. Gating is at publication (spec 16.6), never here.
+//
+// This test is the one that would have been missing when B3b's bench run could not
+// command a simnode at all.
+void test_a_simnode_is_allowed_every_command() {
+  const uint8_t kEvery[] = {
+      static_cast<uint8_t>(Cmd::Nop),           static_cast<uint8_t>(Cmd::Open),
+      static_cast<uint8_t>(Cmd::Close),         static_cast<uint8_t>(Cmd::HoldOpen),
+      static_cast<uint8_t>(Cmd::ReleaseHold),   static_cast<uint8_t>(Cmd::RequestStatus),
+      static_cast<uint8_t>(Cmd::RequestConfig), static_cast<uint8_t>(Cmd::SetDebugMode),
+      static_cast<uint8_t>(Cmd::SetRelayDryRun),
+      static_cast<uint8_t>(Cmd::SetBmsPolling), static_cast<uint8_t>(Cmd::Reboot),
+  };
+  for (uint8_t cmd : kEvery) {
+    TEST_ASSERT_TRUE_MESSAGE(command_allowed(NodeType::Simnode, cmd), "simnode");
+  }
+  TEST_ASSERT_FALSE(command_allowed(NodeType::Simnode, 0x55));
+}
+
 // ---------------------------------------------------------------------------
 // Timing.
 // ---------------------------------------------------------------------------
@@ -447,6 +469,7 @@ int main() {
   RUN_TEST(test_an_ack_that_matches_nothing_is_counted_and_ignored);
   RUN_TEST(test_an_ack_arriving_with_nothing_in_flight_is_ignored);
   RUN_TEST(test_the_capability_filter_matches_spec_8_1s_split);
+  RUN_TEST(test_a_simnode_is_allowed_every_command);
   RUN_TEST(test_the_timeout_and_retry_count_are_runtime_settable);
   RUN_TEST(test_the_window_survives_the_millis_wrap);
   RUN_TEST(test_the_command_frame_is_what_a_node_decodes);
