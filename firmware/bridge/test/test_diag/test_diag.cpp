@@ -211,8 +211,29 @@ void test_diag_topics_follow_spec_16_1() {
   TEST_ASSERT_EQUAL_STRING("", t);
 }
 
+// BF-18. The keys are what Home Assistant charts, so they are asserted rather than
+// trusted, like every other counter name this file guards.
+void test_the_command_diagnostics_carry_every_stat() {
+  CommandStats s;
+  s.submitted = 1; s.refused_busy = 2; s.sent = 3; s.retries = 4; s.acked = 5;
+  s.no_ack = 6; s.resyncs = 7; s.resync_failed = 8; s.ack_ignored = 9;
+
+  char out[kMaxPayloadLen];
+  TEST_ASSERT_TRUE(diag_command_json(s, out, sizeof(out)) > 0);
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_submitted\":1"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_refused_busy\":2"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_sent\":3"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_retries\":4"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_acked\":5"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_no_ack\":6"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_resyncs\":7"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_resync_failed\":8"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_ack_ignored\":9"));
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_the_command_diagnostics_carry_every_stat);
   RUN_TEST(test_every_spec_14_1_counter_is_published_under_its_name);
   RUN_TEST(test_counters_appear_in_registry_order);
   RUN_TEST(test_rx_dropped_is_the_spec_14_1_sum);

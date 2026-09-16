@@ -435,6 +435,18 @@ void sched_diag(uint32_t now_ms) {
     (void)sched_publish(topic, g_sched_json);
   }
 
+  // BF-18. A copy under the lock, then formatted outside it - the lock is never held
+  // across a queue send (BF-17's rule, and sched_publish() is one).
+  CommandStats cs;
+  {
+    SchedLock lock;
+    cs = g_command.stats();
+  }
+  if (topic_diag("bridge", "cmd", topic, sizeof(topic)) > 0 &&
+      diag_command_json(cs, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+
   for (size_t i = 0; i < registry_size(); ++i) {
     const NodeInfo& info = registry_info_at(i);
     // The nodes the scheduler polls, and spec 16.6's bench gate.

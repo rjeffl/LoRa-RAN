@@ -91,6 +91,20 @@ size_t diag_rx_json(const lran::Counters& c, char* out, size_t cap) {
   return j.finish();
 }
 
+size_t diag_command_json(const CommandStats& s, char* out, size_t cap) {
+  JsonObject j(out, cap);
+  j.u32("cmd_submitted", s.submitted);
+  j.u32("cmd_refused_busy", s.refused_busy);
+  j.u32("cmd_sent", s.sent);
+  j.u32("cmd_retries", s.retries);
+  j.u32("cmd_acked", s.acked);
+  j.u32("cmd_no_ack", s.no_ack);
+  j.u32("cmd_resyncs", s.resyncs);
+  j.u32("cmd_resync_failed", s.resync_failed);
+  j.u32("cmd_ack_ignored", s.ack_ignored);
+  return j.finish();
+}
+
 size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap) {
   JsonObject j(out, cap);
   j.u32("tx_frames", r.tx_frames);

@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "command.h"
 #include "lora_stats.h"
 #include "lran/counters.h"
 #include "queues.h"
@@ -60,5 +61,14 @@ size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap);
 // lran/<node>/diag/state - the node's link as the bridge last heard it. `last_seen_s` is an
 // age in seconds at `now_ms`, wrap-safe; the bridge has no wall clock to stamp it with.
 size_t diag_node_json(const NodeState& s, uint32_t now_ms, char* out, size_t cap);
+
+// `lran/bridge/diag/cmd/state` - the command path's accounting (BF-18).
+//
+// WHY THESE ARE PUBLISHED AND NOT MERELY LOGGED. The first bench run of BF-18 had to
+// read a serial cable to answer "did that command resync?", because the ACK topic
+// reports the OUTCOME and a resync is invisible in it - spec 10.3's retry succeeds and
+// publishes `acked` exactly like a command that never resynced. `resyncs` is the
+// number that separates a healthy link from one whose node is rebooting under it.
+size_t diag_command_json(const CommandStats& s, char* out, size_t cap);
 
 }  // namespace bridge
