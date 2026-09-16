@@ -536,3 +536,392 @@ boot, so read it as a range, not a constant.
 - **Publishing `unregistered_src`** — BF-19, with the other counters.
 - **The mutex is not host-tested.** It needs FreeRTOS. Its callers are `app_task` today
   and `sched_task` from BF-17.
+
+## 2026-09-14 — Simnode B0, first slice: two boards echo each other on 917.4 MHz
+
+**`firmware/simnode/` exists, and two Heltecs running it complete every PING round trip
+spec §6.6 defines, on the D1 PHY.** That slice is BF-2, BF-3, BF-5 and the core of BF-4.
+BF-6 (`ROLE_GATELINK`), BF-7 (the patch primitive), BF-8 (the fault catalogue) and BF-9
+(self-disarm and the OLED) are not started. B0 is on its own branch, `b0-simnode-bringup`,
+stacked on B3's.
+
+### Decisions taken with the operator
+
+- **Spec §12.3 media access moved to `lib/lran-link/`**, with its seven tests, and the
+  simnode uses it. The alternative was a second copy on a branch from `main`; two copies of a
+  backoff rule drift, and the drift shows on air as one node starving another. The cost is a
+  stacked branch: B0 cannot merge before B3. `RadioPins`, `kPhy` and the D33 EIRP assert
+  moved into the same library afterwards, so the fleet has one copy of the PHY constants.
+- **The simnode reads `LRAN_MASTER_KEY` from the root `secrets.h`**, the file the bridge
+  reads, and nothing else from it. Both firmwares then derive the same node keys. CI builds
+  both simnode profiles against the committed template, as it does the bridge.
+- **The bridge board was flashed as a second simnode for the on-air check**, then flashed
+  back. The XIAO was not connected, and the bridge logs nothing per frame.
+
+### What was built
+
+- **`identity.{h,cpp}`** — up to four identities, `0xF0`–`0xF3`. Each has its own HKDF key
+  (checked against the W4 vectors), random non-zero `ctx_id`, status seq, counters,
+  `CommandGate` and reassembler.
+- **`node.{h,cpp}`** — every enabled identity decodes every frame, with itself as `self`.
+  A frame for `0xF2` is counted `rx_not_addressed` by `0xF0`, exactly as a second board would
+  count it. `ROLE_RANGE` echoes PING and answers POLL with `0xF0`; `ROLE_HEALTH` answers
+  POLL only.
+- **`console.{h,cpp}`** — `id`, `enable`, `disable`, `ver`, `ctx`, `ping`, `stats`, `log`,
+  and `radio` from `main.cpp`. `push`, `event`, `ack`, `field` and `fault` answer `ERR not
+  implemented` and name BF-6 or BF-8.
+- **`radio.{h,cpp}`** — follows the bridge's `lora_link.cpp` state machine: CAD and transmit
+  started, then read back from the IRQ register against a deadline.
+- 31 host tests across `test_identity`, `test_node` and `test_console`.
+
+### On the bench
+
+The handheld Heltec (A, `/dev/cu.usbserial-3`) and the flat-case Heltec (B,
+`/dev/cu.usbserial-0001`) both ran `simnode-heltec` from `cab05e8`, about 1 m apart. A kept
+its boot identities, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`; B was reconfigured to
+`f1 ROLE_RANGE` alone. Verbatim:
+
+```
+A| ping f0 -> f1 seq 1: echo ok, n 8, 1 frame(s) out, 1 back, rssi -19 dBm, snr 10.3 dB, 520 ms
+A| ping f0 -> f1 seq 2: echo ok, n 202, 1 frame(s) out, 1 back, rssi -18 dBm, snr 10.5 dB, 2289 ms
+A| ping f0 -> f1 seq 3: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.5 dB, 8617 ms
+B| ping f1 -> f0 seq 1: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.8 dB, 8492 ms
+B| ping f1 -> f0 seq 2: echo ok, n 40, 1 frame(s) out, 1 back, rssi -18 dBm, snr 11.0 dB, 812 ms
+B| ping f1 -> f2 seq 3: no echo in 30000 ms
+```
+
+- **The full-size frame's round trip is 2289 ms**, about two of spec §15.1's 1107 ms SF9
+  frames plus a CAD each way. That is the airtime table checked at one more point.
+- **Every counter reconciles.** A's driver saw 33 `TX_DONE`s against its identities' 33
+  queued frames; B's saw 34 against 34. `f0` heard B's 34 frames. `f2` counted 33 of them
+  `rx_not_addressed` and the one PING addressed to it as `unhandled`. No TX error, timeout,
+  forced transmission or CAD error on either board. B recorded one CAD backoff.
+- **`ROLE_HEALTH` did not echo**, which is the correct result.
+- **The bridge, flashed back from `cab05e8`**, boots with the lifted `lran-link` code: the
+  radio comes up on D1's PHY, and `lora_task` has 6188 bytes of stack free.
+
+### What the code found
+
+- **Schema `0xF0` cannot carry `DEBUG_SYNTHETIC`.** Impl Plan §10.1 says every simnode
+  payload sets `status_reason = DEBUG_SYNTHETIC`, but spec §7.5's health schema has no
+  `status_reason`. The simnode sets `health_flags` bit 0, "any debug mode active", on every
+  `0xF0`, and §10.1 now says so. A bridge that publishes `0xF0` from a bench node must read
+  that bit to mark the data synthetic.
+- **The bridge does not answer PING.** Spec §17.3 makes RF loopback "required of every node
+  build", and no `BF-*` task gives it to the bridge. Until one does, a PING from a simnode to
+  `0x00` reports no echo. That is a bridge gap, not a simnode fault.
+- **`lib_extra_dirs = ..` breaks a library's own test project.** PlatformIO picks the
+  project up as a library of itself, and the test build loses Unity's include path
+  (`unity.h` not found). `lib/lran-link/platformio.ini` uses `lib_deps = symlink://` instead.
+- **`0xF0`'s `tx_frames` never counts the frame that carries it.** The payload is built
+  before the frame is queued, so each report counts the frames before it.
+
+### Not done
+
+- **B0's criteria not met:** "console accepts every command" (five commands are
+  placeholders), and "faults arm, fire the specified count, self-disarm, and show armed
+  state on the OLED" (BF-7 to BF-9). **The XIAO profile builds and has not been flashed.**
+- **Four identities on one board have not been on air at the same time.** The table and its
+  independence are host-tested; the bench run used three identities across two boards.
+- **Identities do not persist.** Every reset returns a Heltec to `f0` and `f2`. Two Heltecs
+  booted together both answer to `f0` until one is reconfigured.
+
+## 2026-09-14 — BF-7: malformed frames through the real encoder, checked against W4
+
+**`lib/lran-sim/` exists, and its `FramePatch` rebuilds 18 of the 21 W4 negative vectors
+byte for byte from `encode()` and one stated patch.** BF-8's dependency is met. The simnode
+does not call the library yet; BF-8 is its first caller. Host-tested only; there is nothing
+to put on air until BF-8.
+
+### The surface
+
+`FramePatch` holds a caller-owned 255-byte buffer. It starts from `encode()` or
+`encode_fragment()`, patches single-byte header fields by name, resizes the payload
+(moving the MAC and CRC), strips or flips the MAC, or truncates the body. Then
+`seal(Seal::Crc)` or `seal(Seal::MacAndCrc)` reseals it, and `flip_crc()` can corrupt it
+afterwards. Impl Plan §10.5.2 maps each catalogue entry to its operation.
+
+Two choices, both about rule 1 (never a second serializer):
+
+- **Every patch unseals, and `frame()` is `nullptr` until `seal()`.** Without that, a
+  forgotten reseal sends a frame that also fails its CRC. The receiver counts it at stage 3,
+  and the fault reads as tested while the targeted stage never ran.
+- **No `seq` or `ctx_id` patch.** `ctx_jump`, `seq_jump` and `seq_wrap` are correct frames,
+  so `encode()` emits them from a `Header`. Adding multi-byte patches would be the first step
+  towards a serializer here.
+
+### How it is checked
+
+- **The W4 negative vectors are an independent witness.** `tools/vectors/generate.py` built
+  them the way §10.6 asks the simnode to, by editing a correct frame and resealing it, in
+  Python that never read this code. `test_frame_patch` starts from the C++ encoder instead
+  and must produce the same bytes. The three it skips are `command_ctx_mismatch` and
+  `command_signed_with_wrong_node_key`, both correct frames, and `frag_index_equals_total`,
+  which takes the same path as `frag_index_ge_total`.
+- **`HdrByte`'s offsets are the one layout the library states**, so a test patches each
+  offset and reads it back through `decode_header()`, checking that no other field moved.
+- **The comparison catches a wrong offset.** With `HdrByte::Dst` changed from 3 to 4, two
+  tests failed: `wrong_dst_not_addressed` differed at byte 3, and the offset test failed.
+  Reverted.
+
+16 tests. All passed the first time the suite compiled, and that result is why the mutation
+check was run.
+
+### What the work found
+
+- **Impl Plan §5.4 said `/tools/vectors/` shares `lran-sim`**, "so the on-air fault
+  injector and the host vectors agree byte-for-byte". It cannot and should not. The
+  generator is Python, and Impl Plan §9.3 requires it to stay independent of the C++ code.
+  Shared code would let the simnode and the vectors be wrong in the same way. v0.25
+  corrects §5.4: the two stay separate, and `lran-sim`'s tests compare them.
+- **`oversize` reaches 255 bytes**, the SX1262's 8-bit length maximum, and the codec counts
+  it `rx_oversize` at stage 2a. The W4 vector is 223 bytes, one past `LRAN_MAX_FRAME`;
+  §10.5's entry says 255. Both are now producible.
+
+## 2026-09-14 — BF-8: the fault catalogue, each entry checked against the receive ladder
+
+**`firmware/simnode/fault.{h,cpp}` and the `fault` console command are built**, and the host
+suite `test/test_fault` (33 tests) proves each fault moves the spec §14 counter its §10.5 row
+names. B0's fault criterion is met bar the OLED (BF-9). Host-tested only; nothing new has been
+on air.
+
+### The model, chosen with the operator
+
+`fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>]` **arms** a fault on one
+identity. The first injection fires on arm; the rest fire as the outbox drains and the gap
+allows, then it self-disarms (§10.6 rule 2). An injection is the whole frame sequence a row
+describes — `bad_ver` two frames, `set_displaced` two, `single_frame_interleave` four. The
+alternative considered was arming every fault against the identity's *next* answers; it was
+rejected because it cannot be driven until the bridge polls (BF-17) and is harder to script.
+`silent` is the one behaviour fault in this slice and does work that way: it withholds the
+identity's next `count` answers.
+
+### What holds it to the rules
+
+- **Every malformed frame comes from `lran::sim::FramePatch`** (BF-7): a real `0xF0` health
+  status, one patch, an explicit reseal. No second serializer (§10.6 rule 1). The carrier is
+  the status the node really sends, so a fault differs from an accepted frame in exactly the
+  way its row states.
+- **Authenticated faults carry `COMMAND(NOP)`.** If a receiver defect ever accepts one,
+  nothing moves at a gate.
+- **The counter column is the assertion.** `test_fault` feeds each fault into the codec's own
+  `decode_header` / `decode_payload` / `Reassembler` — the ladder the bridge runs — and checks
+  the named counter, and only it, moves. `hdr_rsv`, `seq_wrap` and `single_frame_interleave`
+  assert the opposite: `rx_dropped` does not move. A fault malformed the wrong way lands on a
+  different stage and fails.
+- **`oversize` is 255 bytes**, the PHY ceiling, not the W4 vector's 223.
+
+### Deferred, and why
+
+- **The five command-path faults** — `ack_suppress`, `ack_dup`, `event_replay` and §10.5.1's
+  `cmd_replay`, `cmd_stale_seq` — need `ROLE_GATELINK`'s command path. `arm()` refuses them
+  with `WaitsForTask` and the console names **BF-6**. `ctx_jump` sends its node-side half (a
+  status from a fresh context); the `REJECTED_CTX` reply half is also BF-6.
+- **`bad_phy_crc` is refused as uninjectable.** The SX1262 computes the PHY CRC in hardware;
+  §14 stage 1 is closed only at the far edge of a real link (§10.5.2).
+- **The OLED (BF-9)** is not started. The bounded-count self-disarm it shares with BF-9 is
+  built and tested here; only the display is left.
+
+## 2026-09-14 — BF-9: the simnode's OLED page
+
+**The Heltec simnode now draws its identity table, the last frame it heard, and every armed
+fault as an inverted bar**, and the bar clears when the fault disarms itself. The page is
+host-tested (`test/test_oled`, 14 tests, run against the real injector and node). **Both
+target images build. Neither has been flashed, and nobody has seen the page on a panel.**
+
+### The page
+
+Five rows of ArialMT_Plain_10, 13 px apart:
+
+```
+f1>f0 PING -42        12s     last frame: src>dst, type, RSSI, age
+f0 bad_crc              2     inverted: armed fault, injections left
+f2 ROLE_HEALTH                identity, exact role token
+```
+
+- **Row 0 is the last frame the board received**, whichever identity it was for. A frame no
+  identity decoded shows as `<len>B <rssi> drop`, a PHY CRC failure as `phy crc error`, and
+  a radio that is not up as an inverted `RADIO DOWN` over everything else.
+- **`Node` records the last frame only from a successful `decode_header`.** Reading `src` and
+  `type` from raw offsets would be a second parser, which §10.6 rule 1 forbids for writing.
+  `on_phy_crc_error()` now takes `now_ms` so its row has an age.
+- **`silent` is read from `Identity::silent_left`**, not from the injector, because that is
+  where BF-8 keeps it.
+- **A fault name too long for the row is cut and ends in `~`.** `single_frame_interleave`
+  with a three-digit count is the widest case. A cut token has to look cut, or an operator
+  types the fragment and gets `unknown fault`.
+- **Role tokens are shown whole** (`ROLE_GATELINK`, not `GATELINK`), per the simnode's rule
+  on exact tokens. The `ctx_id` did not fit beside them, and `id list` has it.
+- **The panel redraws only when the text changes**, checked every 200 ms. Ages tick once a
+  second, so it redraws at about 1 Hz. A redraw is about 1 KB over I2C, well inside
+  `radio.cpp`'s 500 ms CAD deadline, and DIO1 is latched by its ISR during it. **That
+  reasoning is unmeasured**: no `radio` counter has been read with the panel running.
+
+### What the tests caught
+
+`test_the_top_row_fits_at_its_widest` failed on the first run. An RSSI of −32767 pushed the
+row past the 21-character budget. No SX1262 reading lands there, but the budget has to hold
+for any input, so a reading outside −199…99 dBm now shows as `?`.
+
+### A gap in B0's criterion
+
+**The XIAO + Wio-SX1262 Kit has no display.** Impl Plan §8's B0 criterion says armed state
+shows "on the OLED", and §10.8.1 assigns `0xF1 ROLE_GATELINK` to the XIAO, which is the board
+that will carry the command-path faults once BF-6 lands. On that board an armed fault is
+visible only from the console. Its boot banner now says so (`OLED: none on this board`).
+This is not patched in the criterion. The operator decides whether the Heltec's panel
+discharges it, or whether the XIAO needs another indicator such as its user LED.
+
+## 2026-09-14 — Correction to the BF-9 entry: the XIAO has a panel
+
+> **Supersedes "A gap in B0's criterion" in the BF-9 entry above.** That section is wrong.
+
+**The XIAO + Wio-SX1262 Kit is mounted on a Seeeduino XIAO expansion board, and that board
+has an SSD1306.** The range test already drives it: `firmware/range-test/src/board_config.h`
+`kXiaoWioKitUi` has SDA 5, SCL 6, no reset line, no Vext, and `flip_vertically` set because
+the enclosure holds the stack upside down. BF-9 was written from the Kit's description and
+never checked against the range test's board config, which already covered this. The
+operator caught it.
+
+**Fixed:** `profiles.h` gains `kXiaoExpansionPanel`, and `ui_begin()` skips the Vext and reset
+steps when a pin is `kPinNone`, as the range test's `ui_oled.cpp` does. The pin-collision
+`static_assert` now covers both profiles. Both images build, and the 79 host tests pass.
+**The XIAO image has still never been flashed.** B0's OLED criterion needs no decision.
+
+### The Heltec simnode, flashed from `c3ef4ca`
+
+Flashed from `c3ef4ca` on the handheld Heltec at `/dev/cu.usbserial-3` (MAC
+`44:1b:f6:fa:bc:2c`). Boot log:
+
+```
+Board: heltec_wifi_lora_32_V3
+id f0 ROLE_RANGE ctx 0x1bd0fe32
+id f2 ROLE_HEALTH ctx 0xeff12a5e
+[  1784][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+OLED: up
+radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+```
+
+- **`OLED: up` means the panel ACKed its address.** It does not show what the panel draws.
+- **The `Wire` warning is harmless.** `ui_begin()` starts I2C to probe the panel, and
+  ThingPulse's `init()` starts it again.
+- **Opening the port with DTR and RTS held low still rebooted the board**, so faults armed
+  over a fresh connection land on a fresh boot. `fault f0 silent 5` and
+  `fault f2 bad_crc 3 gap 30000` were armed after it, for the panel check.
+
+### The XIAO is mounted the other way up as a simnode
+
+**The simnode's XIAO profile does not flip the panel, although the range test's does.** The
+operator reports the board is rotated 180° from its range-test mounting. The range test set
+`flip_vertically` only because its enclosure held the stack inverted. ThingPulse's
+`flipScreenVertically()` is a 180° rotation (`SEGREMAP | 0x01` with `COMSCANDEC`), not a
+mirror, so a board turned 180° reads upright without it. The pins still come from the range
+test; the orientation does not. Unverified on the panel: the XIAO image has not been flashed.
+
+### The Heltec's page, confirmed by eye
+
+**The operator confirmed every staged element on the handheld Heltec's panel**, running
+`c3ef4ca`. One serial connection drove four stages over 166 s, and every command answered
+`OK`:
+
+1. Idle: `rx: nothing yet`, `f0 ROLE_RANGE`, `f2 ROLE_HEALTH`.
+2. `id add f1 ROLE_GATELINK`, `id add f3 ROLE_FAULT`, `disable f1`. `f1` showed `off`.
+3. `fault f0 silent 5`, `fault f2 bad_crc 3 gap 20000` and
+   `fault f3 single_frame_interleave 999 gap 60000`, all as inverted bars. `f2` counted down
+   and cleared when the console logged `3 injection(s) done, disarmed` at 99 s. `f3`'s name
+   was cut with `~`, and its count stayed visible.
+4. `fault f0 off`, `fault f3 off`, `enable f1`. Every row returned to plain.
+
+- **Rows follow slot order, not identity order.** `f1`, added after `f2`, drew below it, which
+  matches `id list`.
+- **Not shown:** row 0's frame format and `RADIO DOWN`. The Heltec does not hear its own
+  transmissions, and the bridge board sends nothing, so a received frame needs a second
+  transmitting simnode.
+- **The XIAO is not with the operator offsite**, so its panel, pins and orientation wait for
+  its first flash.
+
+## 2026-09-14 — BF-6: ROLE_GATELINK, and the five command-path faults
+
+**`ROLE_GATELINK` is built** in `firmware/simnode/gatelink.{h,cpp}`. It answers `POLL` with
+schema `0xFE`, `COMMAND` with `COMMAND_ACK` through the identity's `CommandGate`, and
+`CONFIG` with `CONFIG_ACK`, and it sends `0x11` events on request. The console's `push`,
+`event`, `ack` and `field` exist, and all five command-path faults arm. That completes every
+Impl Plan §10.4 command. The host suites pass: 108 tests, 23 of them in the new
+`test_gatelink`. Both images build. **Nothing from this task has been on air.**
+
+### Four choices, made with the operator
+
+| Question | Decided |
+|---|---|
+| What marks a `ROLE_GATELINK` status synthetic, given `push <hex> [reason]` sets the reason | **Schema `0xFE` itself** (spec §7.1, bench only). `push` defaults to `DEBUG_SYNTHETIC`, and a given spec §8.7 name overrides it. The simnode `CLAUDE.md` rule that said every status carries `DEBUG_SYNTHETIC` is corrected |
+| `CONFIG` needs parameter IDs, which only the unbuilt `/lib/lran-config/` may declare | **A generic RAM store.** `SET` holds any `param_id` whose `ptype` and `len` agree; `persist_status` is always `APPLIED_NOT_PERSISTED`. `GET` of an unset id is `UNKNOWN_PARAM`. No id is invented. `CLAMPED` and `READ_ONLY` cannot occur until the library exists |
+| Impl Plan §10.4's `ack` modes read as persistent; simnode rule 3 bounds every fault | **`suppress` and `dup` arm the bounded `ack_suppress` / `ack_dup` faults**, which self-disarm and show on the OLED. **`delay <ms>` is a setting**, kept until `ack <hex> normal` and shown in `id list` |
+| `cmd_replay` and `cmd_stale_seq` impersonate the bridge; where may the frames go | **A target on the same board is fed through `Node::on_rx` and never transmitted**, so the node's own gate can be tested with one board and in host tests. A target on another board is reached over the air with `to <hex> ctx <hex32>` |
+
+### How the command path holds to spec §9.4 and D34
+
+- **Steps 2 and 3 answer.** A `COMMAND` or `CONFIG` failing its context check or its MAC gets
+  `COMMAND_ACK(REJECTED_CTX)` or `(REJECTED_MAC)`, from the node's own `ctx_id`, and moves
+  nothing, the high-water mark included. `ctx_jump`'s missing half, the `REJECTED_CTX` reply,
+  exists as a result.
+- **`check()` before dispatch, `record()` before the ACK.** `ack <hex> delay <ms>` holds a
+  command in flight. A retry landing in that window is counted in `rx_dup_command` and
+  answered with nothing; the retry after it gets `DUPLICATE_CACHED`
+  (`test_a_retry_inside_the_execution_window_receives_nothing`). A new command during the
+  window is `ACTUATOR_BUSY`, its `seq` consumed.
+- **`actuations` counts what a relay would have pulsed.** `cmd_replay` sends `OPEN`, not `NOP`,
+  so its assertion is that this count stays at 1.
+- **`REBOOT` with the `0xA5` guard** sends its ACK under the old context, then a `BOOT` status
+  under a new one. The config store, event ids and any in-flight command go with it.
+- **The mutation check:** making a cached retry increment `actuations` failed five tests, three
+  in `test_gatelink` and two in `test_fault`. Reverted.
+
+### Three questions for spec v0.12, not settled here
+
+1. **How a `DUPLICATE_CACHED` ACK carries the cached result.** §9.4 step 4 says
+   "`COMMAND_ACK(DUPLICATE_CACHED)` with the cached result", and §6.3 has one `result` byte and
+   one `detail` byte. The simnode sends `result = DUPLICATE_CACHED` with the cached result in
+   `detail`, so the bridge can see the dedup hit (V-B5). The gate's cached `detail` is lost.
+   BF-18 will read whatever v0.12 decides.
+2. **What answers a repeated `CONFIG`.** §9.4 applies steps 4–6 to every authenticated type
+   and words the answers as `COMMAND_ACK`. The simnode follows that wording. §7.4 says a lost
+   `CONFIG_ACK` is recovered by readback, so a bridge should never repeat a `CONFIG`, but the
+   specification does not say what a node sends if one does.
+3. **§7.4 expects fragmentation to carry config sets that §3.1 forbids.** §7.4 says 24
+   `u32` entries fill a `CONFIG` and 21 results fill a `CONFIG_ACK`, "the first fragmented
+   frames the system is expected to produce." But 24 `u32` entries are 194 bytes, which fits one
+   authenticated frame, and §3.1 caps a *reassembled* set at the same 196 bytes, so
+   fragmentation cannot carry a 22nd result. The simnode cuts the `CONFIG_ACK` at what fits and
+   logs the cut (`test_a_config_ack_that_cannot_fit_is_cut_and_logged`). Its store holds 21
+   entries so that a `GET_ALL` always fits.
+
+### Other changes
+
+- **The XIAO now boots as `0xF1 ROLE_GATELINK`**, §10.8.1's assignment. The Heltec is unchanged.
+- **A loopback command fault shows on the OLED's top row** as `00>f1 CMD --`: it goes through
+  the same receive path as a frame off the air. The target's `COMMAND_ACK`s do go on air, to
+  `00`.
+- **`field` names are the `GateLinkStatusV1` member names** (`batt_mv`, `cell_mv2`), and `na`
+  writes the width's sentinel where the specification has one. `status_reason` is not a
+  field: `push` owns it.
+
+**Not supported by anything here:** a bridge that retries on its own (BF-18), and any of it on
+air.
+
+## 2026-09-14 — CI's GCC crashes on BF-6's `gatelink.cpp`
+
+**The simnode's `native` suite did not build in CI after BF-6.** GCC 13 on the `ubuntu-24.04`
+runner stops with an internal compiler error (`in gimple_add_tmp_var, at gimplify.cc:774`) at
+`cfg_ack_ = lran::schema::GateLinkConfigAckV1{};`. The macOS host build uses Clang and the
+target builds use Xtensa GCC, and both compile it, so every local check passed. The PR checks on
+#60 and #61 were the first place it showed.
+
+The pattern is assigning a braced temporary of an aggregate whose array member has a default
+member initializer (`entries[kMaxConfigAckEntries] = {}`). `gatelink.cpp` now copies from
+file-scope empty constants instead, at all four places it reset such a struct. The bytes are the
+same. **Unverified locally:** no Linux GCC is installed on this machine, so the next CI run is
+the check. `identity.cpp` and the bridge's `registry.cpp` use the same idiom on structs without
+an initialized array member, and CI compiled both.
+
+**Trap:** a clean local `pio test -e native` on macOS does not show that CI's GCC will compile
+the code. Read the PR's `Host Unity suites` job before calling a change verified.

@@ -3,7 +3,8 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.7 §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.28 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.16 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.11** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
@@ -21,6 +22,65 @@ without a walk to the gate**. Treat it as permanent infrastructure, not scaffold
 
 It is a protocol-level peer. It has no gate state machine, no relays, no I/O, and its
 telemetry values are plausible rather than physical.
+
+## What exists here today
+
+**BF-2, BF-3, BF-5 and the core of BF-4, built 2026-09-14 and proven on air between two
+Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec`,
+`simnode-xiao-wio`, `native`), `profiles.h`, `identity.{h,cpp}`, `node.{h,cpp}`,
+`console.{h,cpp}`, `radio.{h,cpp}` (**the only file that includes RadioLib**), `main.cpp`
+(**the only file that includes `secrets.h`**, for `LRAN_MASTER_KEY` alone) and `sink.h`.
+
+**`/lib/lran-sim/` (BF-7)** is built: `FramePatch`, Impl Plan §10.5.2. **The fault catalogue
+and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against the codec's
+receive ladder. **The OLED page (BF-9)** is `oled_page.{h,cpp}` (text, host-tested in
+`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. The Heltec's panel answers at
+boot; the XIAO's has not been flashed.
+**`ROLE_GATELINK` (BF-6)** is `gatelink.{h,cpp}`, with `push`, `event`, `ack`, `field` and the
+five command-path faults; Impl Plan §10.9.2, host-tested in `test/test_gatelink`, not yet on
+air. **Every Impl Plan §10.4 command exists.** **The XIAO profile builds
+and has not been flashed.**
+
+```bash
+pio test -d firmware/simnode -e native              # host, no secrets
+pio run  -d firmware/simnode -e simnode-heltec      # NEEDS secrets.h
+pio run  -d firmware/simnode -e simnode-xiao-wio
+```
+
+**Spec §12.3 media access and the PHY constants are `lib/lran-link/`'s**, shared with the
+bridge. Change them there, and run both firmwares' tests.
+
+### Traps found building it
+
+- **Two Heltecs boot with the same identities**, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`.
+  Nothing persists, so both answer to `f0` until one is reconfigured, and every reset
+  restores the defaults. Opening the serial port resets the board.
+- **`stats` counts frames an identity queued; `radio` counts `TX_DONE`.** Only `radio` shows
+  a frame reached the air.
+- **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
+  each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
+  (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
+- **The XIAO's panel is on the Seeeduino expansion board**, not the Kit: SDA 5, SCL 6, no
+  reset line, no Vext. A dark XIAO panel is the expansion board's seating, not Vext.
+  **It is not flipped here, and the range test flips it**: as a simnode the board is mounted
+  rotated 180° from its range-test enclosure. Copy pins from the range test, not orientation. BF-9
+  first shipped believing the XIAO had no panel; check `firmware/range-test/src/board_config.h`
+  before describing either board.
+- **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks
+  a cut token. Type the full name from `fault list`.
+- **`Node::on_phy_crc_error()` takes `now_ms`** since BF-9, so the page can age the event.
+- **`ack <hex> delay <ms>` outlives a reboot of the identity and is not a fault.** It shows in
+  `id list`, not on the OLED. Clear it with `ack <hex> normal`, which also disarms
+  `ack_suppress` and `ack_dup`.
+- **`cmd_replay` and `cmd_stale_seq` to a target on this board never reach the air**, but the
+  target's `COMMAND_ACK`s do, addressed to `00`. To another board they need `ctx <hex32>`, and
+  `seq <n>` above that board's `cmd_hw` once it has taken a command.
+- **A `DUPLICATE_CACHED` ACK carries the cached result in `detail`.** The encoding is the
+  simnode's reading of spec §9.4, raised for v0.12; BF-18 must not treat it as settled.
+- **A `CONFIG_ACK` is cut at 196 bytes and the cut is logged.** 24 `u32` results do not fit,
+  and spec §3.1 lets no fragmented set exceed that either. The RAM store holds 21 entries.
+- **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
+  `rx_dropped`, on every other identity on the board. That is what four boards would count.
 
 ## Hardware profiles — build environments, not roles
 
@@ -54,9 +114,8 @@ Wio-SX1262 products that are not pin-compatible outside the three SPI nets. Conf
   nss=41 rst=42 busy=40 dio1=39  sck=7 miso=8  mosi=9
   rf_sw=38           tcxo_mv=1800  dio2_as_rf_switch=true
 
-// TCXO in millivolts, not a float: the range test's board_config.h and the bridge's
-//   radio_config.h (BF-16) both settled on uint16_t tcxo_mv. The bridge's rx_ladder and
-//   media_access are Arduino-free and worth reading before writing the simnode's own.
+// TCXO in millivolts, not a float: the range test's board_config.h, the bridge and
+//   lib/lran-link's RadioPins all settled on uint16_t tcxo_mv.
 
 // The OTHER Wio product — "Wio-SX1262 for XIAO" (p-6379), 2.54 mm headers — is
 //   GateLink's module, NOT the board in hand, and its map is deliberately not
@@ -116,10 +175,13 @@ flashed with only its own derived key.
 
 ## Rules specific to this target
 
-1. **Every emitted payload is marked synthetic.** `status_reason = DEBUG_SYNTHETIC`, and
-   schema `0xFE` rather than `0x10` for status. Synthetic data reaching HA history unmarked
-   is a bug in two nodes at once, and it fails silently — it looks like real history until
-   someone tries to explain a reading.
+1. **Every emitted payload is marked synthetic.** A status is schema `0xFE`, never `0x10`,
+   and the schema is the marker (spec §7.1, decided with the operator 2026-09-14): `push`
+   defaults to `status_reason = DEBUG_SYNTHETIC` and may send any spec §8.7 reason, so the
+   bridge's handling of real reasons can be tested. **Schema `0xF0` has no `status_reason`**, so
+   every `0xF0` sets `health_flags` bit 0 instead (spec §7.5, found 2026-09-14). Synthetic
+   data reaching HA history unmarked is a bug in two nodes at once, and it fails silently —
+   it looks like real history until someone tries to explain a reading.
 2. **`/lib/lran-sim/` builds malformed frames by post-processing a correct frame from
    `/lib/lran-protocol/`.** Never write a second serializer. A separate one drifts, and
    then a fault test passes while testing a frame the system would never produce.
@@ -140,9 +202,9 @@ logic in the way can produce a symptom indistinguishable from poor link margin.
 
 ## Fault catalogue
 
-21 entries in Impl Plan §10.5, each mapped to one Protocol Spec §14 stage or §9.4/§10 rule.
-This is the only mechanism that produces these frames — without it every discard counter in
-the bridge ships unverified.
+Impl Plan §10.5's entries (27, below, plus §10.5.1's two) each map to one Protocol Spec §14
+stage or §9.4/§10 rule. This is the only mechanism that produces these frames — without it
+every discard counter in the bridge ships unverified.
 
 **`bad_phy_crc` cannot be injected.** The SX1262 computes the PHY CRC in hardware, so no
 transmitter can emit a frame that fails it. §14 stage 1 is verified only at the far edge of
@@ -172,10 +234,26 @@ a set that completes and a counter that stays still.
 counter is not in `kCounterRegistry` is a defect in the table — report it rather than
 adding a name.
 
-**§10.5.2: `/lib/lran-sim/` needs a patch-after-encode primitive** before B0.
-`oversize`, `frag_zero` and `frag_command` all need a frame `encode()` refuses to emit.
-A narrow patch surface keeps rule 2 above intact; discovering the need mid-milestone is
-how a second serializer gets written.
+**The catalogue is armed through `fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx
+<hex32>]` (BF-8).** Each malformed frame is a real `0xF0` health status put through
+`FramePatch`. `silent` withholds answers rather than sending. `fault list` prints the table
+with each row's counter; `fault <hex> off` disarms. A fault fires its first injection on arm
+and the rest as the outbox drains, then self-disarms. On the Heltec the OLED draws it as an
+inverted bar until then (BF-9). `test/test_fault` asserts each fault moves the §14 counter its
+row names, feeding the frames through the codec's own ladder.
+
+**§10.5.2: `/lib/lran-sim/`'s patch-after-encode primitive exists (BF-7).** `oversize`,
+`frag_zero` and `frag_command` all need a frame `encode()` refuses to emit. Build every
+malformed frame with `lran::sim::FramePatch`: encode, patch, `seal()`. §10.5.2 maps each
+fault to its operation. Two things to know when BF-8 uses it:
+
+- **`frame()` is `nullptr` after any patch until `seal()` runs.** Check it before queuing.
+- **`Seal::MacAndCrc` re-signs, and so repairs a `flip_mac()`.** `bad_mac` seals with
+  `Seal::Crc`. A patch to an authenticated frame that must still verify seals with
+  `Seal::MacAndCrc`.
+
+If a fault needs a byte that `FramePatch` cannot reach, add an operation there, with a test
+against `decode_header()` or a W4 vector. Do not build the frame by hand.
 
 ## Two faults arrive with P8, and they point the other way
 

@@ -1,0 +1,16 @@
+{
+  "name": "lran-link",
+  "version": "0.1.0",
+  "description": "LRAN radio-link policy shared by every firmware - spec 12.3 media access. Arduino-free; each firmware supplies its own SX1262 driver. Binding specification: LRAN-Protocol-Specification v0.11 (ver = 2).",
+  "keywords": ["lora", "lran", "csma"],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": "lran/link/media_access.h",
+  "dependencies": [{ "name": "lran-protocol" }],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": ["-std=gnu++17"]
+  }
+}

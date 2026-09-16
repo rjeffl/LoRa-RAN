@@ -100,10 +100,9 @@ that are not. Current counts and status live where they are produced: run the co
 below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 
 ```
-lib/        lran-protocol                                    [built]
-            lran-config, lran-sim, vedirect, bms-ble        [planned]
-firmware/   bridge/, range-test/                             [built]
-            simnode/CLAUDE.md                     [context file only, no project yet]
+lib/        lran-protocol, lran-link, lran-sim               [built]
+            lran-config, vedirect, bms-ble                  [planned]
+firmware/   bridge/, range-test/, simnode/                   [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
@@ -125,6 +124,8 @@ These work today:
 ```bash
 pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
+pio test -d lib/lran-link -e native           # spec 12.3 media access, bridge and simnode
+pio test -d lib/lran-sim -e native            # fault frames: encode, patch, reseal, vs. W4
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
 python3 tools/checks/spec_citation_version.py # binding citations vs. the spec header
@@ -140,12 +141,17 @@ python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned Radio
 pio test -d firmware/bridge -e native         # bridge host suite, no secrets
 pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
+
+pio test -d firmware/simnode -e native        # simnode host suite, no secrets
+pio run  -d firmware/simnode -e simnode-heltec     # NEEDS secrets.h (master key only)
+pio run  -d firmware/simnode -e simnode-xiao-wio   # XIAO ESP32S3 + Wio-SX1262 Kit
 ```
 
-**`firmware/bridge/` is the one target that needs `secrets.h`.** Copy
+**`firmware/bridge/` and `firmware/simnode/` need `secrets.h`.** Copy
 `secrets.h.example` to the repo root and fill it in; the build fails with a message
-naming that step. **CI copies the committed template** — placeholders only, and
-`main.cpp` says so at boot — so no secret enters a workflow.
+naming that step. The simnode reads `LRAN_MASTER_KEY` and nothing else, so it derives the
+bridge's node keys (decided 2026-09-14). **CI copies the committed template** —
+placeholders only, and each `main.cpp` says so at boot — so no secret enters a workflow.
 
 These are the shape the firmware targets take once they exist:
 
@@ -164,7 +170,7 @@ wrong.
 **`main` stays buildable.** A PR builds every firmware target *and* the native tests
 before merge. **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) enforces it** in
 three parallel jobs: `checks` (the repository invariants and the host tools, seconds, no
-toolchain), `native` (the library, range-test and bridge Unity suites) and `firmware`
+toolchain), `native` (the libraries', range-test and bridge Unity suites) and `firmware`
 (every target, then the checks that read a built image or the installed RadioLib).
 **No secrets are needed or available.** The bridge is the one target that needs
 `secrets.h`, and the decision its arrival forced is recorded in

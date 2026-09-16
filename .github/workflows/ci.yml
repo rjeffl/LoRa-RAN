@@ -132,6 +132,16 @@ jobs:
       - name: Protocol library
         run: pio test -d lib/lran-protocol -e native
 
+      # Spec 12.3 media access, shared by the bridge and the simnode. Moved out of the
+      # bridge on 2026-09-14 so the two firmwares run one implementation of it.
+      - name: Radio-link library
+        run: pio test -d lib/lran-link -e native
+
+      # BF-7's patch-after-encode primitive, checked byte for byte against the W4
+      # negative vectors that the Python generator built the same way.
+      - name: Fault-injection library
+        run: pio test -d lib/lran-sim -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 
@@ -141,6 +151,11 @@ jobs:
       # that include path so a test cannot quietly depend on secrets.h.
       - name: Bridge firmware
         run: pio test -d firmware/bridge -e native
+
+      # The simnode's identity table, protocol engine and console. No secrets: the tests use
+      # the committed W4 test key, and the repo root is off the native include path.
+      - name: Simnode firmware
+        run: pio test -d firmware/simnode -e native
 
   firmware:
     name: Firmware targets
@@ -182,6 +197,13 @@ jobs:
 
       - name: Bridge Node (Heltec WiFi LoRa 32 V3)
         run: pio run -d firmware/bridge -e heltec
+
+      # The simnode reads LRAN_MASTER_KEY from the same secrets.h, copied from the template
+      # above, so it builds with the all-zero key and says so at boot. Both profiles.
+      - name: Simnode (Heltec V3, XIAO ESP32S3 + Wio-SX1262 Kit)
+        run: |
+          pio run -d firmware/simnode -e simnode-heltec
+          pio run -d firmware/simnode -e simnode-xiao-wio
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
