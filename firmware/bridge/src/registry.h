@@ -89,7 +89,7 @@ struct NodeState {
   lran::CtxId ctx_id = 0;
 
   // spec 10.2 - the bridge's command seq for this node, reset to 1 on a new ctx_id.
-  // TODO(BF-18): advanced by the command path, with spec 10.5's wrap.
+  // Advanced by take_cmd_seq(), with spec 10.5's wrap (BF-18).
   lran::Seq cmd_seq = 1;
 
   // last_seen_ms means nothing until `heard`; millis() can legitimately be 0.
@@ -148,6 +148,15 @@ class Registry final : public PeerKeys {
 
   // A poll to `id` went unanswered (BF-17). False when unregistered.
   bool note_poll_missed(lran::NodeId id);
+
+  // spec 10.2 - hands out this node's next command seq and advances it, with spec
+  // 10.5's wrap. BF-18. False when unregistered. A RETRY DOES NOT CALL THIS: root
+  // rule 2 reuses the seq of the attempt it repeats.
+  bool take_cmd_seq(lran::NodeId id, lran::Seq* out);
+
+  // spec 10.3 step 2 - adopt a ctx_id from a REJECTED_CTX and reset cmd_seq to 1.
+  // BF-18. False when unregistered.
+  bool adopt_ctx(lran::NodeId id, lran::CtxId ctx);
 
   const NodeState* state(lran::NodeId id) const;  // nullptr when unregistered
 
