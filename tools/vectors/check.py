@@ -87,6 +87,7 @@ COUNTERS = {
     "rx_unknown_type": ("6", True), "rx_unknown_schema": ("7", True),
     "rx_bad_length": ("8", True), "rx_not_fragmentable": ("8a", True),
     "rx_rejected_ctx": ("9", True), "rx_rejected_mac": ("9", True),
+    "rx_unknown_src": ("9a", True),
     "rx_reassembly_timeout": ("10", True), "rx_fragment_overflow": ("10", True),
     "rx_reassembly_abandoned": ("10", True), "rx_rejected_seq": ("11", True),
     "rx_frag_duplicate": ("10", False), "rx_frag_late": ("10", False),

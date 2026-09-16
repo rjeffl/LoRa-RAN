@@ -469,19 +469,21 @@ void test_an_unregistered_source_is_refused_and_counted() {
 
   size_t len = status_frame(kNodeGateLink, kNodeBridge, buf);
   TEST_ASSERT_TRUE(ladder.accept(buf, len, 0, &d));
-  TEST_ASSERT_FALSE(ladder.last_unregistered_src());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok), static_cast<int>(ladder.last_status()));
 
+  // spec 14 stage 9a (v0.12): counted rx_unknown_src, and it sums into rx_dropped.
   len = status_frame(kNodeWellLink, kNodeBridge, buf);
   TEST_ASSERT_FALSE(ladder.accept(buf, len, 1, &d));
-  TEST_ASSERT_TRUE(ladder.last_unregistered_src());
-  TEST_ASSERT_EQUAL_UINT32(1, ladder.unregistered_src());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::UnknownSrc),
+                        static_cast<int>(ladder.last_status()));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_unknown_src);
   TEST_ASSERT_EQUAL_UINT32(2, c.rx_frames);
-  TEST_ASSERT_EQUAL_UINT32(0, c.total_dropped());
+  TEST_ASSERT_EQUAL_UINT32(1, c.total_dropped());
 
-  // The flag describes the last frame only.
+  // last_status() describes the last frame only.
   len = status_frame(kNodeGateLink, kNodeBridge, buf);
   TEST_ASSERT_TRUE(ladder.accept(buf, len, 2, &d));
-  TEST_ASSERT_FALSE(ladder.last_unregistered_src());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok), static_cast<int>(ladder.last_status()));
 }
 
 // Before registration is set, nothing is registered.
@@ -492,7 +494,7 @@ void test_a_ladder_with_no_registry_refuses_every_source() {
   RxDelivery   d;
   const size_t len = status_frame(kNodeGateLink, kNodeBridge, buf);
   TEST_ASSERT_FALSE(ladder.accept(buf, len, 0, &d));
-  TEST_ASSERT_EQUAL_UINT32(1, ladder.unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_unknown_src);
 }
 
 // The stages spec 14 defines still run for an unregistered sender, and still count.
@@ -507,7 +509,7 @@ void test_an_unregistered_source_still_counts_the_earlier_stages() {
   const size_t len = status_frame(kNodeWellLink, kNodeSim0, buf);
   TEST_ASSERT_FALSE(ladder.accept(buf, len, 0, &d));
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_not_addressed);
-  TEST_ASSERT_EQUAL_UINT32(0, ladder.unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_unknown_src);
 }
 
 // spec 11.3 - THE REASON THE CHECK SITS BEFORE STAGE 10. Every slot holds a registered
@@ -538,7 +540,8 @@ void test_an_unregistered_fragment_takes_no_slot_and_displaces_nothing() {
 
   size_t len = ping_fragment(0x30, 1, payload, n, 0, buf);
   TEST_ASSERT_FALSE(ladder.accept(buf, len, 100, &d));
-  TEST_ASSERT_TRUE(ladder.last_unregistered_src());
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::UnknownSrc),
+                        static_cast<int>(ladder.last_status()));
   TEST_ASSERT_EQUAL_UINT32(0, c.rx_reassembly_abandoned);
 
   // Every registered set is still live and still completes.

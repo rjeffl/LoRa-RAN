@@ -134,6 +134,16 @@ enum class Status : uint8_t {
   RejectedMac,        // stage 9, spec 9.4 step 3
   RejectedCtx,        // stage 9, spec 9.4 step 2 - spec 10.1's ctx_id check
 
+  // spec 14 stage 9a (v0.12) - the frame's `src` is not a peer this receiver holds a
+  // key for. NEVER ANSWERED: spec 14.2 sends an ERROR only to a registered source, and
+  // there is no key to authenticate either direction of an exchange with a stranger.
+  //
+  // Held apart from NotAddressed on purpose. Stage 5 means "not addressed to me" and
+  // stage 9a means "addressed to me by someone I do not know" - a misconfigured `dst`
+  // against a node missing from the key set, which are different fixes at the far end
+  // of a link with no console. There is no wire code, so the name follows the counter.
+  UnknownSrc,
+
   // spec 14 stage 11 - raised by CommandGate (D34), named after the wire code like
   // the two above. RejectedSeq counts into rx_dropped; DuplicateCached is the retry
   // mechanism working and does not.

@@ -42,10 +42,11 @@ keys at load, `is_bench`, the learned fields) and `registry_runtime.{h,cpp}` (th
 its mutex, mbedTLS). Impl Plan §4.2.1 records the choices. **Two rules to keep:**
 `registry_begin()` runs before `start_tasks()`, because `lora_task` reads keys without a
 lock; and **`lora_task` never calls into `registry_runtime`**, which waits on a mutex.
-**`unregistered_src` is still a bridge diagnostic, and the specification has moved.**
-Spec v0.12 gives this discard **§14 stage 9a** and the counter **`rx_unknown_src`**, inside
-`rx_dropped`. Until **BF-15a** lands the rename, the bridge publishes the old name beside
-the registry rather than in it. Do not add a third name for it.
+**A frame from an unregistered source is `Status::UnknownSrc`** — spec §14 stage 9a,
+counted `rx_unknown_src` in the codec's own `Counters` and summed into `rx_dropped`
+(**BF-15a**). The ladder bumps it and returns false; **nothing is sent back**, because
+§14.2 answers registered sources only. `unregistered_src` was the pre-v0.12 name for it
+and exists nowhere now.
 
 **`BF-17` — the poll scheduler, built and host-tested; no poll on air yet.**
 `scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Three things to

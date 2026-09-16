@@ -16,11 +16,8 @@ still true.
 **B3b, from `main`. Nothing gates it any more.** B3a is accepted and merged, and
 **spec v0.12 answered every question B3b was waiting on** (D35–D42, 2026-09-16).
 
-Five tasks, in the order the gate cleared them:
+**BF-15a is built** (2026-09-16, host-tested, not yet on air). Four tasks left:
 
-- **BF-15a** — move `unregistered_src` into the codec as **`rx_unknown_src`** (spec §14
-  stage 9a, §14.1). The registry becomes 22 rows and the counter joins `rx_dropped`, which
-  changes a published number. **Do this before B4 builds discovery on the old name.**
 - **BF-19a** — `ERROR` replies to spec **§14.2**: registered sources only, rate-limited by
   `error_min_interval_ms` (default 1000), `ctx_id` `0`. The rate limit is the load-bearing
   part.
@@ -84,8 +81,8 @@ the bridge accepts and counts nowhere. **A fault's `dst` defaults to the bridge.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-17**, **BF-19**, **BF-20** |
-| Not done | **B3b**: BF-15a, BF-18, BF-19a, BF-21, BF-22. **BF-26** deferred. **BF-11a**, **BF-11b** |
-| Queue | BF-15a → BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
+| Not done | **B3b**: BF-18, BF-19a, BF-21, BF-22 — **BF-15a built, unflashed**. **BF-26** deferred. **BF-11a**, **BF-11b** |
+| Queue | BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -232,9 +229,10 @@ the sum at compile time.
   `lib_deps = symlink://../<dep>`, as `lib/lran-link/platformio.ini` does.
 - **A simnode PING to `00` reports no echo.** The bridge does not answer PING yet.
 - **An `RxLadder` with no `PeerKeys` refuses every frame**, as `unregistered_src`.
-- **`unregistered_src` is the old name for what spec v0.12 calls `rx_unknown_src`** (§14
-  stage 9a). Until **BF-15a**, the bridge publishes the old name outside `rx_dropped`. Do
-  not introduce a third name.
+- **`rx_unknown_src` replaced `unregistered_src` in BF-15a**, and it is inside
+  `rx_dropped` now. **The board on the bench still runs the old image**, so a counter
+  document read at the broker before the next flash carries the old key and the old sum.
+  Compare against `lran/bridge/version` before trusting either.
 - **`registry_begin()` must run before `start_tasks()`**, and **`lora_task` must never call
   `registry_runtime`**, which waits on a mutex.
 - **The library's platform crypto is not in its build.** `platform/esp32/` and
@@ -292,8 +290,9 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   configuration larger than one frame is several messages with no atomicity across them.
   Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
   designed.
-- **BF-15a** — the code still publishes `unregistered_src` outside `rx_dropped`. The
-  specification is right and the code follows it.
+- **BF-15a is done** — `rx_unknown_src` is a registry row, inside `rx_dropped`, and the
+  bridge-local counter is gone. **Not yet flashed**, so the bench board still publishes the
+  old document.
 
 #### Work no task owns
 

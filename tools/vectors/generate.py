@@ -503,6 +503,7 @@ COUNTERS = {
     "rx_not_fragmentable": ("8a", True),
     "rx_rejected_ctx": ("9", True),
     "rx_rejected_mac": ("9", True),
+    "rx_unknown_src": ("9a", True),
     "rx_reassembly_timeout": ("10", True),
     "rx_fragment_overflow": ("10", True),
     "rx_reassembly_abandoned": ("10", True),

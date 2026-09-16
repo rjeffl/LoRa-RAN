@@ -53,8 +53,7 @@ constexpr uint32_t kDiagSnapshotMs = 1000;
 portMUX_TYPE       g_diag_mux      = portMUX_INITIALIZER_UNLOCKED;
 lran::Counters     g_diag_counters;
 LoraStats          g_diag_stats;
-uint32_t           g_diag_unregistered = 0;
-uint32_t           g_diag_copied_ms    = 0;
+uint32_t           g_diag_copied_ms = 0;
 
 // Read by other tasks: ota_task for R-5.3d and the image verdict.
 std::atomic<bool> g_ready{false};
@@ -472,9 +471,8 @@ void lora_service(uint32_t now_ms) {
   if (elapsed(now_ms, g_diag_copied_ms) >= kDiagSnapshotMs) {
     g_diag_copied_ms = now_ms;
     portENTER_CRITICAL(&g_diag_mux);
-    g_diag_counters    = g_counters;
-    g_diag_stats       = g_stats;
-    g_diag_unregistered = g_ladder.unregistered_src();
+    g_diag_counters = g_counters;
+    g_diag_stats    = g_stats;
     portEXIT_CRITICAL(&g_diag_mux);
   }
 
@@ -499,11 +497,10 @@ bool lora_radio_ready() { return g_ready; }
 
 bool lora_idle() { return g_idle; }
 
-void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src) {
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats) {
   portENTER_CRITICAL(&g_diag_mux);
   if (counters != nullptr) *counters = g_diag_counters;
   if (stats != nullptr) *stats = g_diag_stats;
-  if (unregistered_src != nullptr) *unregistered_src = g_diag_unregistered;
   portEXIT_CRITICAL(&g_diag_mux);
 }
 

@@ -97,16 +97,13 @@ class RxLadder {
   // True while any peer's set is incomplete. One of lora_task's idle conditions.
   bool any_set_active() const;
 
-  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27). Ok with
-  // nothing delivered is an incomplete set, or last_unregistered_src().
+  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27). Ok
+  // with nothing delivered is an incomplete set. A frame from a source the registry does
+  // not know reads Status::UnknownSrc - spec 14 stage 9a since v0.12, counted
+  // rx_unknown_src in the codec's own Counters and summed into rx_dropped. Through v0.11
+  // it was a bridge-local diagnostic named unregistered_src, because spec 14 had no
+  // stage to map it to (BF-15a).
   lran::Status last_status() const { return last_; }
-
-  // A FRAME FROM A SOURCE THE REGISTRY DOES NOT KNOW. Spec 14 has no stage for this and
-  // spec 14.1 no counter, so it has no Status value and is a bridge diagnostic, outside
-  // rx_dropped. Raised as a specification gap in the engineering log, 2026-09-14; the
-  // name is deliberately not rx_-prefixed, so it cannot squat the one v0.12 may choose.
-  bool     last_unregistered_src() const { return last_unregistered_; }
-  uint32_t unregistered_src() const { return unregistered_src_; }
 
  private:
   struct Slot {
@@ -123,8 +120,6 @@ class RxLadder {
   const PeerKeys* keys_ = nullptr;
   Slot            slots_[kReassemblySlots];
   lran::Status    last_ = lran::Status::Ok;
-  bool            last_unregistered_ = false;
-  uint32_t        unregistered_src_  = 0;
 };
 
 }  // namespace bridge

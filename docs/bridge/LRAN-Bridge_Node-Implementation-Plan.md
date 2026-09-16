@@ -416,18 +416,18 @@ and hands `lora_task` its `PeerKeys` and `IMac`.
 on them (BF-20), downgrade on `proto_ver` (BF-22), take `poll_interval_s` from Home
 Assistant (BF-23), or gate bench publication (BF-26).
 
-> **The gap this raised is closed, and the code owes the specification a rename.** A
-> `STATUS` carries no MAC, so a frame from an address no row provisions passes all ten
-> stages §14 defined through v0.11. Root rule 4 wants every discard to have a named
-> counter, a `Status` value and a §14 stage, and this one had only the first. **Spec v0.12
-> adds stage 9a and names the counter `rx_unknown_src`**, counted into `rx_dropped` and
-> never answered.
+> **The gap this raised is closed, and the code follows the specification.** A `STATUS`
+> carries no MAC, so a frame from an address no row provisions passed all ten stages §14
+> defined through v0.11. Root rule 4 wants every discard to have a named counter, a
+> `Status` value and a §14 stage, and this one had only the first. **Spec v0.12 adds stage
+> 9a**; **BF-15a implemented it on 2026-09-16**: `lran::Status::UnknownSrc`, the counter
+> `rx_unknown_src` in `lran::Counters` and `kCounterRegistry`, summed into `rx_dropped`,
+> and never answered (§14.2). The registry is **22** rows.
 >
-> **Until the rename lands, the bridge publishes `unregistered_src`, outside
-> `rx_dropped`** — the name BF-15 chose precisely so it would not squat the one the
-> specification might pick. The specification is right and the code follows it: the
-> counter moves into `lran::Counters` and `kCounterRegistry`, which makes the registry 22
-> rows. Tracked as **BF-15a**.
+> **The bridge-local `unregistered_src` is gone**, along with the third output of
+> `lora_diag_snapshot()` and `diag_rx_json()`'s second argument. The name BF-15 chose was
+> non-`rx_` precisely so it would not squat whatever the specification picked, and it did
+> not have to be renamed in place — it was replaced.
 
 ### 4.2a Bench-node publication gate (`simnode_diag_enable`)
 
@@ -506,7 +506,7 @@ as `lran/bridge/version`'s was (BF-13).
 
 | Topic | Carries |
 |---|---|
-| `lran/bridge/diag/state` | Every §14.1 counter in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, and — until **BF-15a** — `unregistered_src` beside them rather than in them. Spec v0.12 makes the registry 22 rows and §16.2.1 fixes this payload's shape |
+| `lran/bridge/diag/state` | Every §14.1 counter in `kCounterRegistry` order — **22 rows since BF-15a** — then `rx_dropped` (the codec's sum) and `rx_frames`. Spec §16.2.1 fixes this payload's shape. **`unregistered_src` is no longer published**: it is `rx_unknown_src`, a registry row, inside `rx_dropped` |
 | `lran/bridge/diag/radio/state` | `tx_frames`, `cad_backoffs`, the driver's `LoraStats`, and each queue's `dropped` and `high_water` |
 | `lran/<node>/diag/state` | `rssi_dbm`, `snr_db`, `last_seen_s` (an age), `missed_polls`, `proto_ver`. Watched nodes only; a bench node only with `simnode_diag_enable` (§4.2a) |
 

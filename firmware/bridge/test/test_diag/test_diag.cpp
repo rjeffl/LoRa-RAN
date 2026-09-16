@@ -67,19 +67,21 @@ Counters every_counter_distinct() {
 // spec 14.1 - every registry name, once, carrying its own counter.
 void test_every_spec_14_1_counter_is_published_under_its_name() {
   const Counters c = every_counter_distinct();
-  TEST_ASSERT_GREATER_THAN(0, diag_rx_json(c, 7, g_buf, sizeof(g_buf)));
+  TEST_ASSERT_GREATER_THAN(0, diag_rx_json(c, g_buf, sizeof(g_buf)));
   for (const CounterField& f : kCounterRegistry) {
     TEST_ASSERT_EQUAL_UINT_MESSAGE(1, count_of(g_buf, f.name), f.name);
     TEST_ASSERT_EQUAL_INT64_MESSAGE(c.*(f.field), value_of(g_buf, f.name), f.name);
   }
   TEST_ASSERT_EQUAL_INT64(1000, value_of(g_buf, "rx_frames"));
-  TEST_ASSERT_EQUAL_INT64(7, value_of(g_buf, "unregistered_src"));
+  // BF-15a - rx_unknown_src is a registry row now, checked by the loop above, and the
+  // separate bridge-local key is gone.
+  TEST_ASSERT_EQUAL_INT64(-1, value_of(g_buf, "unregistered_src"));
   TEST_ASSERT_EQUAL_INT64(-1, value_of(g_buf, "tx_frames"));  // the radio document's
 }
 
 // The registry's order, so the document reads like spec 14.1's table.
 void test_counters_appear_in_registry_order() {
-  diag_rx_json(every_counter_distinct(), 0, g_buf, sizeof(g_buf));
+  diag_rx_json(every_counter_distinct(), g_buf, sizeof(g_buf));
   const char* prev = g_buf;
   for (const CounterField& f : kCounterRegistry) {
     const char* p = std::strstr(g_buf, f.name);
@@ -92,7 +94,7 @@ void test_counters_appear_in_registry_order() {
 // spec 14.1 - rx_dropped is the codec's sum, which leaves out the three marked no.
 void test_rx_dropped_is_the_spec_14_1_sum() {
   const Counters c = every_counter_distinct();
-  diag_rx_json(c, 0, g_buf, sizeof(g_buf));
+  diag_rx_json(c, g_buf, sizeof(g_buf));
   TEST_ASSERT_EQUAL_INT64(c.total_dropped(), value_of(g_buf, "rx_dropped"));
   uint32_t all = 0;
   for (const CounterField& f : kCounterRegistry) all += c.*(f.field);
@@ -104,7 +106,7 @@ void test_the_worst_case_documents_fit_a_queued_publication() {
   Counters c;
   for (const CounterField& f : kCounterRegistry) c.*(f.field) = UINT32_MAX;
   c.rx_frames = UINT32_MAX;
-  const size_t rx = diag_rx_json(c, UINT32_MAX, g_buf, sizeof(g_buf));
+  const size_t rx = diag_rx_json(c, g_buf, sizeof(g_buf));
   TEST_ASSERT_GREATER_THAN(512, rx);  // would not have fitted before BF-19
   TEST_ASSERT_LESS_THAN(kMaxPayloadLen, rx);
   PublishMessage msg;
@@ -134,10 +136,10 @@ void test_the_worst_case_documents_fit_a_queued_publication() {
 void test_a_document_that_does_not_fit_is_refused_whole() {
   char small[64];
   std::memset(small, 'x', sizeof(small));
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, 0, small, sizeof(small)));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, small, sizeof(small)));
   TEST_ASSERT_EQUAL_STRING("", small);
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, 0, nullptr, 100));
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, 0, small, 0));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, nullptr, 100));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, small, 0));
 }
 
 void test_the_radio_document_carries_the_driver_and_queue_numbers() {

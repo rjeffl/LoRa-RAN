@@ -46,6 +46,7 @@ struct Counters {
   uint32_t rx_not_fragmentable = 0;  // stage 8a - spec 11.4
   uint32_t rx_rejected_ctx     = 0;  // stage 9, spec 9.4 step 2
   uint32_t rx_rejected_mac     = 0;  // stage 9, spec 9.4 step 3
+  uint32_t rx_unknown_src      = 0;  // stage 9a (v0.12) - src is not a known peer
 
   uint32_t rx_reassembly_timeout   = 0;  // spec 11.2 - incomplete set expired
   uint32_t rx_fragment_overflow    = 0;  // spec 11.2 - index >= total, cap, staging
@@ -88,13 +89,13 @@ struct CounterField {
   bool                 in_dropped;  // spec 14.1's third column
 };
 
-inline constexpr size_t kCounterRegistryLen = 21;
+inline constexpr size_t kCounterRegistryLen = 22;
 extern const CounterField kCounterRegistry[kCounterRegistryLen];
 
 // A field added to Counters without a registry entry is a counter the bridge cannot
-// publish and rx_dropped may silently ignore. 21 registry counters plus rx_frames,
+// publish and rx_dropped may silently ignore. 22 registry counters plus rx_frames,
 // tx_frames and cad_backoffs, which spec 14.1 deliberately excludes.
-static_assert(sizeof(Counters) == 24 * sizeof(uint32_t),
+static_assert(sizeof(Counters) == 25 * sizeof(uint32_t),
               "Counters changed - update kCounterRegistry and spec 14.1 together");
 
 }  // namespace lran

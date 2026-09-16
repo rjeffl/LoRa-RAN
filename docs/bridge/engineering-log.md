@@ -1419,3 +1419,42 @@ makes `kCounterRegistry` 22 rows and changes a published number. It is **BF-15a*
 should land before B4 builds Home Assistant discovery on the old name. Until then the
 bridge publishes the old name beside the registry rather than in it — deliberately, since
 BF-15 chose a non-`rx_` name so it would not squat whatever the specification picked.
+
+---
+
+## 2026-09-16 — BF-15a: the bridge's own counter becomes the specification's
+
+**`unregistered_src` is gone and `rx_unknown_src` has taken its place**, inside
+`rx_dropped`, as spec v0.12 §14 stage 9a requires. Host-tested on both sides; **not yet
+flashed**, so the bench board still publishes the old document.
+
+**What moved.** `lran::Status::UnknownSrc` is new, and `Counters` gains `rx_unknown_src`
+between `rx_rejected_mac` and `rx_reassembly_timeout` — ladder order, which is
+`kCounterRegistry` order, which is the order the bridge publishes in. The registry is 22
+rows and `sizeof(Counters)` is 25 words. On the bridge, `RxLadder` now bumps the codec's
+counter and records `Status::UnknownSrc` as `last_status()`, so three pieces of
+bridge-local plumbing were deleted rather than renamed: `unregistered_src_`,
+`last_unregistered_`, the third output of `lora_diag_snapshot()` and `diag_rx_json()`'s
+second argument.
+
+**Four tests failed the moment the field was added, which is the whole design.**
+`sizeof(Counters)`'s `static_assert`, the registry-length check, the independent
+spec-name list in `test_framing` and the `in_dropped` column count all refused the
+half-made change. The `-Werror=switch` on `Counters::bump` would have caught a missing
+case as well. **None of these had to be looked for** — the build named them.
+
+**Both vector registries needed the row and neither produced a diff.**
+`tools/vectors/generate.py` and `check.py` each carry their own copy of §14.1, and
+`check.py` refuses a vector naming a counter outside it. No vector names `rx_unknown_src`
+— the bridge's registry raises it, not the codec — so all 72 vectors re-derived byte for
+byte.
+
+**The published document changes shape, and that is the reason this ran before B4.**
+`lran/bridge/diag/state` loses the `unregistered_src` key, gains `rx_unknown_src` among
+the counters, and **`rx_dropped` now includes it**. A Home Assistant sensor built on the
+old key would have broken silently at whatever later date this landed; nothing is built on
+it yet.
+
+**What is not done.** No frame from an unknown source has crossed the air against this
+build. The bench proof is BF-19a's to take, since the same path decides what is answered
+and what is discarded in silence.

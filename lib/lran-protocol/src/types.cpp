@@ -25,6 +25,7 @@ const char* to_string(Status s) {
     case Status::FragmentOverflow:  return "FragmentOverflow";
     case Status::RejectedMac:       return "RejectedMac";
     case Status::RejectedCtx:       return "RejectedCtx";
+    case Status::UnknownSrc:        return "UnknownSrc";
     case Status::RejectedSeq:       return "RejectedSeq";
     case Status::DuplicateCached:   return "DuplicateCached";
     case Status::DuplicateInFlight: return "DuplicateInFlight";

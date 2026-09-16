@@ -68,8 +68,9 @@ bool lora_idle();
 // Safe from any task. lora_task copies them under a spinlock once a second, so the view is
 // up to a second old; rx_dropped computed from it always agrees with the counters beside it.
 //
-// `unregistered_src`: frames refused because the registry does not know their source. A
-// bridge diagnostic, not spec 14.1: spec 14 has no stage for it (rx_ladder.h).
-void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src);
+// Since BF-15a a frame from an unregistered source is `rx_unknown_src` inside `counters`
+// - spec 14 stage 9a, summed into rx_dropped. It was a separate output of this call while
+// spec 14 had no stage to map it to.
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats);
 
 }  // namespace bridge
