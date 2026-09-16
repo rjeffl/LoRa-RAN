@@ -48,7 +48,7 @@ BRIDGE_SRC = ROOT / "firmware" / "bridge" / "src"
 # media_access.cpp left this list on 2026-09-14, when it moved to lib/lran-link for the
 # simnode to share. It is not unchecked: that library builds in a `native` environment
 # with no Arduino or FreeRTOS header, so it cannot name anything this check looks for.
-LORA_FILES = ("lora_link.cpp", "rx_ladder.cpp", "registry.cpp")
+LORA_FILES = ("lora_link.cpp", "rx_ladder.cpp", "registry.cpp", "error_reply.cpp")
 
 # Functions owned by lora_task inside files that also hold other tasks.
 LORA_FUNCTIONS = (("task_runtime.cpp", "lora_task"),)

@@ -1458,3 +1458,58 @@ it yet.
 **What is not done.** No frame from an unknown source has crossed the air against this
 build. The bench proof is BF-19a's to take, since the same path decides what is answered
 and what is discarded in silence.
+
+---
+
+## 2026-09-16 — BF-19a: the bridge answers, under §14.2's two bounds
+
+**The bridge sends §14's `ERROR` replies now**, built to spec v0.12 §14.2 and host-tested.
+Nothing has gone on air: the §10.5 catalogue is the test, and six of its entries — 
+`crit_ext`, `frag_zero`, `unknown_type`, `unknown_schema`, `bad_length` and `frag_command` —
+should each produce a reply at the simnode.
+
+**`error_reply.{h,cpp}` decides and `lora_task` sends.** The policy is Arduino-free and
+I/O-free like `scheduler` and `node_availability`, because the bounds are what needs
+testing and they are all decisions: which status maps to which `err_code`, whether the
+source is registered, and whether the limit has elapsed. `lora_task` builds the frame and
+posts it to the TX queue with no wait, so a reply takes its turn at media access behind
+whatever is already waiting — an `ERROR` competes with polls for airtime, as it should.
+
+**The stage-10 reply needed the ladder to say *what* expired.** `RxLadder::tick()` returned
+nothing, and an `ERROR(REASSEMBLY_TIMEOUT)` needs a `dst`. It now reports each peer whose
+set expired, read **before** the tick: `reassembly.h` documents `src()` and `seq()` as valid
+"while `active()` or a set has completed", and after an expiry neither holds.
+
+**A mutation test that passed, and what it taught.** Moving that read to *after* the tick
+changed nothing — every test still passed. `Reassembler::reset()` clears the set's state and
+**not** its key, so the accessors keep returning the expired set's values. The order is
+still correct by contract and the wrong order is still a defect waiting on a library change
+nobody would connect to it; the comment now says that, rather than claiming the code reads
+zeros.
+
+**What the mutations did catch**, each with the tests that bit:
+
+| Mutation | Result |
+|---|---|
+| Drop the registered-source check | 2 failed |
+| Rate limit never fires | 4 failed |
+| Rate-limit the first reply of a boot | 8 failed |
+
+**The first-reply case is the one worth keeping.** A table of zeroed timestamps against a
+plain `now - last >= interval` refuses every peer's first reply for the first second after
+boot — invisible, and exactly when a misconfigured node is most likely to be shouting. The
+table seeds each new peer at one interval in the past instead.
+
+**`BAD_CRC` and `BAD_VERSION` stay unbuilt**, as §14 marks them optional. A frame that
+failed CRC has a `src` field that cannot be trusted to name its sender, so the reply would
+go to an address chosen by corruption. An unreadable `ver` is **BF-22**'s to answer, with
+the per-node downgrade in hand.
+
+**Replies the limit withholds are counted** as `errors_suppressed` on
+`lran/bridge/diag/radio/state`, beside the queue statistics rather than among the §14.1
+counters. It is not a discard — the frame that provoked it is already counted by the stage
+that discarded it, and counting the silence again would double it.
+
+**`error_reply.cpp` joined `tools/checks/lora_task_never_blocks.py`'s file list**, because
+it runs in `lora_task` for the same reason `rx_ladder.cpp` does. Five regions now, four
+before.

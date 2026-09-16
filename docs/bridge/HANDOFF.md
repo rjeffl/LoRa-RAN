@@ -16,11 +16,10 @@ still true.
 **B3b, from `main`. Nothing gates it any more.** B3a is accepted and merged, and
 **spec v0.12 answered every question B3b was waiting on** (D35–D42, 2026-09-16).
 
-**BF-15a is built** (2026-09-16, host-tested, not yet on air). Four tasks left:
+**BF-15a and BF-19a are built** (2026-09-16, host-tested, neither on air). Three tasks
+left, and **the next one needs the bench, not the keyboard**: nothing BF-19a sends has been
+seen on air, and the §10.5 catalogue is what would show it.
 
-- **BF-19a** — `ERROR` replies to spec **§14.2**: registered sources only, rate-limited by
-  `error_min_interval_ms` (default 1000), `ctx_id` `0`. The rate limit is the load-bearing
-  part.
 - **BF-18** — the command path. §6.3 now says a `DUPLICATE_CACHED` result travels in
   `detail`; §7.4 says a repeated `CONFIG` is answered from the dedup cache.
 - **BF-21** — the §10.5 catalogue as a committed `simctl` script. This session drove it
@@ -81,8 +80,8 @@ the bridge accepts and counts nowhere. **A fault's `dst` defaults to the bridge.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-17**, **BF-19**, **BF-20** |
-| Not done | **B3b**: BF-18, BF-19a, BF-21, BF-22 — **BF-15a built, unflashed**. **BF-26** deferred. **BF-11a**, **BF-11b** |
-| Queue | BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
+| Not done | **B3b**: BF-18, BF-21, BF-22 — **BF-15a and BF-19a built, unflashed**. **BF-26** deferred. **BF-11a**, **BF-11b** |
+| Queue | A bench run for BF-15a and BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -290,9 +289,12 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   configuration larger than one frame is several messages with no atomicity across them.
   Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
   designed.
-- **BF-15a is done** — `rx_unknown_src` is a registry row, inside `rx_dropped`, and the
-  bridge-local counter is gone. **Not yet flashed**, so the bench board still publishes the
-  old document.
+- **BF-15a and BF-19a are done** — `rx_unknown_src` is a registry row inside `rx_dropped`,
+  and the bridge answers §14's `ERROR`s under §14.2's two bounds. **Neither has been
+  flashed**, so the bench board still publishes the old document and still answers nothing.
+  **The §10.5 catalogue is the test for both**: each entry that names an `ERROR` should now
+  produce one at the simnode, and `crit_ext`, `frag_zero`, `unknown_type`, `unknown_schema`,
+  `bad_length` and `frag_command` are the six that do.
 
 #### Work no task owns
 

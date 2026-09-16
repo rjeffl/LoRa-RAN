@@ -94,6 +94,7 @@ size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap) {
   JsonObject j(out, cap);
   j.u32("tx_frames", r.tx_frames);
   j.u32("cad_backoffs", r.cad_backoffs);
+  j.u32("errors_suppressed", r.errors_suppressed);
   j.u32("cad_deferred", r.stats.cad_deferred);
   j.u32("cad_errors", r.stats.cad_errors);
   j.u32("tx_forced", r.stats.tx_forced);

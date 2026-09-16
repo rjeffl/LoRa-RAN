@@ -380,6 +380,61 @@ void test_the_reassembly_timeout_is_runtime_settable() {
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
 }
 
+// BF-19a - spec 14 stage 10 answers an expired set with ERROR(REASSEMBLY_TIMEOUT), and
+// the tick is the only place that knows which peer is owed one.
+void test_the_tick_reports_which_peer_s_set_expired() {
+  Counters   c;
+  RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+  uint8_t    payload[kMaxPayloadPlain];
+  const size_t n = ping_payload(40, payload);
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+
+  ladder.set_frag_timeout_ms(100);
+  size_t len = ping_fragment(kNodeSim0, 11, payload, n, 0, buf);
+  ladder.accept(buf, len, 0, &d);
+  len = ping_fragment(kNodeSim2, 22, payload, n, 0, buf);
+  ladder.accept(buf, len, 0, &d);
+
+  // Nothing has expired yet, and a tick that expires nothing reports nothing.
+  ExpiredSet expired[kReassemblySlots];
+  TEST_ASSERT_EQUAL_UINT(0, ladder.tick(50, expired, kReassemblySlots));
+
+  TEST_ASSERT_EQUAL_UINT(2, ladder.tick(100, expired, kReassemblySlots));
+  TEST_ASSERT_EQUAL_UINT32(2, c.rx_reassembly_timeout);
+
+  // Both peers, each with the seq of the set that expired - the ref_seq spec 6.5 wants.
+  bool saw_sim0 = false, saw_sim2 = false;
+  for (size_t i = 0; i < 2; ++i) {
+    if (expired[i].src == kNodeSim0 && expired[i].seq == 11) saw_sim0 = true;
+    if (expired[i].src == kNodeSim2 && expired[i].seq == 22) saw_sim2 = true;
+  }
+  TEST_ASSERT_TRUE(saw_sim0);
+  TEST_ASSERT_TRUE(saw_sim2);
+
+  // A second tick reports nothing: the sets are gone, not merely old.
+  TEST_ASSERT_EQUAL_UINT(0, ladder.tick(1000, expired, kReassemblySlots));
+}
+
+// A caller that sends no ERROR still expires sets - the reporting is optional, the
+// expiry is not.
+void test_a_tick_with_no_buffer_still_expires() {
+  Counters   c;
+  RxLadder   ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+  uint8_t    payload[kMaxPayloadPlain];
+  const size_t n = ping_payload(40, payload);
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+
+  ladder.set_frag_timeout_ms(100);
+  const size_t len = ping_fragment(kNodeSim1, 5, payload, n, 0, buf);
+  ladder.accept(buf, len, 0, &d);
+  TEST_ASSERT_EQUAL_UINT(1, ladder.tick(100));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_reassembly_timeout);
+}
+
 // spec 11.2 - an echo of a completed set's fragment is late, counted outside
 // rx_dropped, and never delivered a second time.
 void test_a_late_fragment_is_not_delivered_twice() {
@@ -574,6 +629,8 @@ int main() {
   RUN_TEST(test_slot_exhaustion_abandons_the_oldest_set_and_counts);
   RUN_TEST(test_an_incomplete_set_times_out_on_tick);
   RUN_TEST(test_the_reassembly_timeout_is_runtime_settable);
+  RUN_TEST(test_the_tick_reports_which_peer_s_set_expired);
+  RUN_TEST(test_a_tick_with_no_buffer_still_expires);
   RUN_TEST(test_a_late_fragment_is_not_delivered_twice);
   RUN_TEST(test_an_authenticated_frame_without_keys_is_refused);
   RUN_TEST(test_an_authenticated_frame_with_the_wrong_key_is_refused);

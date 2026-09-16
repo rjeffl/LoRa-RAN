@@ -518,7 +518,8 @@ as `lran/bridge/version`'s was (BF-13).
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
 | `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
 | A refused publication | Not retried; the next interval carries newer numbers |
-| `ERROR` replies (spec §14) | **Not built. BF-19a builds them to spec v0.12 §14.2**: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered |
+| `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), host-tested, not yet on air.** Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
+| Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
 
 ### 4.4 Home Assistant discovery
 

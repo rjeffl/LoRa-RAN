@@ -49,6 +49,10 @@ struct RadioDiag {
   LoraStats stats;
   uint32_t  tx_frames    = 0;
   uint32_t  cad_backoffs = 0;
+  // BF-19a - ERRORs spec 14.2's rate limit withheld. The bridge's own, like the queue
+  // statistics beside it: it is not a discard and spec 14.1 does not name it. A number
+  // that climbs here means a peer is producing faults faster than one a second.
+  uint32_t  errors_suppressed = 0;
   QueueStat queues[kQueueCount];
 };
 size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap);
