@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.33
+**Version:** 0.34
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1340,6 +1340,15 @@ rename after that is breaking. A row whose counter does not appear in
 | `flood` | Frames at maximum rate | — | Bridge stays responsive; `lora_task` does not block (§1.3) |
 | `silent` | Identity stops answering | — | Availability → offline after `missed_poll_threshold` (**V-B3**) |
 
+**A row that emits more than one frame cannot confirm its own ERROR from the same board.**
+Measured 2026-09-16 on `bad_length` and on a four-frame `unknown_type` burst. The bridge
+answers at once and cannot receive while it transmits, so the row's next frame arrives into
+a deaf receiver; the sender is transmitting that frame, so it cannot hear the reply. Both
+losses are the same half-duplex property and neither end is at fault. **`gap` spaces
+injections, not the frames inside one injection**, so the spacing that makes single-frame
+rows clean does not reach inside a multi-frame one. **BF-21 has to read those rows from the
+bridge's counters, or drive the row from one board and listen on a second.**
+
 **`single_frame_interleave` is the highest-value entry in this table**, and the only test
 of spec v0.6's sole behavioural change. §11.2 states that a single-frame frame never
 begins, joins, displaces or expires a set. The defect it fixes is a receiver routing every
@@ -1888,6 +1897,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.34** | **§10.5** — a multi-frame row cannot confirm its own ERROR from the same board, measured 2026-09-16; what that costs BF-21 |
 | **v0.32** | **§8** — B3 split into **B3a** and **B3b**; §7.1's milestone column follows |
 | **v0.31** | **New §4.3.2** — BF-19's diagnostic documents; `kMaxPayloadLen` 768; ERROR replies split to BF-19a |
 | **v0.30** | **New §6.1.2** — BF-20's availability watchdog; bench availability waits for BF-26 |
