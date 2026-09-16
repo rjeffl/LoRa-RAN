@@ -279,15 +279,15 @@ void sched_diag(uint32_t now_ms) {
 
   lran::Counters c;
   RadioDiag      r;
-  uint32_t       unregistered = 0;
-  lora_diag_snapshot(&c, &r.stats, &unregistered);
-  r.tx_frames    = c.tx_frames;
-  r.cad_backoffs = c.cad_backoffs;
+  lora_diag_snapshot(&c, &r.stats);
+  r.tx_frames         = c.tx_frames;
+  r.cad_backoffs      = c.cad_backoffs;
+  r.errors_suppressed = lora_errors_suppressed();
   for (size_t q = 0; q < kQueueCount; ++q) r.queues[q] = g_accounting.stat(static_cast<QueueId>(q));
 
   char topic[kMaxTopicLen];
   if (topic_diag("bridge", nullptr, topic, sizeof(topic)) > 0 &&
-      diag_rx_json(c, unregistered, g_sched_json, sizeof(g_sched_json)) > 0) {
+      diag_rx_json(c, g_sched_json, sizeof(g_sched_json)) > 0) {
     (void)sched_publish(topic, g_sched_json);
   }
   if (topic_diag("bridge", "radio", topic, sizeof(topic)) > 0 &&

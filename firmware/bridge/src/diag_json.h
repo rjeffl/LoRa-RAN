@@ -39,16 +39,20 @@ namespace bridge {
 inline constexpr uint16_t kDiagPublishIntervalDefaultS = 60;
 
 // lran/bridge/diag/state - every spec 14.1 counter in kCounterRegistry order, then
-// `rx_dropped` (spec 14.1's sum), `rx_frames` and `unregistered_src`.
+// `rx_dropped` (spec 14.1's sum) and `rx_frames`. `rx_unknown_src` is a registry row like
+// any other since BF-15a (spec 14 stage 9a); it was published beside them until then.
 // Returns the length written, or 0 with out[0] = '\0' when `cap` is too small.
-size_t diag_rx_json(const lran::Counters& c, uint32_t unregistered_src, char* out,
-                    size_t cap);
+size_t diag_rx_json(const lran::Counters& c, char* out, size_t cap);
 
 // What lran/bridge/diag/radio/state carries: the radio's own diagnostics and the queues'.
 struct RadioDiag {
   LoraStats stats;
   uint32_t  tx_frames    = 0;
   uint32_t  cad_backoffs = 0;
+  // BF-19a - ERRORs spec 14.2's rate limit withheld. The bridge's own, like the queue
+  // statistics beside it: it is not a discard and spec 14.1 does not name it. A number
+  // that climbs here means a peer is producing faults faster than one a second.
+  uint32_t  errors_suppressed = 0;
   QueueStat queues[kQueueCount];
 };
 size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap);

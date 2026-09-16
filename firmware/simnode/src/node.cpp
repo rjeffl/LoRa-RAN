@@ -188,6 +188,20 @@ void Node::on_rx(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_d
   }
 }
 
+void Node::on_error(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len) {
+  lran::msg::Error err;
+  if (lran::msg::deserialize(payload, len, &err) != lran::Status::Ok) {
+    sink_printf(log_, "rx %02x <- %02x ERROR: %u B, would not decode", e.id, hdr.src,
+                static_cast<unsigned>(len));
+    return;
+  }
+  // spec 8.8's err_code, printed raw: the library has no to_string for it, and a bench
+  // instrument is the wrong place to grow one.
+  sink_printf(log_, "rx %02x <- %02x ERROR err_code 0x%02x detail 0x%02x ref_seq %u", e.id,
+              hdr.src, static_cast<unsigned>(err.err_code), static_cast<unsigned>(err.detail),
+              static_cast<unsigned>(err.ref_seq));
+}
+
 void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
                    uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms) {
   if (level_ == LogLevel::Debug) {
@@ -197,6 +211,12 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
   }
 
   switch (hdr.type) {
+    case lran::MsgType::Error:
+      // BF-19a - the bridge's spec 14.2 reply. The simnode acts on none of it; it is
+      // logged because the catalogue's only on-air evidence of WHICH spec 14 stage fired
+      // is the err_code, and every other line here reports type and length alone.
+      on_error(e, hdr, payload, len);
+      return;
     case lran::MsgType::Ping:
       on_ping(e, hdr, payload, len, fragments, rssi_dbm, snr_db10, now_ms);
       return;

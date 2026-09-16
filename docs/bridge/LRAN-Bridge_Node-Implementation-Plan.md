@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.33
+**Version:** 0.34
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -416,18 +416,18 @@ and hands `lora_task` its `PeerKeys` and `IMac`.
 on them (BF-20), downgrade on `proto_ver` (BF-22), take `poll_interval_s` from Home
 Assistant (BF-23), or gate bench publication (BF-26).
 
-> **The gap this raised is closed, and the code owes the specification a rename.** A
-> `STATUS` carries no MAC, so a frame from an address no row provisions passes all ten
-> stages §14 defined through v0.11. Root rule 4 wants every discard to have a named
-> counter, a `Status` value and a §14 stage, and this one had only the first. **Spec v0.12
-> adds stage 9a and names the counter `rx_unknown_src`**, counted into `rx_dropped` and
-> never answered.
+> **The gap this raised is closed, and the code follows the specification.** A `STATUS`
+> carries no MAC, so a frame from an address no row provisions passed all ten stages §14
+> defined through v0.11. Root rule 4 wants every discard to have a named counter, a
+> `Status` value and a §14 stage, and this one had only the first. **Spec v0.12 adds stage
+> 9a**; **BF-15a implemented it on 2026-09-16**: `lran::Status::UnknownSrc`, the counter
+> `rx_unknown_src` in `lran::Counters` and `kCounterRegistry`, summed into `rx_dropped`,
+> and never answered (§14.2). The registry is **22** rows.
 >
-> **Until the rename lands, the bridge publishes `unregistered_src`, outside
-> `rx_dropped`** — the name BF-15 chose precisely so it would not squat the one the
-> specification might pick. The specification is right and the code follows it: the
-> counter moves into `lran::Counters` and `kCounterRegistry`, which makes the registry 22
-> rows. Tracked as **BF-15a**.
+> **The bridge-local `unregistered_src` is gone**, along with the third output of
+> `lora_diag_snapshot()` and `diag_rx_json()`'s second argument. The name BF-15 chose was
+> non-`rx_` precisely so it would not squat whatever the specification picked, and it did
+> not have to be renamed in place — it was replaced.
 
 ### 4.2a Bench-node publication gate (`simnode_diag_enable`)
 
@@ -506,7 +506,7 @@ as `lran/bridge/version`'s was (BF-13).
 
 | Topic | Carries |
 |---|---|
-| `lran/bridge/diag/state` | Every §14.1 counter in `kCounterRegistry` order, `rx_dropped` (the codec's sum), `rx_frames`, and — until **BF-15a** — `unregistered_src` beside them rather than in them. Spec v0.12 makes the registry 22 rows and §16.2.1 fixes this payload's shape |
+| `lran/bridge/diag/state` | Every §14.1 counter in `kCounterRegistry` order — **22 rows since BF-15a** — then `rx_dropped` (the codec's sum) and `rx_frames`. Spec §16.2.1 fixes this payload's shape. **`unregistered_src` is no longer published**: it is `rx_unknown_src`, a registry row, inside `rx_dropped` |
 | `lran/bridge/diag/radio/state` | `tx_frames`, `cad_backoffs`, the driver's `LoraStats`, and each queue's `dropped` and `high_water` |
 | `lran/<node>/diag/state` | `rssi_dbm`, `snr_db`, `last_seen_s` (an age), `missed_polls`, `proto_ver`. Watched nodes only; a bench node only with `simnode_diag_enable` (§4.2a) |
 
@@ -518,7 +518,8 @@ as `lran/bridge/version`'s was (BF-13).
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
 | `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
 | A refused publication | Not retried; the next interval carries newer numbers |
-| `ERROR` replies (spec §14) | **Not built. BF-19a builds them to spec v0.12 §14.2**: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered |
+| `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), host-tested, not yet on air.** Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
+| Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
 
 ### 4.4 Home Assistant discovery
 
@@ -1339,6 +1340,15 @@ rename after that is breaking. A row whose counter does not appear in
 | `flood` | Frames at maximum rate | — | Bridge stays responsive; `lora_task` does not block (§1.3) |
 | `silent` | Identity stops answering | — | Availability → offline after `missed_poll_threshold` (**V-B3**) |
 
+**A row that emits more than one frame cannot confirm its own ERROR from the same board.**
+Measured 2026-09-16 on `bad_length` and on a four-frame `unknown_type` burst. The bridge
+answers at once and cannot receive while it transmits, so the row's next frame arrives into
+a deaf receiver; the sender is transmitting that frame, so it cannot hear the reply. Both
+losses are the same half-duplex property and neither end is at fault. **`gap` spaces
+injections, not the frames inside one injection**, so the spacing that makes single-frame
+rows clean does not reach inside a multi-frame one. **BF-21 has to read those rows from the
+bridge's counters, or drive the row from one board and listen on a second.**
+
 **`single_frame_interleave` is the highest-value entry in this table**, and the only test
 of spec v0.6's sole behavioural change. §11.2 states that a single-frame frame never
 begins, joins, displaces or expires a set. The defect it fixes is a receiver routing every
@@ -1887,6 +1897,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.34** | **§10.5** — a multi-frame row cannot confirm its own ERROR from the same board, measured 2026-09-16; what that costs BF-21 |
 | **v0.32** | **§8** — B3 split into **B3a** and **B3b**; §7.1's milestone column follows |
 | **v0.31** | **New §4.3.2** — BF-19's diagnostic documents; `kMaxPayloadLen` 768; ERROR replies split to BF-19a |
 | **v0.30** | **New §6.1.2** — BF-20's availability watchdog; bench availability waits for BF-26 |

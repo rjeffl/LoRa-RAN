@@ -53,8 +53,15 @@ constexpr uint32_t kDiagSnapshotMs = 1000;
 portMUX_TYPE       g_diag_mux      = portMUX_INITIALIZER_UNLOCKED;
 lran::Counters     g_diag_counters;
 LoraStats          g_diag_stats;
-uint32_t           g_diag_unregistered = 0;
-uint32_t           g_diag_copied_ms    = 0;
+uint32_t           g_diag_copied_ms   = 0;
+uint32_t           g_diag_err_suppressed = 0;
+
+// BF-19a, spec 14.2. The policy decides whether an ERROR may be sent; this task builds it
+// and queues it like any other frame, so it takes its turn at media access behind whatever
+// is already waiting. g_error_seq is the bridge's own sequence space: local and advisory
+// (spec 10.2), and it advances no high-water mark anywhere.
+ErrorReplyPolicy   g_error_policy;
+lran::Seq          g_error_seq = 1;
 
 // Read by other tasks: ota_task for R-5.3d and the image verdict.
 std::atomic<bool> g_ready{false};
@@ -246,6 +253,22 @@ void queue_delivery(const RxDelivery& d, float rssi, float snr, uint32_t now_ms)
   (void)send_rx(g_rx_msg);
 }
 
+// BF-19a - spec 14.2. Consults the policy, and on a yes builds the frame and posts it to
+// the TX queue with no wait, exactly as a poll is posted. A queue that refuses it has
+// already counted the drop; the frame that provoked the ERROR is counted by its own stage
+// either way, so nothing here is lost silently.
+void reply_error(lran::Status s, lran::NodeId src, lran::Seq seq, uint32_t now_ms) {
+  const bool registered = g_ladder.registered(src);
+  const ErrorReply reply = g_error_policy.decide(s, src, seq, registered, now_ms);
+  if (!reply.send) return;
+
+  TxMessage tx;
+  tx.dst = reply.dst;
+  tx.len = build_error_frame(reply, g_error_seq++, tx.bytes, sizeof(tx.bytes));
+  if (tx.len == 0) return;
+  (void)send_tx(tx);
+}
+
 void service_receive(uint32_t now_ms) {
   if (!g_dio1 && elapsed(now_ms, g_last_irq_read_ms) < kIrqReadMs) return;
   g_dio1             = false;
@@ -288,6 +311,10 @@ void service_receive(uint32_t now_ms) {
   RxDelivery d;
   if (g_ladder.accept(g_rx_buf, len, now_ms, &d)) {
     queue_delivery(d, rssi, snr, now_ms);
+  } else {
+    // spec 14.2 (BF-19a). A stage that names no ERROR, a source the registry does not
+    // know, or a frame too short to have a readable `src` all leave decide() at no.
+    reply_error(g_ladder.last_status(), g_ladder.last_src(), g_ladder.last_seq(), now_ms);
   }
   // TODO(BF-27): the raw frame log, with g_ladder.last_status() as the discard reason.
 }
@@ -464,7 +491,13 @@ void lora_service(uint32_t now_ms) {
       break;
   }
 
-  g_ladder.tick(now_ms);
+  // spec 14 stage 10 - a set whose remaining fragments never arrived is answered from the
+  // tick, not from an arrival, because the peer's silence is the whole event (spec 11.2).
+  ExpiredSet   expired[kReassemblySlots];
+  const size_t n = g_ladder.tick(now_ms, expired, kReassemblySlots);
+  for (size_t i = 0; i < n && i < kReassemblySlots; ++i) {
+    reply_error(lran::Status::ReassemblyTimeout, expired[i].src, expired[i].seq, now_ms);
+  }
 
   // BF-19. Another task reading g_counters field by field could see rx_dropped's parts
   // from two moments. A spinlock, not a mutex: lora_task never waits on another task, and
@@ -472,9 +505,9 @@ void lora_service(uint32_t now_ms) {
   if (elapsed(now_ms, g_diag_copied_ms) >= kDiagSnapshotMs) {
     g_diag_copied_ms = now_ms;
     portENTER_CRITICAL(&g_diag_mux);
-    g_diag_counters    = g_counters;
-    g_diag_stats       = g_stats;
-    g_diag_unregistered = g_ladder.unregistered_src();
+    g_diag_counters       = g_counters;
+    g_diag_stats          = g_stats;
+    g_diag_err_suppressed = g_error_policy.suppressed();
     portEXIT_CRITICAL(&g_diag_mux);
   }
 
@@ -493,17 +526,27 @@ void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms) {
   g_ladder.set_frag_timeout_ms(frag_timeout_ms);
 }
 
+void lora_configure_errors(uint32_t min_interval_ms) {
+  g_error_policy.configure(min_interval_ms);
+}
+
+uint32_t lora_errors_suppressed() {
+  portENTER_CRITICAL(&g_diag_mux);
+  const uint32_t v = g_diag_err_suppressed;
+  portEXIT_CRITICAL(&g_diag_mux);
+  return v;
+}
+
 void lora_set_auth(lran::IMac* mac, const PeerKeys* keys) { g_ladder.set_auth(mac, keys); }
 
 bool lora_radio_ready() { return g_ready; }
 
 bool lora_idle() { return g_idle; }
 
-void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src) {
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats) {
   portENTER_CRITICAL(&g_diag_mux);
   if (counters != nullptr) *counters = g_diag_counters;
   if (stats != nullptr) *stats = g_diag_stats;
-  if (unregistered_src != nullptr) *unregistered_src = g_diag_unregistered;
   portEXIT_CRITICAL(&g_diag_mux);
 }
 

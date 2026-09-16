@@ -1419,3 +1419,193 @@ makes `kCounterRegistry` 22 rows and changes a published number. It is **BF-15a*
 should land before B4 builds Home Assistant discovery on the old name. Until then the
 bridge publishes the old name beside the registry rather than in it — deliberately, since
 BF-15 chose a non-`rx_` name so it would not squat whatever the specification picked.
+
+---
+
+## 2026-09-16 — BF-15a: the bridge's own counter becomes the specification's
+
+**`unregistered_src` is gone and `rx_unknown_src` has taken its place**, inside
+`rx_dropped`, as spec v0.12 §14 stage 9a requires. Host-tested on both sides; **not yet
+flashed**, so the bench board still publishes the old document.
+
+**What moved.** `lran::Status::UnknownSrc` is new, and `Counters` gains `rx_unknown_src`
+between `rx_rejected_mac` and `rx_reassembly_timeout` — ladder order, which is
+`kCounterRegistry` order, which is the order the bridge publishes in. The registry is 22
+rows and `sizeof(Counters)` is 25 words. On the bridge, `RxLadder` now bumps the codec's
+counter and records `Status::UnknownSrc` as `last_status()`, so three pieces of
+bridge-local plumbing were deleted rather than renamed: `unregistered_src_`,
+`last_unregistered_`, the third output of `lora_diag_snapshot()` and `diag_rx_json()`'s
+second argument.
+
+**Four tests failed the moment the field was added, which is the whole design.**
+`sizeof(Counters)`'s `static_assert`, the registry-length check, the independent
+spec-name list in `test_framing` and the `in_dropped` column count all refused the
+half-made change. The `-Werror=switch` on `Counters::bump` would have caught a missing
+case as well. **None of these had to be looked for** — the build named them.
+
+**Both vector registries needed the row and neither produced a diff.**
+`tools/vectors/generate.py` and `check.py` each carry their own copy of §14.1, and
+`check.py` refuses a vector naming a counter outside it. No vector names `rx_unknown_src`
+— the bridge's registry raises it, not the codec — so all 72 vectors re-derived byte for
+byte.
+
+**The published document changes shape, and that is the reason this ran before B4.**
+`lran/bridge/diag/state` loses the `unregistered_src` key, gains `rx_unknown_src` among
+the counters, and **`rx_dropped` now includes it**. A Home Assistant sensor built on the
+old key would have broken silently at whatever later date this landed; nothing is built on
+it yet.
+
+**What is not done.** No frame from an unknown source has crossed the air against this
+build. The bench proof is BF-19a's to take, since the same path decides what is answered
+and what is discarded in silence.
+
+---
+
+## 2026-09-16 — BF-19a: the bridge answers, under §14.2's two bounds
+
+**The bridge sends §14's `ERROR` replies now**, built to spec v0.12 §14.2 and host-tested.
+Nothing has gone on air: the §10.5 catalogue is the test, and six of its entries — 
+`crit_ext`, `frag_zero`, `unknown_type`, `unknown_schema`, `bad_length` and `frag_command` —
+should each produce a reply at the simnode.
+
+**`error_reply.{h,cpp}` decides and `lora_task` sends.** The policy is Arduino-free and
+I/O-free like `scheduler` and `node_availability`, because the bounds are what needs
+testing and they are all decisions: which status maps to which `err_code`, whether the
+source is registered, and whether the limit has elapsed. `lora_task` builds the frame and
+posts it to the TX queue with no wait, so a reply takes its turn at media access behind
+whatever is already waiting — an `ERROR` competes with polls for airtime, as it should.
+
+**The stage-10 reply needed the ladder to say *what* expired.** `RxLadder::tick()` returned
+nothing, and an `ERROR(REASSEMBLY_TIMEOUT)` needs a `dst`. It now reports each peer whose
+set expired, read **before** the tick: `reassembly.h` documents `src()` and `seq()` as valid
+"while `active()` or a set has completed", and after an expiry neither holds.
+
+**A mutation test that passed, and what it taught.** Moving that read to *after* the tick
+changed nothing — every test still passed. `Reassembler::reset()` clears the set's state and
+**not** its key, so the accessors keep returning the expired set's values. The order is
+still correct by contract and the wrong order is still a defect waiting on a library change
+nobody would connect to it; the comment now says that, rather than claiming the code reads
+zeros.
+
+**What the mutations did catch**, each with the tests that bit:
+
+| Mutation | Result |
+|---|---|
+| Drop the registered-source check | 2 failed |
+| Rate limit never fires | 4 failed |
+| Rate-limit the first reply of a boot | 8 failed |
+
+**The first-reply case is the one worth keeping.** A table of zeroed timestamps against a
+plain `now - last >= interval` refuses every peer's first reply for the first second after
+boot — invisible, and exactly when a misconfigured node is most likely to be shouting. The
+table seeds each new peer at one interval in the past instead.
+
+**`BAD_CRC` and `BAD_VERSION` stay unbuilt**, as §14 marks them optional. A frame that
+failed CRC has a `src` field that cannot be trusted to name its sender, so the reply would
+go to an address chosen by corruption. An unreadable `ver` is **BF-22**'s to answer, with
+the per-node downgrade in hand.
+
+**Replies the limit withholds are counted** as `errors_suppressed` on
+`lran/bridge/diag/radio/state`, beside the queue statistics rather than among the §14.1
+counters. It is not a discard — the frame that provoked it is already counted by the stage
+that discarded it, and counting the silence again would double it.
+
+**`error_reply.cpp` joined `tools/checks/lora_task_never_blocks.py`'s file list**, because
+it runs in `lora_task` for the same reason `rx_ladder.cpp` does. Five regions now, four
+before.
+
+## 2026-09-16 — BF-15a and BF-19a on air: the §10.5 ERROR rows, and what a half-duplex reply costs
+
+**Both ends reflashed from `afd2178`, counters from zero.** Bridge banner `Version: 0.1.0
+(afd2178)`, `Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)`; the
+simnode Heltec was reflashed in the same session because its running image still cited spec
+v0.11. Every counter below is a cumulative total from that boot, read at the broker.
+
+**BF-15a landed as a shape change in `diag/state`.** `rx_unknown_src` is present and
+`unregistered_src` is gone. A counter document captured before this flash carries the old
+key and the old `rx_dropped` sum; compare `lran/bridge/version` before trusting either.
+
+### The eight §14 stages that name an ERROR, answered on air
+
+Each row is one `fault f2 <name>` on the simnode Heltec's `ROLE_HEALTH` identity, read from
+the simnode's own receive log.
+
+| Entry | `err_code` | Spec 14 stage |
+|---|---|---|
+| `crit_ext` | `0x0A` UNKNOWN_HDR_EXT | 5a |
+| `frag_zero` | `0x02` BAD_LENGTH | 5b |
+| `unknown_type` | `0x03` UNKNOWN_TYPE | 6 |
+| `unknown_schema` | `0x07` UNKNOWN_SCHEMA | 7 |
+| `bad_length` | `0x02` BAD_LENGTH | 8 |
+| `frag_command` | `0x02` BAD_LENGTH | 8a |
+| `frag_overflow`, `frag_oversize` | `0x09` FRAGMENT_OVERFLOW | 10 |
+| `frag_timeout` | `0x08` REASSEMBLY_TIMEOUT | 10, from the tick |
+
+Every reply carried `detail` 0 and a `ref_seq` matching the offending frame's `seq`.
+
+**`frag_timeout` is the one that needed new code.** It arrived 8 s after the fragment, from
+the periodic tick and not from a later arrival — the `RxLadder::tick()` → `ExpiredSet` →
+`reply_error` path BF-19a added, and the path whose capture-order mutation did **not** fail
+a host test. It fires on air.
+
+**The four silent rows stayed silent** and moved their counters, so each frame did arrive:
+`runt` 1, `oversize` 1, `wrong_dst` 1 (`rx_not_addressed`), `bad_crc` 1. No ERROR for any.
+
+### Bound 2 fired: `errors_suppressed` 2
+
+`fault f2 unknown_type 4 gap 300` put four frames on air inside a second. The bridge counted
+**three** of them, answered the first and suppressed two — `errors_suppressed` 2 exactly.
+The rate limit had read 0 through every earlier entry, so this is the first time spec
+§14.2's second bound has done anything outside a host test.
+
+### The finding: an immediate reply and the sender's next frame deafen each other
+
+**Two entries looked like defects and are one radio property.** `bad_length` queues two
+frames (§10.5), and across two runs the bridge counted `rx_bad_length` **once** per arming,
+while the reply it did send never reached the simnode. The burst above lost one frame the
+same way.
+
+The mechanism accounts for all three, and the bridge's own numbers confirm it rather than
+merely allowing it: in the burst, 4 sent → 3 counted → 1 replied + 2 suppressed.
+
+- The bridge answers at once, and **cannot receive while it transmits**. The sender's next
+  frame arrives into a deaf receiver.
+- The sender is transmitting that frame, so **it cannot hear the reply** either.
+
+**Neither end is at fault and no counter is wrong.** Spaced single frames are clean:
+`fault f2 unknown_type 2 gap 4000` produced two discards and two replies, `ref_seq` 18 and
+19. **`gap` spaces injections, not the frames inside one injection**, so a multi-frame row
+cannot be spread out this way.
+
+**What this costs BF-21.** A catalogue row that emits more than one frame **cannot confirm
+its own ERROR from the same board** — the reply and the row's later frames collide by
+construction. A scripted catalogue has to either read those rows' results from the bridge's
+counters alone, or drive the row from one board and listen on a second.
+
+**It is not an argument for delaying the reply.** The bridge answers a frame it has not
+authenticated; holding it in a queue to dodge the sender's own traffic would mean state kept
+on behalf of an unauthenticated peer, which is what §14.2's bounds exist to avoid.
+
+### What this run did not cover
+
+- **Bound 1 is untested on air.** Answering only a registered source is host-tested in
+  `test_error`, and `rx_unknown_src` stayed 0 for the whole run because every frame came
+  from a provisioned bench address. Producing a stranger needs an identity outside
+  `kNodeTable`, and `id add 05 health` did not take.
+- **`bad_ver`, and every command-path row**, remain BF-22's and BF-18's.
+- **The `set_displaced` question is still BF-21's.** Nothing here touched it.
+
+### An instrument was missing and is now committed
+
+The simnode routed `MsgType::Error` to `default: ++unhandled`, so its log recorded that an
+ERROR arrived and nothing about what it said. Spec §14 maps eight stages onto six wire
+codes, so without the code the catalogue cannot tell `crit_ext` from `unknown_schema` on
+air — the whole point of the run. `Node::on_error` now logs `err_code`, `detail` and
+`ref_seq`, raw: `lran::ErrCode` has no `to_string` and a bench instrument is the wrong
+reason to grow one. The simnode still acts on none of it.
+
+### Final counters, cumulative from the `afd2178` boot
+
+`rx_frames` 49, `rx_dropped` 21, `q_rx_dropped` 0, `q_rx_high_water` 1, `tx_frames` 60,
+`errors_suppressed` 2. `rx_unknown_type` reads 6 because that row was used for the spacing
+and burst experiments as well as its own catalogue entry.

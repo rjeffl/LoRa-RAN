@@ -32,7 +32,8 @@ void RxLadder::on_phy_crc_error() {
 
 bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDelivery* out) {
   if (counters_ != nullptr) ++counters_->rx_frames;
-  last_unregistered_ = false;
+  last_src_ = 0;
+  last_seq_ = 0;
 
   lran::DecodeCtx ctx;
   ctx.self     = lran::kNodeBridge;
@@ -42,6 +43,18 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
   ctx.accept_ver_max = lran::kProtoVer;
   // expect_ctx_id stays 0: spec 9.4 step 2 does not apply to the bridge, which has no
   // context of its own (spec 10.1).
+
+  // BF-19a - THE OFFENDING FRAME'S `src` AND `seq`, READ FROM THE BUFFER, not from the
+  // decode that is about to fail. A frame rejected at stage 5a or 6 has a header on the
+  // wire but no guarantee that decode_header finished filling `f.hdr`, and spec 14.2's
+  // reply needs a `dst` and a `ref_seq` for exactly those frames. Explicit offsets and an
+  // explicit little-endian read (spec 4.2, root rule 1): `src` is byte 2 and `seq` bytes
+  // 4-5 (spec 5).
+  if (len >= lran::kHdrLen) {
+    last_src_ = buf[2];
+    last_seq_ = static_cast<lran::Seq>(static_cast<uint16_t>(buf[4]) |
+                                       (static_cast<uint16_t>(buf[5]) << 8));
+  }
 
   lran::Frame f;
   last_ = lran::decode_header(buf, len, ctx, &f);  // stages 2 to 6
@@ -62,14 +75,16 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
     return false;
   }
 
-  // BF-15 - A SOURCE THE REGISTRY DOES NOT KNOW GOES NO FURTHER. After stage 9, so every
-  // stage spec 14 does define still counts an unregistered sender's faults as it would a
-  // registered one's. Before stage 10, because spec 11.3 sizes reassembly per provisioned
-  // node: an unprovisioned transmitter must not take a slot, let alone displace a live set.
-  // A single frame is refused here too, so it never costs an RX queue slot.
+  // STAGE 9a - A SOURCE THE REGISTRY DOES NOT KNOW GOES NO FURTHER, AND IS NEVER
+  // ANSWERED (spec 14 stage 9a, 14.2). After stage 9, so every stage before it still
+  // counts an unregistered sender's faults as it would a registered one's, and so the
+  // ladder's ordering does not reveal which addresses the bridge knows. Before stage 10,
+  // because spec 11.3 sizes reassembly per provisioned node: an unprovisioned transmitter
+  // must not take a slot, let alone displace a live set. A single frame is refused here
+  // too, so it never costs an RX queue slot.
   if (keys_ == nullptr || !keys_->is_registered(f.hdr.src)) {
-    ++unregistered_src_;
-    last_unregistered_ = true;
+    if (counters_ != nullptr) counters_->bump(lran::Status::UnknownSrc);
+    last_ = lran::Status::UnknownSrc;
     return false;
   }
 
@@ -97,10 +112,35 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
   return true;
 }
 
-void RxLadder::tick(uint32_t now_ms) {
+// BF-19a - WHAT EXPIRED, NOT JUST THAT SOMETHING DID. A set's peer and seq are read
+// BEFORE the tick and reported only if the set was live and is not afterwards, which is
+// exactly the transition that bumps rx_reassembly_timeout.
+//
+// THE ORDER IS THE CONTRACT, NOT AN OPTIMISATION. reassembly.h documents src() and seq()
+// as valid "while active() or a set has completed", and after an expiry neither holds.
+// Reading them afterwards happens to return the same values today, because reset() clears
+// the set's state and not its key - which is why no test here distinguishes the two
+// orders. That is an implementation detail of a library this file does not own, and the
+// day it changes, the ERROR goes to whatever the slot last held.
+size_t RxLadder::tick(uint32_t now_ms, ExpiredSet* out, size_t cap) {
+  size_t expired = 0;
   for (Slot& s : slots_) {
-    if (s.used) s.reassembler.tick(now_ms);
+    if (!s.used) continue;
+    const bool         was_active = s.reassembler.active();
+    const lran::NodeId src        = s.reassembler.src();
+    const lran::Seq    seq        = s.reassembler.seq();
+
+    s.reassembler.tick(now_ms);
+
+    if (was_active && !s.reassembler.active()) {
+      if (out != nullptr && expired < cap) {
+        out[expired].src = src;
+        out[expired].seq = seq;
+      }
+      ++expired;
+    }
   }
+  return expired;
 }
 
 bool RxLadder::any_set_active() const {

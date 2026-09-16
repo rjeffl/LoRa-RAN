@@ -667,6 +667,7 @@ void test_status_identifiers_follow_the_wire_code() {
       {Status::NotFragmentable,     "NotFragmentable",     "BAD_LENGTH",         "rx_not_fragmentable"},
       {Status::RejectedCtx,         "RejectedCtx",         "REJECTED_CTX",       "rx_rejected_ctx"},
       {Status::RejectedMac,         "RejectedMac",         "REJECTED_MAC",       "rx_rejected_mac"},
+      {Status::UnknownSrc,          "UnknownSrc",          nullptr,              "rx_unknown_src"},
       {Status::RejectedSeq,         "RejectedSeq",         "REJECTED_SEQ",       "rx_rejected_seq"},
       {Status::DuplicateCached,     "DuplicateCached",     "DUPLICATE_CACHED",   "rx_dup_command"},
       {Status::ReassemblyTimeout,   "ReassemblyTimeout",   "REASSEMBLY_TIMEOUT", "rx_reassembly_timeout"},
@@ -1023,13 +1024,14 @@ void test_counter_registry_matches_spec_14_1() {
       "rx_unknown_type",      "rx_unknown_schema",
       "rx_bad_length",        "rx_not_fragmentable",
       "rx_rejected_ctx",      "rx_rejected_mac",
+      "rx_unknown_src",
       "rx_reassembly_timeout", "rx_fragment_overflow",
       "rx_reassembly_abandoned", "rx_rejected_seq",
       "rx_frag_duplicate",    "rx_frag_late",
       "rx_dup_command",
   };
   const size_t n = sizeof(kSpecNames) / sizeof(kSpecNames[0]);
-  TEST_ASSERT_EQUAL_UINT32_MESSAGE(21, n, "spec 14.1 lists 21 counters");
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(22, n, "spec 14.1 lists 22 counters");
   TEST_ASSERT_EQUAL_UINT32_MESSAGE(n, kCounterRegistryLen, "registry size");
 
   // Every spec name present in the registry...
@@ -1063,7 +1065,7 @@ void test_registry_dropped_column_matches_spec() {
     TEST_ASSERT_EQUAL_MESSAGE(!should_exclude, f.in_dropped, f.name);
     if (f.in_dropped) ++in; else ++out;
   }
-  TEST_ASSERT_EQUAL_UINT32(18, in);
+  TEST_ASSERT_EQUAL_UINT32(19, in);
   TEST_ASSERT_EQUAL_UINT32(3, out);
 }
 

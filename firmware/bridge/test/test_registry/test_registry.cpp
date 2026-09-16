@@ -290,7 +290,7 @@ void test_the_ladder_refuses_a_source_outside_the_table() {
                         static_cast<int>(encode(hdr_from(0xF4, 1), payload, n, EncodeCtx{}, buf,
                                                 kMaxFrame, &len)));
   TEST_ASSERT_FALSE(ladder.accept(buf, len, 1, &d));
-  TEST_ASSERT_EQUAL_UINT32(1, ladder.unregistered_src());
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_unknown_src);
 }
 
 int main() {

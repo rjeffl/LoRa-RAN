@@ -21,6 +21,7 @@ const CounterField kCounterRegistry[kCounterRegistryLen] = {
     {"rx_not_fragmentable",     &Counters::rx_not_fragmentable,     true},
     {"rx_rejected_ctx",         &Counters::rx_rejected_ctx,         true},
     {"rx_rejected_mac",         &Counters::rx_rejected_mac,         true},
+    {"rx_unknown_src",          &Counters::rx_unknown_src,          true},
     {"rx_reassembly_timeout",   &Counters::rx_reassembly_timeout,   true},
     {"rx_fragment_overflow",    &Counters::rx_fragment_overflow,    true},
     {"rx_reassembly_abandoned", &Counters::rx_reassembly_abandoned, true},
@@ -62,6 +63,10 @@ void Counters::bump(Status s) {
     // BadMac and CtxMismatch.
     case Status::RejectedMac:         ++rx_rejected_mac; return;
     case Status::RejectedCtx:         ++rx_rejected_ctx; return;
+
+    // spec 14 stage 9a (v0.12). The receiver holds no key for this src, so the frame
+    // goes no further and nothing is sent back.
+    case Status::UnknownSrc:          ++rx_unknown_src; return;
 
     // spec 14 stage 11, raised by CommandGate (D34). Both duplicate verdicts are
     // rx_dup_command: spec 14.1 has one counter for "a retry of a command this node

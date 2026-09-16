@@ -1,9 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-16, at the end of the session that ran B3a's §10.5 catalogue and W9,
-took B3a's acceptance, merged the three-PR stack, and landed protocol spec v0.12.** It
-replaces the 2026-09-15 file wholesale; that file's content is carried over where it is
-still true.
+**Written 2026-09-16, at the end of the session that built BF-15a and BF-19a and put both
+on air.** It replaces the earlier 2026-09-16 file wholesale; that file's content is carried
+over where it is still true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -13,24 +12,22 @@ still true.
 
 ## The next job, in one place
 
-**B3b, from `main`. Nothing gates it any more.** B3a is accepted and merged, and
-**spec v0.12 answered every question B3b was waiting on** (D35–D42, 2026-09-16).
+**B3b. BF-18, then BF-21, then BF-22.**
 
-Five tasks, in the order the gate cleared them:
+**BF-15a and BF-19a are done and confirmed on air** (2026-09-16). Ten ERROR replies were
+read at the simnode, one per §14 stage that names one, each carrying the right `err_code`;
+the four silent rows stayed silent and moved their counters; `errors_suppressed` reached 2.
+**Bound 1 is the one piece still host-only** — every frame in the run came from a
+provisioned bench address, so `rx_unknown_src` never moved. Producing a stranger needs an
+identity outside `kNodeTable`, and `id add 05 health` did not take.
 
-- **BF-15a** — move `unregistered_src` into the codec as **`rx_unknown_src`** (spec §14
-  stage 9a, §14.1). The registry becomes 22 rows and the counter joins `rx_dropped`, which
-  changes a published number. **Do this before B4 builds discovery on the old name.**
-- **BF-19a** — `ERROR` replies to spec **§14.2**: registered sources only, rate-limited by
-  `error_min_interval_ms` (default 1000), `ctx_id` `0`. The rate limit is the load-bearing
-  part.
 - **BF-18** — the command path. §6.3 now says a `DUPLICATE_CACHED` result travels in
   `detail`; §7.4 says a repeated `CONFIG` is answered from the dedup cache.
-- **BF-21** — the §10.5 catalogue as a committed `simctl` script. This session drove it
-  from a throwaway harness, so BF-21 is unstarted but no longer unmapped: one entry per
-  60 s `diag/state` window, armed on one identity, with the previous window's reading as
-  the next entry's baseline. **BF-21 also decides** whether `fault.cpp` should complete
-  `set_displaced`'s displacing set.
+- **BF-21** — the §10.5 catalogue as a committed `simctl` script. **Read §10.5's new
+  multi-frame note before designing it**: a row that emits more than one frame cannot
+  confirm its own ERROR from the same board, so those rows are read from the bridge's
+  counters or driven from a second board. **BF-21 also decides** whether `fault.cpp` should
+  complete `set_displaced`'s displacing set.
 - **BF-22** — version tolerance. `bad_ver` cannot pass §10.5 until this lands.
 
 ```bash
@@ -83,9 +80,9 @@ the bridge accepts and counts nowhere. **A fault's `dst` defaults to the bridge.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-17**, **BF-19**, **BF-20** |
-| Not done | **B3b**: BF-15a, BF-18, BF-19a, BF-21, BF-22. **BF-26** deferred. **BF-11a**, **BF-11b** |
-| Queue | BF-15a → BF-19a → BF-18 → BF-21 → BF-22. Nothing waits on a document |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **W9**. **BF-2**–**BF-9**, **BF-15**, **BF-15a**, **BF-16**, **BF-17**, **BF-19**, **BF-19a**, **BF-20** |
+| Not done | **B3b**: BF-18, BF-21, BF-22. **BF-26** deferred. **BF-11a**, **BF-11b** |
+| Queue | BF-18 → BF-21 → BF-22. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -146,8 +143,8 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed from `28ffd82`, a clean tree**: banner `Version: 0.1.0`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, flashed 2026-09-15, MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-16 from `afd2178`, a clean tree**: banner `Version: 0.1.0`, `Slot: app0`, `Image state: not_pending`, `Registry:` with six rows | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, reflashed 2026-09-16 with `Node::on_error`, MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, first flashed 2026-09-15, MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone; `f3` `ROLE_RANGE` was added by hand for W9 and is gone after any reboot |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
@@ -232,9 +229,16 @@ the sum at compile time.
   `lib_deps = symlink://../<dep>`, as `lib/lran-link/platformio.ini` does.
 - **A simnode PING to `00` reports no echo.** The bridge does not answer PING yet.
 - **An `RxLadder` with no `PeerKeys` refuses every frame**, as `unregistered_src`.
-- **`unregistered_src` is the old name for what spec v0.12 calls `rx_unknown_src`** (§14
-  stage 9a). Until **BF-15a**, the bridge publishes the old name outside `rx_dropped`. Do
-  not introduce a third name.
+- **`rx_unknown_src` replaced `unregistered_src` in BF-15a**, and it is inside `rx_dropped`
+  now. Both are on the bench as of 2026-09-16. A counter document captured before that flash
+  carries the old key and the old sum; compare `lran/bridge/version` before trusting either.
+- **The bridge's ERROR reply and the sender's next frame deafen each other.** Half duplex:
+  the bridge cannot receive while it answers, and the sender cannot hear the answer while it
+  transmits. A multi-frame §10.5 row loses a frame and its reply to this, and it is not a
+  defect at either end. **`gap` spaces injections, not the frames inside one injection.**
+- **The simnode logs a received ERROR's `err_code` since 2026-09-16.** Before that it routed
+  `MsgType::Error` to `default: ++unhandled`, so an older bench log records that an ERROR
+  arrived and nothing about what it said.
 - **`registry_begin()` must run before `start_tasks()`**, and **`lora_task` must never call
   `registry_runtime`**, which waits on a mutex.
 - **The library's platform crypto is not in its build.** `platform/esp32/` and
@@ -292,8 +296,11 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   configuration larger than one frame is several messages with no atomicity across them.
   Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
   designed.
-- **BF-15a** — the code still publishes `unregistered_src` outside `rx_dropped`. The
-  specification is right and the code follows it.
+- **BF-15a and BF-19a are done and on air**, 2026-09-16 — `rx_unknown_src` is a registry
+  row inside `rx_dropped`, and the bridge answers §14's `ERROR`s under §14.2's two bounds.
+  The §10.5 catalogue tested both: every one of the eight §14 stages that names an `ERROR`
+  produced one at the simnode, and `errors_suppressed` reached 2.
+  **§14.2's bound 1 is what v0.12 left untested on air** — see *The next job* above.
 
 #### Work no task owns
 

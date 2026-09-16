@@ -188,6 +188,10 @@ class Node {
   void on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
                uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
 
+  // BF-19a - logs the bridge's spec 14.2 ERROR and acts on none of it. The err_code is the
+  // catalogue's only on-air evidence of which spec 14 stage fired.
+  void on_error(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len);
+
   // Encodes `payload` from identity `e`, fragmenting at `chunk` when it is non-zero and
   // smaller than the payload, and queues every frame or none.
   bool send(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,

@@ -20,6 +20,7 @@
 
 #include <cstdint>
 
+#include "error_reply.h"
 #include "lran/counters.h"
 #include "lran/link/media_access.h"
 #include "lran/mac.h"
@@ -52,6 +53,14 @@ void lora_wait(uint32_t max_wait_ms);
 // across it; until then only the defaults are ever in effect.
 void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms);
 
+// Spec 14.2's floor between two ERRORs to one peer (BF-19a). Root rule 8, same path and
+// same caveat as lora_configure(): only the default is ever in effect until BF-23.
+void lora_configure_errors(uint32_t min_interval_ms);
+
+// BF-19a. ERRORs the rate limit withheld, for the diagnostic publication. Safe from any
+// task, and up to a second old like the counters beside it.
+uint32_t lora_errors_suppressed();
+
 // The registry's keys and the platform HMAC. Until it is called nothing is registered, so
 // every frame is refused. registry_begin() calls it before start_tasks(), so lora_task
 // never races the assignment.
@@ -68,8 +77,9 @@ bool lora_idle();
 // Safe from any task. lora_task copies them under a spinlock once a second, so the view is
 // up to a second old; rx_dropped computed from it always agrees with the counters beside it.
 //
-// `unregistered_src`: frames refused because the registry does not know their source. A
-// bridge diagnostic, not spec 14.1: spec 14 has no stage for it (rx_ladder.h).
-void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats, uint32_t* unregistered_src);
+// Since BF-15a a frame from an unregistered source is `rx_unknown_src` inside `counters`
+// - spec 14 stage 9a, summed into rx_dropped. It was a separate output of this call while
+// spec 14 had no stage to map it to.
+void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats);
 
 }  // namespace bridge

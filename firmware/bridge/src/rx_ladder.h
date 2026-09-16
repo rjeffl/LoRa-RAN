@@ -70,6 +70,12 @@ struct RxDelivery {
 // displace a live set. registry.h asserts that the node table fits.
 inline constexpr size_t kReassemblySlots = 8;
 
+// One expired reassembly set, for the ERROR its peer is owed (spec 14 stage 10).
+struct ExpiredSet {
+  lran::NodeId src = 0;
+  lran::Seq    seq = 0;
+};
+
 class RxLadder {
  public:
   explicit RxLadder(lran::Counters* counters);
@@ -92,21 +98,36 @@ class RxLadder {
 
   // Expires stale sets. Call from lora_task's loop, not only on arrival: a set whose
   // remaining fragments never come is otherwise never counted (spec 11.2).
-  void tick(uint32_t now_ms);
+  // Expires stale reassembly sets (spec 11.2). BF-19a: the peers whose sets expired are
+  // reported, because spec 14 stage 10 answers a timeout with ERROR(REASSEMBLY_TIMEOUT)
+  // and the answer needs a `dst` the tick is the only place that knows. Returns how many
+  // expired, and fills up to `cap` of them; passing no buffer expires silently, which is
+  // what a caller that sends no ERROR wants.
+  size_t tick(uint32_t now_ms, ExpiredSet* out = nullptr, size_t cap = 0);
 
   // True while any peer's set is incomplete. One of lora_task's idle conditions.
   bool any_set_active() const;
 
-  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27). Ok with
-  // nothing delivered is an incomplete set, or last_unregistered_src().
+  // Why the last accept() delivered nothing, or Ok. For the raw frame log (BF-27). Ok
+  // with nothing delivered is an incomplete set. A frame from a source the registry does
+  // not know reads Status::UnknownSrc - spec 14 stage 9a since v0.12, counted
+  // rx_unknown_src in the codec's own Counters and summed into rx_dropped. Through v0.11
+  // it was a bridge-local diagnostic named unregistered_src, because spec 14 had no
+  // stage to map it to (BF-15a).
   lran::Status last_status() const { return last_; }
 
-  // A FRAME FROM A SOURCE THE REGISTRY DOES NOT KNOW. Spec 14 has no stage for this and
-  // spec 14.1 no counter, so it has no Status value and is a bridge diagnostic, outside
-  // rx_dropped. Raised as a specification gap in the engineering log, 2026-09-14; the
-  // name is deliberately not rx_-prefixed, so it cannot squat the one v0.12 may choose.
-  bool     last_unregistered_src() const { return last_unregistered_; }
-  uint32_t unregistered_src() const { return unregistered_src_; }
+  // The offending frame's `src` and `seq`, valid when the header decoded - which is every
+  // stage from 4 on, and so every stage that names an ERROR (spec 14.2, BF-19a). Both
+  // read 0 when the frame was too short or too long to have a readable header, which are
+  // the stages spec 14 answers with silence anyway.
+  lran::NodeId last_src() const { return last_src_; }
+  lran::Seq    last_seq() const { return last_seq_; }
+
+  // Whether the registry holds a key for this address (spec 9.1). BF-19a asks before
+  // answering anything, because spec 14.2 sends an ERROR to a registered source only.
+  bool registered(lran::NodeId src) const {
+    return keys_ != nullptr && keys_->is_registered(src);
+  }
 
  private:
   struct Slot {
@@ -123,8 +144,8 @@ class RxLadder {
   const PeerKeys* keys_ = nullptr;
   Slot            slots_[kReassemblySlots];
   lran::Status    last_ = lran::Status::Ok;
-  bool            last_unregistered_ = false;
-  uint32_t        unregistered_src_  = 0;
+  lran::NodeId    last_src_ = 0;
+  lran::Seq       last_seq_ = 0;
 };
 
 }  // namespace bridge
