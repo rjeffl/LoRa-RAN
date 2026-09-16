@@ -1216,3 +1216,127 @@ includes the POLL's queue wait and its own media access, because the reply windo
 role's purpose, not a defect, but it reads as a node failure on the bridge's console. `f3` was
 re-created as `ROLE_HEALTH` for the check. **A bench operator arming faults on a polled
 identity should expect that node to go offline.**
+
+---
+
+## 2026-09-16 — B3a's §10.5 catalogue at the broker, and W9 between two boards
+
+**Every §10.5 entry B3a owns was injected and read back, and one row cannot pass as
+written.** The bench carried the bridge board on `28ffd82`, the XIAO running
+`simnode-xiao-wio` as the injecting node, and the handheld Heltec as the second
+transmitter for W9. Counters were read from `lran/bridge/diag/state` at the sandbox
+broker, which publishes every 60 s — measured across 24 consecutive publications, so the
+`kDiagPublishIntervalDefaultS` default is what runs.
+
+Desk check first: 127 protocol, 7 link, 16 sim, 127 bridge, 108 simnode and 191 range-test
+host tests pass, and the six repository checks pass.
+
+**The counters started from zero because opening the bridge's serial port rebooted it.**
+That is the documented trap doing what it does; it happened before the first injection, so
+every number below is from one uninterrupted image.
+
+### The catalogue, one entry per publication window
+
+An entry was armed on identity `f1`, then the next window's counters were differenced
+against the previous window's. `rx_dropped` is shown where it moved.
+
+| `fault` | Counter movement | Against §10.5 |
+|---|---|---|
+| `runt` | `rx_runt` +1, `rx_dropped` +1 | as specified |
+| `oversize` | `rx_oversize` +1, `rx_dropped` +1 | as specified |
+| `bad_ver` | `rx_bad_ver` **+2**, `rx_dropped` +2 | **both frames rejected** — see below |
+| `crit_ext` | `rx_unknown_hdr_ext` +1, `rx_dropped` +1 | as specified |
+| `frag_zero` | `rx_bad_frag` +1, `rx_dropped` +1 | as specified |
+| `unknown_type` | `rx_unknown_type` +1, `rx_dropped` +1 | as specified |
+| `unknown_schema` | `rx_unknown_schema` +1, `rx_dropped` +1 | as specified |
+| `bad_length` | `rx_bad_length` +2, `rx_dropped` +2 | as specified — the row sends one short frame and one long |
+| `frag_command` | `rx_not_fragmentable` +1, `rx_dropped` +1 | as specified |
+| `bad_mac` | `rx_rejected_mac` +1, `rx_dropped` +1 | as specified |
+| `frag_timeout` | `rx_reassembly_timeout` +1, `rx_dropped` +1 | as specified, and it fired from the tick with nothing sent after the fragment |
+| `frag_overflow` | `rx_fragment_overflow` +1, `rx_dropped` +1 | as specified |
+| `frag_oversize` | `rx_fragment_overflow` +1, `rx_dropped` +1 | as specified — 15 frames, one discard, at the point the set exceeds the cap |
+| `frag_dup` | `rx_frag_duplicate` +1, **`rx_dropped` still** | as specified |
+| `frag_late` | `rx_frag_late` +1, **`rx_dropped` still** | as specified |
+| `single_frame_interleave` | **nothing moved**, `rx_frames` +5 | as specified |
+| `set_displaced` | `rx_reassembly_abandoned` +1 **and `rx_reassembly_timeout` +1**, `rx_dropped` +2 | **a second counter moves** — see below |
+| `seq_jump` | nothing moved, `rx_frames` +2 | as specified |
+| `seq_wrap` | nothing moved, `rx_frames` +3 | as specified |
+| `flood` | nothing dropped, `rx_frames` +51 | as specified |
+
+**A silent pass and a frame that never arrived look identical, so the four rows whose
+correct result is "nothing happens" were checked against `rx_frames` as well.** Each shows
+the injected frames arriving in the window it was armed in: `single_frame_interleave` +5,
+`seq_jump` +2, `seq_wrap` +3, and the set completing with `rx_dropped` unmoved. Without
+that second reading, a dead radio would have passed three entries.
+
+**`flood` needs an explicit count.** `fault f1 flood` sends one frame, because the row is
+one correct frame per injection and the count carries the burst. `fault f1 flood 50 gap 0`
+delivered all 50 in a single window with none dropped: `q_rx_dropped` 0, receive-queue
+high-water 1, and `diag/state` kept its 60 s tick. The queue never builds because SF9
+airtime paces arrivals far below the drain rate, so this run says the bridge stays
+responsive at the rate one simnode can transmit — not that the queue has headroom under a
+faster source.
+
+### `set_displaced` moves two counters, and §10.5's row cannot hold
+
+**Run twice, an hour apart, with the same result: `rx_reassembly_abandoned` +1 and
+`rx_reassembly_timeout` +1, both inside the window the fault was armed in.** §10.5 asks
+that exactly the named counter move, and the table's introduction makes that the standard
+for every row.
+
+The cause looks like the row's construction rather than a receiver defect. The injection
+sends a live set, then fragment 0 of a *different* set from the same peer. The first set is
+displaced, which is the `rx_reassembly_abandoned` the row asks for. The displacing set is
+then left incomplete by design, so it expires on the tick and counts a timeout. Nothing in
+the receiver had a choice about the second counter.
+
+**Raised, not patched.** Either §10.5's row states that a timeout necessarily follows, or
+the fault completes the displacing set so only the displacement is counted. The second
+changes `fault.cpp` and belongs with BF-21, which owns the scripted catalogue.
+
+### `bad_ver` rejects both frames, and cannot pass until BF-22
+
+The row expects `ver` N−1 accepted and N−2 rejected with a distinct reason (**V-B10**).
+Both frames were rejected: `rx_bad_ver` +2. **This is version tolerance, which is BF-22 and
+sits in B3b** — the Impl Plan §8 row for B3b names it. The row is not wrong and the bridge
+is not defective; the entry simply has nothing to pass against until BF-22 lands.
+
+### W9 — full-size and fragmented `PING` between two boards
+
+The handheld Heltec sent from `f0` to a `ROLE_RANGE` identity `f3` added on the XIAO, so
+the round trip crossed two radios rather than two identities sharing one.
+
+```
+H| ping f0 -> f3 seq 1: echo ok, n 202, 1 frame(s) out, 1 back, rssi -37 dBm, snr 11.0 dB, 2283 ms
+H| ping f0 -> f3 seq 2: echo ok, n 202, 4 frame(s) out, 4 back, rssi -35 dBm, snr 11.3 dB, 3587 ms
+```
+
+Both identities ended with no reassembly errors, no CRC errors and no CAD backoffs.
+
+**`n` is payload and caps at 202; the 222 in B3a's criterion is the frame.**
+`ping f0 222` answers `ERR ping f0: n above 202`. With `kMaxFrame` 222, `kHdrLen` 16 and
+`kCrcLen` 2, `kMaxPayloadPlain` is 204, and the ping header takes the last two bytes. A
+full-size frame on the wire is `n` = 202.
+
+### Two things that cost time, neither of them the firmware
+
+**The broker address was wrong by one octet, and `mosquitto_sub` reported it as
+`Error: Bad file descriptor`.** The bridge's banner prints `MQTT broker:` and settled it.
+An unreachable host reads as a file-descriptor fault rather than a connect failure, which
+sends the reader looking at the wrong layer.
+
+**`mosquitto_sub` block-buffers into a pipe**, so `| tee` showed an empty file for minutes
+while the subscriber was working. A Python subscriber with line buffering replaced it, and
+is what produced the log this entry is built from.
+
+**Bench cross-traffic moves the bridge's counters.** The W9 pings are addressed to `f3`, and
+the bridge heard them: `rx_not_addressed` and `rx_dropped` both climbed by 8 in that window.
+A catalogue entry read across a window that carries other traffic will not difference
+cleanly.
+
+### How this was driven, and what it is not
+
+The injections were armed over the simnode console by a script holding the port open, with
+counters differenced from the broker log. That is the same evidence a typed run produces,
+and it is **not** BF-21: nothing is committed, the harness lives in this session's
+scratchpad, and B3b still owes the catalogue as a `simctl` script.
