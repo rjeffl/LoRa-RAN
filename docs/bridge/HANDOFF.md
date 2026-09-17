@@ -144,9 +144,9 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-16 from `5f8e3f7`, a clean tree**: banner `Version: 0.1.0`, `Slot: app0`, `Registry:` with six rows | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, reflashed 2026-09-16 with `Node::on_error`, MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-18** - it had been left on a pre-v0.12 image, banner `v0.11`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone; `f3` `ROLE_RANGE` was added by hand for W9 and is gone after any reboot |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-16 from `24f7993`, a clean tree** (BF-22): banner `Version: 0.1.0`, `Slot: app0`, `Registry:` with six rows. Only documentation landed after that commit, so it is `main` in behaviour | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. It had been left on a pre-v0.12 image (banner `v0.11`) until BF-18. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone; `f3` `ROLE_RANGE` was added by hand for W9 and is gone after any reboot |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
 `-dirty` git field on the banner means the running image matches no commit.
@@ -173,16 +173,24 @@ the sum at compile time.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **The bridge accepts protocol version N *and* N−1 since BF-22**, and addresses each node
+  in the version that node announced. Text saying it accepts only N — or that `bad_ver`
+  moves `rx_bad_ver` twice — is correct for before it. `lran/<node>/diag/state` gained
+  `unsupported_ver`.
 - **The bridge subscribes to `lran/+/cmd/+/set` and publishes `lran/<node>/cmd/ack` and
   `lran/bridge/diag/cmd/state` since BF-18.** Text saying the bridge only publishes, or
   that `subscribe()` has no caller, is correct for before it.
+- **`set_displaced` moves one counter since BF-21**, not two. A capture from before it also
+  shows `rx_reassembly_timeout`.
 - **The bridge prints `poll: <node> answered in N ms (window N ms)` since `28ffd82`.** Text
   saying no poll timing is observable is correct for before it.
 - **The XIAO simnode boots as `0xF1 ROLE_GATELINK` since BF-6**, not `ROLE_RANGE`.
 - **`media_access` and the PHY constants moved to `lib/lran-link/` on the B0 branch.**
 - **The handheld Heltec is a simnode from 2026-09-14.** Older text calls it the range test's
   board and says it never runs a simnode build.
-- **The ladder refuses unregistered sources since BF-15**, counted as `unregistered_src`.
+- **The ladder refuses unregistered sources since BF-15.** It was counted as
+  `unregistered_src` until **BF-15a renamed it `rx_unknown_src`** and moved it inside
+  `rx_dropped`; the old name exists nowhere now.
 - **`RxMessage` carries a decoded header and complete payload since BF-16**, not raw bytes.
 - **`TaskSpec::stack_words` is `stack_bytes` since BF-16**; only `lora` changed, 4096 → 8192.
 - **The OTA verdict requires `radio_ok` since BF-16.**
@@ -193,6 +201,13 @@ the sum at compile time.
 
 ## Traps that cost real time here
 
+- **A bench node's `lran/<node>/diag/state` is not published at all**, so `unsupported_ver`,
+  `proto_ver` and the per-node link are invisible at the broker for `f0`-`f3`. Spec §16.6
+  gates them on `simnode_diag_enable`, which **BF-26** has not built. BF-22's reason line
+  was read from the bridge's serial instead: `ver: f0 speaks v0, this bridge accepts 1-2`.
+- **`simctl` takes no credentials as arguments.** Export `LRAN_MQTT_HOST`, `LRAN_MQTT_USER`
+  and `LRAN_MQTT_PASSWORD` in the shell that runs it, the password with `read -rs`. An
+  argument reaches argv, and argv reaches the process table and the shell history.
 - **A command takes 4-9 s from the MQTT publish to the node**, not the ~1 s the radio alone
   suggests: `sched_task`'s 1 s tick, the TX queue behind the poll scheduler, and media
   access each add to it. Three of BF-18's bench attempts were lost to assuming ~2 s.
@@ -330,7 +345,9 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **BF-11a** (log queue drain) and **BF-11b** (hardware watchdog from `sched_task`).
 - **What GateLink's `COMMAND_ACK` waits for** — pulse complete, or gate confirmed. GateLink
   **M3** needs the answer.
-- **M22 / V-B12** — bridge LoRa PER with WiFi idle versus saturated, under B3b.
+- **M22 / V-B12** — bridge LoRa PER with WiFi idle versus saturated. **This is the one
+  blocking B3b's acceptance**, and giving it an owner is the first job next session; see
+  *The next job* above.
 - **GateLink M0's LDO margin** — sized for Envelope B's 19.6 dBm, tested only at −4 dBm.
 - **The range-test firmware still transmits on the provisional 915.0 MHz.**
 
