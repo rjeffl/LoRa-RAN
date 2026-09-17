@@ -27,28 +27,41 @@ load can be put on it.
 **V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
 
-**One thing must land before BF-24, and it is 20 minutes of bench, not a task.** BF-24
-decodes a fragmented `STATUS`, which is the traffic pattern that loses frames on this
-firmware, so decoding into it first means debugging two problems at once. **The receive
-path's 1 s knee** now has an instrument on the board and one hypothesis fewer; its next step
-**needs no firmware change and no reflash**:
+**One thing must land before BF-24: the receive path's 1 s knee.** BF-24 decodes a
+fragmented `STATUS`, which is the traffic pattern that loses frames on this firmware, so
+decoding into it first means debugging two problems at once. The knee now has an instrument
+on the board and one hypothesis fewer — `kIrqReadMs` is ruled out.
 
-```bash
-# The radio provably never leaves receive: nothing for the bridge to poll, so no CAD and
-# no transmit. cad_backoffs counts only a BUSY CAD, so a free one is invisible today.
-~/.platformio/penv/bin/python tools/simctl/per_measure.py \
-    --port /dev/cu.usbmodem2101 --arm idle --count 50 --gap 250 --bursts 3 \
-    --json docs/bridge/data/m22-idle-gap250-nopoll-$(date +%F).json
-```
+**A poll-free burst is NOT available by quieting the other board, and an earlier draft of
+this file said it was.** `PollScheduler::on_heard` enrols a bench node the instant it speaks
+(`scheduler.cpp`), and `next()` polls any enrolled row that is due with no offline check.
+**The flooding node enrols itself on its first frame**, so it is polled for the rest of the
+session no matter what else is quiet. That is the 10 bridge transmissions the 2026-09-17
+`--gap 250` run recorded.
 
-**Quiet every identity the bridge would poll first** — `per_measure` disables the sender's
-siblings, but a `ROLE_HEALTH` or `ROLE_GATELINK` identity on the *other* board still answers.
-Confirm `tx_frames` and `cad_backoffs` both stay still across the run. **Losses that survive
-that put the answer below the driver**; losses that vanish put it in media access, and the
-2026-09-17 burst that lost 4 of 50 with zero transmissions needs re-examining either way.
+**The gap that needs closing is that `cad_backoffs` counts only a *busy* CAD.** A free one
+still takes the radio out of receive and increments nothing, so no run on record can say
+whether the radio was receiving when a frame went missing. **Two ways to close it, and the
+second is cheaper than it looks:**
 
-**Do it in whichever session has the bench powered.** It does not block BF-23, and BF-23
-does not block it.
+1. **Stop the polling instead of avoiding it.** `poll_interval_s` is per-node registry state
+   (`registry.h`, default `kPollIntervalDefaultS`), set into the scheduler at
+   `task_runtime.cpp:229`. **Check whether anything reaches it at runtime before planning
+   around it** — `g_diag_interval_s` beside it has `TODO(BF-23)` and no setter, and refusing
+   a zero interval is already noted as BF-23's job, so this lever may not exist yet either.
+2. **Count the free CADs.** One counter in `LoraStats` beside `rx_no_interrupt` — CADs
+   started, against `cad_backoffs`' busy-only count. It is the same shape of change as
+   `rx_wake.h`, it needs a reflash but no new instrument, and **it makes every run already
+   on record interpretable** rather than only future ones.
+
+**Prefer 2.** It answers the question for the existing data as well as the next run, and it
+does not depend on a runtime lever that may not exist.
+
+**After that, BF-27's raw frame log.** Flood frames carry an incrementing status `seq`
+(`fault.cpp`), so a log of arrivals says **which** frames go missing: scattered points at the
+chip or the air, clustered after a bridge action points at the firmware.
+
+**None of this blocks BF-23, and BF-23 does not block it.**
 
 ```bash
 git fetch origin -p
@@ -411,11 +424,10 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   pattern. The counter step is **built and merged**: `rx_wake.h`, with `rx_no_interrupt` and
   `rx_wake_empty` on `lran/bridge/diag/radio/state`, bridge-local rather than spec §14.1.
   It ruled `kIrqReadMs` out in one bench session. **Two steps remain:**
-  1. **Run the flood with no node for the bridge to poll**, so the radio provably never
-     leaves receive. **No firmware change and no reflash** — it is the cheapest remaining
-     discriminator, because **`cad_backoffs` counts only a *busy* CAD** and a free one still
-     takes the radio out of receive while incrementing nothing. If the losses survive that,
-     the answer is below the driver.
+  1. **Count the free CADs** — one counter in `LoraStats`, CADs started against
+     `cad_backoffs`' busy-only count. **A poll-free burst is not available**: the flooding
+     node enrols itself on its first frame (`scheduler.cpp`), so it is polled regardless of
+     what else is quiet. *The next job* has the full reasoning and the alternative.
   2. **BF-27's raw frame log**, already a `TODO` in `service_receive`. Flood frames carry an
      incrementing status `seq` (`fault.cpp`), so a log of arrivals says **which** frames go
      missing: scattered points at the chip or the air, clustered after a bridge action
