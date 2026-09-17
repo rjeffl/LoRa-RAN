@@ -2042,3 +2042,68 @@ four frames lost of fifty.**
   frames.** Two of the §10.5 catalogue's rows drive multi-frame injections; they judge
   counters rather than totals and are unaffected, but a future row that counts arrivals
   would be measuring this instead.
+
+## 2026-09-17 — DIO1 is a level output read on its rising edge, and that is a mechanism, not a correlation
+
+**Read out of the pinned driver, not measured.** The 1 s knee entry above named `kIrqReadMs`
+as a suspect on the strength of where the losses stop. Reading RadioLib 7.7.1 turns the
+suspicion into a described mechanism — one that is still unconfirmed on hardware, and that
+now has a counter pointed at it.
+
+### What the driver does
+
+**`SX126x::setDio1Action` attaches on the rising edge** (`SX126x_config.cpp`:
+`GpioInterruptRising`). **DIO1 itself is a level output**: the SX1262 holds it asserted for
+as long as a masked interrupt is set and drops it only when `clearIrqStatus()` runs. The
+mask `startReceive()` installs is `RADIOLIB_IRQ_RX_DEFAULT_MASK` — **`RX_DONE` alone**.
+
+So a second `RX_DONE` raised while the first is still pending produces **no edge**. The line
+never went low, so there is nothing to rise, and `on_dio1` never runs for that frame. The
+frame sits in the radio's buffer with nothing to announce it.
+
+**`readData()` clears the whole register** (`SX126x.cpp`), which is what eventually drops the
+line — and takes any second frame's `RX_DONE` with it.
+
+### What that makes `kIrqReadMs`
+
+**The timed read is not belt and braces here; it is the only thing that finds such a frame.**
+That reframes the constant: it is not a redundant poll behind a working interrupt, it is the
+deadline a frame has to beat. A frame whose edge was swallowed survives if the timed read
+reaches it before the next `readData()` clears the register, and is lost if it does not.
+
+**This predicts the measured curve** — losses below a spacing of about 1 s, none above it —
+**from the constant rather than from the constant's neighbourhood.** It also explains why the
+knee is not at frame airtime, which was the hypothesis the 400 ms sweep point refuted.
+
+**One thing the timed read is not optional for.** `HEADER_ERR` is not in the DIO1 mask, so
+spec §14 stage 1's header half can only ever be found by the timed read. Removing the read
+would stop counting those discards entirely, which root rule 4 forbids. **Any fix has to keep
+a path that reads the register without an edge.**
+
+### The counters, and what would falsify this
+
+Two, in `LoraStats` on `lran/bridge/diag/radio/state`, with the classification lifted into
+`rx_wake.h` so it has host tests:
+
+- **`rx_no_interrupt`** — `RX_DONE` found by the timed read with no edge behind it. **A frame
+  the interrupt path missed and the timer recovered.**
+- **`rx_wake_empty`** — an edge arrived and the register held neither `RX_DONE` nor
+  `HEADER_ERR`. The frame that raised it was cleared by an earlier `readData()`.
+
+**Bridge-local, not spec §14.1**, decided rather than left open: §14.1 is a normative
+registry of receive-ladder *discards* carried on the wire by schema `0xF0`. Neither of these
+is a discard, neither has a `Status` or a stage, and both describe a driver no node need
+share. `queues.h` reasons the same way about queue overflow.
+
+**What falsifies the mechanism: `rx_no_interrupt` at zero during a 250 ms burst that still
+loses frames.** That would say every frame got its own interrupt and the losses are
+somewhere else entirely — and it would kill the `kIrqReadMs` story outright rather than
+weakening it.
+
+**What confirms it: `rx_no_interrupt` non-zero at *every* spacing, including the 2000 ms
+control where PER is 0.** Missed edges would then be constant and the *recovery* interval
+would be what separates a run that loses frames from one that does not. That is a sharper
+claim than "the knee moved", and it is readable at the broker in one burst.
+
+**Neither reading has been taken.** The bridge board is running `24f7993` and this needs a
+USB reflash.

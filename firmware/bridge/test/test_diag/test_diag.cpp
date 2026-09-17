@@ -116,6 +116,7 @@ void test_the_worst_case_documents_fit_a_queued_publication() {
   r.stats.begin_failures = r.stats.rx_driver_errors = r.stats.tx_forced = UINT32_MAX;
   r.stats.tx_errors = r.stats.tx_timeouts = r.stats.tx_dropped_no_radio = UINT32_MAX;
   r.stats.cad_errors = r.stats.cad_deferred = UINT32_MAX;
+  r.stats.rx_no_interrupt = r.stats.rx_wake_empty = UINT32_MAX;
   r.stats.last_begin_status = INT16_MIN;
   r.tx_frames = r.cad_backoffs = UINT32_MAX;
   for (QueueStat& q : r.queues) q.dropped = q.high_water = UINT32_MAX;
@@ -148,6 +149,8 @@ void test_the_radio_document_carries_the_driver_and_queue_numbers() {
   r.cad_backoffs              = 12;
   r.stats.last_begin_status   = -2;
   r.stats.tx_forced           = 3;
+  r.stats.rx_no_interrupt     = 6;
+  r.stats.rx_wake_empty       = 7;
   r.queues[static_cast<size_t>(QueueId::Publish)].dropped    = 4;
   r.queues[static_cast<size_t>(QueueId::Rx)].high_water      = 5;
   TEST_ASSERT_GREATER_THAN(0, diag_radio_json(r, g_buf, sizeof(g_buf)));
@@ -155,6 +158,11 @@ void test_the_radio_document_carries_the_driver_and_queue_numbers() {
   TEST_ASSERT_EQUAL_INT64(12, value_of(g_buf, "cad_backoffs"));
   TEST_ASSERT_EQUAL_INT64(-2, value_of(g_buf, "last_begin_status"));
   TEST_ASSERT_EQUAL_INT64(3, value_of(g_buf, "tx_forced"));
+  // rx_wake.h's pair. They are published on the RADIO document and never among the
+  // spec 14.1 counters; lora_stats.h says why.
+  TEST_ASSERT_EQUAL_INT64(6, value_of(g_buf, "rx_no_interrupt"));
+  TEST_ASSERT_EQUAL_INT64(7, value_of(g_buf, "rx_wake_empty"));
+  TEST_ASSERT_EQUAL_INT64(-1, value_of(g_buf, "rx_frames"));  // the rx document's
   TEST_ASSERT_EQUAL_INT64(4, value_of(g_buf, "q_publish_dropped"));
   TEST_ASSERT_EQUAL_INT64(5, value_of(g_buf, "q_rx_high_water"));
   TEST_ASSERT_EQUAL_INT64(0, value_of(g_buf, "q_log_dropped"));

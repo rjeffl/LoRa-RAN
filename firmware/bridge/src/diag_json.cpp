@@ -117,6 +117,10 @@ size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap) {
   j.u32("tx_timeouts", r.stats.tx_timeouts);
   j.u32("tx_dropped_no_radio", r.stats.tx_dropped_no_radio);
   j.u32("rx_driver_errors", r.stats.rx_driver_errors);
+  // The receive path's interrupt accounting (rx_wake.h). Beside the radio's other
+  // numbers rather than among the spec 14.1 counters, for the reason lora_stats.h gives.
+  j.u32("rx_no_interrupt", r.stats.rx_no_interrupt);
+  j.u32("rx_wake_empty", r.stats.rx_wake_empty);
   j.u32("begin_failures", r.stats.begin_failures);
   j.i32("last_begin_status", r.stats.last_begin_status);
   for (size_t i = 0; i < kQueueCount; ++i) {

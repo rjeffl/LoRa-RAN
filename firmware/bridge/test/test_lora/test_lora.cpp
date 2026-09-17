@@ -21,6 +21,7 @@
 #include "lran/lran.h"
 #include "radio_config.h"
 #include "rx_ladder.h"
+#include "rx_wake.h"
 
 using namespace bridge;
 using namespace lran;
@@ -676,6 +677,77 @@ void test_a_refused_version_is_readable_after_the_discard() {
   TEST_ASSERT_EQUAL_UINT8(kProtoVer - 2, ladder.last_ver());
 }
 
+// ---------------------------------------------------------------------------
+// rx_wake.h - why service_receive ran, and what the IRQ register made of it.
+//
+// WHAT THIS CANNOT COVER, and it is the important half: that DIO1 is wired to GPIO 14,
+// that the SX1262 asserts it on RX_DONE, or that RadioLib attaches on the rising edge.
+// Those are the premises this seam is built on and only a board can check them. What is
+// under test is the classification - that a frame found by the timed read is recorded as
+// one, and that a header error is never mistaken for one.
+// ---------------------------------------------------------------------------
+
+void test_an_interrupt_beats_the_timer() {
+  // The edge arrived early in the interval. The pass is the interrupt's, not the timer's,
+  // because the difference between them IS the measurement.
+  TEST_ASSERT_TRUE(rx_wake(true, 1000, 999, 1000) == RxWake::Interrupt);
+}
+
+void test_no_edge_and_no_elapsed_interval_touches_nothing() {
+  TEST_ASSERT_TRUE(rx_wake(false, 1999, 1000, 1000) == RxWake::Skip);
+}
+
+void test_the_timed_read_fires_exactly_on_the_interval() {
+  TEST_ASSERT_TRUE(rx_wake(false, 2000, 1000, 1000) == RxWake::Timed);
+}
+
+void test_the_read_interval_is_wrap_safe() {
+  // millis() wrapped between the last read and now. Unsigned subtraction gives 10 ms,
+  // not 4.29e9, so the register is not read on every pass for the next 49 days.
+  TEST_ASSERT_TRUE(rx_wake(false, 9, UINT32_MAX - 10, 1000) == RxWake::Skip);
+  TEST_ASSERT_TRUE(rx_wake(false, 1000, UINT32_MAX - 10, 1000) == RxWake::Timed);
+}
+
+void test_a_frame_with_its_own_interrupt_is_an_ordinary_packet() {
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Interrupt, true, false) == RxPass::Packet);
+}
+
+void test_a_frame_found_by_the_timed_read_is_an_orphan() {
+  // The whole point. RX_DONE was set and no edge ever arrived for it, so the interrupt
+  // path missed this frame and the timed read recovered it.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Timed, true, false) == RxPass::Orphan);
+}
+
+void test_a_header_error_is_never_counted_as_a_missed_interrupt() {
+  // HEADER_ERR is not in the DIO1 mask, so the timed read is the ONLY thing that can find
+  // one - by design. Classing it as an orphan would report a missed interrupt on every
+  // corrupt header and bury the signal.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Timed, false, true) == RxPass::HeaderError);
+}
+
+void test_a_completed_reception_outranks_a_stale_header_error_bit() {
+  // Both bits set: the reception completed, and readData() reports the header error
+  // through its own CRC-mismatch status where stage 1 already handles it.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Timed, true, true) == RxPass::Orphan);
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Interrupt, true, true) == RxPass::Packet);
+}
+
+void test_an_edge_with_an_empty_register_is_counted_not_ignored() {
+  // The frame that raised the edge was cleared by a readData() before this pass looked.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Interrupt, false, false) == RxPass::WakeEmpty);
+}
+
+void test_a_timed_read_over_an_empty_register_is_the_quiet_case() {
+  // Once a second on an idle link. It is not a loss and must not be counted as one.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Timed, false, false) == RxPass::Nothing);
+}
+
+void test_a_skipped_pass_reads_nothing_whatever_the_bits_say() {
+  // Defensive: the caller returns on Skip before reading the register, so the bits passed
+  // here are meaningless. Classifying them would invent a count out of stale arguments.
+  TEST_ASSERT_TRUE(rx_pass(RxWake::Skip, true, true) == RxPass::Nothing);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_ladder_accepts_n_minus_one_and_refuses_n_minus_two);
@@ -685,6 +757,18 @@ int main() {
   RUN_TEST(test_phy_is_the_d1_working_point);
   RUN_TEST(test_eirp_is_within_the_d33_ceiling);
   RUN_TEST(test_pin_conflict_check_detects_a_collision);
+
+  RUN_TEST(test_an_interrupt_beats_the_timer);
+  RUN_TEST(test_no_edge_and_no_elapsed_interval_touches_nothing);
+  RUN_TEST(test_the_timed_read_fires_exactly_on_the_interval);
+  RUN_TEST(test_the_read_interval_is_wrap_safe);
+  RUN_TEST(test_a_frame_with_its_own_interrupt_is_an_ordinary_packet);
+  RUN_TEST(test_a_frame_found_by_the_timed_read_is_an_orphan);
+  RUN_TEST(test_a_header_error_is_never_counted_as_a_missed_interrupt);
+  RUN_TEST(test_a_completed_reception_outranks_a_stale_header_error_bit);
+  RUN_TEST(test_an_edge_with_an_empty_register_is_counted_not_ignored);
+  RUN_TEST(test_a_timed_read_over_an_empty_register_is_the_quiet_case);
+  RUN_TEST(test_a_skipped_pass_reads_nothing_whatever_the_bits_say);
 
   RUN_TEST(test_a_status_frame_is_delivered_whole);
   RUN_TEST(test_a_phy_crc_error_is_counted_as_stage_1);
