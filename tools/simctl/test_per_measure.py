@@ -33,7 +33,13 @@ ZERO = {
     "rx_frag_late": 0, "rx_dup_command": 0, "rx_dropped": 0, "rx_frames": 0,
 }
 
-RADIO_ZERO = {"tx_frames": 0, "cad_backoffs": 0, "errors_suppressed": 0}
+RADIO_ZERO = {"tx_frames": 0, "cad_backoffs": 0, "errors_suppressed": 0,
+              "rx_no_interrupt": 0, "rx_wake_empty": 0}
+
+# A bridge built before 2026-09-17 publishes the radio document without rx_wake.h's
+# pair. Kept as its own fixture so "the bridge reported zero" and "the bridge cannot
+# report" stay distinguishable in the tests, as they must be in a run.
+RADIO_OLD = {"tx_frames": 0, "cad_backoffs": 0, "errors_suppressed": 0}
 
 
 def after(**moves):
@@ -118,6 +124,47 @@ class InvalidWindow(unittest.TestCase):
         w = measure(10, ZERO, after(rx_frames=10), radio(tx_frames=9), RADIO_ZERO)
         self.assertFalse(w["valid"])
         self.assertIn("rebooted", w["reason"])
+
+
+class InterruptAccounting(unittest.TestCase):
+    """rx_wake.h's counters: reported, never a guard."""
+
+    def test_a_missed_interrupt_is_reported_beside_the_per(self):
+        w = measure(50, ZERO, after(rx_frames=48), RADIO_ZERO,
+                    radio(rx_no_interrupt=7, rx_wake_empty=2))
+        self.assertTrue(w["valid"], w["reason"])
+        self.assertEqual(w["bridge_no_interrupt"], 7)
+        self.assertEqual(w["bridge_wake_empty"], 2)
+        self.assertAlmostEqual(w["per"], 0.04)
+
+    def test_a_missed_interrupt_does_not_invalidate_the_window(self):
+        # It describes how a frame reached the ladder, not whether this window can be
+        # measured. Only a reboot, cross-traffic or an empty burst refuse a window.
+        w = measure(10, ZERO, after(rx_frames=10), RADIO_ZERO, radio(rx_no_interrupt=99))
+        self.assertTrue(w["valid"], w["reason"])
+
+    def test_zero_is_printed_and_is_the_falsifying_reading(self):
+        # A burst that lost frames with rx_no_interrupt at zero kills the kIrqReadMs
+        # mechanism (engineering log, 2026-09-17). Suppressing the zero as "nothing to
+        # report" would hide exactly the reading that settles it.
+        line = format_window(1, measure(50, ZERO, after(rx_frames=48), RADIO_ZERO,
+                                        RADIO_ZERO))
+        self.assertIn("no-interrupt 0", line)
+        self.assertIn("wake-empty 0", line)
+
+    def test_a_bridge_that_cannot_report_is_silent_rather_than_zero(self):
+        w = measure(10, ZERO, after(rx_frames=10), RADIO_OLD, RADIO_OLD)
+        self.assertIsNone(w["bridge_no_interrupt"])
+        self.assertNotIn("no-interrupt", format_window(1, w))
+
+    def test_the_counters_are_pooled_across_bursts(self):
+        a = measure(10, ZERO, after(rx_frames=10), RADIO_ZERO, radio(rx_no_interrupt=3))
+        b = measure(10, ZERO, after(rx_frames=10), RADIO_ZERO, radio(rx_no_interrupt=4))
+        self.assertEqual(aggregate([a, b])["bridge_no_interrupt"], 7)
+
+    def test_an_old_bridge_pools_as_zero_rather_than_failing(self):
+        w = measure(10, ZERO, after(rx_frames=10), RADIO_OLD, RADIO_OLD)
+        self.assertEqual(aggregate([w])["bridge_no_interrupt"], 0)
 
 
 class Aggregate(unittest.TestCase):
