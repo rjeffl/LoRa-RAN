@@ -19,14 +19,31 @@ discovery and publication policy, and the whole milestone except one criterion i
 with **no node hardware** (**V-B11**): BF-23, BF-24, BF-25, with BF-26 behind
 `/lib/lran-config/`.
 
-**Start with BF-23 rather than picking freely, because it unblocks two things at once.**
-Besides discovery generation it owns `TODO(BF-23)` on `g_diag_interval_s`
-(`task_runtime.cpp`) — the runtime lever that makes **V-B12's saturated arm possible at
-all**. Until it exists the bridge's WiFi transmits one diagnostic document a minute and no
-load can be put on it.
+**BF-23 has two halves and only one of them is reachable. An earlier draft of this file
+said it "unblocks two things at once"; that is wrong.** Discovery generation is reachable
+and specified. The other half — `TODO(BF-23)` on `g_diag_interval_s` (`task_runtime.cpp`),
+the runtime lever that makes **V-B12's saturated arm possible at all** — is not, and the
+reason predates the task:
 
-**V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
+- **`lran/<node>/config/set` has no payload.** Spec §16.2.1 leaves it undefined on purpose:
+  *"a payload specified before its first caller is a guess carrying a version number."*
+- **`/lib/lran-config/` does not exist and has no task.** See *Work no task owns*.
+
+**This is the same gap that deferred BF-26 on 2026-09-14**, so it now blocks two tasks
+rather than one. **Check it before planning around any `TODO(BF-23)` timing constant** —
+the same caution this file already gives for `poll_interval_s`. Every other lever
+(`reply_timeout_ms`, `missed_poll_threshold`, `error_min_interval_ms`, the media-access
+config) sits behind it too.
+
+**Choosing the route is an operator decision, not a default.** Three exist and they are not
+equivalent: a general `config/set` with `/lib/lran-config/` behind it, a narrow
+single-purpose topic for the diagnostic interval alone, or a serial-only lever like BF-26's
+deferred fallback. The first commits a fleet-wide interface; the second freezes an
+HA-visible token; the third leaves root rule 8 unmet.
+
+**V-B12 is a B4 criterion and its idle arm is already measured.** Impl Plan §8.1 is the
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
+**Its saturated arm stays blocked** until the lever above has a route.
 
 **One thing must land before BF-24: the receive path's 1 s knee.** BF-24 decodes a
 fragmented `STATUS`, which is the traffic pattern that loses frames on this firmware, so
