@@ -610,8 +610,76 @@ void test_an_unregistered_fragment_takes_no_slot_and_displaces_nothing() {
   TEST_ASSERT_EQUAL_INT(static_cast<int>(kReassemblySlots), delivered);
 }
 
+// ---------------------------------------------------------------------------
+// BF-22 - version tolerance (spec 13.1, R-3.1e, V-B10)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// status_frame()'s frame, announcing `ver`. Encoded rather than patched, so the CRC
+// covers the version the test means to send.
+size_t status_at_version(uint8_t ver, uint8_t* buf) {
+  Header h = make_hdr(MsgType::Status, kNodeGateLink, kNodeBridge, 7,
+                      kSchemaGateLinkStatusV1);
+  h.ver    = ver;
+  const uint8_t payload[kMaxPayloadPlain] = {0};
+  const size_t  n = fixed_payload_len(MsgType::Status, kSchemaGateLinkStatusV1);
+  size_t        len = 0;
+  return encode(h, payload, n, EncodeCtx{}, buf, kMaxFrame, &len) == Status::Ok ? len : 0;
+}
+
+}  // namespace
+
+// THE POINT OF THE WHOLE TASK. Remote nodes are USB-only, so a protocol change is a walk
+// to every node; accepting N-1 is what makes a rollout incremental instead of a flag day.
+void test_the_ladder_accepts_n_minus_one_and_refuses_n_minus_two() {
+  Counters c;
+  RxLadder ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+
+  // N - the current version.
+  size_t len = status_at_version(kProtoVer, buf);
+  TEST_ASSERT_TRUE(len > 0);
+  TEST_ASSERT_TRUE(ladder.accept(buf, len, 1000, &d));
+
+  // N-1 - ACCEPTED and decoded (spec 13.1).
+  len = status_at_version(kProtoVer - 1, buf);
+  TEST_ASSERT_TRUE(len > 0);
+  TEST_ASSERT_TRUE_MESSAGE(ladder.accept(buf, len, 1000, &d), "N-1 must be accepted");
+  TEST_ASSERT_EQUAL_UINT32(0, c.rx_bad_ver);
+
+  // N-2 - refused, and counted at stage 4. Spec 13.2 lets a field change meaning across
+  // two versions, so best-effort parsing here would publish a plausible wrong number.
+  len = status_at_version(kProtoVer - 2, buf);
+  TEST_ASSERT_TRUE(len > 0);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 1000, &d));
+  TEST_ASSERT_EQUAL_UINT32(1, c.rx_bad_ver);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::BadVersion),
+                        static_cast<int>(ladder.last_status()));
+}
+
+// R-3.1f - the version has to survive the discard, because a frame refused at stage 4
+// never reaches the registry and the node would otherwise just fall silent.
+void test_a_refused_version_is_readable_after_the_discard() {
+  Counters c;
+  RxLadder ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+  const size_t len = status_at_version(kProtoVer - 2, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 1000, &d));
+  TEST_ASSERT_EQUAL_HEX8(kNodeGateLink, ladder.last_src());
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer - 2, ladder.last_ver());
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_the_ladder_accepts_n_minus_one_and_refuses_n_minus_two);
+  RUN_TEST(test_a_refused_version_is_readable_after_the_discard);
   RUN_TEST(test_heltec_pins_match_impl_plan_10_8_1);
   RUN_TEST(test_heltec_tcxo_and_rf_switch_are_set);
   RUN_TEST(test_phy_is_the_d1_working_point);

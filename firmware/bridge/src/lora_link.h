@@ -61,6 +61,11 @@ void lora_configure_errors(uint32_t min_interval_ms);
 // task, and up to a second old like the counters beside it.
 uint32_t lora_errors_suppressed();
 
+// R-3.1f (BF-22). Takes the last (src, ver) refused at spec 14 stage 4 and clears it,
+// so a caller sees each one once. False when nothing is pending. Call from sched_task:
+// the record exists because lora_task cannot reach the registry.
+bool lora_take_bad_version(lran::NodeId* src, uint8_t* ver);
+
 // The registry's keys and the platform HMAC. Until it is called nothing is registered, so
 // every frame is refused. registry_begin() calls it before start_tasks(), so lora_task
 // never races the assignment.

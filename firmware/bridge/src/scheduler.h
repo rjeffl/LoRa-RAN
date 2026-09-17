@@ -119,6 +119,9 @@ class PollScheduler {
 // spec 6.4 - a POLL to `dst` with poll_flags bit 0 (full status), carrying the node's ctx_id
 // as learned (0 until heard, which a node does not check on an unauthenticated type). Returns
 // the frame length, or 0.
-size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t* buf, size_t cap);
+// `ver` is what this node last announced, or kProtoVer before it has been heard
+// (R-3.1e, BF-22). Use node_tx_ver().
+size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                        uint8_t* buf, size_t cap);
 
 }  // namespace bridge

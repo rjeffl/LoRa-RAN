@@ -101,10 +101,10 @@ uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
   return answer_ms;
 }
 
-size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t* buf, size_t cap) {
+size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                        uint8_t* buf, size_t cap) {
   lran::Header h;
-  // TODO(BF-22): the version last heard from this node, for N-1 (R-3.1e).
-  h.ver    = lran::kProtoVer;
+  h.ver    = ver;  // R-3.1e - the version last heard from this node (BF-22)
   h.type   = lran::MsgType::Poll;
   h.src    = lran::kNodeBridge;
   h.dst    = dst;

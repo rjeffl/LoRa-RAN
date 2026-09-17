@@ -60,6 +60,8 @@ Observed Registry::observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr
   s.last_seen_ms = now_ms;
   ++s.frames_heard;
   s.proto_ver    = hdr.ver;
+  // R-3.1f - this frame was decoded, so whatever skew was recorded is over (BF-22).
+  s.unsupported_ver = 0;
   s.rssi_dbm     = rssi_dbm;
   s.snr_db       = snr_db;
   // Impl Plan 6.1 - any valid frame from the node, a push included, resets the count.
@@ -104,6 +106,13 @@ bool Registry::adopt_ctx(lran::NodeId id, lran::CtxId ctx) {
   if (i < 0) return false;
   entries_[i].state.ctx_id  = ctx;
   entries_[i].state.cmd_seq = 1;
+  return true;
+}
+
+bool Registry::note_unsupported_version(lran::NodeId id, uint8_t ver) {
+  const int i = index_of(id);
+  if (i < 0) return false;
+  entries_[i].state.unsupported_ver = ver;
   return true;
 }
 

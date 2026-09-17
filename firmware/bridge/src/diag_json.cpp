@@ -135,6 +135,14 @@ size_t diag_node_json(const NodeState& s, uint32_t now_ms, char* out, size_t cap
   // Saturated at UINT16_MAX, which is still a count and not a sentinel.
   j.u32("missed_polls", s.missed_polls);
   if (s.proto_ver == kVerUnknown) j.null("proto_ver"); else j.u32("proto_ver", s.proto_ver);
+  // R-3.1f (BF-22) - the version this node speaks that the bridge cannot parse, or null.
+  // THE DISTINCT REASON LIVES HERE AND NOT ON THE AVAILABILITY TOPIC: spec 16.5 fixes
+  // that topic's payloads at `online` and `offline`, and Home Assistant depends on the
+  // two tokens. So an unsupported node goes offline like any other and this field is what
+  // says why - which is the difference between "marked unavailable with a distinct
+  // reason" and "silently ignored".
+  if (s.unsupported_ver == 0) j.null("unsupported_ver");
+  else j.u32("unsupported_ver", s.unsupported_ver);
   return j.finish();
 }
 

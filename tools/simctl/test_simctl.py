@@ -115,15 +115,24 @@ class TestVerdict(unittest.TestCase):
         self.assertTrue(judge(s, ZERO, after(rx_frames=2, rx_bad_length=2, rx_dropped=2)).ok)
         self.assertFalse(judge(s, ZERO, after(rx_frames=2, rx_bad_length=1, rx_dropped=1)).ok)
 
-    # A known disagreement is neither a pass nor a failure of the tool: it is recorded,
-    # with the task that closes it, and the runner reports it as neither.
+    # BF-22 closed the one divergence this table carried, so the mechanism is tested on a
+    # scenario built for it rather than deleted with the row that used to need it. A tool
+    # that cannot report "known, and someone owns it" scores a documented gap as either a
+    # failure to ignore or a pass that hides it.
     def test_a_known_divergence_is_flagged_rather_than_failed_silently(self):
-        s = scenario("bad_ver")
-        self.assertIsNotNone(s.divergence)
-        v = judge(s, ZERO, after(rx_frames=2, rx_bad_ver=2, rx_dropped=2))
+        from catalogue import Scenario
+        s = Scenario("example", "rx_runt", 1, 1, divergence="BF-99: not built yet")
+        v = judge(s, ZERO, after(rx_frames=1, rx_runt=2, rx_dropped=2))
         self.assertFalse(v.ok)
         self.assertTrue(v.diverged)
-        self.assertIn("BF-22", v.detail)
+        self.assertIn("BF-99", v.detail)
+
+    # And bad_ver, which carried it until BF-22, now expects the table's own number.
+    def test_bad_ver_no_longer_diverges(self):
+        s = scenario("bad_ver")
+        self.assertIsNone(s.divergence)
+        v = judge(s, ZERO, after(rx_frames=2, rx_bad_ver=1, rx_dropped=1))
+        self.assertTrue(v.ok, v.detail)
 
     # Counters are differenced across a window; a reflash zeroes them and an absolute
     # value means nothing.
