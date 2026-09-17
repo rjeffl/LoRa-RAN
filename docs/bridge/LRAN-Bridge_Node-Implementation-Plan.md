@@ -1186,17 +1186,24 @@ that policy. Three parts, examined 2026-09-17:
 | A WiFi load on the bridge | **Not available.** Nothing reaches `g_diag_interval_s` at runtime and the bridge has no console, so its WiFi transmits one diagnostic document a minute. `task_runtime.cpp` carries `TODO(BF-23)` on that atomic — **BF-23 is the task that makes the saturated arm possible**, and it is in B4 |
 | Per-node RSSI and SNR at the broker | **Not available for a bench node.** `simnode_diag_enable` gates it (spec §16.6), and **BF-26** builds that gate. Also B4 |
 
-**An inbound MQTT flood is not a substitute, and the reason is worth recording.** Flooding
-`lran/<id>/cmd/<action>/set` for an unregistered id is refused at `CommandInbound` before
-any transmit, so it loads the bridge without contaminating the radio — but it saturates
-WiFi *receive*, and R-4.4's third argument is specifically about WiFi *transmit* desensing
-LoRa receive. Measuring the wrong direction and recording it as V-B12 would close the
-criterion without testing the claim.
+**An inbound MQTT flood is not a substitute, and it fails in a direction that would not
+show up in the result.** Flooding `lran/<id>/cmd/<action>/set` for an unregistered id is
+refused at `CommandInbound` before any transmit, so it loads the bridge without
+contaminating the radio — but it saturates WiFi *receive*, and R-4.4's third argument is
+about WiFi *transmit* desensing LoRa receive. Measuring the wrong direction and recording
+it as V-B12 would close the criterion without testing the claim.
 
 **The idle arm is not blocked**, and it is the baseline the saturated arm is compared
 against, so it is measured before B4 rather than with it. `tools/simctl/per_measure.py`
 is the instrument, and it is the same instrument both arms use — `--arm` records which
 one ran and changes nothing else. The engineering log carries what the idle arm measured.
+
+**The saturated arm must run at a spacing whose idle PER is zero, and that is a measured
+constraint rather than a preference.** The idle arm returned **5.6 % at a 250 ms gap and
+0 % at 2000 ms** on 2026-09-17, on a clean bench at one metre with nothing corrupt. Run the
+saturated arm densely and a WiFi effect cannot be told from that one. **`--gap 2000` with a
+longer run is the comparable configuration**; the dense case stays runnable because it is
+what made the receive-path question visible at all.
 
 > **What would falsify the move rather than the policy.** If BF-23 lands without a
 > runtime path to `g_diag_interval_s`, the saturated arm has no lever again and V-B12

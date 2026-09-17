@@ -1,8 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-16, at the end of the session that finished B3b's tasks** — BF-18,
-BF-21 and BF-22. It replaces the earlier 2026-09-16 files wholesale; their content is
-carried over where it is still true.
+**Written 2026-09-17, at the end of the session that accepted B3b and moved V-B12 to B4.**
+It replaces the 2026-09-16 file wholesale; its content is carried over where it is still
+true.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -12,18 +12,19 @@ carried over where it is still true.
 
 ## The next job, in one place
 
-**B3b has no tasks left. What stands between it and acceptance is V-B12, and no task owns
-it.**
+**B4, starting with BF-23.** B3b is accepted and nothing is owed behind it. B4 is MQTT,
+discovery and publication policy, and the whole milestone except one criterion is reachable
+with **no node hardware** (**V-B11**): BF-23, BF-24, BF-25, with BF-26 behind
+`/lib/lran-config/`.
 
-**Every BF-* task in B3b is built and confirmed on air** (2026-09-16). Impl Plan §8's B3b
-row carries one more clause: *"**V-B12** measured"* — bridge LoRa PER with WiFi idle versus
-saturated (M22). **It has no `BF-*` number**, so the first decision next session is whether
-it gets one or moves to B4. That is a task-breakdown gap, not a code gap, and it is the
-only thing blocking B3b from being declared done.
+**Start with BF-23 rather than picking freely, because it unblocks two things at once.**
+Besides discovery generation it owns `TODO(BF-23)` on `g_diag_interval_s`
+(`task_runtime.cpp`) — the runtime lever that makes **V-B12's saturated arm possible at
+all**. Until it exists the bridge's WiFi transmits one diagnostic document a minute and no
+load can be put on it.
 
-After that the critical path is **B4** — MQTT, discovery and publication policy, reachable
-with no node hardware (**V-B11**): BF-23, BF-24, BF-25, and BF-26 once `/lib/lran-config/`
-exists.
+**V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
+record of the move; the engineering log's 2026-09-17 entries are the measurement.
 
 ```bash
 git fetch origin -p
@@ -34,9 +35,14 @@ gh pr list --state open
 **The catalogue runs in one command**, and every row it drives is green:
 
 ```bash
-export LRAN_MQTT_HOST=... LRAN_MQTT_USER=...      # password with `read -rs`, never argv
-python3 tools/simctl/simctl.py --port /dev/cu.usbmodem2101   # 23 counter rows, ~30 min
+export LRAN_MQTT_HOST=$(sed -n 's/^#define MQTT_HOST[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+export LRAN_MQTT_USER=$(sed -n 's/^#define MQTT_USER[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+~/.platformio/penv/bin/python tools/simctl/simctl.py --port /dev/cu.usbmodem2101
 ```
+
+**Command substitution, not `echo`** — the values land in the environment and nothing
+prints. See *Bench credentials* below for why this is safe today and will not be.
 
 **Set the bench up like this.** One simnode board is enough; a second is needed only for
 `PING` between nodes. `simctl` enrols its own identity. For a hand-run session: `push f1`
@@ -46,29 +52,31 @@ the bridge.** **A command is driven from the broker**: publish to
 
 ## What the last session established
 
-**Every item below is in the engineering log's three 2026-09-16 entries, with the numbers.**
+**Every item below is in the engineering log's 2026-09-17 entries, with the numbers.**
 
-- **The bridge sends authenticated frames** (BF-18) and **accepts N−1** (BF-22). Before
-  this session it did neither.
-- **Root rule 2 held on air**: a retry carrying the same `seq` was answered
-  `DUPLICATE_CACHED (ACCEPTED), not executed`.
-- **Spec §10.3 step 3 fired** via BF-21's `ctx_reject`: two `COMMAND`s, no third,
-  `resync_failed` published.
-- **V-B10 is met**: `bad_ver` reads `rx_bad_ver +1`, down from +2, with both frames
-  arriving.
-- **The catalogue runs itself** — `tools/simctl/`, judged from `lran/bridge/diag/state`,
-  one 60 s window per row, with a check that fails when its rows and `fault.cpp` drift.
-- **`/lib/lran-config/` is still unowned**, and **V-B12 has no task**. Those are the two
-  gaps this session did not close.
+- **B3b is accepted.** Its tasks were confirmed on air 2026-09-16; the milestone closed on
+  2026-09-17 once its last criterion had a home.
+- **V-B12 moved to B4 rather than gaining a `BF-*` number**, with the operator. Its
+  saturated arm cannot run on this firmware and both things it needs — BF-23's lever and
+  BF-26's bench diagnostics — are already B4 tasks.
+- **M22's idle arm measured 5.6 % PER over 250 frames at one metre** with a 250 ms gap, and
+  **0 % over 40 frames at 2000 ms**. The losses are a function of inter-frame spacing.
+- **Zero of those 250 frames arrived corrupt.** Every loss is a frame the radio never
+  delivered, which at one metre is not an RF story.
+- **The bridge's own media access does not explain it.** Burst 2 lost 4 frames of 50 with
+  zero transmissions and zero CAD backoffs, and the wide-gap control lost nothing while
+  transmitting. **Receive turnaround is consistent with the data and not proved.**
+- **`tools/simctl/per_measure.py` is the instrument**, with 18 host tests in CI and its
+  arithmetic separated from its I/O.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-16 entry first: the catalogue table, W9, and the traps this run cost time on |
-| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§8** owns B3b's criteria; **§10.5** is the fault catalogue; **§7.2.1** BF-21's `simctl`; **§6.2.1** BF-18; **§6.1.1–§6.1.2** BF-17 and BF-20; **§4.3.2** BF-19; **§10** the simnode |
-| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §6's B3b tasks are all built; §7 is B4, where the work goes next |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-17 entries first: M22's idle arm, what it rules out, and what it does not |
+| 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§8** owns the milestones; **§8.1** is V-B12's move; **§10.5** is the fault catalogue; **§7.2.1** BF-21's `simctl`; **§6.2.1** BF-18; **§6.1.1–§6.1.2** BF-17 and BF-20; **§4.3.2** BF-19; **§10** the simnode |
+| 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next; §6's B3b tasks are all built |
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 6 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
 | 7 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9–§12, §14 | keys, context, reassembly, radio, the discard ladder. **§18.2, never §18.1 alone** |
@@ -79,9 +87,9 @@ the bridge.** **A command is driven from the broker**: publish to
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
-| Not done | **V-B12**, which no task owns. **B4**: BF-23–BF-25, BF-26 deferred. **BF-11a**, **BF-11b** |
-| Queue | Decide V-B12's owner, then B4. Nothing waits on a document |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
+| Not done | **B4**: BF-23–BF-25, BF-26 deferred. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | BF-23 first, for the reason in *The next job*. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -97,13 +105,19 @@ python3 tools/checks/no_mbedtls_hkdf.py         # HKDF built from HMAC, spec 9.1
 python3 tools/checks/bridge_partitions.py       # A/B table; add --firmware/--elf after a build
 python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
 python3 tools/simctl/test_simctl.py             # simctl's verdict logic, no board
+python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
 
+**All of the above passed on 2026-09-17**: 435 Unity cases across the five native suites,
+and every check above.
+
 **`pio` is a shell alias on the macOS build machine.** A script that does not source the
 user's profile must call `~/.platformio/penv/bin/pio` by path, or every step fails as
-`command not found` while looking like a build failure.
+`command not found` while looking like a build failure. **The same applies to `python3`** —
+`pyserial` and `paho-mqtt` live in PlatformIO's environment, so a bench tool runs under
+`~/.platformio/penv/bin/python`, not the system interpreter.
 
 **CI runs all of these** on every pull request, and builds both V-B9 bad images.
 
@@ -137,6 +151,21 @@ stacked on it rather than retargeting it. Merge each PR without it, retarget the
 **A push touching `.github/workflows/` needs workflow token scope.** Refused once, on
 2026-09-08; accepted since. Try the push; if it is refused, the operator refreshes auth.
 
+## Bench credentials — the broker is a sandbox, and that changes what is safe
+
+**The broker at the address in `secrets.h` is a disposable sandbox Home Assistant install
+with its own Mosquitto.** Its credentials are **not** the production ones, so they may be
+put into the environment directly rather than prompted for. **That changes at the production
+cutover**, after which a password must not reach argv, a log or a committed file.
+
+**`simctl` and `per_measure` read `LRAN_MQTT_HOST`, `LRAN_MQTT_USER` and
+`LRAN_MQTT_PASSWORD` from the environment and never take them as arguments**, which is
+right either way — an argument reaches argv, and argv reaches the process table and the
+shell history. Source them out of `secrets.h` without echoing them; `secrets.h` is
+gitignored and stays where it is.
+
+**The OTA password is read from `LRAN_OTA_PASSWORD`** in the shell that runs the upload.
+
 ## Hardware state
 
 **This table names the devices in this subproject's terms**; the range-test handoff owns
@@ -144,9 +173,9 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-16 from `24f7993`, a clean tree** (BF-22): banner `Version: 0.1.0`, `Slot: app0`, `Registry:` with six rows. Only documentation landed after that commit, so it is `main` in behaviour | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. It had been left on a pre-v0.12 image (banner `v0.11`) until BF-18. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone; `f3` `ROLE_RANGE` was added by hand for W9 and is gone after any reboot |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-16 from `24f7993`, a clean tree** (BF-22). Confirmed on air 2026-09-17: `lran/bridge/version` reads `0.1.0`, `git 24f7993`, `slot app0`. Only documentation has landed since, so it is `main` in behaviour | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone. **`f3` `ROLE_FAULT` was added by hand for M22 and is gone after any reboot** |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
 `-dirty` git field on the banner means the running image matches no commit.
@@ -157,15 +186,8 @@ artifact. **Tell the two Heltecs apart by enclosure** — both CP2102 bridges re
 only `usbmodem` port.
 
 **No stored state on any of these boards is the only copy.** Every survey site and every B1b
-position is committed under `docs/rangetest/data/`.
-
-**`secrets.h` on the macOS build machine holds a real master key and the broker's LAN
-address.** It is gitignored and uncommitted; never read it into a command, a log or a commit.
-**The broker is a disposable sandbox Home Assistant install** with its own Mosquitto, so its
-credentials are not the production ones — that changes at the production cutover, and a
-password must not reach argv, a log or a committed file after it.
-**The OTA password is read from `LRAN_OTA_PASSWORD`** in the shell that runs the upload —
-prompt for it with `read -rs` rather than putting it in a file or a history line.
+position is committed under `docs/rangetest/data/`, and every M22 run under
+`docs/bridge/data/`.
 
 **Its antenna stays on it.** The bridge uses the range test's 3.0 dBi 19 cm stick (Bridge
 PRD **R-4.3a.1**); the gain is a term in D1's EIRP arithmetic, and `radio_config.h` asserts
@@ -173,6 +195,8 @@ the sum at compile time.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **V-B12 is a B4 criterion since 2026-09-17**, not a B3b one. Text saying B3b is blocked on
+  it, or that no task owns it, is correct for before that.
 - **The bridge accepts protocol version N *and* N−1 since BF-22**, and addresses each node
   in the version that node announced. Text saying it accepts only N — or that `bad_ver`
   moves `rx_bad_ver` twice — is correct for before it. `lran/<node>/diag/state` gained
@@ -201,13 +225,23 @@ the sum at compile time.
 
 ## Traps that cost real time here
 
+- **The bridge loses frames offered back to back, at one metre, on a clean bench.** 5.6 % at
+  a 250 ms gap and **0 % at 2000 ms**, none of them corrupt. **A bench capture that spaces
+  frames tightly will show losses that are not the bug you are chasing** — space them, or
+  expect a non-zero floor. Engineering log, 2026-09-17, two entries.
+- **`cad_backoffs` counts a *busy* CAD only.** A CAD that returns free still takes the radio
+  out of receive and increments nothing. A zero in that column is not evidence the radio
+  stayed in receive.
 - **A bench node's `lran/<node>/diag/state` is not published at all**, so `unsupported_ver`,
   `proto_ver` and the per-node link are invisible at the broker for `f0`-`f3`. Spec §16.6
-  gates them on `simnode_diag_enable`, which **BF-26** has not built. BF-22's reason line
-  was read from the bridge's serial instead: `ver: f0 speaks v0, this bridge accepts 1-2`.
-- **`simctl` takes no credentials as arguments.** Export `LRAN_MQTT_HOST`, `LRAN_MQTT_USER`
-  and `LRAN_MQTT_PASSWORD` in the shell that runs it, the password with `read -rs`. An
-  argument reaches argv, and argv reaches the process table and the shell history.
+  gates them on `simnode_diag_enable`, which **BF-26** has not built. Read the bridge's
+  serial instead.
+- **A disabled identity re-enables itself on the next boot**, and opening a simnode's serial
+  port reboots it. **Quiet both boards in the same session that runs the measurement**, and
+  hold the ports open.
+- **An identity in `ROLE_FAULT` answers no `POLL`** (`node.cpp`), which is exactly what a PER
+  measurement wants and exactly what makes it go `offline` after three missed polls. Use
+  `ROLE_HEALTH` for an identity that must answer.
 - **A command takes 4-9 s from the MQTT publish to the node**, not the ~1 s the radio alone
   suggests: `sched_task`'s 1 s tick, the TX queue behind the poll scheduler, and media
   access each add to it. Three of BF-18's bench attempts were lost to assuming ~2 s.
@@ -215,12 +249,11 @@ the sum at compile time.
   stale on every reconnect. Useful for reaching the resync deliberately; announce with
   `push f1` afterwards for everything else.
 - **A background serial capture piped into `tail` writes an empty file**, because the pipe
-  buffers until the process exits. Redirect to a file instead.
-- **Opening *either* board's serial port reboots it, the XIAO included.** The 2026-09-15 file
-  said the XIAO's native USB does not; it does — its banner printed and its identities reset
-  to `f1` alone. Hold one port open for a whole run rather than reconnecting per command.
+  buffers until the process exits. Redirect to a file instead, and run Python with `-u`.
+- **Opening *either* board's serial port reboots it, the XIAO included.** Hold one port open
+  for a whole run rather than reconnecting per command.
 - **A reboot of the bridge board zeroes every counter.** Read the counters, then leave that
-  port alone for the rest of the run.
+  port alone for the rest of the run. `per_measure` refuses a window this happened in.
 - **Bench cross-traffic moves the bridge's counters.** W9's pings are addressed to another
   node and the bridge still hears them: `rx_not_addressed` and `rx_dropped` both climbed by 8.
   Difference a counter only across a window carrying nothing else.
@@ -236,9 +269,6 @@ the sum at compile time.
   variable.
 - **`mosquitto_sub` block-buffers into a pipe**, so `| tee` shows an empty file for minutes
   while it is working. Subscribe with a client that line-buffers.
-- **`ROLE_FAULT` answers no `POLL`** (`node.cpp`). An identity in that role, once enrolled,
-  always goes `offline` after three missed polls. Use `ROLE_HEALTH` for an identity that must
-  answer, and expect the offline line when arming faults on a polled one.
 - **A bench identity is polled only after the bridge has heard it.** `push` works for
   `ROLE_GATELINK`; `fault <id> hdr_rsv` announces any role and moves no counter.
 - **Two simnode boards boot with the same identities** (`f0`, `f2`), and opening either serial
@@ -256,16 +286,12 @@ the sum at compile time.
   `lib_deps = symlink://../<dep>`, as `lib/lran-link/platformio.ini` does.
 - **A simnode PING to `00` reports no echo.** The bridge does not answer PING yet.
 - **An `RxLadder` with no `PeerKeys` refuses every frame**, as `unregistered_src`.
-- **`rx_unknown_src` replaced `unregistered_src` in BF-15a**, and it is inside `rx_dropped`
-  now. Both are on the bench as of 2026-09-16. A counter document captured before that flash
-  carries the old key and the old sum; compare `lran/bridge/version` before trusting either.
 - **The bridge's ERROR reply and the sender's next frame deafen each other.** Half duplex:
   the bridge cannot receive while it answers, and the sender cannot hear the answer while it
   transmits. A multi-frame §10.5 row loses a frame and its reply to this, and it is not a
   defect at either end. **`gap` spaces injections, not the frames inside one injection.**
 - **The simnode logs a received ERROR's `err_code` since 2026-09-16.** Before that it routed
-  `MsgType::Error` to `default: ++unhandled`, so an older bench log records that an ERROR
-  arrived and nothing about what it said.
+  `MsgType::Error` to `default: ++unhandled`.
 - **`registry_begin()` must run before `start_tasks()`**, and **`lora_task` must never call
   `registry_runtime`**, which waits on a mutex.
 - **The library's platform crypto is not in its build.** `platform/esp32/` and
@@ -298,22 +324,27 @@ the sum at compile time.
 
 ## Open, and not closable from here
 
+- **The bridge drops frames offered back to back, and the receive path is why.** Measured
+  2026-09-17: **5.6 % at a 250 ms gap, 0 % at 2000 ms**, same board, same image, one
+  variable. Not RF — none arrived corrupt. Not the bridge's own transmissions or CAD —
+  burst 2 had neither and still lost 4 of 50, and the control lost nothing while
+  transmitting. **Receive turnaround is consistent with the data and not proved**; what
+  would prove it is a capture showing where the second frame goes, and that is not built.
+  **It matters beyond M22**: a fragmented `STATUS` is exactly this pattern, and nothing in
+  the protocol stops a node sending one.
 - **Nothing a node sends the bridge carries a MAC the bridge verifies.** §9.2 makes every
   authenticated type bridge → node, so the bridge's own `rx_rejected_seq` and
   `rx_dup_command` stay at zero by construction. BF-18 proved the *sending* half.
 - **The `radio_ok` half of the OTA verdict is untested on hardware.** V-B9's images fail by
   network or by panic; no image with a dead radio exists.
 - **`poll_reply_timeout_ms` = 10 000 has bench evidence** (522–1686 ms at 1 m, no contention)
-  but no measurement under contention or at range. M22 / V-B12 is where that lands.
+  but no measurement under contention or at range.
 
 #### Spec v0.12 — landed 2026-09-16, and what it left open
 
 **All nine questions are answered.** Eight became **D35–D42** in the Decision Register;
 the ninth was a fact, verified against the datasheet as **M24**. `LRAN-Spec-v0.12-Brief`
-holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerates** —
-`generate.py` re-run against v0.12 reproduced the committed files byte for byte.
-
-**What it opened rather than closed:**
+holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerates.**
 
 - **W14** — §17.1's duty-cycling design assumed a silicon address filter that LoRa does
   not have, so its power model is unquantified. Owed before WellLink is built on that
@@ -322,11 +353,8 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   configuration larger than one frame is several messages with no atomicity across them.
   Count GateLink's real parameters against 24 entries before `/lib/lran-config/` is
   designed.
-- **BF-15a and BF-19a are done and on air**, 2026-09-16 — `rx_unknown_src` is a registry
-  row inside `rx_dropped`, and the bridge answers §14's `ERROR`s under §14.2's two bounds.
-  The §10.5 catalogue tested both: every one of the eight §14 stages that names an `ERROR`
-  produced one at the simnode, and `errors_suppressed` reached 2.
-  **§14.2's bound 1 is what v0.12 left untested on air** — see *The next job* above.
+- **§14.2's bound 1 is what v0.12 left untested on air** — no unregistered source has been
+  produced on the bench.
 
 #### Work no task owns
 
@@ -345,14 +373,13 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **BF-11a** (log queue drain) and **BF-11b** (hardware watchdog from `sched_task`).
 - **What GateLink's `COMMAND_ACK` waits for** — pulse complete, or gate confirmed. GateLink
   **M3** needs the answer.
-- **M22 / V-B12** — bridge LoRa PER with WiFi idle versus saturated. **This is the one
-  blocking B3b's acceptance**, and giving it an owner is the first job next session; see
-  *The next job* above.
 - **GateLink M0's LDO margin** — sized for Envelope B's 19.6 dBm, tested only at −4 dBm.
 - **The range-test firmware still transmits on the provisional 915.0 MHz.**
 
 ### Closed, and not to be reopened by habit
 
+- **B3b — accepted 2026-09-17.** Its tasks were on air the day before; the milestone closed
+  once V-B12 had a home. Do not reopen whether V-B12 should have had a `BF-*` number.
 - **BF-22 — built and on air 2026-09-16.** V-B10 met. Do not widen the accepted
   version range past N−1 for convenience; §13.2 is why.
 - **BF-21 — built and run 2026-09-16.** Both its decisions are made; do not reopen

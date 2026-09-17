@@ -1923,3 +1923,56 @@ instrument, and a narrowed question.
   more frames accepted than were sent (something else transmitted into the window), and
   nothing on the air. The second one is the handoff's *"difference a counter only across a
   window carrying nothing else"* made mechanical.
+
+---
+
+## 2026-09-17 — the control: 0 % at a 2000 ms gap, so the 5.6 % is spacing, not the link
+
+**The wide-gap control the entry above left open has run, and it answers the question.**
+Same instrument, same identity, same bridge image:
+
+```
+PER 0.00 % over 40 frames in 2 valid window(s); worst burst 0.00 %
+  never heard 0, corrupt 0, bridge transmissions in window 6, bridge CAD backoffs 0
+```
+
+| gap | frames | never heard | PER |
+|---|---|---|---|
+| 250 ms | 250 | 14 | **5.60 %** |
+| 2000 ms | 40 | 0 | **0.00 %** |
+
+Committed as `docs/bridge/data/m22-idle-control-gap2000-2026-09-17.json`. The bridge
+transmitted in both control windows (6 times across the two), so this is not a quiet-bench
+artefact — it lost nothing while doing the same work it was doing during the 250 ms run.
+
+**Two things differed from the 250 ms run, not one, and the second is worth stating rather
+than glossing.** The control was run with `--keep-others`, so `0xF1` stayed enabled on the
+XIAO instead of being disabled. It contributed nothing: `accepted` equalled `sent` exactly
+in both windows, and a single frame from another identity would have made `accepted` exceed
+`sent` and tripped the guard that refuses the window. So the comparison holds, but it holds
+because of a guard rather than because the runs were identical. **A repeat should disable
+the others in both arms.**
+
+**The losses are a function of inter-frame spacing.** At SF9 a frame of this size runs
+roughly 250–330 ms, and the injector measures its gap from when it fired, so at `gap 250`
+the frames are close to back to back and at `gap 2000` they are not. Nothing else differs.
+
+**What this closes.** The previous entry listed three candidates and ruled out two by
+measurement. The third — that the bridge cannot read one frame and be listening again
+before the next one starts — is the one left standing, and the control is consistent with
+it. **It is consistent with, not proof of**: this measures the bridge's behaviour at two
+spacings and does not instrument the turnaround itself. What would prove it is a capture
+that shows where the second frame goes, and that is not built.
+
+**What this changes for M22, and it is the practical part.** The saturated arm must run at
+a spacing whose idle PER is zero, or a WiFi effect cannot be told from this one. **`gap
+2000` is a measured zero and `gap 250` is not**, so the saturated arm inherits the wide
+gap and a longer run rather than the dense one. Written into the instrument's defaults is
+deliberately *not* the answer — the dense case is worth keeping runnable, because it is the
+only thing that has made this visible.
+
+**What it does not change.** The bridge still drops frames offered back to back on a clean
+bench at one metre, and nothing in the protocol prevents a node from sending that way — a
+fragmented `STATUS` is exactly that pattern. **That is a real question about the receive
+path, and it is not M22's.** It is recorded in the handoff's *Open* section rather than
+being folded into a WiFi measurement that would obscure it.
