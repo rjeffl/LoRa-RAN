@@ -26,6 +26,11 @@ load can be put on it.
 **V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
 
+**One thing should come before BF-24 rather than after it: the receive path's 1 s knee.**
+BF-24 decodes a fragmented `STATUS`, which is the traffic pattern that loses frames on this
+firmware, so decoding into it first means debugging two problems at once. It is written up
+in *Work no task owns* below, with the two steps that settle it.
+
 ```bash
 git fetch origin -p
 git switch main && git pull --ff-only
@@ -365,11 +370,25 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **`/lib/lran-config/`** — System PRD §9.4 describes it; BF-26 and BF-23 need it. **The
   MQTT receive path it was paired with is built** — BF-18 did it, so a `config/set`
   subscriber now has a transport seam and an inbound queue to reuse.
-- **The receive path's 1 s knee** — measured 2026-09-17 and unassigned. Two things would
-  settle it and neither is built: **change `kIrqReadMs` and re-run the sweep** to see whether
-  the knee moves with the constant, and **a counter for a frame lost between `RX_DONE` and
-  the ladder**, which root rule 4 would want anyway. Worth an owner before **BF-24** decodes
-  a fragmented `STATUS` into it.
+- **The receive path's 1 s knee** — measured 2026-09-17 and unassigned. **Do this before
+  BF-24**, which decodes a fragmented `STATUS` into exactly this traffic pattern. Two things
+  settle it and neither is built:
+  1. **A counter for a frame lost between `RX_DONE` and the ladder.** Root rule 4 wants it
+     anyway, and it turns the question into something readable at the broker instead of
+     inferred from a curve. Declare it as the others are — `counters.h`, `kCounterRegistry`,
+     `diag_json.cpp` — and **decide whether it belongs in spec §14.1 or is bridge-local**
+     like `tx_frames` and `cad_backoffs`. A §14.1 counter is a protocol-visible change.
+  2. **Change `kIrqReadMs` and re-run the sweep** (try 250 and 4000). If the knee moves with
+     the constant, the mechanism is this one. Needs a bridge reflash, so confirm first.
+  **A knee that does not move is a real result too** — record it and say what is left, rather
+  than hunting for a story that fits.
+- **The Implementation Plan cites PRD v0.6; the PRD is at v0.12** — found 2026-09-17 while
+  editing that header, and deliberately not bumped. **Reconcile §§2.1, 2.2, 3.2, 7.1 and 8
+  against the PRD's v0.7–v0.12 changelog first, then correct the citation**; a bare number
+  bump is the failure the citation rule exists to expose. **The more useful half is why
+  nothing caught it**: `tools/checks/spec_citation_version.py` covers protocol-spec citations
+  only, so no check reads a PRD-to-plan or plan-to-tasks citation. Extending it will likely
+  surface other stale ones — report those rather than fixing everything on one branch.
 - **A PING responder on the bridge** — spec §17.3 requires RF loopback of every node build.
 - **Decoding per schema has no task** — Impl Plan §5.3's `decode/`; `app_task`'s `TODO` gives
   it to BF-24. Nothing a simnode sends is decoded or published today.
