@@ -93,6 +93,12 @@ jobs:
           python3 tools/simctl/test_simctl.py
           python3 tools/checks/simctl_catalogue.py
 
+      # Impl Plan §8.1: the M22 / V-B12 arithmetic. The guards are the point - a window
+      # the bridge rebooted through, or one that carried another node's poll answer,
+      # must refuse to produce a PER rather than produce a plausible wrong one.
+      - name: M22 PER arithmetic
+        run: python3 tools/simctl/test_per_measure.py
+
       # Impl Plan §5.2 and Bridge PRD §1.3 property 2: lora_task never blocks on the
       # network. Prose has never stopped anyone writing that line, and the failure is
       # silent — telemetry lost during an outage that the bridge appeared to survive.
