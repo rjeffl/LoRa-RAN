@@ -132,6 +132,7 @@ def measure(sent, rx_before, rx_after, radio_before=None, radio_after=None,
         # None where the bridge predates rx_deaf.h, or where the caller did not time the
         # window. A negative span is a reboot, which guard 1 below reports properly.
         if deaf is not None and deaf >= 0 and window_ms:
+            result["window_ms"] = window_ms
             result["deaf_fraction"] = deaf / float(window_ms)
 
     # Guard 1 - a counter went backwards, so the bridge rebooted inside the window.

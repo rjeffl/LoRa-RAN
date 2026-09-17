@@ -198,8 +198,11 @@ log. Never commit, echo or log the real values.
 - **PHY parameters are not runtime-configurable** (§12.1). They belong in the injected
   radio config beside the pin map, never in the HA-visible config set — a node that boots
   on the wrong channel is a walk to the gate with a laptop.
-- **`cad_backoffs` is the instrument to watch** once frames are moving. M20 sampled
-  125 kHz every 200 kHz, so 37.5 % of the band was never looked at.
+- **`cad_backoffs` counts a *busy* CAD and nothing else** (spec §12.3 — it is the
+  channel's instrument, not the radio's). **Read `cad_free` and `rx_deaf_ms` beside it**
+  (`rx_deaf.h`): a free CAD takes the radio out of receive and moves `cad_backoffs` not at
+  all, so a zero there is not evidence the bridge held receive. M20 sampled 125 kHz every
+  200 kHz, so 37.5 % of the band was never looked at.
 
 ## Three properties that must survive every change
 
