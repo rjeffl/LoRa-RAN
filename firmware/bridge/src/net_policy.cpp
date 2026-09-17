@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "lran/types.h"
+
 namespace bridge {
 
 uint32_t reconnect_delay_ms(uint32_t attempt) {
@@ -91,6 +93,152 @@ size_t node_topic_name(uint8_t node_id, char* out, size_t cap) {
     return 0;
   }
   return write_topic(out, cap, name, nullptr);
+}
+
+namespace {
+
+// The inverse of node_topic_name(). One table would be better than two functions that
+// must agree, but node_topic_name() formats and this one matches, and a shared table
+// would still need each direction written. test_net asserts they agree.
+bool node_id_from_token(const char* tok, size_t len, uint8_t* out) {
+  struct Row {
+    const char* token;
+    uint8_t     id;
+  };
+  static const Row kRows[] = {
+      {"gatelink", 0x01}, {"welllink", 0x02}, {"simnode0", 0xF0},
+      {"simnode1", 0xF1}, {"simnode2", 0xF2}, {"simnode3", 0xF3},
+  };
+  for (const Row& r : kRows) {
+    if (std::strlen(r.token) == len && std::strncmp(r.token, tok, len) == 0) {
+      *out = r.id;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Spec 8.1's names, lowercased. See net_policy.h on why the bridge names these and why
+// renaming one after B4 is breaking.
+bool cmd_from_action(const char* tok, size_t len, uint8_t* out) {
+  struct Row {
+    const char* action;
+    lran::Cmd   cmd;
+  };
+  static const Row kRows[] = {
+      {"nop", lran::Cmd::Nop},
+      {"open", lran::Cmd::Open},
+      {"close", lran::Cmd::Close},
+      {"hold_open", lran::Cmd::HoldOpen},
+      {"release_hold", lran::Cmd::ReleaseHold},
+      {"request_status", lran::Cmd::RequestStatus},
+      {"request_config", lran::Cmd::RequestConfig},
+      {"set_debug_mode", lran::Cmd::SetDebugMode},
+      {"set_relay_dry_run", lran::Cmd::SetRelayDryRun},
+      {"set_bms_polling", lran::Cmd::SetBmsPolling},
+      {"reboot", lran::Cmd::Reboot},
+  };
+  for (const Row& r : kRows) {
+    if (std::strlen(r.action) == len && std::strncmp(r.action, tok, len) == 0) {
+      *out = static_cast<uint8_t>(r.cmd);
+      return true;
+    }
+  }
+  return false;
+}
+
+// `out` receives the segment's start and length. False when there is no `n`th segment.
+bool segment(const char* topic, size_t index, const char** out, size_t* len) {
+  const char* p = topic;
+  for (size_t i = 0; i < index; ++i) {
+    const char* slash = std::strchr(p, '/');
+    if (slash == nullptr) return false;
+    p = slash + 1;
+  }
+  const char* slash = std::strchr(p, '/');
+  *out              = p;
+  *len              = slash == nullptr ? std::strlen(p) : static_cast<size_t>(slash - p);
+  return true;
+}
+
+bool segment_is(const char* topic, size_t index, const char* want) {
+  const char* seg = nullptr;
+  size_t      len = 0;
+  if (!segment(topic, index, &seg, &len)) return false;
+  return std::strlen(want) == len && std::strncmp(seg, want, len) == 0;
+}
+
+// A bounded decimal. Refuses an empty field, a non-digit, and anything above `max` -
+// see net_policy.h on why an unreadable payload is refused rather than defaulted.
+bool parse_uint(const char* p, size_t len, uint32_t max, uint32_t* out) {
+  if (len == 0 || len > 5) return false;
+  uint32_t v = 0;
+  for (size_t i = 0; i < len; ++i) {
+    if (p[i] < '0' || p[i] > '9') return false;
+    v = v * 10 + static_cast<uint32_t>(p[i] - '0');
+    if (v > max) return false;
+  }
+  *out = v;
+  return true;
+}
+
+}  // namespace
+
+bool parse_cmd_topic(const char* topic, CmdTopic* out) {
+  if (topic == nullptr || out == nullptr) return false;
+
+  // Exactly `lran/<node>/cmd/<action>/set` - five segments, matched by position. A
+  // broker that honours the filter cannot deliver anything else, but the bridge does
+  // not act on a gate command because a broker was well behaved.
+  const char* node_seg   = nullptr;
+  size_t      node_len   = 0;
+  const char* action_seg = nullptr;
+  size_t      action_len = 0;
+  if (!segment_is(topic, 0, kTopicRoot) || !segment_is(topic, 2, "cmd") ||
+      !segment_is(topic, 4, "set")) {
+    return false;
+  }
+  const char* extra     = nullptr;
+  size_t      extra_len = 0;
+  if (segment(topic, 5, &extra, &extra_len)) return false;  // a sixth segment
+  if (!segment(topic, 1, &node_seg, &node_len)) return false;
+  if (!segment(topic, 3, &action_seg, &action_len)) return false;
+
+  CmdTopic parsed;
+  if (!node_id_from_token(node_seg, node_len, &parsed.node_id)) return false;
+  if (!cmd_from_action(action_seg, action_len, &parsed.cmd)) return false;
+  *out = parsed;
+  return true;
+}
+
+bool parse_cmd_payload(const char* payload, size_t len, uint8_t* arg, uint16_t* arg2) {
+  if (arg == nullptr || arg2 == nullptr) return false;
+  *arg  = 0;
+  *arg2 = 0;
+  if (payload == nullptr || len == 0) return true;  // a button press
+
+  auto equals = [&](const char* want) {
+    return std::strlen(want) == len && std::strncmp(payload, want, len) == 0;
+  };
+  if (equals("PRESS")) return true;
+  if (equals("OFF")) return true;
+  if (equals("ON")) {
+    *arg = 1;
+    return true;
+  }
+
+  const char* comma = static_cast<const char*>(std::memchr(payload, ',', len));
+  const size_t first_len = comma == nullptr ? len : static_cast<size_t>(comma - payload);
+
+  uint32_t a = 0;
+  if (!parse_uint(payload, first_len, UINT8_MAX, &a)) return false;
+  *arg = static_cast<uint8_t>(a);
+
+  if (comma == nullptr) return true;
+  uint32_t b = 0;
+  if (!parse_uint(comma + 1, len - first_len - 1, UINT16_MAX, &b)) return false;
+  *arg2 = static_cast<uint16_t>(b);
+  return true;
 }
 
 bool is_event_topic(const char* topic) {

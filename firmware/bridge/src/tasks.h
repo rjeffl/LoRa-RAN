@@ -130,4 +130,14 @@ inline constexpr size_t kTxQueueDepth = 4;
 // anything -> log_task.
 inline constexpr size_t kLogQueueDepth = 16;
 
+// mqtt_task -> sched_task. Commands from Home Assistant (BF-18).
+//
+// Depth 4, and it is not a buffer. The command path runs ONE command at a time
+// across the fleet (command.h), so anything queued behind the first is already
+// waiting on a 3-10 second exchange. Four is enough that a dashboard button pressed
+// twice, or two entities toggled together, are not lost between sched_task ticks -
+// and shallow enough that a stuck command path shows up as a counted drop within
+// seconds rather than as a gate that opens a minute after the button was pressed.
+inline constexpr size_t kCommandQueueDepth = 4;
+
 }  // namespace bridge

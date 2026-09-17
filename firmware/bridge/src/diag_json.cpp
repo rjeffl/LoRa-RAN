@@ -76,6 +76,7 @@ constexpr const char* kQueueKeys[][2] = {
     {"q_publish_dropped", "q_publish_high_water"},
     {"q_tx_dropped", "q_tx_high_water"},
     {"q_log_dropped", "q_log_high_water"},
+    {"q_command_dropped", "q_command_high_water"},
 };
 static_assert(sizeof(kQueueKeys) / sizeof(kQueueKeys[0]) == kQueueCount,
               "a queue added to QueueId needs its diagnostic keys");
@@ -87,6 +88,20 @@ size_t diag_rx_json(const lran::Counters& c, char* out, size_t cap) {
   for (const lran::CounterField& f : lran::kCounterRegistry) j.u32(f.name, c.*(f.field));
   j.u32("rx_dropped", c.total_dropped());
   j.u32("rx_frames", c.rx_frames);
+  return j.finish();
+}
+
+size_t diag_command_json(const CommandStats& s, char* out, size_t cap) {
+  JsonObject j(out, cap);
+  j.u32("cmd_submitted", s.submitted);
+  j.u32("cmd_refused_busy", s.refused_busy);
+  j.u32("cmd_sent", s.sent);
+  j.u32("cmd_retries", s.retries);
+  j.u32("cmd_acked", s.acked);
+  j.u32("cmd_no_ack", s.no_ack);
+  j.u32("cmd_resyncs", s.resyncs);
+  j.u32("cmd_resync_failed", s.resync_failed);
+  j.u32("cmd_ack_ignored", s.ack_ignored);
   return j.finish();
 }
 

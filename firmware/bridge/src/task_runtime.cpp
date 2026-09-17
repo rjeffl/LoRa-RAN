@@ -19,8 +19,10 @@
 #include <freertos/task.h>
 
 #include <atomic>
+#include <cstdio>
 
 #include "board_ui.h"
+#include "command.h"
 #include "diag_json.h"
 #include "lora_link.h"
 #include "mqtt_pubsub.h"
@@ -60,6 +62,12 @@ uint8_t      g_publish_storage[queue_storage_bytes(kPublishQueueDepth,
                                                   sizeof(PublishMessage))];
 StaticQueue_t g_publish_queue_buf;
 QueueHandle_t g_publish_queue = nullptr;
+
+// BF-18. mqtt_task parses a command topic into one of these; sched_task runs it.
+uint8_t      g_command_storage[queue_storage_bytes(kCommandQueueDepth,
+                                                   sizeof(CommandRequest))];
+StaticQueue_t g_command_queue_buf;
+QueueHandle_t g_command_queue = nullptr;
 
 // TODO(BF-11a): g_log_queue - log_task drains it; until then log_task ticks idle.
 
@@ -121,6 +129,14 @@ PollScheduler     g_scheduler;
 StaticSemaphore_t g_sched_lock_buf;
 SemaphoreHandle_t g_sched_lock = nullptr;
 
+// The command path (BF-18), under the SAME lock as the scheduler. Both are decided on
+// sched_task and reported to from app_task, and both follow the same discipline: the
+// lock is held across their own calls and never across a registry call or a queue
+// send. One lock rather than two removes any question of ordering between them, and
+// there is no contention to win by splitting - each section is a handful of field
+// writes at a 1 s tick.
+CommandPath g_command;
+
 // Read by lora_task_idle() from ota_task without the lock; written under it.
 std::atomic<bool> g_poll_outstanding{false};
 
@@ -131,6 +147,18 @@ class SchedLock {
   SchedLock(const SchedLock&)            = delete;
   SchedLock& operator=(const SchedLock&) = delete;
 };
+
+// BF-18. A COMMAND_ACK arrived. Called from app_task; the deserialize happens outside
+// the lock, and a payload that is not a well-formed ACK is dropped here rather than
+// reaching the state machine.
+void cmd_on_ack(const RxMessage& msg) {
+  lran::msg::CommandAck ack;
+  if (lran::msg::deserialize(msg.payload, msg.payload_len, &ack) != lran::Status::Ok) {
+    return;
+  }
+  SchedLock lock;
+  g_command.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis);
+}
 
 void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
   uint32_t answer_ms = PollScheduler::kNotAnAnswer;
@@ -200,6 +228,118 @@ char           g_sched_json[kMaxPayloadLen];
 bool sched_publish(const char* topic, const char* payload) {
   return make_publish(&g_sched_msg, topic, payload, /*retain=*/true, /*qos=*/0) &&
          send_publish(g_sched_msg);
+}
+
+// ---------------------------------------------------------------------------
+// The command path (BF-18) - Impl Plan 6.2.
+// ---------------------------------------------------------------------------
+
+bool send_command(const CommandRequest& req) {
+  if (g_command_queue == nullptr || xQueueSend(g_command_queue, &req, 0) != pdTRUE) {
+    g_accounting.record_dropped(QueueId::Command);
+    return false;
+  }
+  g_accounting.record_sent(QueueId::Command,
+                           static_cast<size_t>(uxQueueMessagesWaiting(g_command_queue)));
+  return true;
+}
+
+// `lran/<node>/cmd/ack` - NOT retained (spec 16.2). A retained command outcome replays
+// on every HA restart and reads as a gate that just moved.
+void publish_cmd_ack(const CmdStep& st) {
+  char node[32];
+  if (node_topic_name(st.dst, node, sizeof(node)) == 0) return;
+  char topic[kMaxTopicLen];
+  if (std::snprintf(topic, sizeof(topic), "lran/%s/cmd/ack", node) <= 0) return;
+
+  // outcome, then the node's own words. `detail` carries the CACHED result when
+  // `result` is DUPLICATE_CACHED (spec 6.3), which is why it is published rather than
+  // folded into a single verdict.
+  const char* outcome = "unknown";
+  switch (st.outcome) {
+    case CmdOutcome::Acked:        outcome = "acked"; break;
+    case CmdOutcome::NoAck:        outcome = "no_ack"; break;
+    case CmdOutcome::ResyncFailed: outcome = "resync_failed"; break;
+    case CmdOutcome::Pending:      break;
+  }
+  char payload[kMaxPayloadLen];
+  const int n = std::snprintf(
+      payload, sizeof(payload),
+      "{\"outcome\":\"%s\",\"seq\":%u,\"attempts\":%u,\"result\":%u,\"detail\":%u}",
+      outcome, static_cast<unsigned>(st.seq), static_cast<unsigned>(st.attempt) + 1u,
+      static_cast<unsigned>(st.result), static_cast<unsigned>(st.detail));
+  if (n <= 0 || static_cast<size_t>(n) >= sizeof(payload)) return;
+
+  if (make_publish(&g_sched_msg, topic, payload, /*retain=*/false, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  }
+}
+
+// One tick: admit a queued request if nothing is in flight, then act on whatever the
+// command path asks for. A COMMAND the TX queue refuses is not reported with on_sent(),
+// so its window never opens and the next tick transmits it again - the same bargain
+// sched_polls() makes, and the reason neither needs a retry path of its own.
+void sched_commands(uint32_t now_ms) {
+  // Admit at most one per tick. The path runs one command at a time (command.h), so
+  // draining the queue here would only move the wait from the queue into the path.
+  bool idle = false;
+  {
+    SchedLock lock;
+    idle = !g_command.busy();
+  }
+  if (idle) {
+    CommandRequest req;
+    if (g_command_queue != nullptr && xQueueReceive(g_command_queue, &req, 0) == pdTRUE) {
+      // spec 10.2 - the seq comes from the registry and is taken ONCE per command.
+      // Every retry reuses it (root rule 2, BS-3).
+      NodeState ns;
+      lran::Seq seq = 0;
+      if (registry_state(req.dst, &ns) && registry_take_cmd_seq(req.dst, &seq)) {
+        SchedLock lock;
+        (void)g_command.submit(req, ns.ctx_id, seq, now_ms);
+      }
+    }
+  }
+
+  for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
+    CmdStep st;
+    {
+      SchedLock lock;
+      st = g_command.next(now_ms);
+    }
+    switch (st.action) {
+      case CmdAction::None:
+        return;
+
+      case CmdAction::Resolve:
+        Serial.printf("cmd: %02x seq %u -> outcome %d result %u detail %u\n",
+                      static_cast<unsigned>(st.dst), static_cast<unsigned>(st.seq),
+                      static_cast<int>(st.outcome), static_cast<unsigned>(st.result),
+                      static_cast<unsigned>(st.detail));
+        publish_cmd_ack(st);
+        continue;
+
+      case CmdAction::Send:
+        break;
+    }
+
+    // spec 10.3 step 2 - the resync's new context and seq reach the registry here, so
+    // the NEXT command starts where this one ended rather than repeating the resync.
+    if (st.ctx_adopted) {
+      (void)registry_adopt_ctx(st.dst, st.ctx_id);
+    }
+
+    const lran::msg::Command cmd{st.cmd, st.arg, st.arg2};
+    TxMessage                tx;
+    tx.dst = st.dst;
+    tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, cmd, tx.bytes,
+                                    sizeof(tx.bytes));
+    if (tx.len == 0 || !send_tx(tx)) return;
+
+    SchedLock lock;
+    g_command.on_sent(now_ms);
+    return;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +435,18 @@ void sched_diag(uint32_t now_ms) {
     (void)sched_publish(topic, g_sched_json);
   }
 
+  // BF-18. A copy under the lock, then formatted outside it - the lock is never held
+  // across a queue send (BF-17's rule, and sched_publish() is one).
+  CommandStats cs;
+  {
+    SchedLock lock;
+    cs = g_command.stats();
+  }
+  if (topic_diag("bridge", "cmd", topic, sizeof(topic)) > 0 &&
+      diag_command_json(cs, g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+
   for (size_t i = 0; i < registry_size(); ++i) {
     const NodeInfo& info = registry_info_at(i);
     // The nodes the scheduler polls, and spec 16.6's bench gate.
@@ -338,9 +490,10 @@ void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
-    sched_polls(millis());  // BF-17 - Impl Plan 6.1, R-3.1d
-    sched_availability();   // BF-20 - PRD 3.4, spec 16.5
-    sched_diag(millis());   // BF-19 - spec 14.1, 16.2
+    sched_polls(millis());     // BF-17 - Impl Plan 6.1, R-3.1d
+    sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
+    sched_availability();      // BF-20 - PRD 3.4, spec 16.5
+    sched_diag(millis());      // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
     vTaskDelayUntil(&last, period);
   }
@@ -362,6 +515,62 @@ void drain_publish_queue() {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// The inbound command sink (BF-18) - spec 16.2's `lran/<node>/cmd/<action>/set`.
+//
+// THIS RUNS INSIDE PubSubClient's CALLBACK, on mqtt_task, from g_mqtt.loop(). It
+// parses and queues; it does not transmit, take the scheduler's lock, or touch the
+// registry's learned state. Everything that decides is sched_task's.
+//
+// EVERY REFUSAL IS COUNTED. A command that goes nowhere must not be silent - the
+// operator pressed a button and is entitled to know the bridge declined it, and
+// these are the counters that say which of four reasons it was.
+// ---------------------------------------------------------------------------
+
+struct CommandInboundStats {
+  uint32_t received    = 0;
+  uint32_t bad_topic   = 0;  // not the grammar, or a node/action token we do not name
+  uint32_t bad_payload = 0;
+  uint32_t not_allowed = 0;  // spec 8.1's cmd is not in this node type's capability set
+};
+
+CommandInboundStats g_cmd_inbound;
+
+class CommandInbound final : public MqttInbound {
+ public:
+  void on_message(const InboundMessage& msg) override {
+    ++g_cmd_inbound.received;
+
+    CmdTopic topic;
+    if (!parse_cmd_topic(msg.topic, &topic)) {
+      ++g_cmd_inbound.bad_topic;
+      return;
+    }
+    // A node the registry does not carry has no key, so no command can reach it.
+    const NodeInfo* info = registry_find(topic.node_id);
+    if (info == nullptr) {
+      ++g_cmd_inbound.bad_topic;
+      return;
+    }
+    // Impl Plan 6.2 step 1 - checked here so a solar node is not woken to refuse it.
+    if (!command_allowed(info->type, topic.cmd)) {
+      ++g_cmd_inbound.not_allowed;
+      return;
+    }
+
+    CommandRequest req;
+    req.dst = topic.node_id;
+    req.cmd = topic.cmd;
+    if (!parse_cmd_payload(msg.payload, msg.payload_len, &req.arg, &req.arg2)) {
+      ++g_cmd_inbound.bad_payload;
+      return;
+    }
+    (void)send_command(req);  // send_command() counts a refusal of its own
+  }
+};
+
+CommandInbound g_cmd_inbound_sink;
 
 // Published on every broker connect, not only the first. A broker restart loses
 // retained state unless it was persisted, and the bridge is the only thing that can
@@ -385,6 +594,11 @@ void on_mqtt_connected() {
       make_publish(&msg, topic, version, /*retain=*/true, /*qos=*/0)) {
     (void)g_mqtt.publish(msg);
   }
+
+  // BF-18 - the command subscription, renewed on every connect. A broker restart
+  // drops subscriptions, and a bridge that subscribed only once would go on looking
+  // healthy while every button in Home Assistant did nothing.
+  (void)g_mqtt.subscribe(kTopicCmdFilter, /*qos=*/1);
 
   // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
   // reconnect" (R-3.3c). They are generated in this task and published directly
@@ -454,6 +668,14 @@ void app_task(void*) {
     // BF-17. Answers an outstanding poll to this node, and enrols a bench node in the
     // schedule the first time it is heard.
     sched_on_heard(msg.hdr.src, msg.rx_millis);
+    // BF-18. A COMMAND_ACK is what ends a command (spec 6.2), and app_task is where
+    // received frames arrive - so the ACK reaches sched_task's command path from here.
+    // registry_observe() above has already learned any new ctx_id this frame carried;
+    // the path is told the ACK's own ctx_id regardless, because spec 10.3's resync
+    // adopts what the REJECTED_CTX carried and may not wait on another task's ordering.
+    if (msg.hdr.type == lran::MsgType::CommandAck) {
+      cmd_on_ack(msg);
+    }
     // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
     // policy, into the publish queue.
@@ -549,7 +771,10 @@ bool start_tasks() {
                                   &g_tx_queue_buf);
   g_publish_queue = xQueueCreateStatic(kPublishQueueDepth, sizeof(PublishMessage),
                                        g_publish_storage, &g_publish_queue_buf);
-  if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr) {
+  g_command_queue = xQueueCreateStatic(kCommandQueueDepth, sizeof(CommandRequest),
+                                       g_command_storage, &g_command_queue_buf);
+  if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||
+      g_command_queue == nullptr) {
     return false;
   }
 
@@ -614,6 +839,11 @@ bool send_publish(const PublishMessage& msg) {
 bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_host,
                uint16_t mqtt_port, const char* mqtt_user, const char* mqtt_password) {
   wifi_begin(ssid, wifi_password);
+
+  // BF-18 - the sink before the first connect. A subscription made while no sink is
+  // attached delivers to nothing, and the broker will not send a retained command
+  // again to make up for it (mqtt_transport.h).
+  g_mqtt.set_inbound(&g_cmd_inbound_sink);
 
   // The LWT topic and payload are static storage, not stack: PubSubClient keeps the
   // pointers it is given and uses them on every reconnect, so a stack buffer here

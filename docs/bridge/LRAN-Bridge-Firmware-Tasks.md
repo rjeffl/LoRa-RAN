@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.22
+**Version:** 0.23
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.33
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.35
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.9
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -210,12 +210,12 @@ Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED
 | **BF-15** | **Per-node registry** — §4.2's table, HKDF key derivation at load, `is_bench` (§4.2, R-3.1c). **Built 2026-09-14, host-tested** — Impl Plan §4.2.1 | **Opus** | The abstraction the whole fleet story rests on. *"If adding a node requires touching the scheduler, the availability watchdog or the MQTT layer, the abstraction has leaked."* The bench IDs being ordinary entries is itself the test |
 | **BF-16** | `lora_link.cpp` — RadioLib, frame in and out, MAC verify, reassembly (§5.3). **Built 2026-09-13, host-tested; not yet on air** — Impl Plan §5.3.1 | **Opus** | Where the never-block rule is honoured or lost, and where reassembly state either respects §11.2 or destroys a peer's in-progress set |
 | **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d). **Built 2026-09-14, host-tested; no poll on air yet** — Impl Plan §6.1.1 | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
-| **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**) | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
+| **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**), **and the bridge's MQTT receive path**. **Built and confirmed on air 2026-09-16** — `command.{h,cpp}`, 20 host tests; a command from Home Assistant executed at a simnode, a suppressed ACK was retried with the same `seq` and answered `DUPLICATE_CACHED` *not executed*, and spec §10.3's resync adopted the node's context and retried once. **`ResyncFailed` stays host-tested**: the rejection-to-retry window is under a second and the bench could not force a second `REJECTED_CTX`. Impl Plan §6.2.1 | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
 | **BF-19** | §14 discard ladder wiring — every counter in `kCounterRegistry`, named and published. **Built 2026-09-14, host-tested; the discard counters are the bridge's, not per node** — Impl Plan §4.3.2 | **Sonnet** | The registry is normative and the fault catalogue tests each stage. Mechanical, high-volume, and caught immediately by BF-8's faults |
 | **BF-19a** | `ERROR` replies for §14 stages 3–10, **to spec v0.12 §14.2**. **Built and confirmed on air 2026-09-16** — `error_reply.{h,cpp}`, 13 tests; ten replies read at the simnode, one per §14 stage that names one, and `errors_suppressed` reached 2. **Bound 1 stays host-only**: no unregistered source was produced on the bench. Registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. `BAD_CRC` and `BAD_VERSION` stay optional and unbuilt. Split from BF-19 with the operator, 2026-09-14 | **Opus** | Every reply goes to a solar node on the strength of an unauthenticated header and competes with polls for airtime. **The rate limit is the load-bearing part**: without it a forged frame makes the bridge transmit at a rate someone else chooses |
 | **BF-15a** | Move the bridge's `unregistered_src` into the codec as **`rx_unknown_src`** — spec v0.12 §14 stage 9a and §14.1. **Built and on air 2026-09-16**, the published document's shape confirmed at the broker: `Status::UnknownSrc`, `lran::Counters`, `kCounterRegistry` (22 rows), the `sizeof` `static_assert`, both vector registries, and the `lran/bridge/diag/state` payload | **Sonnet** | A rename with a `static_assert` behind it, and the counter joins `rx_dropped`, which changes a published number. Home Assistant charts the old name, so the change is breaking and was made before B4 builds discovery on it |
 | **BF-20** | Availability watchdog — `missed_poll_threshold`, retained publication (§3.4). **Built 2026-09-14, host-tested; bench availability unpublished until BF-26** — Impl Plan §6.1.2 | **Sonnet** | Four requirements, a default of 3, and **V-B3** tests it by stopping one logical identity |
-| **BF-21** | `simctl` scenario scripts for the whole §10.5 catalogue (§7.2) | **Sonnet** | Scripting a table that already exists. The entries most likely to be skipped by hand are the ones whose correct result is *nothing happens*, which is exactly what a script does not skip |
+| **BF-21** | `simctl` scenario scripts for the whole §10.5 catalogue (§7.2). **Also decides a simnode `ctx_reject` fault** — BF-18 could not force a second `REJECTED_CTX` by racing the console, and an armed behaviour is what every other catalogue row already is | **Sonnet** | Scripting a table that already exists. The entries most likely to be skipped by hand are the ones whose correct result is *nothing happens*, which is exactly what a script does not skip |
 | **BF-22** | Version tolerance — accept N and N−1, per-node downgrade, distinct reason for unsupported (**V-B10**, R-3.1e/f) | **Opus** | This is what makes an incremental rollout possible instead of a flag day, on a fleet where a flag day means a walk to the gate |
 
 ---
@@ -274,6 +274,15 @@ only against the bridge, a cached value republished as current.
 
 ## 10. Changelog
 
+- **v0.23** — **BF-18 is built and on air, and it built the MQTT receive path with it.**
+  The gap this document raised at v0.19 — *"no task owns `/lib/lran-config/` or the
+  bridge's MQTT receive path, which BF-18's command topics also need"* — is half closed:
+  the receive path is folded into BF-18 rather than given a task number, because a
+  command path with no command source cannot be tested. `/lib/lran-config/` is still
+  unowned. **BF-21 gains a decision**: a simnode `ctx_reject` fault, so §10.3 step 3 can
+  be forced rather than raced. `lran/bridge/diag/cmd/state` is new. This document
+  inherits Bridge Impl Plan v0.35.
+
 - **v0.21** — **Protocol specification v0.11 → v0.12; §6 gains BF-15a and BF-19a is
   unblocked.** **BF-15a** moves the bridge's `unregistered_src` into the codec as
   **`rx_unknown_src`** (spec §14 stage 9a, §14.1), which makes `kCounterRegistry` 22 rows
@@ -284,6 +293,7 @@ only against the bridge, a cached value republished as current.
 
 | Version | What changed |
 |---|---|
+| **v0.22** | **BF-15a and BF-19a confirmed on air** — both rows record what the bench read; §6's B3b line follows |
 | **v0.20** | **B3 split** into B3a (BF-15–17, 19, 20) and B3b (BF-18, 19a, 21, 22) |
 | **v0.19** | **BF-19 built** — counters published; BF-19a split out; **BF-26 deferred** |
 | **v0.18** | **BF-20 built** — the availability watchdog; bench publication waits for BF-26 |

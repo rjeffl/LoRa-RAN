@@ -75,6 +75,38 @@ Observed Registry::observe(const lran::Header& hdr, int16_t rssi_dbm, int8_t snr
   return Observed::NewContext;
 }
 
+// spec 10.2, 10.5 - the bridge's command seq for this node, and the only place it
+// advances. The wrap lives with the counter rather than in command.cpp, so there is
+// one place to read when asking what the next seq will be.
+//
+// SKIPS 0 ON WRAP. A `seq` of 0 is what an entry carries before any command has been
+// sent and what a fresh context resets toward; handing 0 out after 0xFFFF would make
+// the first command of the ~45th day indistinguishable from an uninitialized one.
+bool Registry::take_cmd_seq(lran::NodeId id, lran::Seq* out) {
+  const int i = index_of(id);
+  if (i < 0) return false;
+  lran::Seq& s = entries_[i].state.cmd_seq;
+  if (out != nullptr) *out = s;
+  const lran::Seq n = static_cast<lran::Seq>(s + 1);
+  s                 = (n == 0) ? 1 : n;
+  return true;
+}
+
+// spec 10.3 step 2 - the resync. Adopt the ctx_id a REJECTED_CTX carried and reset the
+// command seq to 1, so the NEXT command starts in the node's current context.
+//
+// SEPARATE FROM observe(), which learns a context from a frame that arrived. This one
+// is driven by the command path's decision to resync, and it runs whether or not the
+// ACK that carried the ctx_id has reached observe() yet - the two are on different
+// tasks and neither ordering may be assumed.
+bool Registry::adopt_ctx(lran::NodeId id, lran::CtxId ctx) {
+  const int i = index_of(id);
+  if (i < 0) return false;
+  entries_[i].state.ctx_id  = ctx;
+  entries_[i].state.cmd_seq = 1;
+  return true;
+}
+
 bool Registry::note_poll_missed(lran::NodeId id) {
   const int i = index_of(id);
   if (i < 0) return false;

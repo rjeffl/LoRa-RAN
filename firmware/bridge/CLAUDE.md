@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.12 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.33
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.21 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.35
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.23 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -68,7 +68,32 @@ and `sched_task` publishes; Impl Plan §4.3.2. **Three things to keep:** counter
 from `lran::kCounterRegistry` and are never spelled as literals; **read `lora_task`'s
 counters only through `lora_diag_snapshot()`**, never field by field; and `sched_task`
 publishes from its static `g_sched_msg`, because a `PublishMessage` is ~872 bytes and its
-stack is 3072. **`ERROR` replies are BF-19a**, waiting for spec v0.12.
+stack is 3072. **`ERROR` replies are BF-19a**, built to spec v0.12 §14.2 and confirmed
+on air 2026-09-16 (`error_reply.{h,cpp}`); §14.2's bound 1 stays host-tested, because no
+unregistered source has been produced on the bench.
+
+**`BF-18` — the command path and the MQTT receive path, built and confirmed on air
+2026-09-16.** `command.{h,cpp}` decides and `sched_task` acts; Impl Plan §6.2.1.
+**Four things to keep:**
+
+- **Root rule 2 lives in `command.h`.** A retry reuses the `seq` of the attempt it
+  repeats, and there is deliberately **no call on `CommandPath` that advances one**.
+  `seq` is allocated by `Registry::take_cmd_seq`, which is also where spec §10.5's wrap
+  lives, and the wrap skips `0`.
+- **One command is in flight across the fleet.** Not for airtime — because spec §10.3's
+  resync resets a node's command `seq` to 1, and a second command in flight during one
+  would be refused as a replay and read here as a node fault.
+- **The inbound topic's action tokens are this firmware's to choose**, spec §8.1's `cmd`
+  names lowercased (`net_policy.h`). They are HA-visible, so **renaming one after B4 is
+  breaking**, like every other exact token on this node.
+- **An inbound payload is refused, never defaulted to `0`.** `arg` carries `REBOOT`'s
+  `0xA5` guard.
+
+**`MqttTransport::set_inbound` is the seam's one concession to PubSubClient**, whose
+callback is a bare function pointer with no user context, so the implementation keeps
+the sink in a file static. A second `PubSubTransport` is refused at `begin()` rather
+than allowed to steal the first's callbacks. The reasoning is written at the
+declaration; do not remove it and do not widen the concession.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.
