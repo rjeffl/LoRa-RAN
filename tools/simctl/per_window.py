@@ -155,6 +155,7 @@ def aggregate(windows):
             "corrupt": sum(w["corrupt"] for w in valid),
             "per": (sent - accepted) / float(sent),
             "bridge_tx": sum(w["bridge_tx"] or 0 for w in valid),
+            "bridge_cad_backoffs": sum(w.get("bridge_cad_backoffs") or 0 for w in valid),
             "worst_per": max(w["per"] for w in valid),
         }
     )
@@ -178,6 +179,11 @@ def format_window(index, w):
         parts.append("corrupt %d" % w["corrupt"])
     if w["bridge_tx"]:
         parts.append("bridge TX %d" % w["bridge_tx"])
+    # Reported even when bridge_tx is zero, and that combination is the interesting one:
+    # a CAD takes the radio out of receive whether or not a frame follows it, so a window
+    # with backoffs and no transmission still lost receive time to media access.
+    if w.get("bridge_cad_backoffs"):
+        parts.append("bridge CAD backoffs %d" % w["bridge_cad_backoffs"])
     other = {k: v for k, v in w["discards"].items() if k != RX_CRC_ERR}
     if other:
         parts.append("also " + ", ".join("%s +%d" % (k, v) for k, v in sorted(other.items())))

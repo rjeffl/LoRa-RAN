@@ -1848,3 +1848,78 @@ than at the broker. The field is host-tested; the broker path arrives with BF-26
 - **A node never heard is addressed in N, not N−1.** It is likelier to be new than old,
   and its first frame is a `POLL` it answers — after which the real version is known.
   Guessing N−1 would address every fresh node in a version it may not have.
+
+---
+
+## 2026-09-17 — M22's idle arm: 5.6 % PER at one metre, and no explanation that fits
+
+**B3b is accepted and V-B12 moved to B4** (Impl Plan §8.1). Before it moved, its idle arm
+was measured, because it is the baseline the saturated arm is compared against and nothing
+blocked it. **The number is worse than expected and the cause is not established.** Both
+facts are the point of this entry.
+
+### The run
+
+`tools/simctl/per_measure.py`, new today. Bridge on `24f7993`, XIAO + Wio simnode sending,
+Heltec simnode quieted first. Five bursts of 50 frames, 250 ms apart, from **`0xF3` in
+`ROLE_FAULT`** — a role that answers no `POLL`, so the only frames that identity sends are
+the burst. Every other identity on both boards was disabled, so nothing else was on air.
+
+```
+PER 5.60 % over 250 frames in 5 valid window(s); worst burst 10.00 %
+  never heard 14, corrupt 0, bridge transmissions in window 19
+```
+
+| burst | sent | accepted | never heard | bridge TX | bridge `cad_backoffs` |
+|---|---|---|---|---|---|
+| 1 | 50 | 45 | 5 | 3 | 8 |
+| 2 | 50 | 46 | **4** | **0** | **0** |
+| 3 | 50 | 49 | 1 | 7 | 5 |
+| 4 | 50 | 49 | 1 | 3 | 0 |
+| 5 | 50 | 47 | 3 | 6 | 5 |
+
+Committed as `docs/bridge/data/m22-idle-2026-09-17.json`.
+
+### What the numbers rule out
+
+**`corrupt 0` across all 250 frames.** Not one frame arrived and failed its CRC:
+`rx_crc_err` never moved, and neither did any other §14 counter. Every loss is a frame the
+radio never delivered at all. At one metre, with −4 dBm into a 3.0 dBi antenna, an RF
+explanation does not fit — and there is no marginal-link story that produces zero corrupt
+frames alongside 14 missing ones.
+
+**Burst 2 rules out the bridge's own media access as a complete explanation.** The obvious
+first theory was half duplex: the SX1262 cannot hear a frame arriving while it answers a
+`POLL`, and a CAD takes the radio out of receive (Impl Plan §747, and the 2026-09-10 entry
+above). Burst 2 has **zero transmissions and zero CAD backoffs** and still lost 4 frames of
+50. Across the five bursts the losses do not track either column.
+
+**What `cad_backoffs` does not count is worth knowing before the next attempt.** It counts
+a *busy* CAD result only (`media_access.cpp`). A CAD that returns free still took the radio
+out of receive and increments nothing, and `cad_deferred` covers only the
+reception-in-progress case. So a zero in that column is not a claim that the radio stayed
+in receive — it is a claim that no CAD found the channel busy.
+
+### What is left, and not tested today
+
+**Receive turnaround is the remaining candidate.** At SF9 a frame of this size runs roughly
+250–330 ms, and the injector's gap is measured from when it fired, so the frames are close
+to back to back. Whether the bridge can read one frame and be listening again before the
+next one starts is untested. A control at a 2000 ms gap was started at the end of the
+session to separate that from link PER; **its result is not in this entry.**
+
+**This is not a WiFi measurement and must not be read as one.** The saturated arm does not
+exist on this firmware — nothing reaches `g_diag_interval_s` at runtime — so today's figure
+says nothing about R-4.4 either way. **M22 stays open.** What it now has is a baseline, an
+instrument, and a narrowed question.
+
+### Two decisions worth keeping
+
+- **PER is pooled over frames, never averaged over bursts.** Averaging these five bursts
+  gives 4.4 %; pooling gives 5.6 %. The difference is small here and would not be with
+  uneven burst sizes, where a short burst's single loss becomes the headline.
+- **A window that cannot carry a figure returns a reason instead of one.** Three guards, all
+  host-tested: a counter that went backwards (the bridge rebooted and zeroed everything),
+  more frames accepted than were sent (something else transmitted into the window), and
+  nothing on the air. The second one is the handoff's *"difference a counter only across a
+  window carrying nothing else"* made mechanical.

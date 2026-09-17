@@ -232,8 +232,10 @@ def main(argv=None):
             print("PER %.2f %% over %d frames in %d valid window(s); worst burst %.2f %%" %
                   (100.0 * summary["per"], summary["sent"], summary["valid_windows"],
                    100.0 * summary["worst_per"]), file=out)
-            print("  never heard %d, corrupt %d, bridge transmissions in window %d" %
-                  (summary["never_heard"], summary["corrupt"], summary["bridge_tx"]), file=out)
+            print("  never heard %d, corrupt %d, bridge transmissions in window %d, "
+                  "bridge CAD backoffs %d" %
+                  (summary["never_heard"], summary["corrupt"], summary["bridge_tx"],
+                   summary["bridge_cad_backoffs"]), file=out)
         else:
             print("NO RESULT - %s" % summary.get("reason"), file=out)
 
