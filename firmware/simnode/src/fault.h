@@ -53,7 +53,7 @@ enum class FaultId : uint8_t {
   // 10.5 - context and sequence.
   CtxJump, SeqJump, SeqWrap,
   // 10.5 - behaviour.
-  Flood, Silent, AckSuppress, AckDup, EventReplay,
+  Flood, Silent, AckSuppress, AckDup, EventReplay, CtxReject,
   // 10.5.1 - the node's own command gate.
   CmdReplay, CmdStaleSeq,
   // 10.5.2 - named so the console can say why it cannot exist.

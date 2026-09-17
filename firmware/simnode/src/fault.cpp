@@ -82,7 +82,7 @@ const FaultInfo kFaultCatalogue[] = {
      0},
     {"single_frame_interleave", FaultId::SingleFrameInterleave, 4, kNone,
      "set completes; rx_reassembly_abandoned still", nullptr, 0},
-    {"set_displaced", FaultId::SetDisplaced, 2, kRxAbandoned, "live set displaced", nullptr, 0},
+    {"set_displaced", FaultId::SetDisplaced, 4, kRxAbandoned, "live set displaced, second set completes", nullptr, 0},
 
     {"ctx_jump", FaultId::CtxJump, 1, kNone,
      "bridge adopts; its next COMMAND gets REJECTED_CTX, one retry", nullptr, 0},
@@ -96,6 +96,11 @@ const FaultInfo kFaultCatalogue[] = {
     {"ack_suppress", FaultId::AckSuppress, 0, kNone,
      "no ACK; bridge retries same seq, gets DUPLICATE_CACHED", nullptr, 0},
     {"ack_dup", FaultId::AckDup, 0, kNone, "two ACKs, second ignored", nullptr, 0},
+    // BF-21. The only way to reach spec 10.3 step 3 deliberately: arm 2 and the bridge
+    // resyncs once, is rejected again, and stops rather than looping.
+    {"ctx_reject", FaultId::CtxReject, 0, kNone,
+     "COMMAND_ACK(REJECTED_CTX) regardless of ctx; arm 2 to fault the bridge's resync", nullptr,
+     0},
     {"event_replay", FaultId::EventReplay, 2, kNone, "same event_id twice, published once", nullptr,
      0},
     // 10.5.1 - the counter is the TARGET node's, not the bridge's.
@@ -163,6 +168,13 @@ FaultResult FaultInjector::arm(lran::NodeId id, const char* name, const FaultReq
   if (req.count == 0) return FaultResult::BadCount;
 
   switch (info->id) {
+    case FaultId::CtxReject: {
+      if (e->role != Role::GateLink) return FaultResult::WrongRole;
+      e->gl.ctx_reject_left = req.count;
+      sink_printf(log_, "OK fault %02x ctx_reject: next %u COMMAND(s) answered REJECTED_CTX", id,
+                  static_cast<unsigned>(req.count));
+      return FaultResult::Ok;
+    }
     case FaultId::AckSuppress:
     case FaultId::AckDup: {
       if (e->role != Role::GateLink) return FaultResult::WrongRole;
@@ -240,10 +252,12 @@ bool FaultInjector::disarm(lran::NodeId id) {
     }
   }
   Identity* e = ids_->find(id);
-  if (e != nullptr && (e->silent_left != 0 || e->gl.ack_suppress_left != 0 || e->gl.ack_dup_left != 0)) {
+  if (e != nullptr && (e->silent_left != 0 || e->gl.ack_suppress_left != 0 ||
+                       e->gl.ack_dup_left != 0 || e->gl.ctx_reject_left != 0)) {
     e->silent_left          = 0;
     e->gl.ack_suppress_left = 0;
     e->gl.ack_dup_left      = 0;
+    e->gl.ctx_reject_left   = 0;
     any                     = true;
   }
   return any;
@@ -584,10 +598,19 @@ bool FaultInjector::build(const ArmedFault& a, Identity& e, uint32_t now_ms) {
     }
 
     case FaultId::SetDisplaced: {
-      // frag0 of one set, then frag0 of a different set from the same peer (spec 11.3).
-      const uint8_t only0[] = {0};
+      // frag0 of one set, then a COMPLETE second set from the same peer (spec 11.3).
+      //
+      // THE DISPLACING SET IS COMPLETED, decided by BF-21. Until then it was a lone frag0,
+      // which displaced the first set and then expired on the tick itself - so the row moved
+      // rx_reassembly_abandoned AND rx_reassembly_timeout, measured twice on 2026-09-16. That
+      // made it the one row in 10.5 to break the table's own invariant, which the host suite
+      // states as "the counter its row names - and only that counter - moves". The timeout
+      // path is frag_timeout's to test, and a row that moves two counters cannot tell a
+      // displacement defect from a timeout defect.
+      const uint8_t only0[]  = {0};
+      const uint8_t whole[]  = {0, 1, 2};
       return add_fragments(e, r, e.tx_seq++, health, hlen, only0, 1) &&
-             add_fragments(e, r, e.tx_seq++, health, hlen, only0, 1);
+             add_fragments(e, r, e.tx_seq++, health, hlen, whole, 3);
     }
 
     case FaultId::CtxJump: {
@@ -696,6 +719,7 @@ bool FaultInjector::build(const ArmedFault& a, Identity& e, uint32_t now_ms) {
     case FaultId::Silent:
     case FaultId::AckSuppress:
     case FaultId::AckDup:
+    case FaultId::CtxReject:
     case FaultId::BadPhyCrc:
       return false;
   }

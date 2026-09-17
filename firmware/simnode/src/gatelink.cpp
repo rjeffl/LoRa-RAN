@@ -747,6 +747,23 @@ void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* paylo
     return;
   }
 
+  // The ctx_reject fault (BF-21), and it acts BEFORE the gate. Spec 9.4 puts the context
+  // check at step 2 and the dedup gate at steps 4-6, so a node that refuses on context has
+  // not looked at the sequence space: the seq is not consumed, nothing is cached, and the
+  // command is never executed. Answering after the gate would cache a result the node never
+  // produced, and the bridge's resync retry would then meet a dedup hit instead of a second
+  // rejection - which is the very path this fault exists to reach (spec 10.3 step 3).
+  if (e.gl.ctx_reject_left > 0) {
+    --e.gl.ctx_reject_left;
+    ++e.gl.ctx_rejects_forced;
+    sink_printf(log_,
+                "fault %02x ctx_reject: seq %u answered REJECTED_CTX (own ctx 0x%08lx), %u left",
+                e.id, static_cast<unsigned>(hdr.seq), static_cast<unsigned long>(e.ctx_id),
+                static_cast<unsigned>(e.gl.ctx_reject_left));
+    send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedCtx, 0);
+    return;
+  }
+
   const lran::GateResult g = e.gate.check(hdr.seq);  // spec 9.4 steps 4-6, D34
   switch (g.verdict) {
     case lran::Verdict::Execute: {

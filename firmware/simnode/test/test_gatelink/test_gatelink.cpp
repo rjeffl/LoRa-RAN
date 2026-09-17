@@ -358,6 +358,36 @@ void test_a_new_command_while_one_executes_is_actuator_busy() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::ActuatorBusy), a.detail);
 }
 
+// Impl Plan 10.5 ctx_reject (BF-21): the identity answers REJECTED_CTX whatever context the
+// COMMAND carried, so spec 10.3 step 3 can be reached deliberately.
+//
+// BEFORE THE GATE, and that is the whole point. Spec 9.4 puts the context check at step 2
+// and the dedup gate at steps 4-6: a node that refuses on context has not looked at the
+// sequence space, so the seq is not consumed and no result is cached. If it were cached,
+// the bridge's resync retry would meet a DUPLICATE_CACHED instead of a second rejection -
+// and the second rejection is the path this fault exists to produce.
+void test_ctx_reject_answers_rejected_ctx_without_consuming_the_seq() {
+  Board b;
+  b.f1().gl.ctx_reject_left = 2;
+
+  command(b, 1, Cmd::Open);
+  expect_ack(next_ack(b), 1, AckResult::RejectedCtx);
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.actuations);   // never executed
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());  // no seq consumed
+
+  // The bridge's resync retry, which spec 10.3 restarts at seq 1. The second rejection is
+  // what makes it stop rather than resync again.
+  command(b, 1, Cmd::Open);
+  expect_ack(next_ack(b), 1, AckResult::RejectedCtx);
+  TEST_ASSERT_EQUAL_UINT32(2, b.f1().gl.ctx_rejects_forced);
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gl.ctx_reject_left);
+
+  // Disarmed, so the next command runs normally - and the seq space was never touched.
+  command(b, 1, Cmd::Open);
+  expect_ack(next_ack(b), 1, AckResult::Accepted);
+  TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.actuations);
+}
+
 // Impl Plan 10.5 ack_suppress: the bridge sees no ACK and retries with the same seq.
 void test_ack_suppress_withholds_only_the_fresh_ack() {
   Board b;
@@ -602,6 +632,7 @@ int main() {
   RUN_TEST(test_a_bad_mac_is_refused_and_not_executed);
   RUN_TEST(test_a_retry_inside_the_execution_window_receives_nothing);
   RUN_TEST(test_a_new_command_while_one_executes_is_actuator_busy);
+  RUN_TEST(test_ctx_reject_answers_rejected_ctx_without_consuming_the_seq);
   RUN_TEST(test_ack_suppress_withholds_only_the_fresh_ack);
   RUN_TEST(test_ack_dup_sends_two_identical_acks_then_stops);
   RUN_TEST(test_command_results_follow_spec_8);

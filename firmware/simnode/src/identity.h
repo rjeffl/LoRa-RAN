@@ -95,6 +95,11 @@ struct GateLinkState {
 
   uint32_t   ack_delay_ms      = 0;  // persistent until `ack <hex> normal`
   uint16_t   ack_suppress_left = 0;  // the ack_suppress fault: ACKs still to withhold
+  // The ctx_reject fault (BF-21): COMMANDs still to answer REJECTED_CTX whatever ctx they
+  // carry. It acts BEFORE the dedup gate, so a rejected command consumes no seq and is
+  // never cached - spec 9.4 step 2 comes before steps 4-6, and a node that rejected on
+  // context has not looked at the sequence space.
+  uint16_t   ctx_reject_left   = 0;
   uint16_t   ack_dup_left      = 0;  // the ack_dup fault: ACKs still to send twice
   PendingAck pending;
 
@@ -107,6 +112,7 @@ struct GateLinkState {
   uint32_t executions      = 0;
   uint32_t actuations      = 0;
   uint32_t acks_suppressed = 0;
+  uint32_t ctx_rejects_forced = 0;  // ctx_reject fault, spec 10.3
 
   StoredParam params[kConfigStoreDepth];
 };
