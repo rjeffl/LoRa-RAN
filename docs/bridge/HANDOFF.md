@@ -1,8 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-17, at the end of the session that accepted B3b and moved V-B12 to B4.**
-It replaces the 2026-09-16 file wholesale; its content is carried over where it is still
-true.
+**Written 2026-09-17, at the end of the session that instrumented the bridge's receive path
+and ruled `kIrqReadMs` out as the cause of its frame loss.** It revises the earlier
+2026-09-17 file — written the same day, at the end of the session that accepted B3b — rather
+than replacing it wholesale, because only the receive-knee material changed.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -26,11 +27,28 @@ load can be put on it.
 **V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
 
-**One thing should come before BF-24 rather than after it: the receive path's 1 s knee.**
-BF-24 decodes a fragmented `STATUS`, which is the traffic pattern that loses frames on this
-firmware, so decoding into it first means debugging two problems at once. **Its first step
-needs no firmware change and no reflash** — run the flood with no node for the bridge to
-poll. *Work no task owns* below has it, and why it comes first.
+**One thing must land before BF-24, and it is 20 minutes of bench, not a task.** BF-24
+decodes a fragmented `STATUS`, which is the traffic pattern that loses frames on this
+firmware, so decoding into it first means debugging two problems at once. **The receive
+path's 1 s knee** now has an instrument on the board and one hypothesis fewer; its next step
+**needs no firmware change and no reflash**:
+
+```bash
+# The radio provably never leaves receive: nothing for the bridge to poll, so no CAD and
+# no transmit. cad_backoffs counts only a BUSY CAD, so a free one is invisible today.
+~/.platformio/penv/bin/python tools/simctl/per_measure.py \
+    --port /dev/cu.usbmodem2101 --arm idle --count 50 --gap 250 --bursts 3 \
+    --json docs/bridge/data/m22-idle-gap250-nopoll-$(date +%F).json
+```
+
+**Quiet every identity the bridge would poll first** — `per_measure` disables the sender's
+siblings, but a `ROLE_HEALTH` or `ROLE_GATELINK` identity on the *other* board still answers.
+Confirm `tx_frames` and `cad_backoffs` both stay still across the run. **Losses that survive
+that put the answer below the driver**; losses that vanish put it in media access, and the
+2026-09-17 burst that lost 4 of 50 with zero transmissions needs re-examining either way.
+
+**Do it in whichever session has the bench powered.** It does not block BF-23, and BF-23
+does not block it.
 
 ```bash
 git fetch origin -p
@@ -56,9 +74,11 @@ for the GateLink role, or `fault <id> hdr_rsv` for any other. **A fault's `dst` 
 the bridge.** **A command is driven from the broker**: publish to
 `lran/<node>/cmd/<action>/set`, read `lran/<node>/cmd/ack`.
 
-## What the last session established
+## What the last two sessions established
 
-**Every item below is in the engineering log's 2026-09-17 entries, with the numbers.**
+**Every item below is in the engineering log's 2026-09-17 entries, with the numbers.** Four
+entries carry that date; **read the last one first** — it supersedes the two before it on
+the receive path's mechanism while leaving their measurements standing.
 
 - **B3b is accepted.** Its tasks were confirmed on air 2026-09-16; the milestone closed on
   2026-09-17 once its last criterion had a home.
@@ -99,7 +119,7 @@ the bridge.** **A command is driven from the broker**: publish to
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
 | Not done | **B4**: BF-23–BF-25, BF-26 deferred. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | BF-23 first, for the reason in *The next job*. Nothing waits on a document |
+| Queue | BF-23 first, for the reason in *The next job*. **The no-poll burst is 20 minutes of bench, does not block BF-23, and must land before BF-24.** Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -207,6 +227,10 @@ the sum at compile time.
 
 - **V-B12 is a B4 criterion since 2026-09-17**, not a B3b one. Text saying B3b is blocked on
   it, or that no task owns it, is correct for before that.
+- **`lran/bridge/diag/radio/state` carries `rx_no_interrupt` and `rx_wake_empty` since
+  2026-09-17** (`rx_wake.h`). Text saying no counter sits between `RX_DONE` and the ladder is
+  correct for before it. **They are bridge-local and deliberately not spec §14.1 counters**,
+  so they are absent from `lran/bridge/diag/state` and from schema `0xF0`.
 - **The bridge accepts protocol version N *and* N−1 since BF-22**, and addresses each node
   in the version that node announced. Text saying it accepts only N — or that `bad_ver`
   moves `rx_bad_ver` twice — is correct for before it. `lran/<node>/diag/state` gained
@@ -243,7 +267,13 @@ the sum at compile time.
   Engineering log, 2026-09-17, four entries — read the last one first.
 - **`cad_backoffs` counts a *busy* CAD only.** A CAD that returns free still takes the radio
   out of receive and increments nothing. A zero in that column is not evidence the radio
-  stayed in receive.
+  stayed in receive. **This is the live gap in the knee investigation** — it is why the next
+  step removes the poll load rather than measuring around it.
+- **A zero in `rx_no_interrupt` is a result, not an absence.** It means every `RX_DONE` the
+  radio raised arrived with its own DIO1 edge. **What it cannot see**: a frame whose
+  `RX_DONE` was cleared by a neighbouring `readData()` before any pass looked — the first
+  frame's edge is real there, so the pass reads as an ordinary packet and `rx_wake_empty`
+  stays zero too. Do not read a zero pair as "the receive path is clean".
 - **A bench node's `lran/<node>/diag/state` is not published at all**, so `unsupported_ver`,
   `proto_ver` and the per-node link are invisible at the broker for `f0`-`f3`. Spec §16.6
   gates them on `simnode_diag_enable`, which **BF-26** has not built. Read the bridge's
