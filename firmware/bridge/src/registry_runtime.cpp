@@ -83,7 +83,12 @@ bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx) {
   return g_registry.adopt_ctx(id, ctx);
 }
 
-size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+bool registry_note_unsupported_version(lran::NodeId id, uint8_t ver) {
+  Lock lock;
+  return g_registry.note_unsupported_version(id, ver);
+}
+
+size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                               const lran::msg::Command& cmd, uint8_t* buf, size_t cap) {
   // key_for() is lock-free by construction (registry.h): keys are derived in
   // registry_begin() before start_tasks() and never written again. The lock guards
@@ -94,7 +99,7 @@ size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
   lran::EncodeCtx ectx;
   ectx.mac      = &g_mac;
   ectx.node_key = key;
-  return build_command_frame(dst, ctx, seq, cmd, ectx, buf, cap);
+  return build_command_frame(dst, ctx, seq, ver, cmd, ectx, buf, cap);
 }
 
 }  // namespace bridge

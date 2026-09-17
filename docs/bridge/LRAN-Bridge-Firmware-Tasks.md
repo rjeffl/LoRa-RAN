@@ -1,7 +1,7 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.24
+**Version:** 0.25
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.36
@@ -216,7 +216,7 @@ Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED
 | **BF-15a** | Move the bridge's `unregistered_src` into the codec as **`rx_unknown_src`** — spec v0.12 §14 stage 9a and §14.1. **Built and on air 2026-09-16**, the published document's shape confirmed at the broker: `Status::UnknownSrc`, `lran::Counters`, `kCounterRegistry` (22 rows), the `sizeof` `static_assert`, both vector registries, and the `lran/bridge/diag/state` payload | **Sonnet** | A rename with a `static_assert` behind it, and the counter joins `rx_dropped`, which changes a published number. Home Assistant charts the old name, so the change is breaking and was made before B4 builds discovery on it |
 | **BF-20** | Availability watchdog — `missed_poll_threshold`, retained publication (§3.4). **Built 2026-09-14, host-tested; bench availability unpublished until BF-26** — Impl Plan §6.1.2 | **Sonnet** | Four requirements, a default of 3, and **V-B3** tests it by stopping one logical identity |
 | **BF-21** | `simctl` scenario scripts for the whole §10.5 catalogue (§7.2). **Built 2026-09-16, and run on the bench** — `tools/simctl/` with 17 host tests and `tools/checks/simctl_catalogue.py`, both in CI. Six rows read at the broker, five passing and `bad_ver` reported `DIVERGED` naming BF-22. **Both decisions made**: `fault.cpp` completes `set_displaced`'s displacing set, so the row moves one counter; and the simnode gains **`ctx_reject`**, which closed B3b's last open criterion on air — `resync_failed`, two `COMMAND`s and no third. Impl Plan §7.2.1 | **Sonnet** | Scripting a table that already exists. The entries most likely to be skipped by hand are the ones whose correct result is *nothing happens*, which is exactly what a script does not skip |
-| **BF-22** | Version tolerance — accept N and N−1, per-node downgrade, distinct reason for unsupported (**V-B10**, R-3.1e/f) | **Opus** | This is what makes an incremental rollout possible instead of a flag day, on a fleet where a flag day means a walk to the gate |
+| **BF-22** | Version tolerance — accept N and N−1, per-node downgrade, distinct reason for unsupported (**V-B10**, R-3.1e/f). **Built and confirmed on air 2026-09-16** — the ladder accepts N−1 and refuses N−2, `node_tx_ver()` addresses each node in the version it announced, and an unsupported version is recorded from the discard path and published as `unsupported_ver`. `simctl`'s `bad_ver` row is green: `rx_bad_ver +1` where it read +2. **V-B10 met** | **Opus** | This is what makes an incremental rollout possible instead of a flag day, on a fleet where a flag day means a walk to the gate |
 
 ---
 
@@ -273,6 +273,13 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.25** — **BF-22 is built, and B3b's tasks are all done.** The ladder accepts N−1;
+  the downgrade is per node from what `observe()` already recorded; R-3.1f's distinct
+  reason survives the stage-4 discard by being read from the buffer and handed to
+  `sched_task` as one atomic word, because `lora_task` cannot reach the registry.
+  `simctl`'s `bad_ver` divergence is deleted and the row passes. **V-B12 remains, and no
+  task owns it** — raised here rather than left implicit.
 
 - **v0.24** — **BF-21 is built and run.** `tools/simctl/` judges the §10.5 catalogue from
   `lran/bridge/diag/state`, one 60 s window per row, with the deciding half host-tested and

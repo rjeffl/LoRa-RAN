@@ -177,6 +177,23 @@ void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
   }
 }
 
+// R-3.1f (BF-22). Collects what lora_task refused at spec 14 stage 4 and records it
+// against the node, so an unsupported version is a NAMED condition rather than a node
+// that mysteriously went quiet. It still goes offline - the availability topic keeps
+// spec 16.5's two tokens, which Home Assistant depends on - but its diagnostics say why.
+void sched_versions() {
+  lran::NodeId src = 0;
+  uint8_t      ver = 0;
+  while (lora_take_bad_version(&src, &ver)) {
+    if (registry_note_unsupported_version(src, ver)) {
+      Serial.printf("ver: %02x speaks v%u, this bridge accepts %u-%u\n",
+                    static_cast<unsigned>(src), static_cast<unsigned>(ver),
+                    static_cast<unsigned>(lran::kProtoVer - 1),
+                    static_cast<unsigned>(lran::kProtoVer));
+    }
+  }
+}
+
 // One tick: close an expired reply window, then start at most one poll. A POLL the TX queue
 // refuses is counted by send_tx() and not reported to the scheduler, so the node stays due
 // and the next tick tries again.
@@ -204,7 +221,8 @@ void sched_polls(uint32_t now_ms) {
     if (!registry_state(st.node, &ns)) return;
     TxMessage tx;
     tx.dst = st.node;
-    tx.len = build_poll_frame(st.node, ns.ctx_id, seq, tx.bytes, sizeof(tx.bytes));
+    tx.len = build_poll_frame(st.node, ns.ctx_id, seq, node_tx_ver(ns), tx.bytes,
+                              sizeof(tx.bytes));
     if (tx.len == 0 || !send_tx(tx)) return;
 
     SchedLock lock;
@@ -332,7 +350,9 @@ void sched_commands(uint32_t now_ms) {
     const lran::msg::Command cmd{st.cmd, st.arg, st.arg2};
     TxMessage                tx;
     tx.dst = st.dst;
-    tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, cmd, tx.bytes,
+    NodeState cns;
+    const uint8_t ver = registry_state(st.dst, &cns) ? node_tx_ver(cns) : lran::kProtoVer;
+    tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, ver, cmd, tx.bytes,
                                     sizeof(tx.bytes));
     if (tx.len == 0 || !send_tx(tx)) return;
 
@@ -490,6 +510,7 @@ void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
+    sched_versions();          // BF-22 - R-3.1f, spec 13.1
     sched_polls(millis());     // BF-17 - Impl Plan 6.1, R-3.1d
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5

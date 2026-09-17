@@ -5,7 +5,7 @@ specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.12 (requirements,
 `R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.35
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.23 (**the `BF-*` task order**).
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.25 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -94,6 +94,21 @@ callback is a bare function pointer with no user context, so the implementation 
 the sink in a file static. A second `PubSubTransport` is refused at `begin()` rather
 than allowed to steal the first's callbacks. The reasoning is written at the
 declaration; do not remove it and do not widen the concession.
+
+**`BF-22` — version tolerance, built and on air 2026-09-16.** The ladder accepts
+**N and N−1** and refuses N−2; `node_tx_ver()` (`registry.h`) picks the version each node
+is addressed in. **Three things to keep:**
+
+- **N−1 only, never best-effort.** Spec §13.2 lets a field change meaning across two
+  versions, so parsing N−2 publishes a plausible wrong number. Widening the range is a
+  discussion, not a convenience.
+- **A node never heard is addressed in N.** It is likelier new than old, and its first
+  frame is a `POLL` it answers.
+- **R-3.1f's reason is on `diag/state` as `unsupported_ver`, never on the availability
+  topic** — spec §16.5 fixes that at `online`/`offline` and HA depends on both tokens.
+  The version survives the stage-4 discard because the ladder reads it from the buffer,
+  and reaches `sched_task` as one atomic word, since **`lora_task` cannot call
+  `registry_runtime`**.
 
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.

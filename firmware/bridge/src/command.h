@@ -204,7 +204,9 @@ class CommandPath {
 // 10.1). `ectx` must carry the IMac and the node key; an EncodeCtx without them
 // produces no frame rather than an unauthenticated one. Returns the frame length,
 // or 0.
-size_t build_command_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+// `ver` is what this node last announced, or kProtoVer before it has been heard
+// (R-3.1e, BF-22). Use node_tx_ver().
+size_t build_command_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                            const lran::msg::Command& cmd, const lran::EncodeCtx& ectx,
                            uint8_t* buf, size_t cap);
 

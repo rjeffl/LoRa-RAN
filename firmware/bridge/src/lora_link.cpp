@@ -64,6 +64,13 @@ ErrorReplyPolicy   g_error_policy;
 lran::Seq          g_error_seq = 1;
 
 // Read by other tasks: ota_task for R-5.3d and the image verdict.
+// R-3.1f (BF-22) - the last (src, ver) refused at stage 4, packed into one word so the
+// write is a single atomic store and needs no lock on lora_task's side. 0 means nothing
+// pending; sched_task takes it and clears it. A second refusal before the first is
+// collected overwrites it, which is correct: the counter rx_bad_ver is the count, and
+// this is only the identity of the skew.
+std::atomic<uint16_t> g_bad_ver_seen{0};
+
 std::atomic<bool> g_ready{false};
 std::atomic<bool> g_idle{true};
 
@@ -315,6 +322,15 @@ void service_receive(uint32_t now_ms) {
     // spec 14.2 (BF-19a). A stage that names no ERROR, a source the registry does not
     // know, or a frame too short to have a readable `src` all leave decide() at no.
     reply_error(g_ladder.last_status(), g_ladder.last_src(), g_ladder.last_seq(), now_ms);
+
+    // R-3.1f (BF-22). A frame discarded at spec 14 stage 4 never reaches the registry,
+    // so the version that caused it would be lost and the node would simply fall silent.
+    // Published here as one word for sched_task to collect, because lora_task MUST NOT
+    // call registry_runtime - that waits on a mutex, and this task never waits.
+    if (g_ladder.last_status() == lran::Status::BadVersion && g_ladder.last_src() != 0) {
+      g_bad_ver_seen = static_cast<uint16_t>(
+          (static_cast<uint16_t>(g_ladder.last_src()) << 8) | g_ladder.last_ver());
+    }
   }
   // TODO(BF-27): the raw frame log, with g_ladder.last_status() as the discard reason.
 }
@@ -535,6 +551,14 @@ uint32_t lora_errors_suppressed() {
   const uint32_t v = g_diag_err_suppressed;
   portEXIT_CRITICAL(&g_diag_mux);
   return v;
+}
+
+bool lora_take_bad_version(lran::NodeId* src, uint8_t* ver) {
+  const uint16_t v = g_bad_ver_seen.exchange(0);
+  if (v == 0) return false;
+  *src = static_cast<lran::NodeId>(v >> 8);
+  *ver = static_cast<uint8_t>(v & 0xFF);
+  return true;
 }
 
 void lora_set_auth(lran::IMac* mac, const PeerKeys* keys) { g_ladder.set_auth(mac, keys); }

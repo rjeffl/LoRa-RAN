@@ -293,8 +293,52 @@ void test_the_ladder_refuses_a_source_outside_the_table() {
   TEST_ASSERT_EQUAL_UINT32(1, c.rx_unknown_src);
 }
 
+// ---------------------------------------------------------------------------
+// BF-22 - the per-node downgrade (spec 13.1, R-3.1e/f)
+// ---------------------------------------------------------------------------
+
+// The bridge addresses each node in the version that node last announced. Without this
+// an N-1 node is sent N frames and refuses every one, which is the flag day R-3.1e
+// exists to avoid.
+void test_the_bridge_addresses_a_node_in_the_version_it_announced() {
+  Registry r = loaded();
+
+  // Never heard: N, not N-1. A node the bridge has not met is far likelier to be new
+  // than old, and its first frame is a POLL it will answer.
+  NodeState fresh;
+  TEST_ASSERT_EQUAL_UINT8(kVerUnknown, fresh.proto_ver);
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer, node_tx_ver(fresh));
+
+  r.observe(hdr_from(kNodeGateLink, 0x1234, kProtoVer - 1), -70, 5, 1000);
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer - 1, r.state(kNodeGateLink)->proto_ver);
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer - 1, node_tx_ver(*r.state(kNodeGateLink)));
+
+  // And it follows the node back up when it is reflashed.
+  r.observe(hdr_from(kNodeGateLink, 0x1234, kProtoVer), -70, 5, 2000);
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer, node_tx_ver(*r.state(kNodeGateLink)));
+}
+
+// R-3.1f - "marked unavailable with a distinct reason, never silently ignored". A frame
+// refused at stage 4 never reaches observe(), so the reason has to be recorded from the
+// discard path or it does not exist at all.
+void test_an_unsupported_version_is_recorded_and_cleared_by_recovery() {
+  Registry r = loaded();
+  TEST_ASSERT_EQUAL_UINT8(0, r.state(kNodeGateLink)->unsupported_ver);
+
+  TEST_ASSERT_TRUE(r.note_unsupported_version(kNodeGateLink, kProtoVer - 2));
+  TEST_ASSERT_EQUAL_UINT8(kProtoVer - 2, r.state(kNodeGateLink)->unsupported_ver);
+
+  // A frame the bridge COULD decode means the skew is over.
+  r.observe(hdr_from(kNodeGateLink, 0x99, kProtoVer), -70, 5, 1000);
+  TEST_ASSERT_EQUAL_UINT8(0, r.state(kNodeGateLink)->unsupported_ver);
+
+  TEST_ASSERT_FALSE(r.note_unsupported_version(0x55, 1));  // unregistered
+}
+
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_the_bridge_addresses_a_node_in_the_version_it_announced);
+  RUN_TEST(test_an_unsupported_version_is_recorded_and_cleared_by_recovery);
   RUN_TEST(test_the_table_is_spec_5_3);
   RUN_TEST(test_table_validation_rejects_duplicates_and_reserved_ids);
   RUN_TEST(test_is_bench_is_derived_from_the_address);

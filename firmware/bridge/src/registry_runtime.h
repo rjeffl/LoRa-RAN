@@ -47,6 +47,9 @@ bool registry_take_cmd_seq(lran::NodeId id, lran::Seq* out);
 // spec 10.3 step 2 - adopt a ctx_id from a REJECTED_CTX and reset cmd_seq to 1.
 bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx);
 
+// R-3.1f - a frame from `id` was refused at spec 14 stage 4 carrying `ver` (BF-22).
+bool registry_note_unsupported_version(lran::NodeId id, uint8_t ver);
+
 // Builds an authenticated COMMAND to `dst` with that node's derived key (spec 9.2).
 // Returns the frame length, or 0 - for an unregistered node as well as an encode
 // failure, because a node with no key has no command that can reach it.
@@ -54,7 +57,7 @@ bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx);
 // THE KEY DOES NOT LEAVE THIS FILE. command.cpp builds the frame from an EncodeCtx
 // the caller supplies, which is what keeps it host-testable; this is the one place
 // that fills the EncodeCtx in, so no task holds a pointer to key material.
-size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                               const lran::msg::Command& cmd, uint8_t* buf, size_t cap);
 
 }  // namespace bridge

@@ -210,7 +210,7 @@ void test_poll_seqs_advance() {
 // The frame a node receives: POLL, full status, its own context, no MAC.
 void test_the_poll_frame_is_what_a_node_decodes() {
   uint8_t      buf[kMaxFrame];
-  const size_t len = build_poll_frame(kNodeSim1, 0x12345678u, 42, buf, sizeof(buf));
+  const size_t len = build_poll_frame(kNodeSim1, 0x12345678u, 42, kProtoVer, buf, sizeof(buf));
   TEST_ASSERT_GREATER_THAN(0, len);
 
   DecodeCtx ctx;

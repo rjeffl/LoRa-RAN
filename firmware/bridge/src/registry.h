@@ -105,8 +105,15 @@ struct NodeState {
   // by the availability watchdog (BF-20). Saturates.
   uint16_t missed_polls = 0;
 
-  // TODO(BF-22): the downgrade decision reads this. Recorded, not yet acted on.
+  // spec 13.1, R-3.1e - the version last heard from this node. node_tx_ver() turns it
+  // into the version the bridge addresses this node in (BF-22).
   uint8_t proto_ver = kVerUnknown;
+
+  // R-3.1f - a version this bridge cannot parse, last seen from this node, or 0 for none.
+  // Set from the discard path, because a frame rejected at spec 14 stage 4 never reaches
+  // observe(): without it an unsupported node just falls silent and goes offline like any
+  // other, which is the "silently ignored" the requirement forbids.
+  uint8_t unsupported_ver = 0;
 
   // The reception that last updated this entry, from the driver (RxMessage).
   int16_t rssi_dbm = kRssiUnknown;
@@ -158,6 +165,11 @@ class Registry final : public PeerKeys {
   // BF-18. False when unregistered.
   bool adopt_ctx(lran::NodeId id, lran::CtxId ctx);
 
+  // R-3.1f - a frame from `id` was discarded at spec 14 stage 4 carrying `ver`. Recorded
+  // rather than only counted, so the node's diagnostics can name the skew (BF-22).
+  // False when unregistered.
+  bool note_unsupported_version(lran::NodeId id, uint8_t ver);
+
   const NodeState* state(lran::NodeId id) const;  // nullptr when unregistered
 
  private:
@@ -172,5 +184,16 @@ class Registry final : public PeerKeys {
   Entry entries_[kNodeCount];
   bool  loaded_ = false;
 };
+
+// R-3.1e - the version the bridge addresses `s`'s node in: the one it last announced,
+// or kProtoVer before it has said anything.
+//
+// THE UNHEARD CASE IS N, NOT N-1. A node the bridge has never heard is far more likely
+// to be a new one than an old one, and the first frame it is sent is a POLL - which it
+// answers, after which this reads its real version. Guessing N-1 would address every
+// fresh node in a version it may not have.
+inline uint8_t node_tx_ver(const NodeState& s) {
+  return s.proto_ver == kVerUnknown ? lran::kProtoVer : s.proto_ver;
+}
 
 }  // namespace bridge

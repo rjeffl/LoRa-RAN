@@ -1788,3 +1788,63 @@ would hide the thing BF-22 exists to fix.
   plus a header.** Adding `ctx_reject` pushed the last row off the end, and the failure
   read as a missing fault rather than as a full buffer. Raised to 64 with the reason
   written at the constant.
+
+---
+
+## 2026-09-16 — BF-22: version tolerance, and B3b's last criterion
+
+**The bridge accepts N and N−1 and downgrades per node.** Spec §13.1, R-3.1e/f, **V-B10**.
+Flashed from `24f7993`.
+
+### The row that was red is green
+
+`simctl --only bad_ver`, the same command that reported `DIVERGED` earlier today:
+
+```
+--- bad_ver ---
+    stage 4 - N-1 ACCEPTED, N-2 rejected (V-B10). Two frames, one discard
+    PASS  rx_bad_ver +1
+          rx_frames +2
+```
+
+**`+1` where it read `+2` this morning**, with both frames arriving — so N−1 was decoded
+and only N−2 refused. **V-B10 is met.**
+
+### R-3.1f took the most thought, and nearly did not work
+
+*"A node running an unsupported version SHALL be marked unavailable with a distinct
+reason, never silently ignored."* The obvious reading fails: **a frame refused at §14
+stage 4 never reaches the registry**, so the version that caused it is lost and the node
+simply stops being heard and goes offline after three missed polls — indistinguishable
+from a flat battery, which is exactly the silent ignoring the requirement forbids.
+
+The version has to survive the discard. The ladder keeps the offending `ver` the same way
+BF-19a kept `src` and `seq`: read from the buffer at a fixed offset, because a frame
+rejected that early has no guarantee of a filled header.
+
+**Carrying it between tasks is the part with a rule attached.** `lora_task` must never
+call `registry_runtime`, which waits on a mutex. So the `(src, ver)` pair is published as
+one atomic word that `sched_task` collects and clears each tick. On air:
+
+```
+ver: f0 speaks v0, this bridge accepts 1-2
+```
+
+**The reason is published on `lran/<node>/diag/state` as `unsupported_ver`, not on the
+availability topic.** Spec §16.5 fixes that topic's payloads at `online` and `offline` and
+Home Assistant depends on both tokens, so an unsupported node goes offline like any other
+and its diagnostics say why.
+
+**A bench node's per-node diagnostics are still gated** by `simnode_diag_enable` (spec
+§16.6, BF-26), so `unsupported_ver` was read from the bridge's serial line above rather
+than at the broker. The field is host-tested; the broker path arrives with BF-26.
+
+### Two decisions worth keeping
+
+- **N−1 only, never best-effort.** Spec §13.2 allows a field to change meaning across two
+  versions, so parsing N−2 would decode a frame into the wrong shape and publish it as a
+  plausible wrong number. A rejection is recoverable; a wrong number that looks right is
+  not.
+- **A node never heard is addressed in N, not N−1.** It is likelier to be new than old,
+  and its first frame is a `POLL` it answers — after which the real version is known.
+  Guessing N−1 would address every fresh node in a version it may not have.

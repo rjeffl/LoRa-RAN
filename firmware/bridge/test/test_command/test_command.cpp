@@ -407,7 +407,7 @@ void test_the_command_frame_is_what_a_node_decodes() {
 
   const msg::Command cmd{static_cast<uint8_t>(Cmd::Close), 1, 0x0203};
   uint8_t            buf[kMaxFrame];
-  const size_t       len = build_command_frame(kTarget, kCtx, 99, cmd, ectx, buf, sizeof(buf));
+  const size_t       len = build_command_frame(kTarget, kCtx, 99, kProtoVer, cmd, ectx, buf, sizeof(buf));
   TEST_ASSERT_GREATER_THAN_UINT32(0, len);
 
   // Decoded as the NODE would: its own address, its own context, the bridge's key.
@@ -444,12 +444,12 @@ void test_a_command_without_a_key_is_not_built() {
   const msg::Command cmd{static_cast<uint8_t>(Cmd::Open), 0, 0};
   uint8_t            buf[kMaxFrame];
   TEST_ASSERT_EQUAL_UINT32(
-      0, build_command_frame(kTarget, kCtx, 1, cmd, EncodeCtx{}, buf, sizeof(buf)));
+      0, build_command_frame(kTarget, kCtx, 1, kProtoVer, cmd, EncodeCtx{}, buf, sizeof(buf)));
 
   EncodeCtx no_key;
   no_key.mac = &g_mac;
   TEST_ASSERT_EQUAL_UINT32(
-      0, build_command_frame(kTarget, kCtx, 1, cmd, no_key, buf, sizeof(buf)));
+      0, build_command_frame(kTarget, kCtx, 1, kProtoVer, cmd, no_key, buf, sizeof(buf)));
 }
 
 int main() {

@@ -196,12 +196,11 @@ void CommandPath::on_ack(lran::NodeId src, const lran::msg::CommandAck& ack,
 // Frame construction.
 // ---------------------------------------------------------------------------
 
-size_t build_command_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq,
+size_t build_command_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                            const lran::msg::Command& cmd, const lran::EncodeCtx& ectx,
                            uint8_t* buf, size_t cap) {
   lran::Header h;
-  // TODO(BF-22): the version last heard from this node, for N-1 (R-3.1e).
-  h.ver    = lran::kProtoVer;
+  h.ver    = ver;  // R-3.1e - the version last heard from this node (BF-22)
   h.type   = lran::MsgType::Command;
   h.src    = lran::kNodeBridge;
   h.dst    = dst;

@@ -38,8 +38,16 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
   lran::DecodeCtx ctx;
   ctx.self     = lran::kNodeBridge;
   ctx.counters = counters_;
-  // TODO(BF-22): accept N-1 as well (spec 13.1). N only until version tolerance lands.
-  ctx.accept_ver_min = lran::kProtoVer;
+  // spec 13.1, R-3.1e - the bridge accepts N AND N-1 and decodes both (BF-22). This is
+  // what makes a protocol rollout incremental instead of a flag day, on a fleet where a
+  // flag day means a walk to the gate with a laptop for every node.
+  //
+  // N-1 ONLY, NEVER N-2. The range is a promise about what the codec can parse without
+  // guessing: spec 13.2 allows a field to change meaning across two versions, so
+  // best-effort parsing of N-2 would decode a frame into the wrong shape and publish it
+  // as though it were current. A rejection is recoverable; a plausible wrong number is
+  // not.
+  ctx.accept_ver_min = static_cast<uint8_t>(lran::kProtoVer - 1);
   ctx.accept_ver_max = lran::kProtoVer;
   // expect_ctx_id stays 0: spec 9.4 step 2 does not apply to the bridge, which has no
   // context of its own (spec 10.1).
@@ -54,6 +62,12 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
     last_src_ = buf[2];
     last_seq_ = static_cast<lran::Seq>(static_cast<uint16_t>(buf[4]) |
                                        (static_cast<uint16_t>(buf[5]) << 8));
+    // BF-22 - `ver` is byte 0 (spec 5), read the same way and for a related reason. A
+    // frame rejected at stage 4 never reaches the registry, so observe() never sees the
+    // version that caused it; without this the node simply falls silent and goes offline
+    // after three missed polls, which R-3.1f says it must NOT do. This is how the version
+    // survives the discard.
+    last_ver_ = buf[0];
   }
 
   lran::Frame f;

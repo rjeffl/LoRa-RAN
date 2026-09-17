@@ -123,6 +123,11 @@ class RxLadder {
   lran::NodeId last_src() const { return last_src_; }
   lran::Seq    last_seq() const { return last_seq_; }
 
+  // BF-22 - the `ver` of the frame last offered, whether or not it was accepted. Read
+  // with `last_status() == Status::BadVersion` it names the version a node is running
+  // that this bridge cannot parse, which is what R-3.1f's distinct reason needs.
+  uint8_t last_ver() const { return last_ver_; }
+
   // Whether the registry holds a key for this address (spec 9.1). BF-19a asks before
   // answering anything, because spec 14.2 sends an ERROR to a registered source only.
   bool registered(lran::NodeId src) const {
@@ -146,6 +151,7 @@ class RxLadder {
   lran::Status    last_ = lran::Status::Ok;
   lran::NodeId    last_src_ = 0;
   lran::Seq       last_seq_ = 0;
+  uint8_t         last_ver_ = 0;
 };
 
 }  // namespace bridge
