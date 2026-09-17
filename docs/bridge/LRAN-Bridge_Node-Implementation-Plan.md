@@ -535,6 +535,40 @@ as `lran/bridge/version`'s was (BF-13).
 - Example payloads are committed to `/ha/` for reference and for bench testing without a
   running HA.
 
+#### 4.4.1 What BF-23 built, 2026-09-17
+
+`discovery.{h,cpp}` builds the configs; `mqtt_task` publishes them, retained. Six choices
+this section left open, and the reasoning for each.
+
+| Choice | Why |
+|---|---|
+| **A boot and a reconnect take the same path** | `on_mqtt_connected()` restarts a cursor and the task loop drains it. R-3.3b's reconnect case is not a branch that can be got wrong, because it is the only branch — there is no "first time" flag |
+| **Drained a few per task iteration, published directly** | The set is a few dozen documents; publishing them back to back would hold `mqtt_task` inside PubSubClient without a `loop()` between them, on a socket that has just reconnected. Direct rather than through `g_publish_queue`, which is sized for state: a reconnect would otherwise put a few dozen configs in front of every node's current reading |
+| **Abbreviated discovery keys and a `~` base topic** | `kMaxPayloadLen` is 768 and the long forms put a node's config within a hundred bytes of it. Growing that buffer costs RAM in every publish queue slot, and §4.3.2 grew it once already |
+| **The buttons come from `command_allowed()`** | The same capability filter the command path uses, so a button cannot exist for a command the bridge would refuse to send. WellLink gets no gate buttons and discovery never learns what a gate is (**BG-2**) |
+| **No `reboot` button, and none for the argument-carrying commands** | Spec §8.1 guards `REBOOT` with `0xA5` in `arg` precisely so it cannot be issued by accident, and a dashboard button is that accident. `set_debug_mode` and its neighbours carry a bitmask in `arg2`, which a button cannot express. Both stay reachable from the topic |
+| **A bench node produces no discovery until BF-26** | Spec §16.6 gates publication and discovery is publication. HA's registry remembers a `unique_id` forever and a retained config survives a reflash, so four simnode devices whose entities could never update is a cost paid once and kept. The gate is `bench_publication_allowed()`, already shared with BF-20 |
+
+**The itemised §14.1 counters are deliberately not entities.** Twenty-two rows per node in
+HA's registry, paid forever, for numbers read during a bench session; they stay readable on
+`lran/bridge/diag/state`. **R-3.5e** reasons the same way about the MPPT's registers. The
+two totals and `tx_frames` are entities.
+
+**The examples under `/ha/` are generated from `discovery.cpp` itself**
+(`tools/ha/dump_discovery.cpp`), and `tools/checks/ha_examples.py` fails CI when the
+committed files stop matching. This section asked for examples; an example nothing reads
+drifts from the code the first time a table row changes, silently, in the one artifact
+somebody reaches for when Home Assistant is not cooperating.
+
+**What BF-23 does not do: the runtime timing levers.** Every `TODO(BF-23)` on a timing
+constant is still there — `g_diag_interval_s`, `poll_interval_s`, `reply_timeout_ms`,
+`missed_poll_threshold`, `error_min_interval_ms` and the media-access config. Root rule 8
+wants them settable and **V-B12's saturated arm needs the first of them**, but the path
+from Home Assistant to a stored value is `lran/<node>/config/set`, whose payload spec
+§16.2.1 leaves undefined until the work is scheduled, and `/lib/lran-config/`, which does
+not exist and has no task. **That gap is real and predates this task**; it is the same one
+that deferred BF-26 on 2026-09-14.
+
 ---
 
 ## 5. Firmware architecture

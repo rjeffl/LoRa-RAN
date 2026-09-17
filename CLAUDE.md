@@ -105,9 +105,10 @@ lib/        lran-protocol, lran-link, lran-sim               [built]
 firmware/   bridge/, range-test/, simnode/                   [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [built]  rangetest/ [built]
+            ha/ [built]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
-ha/         example discovery payloads                       [planned]
+ha/         discovery payloads, GENERATED from the firmware   [built]
 wattcycle-reader/  BMS BLE proof of concept. Complete, self-contained, its own
             CLAUDE.md. Not part of the LRAN build; the TDT protocol write-up still
             needs lifting out of it into docs/gatelink/bms-protocol.md
@@ -141,6 +142,7 @@ python3 tools/rangetest/check_pa_table.py     # PA table mirror vs. pinned Radio
 pio test -d firmware/bridge -e native         # bridge host suite, no secrets
 pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
+python3 tools/checks/ha_examples.py           # ha/discovery/ vs. the firmware itself
 
 python3 tools/simctl/test_simctl.py           # simctl's verdict logic, no board
 python3 tools/simctl/test_rxlog_analyze.py    # BF-27's frame-log arithmetic, no board
