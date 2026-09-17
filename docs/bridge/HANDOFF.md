@@ -59,8 +59,10 @@ the bridge.** **A command is driven from the broker**: publish to
 - **V-B12 moved to B4 rather than gaining a `BF-*` number**, with the operator. Its
   saturated arm cannot run on this firmware and both things it needs — BF-23's lever and
   BF-26's bench diagnostics — are already B4 tasks.
-- **M22's idle arm measured 5.6 % PER over 250 frames at one metre** with a 250 ms gap, and
-  **0 % over 40 frames at 2000 ms**. The losses are a function of inter-frame spacing.
+- **M22's idle arm measured 5.6 % PER at a 250 ms gap falling to 0 % at 1100 ms**, over five
+  spacings. **The knee straddles `kIrqReadMs = 1000`, not frame airtime** — which is the
+  finding, and it only appeared because the gap was swept rather than left at the first
+  spacing that gave zero.
 - **Zero of those 250 frames arrived corrupt.** Every loss is a frame the radio never
   delivered, which at one metre is not an RF story.
 - **The bridge's own media access does not explain it.** Burst 2 lost 4 frames of 50 with
@@ -225,10 +227,10 @@ the sum at compile time.
 
 ## Traps that cost real time here
 
-- **The bridge loses frames offered back to back, at one metre, on a clean bench.** 5.6 % at
-  a 250 ms gap and **0 % at 2000 ms**, none of them corrupt. **A bench capture that spaces
-  frames tightly will show losses that are not the bug you are chasing** — space them, or
-  expect a non-zero floor. Engineering log, 2026-09-17, two entries.
+- **The bridge loses frames spaced closer than about 1 s, at one metre, on a clean bench.**
+  5.6 % at 250 ms falling to 0 % at 1100 ms, none of them corrupt. **A bench measurement that
+  counts frames must space them above 1 s**, or it measures this instead of what it meant to.
+  Engineering log, 2026-09-17, three entries.
 - **`cad_backoffs` counts a *busy* CAD only.** A CAD that returns free still takes the radio
   out of receive and increments nothing. A zero in that column is not evidence the radio
   stayed in receive.
@@ -324,14 +326,16 @@ the sum at compile time.
 
 ## Open, and not closable from here
 
-- **The bridge drops frames offered back to back, and the receive path is why.** Measured
-  2026-09-17: **5.6 % at a 250 ms gap, 0 % at 2000 ms**, same board, same image, one
-  variable. Not RF — none arrived corrupt. Not the bridge's own transmissions or CAD —
-  burst 2 had neither and still lost 4 of 50, and the control lost nothing while
-  transmitting. **Receive turnaround is consistent with the data and not proved**; what
-  would prove it is a capture showing where the second frame goes, and that is not built.
-  **It matters beyond M22**: a fragmented `STATUS` is exactly this pattern, and nothing in
-  the protocol stops a node sending one.
+- **The bridge drops frames spaced closer than about 1 s, and `kIrqReadMs` is the suspect.**
+  Measured 2026-09-17 across five spacings: **5.6 % at 250 ms, 5.0 % at 400, 1.0 % at 700,
+  0 % at 1100 and at 2000**. **The knee is not at frame airtime (~300 ms)** — 400 ms did not
+  improve on 250 — **it straddles `kIrqReadMs = 1000`** (`lora_link.cpp`), and `g_dio1` is a
+  single `bool`, so two interrupts before one `service_receive` pass collapse into one read.
+  Nothing arrived corrupt at any spacing, and media access is ruled out by a burst that lost
+  4 of 50 with zero transmissions and zero CAD backoffs. **This is a correlation with a
+  named constant, not a proof. What would settle it: change `kIrqReadMs` and re-run the
+  sweep — if the knee moves with it, the mechanism is this one.** **It matters beyond M22**:
+  a fragmented `STATUS` is exactly this pattern, and **BF-24's decode work meets it first**.
 - **Nothing a node sends the bridge carries a MAC the bridge verifies.** §9.2 makes every
   authenticated type bridge → node, so the bridge's own `rx_rejected_seq` and
   `rx_dup_command` stay at zero by construction. BF-18 proved the *sending* half.
@@ -361,6 +365,11 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **`/lib/lran-config/`** — System PRD §9.4 describes it; BF-26 and BF-23 need it. **The
   MQTT receive path it was paired with is built** — BF-18 did it, so a `config/set`
   subscriber now has a transport seam and an inbound queue to reuse.
+- **The receive path's 1 s knee** — measured 2026-09-17 and unassigned. Two things would
+  settle it and neither is built: **change `kIrqReadMs` and re-run the sweep** to see whether
+  the knee moves with the constant, and **a counter for a frame lost between `RX_DONE` and
+  the ladder**, which root rule 4 would want anyway. Worth an owner before **BF-24** decodes
+  a fragmented `STATUS` into it.
 - **A PING responder on the bridge** — spec §17.3 requires RF loopback of every node build.
 - **Decoding per schema has no task** — Impl Plan §5.3's `decode/`; `app_task`'s `TODO` gives
   it to BF-24. Nothing a simnode sends is decoded or published today.

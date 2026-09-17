@@ -1199,11 +1199,20 @@ is the instrument, and it is the same instrument both arms use — `--arm` recor
 one ran and changes nothing else. The engineering log carries what the idle arm measured.
 
 **The saturated arm must run at a spacing whose idle PER is zero, and that is a measured
-constraint rather than a preference.** The idle arm returned **5.6 % at a 250 ms gap and
-0 % at 2000 ms** on 2026-09-17, on a clean bench at one metre with nothing corrupt. Run the
-saturated arm densely and a WiFi effect cannot be told from that one. **`--gap 2000` with a
-longer run is the comparable configuration**; the dense case stays runnable because it is
-what made the receive-path question visible at all.
+constraint rather than a preference.** The idle arm was swept across five spacings on
+2026-09-17, on a clean bench at one metre with nothing corrupt at any of them:
+
+| gap | 250 ms | 400 ms | 700 ms | 1100 ms | 2000 ms |
+|---|---|---|---|---|---|
+| PER | 5.6 % | 5.0 % | 1.0 % | **0 %** | **0 %** |
+
+**`--gap 2000` is the comparable configuration** — 1100 ms is the measured knee and there is
+no reason to sit on the edge of it. Run the saturated arm denser than that and a WiFi effect
+cannot be told from the receive-path one.
+
+**The knee is not at frame airtime, and that is a separate finding this plan does not own.**
+It straddles `kIrqReadMs` (1000, `lora_link.cpp`). The engineering log's 2026-09-17 entries
+carry it; the dense case stays runnable because it is what made the question visible.
 
 > **What would falsify the move rather than the policy.** If BF-23 lands without a
 > runtime path to `g_diag_interval_s`, the saturated arm has no lever again and V-B12

@@ -1976,3 +1976,69 @@ bench at one metre, and nothing in the protocol prevents a node from sending tha
 fragmented `STATUS` is exactly that pattern. **That is a real question about the receive
 path, and it is not M22's.** It is recorded in the handoff's *Open* section rather than
 being folded into a WiFi measurement that would obscure it.
+
+---
+
+## 2026-09-17 — the threshold is at 1 s, not at frame airtime, and that names a constant
+
+**Backing the gap off in steps changed the conclusion**, which is why the sweep was worth
+running rather than stopping at a spacing that happened to give zero. Same instrument, same
+identity, same bridge image, 100 frames per point:
+
+| gap | frames | never heard | corrupt | PER | bridge `cad_backoffs` |
+|---|---|---|---|---|---|
+| 250 ms | 250 | 14 | 0 | **5.60 %** | 18 |
+| 400 ms | 100 | 5 | 0 | **5.00 %** | 11 |
+| 700 ms | 100 | 1 | 0 | **1.00 %** | 8 |
+| 1100 ms | 100 | 0 | 0 | **0.00 %** | 0 |
+| 2000 ms | 40 | 0 | 0 | **0.00 %** | 0 |
+
+Committed as `docs/bridge/data/m22-idle-sweep-gap{400,700,1100}-2026-09-17.json`.
+
+### What the shape rules out
+
+**It is not frame airtime.** At SF9 a frame this size runs roughly 250–330 ms, so the
+obvious theory was that the bridge needs about one frame time to turn around. **At 400 ms
+the frames are no longer back to back and the loss rate did not move** — 5.00 % against
+5.60 %. A turnaround cost of one frame time would have collapsed there, and it did not.
+
+**The losses fall away between 700 ms and 1100 ms.** That brackets **`kIrqReadMs`, which
+is 1000** (`lora_link.cpp`). `service_receive` runs when DIO1 has fired **or** when that
+poll interval has elapsed:
+
+```cpp
+if (!g_dio1 && elapsed(now_ms, g_last_irq_read_ms) < kIrqReadMs) return;
+g_dio1 = false;
+```
+
+**`g_dio1` is a single `bool`, not a count.** Two frames whose interrupts both land before
+one `service_receive` pass collapse into one pass, which reads one packet — and `readData()`
+clears the SX1262's IRQ register, so the second frame's `RX_DONE` goes with it. The flag is
+false again, so the next opportunity is the next DIO1 or the 1 s poll. Above 1100 ms every
+frame gets its own pass regardless; below it, consecutive frames can share one.
+
+### What this is, and what it is not
+
+**It is a correlation with a named constant, not a proof.** The measurement shows where the
+losses stop; it does not show a frame being dropped at that line. **What would prove it:**
+change `kIrqReadMs` and re-run the sweep — if the knee moves with the constant, the
+mechanism is this one. A counter on the path would settle it outright, and none exists.
+**Neither is built, and this is recorded as unproved on purpose.**
+
+**Media access is not the explanation, and the `cad_backoffs` column should not be read as
+one.** It tracks offered load, because denser traffic makes a CAD more likely to find the
+channel busy — so it falls with the gap for reasons that have nothing to do with the losses.
+The discriminator remains the 250 ms run's burst 2: **zero transmissions, zero CAD backoffs,
+four frames lost of fifty.**
+
+### What it changes
+
+- **M22's saturated arm runs at `--gap 2000`**, unchanged. 1100 ms is the measured knee and
+  2000 ms is the margin either side of it; there is no reason to sit on the edge.
+- **The receive path has a real question against it**, and it now has a number and a
+  suspect rather than a shrug. A fragmented `STATUS` is exactly this traffic pattern, and
+  **BF-24's decode work is what will meet it first**.
+- **`gap` below about 1 s is not a valid bench configuration for anything that counts
+  frames.** Two of the §10.5 catalogue's rows drive multi-frame injections; they judge
+  counters rather than totals and are unaffected, but a future row that counts arrivals
+  would be measuring this instead.
