@@ -28,6 +28,11 @@ struct LoraStats {
   // counts as a busy CAD in cad_backoffs, and the two causes read differently.
   uint32_t cad_deferred = 0;
 
+  // A CAD that came back FREE. The outcome no other counter records: cad_backoffs is
+  // spec 12.3's busy-only instrument, so before this a run whose CADs all returned free
+  // read as a radio that never left receive. rx_deaf.h has the reasoning.
+  uint32_t cad_free = 0;
+
   // ---------------------------------------------------------------------------
   // The receive path's interrupt accounting (rx_wake.h). Bridge-local, NOT spec 14.1.
   //
@@ -53,6 +58,14 @@ struct LoraStats {
   // arriving between getIrqFlags() and that clear takes its own RX_DONE with it while
   // leaving the edge behind. This counts what that costs.
   uint32_t rx_wake_empty = 0;
+
+  // Milliseconds the transmit path held the radio out of receive, CAD and transmission
+  // together, measured from leaving receive to startReceive() re-arming it (rx_deaf.h).
+  // READ IT AS A FRACTION OF THE MEASUREMENT WINDOW, against the PER measured over the
+  // same window: that comparison is arithmetic, where a count of transmissions or of CADs
+  // is only a correlation. Saturates rather than wrapping - 49 days of deafness is a
+  // broken bridge, and a wrapped total would read as a healthy one.
+  uint32_t rx_deaf_ms = 0;
 };
 
 }  // namespace bridge

@@ -20,6 +20,7 @@
 
 #include "lran/lran.h"
 #include "radio_config.h"
+#include "rx_deaf.h"
 #include "rx_ladder.h"
 #include "rx_wake.h"
 
@@ -748,6 +749,45 @@ void test_a_skipped_pass_reads_nothing_whatever_the_bits_say() {
   TEST_ASSERT_TRUE(rx_pass(RxWake::Skip, true, true) == RxPass::Nothing);
 }
 
+// ---------------------------------------------------------------------------
+// rx_deaf.h - how long the transmit path held the radio out of receive.
+//
+// WHAT THIS CANNOT COVER, and it is again the important half: that a CAD really does take
+// the SX1262 out of receive, or that startReceive() re-arms it when lora_link thinks it
+// does. Only a board shows that. What is under test is the classification and the
+// arithmetic - which modes count as deaf, and that the total survives a millis() wrap.
+// ---------------------------------------------------------------------------
+
+void test_only_the_transmit_path_counts_as_deaf() {
+  TEST_ASSERT_TRUE(deaf(RadioMode::Cad));
+  TEST_ASSERT_TRUE(deaf(RadioMode::Transmit));
+  TEST_ASSERT_FALSE(deaf(RadioMode::Receive));
+}
+
+void test_a_down_radio_is_not_counted_as_deaf_time() {
+  // It is deaf in plain English, and deliberately excluded: begin_failures already counts
+  // it, and a window containing a dead radio is not a measurement. Mixing the two would
+  // put a broken bridge and a busy one in the same number.
+  TEST_ASSERT_FALSE(deaf(RadioMode::Down));
+  TEST_ASSERT_EQUAL_UINT32(0, deaf_elapsed(RadioMode::Down, 1000, 9000));
+}
+
+void test_leaving_a_cad_adds_the_time_it_took() {
+  TEST_ASSERT_EQUAL_UINT32(23, deaf_elapsed(RadioMode::Cad, 1000, 1023));
+}
+
+void test_leaving_receive_adds_nothing() {
+  // start_receive() is also reached from the header-error path, where the radio never
+  // left receive at all. Counting that interval would report the idle link as deaf.
+  TEST_ASSERT_EQUAL_UINT32(0, deaf_elapsed(RadioMode::Receive, 1000, 9000));
+}
+
+void test_the_deaf_interval_is_wrap_safe() {
+  // millis() wrapped during a transmission. Unsigned subtraction gives 15 ms, not 4.29e9,
+  // which would otherwise saturate the total and read as a permanently deaf radio.
+  TEST_ASSERT_EQUAL_UINT32(15, deaf_elapsed(RadioMode::Transmit, UINT32_MAX - 4, 10));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_ladder_accepts_n_minus_one_and_refuses_n_minus_two);
@@ -769,6 +809,11 @@ int main() {
   RUN_TEST(test_an_edge_with_an_empty_register_is_counted_not_ignored);
   RUN_TEST(test_a_timed_read_over_an_empty_register_is_the_quiet_case);
   RUN_TEST(test_a_skipped_pass_reads_nothing_whatever_the_bits_say);
+  RUN_TEST(test_only_the_transmit_path_counts_as_deaf);
+  RUN_TEST(test_a_down_radio_is_not_counted_as_deaf_time);
+  RUN_TEST(test_leaving_a_cad_adds_the_time_it_took);
+  RUN_TEST(test_leaving_receive_adds_nothing);
+  RUN_TEST(test_the_deaf_interval_is_wrap_safe);
 
   RUN_TEST(test_a_status_frame_is_delivered_whole);
   RUN_TEST(test_a_phy_crc_error_is_counted_as_stage_1);

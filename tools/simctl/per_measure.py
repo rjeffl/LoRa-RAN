@@ -137,6 +137,10 @@ def run_burst(console, broker, node, count, gap_ms, settle_s, window_s, out):
     if rx_before is None:
         return {"valid": False, "reason": "no diagnostic publication before the burst", "sent": 0}
     radio_before = broker.radio_snapshot()
+    # The window rx_deaf_ms is read against (per_window.py). Timed from the rx readings
+    # because those are the ones this tool waits for; the radio documents ride the same
+    # 60 s tick, which is why the fraction is reported rather than trusted to a decimal.
+    window_start = time.time()
     tx_before = sender_tx_frames(console)
     if tx_before is None:
         return {"valid": False, "reason": "the simnode did not answer `radio`", "sent": 0}
@@ -171,7 +175,8 @@ def run_burst(console, broker, node, count, gap_ms, settle_s, window_s, out):
         return {"valid": False, "reason": "no diagnostic publication after the burst", "sent": sent}
     radio_after = broker.radio_snapshot()
 
-    w = measure(sent, rx_before, rx_after, radio_before, radio_after)
+    w = measure(sent, rx_before, rx_after, radio_before, radio_after,
+                window_ms=int((time.time() - window_start) * 1000))
     w["asked"] = count
     return w
 
