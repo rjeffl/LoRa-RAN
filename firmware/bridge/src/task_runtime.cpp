@@ -24,6 +24,7 @@
 #include "board_ui.h"
 #include "command.h"
 #include "diag_json.h"
+#include "discovery.h"
 #include "lora_link.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
@@ -598,6 +599,81 @@ class CommandInbound final : public MqttInbound {
 
 CommandInbound g_cmd_inbound_sink;
 
+// ---------------------------------------------------------------------------
+// BF-23 - the discovery configs. R-3.3b: on boot AND on every broker reconnect.
+//
+// THERE IS NO "FIRST TIME" FLAG, deliberately. A boot and a reconnect take the same
+// path: on_mqtt_connected() restarts the cursor and this drains it. The reconnect path
+// is the one that gets skipped in development and the one that runs unattended (Impl
+// Plan 4.4), so it is not a branch that can be got wrong - it is the only branch.
+//
+// DRAINED A FEW AT A TIME RATHER THAN IN ONE BURST. The whole set is a few dozen
+// documents of ~450 bytes; publishing them back to back would hold mqtt_task inside
+// PubSubClient without a loop() between them, on a socket that has just reconnected.
+// At this task's 100 ms period the set is out within about a second either way.
+//
+// PUBLISHED DIRECTLY, NOT THROUGH g_publish_queue. The queue is sized for state
+// (Impl Plan 4.3.2) and a reconnect would otherwise push a few dozen configs in front
+// of every node's current reading, which is the wrong thing to make anyone wait for.
+// ---------------------------------------------------------------------------
+
+DiscoveryCursor g_discovery_cursor;
+bool            g_discovery_pending = false;
+
+// A PublishMessage is ~872 bytes and this is called from mqtt_task, which already
+// carries one on its stack. Static for the reason BF-19 gives for sched_task's.
+PublishMessage g_discovery_msg;
+
+// registry_info_at() is lock-free and what a node IS never changes after load(), so
+// this is filled once and reused. discovery_next() takes a plain array, which is what
+// keeps it host-testable against a fabricated fleet.
+const NodeInfo* discovery_fleet(size_t* count) {
+  static NodeInfo fleet[kNodeCount];
+  static bool     filled = false;
+  if (!filled) {
+    for (size_t i = 0; i < kNodeCount && i < registry_size(); ++i) {
+      fleet[i] = registry_info_at(i);
+    }
+    filled = true;
+  }
+  *count = kNodeCount;
+  return fleet;
+}
+
+// Up to `budget` configs. Clears the pending flag when the set is exhausted.
+void drain_discovery(size_t budget) {
+  if (!g_discovery_pending) return;
+
+  size_t          count = 0;
+  const NodeInfo* fleet = discovery_fleet(&count);
+
+  for (size_t i = 0; i < budget; ++i) {
+    DiscoveryItem item;
+    // TODO(BF-26): simnode_diag_enable. Bench nodes are gated out until it exists, so
+    // their entities do not enter HA's registry to sit at `unknown` (spec 16.6).
+    if (!discovery_next(&g_discovery_cursor, fleet, count, /*simnode_diag_enable=*/false,
+                        &item)) {
+      g_discovery_pending = false;
+      return;
+    }
+
+    char topic[kMaxTopicLen];
+    char config[kMaxDiscoveryPayload];
+    if (discovery_topic(item, topic, sizeof(topic)) == 0 ||
+        discovery_config_json(item, config, sizeof(config)) == 0) {
+      // Refused rather than truncated, and counted where every other refusal is. An
+      // entity missing from Home Assistant is the symptom; this is the record of why.
+      g_accounting.record_dropped(QueueId::Publish);
+      continue;
+    }
+    if (!make_publish(&g_discovery_msg, topic, config, /*retain=*/true, /*qos=*/0) ||
+        !g_mqtt.publish(g_discovery_msg)) {
+      g_accounting.record_dropped(QueueId::Publish);
+      return;  // the socket is unhappy; the next connect restarts the whole set anyway
+    }
+  }
+}
+
 // Published on every broker connect, not only the first. A broker restart loses
 // retained state unless it was persisted, and the bridge is the only thing that can
 // put its own availability back (spec 16.5).
@@ -626,9 +702,13 @@ void on_mqtt_connected() {
   // healthy while every button in Home Assistant did nothing.
   (void)g_mqtt.subscribe(kTopicCmdFilter, /*qos=*/1);
 
-  // TODO(BF-23): discovery configs, republished here - "on boot AND on every broker
-  // reconnect" (R-3.3c). They are generated in this task and published directly
-  // rather than through the queue, which is why the queue is sized for state.
+  // BF-23 - the discovery configs, republished from the top on every connect
+  // (R-3.3b). The cursor is restarted here and drained by mqtt_task's loop; a
+  // reconnect part-way through a previous drain therefore starts again rather than
+  // resuming into a set HA has already forgotten.
+  g_discovery_cursor  = DiscoveryCursor{};
+  g_discovery_pending = true;
+
   // Per-node availability (BF-20), which is a different thing from this one. sched_task
   // owns the watchdog and publishes through the queue on its next tick.
   g_availability_republish = true;
@@ -660,6 +740,9 @@ void mqtt_task(void*) {
         mqtt_attempt = 0;
         g_mqtt.loop();
         drain_publish_queue();
+        // After the queue: a node's current reading matters more than a config HA has
+        // already got, and the set is republished on the next connect regardless.
+        drain_discovery(4);
       } else if (mqtt_next_ms == 0 || static_cast<int32_t>(now - mqtt_next_ms) >= 0) {
         // Same unsigned-wrap-safe comparison as wifi_link.cpp: millis() wraps at
         // ~49.7 days and this node is expected to run for years.
