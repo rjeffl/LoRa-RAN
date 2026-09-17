@@ -1,0 +1,75 @@
+{
+  "arm": "idle",
+  "node": "f3",
+  "count": 50,
+  "gap_ms": 250,
+  "version": {
+    "version": "0.1.0",
+    "git": "4c83f3d",
+    "slot": "app0",
+    "ota_state": "verified_or_usb"
+  },
+  "windows": [
+    {
+      "sent": 50,
+      "valid": true,
+      "reason": null,
+      "bridge_cad_backoffs": 6,
+      "heard": 48,
+      "accepted": 48,
+      "dropped": 0,
+      "corrupt": 0,
+      "never_heard": 2,
+      "lost": 2,
+      "per": 0.04,
+      "discards": {},
+      "bridge_tx": 4,
+      "asked": 50
+    },
+    {
+      "sent": 50,
+      "valid": true,
+      "reason": null,
+      "bridge_cad_backoffs": 0,
+      "heard": 49,
+      "accepted": 49,
+      "dropped": 0,
+      "corrupt": 0,
+      "never_heard": 1,
+      "lost": 1,
+      "per": 0.02,
+      "discards": {},
+      "bridge_tx": 3,
+      "asked": 50
+    },
+    {
+      "sent": 50,
+      "valid": true,
+      "reason": null,
+      "bridge_cad_backoffs": 5,
+      "heard": 49,
+      "accepted": 49,
+      "dropped": 0,
+      "corrupt": 0,
+      "never_heard": 1,
+      "lost": 1,
+      "per": 0.02,
+      "discards": {},
+      "bridge_tx": 3,
+      "asked": 50
+    }
+  ],
+  "summary": {
+    "windows": 3,
+    "valid_windows": 3,
+    "sent": 150,
+    "accepted": 146,
+    "lost": 4,
+    "never_heard": 4,
+    "corrupt": 0,
+    "per": 0.02666666666666667,
+    "bridge_tx": 10,
+    "bridge_cad_backoffs": 11,
+    "worst_per": 0.04
+  }
+}

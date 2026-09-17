@@ -46,6 +46,16 @@ RX_CRC_ERR = "rx_crc_err"
 TX_FRAMES = "tx_frames"
 CAD_BACKOFFS = "cad_backoffs"
 
+# The receive path's interrupt accounting, added to the bridge 2026-09-17 (rx_wake.h).
+# REPORTED, NEVER A GUARD - like bridge_tx, and for the same reason: they describe how a
+# frame reached the ladder, not whether this window is measurable.
+#
+# A bridge built before that publishes neither, and delta() then returns None rather than
+# a zero. That distinction is the whole point here: a zero means the interrupt path missed
+# nothing, and None means nobody asked.
+NO_INTERRUPT = "rx_no_interrupt"
+WAKE_EMPTY = "rx_wake_empty"
+
 
 def delta(before, after, key):
     """after[key] - before[key], or None if either document lacks the key."""
@@ -94,6 +104,8 @@ def measure(sent, rx_before, rx_after, radio_before=None, radio_after=None):
         bridge_tx = delta(radio_before, radio_after, TX_FRAMES)
         cad = delta(radio_before, radio_after, CAD_BACKOFFS)
         result["bridge_cad_backoffs"] = cad
+        result["bridge_no_interrupt"] = delta(radio_before, radio_after, NO_INTERRUPT)
+        result["bridge_wake_empty"] = delta(radio_before, radio_after, WAKE_EMPTY)
 
     # Guard 1 - a counter went backwards, so the bridge rebooted inside the window.
     negative = [k for k, v in moved.items() if v < 0]
@@ -156,6 +168,8 @@ def aggregate(windows):
             "per": (sent - accepted) / float(sent),
             "bridge_tx": sum(w["bridge_tx"] or 0 for w in valid),
             "bridge_cad_backoffs": sum(w.get("bridge_cad_backoffs") or 0 for w in valid),
+            "bridge_no_interrupt": sum(w.get("bridge_no_interrupt") or 0 for w in valid),
+            "bridge_wake_empty": sum(w.get("bridge_wake_empty") or 0 for w in valid),
             "worst_per": max(w["per"] for w in valid),
         }
     )
@@ -184,6 +198,14 @@ def format_window(index, w):
     # with backoffs and no transmission still lost receive time to media access.
     if w.get("bridge_cad_backoffs"):
         parts.append("bridge CAD backoffs %d" % w["bridge_cad_backoffs"])
+    # Printed whenever the bridge publishes them, INCLUDING AT ZERO. A zero here is the
+    # reading that falsifies the kIrqReadMs mechanism (engineering log, 2026-09-17), so it
+    # has to be visible in a run that lost frames rather than suppressed as "nothing to
+    # report". None - an older bridge that publishes neither - stays silent.
+    if w.get("bridge_no_interrupt") is not None:
+        parts.append("no-interrupt %d" % w["bridge_no_interrupt"])
+    if w.get("bridge_wake_empty") is not None:
+        parts.append("wake-empty %d" % w["bridge_wake_empty"])
     other = {k: v for k, v in w["discards"].items() if k != RX_CRC_ERR}
     if other:
         parts.append("also " + ", ".join("%s +%d" % (k, v) for k, v in sorted(other.items())))

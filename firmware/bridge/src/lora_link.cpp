@@ -17,6 +17,7 @@
 #include <new>
 
 #include "queues.h"
+#include "rx_wake.h"
 #include "task_runtime.h"
 
 namespace bridge {
@@ -107,6 +108,15 @@ constexpr uint32_t kCadTimeoutMs = 500;
 
 // Belt and braces for a lost DIO1 wake: while receiving, the IRQ register is read at least
 // this often, at the cost of one SPI transaction a second.
+//
+// IT IS NOT ONLY BELT AND BRACES, AND THIS INTERVAL IS UNDER MEASUREMENT (engineering log,
+// 2026-09-17). DIO1 is a level output read on its rising edge, so a frame arriving while
+// the previous RX_DONE is still set raises no edge and this read is the ONLY thing that
+// finds it - which makes this interval the deadline a frame has to beat. rx_wake.h holds
+// the mechanism; g_stats.rx_no_interrupt counts how often it happens.
+//
+// It is also the only path that can find HEADER_ERR, which the DIO1 mask excludes. Do not
+// remove this read.
 constexpr uint32_t kIrqReadMs = 1000;
 
 // spec 15.1 - the longest frame at SF9 is 1107 ms. A valid header seen longer ago than
@@ -277,21 +287,34 @@ void reply_error(lran::Status s, lran::NodeId src, lran::Seq seq, uint32_t now_m
 }
 
 void service_receive(uint32_t now_ms) {
-  if (!g_dio1 && elapsed(now_ms, g_last_irq_read_ms) < kIrqReadMs) return;
+  const RxWake wake = rx_wake(g_dio1, now_ms, g_last_irq_read_ms, kIrqReadMs);
+  if (wake == RxWake::Skip) return;
   g_dio1             = false;
   g_last_irq_read_ms = now_ms;
 
   const uint32_t irq = g_radio->getIrqFlags();
 
-  if ((irq & RADIOLIB_SX126X_IRQ_RX_DONE) == 0) {
-    // spec 14 stage 1, the header half. A LoRa header that fails its own CRC raises no
-    // RX_DONE and never reaches DIO1, so it is found here or not at all. Counted as the
-    // PHY CRC error it is, and receive is restarted to clear the register.
-    if ((irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0) {
+  switch (rx_pass(wake, (irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0,
+                  (irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0)) {
+    case RxPass::HeaderError:
+      // spec 14 stage 1, the header half. A LoRa header that fails its own CRC raises no
+      // RX_DONE and never reaches DIO1, so it is found by the timed read or not at all.
+      // Counted as the PHY CRC error it is, and receive is restarted to clear the register.
       g_ladder.on_phy_crc_error();
       start_receive(now_ms);
-    }
-    return;
+      return;
+    case RxPass::WakeEmpty:
+      ++g_stats.rx_wake_empty;
+      return;
+    case RxPass::Nothing:
+      return;
+    case RxPass::Orphan:
+      // No edge ever arrived for this frame; the timed read found it. rx_wake.h has the
+      // mechanism. Counted before the read, so the count survives a read that then fails.
+      ++g_stats.rx_no_interrupt;
+      break;
+    case RxPass::Packet:
+      break;
   }
 
   // NEVER ASK getPacketLength() WHETHER A PACKET ARRIVED. It holds the last packet's length
