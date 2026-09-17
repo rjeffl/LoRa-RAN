@@ -53,7 +53,10 @@ class Transcript final : public Sink {
   }
 
  private:
-  static constexpr int kLines = 32;
+  // MUST EXCEED kFaultCatalogueLen + 1, because `fault list` prints a header and every
+  // row. At 32 it exactly matched the catalogue and BF-21's ctx_reject pushed the last
+  // row off the end, which reads as a missing fault rather than as a full buffer.
+  static constexpr int kLines = 64;
   static constexpr int kWidth = 200;
   char                 lines_[kLines][kWidth] = {};
   int                  count_                 = 0;

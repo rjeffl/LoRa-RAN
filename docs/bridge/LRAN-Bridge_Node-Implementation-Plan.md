@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.35
+**Version:** 0.36
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1109,6 +1109,31 @@ entries, and the entries most likely to be skipped are the ones whose expected r
 "nothing happens" — `hdr_rsv` accepted, `seq_wrap` accepted, `wrong_dst` discarded with no
 `ERROR`. Those are exactly the forward-compatibility rules that break quietly.
 
+#### 7.2.1 What BF-21 built, 2026-09-16
+
+**`tools/simctl/` runs the §10.5 catalogue and judges it from `lran/bridge/diag/state`.**
+The bridge has no console, so the verdict comes from the broker.
+
+- **`catalogue.py` does no I/O.** `judge()` takes two counter documents and returns a
+  verdict, so the deciding half is host-tested at a desk — the same split `scheduler.h`
+  and `command.h` make. 17 host tests, no board and no broker.
+- **One 60 s publication window per row.** Chosen over a force-publish topic, which would
+  have put a control surface on the receive path that `/lib/lran-config/` and BF-26 should
+  own. A full run is about half an hour, unattended by design.
+- **`rx_frames` must move before any other check is believed.** A silent pass and a frame
+  that never arrived are identical in every counter a forward-compatibility row cares
+  about. It is a floor, not equality: poll answers land in the same window.
+- **Only the row's own counter may move**, which is the invariant that caught
+  `set_displaced`.
+- **A known divergence is neither a pass nor a failure.** `bad_ver` reads 2 today and is
+  reported as `DIVERGED` naming **BF-22**.
+- **`tools/checks/simctl_catalogue.py`** fails when the scenario table and `fault.cpp`
+  disagree. Two lists that must agree fail silently and in the reassuring direction, as
+  §10.8.1's pin-map premise did; its own tests make it drift and assert it fails.
+
+**Credentials come from `LRAN_MQTT_USER` / `LRAN_MQTT_PASSWORD`**, never arguments: an
+argument reaches argv, and argv reaches the process table.
+
 **Observe TX power before every session, in dBm conducted.** Bench work may run below the
 D33 ceiling per §2.2, and a range test that silently ran at bench power has to be repeated.
 Log the conducted figure rather than a RadioLib power index, so a trace taken on the Heltec
@@ -1364,13 +1389,14 @@ rename after that is breaking. A row whose counter does not appear in
 | `frag_dup` | A duplicate index within a live set | `rx_frag_duplicate` | **Set still completes.** Counted but **excluded from `rx_dropped`** — assert `rx_dropped` does not move |
 | `frag_late` | A complete set, then a repeat of one of its fragments | `rx_frag_late` | Discarded, **not** started as a new set. Excluded from `rx_dropped`. A late RF echo and a sender retry both produce this legitimately |
 | **`single_frame_interleave`** | Fragment 0 of a set, then a **single-frame** frame sharing `(src, ctx_id, schema)`, then the remaining fragments | **none** | **The set completes normally and `rx_reassembly_abandoned` does not move.** See below |
-| `set_displaced` | A live set, then fragment 0 of a **different** set from the same peer | `rx_reassembly_abandoned`, **then `rx_reassembly_timeout`** | Protocol Spec §11.3 displacement, scoped to `frag` total > 1. **This row moves two counters, and the second is not optional**: the displacing set is left incomplete by construction, so it expires on the tick and counts a timeout. Measured twice on 2026-09-16, both counters inside one 60 s window. The alternative is to complete the displacing set in `fault.cpp`, which is **BF-21**'s to decide |
+| `set_displaced` | A live set, then a **complete** second set from the same peer | `rx_reassembly_abandoned` | Protocol Spec §11.3 displacement, scoped to `frag` total > 1. **BF-21 decided it: `fault.cpp` completes the displacing set**, so the row moves one counter like every other. Until then the displacing set was a lone fragment 0, which expired on the tick and also moved `rx_reassembly_timeout` — measured twice on 2026-09-16 — making this the one row to break the table's own invariant. A row that moves two counters cannot tell a displacement defect from a timeout defect, and `frag_timeout` owns the second. Confirmed at the broker 2026-09-16: `rx_reassembly_timeout` flat |
 | `bad_mac` | Authenticated frame, one MAC byte flipped | `rx_rejected_mac` | §9.4 step 3 rejection, **no state change**, and the fragment is **not buffered** |
 | `ctx_jump` | New `ctx_id` mid-session with no reboot | `rx_rejected_ctx` on the node side | Bridge adopts, resets `cmd_seq`, **retries once only** (§6.2) |
 | `seq_jump` | Large forward `seq` step | — | Accepted — RFC 1982 arithmetic, no lockout |
 | `seq_wrap` | `seq` wrapping through `0xFFFF` | — | Accepted. **The failure this guards against is a plain `>` comparison rejecting every frame until reboot** |
 | `ack_suppress` | `COMMAND` received, no ACK | — | Bridge retries with the **same `seq`**; simnode reports a dedup hit (**V-B5**, **BS-3**) |
 | `ack_dup` | Two ACKs for one command | — | Second ignored, not counted as a second result |
+| **`ctx_reject`** | `COMMAND_ACK(REJECTED_CTX)` to the next `count` `COMMAND`s, whatever context they carried | — | **Added by BF-21**, and the only way to reach Protocol Spec §10.3 **step 3** deliberately: `ctx_reject 2` makes the bridge resync once, meet a second rejection, and **stop rather than loop**. It acts **before the dedup gate** — §9.4 checks context at step 2 and the gate at steps 4–6, so no `seq` is consumed and no result is cached; cached, the resync retry would meet a `DUPLICATE_CACHED` instead of the second rejection. BF-18 failed three times to force this by racing the console, because the rejection-to-retry window is under a second |
 | `event_replay` | Same `(ctx_id, event_id)` twice | — | Bridge publishes **once** (Protocol Spec §16.3) |
 | `flood` | Frames at maximum rate | — | Bridge stays responsive; `lora_task` does not block (§1.3) |
 | `silent` | Identity stops answering | — | Availability → offline after `missed_poll_threshold` (**V-B3**) |
@@ -1932,6 +1958,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |
 | **v0.35** | **New §6.2.1** — BF-18's command path, and the MQTT receive path it had to build first; §5.3 names `command.cpp` |
 | **v0.34** | **§10.5** — a multi-frame row cannot confirm its own ERROR from the same board, measured 2026-09-16; what that costs BF-21 |
 | **v0.32** | **§8** — B3 split into **B3a** and **B3b**; §7.1's milestone column follows |

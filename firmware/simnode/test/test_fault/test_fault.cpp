@@ -264,12 +264,26 @@ void test_single_frame_interleave_leaves_the_set_intact() {
   TEST_ASSERT_TRUE(rx.reasm.complete());
 }
 
-// A second set's first fragment displaces a live set (spec 11.3).
-void test_set_displaced() {
+// A second set's first fragment displaces a live set (spec 11.3), and the displacing set
+// COMPLETES - BF-21.
+//
+// The completion is what makes this row obey the table's own invariant: one row, one
+// counter. Until BF-21 the displacing set was a lone fragment 0, so it expired on the
+// receiver's tick and the row moved rx_reassembly_timeout as well, measured twice on
+// 2026-09-16. A row that moves two counters cannot tell a displacement defect from a
+// timeout defect, and frag_timeout already owns the second.
+void test_set_displaced_abandons_the_first_set_and_completes_the_second() {
   Sim      s;
   Receiver rx;
-  inject(s, rx, "set_displaced", FaultRequest{}, 1000);
+  const size_t n = inject(s, rx, "set_displaced", FaultRequest{}, 1000);
+  TEST_ASSERT_EQUAL_size_t(4, n);  // frag0 of the first set, then the whole second
   TEST_ASSERT_EQUAL_UINT32(1, rx.counters.rx_reassembly_abandoned);
+  TEST_ASSERT_TRUE(rx.reasm.complete());
+
+  // And only that counter. rx_reassembly_timeout is frag_timeout's, and nothing here is
+  // left for the tick to expire.
+  TEST_ASSERT_EQUAL_UINT32(0, rx.counters.rx_reassembly_timeout);
+  TEST_ASSERT_EQUAL_UINT32(1, rx.counters.total_dropped());
 }
 
 // ---------------------------------------------------------------------------
@@ -639,7 +653,7 @@ int main() {
   RUN_TEST(test_frag_dup_completes_and_does_not_drop);
   RUN_TEST(test_frag_late_completes_and_does_not_drop);
   RUN_TEST(test_single_frame_interleave_leaves_the_set_intact);
-  RUN_TEST(test_set_displaced);
+  RUN_TEST(test_set_displaced_abandons_the_first_set_and_completes_the_second);
 
   RUN_TEST(test_ctx_jump_is_accepted_with_a_new_context);
   RUN_TEST(test_seq_jump_is_accepted);
