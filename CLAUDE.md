@@ -104,7 +104,7 @@ lib/        lran-protocol, lran-link, lran-sim               [built]
             lran-config, vedirect, bms-ble                  [planned]
 firmware/   bridge/, range-test/, simnode/                   [built]
             gatelink/, welllink/                            [planned]
-tools/      vectors/ [built]  checks/ [built]  simctl/ [planned]
+tools/      vectors/ [built]  checks/ [built]  simctl/ [built]  rangetest/ [built]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
 ha/         example discovery payloads                       [planned]
@@ -142,6 +142,10 @@ pio test -d firmware/bridge -e native         # bridge host suite, no secrets
 pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
 
+python3 tools/simctl/test_simctl.py           # simctl's verdict logic, no board
+python3 tools/checks/simctl_catalogue.py      # simctl's rows vs. the firmware catalogue
+python3 tools/simctl/simctl.py --list         # the 10.5 catalogue as simctl runs it
+
 pio test -d firmware/simnode -e native        # simnode host suite, no secrets
 pio run  -d firmware/simnode -e simnode-heltec     # NEEDS secrets.h (master key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio   # XIAO ESP32S3 + Wio-SX1262 Kit
@@ -159,7 +163,6 @@ These are the shape the firmware targets take once they exist:
 pio run  -d firmware/<node> -e <env>          # build
 pio run  -d firmware/<node> -e <env> -t upload
 pio test -d firmware/<node> -e native         # host tests
-python3 tools/simctl/simctl.py --port /dev/ttyUSB0
 ```
 
 **Regenerating the W4 vectors is not optional after a protocol change** (spec §13.2). The

@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.33 §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.36 §10.
 **Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.21 §4 (BF-2 to BF-9).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
@@ -34,12 +34,24 @@ Heltecs** (bridge engineering log, same date). `platformio.ini` (`simnode-heltec
 **`/lib/lran-sim/` (BF-7)** is built: `FramePatch`, Impl Plan §10.5.2. **The fault catalogue
 and `fault` command (BF-8)** are built in `fault.{h,cpp}`, host-tested against the codec's
 receive ladder. **The OLED page (BF-9)** is `oled_page.{h,cpp}` (text, host-tested in
-`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1. The Heltec's panel answers at
-boot; the XIAO's has not been flashed.
+`test/test_oled`) and `ui.cpp` (drawing); Impl Plan §10.9.1.
 **`ROLE_GATELINK` (BF-6)** is `gatelink.{h,cpp}`, with `push`, `event`, `ack`, `field` and the
-five command-path faults; Impl Plan §10.9.2, host-tested in `test/test_gatelink`, not yet on
-air. **Every Impl Plan §10.4 command exists.** **The XIAO profile builds
-and has not been flashed.**
+command-path faults; Impl Plan §10.9.2, host-tested in `test/test_gatelink`. **It is on air:**
+the bridge commanded a `ROLE_GATELINK` identity and it executed, 2026-09-16 (BF-18).
+**Every Impl Plan §10.4 command exists**, and **both profiles have been flashed and run.**
+
+**`ctx_reject` (BF-21) is a behaviour fault with one rule worth keeping: it acts BEFORE
+the dedup gate.** Spec §9.4 checks context at step 2 and the gate at steps 4–6, so a node
+refusing on context has not looked at the sequence space — no `seq` consumed, nothing
+cached. Move it after the gate and the bridge's resync retry meets a `DUPLICATE_CACHED`
+instead of a second rejection, which is the one path the fault exists to produce
+(spec §10.3 step 3). **`set_displaced` completes its displacing set** since BF-21, so it
+moves `rx_reassembly_abandoned` alone; a capture from before that shows
+`rx_reassembly_timeout` as well.
+
+**`tools/simctl/` drives this console** and judges the catalogue from the bridge's
+counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added
+here has no scenario there** — run it after touching `kFaultCatalogue`.
 
 ```bash
 pio test -d firmware/simnode -e native              # host, no secrets
@@ -66,6 +78,9 @@ bridge. Change them there, and run both firmwares' tests.
   rotated 180° from its range-test enclosure. Copy pins from the range test, not orientation. BF-9
   first shipped believing the XIAO had no panel; check `firmware/range-test/src/board_config.h`
   before describing either board.
+- **`test_console`'s transcript buffer must exceed the catalogue length.** It held exactly
+  32 lines against 32 rows plus a header, and BF-21's new row pushed the last one off the
+  end — which reads as a missing fault, not a full buffer.
 - **An OLED row reads `f0 single_frame_inter~`** when a fault name is too long. The `~` marks
   a cut token. Type the full name from `fault list`.
 - **`Node::on_phy_crc_error()` takes `now_ms`** since BF-9, so the page can age the event.

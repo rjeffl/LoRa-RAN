@@ -1709,3 +1709,82 @@ Raised for **BF-21**, which owns the catalogue.
 `rx_frames` 33, `tx_frames` 58, `cad_backoffs` 1, and **every §14.1 counter zero** —
 `rx_dropped` 0. The command traffic produced no discards at either end.
 `q_command_dropped` 0, `q_command_high_water` 1.
+
+---
+
+## 2026-09-16 — BF-21: the catalogue runs itself, and §10.3 step 3 finally fired
+
+**`tools/simctl/` runs the §10.5 catalogue against the bridge's published counters**, and
+the two decisions §10.5 left to BF-21 are made. Bridge unchanged on `5f8e3f7`; XIAO
+simnode reflashed with the two firmware changes below.
+
+### `ctx_reject` closed the criterion BF-18 could not
+
+Earlier today BF-18 failed three times to force a second `REJECTED_CTX` by racing
+`ctx f1 new` against a command. With `fault f1 ctx_reject 2` armed it fired first try:
+
+```
+fault f1 ctx_reject: seq 1 answered REJECTED_CTX (own ctx 0x7441d4d7), 1 left
+rx    f1 <- 00 type 0x01 seq 1, 4 B in 1 frame(s)
+fault f1 ctx_reject: seq 1 answered REJECTED_CTX (own ctx 0x7441d4d7), 0 left
+```
+
+and the bridge published `{"outcome":"resync_failed","seq":1,"attempts":1,"result":3}`.
+**Exactly two `COMMAND`s, then nothing** — spec §10.3 step 3 stops rather than resyncing
+again, which on a shared channel is the difference between one failed command and a
+transmit storm. **B3b's "resync retries once and then faults" is now met in both halves.**
+
+**The fault acts before the dedup gate**, and that is what makes it work rather than an
+implementation detail. Spec §9.4 puts the context check at step 2 and the gate at steps
+4–6: a node refusing on context has not looked at the sequence space, so no `seq` is
+consumed and no result is cached. Cached, the bridge's resync retry would have met a
+`DUPLICATE_CACHED` instead of a second rejection — the very path the fault exists to
+produce.
+
+### `set_displaced` now moves one counter, and the bench says so
+
+The row sent a lone fragment 0 as its displacing set, so that set expired on the tick and
+the row moved `rx_reassembly_abandoned` **and** `rx_reassembly_timeout` (measured twice,
+this morning). It was the one row breaking the table's own invariant — the host suite
+states it as *"the counter its row names, and only that counter, moves"* — and a row that
+moves two cannot tell a displacement defect from a timeout defect. `fault.cpp` now
+completes the displacing set. Read at the broker:
+
+| Row | Result |
+|---|---|
+| `set_displaced` | **PASS** — `rx_reassembly_abandoned +1`, `rx_dropped +1`, `rx_reassembly_timeout` **flat** |
+| `single_frame_interleave` | **PASS** — nothing discarded, `rx_frames +6` |
+| `frag_dup` | **PASS** — `rx_frag_duplicate +1`, `rx_dropped +0` |
+| `runt` | **PASS** — `rx_runt +1`, `rx_dropped +1` |
+| `hdr_rsv` | **PASS** — nothing discarded, `rx_frames +3` |
+| `bad_ver` | **DIVERGED** — `rx_bad_ver +2`, expected 1. Known, and BF-22's |
+
+### What the tool enforces that a hand-run pass did not
+
+**`rx_frames` must have moved before any other check is believed.** A silent pass and a
+frame that never arrived are identical in every counter a forward-compatibility row cares
+about; the handoff has carried that trap as prose since B3a, and it is now a condition in
+code. Every row above reports its frame delta, and the deltas are **larger than the
+injection** — `+3` where one frame was sent, `+6` where four were. The surplus is poll
+answers arriving in the same window, which is why the check is a floor and not equality.
+
+**Only the row's own counter may move.** This is what caught `set_displaced` in the first
+place and what now proves the fix.
+
+**A known divergence is neither a pass nor a failure.** `bad_ver` is reported as
+`DIVERGED` with BF-22 named, and the run's exit status ignores it. A tool that scored it
+as a failure would train its reader to ignore failures, and one that scored it as a pass
+would hide the thing BF-22 exists to fix.
+
+### Two things worth keeping
+
+- **The 60 s diagnostic cadence sets the pace, and that was a deliberate choice.** One
+  publication window per row, against the handoff's rule that a counter is differenced
+  only across a window carrying nothing else. A full 23-row run is therefore about half
+  an hour, unattended. The alternative considered and declined was a force-publish MQTT
+  topic: it would have put a control surface on the receive path that `/lib/lran-config/`
+  and BF-26 should own properly.
+- **`test_console`'s transcript buffer held exactly 32 lines against a 32-row catalogue
+  plus a header.** Adding `ctx_reject` pushed the last row off the end, and the failure
+  read as a missing fault rather than as a full buffer. Raised to 64 with the reason
+  written at the constant.
