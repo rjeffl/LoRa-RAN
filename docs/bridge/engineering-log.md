@@ -1848,3 +1848,197 @@ than at the broker. The field is host-tested; the broker path arrives with BF-26
 - **A node never heard is addressed in N, not N−1.** It is likelier to be new than old,
   and its first frame is a `POLL` it answers — after which the real version is known.
   Guessing N−1 would address every fresh node in a version it may not have.
+
+---
+
+## 2026-09-17 — M22's idle arm: 5.6 % PER at one metre, and no explanation that fits
+
+**B3b is accepted and V-B12 moved to B4** (Impl Plan §8.1). Before it moved, its idle arm
+was measured, because it is the baseline the saturated arm is compared against and nothing
+blocked it. **The number is worse than expected and the cause is not established.** Both
+facts are the point of this entry.
+
+### The run
+
+`tools/simctl/per_measure.py`, new today. Bridge on `24f7993`, XIAO + Wio simnode sending,
+Heltec simnode quieted first. Five bursts of 50 frames, 250 ms apart, from **`0xF3` in
+`ROLE_FAULT`** — a role that answers no `POLL`, so the only frames that identity sends are
+the burst. Every other identity on both boards was disabled, so nothing else was on air.
+
+```
+PER 5.60 % over 250 frames in 5 valid window(s); worst burst 10.00 %
+  never heard 14, corrupt 0, bridge transmissions in window 19
+```
+
+| burst | sent | accepted | never heard | bridge TX | bridge `cad_backoffs` |
+|---|---|---|---|---|---|
+| 1 | 50 | 45 | 5 | 3 | 8 |
+| 2 | 50 | 46 | **4** | **0** | **0** |
+| 3 | 50 | 49 | 1 | 7 | 5 |
+| 4 | 50 | 49 | 1 | 3 | 0 |
+| 5 | 50 | 47 | 3 | 6 | 5 |
+
+Committed as `docs/bridge/data/m22-idle-2026-09-17.json`.
+
+### What the numbers rule out
+
+**`corrupt 0` across all 250 frames.** Not one frame arrived and failed its CRC:
+`rx_crc_err` never moved, and neither did any other §14 counter. Every loss is a frame the
+radio never delivered at all. At one metre, with −4 dBm into a 3.0 dBi antenna, an RF
+explanation does not fit — and there is no marginal-link story that produces zero corrupt
+frames alongside 14 missing ones.
+
+**Burst 2 rules out the bridge's own media access as a complete explanation.** The obvious
+first theory was half duplex: the SX1262 cannot hear a frame arriving while it answers a
+`POLL`, and a CAD takes the radio out of receive (Impl Plan §747, and the 2026-09-10 entry
+above). Burst 2 has **zero transmissions and zero CAD backoffs** and still lost 4 frames of
+50. Across the five bursts the losses do not track either column.
+
+**What `cad_backoffs` does not count is worth knowing before the next attempt.** It counts
+a *busy* CAD result only (`media_access.cpp`). A CAD that returns free still took the radio
+out of receive and increments nothing, and `cad_deferred` covers only the
+reception-in-progress case. So a zero in that column is not a claim that the radio stayed
+in receive — it is a claim that no CAD found the channel busy.
+
+### What is left, and not tested today
+
+**Receive turnaround is the remaining candidate.** At SF9 a frame of this size runs roughly
+250–330 ms, and the injector's gap is measured from when it fired, so the frames are close
+to back to back. Whether the bridge can read one frame and be listening again before the
+next one starts is untested. A control at a 2000 ms gap was started at the end of the
+session to separate that from link PER; **its result is not in this entry.**
+
+**This is not a WiFi measurement and must not be read as one.** The saturated arm does not
+exist on this firmware — nothing reaches `g_diag_interval_s` at runtime — so today's figure
+says nothing about R-4.4 either way. **M22 stays open.** What it now has is a baseline, an
+instrument, and a narrowed question.
+
+### Two decisions worth keeping
+
+- **PER is pooled over frames, never averaged over bursts.** Averaging these five bursts
+  gives 4.4 %; pooling gives 5.6 %. The difference is small here and would not be with
+  uneven burst sizes, where a short burst's single loss becomes the headline.
+- **A window that cannot carry a figure returns a reason instead of one.** Three guards, all
+  host-tested: a counter that went backwards (the bridge rebooted and zeroed everything),
+  more frames accepted than were sent (something else transmitted into the window), and
+  nothing on the air. The second one is the handoff's *"difference a counter only across a
+  window carrying nothing else"* made mechanical.
+
+---
+
+## 2026-09-17 — the control: 0 % at a 2000 ms gap, so the 5.6 % is spacing, not the link
+
+**The wide-gap control the entry above left open has run, and it answers the question.**
+Same instrument, same identity, same bridge image:
+
+```
+PER 0.00 % over 40 frames in 2 valid window(s); worst burst 0.00 %
+  never heard 0, corrupt 0, bridge transmissions in window 6, bridge CAD backoffs 0
+```
+
+| gap | frames | never heard | PER |
+|---|---|---|---|
+| 250 ms | 250 | 14 | **5.60 %** |
+| 2000 ms | 40 | 0 | **0.00 %** |
+
+Committed as `docs/bridge/data/m22-idle-control-gap2000-2026-09-17.json`. The bridge
+transmitted in both control windows (6 times across the two), so this is not a quiet-bench
+artefact — it lost nothing while doing the same work it was doing during the 250 ms run.
+
+**Two things differed from the 250 ms run, not one, and the second is worth stating rather
+than glossing.** The control was run with `--keep-others`, so `0xF1` stayed enabled on the
+XIAO instead of being disabled. It contributed nothing: `accepted` equalled `sent` exactly
+in both windows, and a single frame from another identity would have made `accepted` exceed
+`sent` and tripped the guard that refuses the window. So the comparison holds, but it holds
+because of a guard rather than because the runs were identical. **A repeat should disable
+the others in both arms.**
+
+**The losses are a function of inter-frame spacing.** At SF9 a frame of this size runs
+roughly 250–330 ms, and the injector measures its gap from when it fired, so at `gap 250`
+the frames are close to back to back and at `gap 2000` they are not. Nothing else differs.
+
+**What this closes.** The previous entry listed three candidates and ruled out two by
+measurement. The third — that the bridge cannot read one frame and be listening again
+before the next one starts — is the one left standing, and the control is consistent with
+it. **It is consistent with, not proof of**: this measures the bridge's behaviour at two
+spacings and does not instrument the turnaround itself. What would prove it is a capture
+that shows where the second frame goes, and that is not built.
+
+**What this changes for M22, and it is the practical part.** The saturated arm must run at
+a spacing whose idle PER is zero, or a WiFi effect cannot be told from this one. **`gap
+2000` is a measured zero and `gap 250` is not**, so the saturated arm inherits the wide
+gap and a longer run rather than the dense one. Written into the instrument's defaults is
+deliberately *not* the answer — the dense case is worth keeping runnable, because it is the
+only thing that has made this visible.
+
+**What it does not change.** The bridge still drops frames offered back to back on a clean
+bench at one metre, and nothing in the protocol prevents a node from sending that way — a
+fragmented `STATUS` is exactly that pattern. **That is a real question about the receive
+path, and it is not M22's.** It is recorded in the handoff's *Open* section rather than
+being folded into a WiFi measurement that would obscure it.
+
+---
+
+## 2026-09-17 — the threshold is at 1 s, not at frame airtime, and that names a constant
+
+**Backing the gap off in steps changed the conclusion**, which is why the sweep was worth
+running rather than stopping at a spacing that happened to give zero. Same instrument, same
+identity, same bridge image, 100 frames per point:
+
+| gap | frames | never heard | corrupt | PER | bridge `cad_backoffs` |
+|---|---|---|---|---|---|
+| 250 ms | 250 | 14 | 0 | **5.60 %** | 18 |
+| 400 ms | 100 | 5 | 0 | **5.00 %** | 11 |
+| 700 ms | 100 | 1 | 0 | **1.00 %** | 8 |
+| 1100 ms | 100 | 0 | 0 | **0.00 %** | 0 |
+| 2000 ms | 40 | 0 | 0 | **0.00 %** | 0 |
+
+Committed as `docs/bridge/data/m22-idle-sweep-gap{400,700,1100}-2026-09-17.json`.
+
+### What the shape rules out
+
+**It is not frame airtime.** At SF9 a frame this size runs roughly 250–330 ms, so the
+obvious theory was that the bridge needs about one frame time to turn around. **At 400 ms
+the frames are no longer back to back and the loss rate did not move** — 5.00 % against
+5.60 %. A turnaround cost of one frame time would have collapsed there, and it did not.
+
+**The losses fall away between 700 ms and 1100 ms.** That brackets **`kIrqReadMs`, which
+is 1000** (`lora_link.cpp`). `service_receive` runs when DIO1 has fired **or** when that
+poll interval has elapsed:
+
+```cpp
+if (!g_dio1 && elapsed(now_ms, g_last_irq_read_ms) < kIrqReadMs) return;
+g_dio1 = false;
+```
+
+**`g_dio1` is a single `bool`, not a count.** Two frames whose interrupts both land before
+one `service_receive` pass collapse into one pass, which reads one packet — and `readData()`
+clears the SX1262's IRQ register, so the second frame's `RX_DONE` goes with it. The flag is
+false again, so the next opportunity is the next DIO1 or the 1 s poll. Above 1100 ms every
+frame gets its own pass regardless; below it, consecutive frames can share one.
+
+### What this is, and what it is not
+
+**It is a correlation with a named constant, not a proof.** The measurement shows where the
+losses stop; it does not show a frame being dropped at that line. **What would prove it:**
+change `kIrqReadMs` and re-run the sweep — if the knee moves with the constant, the
+mechanism is this one. A counter on the path would settle it outright, and none exists.
+**Neither is built, and this is recorded as unproved on purpose.**
+
+**Media access is not the explanation, and the `cad_backoffs` column should not be read as
+one.** It tracks offered load, because denser traffic makes a CAD more likely to find the
+channel busy — so it falls with the gap for reasons that have nothing to do with the losses.
+The discriminator remains the 250 ms run's burst 2: **zero transmissions, zero CAD backoffs,
+four frames lost of fifty.**
+
+### What it changes
+
+- **M22's saturated arm runs at `--gap 2000`**, unchanged. 1100 ms is the measured knee and
+  2000 ms is the margin either side of it; there is no reason to sit on the edge.
+- **The receive path has a real question against it**, and it now has a number and a
+  suspect rather than a shrug. A fragmented `STATUS` is exactly this traffic pattern, and
+  **BF-24's decode work is what will meet it first**.
+- **`gap` below about 1 s is not a valid bench configuration for anything that counts
+  frames.** Two of the §10.5 catalogue's rows drive multi-frame injections; they judge
+  counters rather than totals and are unaffected, but a future row that counts arrivals
+  would be measuring this instead.

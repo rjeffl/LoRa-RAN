@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.25
+**Version:** 0.26
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.36
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.37
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.9
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-17
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -198,7 +198,13 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 **Gated on B2 and B0.** The largest milestone, and the one carrying most of the
 protocol risk. **Split on 2026-09-14 into B3a and B3b** (Impl Plan §8 v0.32): **B3a** is
 BF-15, BF-16, BF-17, BF-19 and BF-20, **accepted 2026-09-16**; **B3b** is BF-15a and
-BF-19a (both accepted on air, 2026-09-16), BF-18, BF-21 and BF-22.
+BF-19a (both accepted on air, 2026-09-16), BF-18, BF-21 and BF-22, **accepted
+2026-09-17**.
+
+**B3b's last criterion left the milestone rather than gaining a task.** V-B12 moved to
+B4 on 2026-09-17, because its saturated arm needs a runtime lever **BF-23** builds and
+bench diagnostics **BF-26** builds. Impl Plan §8.1 is the record, and no `BF-*` number
+was created.
 
 **Spec v0.12 answered what B3b was waiting for** (2026-09-16, `LRAN-Spec-v0.12-Brief`,
 Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED` result and
@@ -224,6 +230,13 @@ Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED
 
 Reachable with **no node hardware present** (**V-B11**). Develop against the dev HA VM
 and a dev broker, not production, until B6 (§11.3).
+
+**V-B12 is the exception, and it is deliberate.** It arrived here on 2026-09-17 and it
+needs a board, so B4's "no node hardware" claim covers the discovery and publication work
+rather than every criterion in the milestone. **BF-23 carries the part that unblocks it**:
+`g_diag_interval_s` is settable from Home Assistant, which is the only way to make the
+bridge's WiFi transmit hard enough to test R-4.4. The idle arm is already measured — Impl
+Plan §8.1 and the engineering log.
 
 | # | Task | Model | Why |
 |---|---|---|---|
@@ -273,6 +286,14 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.26** — **B3b is accepted, and V-B12 left it rather than gaining a task.** The gap
+  v0.25 raised — *"V-B12 remains, and no task owns it"* — is closed by moving the
+  criterion to B4, where **BF-23** builds the runtime lever its saturated arm needs and
+  **BF-26** builds the bench diagnostics. The idle arm was measured first, because it is
+  the baseline the saturated arm is compared against and nothing blocked it;
+  `tools/simctl/per_measure.py` is the instrument both arms use. This document inherits
+  Bridge Impl Plan v0.37.
 
 - **v0.25** — **BF-22 is built, and B3b's tasks are all done.** The ladder accepts N−1;
   the downgrade is per node from what `observe()` already recorded; R-3.1f's distinct

@@ -1,0 +1,59 @@
+{
+  "arm": "idle",
+  "node": "f3",
+  "count": 50,
+  "gap_ms": 1100,
+  "version": {
+    "version": "0.1.0",
+    "git": "24f7993",
+    "slot": "app0",
+    "ota_state": "verified_or_usb"
+  },
+  "windows": [
+    {
+      "sent": 50,
+      "valid": true,
+      "reason": null,
+      "bridge_cad_backoffs": 0,
+      "heard": 50,
+      "accepted": 50,
+      "dropped": 0,
+      "corrupt": 0,
+      "never_heard": 0,
+      "lost": 0,
+      "per": 0.0,
+      "discards": {},
+      "bridge_tx": 6,
+      "asked": 50
+    },
+    {
+      "sent": 50,
+      "valid": true,
+      "reason": null,
+      "bridge_cad_backoffs": 0,
+      "heard": 50,
+      "accepted": 50,
+      "dropped": 0,
+      "corrupt": 0,
+      "never_heard": 0,
+      "lost": 0,
+      "per": 0.0,
+      "discards": {},
+      "bridge_tx": 9,
+      "asked": 50
+    }
+  ],
+  "summary": {
+    "windows": 2,
+    "valid_windows": 2,
+    "sent": 100,
+    "accepted": 100,
+    "lost": 0,
+    "never_heard": 0,
+    "corrupt": 0,
+    "per": 0.0,
+    "bridge_tx": 15,
+    "bridge_cad_backoffs": 0,
+    "worst_per": 0.0
+  }
+}

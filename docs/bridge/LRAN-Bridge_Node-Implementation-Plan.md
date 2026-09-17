@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.36
+**Version:** 0.37
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-17
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1088,7 +1088,7 @@ the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is r
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3b |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
-| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | B3b |
+| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | **B4** — moved from B3b 2026-09-17, §8.1 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3a by hand; B3b scripted |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
 | §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3a |
@@ -1150,8 +1150,8 @@ can be compared with one taken on the Wio.
 | **B0** | **Simnode bring-up** | Second board in hand, `/lib/lran-protocol/` **P6 and P8** | `lran-simnode` flashes and runs. Identity table holds four entries with independent keys, contexts and sequence spaces. Serial console (§10.4) accepts every command. `ROLE_RANGE` echoes `PING`. Faults arm, fire the specified count and self-disarm, with armed state shown on the OLED |
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
 | **B3a** | **Radio, registry, polling, availability and counters, with simnode** | B2 (**V-B9 re-run**), `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **The bridge polls simnode identities on air and each answers** (BF-17): four logical simnodes from one board heard and polled simultaneously, each with its own learned context, **with poll-to-answer times recorded against `poll_reply_timeout_ms`**. Availability marks offline after 3 missed polls and online on the next frame (**V-B3**), and a production node's retained `offline` is seen at the broker. **Every §14 counter the console can drive at the bridge increments as specified**, one hand-run fault at a time, read from `lran/bridge/diag/state` at the broker (BF-19), and `hdr_rsv` is accepted rather than discarded. Full-size (a 222 B frame, which the console's `ping` takes as `n` = 202) and fragmented `PING` both round-trip between simnodes (**W9**) |
-| **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **V-B12** measured |
-| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only |
+| **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **Accepted 2026-09-17**, on the tasks confirmed on air the day before. **V-B12 moved to B4** the same day, with the operator — §8.1 says what it needs and why B4 is where that exists |
+| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1 |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
@@ -1168,6 +1168,57 @@ deliberately separated from B3 rather than folded into it: if the simnode's own 
 is wrong, every B3 failure is ambiguous between the instrument and the thing being
 measured. Prove the instrument first, against the committed test vectors (**W4**),
 before using it to judge the bridge.
+
+### 8.1 V-B12 moved from B3b to B4, 2026-09-17
+
+**V-B12's saturated arm cannot be run on this firmware, and the two things it needs are
+both built in B4.** That is the whole reason it moved; B3b is otherwise complete and was
+accepted the same day.
+
+**What V-B12 asks for** is bridge LoRa PER with WiFi idle versus saturated, against a
+known frame sequence (**M22**, Bridge PRD §4.4). It is the evidence for R-4.4's
+deliberate lack of LoRa/WiFi mutual exclusion, and PRD §4.4 names it as the falsifier of
+that policy. Three parts, examined 2026-09-17:
+
+| Part | State on this firmware |
+|---|---|
+| A known sequence at the bridge | **Available.** `fault <id> flood <count> gap <ms>` sends one correct CRC-sealed `STATUS` per injection, and `rx_frames` counts every frame the radio delivered — including a PHY CRC error, which `rx_ladder.cpp` counts as heard before discarding it |
+| A WiFi load on the bridge | **Not available.** Nothing reaches `g_diag_interval_s` at runtime and the bridge has no console, so its WiFi transmits one diagnostic document a minute. `task_runtime.cpp` carries `TODO(BF-23)` on that atomic — **BF-23 is the task that makes the saturated arm possible**, and it is in B4 |
+| Per-node RSSI and SNR at the broker | **Not available for a bench node.** `simnode_diag_enable` gates it (spec §16.6), and **BF-26** builds that gate. Also B4 |
+
+**An inbound MQTT flood is not a substitute, and it fails in a direction that would not
+show up in the result.** Flooding `lran/<id>/cmd/<action>/set` for an unregistered id is
+refused at `CommandInbound` before any transmit, so it loads the bridge without
+contaminating the radio — but it saturates WiFi *receive*, and R-4.4's third argument is
+about WiFi *transmit* desensing LoRa receive. Measuring the wrong direction and recording
+it as V-B12 would close the criterion without testing the claim.
+
+**The idle arm is not blocked**, and it is the baseline the saturated arm is compared
+against, so it is measured before B4 rather than with it. `tools/simctl/per_measure.py`
+is the instrument, and it is the same instrument both arms use — `--arm` records which
+one ran and changes nothing else. The engineering log carries what the idle arm measured.
+
+**The saturated arm must run at a spacing whose idle PER is zero, and that is a measured
+constraint rather than a preference.** The idle arm was swept across five spacings on
+2026-09-17, on a clean bench at one metre with nothing corrupt at any of them:
+
+| gap | 250 ms | 400 ms | 700 ms | 1100 ms | 2000 ms |
+|---|---|---|---|---|---|
+| PER | 5.6 % | 5.0 % | 1.0 % | **0 %** | **0 %** |
+
+**`--gap 2000` is the comparable configuration** — 1100 ms is the measured knee and there is
+no reason to sit on the edge of it. Run the saturated arm denser than that and a WiFi effect
+cannot be told from the receive-path one.
+
+**The knee is not at frame airtime, and that is a separate finding this plan does not own.**
+It straddles `kIrqReadMs` (1000, `lora_link.cpp`). The engineering log's 2026-09-17 entries
+carry it; the dense case stays runnable because it is what made the question visible.
+
+> **What would falsify the move rather than the policy.** If BF-23 lands without a
+> runtime path to `g_diag_interval_s`, the saturated arm has no lever again and V-B12
+> needs its own task rather than a criterion. Checked by reading that `TODO(BF-23)` is
+> gone from `task_runtime.cpp` when BF-23 is accepted, and by `per_measure.py --arm
+> saturated` returning a valid window.
 
 ---
 
@@ -1958,6 +2009,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |
 | **v0.35** | **New §6.2.1** — BF-18's command path, and the MQTT receive path it had to build first; §5.3 names `command.cpp` |
 | **v0.34** | **§10.5** — a multi-frame row cannot confirm its own ERROR from the same board, measured 2026-09-16; what that costs BF-21 |
