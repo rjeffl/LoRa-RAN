@@ -111,6 +111,11 @@ size_t diag_radio_json(const RadioDiag& r, char* out, size_t cap) {
   j.u32("cad_backoffs", r.cad_backoffs);
   j.u32("errors_suppressed", r.errors_suppressed);
   j.u32("cad_deferred", r.stats.cad_deferred);
+  // The CAD outcome cad_backoffs does not see, and beside it the milliseconds the whole
+  // transmit path held the radio out of receive (rx_deaf.h). Read rx_deaf_ms against the
+  // window it was differenced over, not on its own.
+  j.u32("cad_free", r.stats.cad_free);
+  j.u32("rx_deaf_ms", r.stats.rx_deaf_ms);
   j.u32("cad_errors", r.stats.cad_errors);
   j.u32("tx_forced", r.stats.tx_forced);
   j.u32("tx_errors", r.stats.tx_errors);

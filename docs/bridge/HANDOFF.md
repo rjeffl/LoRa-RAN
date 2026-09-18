@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-17, at the end of the session that instrumented the bridge's receive path
-and ruled `kIrqReadMs` out as the cause of its frame loss.** It revises the earlier
-2026-09-17 file — written the same day, at the end of the session that accepted B3b — rather
-than replacing it wholesale, because only the receive-knee material changed.
+**Written 2026-09-17, at the end of the session that timed the radio out of receive and
+ruled the transmit path out as the cause of the bridge's frame loss.** It revises the
+earlier 2026-09-17 file — written the same day, at the end of the session that ruled
+`kIrqReadMs` out — rather than replacing it wholesale, because only the receive-knee
+material changed.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,48 +19,46 @@ discovery and publication policy, and the whole milestone except one criterion i
 with **no node hardware** (**V-B11**): BF-23, BF-24, BF-25, with BF-26 behind
 `/lib/lran-config/`.
 
-**Start with BF-23 rather than picking freely, because it unblocks two things at once.**
-Besides discovery generation it owns `TODO(BF-23)` on `g_diag_interval_s`
-(`task_runtime.cpp`) — the runtime lever that makes **V-B12's saturated arm possible at
-all**. Until it exists the bridge's WiFi transmits one diagnostic document a minute and no
-load can be put on it.
+**BF-23 has two halves and only one of them is reachable. An earlier draft of this file
+said it "unblocks two things at once"; that is wrong.** Discovery generation is reachable
+and specified. The other half — `TODO(BF-23)` on `g_diag_interval_s` (`task_runtime.cpp`),
+the runtime lever that makes **V-B12's saturated arm possible at all** — is not, and the
+reason predates the task:
 
-**V-B12 is now a B4 criterion, and its idle arm is already measured.** Impl Plan §8.1 is the
+- **`lran/<node>/config/set` has no payload.** Spec §16.2.1 leaves it undefined on purpose:
+  *"a payload specified before its first caller is a guess carrying a version number."*
+- **`/lib/lran-config/` does not exist and has no task.** See *Work no task owns*.
+
+**This is the same gap that deferred BF-26 on 2026-09-14**, so it now blocks two tasks
+rather than one. **Check it before planning around any `TODO(BF-23)` timing constant** —
+the same caution this file already gives for `poll_interval_s`. Every other lever
+(`reply_timeout_ms`, `missed_poll_threshold`, `error_min_interval_ms`, the media-access
+config) sits behind it too.
+
+**Choosing the route is an operator decision, not a default.** Three exist and they are not
+equivalent: a general `config/set` with `/lib/lran-config/` behind it, a narrow
+single-purpose topic for the diagnostic interval alone, or a serial-only lever like BF-26's
+deferred fallback. The first commits a fleet-wide interface; the second freezes an
+HA-visible token; the third leaves root rule 8 unmet.
+
+**V-B12 is a B4 criterion and its idle arm is already measured.** Impl Plan §8.1 is the
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
+**Its saturated arm stays blocked** until the lever above has a route.
 
 **One thing must land before BF-24: the receive path's 1 s knee.** BF-24 decodes a
 fragmented `STATUS`, which is the traffic pattern that loses frames on this firmware, so
-decoding into it first means debugging two problems at once. The knee now has an instrument
-on the board and one hypothesis fewer — `kIrqReadMs` is ruled out.
+decoding into it first means debugging two problems at once. **Both cheap instruments are
+now spent and both came back clean** — `kIrqReadMs` is ruled out, and so is the transmit
+path.
 
-**A poll-free burst is NOT available by quieting the other board, and an earlier draft of
-this file said it was.** `PollScheduler::on_heard` enrols a bench node the instant it speaks
-(`scheduler.cpp`), and `next()` polls any enrolled row that is due with no offline check.
-**The flooding node enrols itself on its first frame**, so it is polled for the rest of the
-session no matter what else is quiet. That is the 10 bridge transmissions the 2026-09-17
-`--gap 250` run recorded.
+**The remaining step is BF-27's raw frame log, and it is the only one left on the list.**
+Flood frames carry an incrementing status `seq` (`fault.cpp`), so a log of arrivals says
+**which** frames go missing: scattered points at the chip or the air, clustered after a
+bridge action points at the firmware. It is already a `TODO` in `service_receive`.
 
-**The gap that needs closing is that `cad_backoffs` counts only a *busy* CAD.** A free one
-still takes the radio out of receive and increments nothing, so no run on record can say
-whether the radio was receiving when a frame went missing. **Two ways to close it, and the
-second is cheaper than it looks:**
-
-1. **Stop the polling instead of avoiding it.** `poll_interval_s` is per-node registry state
-   (`registry.h`, default `kPollIntervalDefaultS`), set into the scheduler at
-   `task_runtime.cpp:229`. **Check whether anything reaches it at runtime before planning
-   around it** — `g_diag_interval_s` beside it has `TODO(BF-23)` and no setter, and refusing
-   a zero interval is already noted as BF-23's job, so this lever may not exist yet either.
-2. **Count the free CADs.** One counter in `LoraStats` beside `rx_no_interrupt` — CADs
-   started, against `cad_backoffs`' busy-only count. It is the same shape of change as
-   `rx_wake.h`, it needs a reflash but no new instrument, and **it makes every run already
-   on record interpretable** rather than only future ones.
-
-**Prefer 2.** It answers the question for the existing data as well as the next run, and it
-does not depend on a runtime lever that may not exist.
-
-**After that, BF-27's raw frame log.** Flood frames carry an incrementing status `seq`
-(`fault.cpp`), so a log of arrivals says **which** frames go missing: scattered points at the
-chip or the air, clustered after a bridge action points at the firmware.
+**Do not re-derive the two candidates that are closed.** `rx_no_interrupt` read zero across
+five more bursts, and `rx_deaf_ms` held at 639–659 ms while the PER moved from 6 % to 0 %.
+The engineering log's last entry has both, with the numbers.
 
 **None of this blocks BF-23, and BF-23 does not block it.**
 
@@ -109,15 +108,23 @@ the receive path's mechanism while leaving their measurements standing.
   raised. **The cause is not known** — see *Open, and not closable from here*.
 - **The bridge's own media access does not explain it either.** Across eight `--gap 250`
   bursts, transmissions against frames lost run 3/5, 0/4, 7/1, 3/1, 6/3, 4/2, 3/1, 3/1.
-- **`tools/simctl/per_measure.py` is the instrument**, with 24 host tests in CI and its
-  arithmetic separated from its I/O. **`rx_wake.h` is the bridge-side half**, with 11 more.
+- **The transmit path is ruled out too.** `rx_deaf_ms` — milliseconds outside receive, CAD
+  and transmission together — held at **639–659 ms per 60 s window across five bursts**
+  while the PER ran 6 %, 2 %, 2 %, 0 %, 0 %. The same deafness in the burst that lost three
+  frames and the burst that lost none.
+- **`cad_free` closed a blind spot in every earlier run.** The control shows `cad_backoffs`
+  0 against `cad_free` 3 per burst: on the old instrument that window read as a bridge that
+  never contended for the channel, while the radio left receive three times for 643 ms.
+- **`tools/simctl/per_measure.py` is the instrument**, with 30 host tests in CI and its
+  arithmetic separated from its I/O. **`rx_wake.h` and `rx_deaf.h` are the bridge-side
+  half**, with 16 more.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-17 entries first: M22's idle arm, what it rules out, and what it does not |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the 2026-09-17 entries first, **last one first**: M22's idle arm, and the two mechanisms it rules out |
 | 3 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§8** owns the milestones; **§8.1** is V-B12's move; **§10.5** is the fault catalogue; **§7.2.1** BF-21's `simctl`; **§6.2.1** BF-18; **§6.1.1–§6.1.2** BF-17 and BF-20; **§4.3.2** BF-19; **§10** the simnode |
 | 4 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next; §6's B3b tasks are all built |
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
@@ -132,7 +139,7 @@ the receive path's mechanism while leaving their measurements standing.
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
 | Not done | **B4**: BF-23–BF-25, BF-26 deferred. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | BF-23 first, for the reason in *The next job*. **The no-poll burst is 20 minutes of bench, does not block BF-23, and must land before BF-24.** Nothing waits on a document |
+| Queue | BF-23 first, for the reason in *The next job*. **BF-27's raw frame log is what remains of the knee, does not block BF-23, and must land before BF-24.** Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -148,13 +155,13 @@ python3 tools/checks/no_mbedtls_hkdf.py         # HKDF built from HMAC, spec 9.1
 python3 tools/checks/bridge_partitions.py       # A/B table; add --firmware/--elf after a build
 python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
 python3 tools/simctl/test_simctl.py             # simctl's verdict logic, no board
-python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board (24)
+python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board (30)
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
 
-**All of the above passed on 2026-09-17**: **446** Unity cases across the five native suites
-— 127 protocol, 7 link, 16 sim, 109 simnode, 187 bridge — and every check above.
+**All of the above passed on 2026-09-17**: **451** Unity cases across the five native suites
+— 127 protocol, 7 link, 16 sim, 109 simnode, 192 bridge — and every check above.
 
 **`pio` is a shell alias on the macOS build machine.** A script that does not source the
 user's profile must call `~/.platformio/penv/bin/pio` by path, or every step fails as
@@ -216,8 +223,8 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `4c83f3d`, a clean tree** — the `rx_wake.h` instrumentation. Confirmed on air the same day: `lran/bridge/version` reads `0.1.0`, `git 4c83f3d`, `slot app0`. **That commit is ahead of BF-22's `24f7993` by the two receive counters and nothing else** | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB, last seen as `/dev/cu.usbserial-4`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `d2212c9`, a clean tree** — `rx_wake.h`'s two receive counters plus `rx_deaf.h`'s two. Confirmed on air the same day: `lran/bridge/version` reads `0.1.0`, `git d2212c9`, `slot app0`. **That commit is ahead of BF-22's `24f7993` by those four counters and nothing else** | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB. **The port name moves across replug** — it was `/dev/cu.usbserial-4` and was `/dev/cu.usbserial-3` on 2026-09-17. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB. Boots with `f1` `ROLE_GATELINK` alone. **`f3` `ROLE_FAULT` was added by hand for M22 and is gone after any reboot** |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
@@ -227,6 +234,12 @@ them in its own roles, and its rows do not transfer here.
 artifact. **Tell the two Heltecs apart by enclosure** — both CP2102 bridges report
 `SER=0001`, and the port name is not stable across replug. The XIAO is unambiguous: it is the
 only `usbmodem` port.
+
+**To tell the two Heltec ports apart without opening an enclosure, read the boot banner.**
+Opening the port reboots the board, which prints it; the bridge's first line is `LRAN Bridge
+Node - node 0x00`. Open with `dtr` and `rts` low before `open()`, as `simctl`'s `Console`
+does, or the open presses PRG. **Confirmed on 2026-09-17**, when the bridge answered on
+`/dev/cu.usbserial-0001` and the simnode Heltec on `/dev/cu.usbserial-3`.
 
 **No stored state on any of these boards is the only copy.** Every survey site and every B1b
 position is committed under `docs/rangetest/data/`, and every M22 run under
@@ -241,9 +254,13 @@ the sum at compile time.
 - **V-B12 is a B4 criterion since 2026-09-17**, not a B3b one. Text saying B3b is blocked on
   it, or that no task owns it, is correct for before that.
 - **`lran/bridge/diag/radio/state` carries `rx_no_interrupt` and `rx_wake_empty` since
-  2026-09-17** (`rx_wake.h`). Text saying no counter sits between `RX_DONE` and the ladder is
-  correct for before it. **They are bridge-local and deliberately not spec §14.1 counters**,
-  so they are absent from `lran/bridge/diag/state` and from schema `0xF0`.
+  2026-09-17** (`rx_wake.h`), and **`cad_free` and `rx_deaf_ms` since later the same day**
+  (`rx_deaf.h`). Text saying no counter sits between `RX_DONE` and the ladder is correct for
+  before the first pair; text treating `cad_backoffs` as the bridge's media-access instrument
+  is correct for before the second. **All four are bridge-local and deliberately not spec
+  §14.1 counters**, so they are absent from `lran/bridge/diag/state` and from schema `0xF0`.
+- **`enter_mode()` is the one place `lora_link.cpp` changes `g_mode` since 2026-09-17.** A
+  transition that assigns it directly now escapes the deaf-time accounting.
 - **The bridge accepts protocol version N *and* N−1 since BF-22**, and addresses each node
   in the version that node announced. Text saying it accepts only N — or that `bad_ver`
   moves `rx_bad_ver` twice — is correct for before it. `lran/<node>/diag/state` gained
@@ -280,8 +297,13 @@ the sum at compile time.
   Engineering log, 2026-09-17, four entries — read the last one first.
 - **`cad_backoffs` counts a *busy* CAD only.** A CAD that returns free still takes the radio
   out of receive and increments nothing. A zero in that column is not evidence the radio
-  stayed in receive. **This is the live gap in the knee investigation** — it is why the next
-  step removes the poll load rather than measuring around it.
+  stayed in receive. **Read `cad_free` and `rx_deaf_ms` beside it since 2026-09-17**; the
+  gap is closed, and every run recorded before that date carries it.
+- **`rx_deaf_ms` is read against the window it was differenced over, not on its own.**
+  `per_measure` times each window and prints the fraction. The two spans are not perfectly
+  aligned — the tool times the `rx` readings while the radio document is whichever arrived
+  most recently — so read a fraction far below the PER as ruling the transmit path out,
+  never as a figure to quote to two decimals.
 - **A zero in `rx_no_interrupt` is a result, not an absence.** It means every `RX_DONE` the
   radio raised arrived with its own DIO1 edge. **What it cannot see**: a frame whose
   `RX_DONE` was cleared by a neighbouring `readData()` before any pass looked — the first
@@ -385,11 +407,15 @@ the sum at compile time.
   instrumented build. **`kIrqReadMs` was the suspect and is ruled out**: `rx_no_interrupt`
   read zero across 190 frames spanning both arms, so the interrupt path delivered every
   `RX_DONE` the radio raised and the timed read never recovered anything.
-  **Bridge transmissions do not predict losses either** — across eight `--gap 250` bursts,
-  transmissions against frames lost run 3/5, 0/4, 7/1, 3/1, 6/3, 4/2, 3/1, 3/1. Nothing is
-  corrupt, nothing is discarded, and the RX queue never went deeper than 1. **What is left
-  is a frame the radio never reported at all.** **It matters beyond M22**: a fragmented
-  `STATUS` is exactly this pattern, and **BF-24's decode work meets it first**.
+  **The transmit path is ruled out as well**, later the same day: `rx_deaf_ms` held at
+  **639–659 ms per 60 s window across five bursts** whose PER ran 6 %, 2 %, 2 %, 0 %, 0 % —
+  the same deafness in the burst that lost three frames and in the burst that lost none.
+  Bridge transmissions had already failed to predict losses burst by burst: across eight
+  `--gap 250` bursts, transmissions against frames lost run 3/5, 0/4, 7/1, 3/1, 6/3, 4/2,
+  3/1, 3/1. Nothing is corrupt, nothing is discarded, and the RX queue never went deeper
+  than 1. **What is left is a frame the radio never reported at all**, and **BF-27's raw
+  frame log is the only instrument left to point at it.** **It matters beyond M22**: a
+  fragmented `STATUS` is exactly this pattern, and **BF-24's decode work meets it first**.
 - **Nothing a node sends the bridge carries a MAC the bridge verifies.** §9.2 makes every
   authenticated type bridge → node, so the bridge's own `rx_rejected_seq` and
   `rx_dup_command` stay at zero by construction. BF-18 proved the *sending* half.
@@ -419,21 +445,18 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **`/lib/lran-config/`** — System PRD §9.4 describes it; BF-26 and BF-23 need it. **The
   MQTT receive path it was paired with is built** — BF-18 did it, so a `config/set`
   subscriber now has a transport seam and an inbound queue to reuse.
-- **The receive path's 1 s knee** — still unassigned, and **one hypothesis shorter**. **Do
+- **The receive path's 1 s knee** — still unassigned, and **two hypotheses shorter**. **Do
   this before BF-24**, which decodes a fragmented `STATUS` into exactly this traffic
-  pattern. The counter step is **built and merged**: `rx_wake.h`, with `rx_no_interrupt` and
-  `rx_wake_empty` on `lran/bridge/diag/radio/state`, bridge-local rather than spec §14.1.
-  It ruled `kIrqReadMs` out in one bench session. **Two steps remain:**
-  1. **Count the free CADs** — one counter in `LoraStats`, CADs started against
-     `cad_backoffs`' busy-only count. **A poll-free burst is not available**: the flooding
-     node enrols itself on its first frame (`scheduler.cpp`), so it is polled regardless of
-     what else is quiet. *The next job* has the full reasoning and the alternative.
-  2. **BF-27's raw frame log**, already a `TODO` in `service_receive`. Flood frames carry an
-     incrementing status `seq` (`fault.cpp`), so a log of arrivals says **which** frames go
-     missing: scattered points at the chip or the air, clustered after a bridge action
-     points at the firmware.
-  **Do step 1 first.** It is one bench session and it decides which half of the stack to
-  look in.
+  pattern. Both counter steps are **built and merged**, both bridge-local rather than spec
+  §14.1, and both came back clean in one bench session each: `rx_wake.h`
+  (`rx_no_interrupt`, `rx_wake_empty`) ruled out `kIrqReadMs`, and `rx_deaf.h` (`cad_free`,
+  `rx_deaf_ms`) ruled out the transmit path. **One step remains: BF-27's raw frame log**,
+  already a `TODO` in `service_receive`. Flood frames carry an incrementing status `seq`
+  (`fault.cpp`), so a log of arrivals says **which** frames go missing: scattered points at
+  the chip or the air, clustered after a bridge action points at the firmware.
+  **A poll-free burst is not available** and does not need to be: the flooding node enrols
+  itself on its first frame (`scheduler.cpp`), so it is polled regardless of what else is
+  quiet — and the poll load is now measured rather than avoided.
 - **The Implementation Plan cites PRD v0.6; the PRD is at v0.12** — found 2026-09-17 while
   editing that header, and deliberately not bumped. **Reconcile §§2.1, 2.2, 3.2, 7.1 and 8
   against the PRD's v0.7–v0.12 changelog first, then correct the citation**; a bare number

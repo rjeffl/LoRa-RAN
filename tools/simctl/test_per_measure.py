@@ -34,7 +34,8 @@ ZERO = {
 }
 
 RADIO_ZERO = {"tx_frames": 0, "cad_backoffs": 0, "errors_suppressed": 0,
-              "rx_no_interrupt": 0, "rx_wake_empty": 0}
+              "rx_no_interrupt": 0, "rx_wake_empty": 0,
+              "cad_free": 0, "rx_deaf_ms": 0}
 
 # A bridge built before 2026-09-17 publishes the radio document without rx_wake.h's
 # pair. Kept as its own fixture so "the bridge reported zero" and "the bridge cannot
@@ -165,6 +166,59 @@ class InterruptAccounting(unittest.TestCase):
     def test_an_old_bridge_pools_as_zero_rather_than_failing(self):
         w = measure(10, ZERO, after(rx_frames=10), RADIO_OLD, RADIO_OLD)
         self.assertEqual(aggregate([w])["bridge_no_interrupt"], 0)
+
+
+class DeafTime(unittest.TestCase):
+    """rx_deaf.h's pair - the free CAD, and how long the radio was out of receive."""
+
+    def test_a_free_cad_is_reported_where_cad_backoffs_shows_nothing(self):
+        # The hole this closes. Every CAD returned free, so spec 12.3's busy-only counter
+        # stayed at zero while the radio left receive eight times.
+        w = measure(50, ZERO, after(rx_frames=48), RADIO_ZERO,
+                    radio(cad_free=8, rx_deaf_ms=180))
+        self.assertTrue(w["valid"], w["reason"])
+        self.assertEqual(w["bridge_cad_backoffs"], 0)
+        self.assertEqual(w["bridge_cad_free"], 8)
+        self.assertEqual(w["bridge_deaf_ms"], 180)
+
+    def test_the_deaf_fraction_is_the_figure_to_set_against_per(self):
+        # 180 ms out of a 12 000 ms window is 1.5 %, against a 4 % PER. The transmit path
+        # cannot account for the losses, and that comparison is the whole instrument.
+        w = measure(50, ZERO, after(rx_frames=48), RADIO_ZERO,
+                    radio(cad_free=8, rx_deaf_ms=180), window_ms=12000)
+        self.assertAlmostEqual(w["deaf_fraction"], 0.015)
+        self.assertAlmostEqual(w["per"], 0.04)
+
+    def test_an_untimed_window_reports_the_milliseconds_and_no_fraction(self):
+        # The caller did not time it. Reporting the raw total is honest; inventing a
+        # denominator would not be.
+        w = measure(50, ZERO, after(rx_frames=48), RADIO_ZERO, radio(rx_deaf_ms=180))
+        self.assertEqual(w["bridge_deaf_ms"], 180)
+        self.assertIsNone(w.get("deaf_fraction"))
+
+    def test_an_older_bridge_reports_none_rather_than_zero(self):
+        # Same distinction rx_wake.h's pair needs: zero means the radio held receive,
+        # None means nobody asked.
+        w = measure(10, ZERO, after(rx_frames=10), RADIO_OLD, RADIO_OLD, window_ms=5000)
+        self.assertIsNone(w["bridge_cad_free"])
+        self.assertIsNone(w["bridge_deaf_ms"])
+        self.assertIsNone(w.get("deaf_fraction"))
+
+    def test_zero_deaf_time_is_printed_not_suppressed(self):
+        # A burst that lost frames with the radio provably in receive throughout is the
+        # reading that moves the investigation, so it must not read as "nothing to report".
+        line = format_window(1, measure(50, ZERO, after(rx_frames=48), RADIO_ZERO,
+                                        RADIO_ZERO, window_ms=12000))
+        self.assertIn("free CAD 0", line)
+        self.assertIn("deaf 0 ms", line)
+
+    def test_the_totals_pool_over_bursts(self):
+        a = measure(10, ZERO, after(rx_frames=10), RADIO_ZERO, radio(rx_deaf_ms=30))
+        b = measure(10, ZERO, after(rx_frames=10), RADIO_ZERO, radio(rx_deaf_ms=40,
+                                                                    cad_free=2))
+        pooled = aggregate([a, b])
+        self.assertEqual(pooled["bridge_deaf_ms"], 70)
+        self.assertEqual(pooled["bridge_cad_free"], 2)
 
 
 class Aggregate(unittest.TestCase):

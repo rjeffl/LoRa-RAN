@@ -2201,3 +2201,95 @@ answer is above or below the driver.
   still forbids removing the read.
 - **The counters stay.** They are cheap, they are published, and they turned a suspicion
   into a closed question in one bench session. Root rule 4 wanted them regardless.
+
+## 2026-09-17 — the transmit path is ruled out: the same deaf time loses 6 % and 0 %
+
+**The radio spends 1.07–1.10 % of every window out of receive, and that figure does not
+move when the PER moves from 6 % to 0 %.** Media access does not explain the knee. This
+entry closes the second of the two steps the entry above it named, and it supersedes
+nothing: the measurements there stand.
+
+The bridge board was reflashed from a clean tree at `d2212c9`.
+
+### What was missing, and what was built
+
+**`cad_backoffs` counts a *busy* CAD only** — spec §12.3 made it the channel's instrument,
+not the radio's. A CAD that returns free still takes the radio out of receive and
+incremented nothing, so no run on record could say whether the bridge was listening when a
+frame went missing.
+
+Two numbers now sit on `lran/bridge/diag/radio/state`, bridge-local for the reason
+`lora_stats.h` already gives for `rx_wake.h`'s pair:
+
+- **`cad_free`** — the CAD outcome nothing recorded.
+- **`rx_deaf_ms`** — milliseconds outside receive, CAD and transmission together, measured
+  from leaving receive to `startReceive()` re-arming it.
+
+**`rx_deaf_ms` is the one that decides it, and a count would not have.** Bridge
+transmissions were already tested against losses burst by burst and predicted nothing
+(the entry above). A count of CADs is the same kind of correlation; a duration can be set
+against the window it was differenced over and compared with the PER measured over that
+same window. The interval also carries `lora_task`'s own latency in noticing `CAD_DONE`
+and re-arming, which no count reaches.
+
+### The two runs
+
+| Arm | Burst | Sent | Lost | PER | Bridge TX | `cad_backoffs` | `cad_free` | `rx_deaf_ms` | Window | Deaf |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `--gap 250` | 1 | 50 | 3 | **6.00 %** | 3 | 5 | 2 | 659 ms | 59 904 ms | **1.100 %** |
+| | 2 | 50 | 1 | **2.00 %** | 3 | 4 | 3 | 643 ms | 59 950 ms | **1.073 %** |
+| | 3 | 50 | 1 | **2.00 %** | 3 | 4 | 3 | 647 ms | 60 179 ms | **1.075 %** |
+| `--gap 2000` | 1 | 20 | 0 | **0 %** | 3 | 0 | 3 | 643 ms | 60 099 ms | **1.070 %** |
+| | 2 | 20 | 0 | **0 %** | 3 | 0 | 3 | 639 ms | 59 859 ms | **1.068 %** |
+
+`rx_no_interrupt` and `rx_wake_empty` read zero in all five, as they did on 2026-09-17's
+earlier runs. Nothing was corrupt and no §14.1 counter moved.
+
+### Why this is decisive, and it is not the fraction
+
+**The deaf time spans 639–659 ms — a 3 % spread — while the PER spans 6 % to 0 %.** The
+same three polls, the same ~1.07 % of the window, in the burst that lost three frames and
+in the burst that lost none. Whatever separates a lossy burst from a clean one, the
+transmit path holds the radio out of receive for the same length of time in both.
+
+That argument does not depend on comparing 1.08 % with 3.33 %, and it is worth saying why
+the comparison is avoided. **The window is 60 s and the burst occupies only part of it**, so
+a deaf fraction measured over the window understates the fraction during the burst if the
+deafness is concentrated there. It is not — the polls are spread across the window — but the
+constancy across five bursts settles the question without needing that assumption.
+
+### The instrument agrees with the spec, which is the check that it works
+
+**Three `POLL`s at SF9 are 555 ms of airtime** (§15.1: 185 ms each). Measured deaf time in
+the same windows is 639–659 ms. **The 84–104 ms excess is three CADs and three re-arms**,
+so roughly 28–35 ms per transmit cycle, of which a SF9 CAD is a few 4.1 ms symbols. The
+counter reproduces an independently computed number and the remainder is the thing it was
+built to see. **`lora_task` is not slow to re-arm receive** — that candidate is answered in
+passing.
+
+### The hole `cad_free` closed, in one row
+
+**The control's `cad_backoffs` is 0 and its `cad_free` is 3, per burst.** On the old
+instrument that window read as a bridge that never contended for the channel at all, while
+the radio in fact left receive three times and stayed out for 643 ms. Every control run
+before today carries the same blind spot.
+
+**A second reading follows from it.** The `--gap 250` arm shows 13 backoffs against the
+control's 0 and **the same deaf time**, which says those backoffs mostly cost no receive
+time — consistent with `cad_deferred`, a CAD never started because a frame was arriving.
+Stated as consistency, not as measurement: the per-window `cad_deferred` deltas were not
+captured.
+
+### What is left
+
+**A frame the radio never reported at all**, and now with one more candidate gone. Not
+corrupt, not discarded, not queued and dropped, not missed by the interrupt, and **not lost
+to a radio that was busy transmitting**. More likely the closer the frames are spaced.
+
+**BF-27's raw frame log is the next step and it is now the only one on the list.** Flood
+frames carry an incrementing status `seq` (`fault.cpp`), so a log of arrivals says *which*
+frames go missing: scattered points at the chip or the air, clustered after a bridge action
+points at the firmware. The two cheap instruments are spent, and both came back clean.
+
+**It still matters beyond M22.** A fragmented `STATUS` is exactly this traffic pattern, and
+**BF-24's decode work meets it first**.

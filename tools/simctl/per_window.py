@@ -56,6 +56,18 @@ CAD_BACKOFFS = "cad_backoffs"
 NO_INTERRUPT = "rx_no_interrupt"
 WAKE_EMPTY = "rx_wake_empty"
 
+# The transmit path's hold on the radio, added to the bridge 2026-09-17 (rx_deaf.h).
+# Reported, never a guard, like the pair above.
+#
+# WHY rx_deaf_ms IS THE ONE TO READ. cad_backoffs counts a BUSY CAD only, so a window whose
+# CADs all returned free records no media access at all while the radio still left receive
+# for every one of them. cad_free closes that hole as a count; rx_deaf_ms closes it as a
+# DURATION, which is what can be set against the PER measured over the same window. Bridge
+# transmissions were already tested against losses burst by burst and predicted nothing
+# (engineering log, 2026-09-17), and a count of CADs is the same kind of correlation.
+CAD_FREE = "cad_free"
+DEAF_MS = "rx_deaf_ms"
+
 
 def delta(before, after, key):
     """after[key] - before[key], or None if either document lacks the key."""
@@ -79,13 +91,21 @@ def discard_deltas(before, after):
     return moved
 
 
-def measure(sent, rx_before, rx_after, radio_before=None, radio_after=None):
+def measure(sent, rx_before, rx_after, radio_before=None, radio_after=None,
+            window_ms=None):
     """One burst's result.
 
     `sent` is the sender's TX_DONE delta across the burst. `rx_*` are two
     `lran/bridge/diag/state` documents that bracket it; `radio_*` are the matching
     `lran/bridge/diag/radio/state` documents, which are optional and only ever
     reported.
+
+    `window_ms` is the wall-clock span the two readings bracket. Given one, this reports
+    `deaf_fraction` - rx_deaf_ms over the window - which is the figure to set against
+    `per`. IT IS APPROXIMATE AND DELIBERATELY NOT A GUARD: the caller times the two
+    `rx` readings, while the radio documents are whichever arrived most recently, so the
+    two spans can differ by up to one publication interval. Read a fraction far below the
+    PER as ruling the transmit path out, not as a number to quote to two decimals.
 
     Returns a dict that always carries `valid` and `reason`. When `valid` is True it
     also carries the counts and `per`.
@@ -106,6 +126,14 @@ def measure(sent, rx_before, rx_after, radio_before=None, radio_after=None):
         result["bridge_cad_backoffs"] = cad
         result["bridge_no_interrupt"] = delta(radio_before, radio_after, NO_INTERRUPT)
         result["bridge_wake_empty"] = delta(radio_before, radio_after, WAKE_EMPTY)
+        result["bridge_cad_free"] = delta(radio_before, radio_after, CAD_FREE)
+        deaf = delta(radio_before, radio_after, DEAF_MS)
+        result["bridge_deaf_ms"] = deaf
+        # None where the bridge predates rx_deaf.h, or where the caller did not time the
+        # window. A negative span is a reboot, which guard 1 below reports properly.
+        if deaf is not None and deaf >= 0 and window_ms:
+            result["window_ms"] = window_ms
+            result["deaf_fraction"] = deaf / float(window_ms)
 
     # Guard 1 - a counter went backwards, so the bridge rebooted inside the window.
     negative = [k for k, v in moved.items() if v < 0]
@@ -170,6 +198,8 @@ def aggregate(windows):
             "bridge_cad_backoffs": sum(w.get("bridge_cad_backoffs") or 0 for w in valid),
             "bridge_no_interrupt": sum(w.get("bridge_no_interrupt") or 0 for w in valid),
             "bridge_wake_empty": sum(w.get("bridge_wake_empty") or 0 for w in valid),
+            "bridge_cad_free": sum(w.get("bridge_cad_free") or 0 for w in valid),
+            "bridge_deaf_ms": sum(w.get("bridge_deaf_ms") or 0 for w in valid),
             "worst_per": max(w["per"] for w in valid),
         }
     )
@@ -206,6 +236,16 @@ def format_window(index, w):
         parts.append("no-interrupt %d" % w["bridge_no_interrupt"])
     if w.get("bridge_wake_empty") is not None:
         parts.append("wake-empty %d" % w["bridge_wake_empty"])
+    # Printed at zero too, and for the same reason: a free CAD leaves no other trace, so
+    # the reading that says the radio held receive throughout has to be visible.
+    if w.get("bridge_cad_free") is not None:
+        parts.append("free CAD %d" % w["bridge_cad_free"])
+    if w.get("bridge_deaf_ms") is not None:
+        deaf = "deaf %d ms" % w["bridge_deaf_ms"]
+        if w.get("deaf_fraction") is not None:
+            deaf += " (%.2f %% of window, vs PER %.2f %%)" % (
+                100.0 * w["deaf_fraction"], 100.0 * w["per"])
+        parts.append(deaf)
     other = {k: v for k, v in w["discards"].items() if k != RX_CRC_ERR}
     if other:
         parts.append("also " + ", ".join("%s +%d" % (k, v) for k, v in sorted(other.items())))

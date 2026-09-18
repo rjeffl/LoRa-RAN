@@ -137,6 +137,10 @@ def run_burst(console, broker, node, count, gap_ms, settle_s, window_s, out):
     if rx_before is None:
         return {"valid": False, "reason": "no diagnostic publication before the burst", "sent": 0}
     radio_before = broker.radio_snapshot()
+    # The window rx_deaf_ms is read against (per_window.py). Timed from the rx readings
+    # because those are the ones this tool waits for; the radio documents ride the same
+    # 60 s tick, which is why the fraction is reported rather than trusted to a decimal.
+    window_start = time.time()
     tx_before = sender_tx_frames(console)
     if tx_before is None:
         return {"valid": False, "reason": "the simnode did not answer `radio`", "sent": 0}
@@ -171,7 +175,8 @@ def run_burst(console, broker, node, count, gap_ms, settle_s, window_s, out):
         return {"valid": False, "reason": "no diagnostic publication after the burst", "sent": sent}
     radio_after = broker.radio_snapshot()
 
-    w = measure(sent, rx_before, rx_after, radio_before, radio_after)
+    w = measure(sent, rx_before, rx_after, radio_before, radio_after,
+                window_ms=int((time.time() - window_start) * 1000))
     w["asked"] = count
     return w
 
@@ -233,9 +238,19 @@ def main(argv=None):
                   (100.0 * summary["per"], summary["sent"], summary["valid_windows"],
                    100.0 * summary["worst_per"]), file=out)
             print("  never heard %d, corrupt %d, bridge transmissions in window %d, "
-                  "bridge CAD backoffs %d" %
+                  "bridge CAD backoffs %d, free CADs %d" %
                   (summary["never_heard"], summary["corrupt"], summary["bridge_tx"],
-                   summary["bridge_cad_backoffs"]), file=out)
+                   summary["bridge_cad_backoffs"], summary["bridge_cad_free"]), file=out)
+            # The comparison the run exists to make. Pooled over the valid windows, so it
+            # answers the same question the pooled PER above it does.
+            span = sum(w["window_ms"] for w in windows
+                       if w.get("valid") and w.get("window_ms"))
+            if span:
+                print("  radio out of receive %d ms over %d ms of window = %.2f %%, "
+                      "against PER %.2f %%" %
+                      (summary["bridge_deaf_ms"], span,
+                       100.0 * summary["bridge_deaf_ms"] / span,
+                       100.0 * summary["per"]), file=out)
         else:
             print("NO RESULT - %s" % summary.get("reason"), file=out)
 

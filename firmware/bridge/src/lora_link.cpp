@@ -17,6 +17,7 @@
 #include <new>
 
 #include "queues.h"
+#include "rx_deaf.h"
 #include "rx_wake.h"
 #include "task_runtime.h"
 
@@ -81,7 +82,9 @@ std::atomic<bool> g_idle{true};
 TaskHandle_t  g_task = nullptr;
 volatile bool g_dio1 = false;
 
-enum class Mode : uint8_t { Down, Receive, Cad, Transmit };
+// rx_deaf.h owns these, so that which modes are deaf is one documented fact with a host
+// test. The alias keeps every call site below reading Mode::Receive.
+using Mode = RadioMode;
 Mode     g_mode          = Mode::Down;
 uint32_t g_mode_start_ms = 0;
 uint32_t g_tx_timeout_ms = 0;
@@ -184,6 +187,18 @@ int16_t radio_begin() {
   return g_radio->startReceive();
 }
 
+// THE ONE PLACE g_mode CHANGES. Closing the deaf interval here rather than at each call
+// site makes it structurally impossible to leave Cad or Transmit without accounting for
+// the time the radio spent there (rx_deaf.h) - a new transition would have to bypass this
+// function to escape it. A mode that was hearing adds zero, so no caller has to ask.
+void enter_mode(Mode next, uint32_t now_ms) {
+  const uint32_t add = deaf_elapsed(g_mode, g_mode_start_ms, now_ms);
+  g_stats.rx_deaf_ms = add > UINT32_MAX - g_stats.rx_deaf_ms ? UINT32_MAX
+                                                             : g_stats.rx_deaf_ms + add;
+  g_mode             = next;
+  g_mode_start_ms    = now_ms;
+}
+
 void end_tx() {
   g_access.finish();
   g_have_tx = false;
@@ -191,7 +206,7 @@ void end_tx() {
 
 void radio_failed(int16_t status, uint32_t now_ms) {
   g_ready            = false;
-  g_mode             = Mode::Down;
+  enter_mode(Mode::Down, now_ms);
   g_begin_failed_ms  = now_ms;
   g_stats.last_begin_status = status;
   ++g_stats.begin_failures;
@@ -214,7 +229,7 @@ void try_begin(uint32_t now_ms) {
   g_stats.last_begin_status = st;
   g_dio1                    = false;
   g_header_seen             = false;
-  g_mode                    = Mode::Receive;
+  enter_mode(Mode::Receive, now_ms);
   g_ready                   = true;
 
   // What the radio was actually configured with, from the values it was configured from.
@@ -246,7 +261,7 @@ void start_receive(uint32_t now_ms) {
     radio_failed(st, now_ms);
     return;
   }
-  g_mode = Mode::Receive;
+  enter_mode(Mode::Receive, now_ms);
 }
 
 void queue_delivery(const RxDelivery& d, float rssi, float snr, uint32_t now_ms) {
@@ -379,8 +394,7 @@ void start_transmit(uint32_t now_ms) {
   // (getTimeOnAir() is in microseconds). The same deadline, without the busy wait.
   g_tx_timeout_ms =
       5 + static_cast<uint32_t>((g_radio->getTimeOnAir(g_tx.len) * 5) / 1000);
-  g_mode          = Mode::Transmit;
-  g_mode_start_ms = now_ms;
+  enter_mode(Mode::Transmit, now_ms);
 }
 
 // A frame is arriving when the radio has seen a valid header and no RX_DONE yet. Only a
@@ -431,8 +445,7 @@ void start_cad(uint32_t now_ms) {
     }
     return;
   }
-  g_mode          = Mode::Cad;
-  g_mode_start_ms = now_ms;
+  enter_mode(Mode::Cad, now_ms);
 }
 
 void service_cad(uint32_t now_ms) {
@@ -442,6 +455,8 @@ void service_cad(uint32_t now_ms) {
   if ((irq & RADIOLIB_SX126X_IRQ_CAD_DONE) != 0) {
     result = (irq & RADIOLIB_SX126X_IRQ_CAD_DETECTED) != 0 ? CadResult::Busy
                                                            : CadResult::Free;
+    // spec 12.3 counts a busy CAD and nothing else, so this outcome was invisible.
+    if (result == CadResult::Free) ++g_stats.cad_free;
   } else if (elapsed(now_ms, g_mode_start_ms) >= kCadTimeoutMs) {
     result = CadResult::Error;
   } else {
