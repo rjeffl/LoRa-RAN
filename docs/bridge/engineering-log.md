@@ -807,3 +807,97 @@ the axis mistake: buckets 1009 ms long must still give a period in milliseconds.
 python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
 python3 tools/simctl/test_rssi_analyze.py
 ```
+
+---
+
+## 2026-09-18 — M25's periodic source matches the property's Davis Vantage Pro2
+
+**The 130.69 s source at 917.4 MHz is very likely the Davis weather station's hop cycle.** The
+match is in frequency, period and burst length. No Davis packet has been decoded on 917.4 MHz,
+so this is a strong candidate rather than an identification. The research is in
+[`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §6, which also covers the
+property's Z-Wave, Insteon and YoLink equipment.
+
+| | Davis Vantage Pro2, from published sources | M25's periodic source, measured |
+|---|---|---|
+| Frequency | One of 51 hop channels at **917.434 MHz**, 34 kHz from LRAN's centre | Inside the 125 kHz receive bandwidth at 917.4 MHz |
+| Period | 51 channels × 2.5625 s at transmitter ID 1 = **130.6875 s** | **130.69 s**, largest residual 0.52 s |
+| Burst | 16 bytes at 19.2 kbps = **6.7 ms** | About 7 ms, estimated from a 73 % catch rate |
+
+**The operator confirmed a Davis Vantage Pro2 on the property on 2026-09-18**, and did not
+know it transmits in the 900 MHz band. Its transmitter sits at M20's survey position 2,
+`weather-island`, **on the line between the bridge and GateLink's site**. So both ends of the
+link hear it, and its level at the gate has not been measured. None of the property's other inventoried systems has a
+nominal channel within 1.4 MHz of 917.4 MHz.
+
+**The console's transmitter ID is the check.** ID 1 predicts 130.6875 s. Any other ID predicts
+a different period and would rule the Davis out as this source.
+
+**M20's survey cannot confirm it or rule it out.** At no site do bins containing a Davis
+channel read louder than the others. A 6.7 ms burst that returns to one channel every 130.7 s
+rarely falls inside one bin's 653-sample dwell, which is why a ten-hour watch on one channel
+was needed to see it.
+
+**Two things follow, and neither is decided here.** The Davis channels either side of
+917.434 MHz are 916.934 and 917.936 MHz, so a channel such as 917.2 MHz would contain no
+Davis hop; moving LRAN is a D1 matter. The inventory also finds that M20's −54 dBm at
+916.0 MHz in the house sits on Z-Wave's 100 kbps channel, not on YoLink's 923.3 MHz, which
+contradicts Decision Register §5.4's candidate attribution. Both go to the register, with the
+D33 question M25 already raised.
+
+**M25's −93 dBm episodic source is still unexplained.** A Davis station sends one packet per
+hop, so it does not produce episodes lasting seconds on one channel.
+
+---
+
+## 2026-09-18 — the Davis transmitter ID is 1, so the prediction held
+
+**The operator read transmitter ID 1 on the Davis console**, and noted that it is probably the
+factory default. The entry above named this as the check: ID 1 predicts a hop cycle of
+51 × 2.5625 s = 130.6875 s, and any other ID predicts a different period and would have ruled
+the Davis out. The prediction was written before the console was read.
+
+**The fit agrees to about 8 parts per million.** M25's period, fitted on `millis()`, is
+130.6865 s, 1 ms per cycle short of the prediction. A transmitter crystal's tolerance covers
+that.
+
+**So M25's periodic source is the Davis Vantage Pro2**, identified by frequency, period, burst
+length and transmitter ID. No Davis packet has been decoded on 917.4 MHz. The entry above
+called it a strong candidate; this entry supersedes that description, and the entry itself
+stands as written.
+
+**This settles the channel question for this source, and not D33.** One Davis hop channel,
+917.434 MHz, lies inside LRAN's receive bandwidth, so the periodic source is co-channel, not a
+neighbour leaking in. D33 standing condition 3 requires no co-channel occupant on the chosen
+frequency. Whether a 6.7 ms burst every 130.69 s reopens D33 is the operator's decision, recorded
+in the Decision Register. M25's −93 dBm episodic source is still unidentified.
+
+---
+
+## 2026-09-18 — the Dakota Alert driveway sensor is 433.92 MHz, not a neighbour
+
+**The operator runs a Dakota Alert driveway occupancy sensor** in place of the gate controller,
+which LRAN cannot reach yet. Its transmitter is within 30 ft of the gate controller, at M20's
+survey position 1, `gatelink-gate`, and its receiver is near the production bridge location.
+The operator expected 433 MHz and asked for it to be checked.
+
+**Every Dakota Alert Part 15 grant opened is 433.92 MHz**, from the 2004 Driveway Radio to the
+2024 DCHT-4000 hose transmitter, and none of the company's 19 FCC IDs shows a 902–928 MHz
+grant. Its second harmonic is 867.84 MHz, below the band. So it does not bear on 917.4 MHz or on
+any channel LRAN might move to.
+
+**One caveat, if the sensor turns out to be a MURS model.** Dakota Alert's MURS line transmits at
+151.8–154.6 MHz, up to 1.1 W ERP, and the sixth harmonics of those channels fall at
+910.9–911.6 and 927.4–927.6 MHz. That is well clear of 917.4 MHz and of 917.2 MHz, and inside
+the band's top edge. The model number decides it.
+[`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §7 has the grants.
+
+---
+
+## 2026-09-18 — the Dakota Alert sensor is a DAPT-4000, at 433.92 MHz
+
+**The operator read the model as DAPT-4000**, a 4000-series dual-probe directional vehicle
+sensor, and its manual gives 433 MHz. That closes the MURS caveat in the entry above: the sensor
+is not VHF, and nothing it transmits reaches 902–928 MHz. Its likely FCC ID is QK8PB-4000,
+"PB-4000 Directional Probe Alarm", at 433.92 MHz under §15.231. The match is by product name,
+not read from the unit's label.
