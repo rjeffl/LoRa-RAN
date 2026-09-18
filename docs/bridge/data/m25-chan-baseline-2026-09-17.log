@@ -32,3 +32,21 @@
 2026-09-18T03:43:22Z,OTA: listening as lran-bridge
 2026-09-18T03:43:32Z,CHANSUM,0,9,10,10003,977,22,0,0,0,0,-1130,-1160,-1150,-1158
 2026-09-18T03:43:33Z,FRAME #1 tx t=11502 peer=0x02 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=238
+2026-09-18T03:44:06Z,CHAN,43,43550,1000,100,0,1,0,-1090,-1160,-1143
+2026-09-18T03:44:23Z,FRAME #2 tx t=61501 peer=0x01 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=451
+2026-09-18T03:44:32Z,CHANSUM,10,69,60,60018,5958,42,1,0,1,0,-1090,-1160,-1150,-1154
+2026-09-18T03:44:33Z,FRAME #3 tx t=71510 peer=0x02 type=3 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=664
+2026-09-18T03:45:23Z,FRAME #4 tx t=121509 peer=0x01 type=3 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=877
+2026-09-18T03:45:23Z,CHAN,120,120568,1007,93,7,1,0,-1090,-1160,-1144
+2026-09-18T03:45:32Z,CHANSUM,70,129,60,60018,5958,42,1,0,1,0,-1090,-1160,-1150,-1155
+2026-09-18T03:45:33Z,availability: gatelink offline (missed_polls 3, threshold 3)
+2026-09-18T03:45:33Z,FRAME #5 tx t=131512 peer=0x02 type=3 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=1094
+2026-09-18T03:45:33Z,CHAN,130,130577,1001,92,7,1,0,-1090,-1150,-1144
+2026-09-18T03:45:43Z,availability: welllink offline (missed_polls 3, threshold 3)
+2026-09-18T03:46:23Z,FRAME #6 tx t=181501 peer=0x01 type=3 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=1307
+2026-09-18T03:46:32Z,CHANSUM,130,189,60,60012,5957,42,1,0,1,0,-1090,-1160,-1150,-1155
+2026-09-18T03:46:33Z,FRAME #7 tx t=191510 peer=0x02 type=3 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=1520
+2026-09-18T03:47:23Z,FRAME #8 tx t=241509 peer=0x01 type=3 schema=0 frag=0x01 seq=9 rssi=- snr=- st=0 rx=5 deaf=1733
+2026-09-18T03:47:24Z,CHAN,241,241605,1002,89,11,1,0,-740,-1150,-1138
+2026-09-18T03:47:32Z,CHANSUM,190,249,60,60018,5958,42,1,0,1,0,-740,-1160,-1150,-1153
+2026-09-18T03:47:33Z,FRAME #9 tx t=251512 peer=0x02 type=3 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=1950

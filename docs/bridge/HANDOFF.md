@@ -169,6 +169,18 @@ leaving their measurements standing.
 - **`cad_free` closed a blind spot in every earlier run.** The control shows `cad_backoffs`
   0 against `cad_free` 3 per burst: on the old instrument that window read as a bridge that
   never contended for the channel, while the radio left receive three times for 643 ms.
+- **The bench is not a quiet channel, and the instrument that would have said so is
+  blind.** The operator identified **YoLink, Z-Wave and Insteon** on the property on
+  2026-09-17. M20 measured the YoLink hub at **−54 dBm peak against a −113.8 dBm mean in
+  the same bin** at the bridge's own location; 917.4 MHz itself read floor, on 653 samples.
+  **That cannot exclude a low-duty-cycle occupant**, which is what a loss pattern clustered
+  in time would look like.
+- **Two of the three families cannot move `cad_backoffs` at any signal level.** A LoRa CAD
+  detects a LoRa preamble at the configured SF, so Z-Wave and Insteon FSK are invisible to
+  it — and Decision Register §3.4 names it as the instrument keeping the channel under
+  observation for **D33 standing condition 3**. **M25** builds one that can see them;
+  **M26** completes the §3.1 inventory it would be read against. **D33's status is
+  unchanged**, and neither item reopens it.
 - **`tools/simctl/per_measure.py` is the instrument for a PER figure**, with 30 host tests
   in CI and its arithmetic separated from its I/O; **`rxlog.py` is the instrument for
   *which* frames**, with 36 more on the same split. **`rx_wake.h`, `rx_deaf.h` and
@@ -185,7 +197,8 @@ leaving their measurements standing.
 | 5 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 6 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
 | 7 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9–§12, §14 | keys, context, reassembly, radio, the discard ladder. **§18.2, never §18.1 alone** |
-| 8 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
+| 8 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.1** the site's 900 MHz equipment; **§3.4** D33's standing conditions and the note against its own instrument; **§5.4** M20's channel evidence; **M25**, **M26** |
+| 9 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
 ## Where things stand
 
@@ -193,8 +206,8 @@ leaving their measurements standing.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
-| Not done | **B4**: BF-23–BF-25, BF-26 deferred. **BF-27's other three tools** — the log is built, the rest of §6.6 is not. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | BF-23 first, for the reason in *The next job*. **The interleaved spacing sweep is what remains of the knee**, it does not block BF-23, and it must land before BF-24. Nothing waits on a document |
+| Not done | **M25** — a ten-hour capture is running; the analysis is next session's. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23–BF-25, BF-26 deferred. **BF-27's other three tools** — the log is built, the rest of §6.6 is not. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | **Read M25's capture first** — it may retire the spacing question rather than answer it. Then BF-23, for the reason in *The next job*. **The interleaved spacing sweep still stands behind BF-24** and does not block BF-23. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -212,12 +225,13 @@ python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec
 python3 tools/simctl/test_simctl.py             # simctl's verdict logic, no board
 python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board (30)
 python3 tools/simctl/test_rxlog_analyze.py      # BF-27 frame-log arithmetic and its guards (36)
+python3 tools/simctl/test_rssi_analyze.py       # M25 channel-capture arithmetic and its guards (27)
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
 
-**All of the above passed on 2026-09-17**: **471** Unity cases across the five native suites
-— 127 protocol, 7 link, 16 sim, 109 simnode, 212 bridge — and every check above.
+**All of the above passed on 2026-09-17**: **494** Unity cases across the five native suites
+— 127 protocol, 7 link, 16 sim, 109 simnode, 235 bridge — and every check above.
 
 **`pio` is a shell alias on the macOS build machine.** A script that does not source the
 user's profile must call `~/.platformio/penv/bin/pio` by path, or every step fails as
@@ -279,7 +293,7 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `1375c3f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, and `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27). Confirmed on air the same day: `lran/bridge/version` reads `0.1.0`, `git 1375c3f`, `slot app0`. It replaced the `d2212c9` image flashed earlier that day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up. **A ten-hour M25 capture was started on it 2026-09-17 and holds that port** — `rssi_capture.py` opens with DTR and RTS low so it does not reboot the board, but a second opener will still fail or steal bytes. Check for a running `rssi_capture.py` before touching this port |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `ecc2e6f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27), and `chan_monitor.h`'s RSSI sampler on serial (M25). **The running image names itself in the capture file's first line** — `CHAN-BOOT,ecc2e6f,917400000,...` — which is the check to make rather than trusting this row. It replaced `1375c3f`, which replaced `d2212c9`, both flashed earlier the same day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up. **A ten-hour M25 capture was started on it 2026-09-17 and holds that port** — `rssi_capture.py` opens with DTR and RTS low so it does not reboot the board, but a second opener will still fail or steal bytes. Check for a running `rssi_capture.py` before touching this port |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB. **The port name moves across replug** — it was `/dev/cu.usbserial-4` and was `/dev/cu.usbserial-3` on 2026-09-17. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **`f3` `ROLE_FAULT` was added by hand for M22 and is gone after any reboot** — **and it was gone on 2026-09-17 afternoon**, so this board had rebooted since the morning runs. It was rebuilt the same way (`id add f3 ROLE_FAULT`, `disable f1`), with a fresh `ctx`. **Check `id list` before believing a run**, rather than assuming the bench survived |
 
@@ -322,6 +336,10 @@ the sum at compile time.
   leaf**, against spec §16.2's table, and the deviation is raised rather than settled —
   Impl Plan §6.6.1 says why. Text saying the bridge publishes only aggregate counters is
   correct for before it.
+- **The bridge writes `CHAN` and `CHANSUM` lines to serial since 2026-09-17** (M25,
+  `chan_monitor.h`). A tool reading that port for anything else has to tolerate them.
+  **They are not on MQTT and are not meant to be**: a bucket a second for ten hours is a
+  capture file, not a diagnostic topic.
 - **`log_task` drains that ring and is no longer idle since 2026-09-17.** It was a `vTaskDelay`
   loop with a `TODO(BF-11a)` in it from BF-11 until then. **The leveled log still has no
   queue**; only the frame log uses the task.
@@ -372,6 +390,23 @@ the sum at compile time.
   aligned — the tool times the `rx` readings while the radio document is whichever arrived
   most recently — so read a fraction far below the PER as ruling the transmit path out,
   never as a figure to quote to two decimals.
+- **A capture taken with a simnode powered up is not a channel measurement.** M25's
+  sampler skips a reception only once a **valid LoRa header** is seen, and the preamble
+  arrives first — roughly 33 ms of every one of our own frames, at about −37 dBm, lands in
+  the samples as a large excursion. **Power both simnodes down for a baseline.** A capture
+  with them running answers a different question and must not be pooled with one without.
+- **`−127.5 dBm` in a capture is the encoding's rail, not a reading.** RadioLib returns
+  `rssiRaw / -2.0`, so a raw `0xFF` reads exactly that; it appears in the first buckets
+  after boot. The firmware counts it as a skip since 2026-09-17, but **a capture taken
+  before that date carries it** and one sample drags a window's floor 12 dB below the
+  campaign floor.
+- **A `CHAN` line is not the denominator.** The firmware writes one only for a bucket that
+  saw something. Occupancy is `above / samples`, and the samples live in the quiet buckets
+  the `CHANSUM` rollups carry. Summing the `CHAN` lines divides the excursions by
+  themselves and reports a nearly-silent channel as almost fully occupied.
+- **A bucket that sampled nothing is unobserved, not quiet.** The sampler does not look
+  while the radio is transmitting, doing a CAD, or down. `skipped` and `blind` say how
+  much of a window was never seen.
 - **A gap in the frame log's `seq` is not a lost frame until the type is checked.** W11: a
   `PING` responder echoes the initiator's `seq`, so a node's `PING` answers carry numbers
   from the *bridge's* sequence space. `rxlog_analyze.py` keys streams on `(peer, type)` for
@@ -500,9 +535,18 @@ the sum at compile time.
   the spacing. **So the open question has moved.** It is no longer only "why does a
   closely-spaced frame go missing"; it is **whether spacing is the variable at all**, and no
   sweep on record can answer that, because every one of them ran its arms in blocks.
-  **The interleaved sweep is the next step and it needs no new code.** **It matters beyond
-  M22**: a fragmented `STATUS` is exactly this pattern, and **BF-24's decode work meets it
-  first**.
+  **And there is now a candidate outside this firmware.** The property runs YoLink LoRa,
+  Z-Wave and Insteon (operator, 2026-09-17), only the first of which the Decision Register
+  records. **M20's survey cannot exclude an intermittent occupant at 917.4** — 653 samples
+  per bin, against a neighbour showing a 60 dB peak-to-mean. **M25's ten-hour capture is
+  the measurement that separates the two**, and it is running; read it before spending
+  bench time on the sweep.
+  **The margin also inverts between here and the gate.** At one metre the wanted signal is
+  −37 dBm and the loudest neighbour −54 dBm; at the gate the wanted signal is about
+  −100 dBm and the neighbours −80 to −89. **A loss rate measured at one metre is not
+  evidence about 87 m**, and it is optimistic in the wrong direction.
+  **It matters beyond M22**: a fragmented `STATUS` is exactly this pattern, and **BF-24's
+  decode work meets it first**.
 - **Nothing a node sends the bridge carries a MAC the bridge verifies.** §9.2 makes every
   authenticated type bridge → node, so the bridge's own `rx_rejected_seq` and
   `rx_dup_command` stay at zero by construction. BF-18 proved the *sending* half.
@@ -539,7 +583,9 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   out `kIrqReadMs`, `rx_deaf.h` (`cad_free`, `rx_deaf_ms`) ruled out the transmit path in
   aggregate, and `frame_log.h` (BF-27) ruled it out again per frame — a ceiling of 0.52
   frames against nine lost.
-  **What remains is not another instrument. It is an interleaved sweep**, and it exists
+  **A fourth candidate is not in this firmware at all** — the channel. **M25** is
+  measuring it and **M26** completes the equipment inventory; neither is a `BF-*` task.
+  **What may still remain is an interleaved sweep**, and it exists
   because the same ten bursts put a 250 ms gap at 2.50 % against a 2000 ms gap at 1.90 %.
   **Every sweep on record ran its arms in blocks**, so a slow environmental change and an
   effect of spacing are not separated anywhere. Alternate the two arms inside one session,
@@ -554,6 +600,11 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   nothing caught it**: `tools/checks/spec_citation_version.py` covers protocol-spec citations
   only, so no check reads a PRD-to-plan or plan-to-tasks citation. Extending it will likely
   surface other stale ones — report those rather than fixing everything on one branch.
+- **No link has ever been measured at 917.4 MHz.** Every walk, every bench trace and
+  B1b's gate run were captured at **915.0 MHz**, the range test's provisional frequency —
+  which Decision Register §3.4 already flags as `weather-island`'s own peak. The operating
+  channel has a survey behind it and **no link measurement at all**. Found 2026-09-17 by
+  reading every `freq_hz` column under `docs/rangetest/data/`.
 - **R-3.2c is unmet and no task names it.** The PRD says *"WiFi RSSI SHALL be published as
   a diagnostic."* `wifi_rssi_dbm()` exists (`wifi_link.cpp`) and is read into the OLED
   status page and **nowhere else** — `task_runtime.cpp` puts it on the screen and no MQTT
