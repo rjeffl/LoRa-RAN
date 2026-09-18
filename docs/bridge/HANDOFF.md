@@ -508,15 +508,18 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
 - **`/lib/lran-config/`** — System PRD §9.4 describes it; BF-26 and BF-23 need it. **The
   MQTT receive path it was paired with is built** — BF-18 did it, so a `config/set`
   subscriber now has a transport seam and an inbound queue to reuse.
-- **The receive path's 1 s knee** — still unassigned, and **two hypotheses shorter**. **Do
+- **The receive path's losses** — still unassigned, and **three hypotheses shorter**. **Do
   this before BF-24**, which decodes a fragmented `STATUS` into exactly this traffic
-  pattern. Both counter steps are **built and merged**, both bridge-local rather than spec
-  §14.1, and both came back clean in one bench session each: `rx_wake.h`
-  (`rx_no_interrupt`, `rx_wake_empty`) ruled out `kIrqReadMs`, and `rx_deaf.h` (`cad_free`,
-  `rx_deaf_ms`) ruled out the transmit path. **One step remains: BF-27's raw frame log**,
-  already a `TODO` in `service_receive`. Flood frames carry an incrementing status `seq`
-  (`fault.cpp`), so a log of arrivals says **which** frames go missing: scattered points at
-  the chip or the air, clustered after a bridge action points at the firmware.
+  pattern. All three instrument steps are **built**, all bridge-local rather than spec
+  §14.1, and each came back clean: `rx_wake.h` (`rx_no_interrupt`, `rx_wake_empty`) ruled
+  out `kIrqReadMs`, `rx_deaf.h` (`cad_free`, `rx_deaf_ms`) ruled out the transmit path in
+  aggregate, and `frame_log.h` (BF-27) ruled it out again per frame — a ceiling of 0.52
+  frames against nine lost.
+  **What remains is not another instrument. It is an interleaved sweep**, and it exists
+  because the same ten bursts put a 250 ms gap at 2.50 % against a 2000 ms gap at 1.90 %.
+  **Every sweep on record ran its arms in blocks**, so a slow environmental change and an
+  effect of spacing are not separated anywhere. Alternate the two arms inside one session,
+  45 s a burst, `rxlog.py` collecting.
   **A poll-free burst is not available** and does not need to be: the flooding node enrols
   itself on its first frame (`scheduler.cpp`), so it is polled regardless of what else is
   quiet — and the poll load is now measured rather than avoided.
@@ -527,6 +530,12 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   nothing caught it**: `tools/checks/spec_citation_version.py` covers protocol-spec citations
   only, so no check reads a PRD-to-plan or plan-to-tasks citation. Extending it will likely
   surface other stale ones — report those rather than fixing everything on one branch.
+- **R-3.2c is unmet and no task names it.** The PRD says *"WiFi RSSI SHALL be published as
+  a diagnostic."* `wifi_rssi_dbm()` exists (`wifi_link.cpp`) and is read into the OLED
+  status page and **nowhere else** — `task_runtime.cpp` puts it on the screen and no MQTT
+  topic carries it. Verified 2026-09-17 by reading every caller. **It belongs in BF-24's
+  table**, which is the task that owns what the bridge publishes; it is recorded here
+  because BF-24's row does not mention it and nothing else would surface it.
 - **A PING responder on the bridge** — spec §17.3 requires RF loopback of every node build.
 - **Decoding per schema has no task** — Impl Plan §5.3's `decode/`; `app_task`'s `TODO` gives
   it to BF-24. Nothing a simnode sends is decoded or published today.
