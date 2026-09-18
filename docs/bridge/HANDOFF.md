@@ -35,9 +35,20 @@ and `rssi_report.py` now reproduces every figure. In short:
    co-channel occupant on 917.4 MHz. The capture found energy in its receive bandwidth, and
    it cannot say whether that energy is co-channel or a neighbour leaking in. Decision
    Register §3.4 and the M25 row are where the answer is recorded.
-2. **Which device fires every 130.69 s?** That belongs to **M26**. At the gate, the entry
-   estimates that the periodic source alone overlaps about 0.85 % of maximum-length SF9
-   uplink frames, at about 26 dB above the wanted signal.
+2. **Is the 130.69 s source the Davis Vantage Pro2?** Its hop cycle predicts 130.6875 s at
+   transmitter ID 1, with one hop channel at 917.434 MHz and a 6.7 ms packet. Its transmitter
+   sits at `weather-island`, on the line between the bridge and the gate.
+   [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §6 has the research. **Read
+   the console's transmitter ID**: ID 1 confirms the match, and any other ID rules it out. At
+   the gate, the engineering log estimates this source alone overlaps about 0.85 % of
+   maximum-length SF9 uplink frames, at about 26 dB above the wanted signal.
+
+**The site's 900 MHz equipment is now researched, from published sources.**
+[`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) gives Z-Wave (916.00 and
+908.4 MHz), Insteon (915.0 MHz), YoLink (923.3 MHz) and the Davis (51 hop channels). It also
+finds that M20's −54 dBm at 916.0 MHz in the house is on Z-Wave's channel, not YoLink's, which
+Decision Register §5.4 will need to reflect. That part of **M26** is done; confirming model
+numbers is still open.
 
 **Run the interleaved sweep next, before BF-24.** The ten frame-log bursts of 2026-09-17
 put a 250 ms gap at **2.50 %** and a 2000 ms gap at **1.90 %**. The same arms had read
@@ -170,8 +181,9 @@ all of it, with the numbers.
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
 | 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9–§12, §14, §16 | keys, context, reassembly, radio, the discard ladder, MQTT. **§18.2, never §18.1 alone** |
-| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.1** the site's 900 MHz equipment; **§3.4** D33's standing conditions and the note against its own instrument; **§5.4** M20's channel evidence; **M25**, **M26** |
-| 10 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
+| 9 | [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) | the property's Z-Wave, Insteon, YoLink and Davis radios, and what M20 saw at each frequency |
+| 10 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.1** the site's 900 MHz equipment; **§3.4** D33's standing conditions and the note against its own instrument; **§5.4** M20's channel evidence; **M25**, **M26** |
+| 11 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
 [`briefs/2026-09-17-session-brief.md`](./briefs/2026-09-17-session-brief.md) is optional. It
 is a dated reading of the documents above and adds recommendations, not facts.
@@ -182,7 +194,7 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; device model numbers not yet confirmed. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
 | Queue | The interleaved sweep, then BF-24. BF-23's discovery half does not wait on it. The D33 question waits on the operator. Nothing waits on a document |
 
 ```bash
