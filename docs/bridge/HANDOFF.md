@@ -192,8 +192,8 @@ python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
 
-**All of the above passed on 2026-09-17**: **468** Unity cases across the five native suites
-— 127 protocol, 7 link, 16 sim, 109 simnode, 209 bridge — and every check above.
+**All of the above passed on 2026-09-17**: **471** Unity cases across the five native suites
+— 127 protocol, 7 link, 16 sim, 109 simnode, 212 bridge — and every check above.
 
 **`pio` is a shell alias on the macOS build machine.** A script that does not source the
 user's profile must call `~/.platformio/penv/bin/pio` by path, or every step fails as
