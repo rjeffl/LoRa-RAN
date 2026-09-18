@@ -15,12 +15,3 @@ secrets.h
 # Python bytecode, from tools/rangetest/test_capture.py importing capture.py
 __pycache__/
 *.pyc
-
-# M25 - a channel capture IN PROGRESS. Tracking a file that is still being appended to
-# makes the working tree read dirty for as long as the capture runs, and this repo uses a
-# `-dirty` git stamp on the boot banner to prove which commit an image was built from
-# (firmware/bridge/CLAUDE.md). A misleading dirty stamp is worse than an untracked file.
-#
-# WHEN THE CAPTURE FINISHES, DELETE THIS LINE AND COMMIT THE FILE. It is the deliverable
-# and it belongs beside every other run record under docs/bridge/data/.
-docs/bridge/data/m25-chan-baseline-2026-09-17.log

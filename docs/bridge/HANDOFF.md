@@ -45,22 +45,18 @@ HA-visible token; the third leaves root rule 8 unmet.
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
 **Its saturated arm stays blocked** until the lever above has a route.
 
-**A ten-hour channel capture was started on 2026-09-17 and is the first thing to read
-next session.** M25. The bridge is sampling RSSI on 917.4 MHz about a hundred times a
-second and writing it to
-[`data/m25-chan-baseline-2026-09-17.log`](./data/m25-chan-baseline-2026-09-17.log) over
-USB serial.
+**A ten-hour channel capture ran overnight and is the first thing to read next session.**
+M25. The bridge sampled RSSI on 917.4 MHz about a hundred times a second, from
+2026-09-18T03:43:21Z until the tool closed it at 13:43:22Z. The capture is committed at
+[`data/m25-chan-baseline-2026-09-17.log`](./data/m25-chan-baseline-2026-09-17.log) and has
+not been analysed.
 
 ```bash
 python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
-ps -ef | grep -c "[r]ssi_capture"          # 1 while it is still running
 ```
 
-**The capture file is gitignored while it is being written, and that line is meant to be
-deleted.** Tracking a file that is appended to for ten hours keeps the working tree dirty,
-and a `-dirty` git stamp on the boot banner is how this project proves an image matches no
-commit. **When the capture ends, remove its line from `.gitignore` and commit the file** —
-it is the deliverable and it belongs beside every other run record in `data/`.
+**The `.gitignore` line that hid the capture while it was written is gone**, as that line
+asked. The file's name carries the date the capture was started, and its timestamps are UTC.
 
 **Both simnodes were powered down for it, deliberately.** The sampler skips a reception
 only once a valid LoRa header is seen, so roughly 33 ms of every one of our own frames'
@@ -213,7 +209,7 @@ leaving their measurements standing.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22** |
-| Not done | **M25** — a ten-hour capture is running; the analysis is next session's. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23–BF-25, BF-26 deferred. **BF-27's other three tools** — the log is built, the rest of §6.6 is not. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Not done | **M25** — the ten-hour capture is committed; the analysis is next session's. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23–BF-25, BF-26 deferred. **BF-27's other three tools** — the log is built, the rest of §6.6 is not. **V-B12**, now a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
 | Queue | **Read M25's capture first** — it may retire the spacing question rather than answer it. Then BF-23, for the reason in *The next job*. **The interleaved spacing sweep still stands behind BF-24** and does not block BF-23. Nothing waits on a document |
 
 ```bash
@@ -300,7 +296,7 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `ecc2e6f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27), and `chan_monitor.h`'s RSSI sampler on serial (M25). **The running image names itself in the capture file's first line** — `CHAN-BOOT,ecc2e6f,917400000,...` — which is the check to make rather than trusting this row. It replaced `1375c3f`, which replaced `d2212c9`, both flashed earlier the same day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up. **A ten-hour M25 capture was started on it 2026-09-17 and holds that port** — `rssi_capture.py` opens with DTR and RTS low so it does not reboot the board, but a second opener will still fail or steal bytes. Check for a running `rssi_capture.py` before touching this port |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `ecc2e6f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27), and `chan_monitor.h`'s RSSI sampler on serial (M25). **The running image names itself in the capture file's `CHAN-BOOT` line** — `CHAN-BOOT,ecc2e6f,917400000,...` — which is the check to make rather than trusting this row. It replaced `1375c3f`, which replaced `d2212c9`, both flashed earlier the same day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up. **The M25 capture that held this port closed at 2026-09-18T13:43:22Z.** `rssi_capture.py` opens with DTR and RTS low so it does not reboot the board, and a second opener will fail or steal bytes. Check for a running `rssi_capture.py` before touching this port |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB. **The port name moves across replug** — it was `/dev/cu.usbserial-4` and was `/dev/cu.usbserial-3` on 2026-09-17. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **`f3` `ROLE_FAULT` was added by hand for M22 and is gone after any reboot** — **and it was gone on 2026-09-17 afternoon**, so this board had rebooted since the morning runs. It was rebuilt the same way (`id add f3 ROLE_FAULT`, `disable f1`), with a fresh `ctx`. **Check `id list` before believing a run**, rather than assuming the bench survived |
 
@@ -546,7 +542,7 @@ the sum at compile time.
   Z-Wave and Insteon (operator, 2026-09-17), only the first of which the Decision Register
   records. **M20's survey cannot exclude an intermittent occupant at 917.4** — 653 samples
   per bin, against a neighbour showing a 60 dB peak-to-mean. **M25's ten-hour capture is
-  the measurement that separates the two**, and it is running; read it before spending
+  the measurement that separates the two**, and it is committed; read it before spending
   bench time on the sweep.
   **The margin also inverts between here and the gate.** At one metre the wanted signal is
   −37 dBm and the loudest neighbour −54 dBm; at the gate the wanted signal is about
