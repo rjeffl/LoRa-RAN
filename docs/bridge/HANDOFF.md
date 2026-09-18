@@ -45,6 +45,24 @@ inside 917.4 MHz's receive bandwidth.** It occupies that channel for 6.7 ms ever
 Whether that reopens D33 is recorded in Decision Register §3.4 and the M25 row. The −93 dBm
 episodic source is still unidentified, and the capture cannot tell whether it is co-channel.
 
+**A capture at 917.2 MHz started on 2026-09-18 at 15:14:03 UTC and is the first thing to
+read.** It is the first of the two captures the D1 frequency brief's §5 asks for. The bridge
+board runs a **capture-only image**, `5e752e9` on branch `capture-917200`, which differs from
+M25's `ecc2e6f` by `kPhy.freq_hz` alone and is never merged. The run is set for 10 hours and
+writes `docs/bridge/data/m25-chan-917200-2026-09-18.log`. **Two hours is enough to say whether
+the Davis still reaches the channel**; the comparison of M25's −93 dBm episodic source needs
+the longer run.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917200-2026-09-18.log
+pgrep -fl "capture_with_reset|rssi_capture"   # running while this prints a line
+```
+
+**The bridge is on 917.2 MHz and both simnodes are on 917.4 MHz, so they cannot hear each
+other.** Before the interleaved sweep or any simnode work, reflash the bridge from the branch
+being worked on, which puts it back on 917.4 MHz. The capture file is excluded from git on the
+build machine only, through `.git/info/exclude`; when the run ends, commit it beside M25's.
+
 **A frequency change is drafted and waits on the operator.**
 [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) recommends
 moving D1 from 917.4 to 917.2 MHz, off the Davis hop, after one overnight capture at each of
@@ -285,7 +303,7 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `ecc2e6f`, a clean tree**. It carries `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27) and `chan_monitor.h`'s RSSI sampler on serial (M25). **The capture file's `CHAN-BOOT` line names the running image** (`CHAN-BOOT,ecc2e6f,917400000,...`); check it rather than trusting this row. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. It polls, receives and publishes, with WiFi, broker and radio all up. **The M25 capture that held this port closed at 2026-09-18T13:43:22Z.** A second opener fails or steals bytes, so check for a running `rssi_capture.py` before touching the port |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-18 from `5e752e9`, the 917.2 MHz capture-only image on branch `capture-917200`**. It is `ecc2e6f`'s firmware with `kPhy.freq_hz` changed, and it was flashed from a clean tree. Before that it ran `ecc2e6f`, USB-flashed 2026-09-17. It carries `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27) and `chan_monitor.h`'s RSSI sampler on serial (M25). **The capture file's `CHAN-BOOT` line names the running image** (`CHAN-BOOT,ecc2e6f,917400000,...`); check it rather than trusting this row. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. It polls, receives and publishes, with WiFi, broker and radio all up. **The 917.2 MHz capture has held this port since 2026-09-18T15:14:03Z**, through a scratch wrapper that reset the board once on open so `CHAN-BOOT` was recorded. A second opener fails or steals bytes, so check for a running `rssi_capture.py` before touching the port |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error`. **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21).** Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. **Its port name moves across replug**: it has been `/dev/cu.usbserial-4` and `/dev/cu.usbserial-3`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. Last seen as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **The M22 setup (`id add f3 ROLE_FAULT`, `disable f1`) is gone after any reboot**, so rebuild it and **check `id list` before believing a run** |
 
@@ -361,6 +379,9 @@ the next job meets first:
   not the denominator. [Measuring the channel](./traps.md#measuring-the-channel-m25)
 - **Opening either board's serial port reboots it**, which resets its identities and its
   `ctx_id`. [Bench boards](./traps.md#bench-boards-and-serial-ports)
+- **Check the bridge's frequency before any bench run.** Its boot banner's `PHY:` line and
+  `CHAN-BOOT` both state it. A bridge on a capture image and a simnode on `main` share no
+  channel, and the symptom is a bridge that hears nothing.
 - **A reboot of the bridge board zeroes every counter.**
   [Measuring frame loss](./traps.md#measuring-frame-loss)
 - **A command takes 4-9 s from the MQTT publish to the node**, not ~1 s.
