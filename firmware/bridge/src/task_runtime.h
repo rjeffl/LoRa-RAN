@@ -15,6 +15,16 @@
 
 namespace bridge {
 
+// How long lora_task waits for DIO1 before its next pass. It bounds how long a frame
+// queued by another task waits to be picked up, and it is the resolution of a spec 12.3
+// backoff; a reception wakes the task at once regardless.
+//
+// IN THE HEADER SINCE M25, because it also sets the channel sampler's rate - lora_task
+// takes one RSSI reading per wake, so ~100 a second - and chan_monitor.h's reasoning
+// about what a long capture can and cannot see rests on this number. Changing it changes
+// both, and the second one silently.
+inline constexpr uint32_t kLoraMaxWaitMs = 10;
+
 // Creates the four queues and starts the seven tasks, in that order. Returns false
 // if any creation failed, which on static allocation means a table defect rather
 // than a runtime condition - a bad depth, or storage that does not match the item

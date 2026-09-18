@@ -16,6 +16,7 @@
 #include <cmath>
 #include <new>
 
+#include "chan_monitor.h"
 #include "frame_log.h"
 #include "queues.h"
 #include "rx_deaf.h"
@@ -55,6 +56,10 @@ RadioPins g_pins{};
 // frame rate the link already carries - the DRAIN is where the cost would be, and that
 // is log_task's, which is the lowest-priority task in the bridge (tasks.h).
 FrameLog g_frame_log;
+
+// M25 - what else is on 917.4 MHz. Sampled from lora_task, drained by log_task, same as
+// the frame log and for the same reasons (chan_monitor.h).
+ChanMonitor g_chan;
 PhyConfig g_phy{};
 
 lran::Counters g_counters;
@@ -435,6 +440,7 @@ void service_receive(uint32_t now_ms) {
   // (rx_ladder.h), which is why `frag` is in the record.
   log_rx(pass == RxPass::Orphan ? RxOutcome::Orphan : RxOutcome::Packet, now_ms, true,
          true, rssi, snr);
+  g_chan.note_own_rx();  // M25 - so a busy bucket is not read as a quiet channel
 }
 
 TxStep report_cad(CadResult result, uint32_t now_ms) {
@@ -613,8 +619,39 @@ void lora_start(const RadioPins& pins, const PhyConfig& phy) {
   try_begin(millis());
 }
 
+// M25 - one channel sample per lora_task wake. chan_monitor.h has the reasoning.
+//
+// ONLY WHILE THE RADIO IS IN RECEIVE AND NOTHING OF OURS IS ARRIVING. GET_RSSI_INST
+// answers for whatever the receiver is hearing now, so a reading taken during our own
+// reception measures the simnode a metre away and a reading taken in transmit or CAD
+// measures nothing at all. Both are counted as skips rather than dropped, because an
+// occupancy figure whose denominator is unstated is not a figure.
+//
+// ~100 SAMPLES A SECOND, set by kLoraMaxWaitMs and deliberately not raised. Shortening
+// that wait to sample faster would change lora_task's duty cycle, and this instrument
+// exists to measure the channel rather than to perturb the thing it is measuring.
+void sample_channel(uint32_t now_ms) {
+  // READ, NEVER reception_in_progress(): that function needs the IRQ register, which is
+  // another SPI transaction, and it MUTATES g_header_seen - calling it here would drive
+  // the CAD deferral logic from the sampler. The same staleness bound is applied, so a
+  // header that never completed stops suppressing samples instead of suppressing them
+  // for good.
+  const bool ours_arriving =
+      g_header_seen && elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
+
+  if (g_mode != Mode::Receive || ours_arriving) {
+    g_chan.skip(now_ms);
+    return;
+  }
+  // getRSSI(false) is the GET_RSSI_INST command - one short SPI read, no wait
+  // (RadioLib 7.7.1, SX126x.cpp). Half-dB resolution, recorded in tenths.
+  g_chan.sample(static_cast<Dbm10>(std::lround(g_radio->getRSSI(false) * 10.0f)), now_ms);
+}
+
 void lora_service(uint32_t now_ms) {
   if (g_radio == nullptr) return;
+
+  sample_channel(now_ms);
 
   switch (g_mode) {
     case Mode::Down:
@@ -696,6 +733,10 @@ bool lora_radio_ready() { return g_ready; }
 bool lora_idle() { return g_idle; }
 
 bool lora_take_frame_log(FrameLogEntry* out) { return g_frame_log.read_next(out); }
+
+bool lora_take_chan(ChanBucket* out) { return g_chan.take(out); }
+
+uint32_t lora_chan_lost() { return g_chan.lost(); }
 
 uint32_t lora_frame_log_lost() { return g_frame_log.lost(); }
 

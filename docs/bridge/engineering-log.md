@@ -2394,3 +2394,93 @@ that leaned on it are describing a quiet afternoon rather than a property of thi
 **The bridge's transmit path, as a per-frame explanation.** It was ruled out this morning
 by constancy across bursts; it is now ruled out inside each individual gap, by a ceiling
 that never exceeds 11 % of any one of them.
+
+---
+
+## 2026-09-17 — the bench is not a quiet channel, and the instrument that would have said so is blind
+
+**The operator named three families of 900 MHz equipment running on the property: YoLink
+LoRa products, Z-Wave and Insteon.** Only YoLink is recorded anywhere in the repo. That
+turns the receive path's losses from an unexplained firmware behaviour into a question with
+a named alternative, and it puts three problems on the table that matter more than the
+anomaly that surfaced them.
+
+### What the survey actually measured at the bridge's own location
+
+From `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`, site `bridge-house`:
+
+| Frequency | Peak | Mean | Floor |
+|---|---|---|---|
+| **917.4 MHz — the operating channel** | **−113.0 dBm** | −114.4 dBm | −116.0 dBm |
+| 916.0 MHz — the YoLink cluster's peak | **−54.0 dBm** | −113.8 dBm | −116.0 dBm |
+| 908.4 / 912.0 / 920.0 / 904.0 MHz | −112 to −113 dBm | ≈ −114 dBm | ≈ −116 dBm |
+
+**The YoLink hub's peak sits 60 dB above its own mean in the same bin.** That is §5.4's
+"every occupant bursty" as a number: it is on the air for a small fraction of the samples.
+
+### What that evidence supports, and what it does not
+
+**It does not support co-channel capture at the bench.** The wanted signal is −37 dBm at
+one metre (BF-27's frame log, RSSI −39 to −36 across 376 receptions). The loudest thing at
+`bridge-house` is −54 dBm, **17 dB below the wanted signal and 1.4 MHz away**. Nothing the
+survey saw is strong enough or close enough to take the receiver off a −37 dBm frame.
+
+**It cannot exclude an intermittent occupant either, and the survey said so first.** Each
+bin holds 653 samples across 74 passes — a fraction of a second of dwell, spread thin. An
+emitter with a low duty cycle is likely to be missed outright. §5.4: *"absence of a peak was
+already weak evidence; the gaps make it weaker."* **A loss pattern clustered in time is
+exactly what that sampling design could not have detected**, which is why the behavioural
+observation and the survey do not contradict each other.
+
+### Three findings, and the third is the one to act on
+
+**1. The equipment inventory is incomplete and it is load-bearing.** Decision Register §3.1
+records *"four YoLink temperature sensors and a switch, on a YoLink hub, all inside the
+dwelling"* and nothing else. **Z-Wave and Insteon appear nowhere.** Which Z-Wave matters:
+the classic US band is near 908.4 MHz at low power, while Z-Wave Long Range uses 912 MHz
+and 920 MHz and permits far higher power. The survey read all three at floor — briefly.
+**The frequencies and power classes of the Z-Wave and Insteon equipment are unconfirmed
+here and are recorded as needing confirmation rather than as fact.**
+
+**2. D33 standing condition 3 has an instrument that cannot test it.** The condition is
+*"the ambient survey finds no co-channel occupant on the chosen frequency"*, and §3.4 names
+`cad_backoffs` as the instrument that keeps the channel under observation. It cannot do the
+job, for two reasons found this week:
+
+- **`cad_backoffs` counts a busy CAD only.** Established 2026-09-17 and answered with
+  `cad_free`; every run before that date reads a free CAD as no contention at all.
+- **LoRa CAD detects a LoRa preamble at the configured spreading factor.** It is
+  structurally blind to Z-Wave and Insteon FSK, and to LoRa at another SF. **Two of the
+  three named families cannot move it at any signal level.**
+
+This is the pattern root `CLAUDE.md` names: a load-bearing premise whose falsifying check is
+tracked somewhere that cannot fire. **D33's status is not changed here** — that belongs to
+the register and to the operator. The gap is raised as **M25**.
+
+**3. No link has ever been measured on the operating channel.** Every walk, every bench
+trace and B1b's gate-bearing run were captured at **915.0 MHz**, the range test's
+provisional frequency — which §3.4 already flags as `weather-island`'s own peak. **917.4 MHz
+has a survey behind it and no link measurement at all.**
+
+### The margin inversion, which is why this outranks the bench anomaly
+
+| | Wanted signal at the bridge | Loudest neighbour at the bridge |
+|---|---|---|
+| Bench, 1 m | **−37 dBm** | −54 dBm — **17 dB below** the wanted signal |
+| Gate, 87 m | **≈ −100 dBm** (B1b median at 915.0) | −80 to −89 dBm — **10 to 20 dB above** it |
+
+**The ordering flips by roughly 46 dB between the bench and the deployed link.** Bench
+behaviour under interference is therefore not predictive of GateLink's, and it is optimistic
+in the wrong direction. A 2 % loss rate at one metre is not reassuring about 87 m; it is a
+figure taken where the wanted signal dominates everything else on the property.
+
+### What is being built for it
+
+**A channel-occupancy sampler on the bridge**, reusing BF-27's ring and drain. Periodic
+`getRssiInst()` from `lora_task` while the radio is in receive, accumulated into fixed
+buckets and emitted to serial for a long unattended capture. **It is modulation-agnostic**,
+which is the whole point: it sees FSK, LoRa at any spreading factor, and anything else that
+puts energy in the channel — the three things CAD cannot.
+
+**Its timestamps are `millis()`, the same clock the frame log stamps**, so a loss and a
+channel excursion can be put on one timeline rather than argued about separately.

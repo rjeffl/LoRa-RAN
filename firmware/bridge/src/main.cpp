@@ -15,7 +15,9 @@
 
 #include <Arduino.h>
 
+#include "chan_monitor.h"
 #include "ota.h"
+#include "radio_config.h"
 #include "registry_runtime.h"
 #include "task_runtime.h"
 #include "tasks.h"
@@ -91,6 +93,20 @@ void setup() {
   Serial.println(bridge::ota_running_slot());
   Serial.print(F("Image state: "));
   Serial.println(bridge::ota_state_name(bridge::ota_image_state()));
+
+  // M25 - the capture file's header. A six-to-twelve-hour capture is read by a tool
+  // months later on a machine that has none of this context, so the file has to say what
+  // produced it: which image, which channel, which bucket length and which threshold.
+  // Printed at every boot, so a capture that spans a reboot carries two of them and the
+  // reboot is visible rather than inferred from a timestamp going backwards.
+  {
+    char line[160];
+    if (bridge::render_chan_boot(LRAN_BRIDGE_GIT, bridge::kPhy.freq_hz, bridge::kPhy.sf,
+                                 bridge::kPhy.bw_khz10, bridge::kLoraMaxWaitMs, line,
+                                 sizeof(line)) > 0) {
+      Serial.println(line);
+    }
+  }
 
 #if defined(LRAN_V_B9_BAD_IMAGE) && LRAN_V_B9_BAD_IMAGE == 2
   // V-B9, the bootloader path. Abort before anything else runs; the reset lands in

@@ -125,6 +125,26 @@ records the choices. **Four things to keep:**
 - **There is no runtime enable and adding one is not a small change.** It needs the
   HA-visible configuration path, whose route is an open operator decision.
 
+**`M25` — the channel monitor, built 2026-09-17.** `chan_monitor.{h,cpp}` samples raw
+RSSI from `lora_task` (~100/s, one per `kLoraMaxWaitMs` wake) and `log_task` writes it to
+serial; `tools/simctl/rssi_capture.py` captures a long unattended run and
+`rssi_report.py` reads it. **Four things to keep:**
+
+- **Raw RSSI, not CAD, and that is the whole point.** A LoRa CAD detects a LoRa preamble
+  at the configured SF, so it cannot see the property's Z-Wave and Insteon FSK at any
+  level. Decision Register §3.4 names `cad_backoffs` as the channel's instrument; M25
+  exists because it cannot do that job.
+- **Two tiers, and the quiet tier is not optional.** `CHAN` lines carry only buckets that
+  saw something; `CHANSUM` carries every bucket once a minute. Occupancy is
+  `above / samples` and **the samples live in the quiet buckets** — drop them and the
+  capture has no denominator.
+- **A skipped opportunity is not a quiet one.** The sampler does not look while the radio
+  is transmitting or one of our frames is arriving, and `-127.5 dBm` is the encoding's
+  rail rather than a reading. All of them are counted as skips.
+- **Run a baseline with the simnodes powered down.** The sampler skips a reception only
+  after a valid LoRa header, so ~33 ms of each of our own frames' preambles would land in
+  the samples as a large excursion.
+
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.
 
@@ -137,6 +157,7 @@ pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.
 pio test -d firmware/bridge -e native            # host, no secrets
 python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
 python3 tools/simctl/test_rxlog_analyze.py       # BF-27's frame-log arithmetic, no board
+python3 tools/simctl/test_rssi_analyze.py        # M25's channel-capture arithmetic
 ```
 
 **All of it runs in CI** (Bridge Firmware Tasks §1.2), plus `bridge_partitions.py` on the

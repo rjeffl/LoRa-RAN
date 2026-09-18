@@ -20,6 +20,7 @@
 
 #include <cstdint>
 
+#include "chan_monitor.h"
 #include "error_reply.h"
 #include "frame_log.h"
 #include "lran/counters.h"
@@ -87,6 +88,13 @@ bool lora_take_frame_log(FrameLogEntry* out);
 // Records the ring overwrote before log_task drained them. Cumulative; the index gaps in
 // the drained records say where they fell.
 uint32_t lora_frame_log_lost();
+
+// M25 - takes the oldest closed channel bucket, or false when none has closed. FOR
+// log_task AND NO OTHER CALLER, like the frame log beside it.
+bool lora_take_chan(ChanBucket* out);
+
+// Buckets the ring overwrote before log_task drained them.
+uint32_t lora_chan_lost();
 
 // lora_task's counters, as one consistent view, for the diagnostic publication (BF-19).
 // Safe from any task. lora_task copies them under a spinlock once a second, so the view is

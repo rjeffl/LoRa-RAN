@@ -498,10 +498,6 @@ void sched_diag(uint32_t now_ms) {
 // Task bodies.
 // ---------------------------------------------------------------------------
 
-// How long lora_task waits for DIO1 before its next pass. It bounds how long a frame
-// queued by another task waits to be picked up, and it is the resolution of a spec 12.3
-// backoff; a reception wakes the task at once regardless.
-constexpr uint32_t kLoraMaxWaitMs = 10;
 
 // Highest priority, and it never blocks on the network or on a queue. Its outputs are
 // the zero-tick queue sends; its one wait is lora_wait(), bounded and on the radio's
@@ -822,6 +818,35 @@ size_t drain_frame_log() {
   return n;
 }
 
+// M25 - the channel buckets, to serial only. NOT TO MQTT, unlike the frame log: a
+// six-to-twelve-hour capture is 43 200 buckets, and a retained-or-not topic carrying a
+// message a second for half a day is a different kind of object from a diagnostic. The
+// serial line is the deliverable and tools/simctl/rssi_capture.py is what reads it.
+ChanRollupper g_chan_rollup;
+
+size_t drain_chan() {
+  size_t     n = 0;
+  ChanBucket b;
+  char       line[192];
+
+  while (n < kLogDrainBudget && lora_take_chan(&b)) {
+    // A bucket that saw something gets its own line; every bucket, loud or quiet, goes
+    // into the rollup. chan_monitor.h has the reasoning - dropping the quiet ones
+    // outright would take the denominator with them.
+    if (chan_notable(b) && render_chan(b, line, sizeof(line)) > 0) Serial.println(line);
+
+    g_chan_rollup.add(b);
+    if (g_chan_rollup.due()) {
+      ChanRollup r;
+      if (g_chan_rollup.take(&r) && render_chan_rollup(r, line, sizeof(line)) > 0) {
+        Serial.println(line);
+      }
+    }
+    ++n;
+  }
+  return n;
+}
+
 void log_task(void*) {
   for (;;) {
     // LOWEST PRIORITY ON PURPOSE - a log that can preempt the radio changes what it
@@ -830,7 +855,8 @@ void log_task(void*) {
     // A busy tick comes straight back rather than sleeping: the ring is 64 records and
     // a drain that always sleeps 100 ms between budgets falls behind a burst and starts
     // overwriting, which is loss this task invented rather than found.
-    if (drain_frame_log() < kLogDrainBudget) vTaskDelay(pdMS_TO_TICKS(100));
+    const size_t moved = drain_frame_log() + drain_chan();
+    if (moved < kLogDrainBudget) vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
