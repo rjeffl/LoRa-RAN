@@ -45,6 +45,13 @@ inside 917.4 MHz's receive bandwidth.** It occupies that channel for 6.7 ms ever
 Whether that reopens D33 is recorded in Decision Register §3.4 and the M25 row. The −93 dBm
 episodic source is still unidentified, and the capture cannot tell whether it is co-channel.
 
+**A frequency change is drafted and waits on the operator.**
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) recommends
+moving D1 from 917.4 to 917.2 MHz, off the Davis hop, after one overnight capture at each of
+917.2 and 917.6 MHz. **Decide it before GateLink is built**; afterwards it means a USB reflash at
+the gate. The captures compete with the interleaved sweep for the bridge board, so the operator
+orders them.
+
 **The site's 900 MHz equipment is now researched, from published sources.**
 [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) gives Z-Wave (916.00 and
 908.4 MHz), Insteon (915.0 MHz), YoLink (923.3 MHz) and the Davis (51 hop channels). The
