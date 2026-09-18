@@ -5,70 +5,10 @@
 
 #include "diag_json.h"
 
-#include <cstdarg>
-#include <cstdio>
+#include "json_writer.h"
 
 namespace bridge {
 namespace {
-
-// Appends `"key":value` pairs, refusing rather than truncating: a document that did not
-// fit reports 0 and leaves an empty string (mqtt_transport.h on truncated JSON).
-class JsonObject {
- public:
-  JsonObject(char* out, size_t cap) : out_(out), cap_(cap) {
-    if (out_ == nullptr || cap_ == 0) {
-      ok_ = false;
-      return;
-    }
-    append("{");
-  }
-
-  void u32(const char* key, uint32_t v) { field(key, "%lu", static_cast<unsigned long>(v)); }
-  void i32(const char* key, int32_t v) { field(key, "%ld", static_cast<long>(v)); }
-  void null(const char* key) { field(key, "null"); }
-
-  size_t finish() {
-    append("}");
-    if (!ok_) {
-      if (out_ != nullptr && cap_ > 0) out_[0] = '\0';
-      return 0;
-    }
-    return len_;
-  }
-
- private:
-  void field(const char* key, const char* fmt, ...) {
-    append(first_ ? "\"%s\":" : ",\"%s\":", key);
-    first_ = false;
-    va_list ap;
-    va_start(ap, fmt);
-    vappend(fmt, ap);
-    va_end(ap);
-  }
-
-  void append(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    vappend(fmt, ap);
-    va_end(ap);
-  }
-
-  void vappend(const char* fmt, va_list ap) {
-    if (!ok_) return;
-    const int n = std::vsnprintf(out_ + len_, cap_ - len_, fmt, ap);
-    if (n < 0 || static_cast<size_t>(n) >= cap_ - len_) {
-      ok_ = false;
-      return;
-    }
-    len_ += static_cast<size_t>(n);
-  }
-
-  char*  out_;
-  size_t cap_;
-  size_t len_   = 0;
-  bool   ok_    = true;
-  bool   first_ = true;
-};
 
 // queues.h's QueueId order.
 constexpr const char* kQueueKeys[][2] = {

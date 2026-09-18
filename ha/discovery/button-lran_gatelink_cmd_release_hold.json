@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Release hold","uniq_id":"lran_gatelink_cmd_release_hold","cmd_t":"~/cmd/release_hold/set","payload_press":"PRESS","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

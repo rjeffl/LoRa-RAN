@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"Protocol version","uniq_id":"lran_welllink_proto_ver","stat_t":"~/diag/state","val_tpl":"{{ value_json.proto_ver }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","ent_cat":"diagnostic","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

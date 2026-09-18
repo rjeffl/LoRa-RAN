@@ -145,8 +145,23 @@ serial; `tools/simctl/rssi_capture.py` captures a long unattended run and
   after a valid LoRa header, so ~33 ms of each of our own frames' preambles would land in
   the samples as a large excursion.
 
-**Still absent: discovery and the publication policy** — B4. Each arrives with its own
-`BF-*` task; do not add one early because it is convenient.
+**`BF-23` — Home Assistant discovery, built and host-tested.** `discovery.{h,cpp}` builds
+the configs and `mqtt_task` publishes them, retained, on boot and on every broker
+reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out of
+`diag_json.cpp` when discovery became its second user. **Four things to keep:**
+
+- **There is no "first time" flag, and adding one would break R-3.3b.** A boot and a
+  reconnect take the same path, so the reconnect case cannot be the one that rots.
+- **A button's existence is `command_allowed()`'s answer**, never a table per node type.
+  The moment a node type gets its own button list, **BG-2** is broken.
+- **A bench node produces no discovery** until BF-26 builds `simnode_diag_enable`. Spec
+  §16.6, through the same `bench_publication_allowed()` the availability watchdog uses.
+- **`ha/discovery/` is generated, and CI checks it.** After any change to a discovery
+  table, run `python3 tools/checks/ha_examples.py --write` and commit the diff — it is
+  what Home Assistant will see differently.
+
+**Still absent: the publication policy** — BF-24. It arrives with its own `BF-*` task; do
+not add one early because it is convenient.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
@@ -284,7 +299,7 @@ log. Never commit, echo or log the real values.
 ## Structure
 
 `main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `radio_config`, and
-`lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` ·
+`lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` (with `json_writer`) ·
 `publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` ·
 `debug` (BF-27 built its frame-log half as `frame_log`).
 Task ownership is in Impl Plan §5.2/§5.3.

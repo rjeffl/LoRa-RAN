@@ -1,0 +1,1 @@
+{"~":"lran/bridge","name":"Frames discarded","uniq_id":"lran_bridge_rx_dropped","stat_t":"~/diag/state","val_tpl":"{{ value_json.rx_dropped }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"frames","stat_cla":"total_increasing","ent_cat":"diagnostic","dev":{"ids":["lran_bridge"],"name":"LoRa Bridge","mf":"LRAN","mdl":"LoRa Bridge"}}

@@ -1,0 +1,1 @@
+{"~":"lran/bridge","name":"Firmware commit","uniq_id":"lran_bridge_git","stat_t":"~/version","val_tpl":"{{ value_json.git }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","ent_cat":"diagnostic","dev":{"ids":["lran_bridge"],"name":"LoRa Bridge","mf":"LRAN","mdl":"LoRa Bridge"}}
