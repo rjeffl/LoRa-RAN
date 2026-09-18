@@ -63,6 +63,15 @@ other.** Before the interleaved sweep or any simnode work, reflash the bridge fr
 being worked on, which puts it back on 917.4 MHz. The capture file is excluded from git on the
 build machine only, through `.git/info/exclude`; when the run ends, commit it beside M25's.
 
+**Start the next capture with `--reset-on-open`**, which reboots the bridge once as the port
+opens, so the file begins with the boot banner and `CHAN-BOOT`. The 917.2 MHz run used a
+scratch wrapper to do the same thing before the option existed; the option replaces it.
+
+```bash
+~/.platformio/penv/bin/python tools/simctl/rssi_capture.py --reset-on-open \
+    --port /dev/cu.usbserial-0001 --out docs/bridge/data/m25-chan-917600-$(date -u +%F).log --hours 10
+```
+
 **A frequency change is drafted and waits on the operator.**
 [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) recommends
 moving D1 from 917.4 to 917.2 MHz, off the Davis hop, after one overnight capture at each of
@@ -242,6 +251,7 @@ python3 tools/simctl/test_simctl.py             # simctl's verdict logic, no boa
 python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board
 python3 tools/simctl/test_rxlog_analyze.py      # BF-27 frame-log arithmetic and its guards
 python3 tools/simctl/test_rssi_analyze.py       # M25 channel-capture arithmetic and its guards
+python3 tools/simctl/test_rssi_capture.py       # M25 capture tool's --reset-on-open, no board
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
