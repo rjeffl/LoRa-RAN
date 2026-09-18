@@ -1,10 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-18, at the end of a housekeeping session.** That session committed M25's
-ten-hour channel capture, split the engineering log, moved the traps to
-[`traps.md`](./traps.md) and kept the 2026-09-17 session brief under
-[`briefs/`](./briefs/). No firmware changed and nothing was measured, so the bridge work
-stands where the 2026-09-17 sessions left it. This file replaces the previous one
+**Written 2026-09-18, at the end of the session that analysed M25's ten-hour channel
+capture.** Earlier the same day, a housekeeping pass committed the capture, split the
+engineering log, moved the traps to [`traps.md`](./traps.md) and kept the 2026-09-17 session
+brief under [`briefs/`](./briefs/). No firmware changed. This file replaces the previous one
 wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -15,34 +14,37 @@ wholesale.
 
 ## The next job, in one place
 
-**Read M25's capture first.** The bridge sampled RSSI on 917.4 MHz about a hundred times a
-second from 2026-09-18T03:43:21Z until the tool closed the file at 13:43:22Z. The capture is
-committed and has not been analysed:
+**M25's capture is analysed, and it does not explain the bench losses.** The engineering
+log's 2026-09-18 entry has the numbers. In short:
 
-```bash
-python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
-```
+- **917.4 MHz is not empty.** Above −110 dBm it was occupied 0.0912 % of the time over ten
+  hours, by at least two sources. One is strictly periodic: bursts near −75 dBm every
+  **130.66 s**. The other bursts near −93 dBm, sometimes for tens of seconds. Neither is the
+  bridge, and neither is identified.
+- **Nothing came within 34 dB of the bench's −37 dBm wanted signal**, and the simnode's media
+  access never drops a frame on a busy channel. So the capture excludes an occupant loud
+  enough to matter at one metre, in the hours it covered.
+- **It did not cover the hours of the 2026-09-17 losses**, so the channel candidate is weaker
+  and not closed.
 
-**It comes first because it may retire the spacing question rather than answer it.** The
-operator identified **YoLink, Z-Wave and Insteon** on the property on 2026-09-17, and only
-YoLink is in the Decision Register's inventory (§3.1). M20 measured the YoLink hub at
-**−54 dBm peak against a −113.8 dBm mean in the same bin** at the bridge's own location, a
-60 dB peak-to-mean. **M20's 653 samples per bin cannot exclude a low-duty-cycle occupant at
-917.4 MHz**, and losses clustered in time are what such an occupant would produce. See
-**M25** and **M26** in the register.
+**Two questions from it are the operator's, and neither blocks the bench:**
 
-**Both simnodes were powered down for the capture, deliberately.** A capture with them
-running measures loss against occupancy, which is a different experiment, and must not be
-pooled with this one. [`traps.md`](./traps.md#measuring-the-channel-m25) says why, and
-lists three more ways to misread a capture.
+1. **Does this capture reopen D33?** Standing condition 3 requires that the survey find no
+   co-channel occupant on 917.4 MHz. The capture found energy in its receive bandwidth, and
+   it cannot say whether that energy is co-channel or a neighbour leaking in. Decision
+   Register §3.4 and the M25 row are where the answer is recorded.
+2. **Which device fires every 130.66 s?** That belongs to **M26**. At the gate, the entry
+   estimates that the periodic source alone overlaps about 0.85 % of maximum-length SF9
+   uplink frames, at about 26 dB above the wanted signal.
 
-**Then run the interleaved sweep, before BF-24.** The ten frame-log bursts of 2026-09-17
+**Run the interleaved sweep next, before BF-24.** The ten frame-log bursts of 2026-09-17
 put a 250 ms gap at **2.50 %** and a 2000 ms gap at **1.90 %**. The same arms had read
 5.6 % and 0 % that morning. Every loss fell in four of the ten runs whatever the spacing,
 so the losses look clustered in **time**. **Every sweep on record ran one spacing to
 completion before starting the next**, so a slow change in the environment is
 indistinguishable from an effect of spacing. Alternating the two arms inside one session
-separates them, at 45 s a burst:
+separates them, at 45 s a burst. **Both simnodes are powered down from the M25 capture**,
+so power up the one the sweep floods from and rebuild its identities first:
 
 ```bash
 ~/.platformio/penv/bin/python tools/simctl/rxlog.py --seconds 45 --json burst.json
@@ -178,8 +180,8 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M25** — the capture is committed and unanalysed. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | M25's capture, then the interleaved sweep, then BF-24. BF-23's discovery half does not wait on them. Nothing waits on a document |
+| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — the Z-Wave and Insteon inventory. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | The interleaved sweep, then BF-24. BF-23's discovery half does not wait on it. The D33 question waits on the operator. Nothing waits on a document |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -346,11 +348,12 @@ the next job meets first:
 ## Open, and not closable from here
 
 - **The bridge loses frames at one metre, and the cause is not known.** The open question
-  is whether spacing is the variable at all. M25's capture and the interleaved sweep in
-  *The next job* are the two measurements that can answer it. **The margin inverts between
+  is whether spacing is the variable at all. M25's capture found nothing loud enough to
+  matter at one metre in the ten hours it covered, which were not the hours of the losses.
+  The interleaved sweep in *The next job* is the measurement that can answer it. **The margin inverts between
   here and the gate.** At one metre the wanted signal is −37 dBm and the loudest neighbour
-  −54 dBm. At the gate the wanted signal is about −100 dBm and the neighbours −80 to
-  −89 dBm. **A loss rate measured at one metre is not evidence about 87 m**, and it is
+  −54 dBm. At the gate the wanted signal is about −100 dBm, the neighbours −80 to
+  −89 dBm, and M25's periodic source about −75 dBm. **A loss rate measured at one metre is not evidence about 87 m**, and it is
   optimistic in the wrong direction. **BF-24's decode work meets the same traffic pattern
   first.**
 - **Nothing a node sends the bridge carries a MAC the bridge verifies.** §9.2 makes every
@@ -384,8 +387,9 @@ holds the reasoning and is superseded. **`ver` stays `2` and no vector regenerat
   subscriber has a transport seam and an inbound queue to reuse.
 - **The receive path's losses** — unassigned, and **three hypotheses shorter**. All three
   instrument steps are **built**, all bridge-local rather than spec §14.1, and each came back
-  clean. **A fourth candidate is not in this firmware at all**: the channel. **M25** is
-  measuring it and **M26** completes the equipment inventory; neither is a `BF-*` task.
+  clean. **A fourth candidate is not in this firmware at all**: the channel. **M25**
+  measured it on 2026-09-18 and made it weaker without closing it. **M26** completes the
+  equipment inventory; neither is a `BF-*` task.
   **A poll-free burst is not available** and does not need to be. The flooding node enrols
   itself on its first frame (`scheduler.cpp`), so it is polled regardless of what else is
   quiet, and the poll load is measured rather than avoided.

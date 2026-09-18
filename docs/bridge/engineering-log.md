@@ -644,3 +644,125 @@ puts energy in the channel — the three things CAD cannot.
 
 **Its timestamps are `millis()`, the same clock the frame log stamps**, so a loss and a
 channel excursion can be put on one timeline rather than argued about separately.
+
+---
+
+## 2026-09-18 — M25's ten-hour capture: 917.4 MHz is not empty, and it cannot explain a loss at one metre
+
+**The channel is occupied at a low duty cycle by at least two sources, one of them strictly
+periodic, and nothing in ten hours came within 34 dB of the bench's wanted signal.** So the
+capture does not explain the 2026-09-17 losses at one metre. It does bear on the gate link and
+on D33 standing condition 3, and both of those questions go to the operator rather than being
+settled here.
+
+**The run.** The bridge board sampled RSSI on 917.4 MHz from 2026-09-18T03:43:21Z to
+13:43:22Z, image `ecc2e6f` from a clean tree, with both simnodes powered down. It is one
+segment with no reboot: 9.99 h, 35,950 one-second buckets, 3,568,828 samples. 25,407
+opportunities were skipped (0.7 %), no bucket was blind, and no bucket carried one of our own
+receptions. The capture is `docs/bridge/data/m25-chan-baseline-2026-09-17.log`; the file name
+carries the date the capture was started.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
+```
+
+| | |
+|---|---|
+| Floor, per-minute mean | median **−115.5 dBm**, range −117.0 to −115.0 |
+| Strongest sample | **−71.0 dBm** |
+| Occupancy above −110 dBm | 3,256 of 3,568,828 samples, **0.0912 %** |
+| Occupancy by hour (UTC) | 0.048 % to 0.228 %; 04:00 highest, 09:00 and 10:00 lowest |
+| Seconds with any sample at or above −100 dBm | **374 of 35,950** (1.04 %) |
+
+**The floor matches M20's.** M20 put the floor at −115 to −118 dBm at every site; this run
+held within −117 to −115 for ten hours.
+
+### Four kinds of excursion, told apart by level and shape
+
+**1. A periodic source near −75 dBm.** 201 buckets peaked between −80 and −70 dBm, almost all
+at −74 to −77. 198 of the 201 held exactly one sample above threshold. Their spacing is the
+signature: 151 of the 200 gaps are 130 or 131 buckets, and every other gap is a whole multiple
+of it. Fitting occurrence number against bucket sequence gives a **period of 130.66 s**, with
+no residual larger than 0.54 s across ten hours. Over that span the source fired about 274
+times and the sampler caught 201, or 73 %. **If each sample is instantaneous and 10 ms apart,
+a 73 % catch rate means a burst of about 7 ms**; that is an estimate from the catch rate, not
+a measurement of the burst.
+
+**It is not the bridge.** The bridge transmitted 1,200 polls during the run (600 each to
+`0x01` and `0x02`, which were powered down and never answered). 16 of the 201 buckets, 8.0 %,
+fall within 1.5 s before or 1 s after a poll. A bucket placed at random falls in the same
+window 8.1 % of the time.
+
+**2. A source near −93 dBm that talks in bursts and in episodes.** 144 buckets peaked between
+−100 and −90 dBm, mostly at −92 to −94. Many hold 4 or 8–10 samples above threshold, so tens
+of milliseconds. Some runs last seconds with 20–40 % of samples above threshold: the longest
+began at 04:02:57 and spanned 49 s, and it alone accounts for 543 of the run's 3,256 samples
+above threshold. **This source is what lifts 04:00 to 0.228 %.** It has no period that the
+same fit finds.
+
+**3. Occasional hits near −85 dBm**, 4–5 samples each, a few times an hour at most (04:36,
+04:37, 07:09, 07:13, 07:14, 10:41, 13:13 among the busier buckets). 29 buckets in all peaked
+between −90 and −80 dBm.
+
+**4. Weak single hits at −110 to −101 dBm.** 795 buckets, 610 of them with a single sample
+above threshold and most peaking at −110 or −109 dBm. The threshold is only 5.5 dB above the
+median floor, so **this band cannot be separated from the tail of the noise floor on this
+evidence.** The few with 3–5 samples at −108 to −101 dBm look like a distant transmitter, but
+the capture cannot show it.
+
+**None of these is identified.** Which property device transmits every 130.66 s is for **M26**,
+which completes the §3.1 inventory. The period is specific enough to match against a device's
+documented heartbeat.
+
+**Nor can the capture say whether a source is co-channel.** `getRssiInst()` reports energy
+inside the receiver's 125 kHz bandwidth, and a strong signal just outside it can leak in.
+M20's 200 kHz bins around 917.4 are the place to look first; M20 saw 917.4 itself at floor, on
+653 samples, which a 7 ms burst every 130 s would almost always escape.
+
+### What it does not explain: the 2026-09-17 losses at one metre
+
+**Nothing seen could have blanked a frame at one metre.** On the bench the wanted signal is
+−37 dBm. The strongest sample in ten hours was −71 dBm, 34 dB below it. The 2026-09-17 losses
+were frames the radio never delivered, not frames that arrived corrupt, and an interferer 34 dB
+down does not produce that.
+
+**The sender cannot lose a frame to a busy channel either.** The simnode's transmit path goes
+through `lib/lran-link`'s media access, which on a busy CAD backs off and retries up to
+`cad_retries` times and then transmits regardless (`media_access.h`, spec 12.3). A busy
+channel delays a flood frame; it does not remove one.
+
+**The capture did not cover the hours of the losses.** The M22 runs were committed at
+14:11 UTC on 2026-09-17 and the frame-log bursts at 02:09 UTC on 2026-09-18; the capture began
+at 03:43 UTC. Occupancy moved by a factor of almost five between hours of this run, so a busier
+afternoon is not excluded. **What the capture does exclude is an occupant loud enough to matter
+at one metre in the hours it covered.** The channel candidate for the bench losses is weaker
+than it was yesterday, and it is not closed.
+
+**So the interleaved spacing sweep is next**, as the handoff already ordered it. It separates
+time from spacing directly. Running a capture alongside it would not work: the sampler reads
+our own preambles as excursions, which is why the simnodes were powered down for this run.
+
+### What it does bear on: the gate link and D33
+
+**At the gate, the ordering inverts.** The entry before this one puts the gate's wanted signal
+at about −100 dBm at the bridge. Source 1 is about 26 dB above that and source 2 about 7 dB
+above it, so an uplink frame that overlaps either one is likely lost. For the periodic source
+alone, a frame of airtime T overlaps a burst with probability about (T + 7 ms) / 130.66 s,
+which is **0.85 % for a maximum SF9 frame of 1107 ms** and less for a shorter one. Source 2 adds
+to that and has no period to calculate from. **That is an estimate from bench-position RSSI,
+not a measured loss rate at 87 m**, and no link has yet been measured at 917.4 MHz.
+
+**D33 standing condition 3 says the survey finds no co-channel occupant on the chosen
+frequency, and losing a condition reopens D33.** This capture finds energy in 917.4's receive
+bandwidth from at least two sources. Whether that is a co-channel occupant, and whether it
+reopens D33, is recorded in the Decision Register and decided by the operator. **D33's status
+is not changed here.**
+
+### Method, and what is not in the repository
+
+`rssi_report.py` produced every figure in the first table. The period fit, the correlation with
+the bridge's polls, the four-band split and the episode grouping (buckets with three or more
+samples above threshold, joined when 10 s apart or less) came from an ad hoc script run against
+the committed capture. **That script is not committed**, so those figures can be recomputed from
+the capture but not yet by a tested tool. Folding them into `rssi_analyze.py` with host tests
+would make them reproducible the way the rest of M25's arithmetic is.
