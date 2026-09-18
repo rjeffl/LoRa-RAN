@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.37
+**Version:** 0.38
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1069,6 +1069,57 @@ the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is r
 | **Raw frame log** | Every frame in and out with source, type, schema, RSSI, SNR and discard reason. Published to a debug topic and to serial |
 | **MQTT as harness** | `mosquitto_sub -t 'lran/#'` to watch every decoded payload live; `mosquitto_pub` to inject commands, decoupled from HA and from the RF link |
 
+#### 6.6.1 What BF-27 built, 2026-09-17
+
+**The raw frame log only.** The other four tools in the table above are unbuilt, and none
+of them blocks anything: BF-27 was pulled forward for the receive path's 1 s knee, which
+needed the log and nothing else.
+
+| Decision | What was built | Why not the obvious alternative |
+|---|---|---|
+| Where a record is made | In `lora_task`, at every outcome the radio can produce | A record made after the queue describes frames that already passed the ladder, which is the half that was never in doubt |
+| How it crosses tasks | A lock-free ring in `frame_log.h`, drained by `log_task` | A queue would cost `lora_task` a copy and refuse under load; the ring overwrites instead, which for a timeline is the right failure |
+| What a full ring does | Overwrites its oldest record, counting each one | §5.2's queues drop the newest, which is right for events driving email and SMS. A DropNewest log stops recording when the load arrives, which is the passage to keep |
+| How an overwrite is found | Every record carries a monotonic index | A count says how many were lost; the index says which. It also lets the reader detect a slot the producer tore under it |
+| What says the radio was busy | The running `rx_deaf_ms` in every record | Deafness between two arrivals is then a subtraction, so the reader needs no assumption about where in a window it fell |
+| Where stage 1 lives | `RxOutcome`, beside `lran::Status` | A PHY CRC error has no `Status` value and must not gain one — §5.2's ladder keeps it apart from `Status::BadCrc` because the two lead to opposite conclusions about RF versus software |
+
+**The record carries what §6.6 asks for** — source, type, schema, RSSI, SNR and discard
+reason — **plus the timestamp, the fragment byte and the deaf total the knee needed.**
+`type`, `schema` and `frag` are read off the wire at §5's offsets, because a frame refused
+before stage 6 has no decoded header and what it *claimed* to be is the diagnosis.
+
+**Two things BF-27 does not do.**
+
+**It has no runtime enable.** A lever needs the HA-visible configuration path, which does
+not exist and whose route is an open operator decision (`docs/bridge/HANDOFF.md`). Building
+one here would settle that decision by default. What is left running is a 24-byte store per
+frame, bounded by the frame rate the link already carries.
+
+**It publishes unretained, and §16.2's table says a `/state` leaf is retained.** The
+deviation is deliberate. This topic carries a rolling window of arrivals, and a retained
+one replays a finished burst as though it were arriving now — §16.3's argument, reaching a
+topic §16.3 does not cover. **Raise it against the specification rather than treating this
+paragraph as permission:** §16.2's table predates any streaming diagnostic.
+
+**`tools/simctl/rxlog.py` reads the topic and `rxlog_analyze.py` does the arithmetic**,
+split the way `per_measure.py` and `per_window.py` are. Three guards earn their place, and
+each of them prevents a confident wrong answer:
+
+- **W11.** A `PING` responder echoes the initiator's `seq` (§6.6), so a node's `PING`
+  answers carry numbers from the bridge's sequence space. Streams are keyed on
+  `(peer, type)`, which separates them.
+- **§10.3's resync** resets a node's sequence, and so does a reboot. A jump of tens of
+  thousands is a new sequence, not 40 000 losses.
+- **The ring's overwrites are reported apart from records lost in transit.** Added
+  together they would blame the receive path for a dropped MQTT message.
+
+**What it reports is a ceiling, not a classification.** `rx_deaf_ms` is a total and says
+nothing about where in a gap the deafness fell, so the share of the gap it occupies is the
+most of that gap it could have covered. Summing those shares gives the largest number of
+losses the bridge's own radio could account for. The engineering log's 2026-09-17 entry
+records the draft that got this wrong and what the bench printed.
+
 ---
 
 ## 7. Test and verification plan
@@ -2009,6 +2060,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |
 | **v0.35** | **New §6.2.1** — BF-18's command path, and the MQTT receive path it had to build first; §5.3 names `command.cpp` |

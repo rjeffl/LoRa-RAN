@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.12 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.35
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.25 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.38
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.27 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -110,6 +110,21 @@ is addressed in. **Three things to keep:**
   and reaches `sched_task` as one atomic word, since **`lora_task` cannot call
   `registry_runtime`**.
 
+**`BF-27` — the raw frame log, built 2026-09-17; the rest of §6.6 is untouched.**
+`frame_log.{h,cpp}` is the ring, `log_task` drains it to serial and to
+`lran/bridge/diag/rxlog/state`, and `tools/simctl/rxlog.py` reads it. Impl Plan §6.6.1
+records the choices. **Four things to keep:**
+
+- **`log_task` is the only consumer**, because the ring is single-consumer. A second
+  reader takes records the first never sees, and nothing will report that it happened.
+- **The ring overwrites its oldest record**, against the queues' DropNewest. A log that
+  stops recording when the load arrives throws away the passage worth reading.
+- **The topic is not retained, and §16.2's table says a `/state` leaf is.** Deliberate,
+  and **raised against the specification** rather than settled here: a retained frame log
+  replays a finished burst as though it were arriving now.
+- **There is no runtime enable and adding one is not a small change.** It needs the
+  HA-visible configuration path, whose route is an open operator decision.
+
 **Still absent: discovery and the publication policy** — B4. Each arrives with its own
 `BF-*` task; do not add one early because it is convenient.
 
@@ -121,6 +136,7 @@ doubling it after a crash.
 pio run  -d firmware/bridge -e heltec            # target build - NEEDS secrets.h
 pio test -d firmware/bridge -e native            # host, no secrets
 python3 tools/checks/lora_task_never_blocks.py   # the never-block rule, enforced
+python3 tools/simctl/test_rxlog_analyze.py       # BF-27's frame-log arithmetic, no board
 ```
 
 **All of it runs in CI** (Bridge Firmware Tasks §1.2), plus `bridge_partitions.py` on the
@@ -203,6 +219,12 @@ log. Never commit, echo or log the real values.
   (`rx_deaf.h`): a free CAD takes the radio out of receive and moves `cad_backoffs` not at
   all, so a zero there is not evidence the bridge held receive. M20 sampled 125 kHz every
   200 kHz, so 37.5 % of the band was never looked at.
+- **Do not assume frame spacing controls the bench loss rate.** It did on 2026-09-17
+  morning and it did not that afternoon: ten bursts put a 250 ms gap at 2.50 % and a
+  2000 ms gap at 1.90 %, with every loss falling in four of the ten runs regardless of
+  spacing. **Every sweep so far ran one spacing to completion before the next**, so a slow
+  change in the environment and an effect of spacing are not separated in any data on
+  record. The engineering log's last 2026-09-17 entry has the runs.
 
 ## Three properties that must survive every change
 
@@ -242,7 +264,8 @@ log. Never commit, echo or log the real values.
 
 `main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `radio_config`, and
 `lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` ·
-`publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` · `debug`.
+`publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` ·
+`debug` (BF-27 built its frame-log half as `frame_log`).
 Task ownership is in Impl Plan §5.2/§5.3.
 
 `MqttTransport` is an interface; PubSubClient is the first implementation. Keep the seam —
