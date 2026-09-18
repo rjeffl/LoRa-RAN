@@ -17,10 +17,10 @@ in part)
 > predicts M25's periodic source to the millisecond. And M20's loudest signal at the bridge,
 > −54 dBm at 916.0 MHz, sits on Z-Wave's 100 kbps channel rather than on YoLink's.
 >
-> **What it does not establish.** No packet from any of these devices has been decoded on
-> 917.4 MHz. The Davis attribution rests on frequency and timing, and on the operator
-> confirming a Davis Vantage Pro2 on 2026-09-18. It is a strong candidate, not an
-> identification.
+> **The Davis is identified by prediction, not by decoding.** The hop cycle predicted a
+> period of 130.6875 s at transmitter ID 1 before anyone read the console. The operator then
+> read ID 1 on 2026-09-18, and M25 had measured 130.69 s. No Davis packet has been decoded on
+> 917.4 MHz.
 
 ## 1. What is on the property
 
@@ -32,7 +32,7 @@ recorded YoLink only until then.
 | **Z-Wave** | Standard Z-Wave mesh. A **500-series controller**; no device newer than the **700 series** | Classic Z-Wave, sub-GHz FSK/GFSK |
 | **Insteon** | A **2413U PowerLinc Modem (USB)**, plus a mix of **dual-band** and **wireless-only** devices. No Insteon Hub | Insteon i2/RF |
 | **YoLink** | A hub, four temperature sensors and a switch, all inside the dwelling (§3.1) | LoRa, proprietary protocol |
-| **Davis** | A **Davis Vantage Pro2** weather station. Its transmitter sits at M20's survey position 2, `weather-island`, **on the line between the bridge and GateLink's site**. Transmitter ID not yet recorded | Frequency-hopping GFSK |
+| **Davis** | A **Davis Vantage Pro2** weather station, **transmitter ID 1**. Its transmitter sits at M20's survey position 2, `weather-island`, **on the line between the bridge and GateLink's site** | Frequency-hopping GFSK |
 
 **Insteon's "dual-band" means powerline plus RF, not two radio frequencies.** A dual-band
 device carries Insteon's 131.65 kHz powerline signal and the same 915 MHz radio that a
@@ -148,13 +148,16 @@ a station; Davis does not publish the figure.
 of about 7 ms estimated from the catch rate, and a level near −75 dBm at the bridge. Bridge
 engineering log, 2026-09-18.
 
-**Two checks would settle it.**
+**The transmitter ID confirmed it.** ID 1 predicted 130.6875 s, and any other ID would have
+predicted a different period and ruled the Davis out. The operator read ID 1 on the console on
+2026-09-18 and noted that it is probably the factory default. M25's fitted period, 130.6865 s,
+is 1 ms per cycle short of the prediction, about 8 parts per million, which is within what a
+transmitter's crystal would explain.
 
-1. **The console's transmitter ID.** ID 1 predicts 130.6875 s. Any other ID predicts a
-   different period, so a mismatch would rule the Davis out as this source.
-2. **Every additional Davis transmitter is a second periodic source.** An anemometer
-   transmitter or a leaf-and-soil station at another ID would hop the same table on its own
-   cycle. The M25 capture shows one periodic source at 917.4 MHz.
+**Every additional Davis transmitter would be a second periodic source.** An anemometer
+transmitter or a leaf-and-soil station at another ID would hop the same table on its own cycle.
+The M25 capture shows one periodic source at 917.4 MHz, which is consistent with a single
+transmitter.
 
 ## 7. What M20's survey saw at each frequency
 
@@ -224,7 +227,7 @@ not transmit in episodes lasting seconds.
 
 | Item | Closed by | Owner |
 |---|---|---|
-| Davis transmitter ID, and whether there is more than one transmitter | Reading the console | Operator |
+| ~~Davis transmitter ID~~ | **Closed 2026-09-18: ID 1**, read on the console | Operator |
 | The Davis burst's level at GateLink's site | A capture at the gate, or GateLink's own RSSI once it runs | GateLink bring-up |
 | Z-Wave and Insteon device model numbers against §3 and §4 | The controller's and the PLM's device lists | Operator, **M26** |
 | Whether the 916.0 MHz cluster is Z-Wave | The Z-Wave controller's frame log, time-aligned with a survey dwelling on 916.0 MHz | **M26** |
@@ -250,4 +253,4 @@ not transmit in episodes lasting seconds.
 
 | Version | Date | Change |
 |---|---|---|
-| **v0.1** | 2026-09-18 | Initial release. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |
+| **v0.1** | 2026-09-18 | Initial release. The Davis transmitter ID was read as 1 the same day, confirming the hop-cycle prediction, before the document merged. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |

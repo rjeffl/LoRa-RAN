@@ -29,19 +29,21 @@ and `rssi_report.py` now reproduces every figure. In short:
 - **It did not cover the hours of the 2026-09-17 losses**, so the channel candidate is weaker
   and not closed.
 
-**Two questions from it are the operator's, and neither blocks the bench:**
+**The 130.69 s source is the Davis Vantage Pro2 weather station**, identified by prediction on
+2026-09-18. Its hop cycle predicted 130.6875 s at transmitter ID 1 before the console was read,
+and the operator then read ID 1. One of its 51 hop channels is 917.434 MHz, inside LRAN's
+receive bandwidth, and a packet lasts 6.7 ms. Its transmitter sits at `weather-island`, on the
+line between the bridge and the gate. No Davis packet has been decoded on 917.4 MHz.
+[`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §6 has the research. At the
+gate, the engineering log estimates it alone overlaps about 0.85 % of maximum-length SF9 uplink
+frames, at about 26 dB above the wanted signal.
 
-1. **Does this capture reopen D33?** Standing condition 3 requires that the survey find no
-   co-channel occupant on 917.4 MHz. The capture found energy in its receive bandwidth, and
-   it cannot say whether that energy is co-channel or a neighbour leaking in. Decision
-   Register §3.4 and the M25 row are where the answer is recorded.
-2. **Is the 130.69 s source the Davis Vantage Pro2?** Its hop cycle predicts 130.6875 s at
-   transmitter ID 1, with one hop channel at 917.434 MHz and a 6.7 ms packet. Its transmitter
-   sits at `weather-island`, on the line between the bridge and the gate.
-   [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §6 has the research. **Read
-   the console's transmitter ID**: ID 1 confirms the match, and any other ID rules it out. At
-   the gate, the engineering log estimates this source alone overlaps about 0.85 % of
-   maximum-length SF9 uplink frames, at about 26 dB above the wanted signal.
+**One question from it is the operator's, and it does not block the bench: does this reopen
+D33?** Standing condition 3 requires that the survey find no co-channel occupant on the chosen
+frequency. **For the Davis, the channel question is now answered: one of its hop channels is
+inside 917.4 MHz's receive bandwidth.** It occupies that channel for 6.7 ms every 130.69 s.
+Whether that reopens D33 is recorded in Decision Register §3.4 and the M25 row. The −93 dBm
+episodic source is still unidentified, and the capture cannot tell whether it is co-channel.
 
 **The site's 900 MHz equipment is now researched, from published sources.**
 [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) gives Z-Wave (916.00 and

@@ -847,3 +847,27 @@ D33 question M25 already raised.
 
 **M25's −93 dBm episodic source is still unexplained.** A Davis station sends one packet per
 hop, so it does not produce episodes lasting seconds on one channel.
+
+---
+
+## 2026-09-18 — the Davis transmitter ID is 1, so the prediction held
+
+**The operator read transmitter ID 1 on the Davis console**, and noted that it is probably the
+factory default. The entry above named this as the check: ID 1 predicts a hop cycle of
+51 × 2.5625 s = 130.6875 s, and any other ID predicts a different period and would have ruled
+the Davis out. The prediction was written before the console was read.
+
+**The fit agrees to about 8 parts per million.** M25's period, fitted on `millis()`, is
+130.6865 s, 1 ms per cycle short of the prediction. A transmitter crystal's tolerance covers
+that.
+
+**So M25's periodic source is the Davis Vantage Pro2**, identified by frequency, period, burst
+length and transmitter ID. No Davis packet has been decoded on 917.4 MHz. The entry above
+called it a strong candidate; this entry supersedes that description, and the entry itself
+stands as written.
+
+**This settles the channel question for this source, and not D33.** One Davis hop channel,
+917.434 MHz, lies inside LRAN's receive bandwidth, so the periodic source is co-channel, not a
+neighbour leaking in. D33 standing condition 3 requires no co-channel occupant on the chosen
+frequency. Whether a 6.7 ms burst every 130.69 s reopens D33 is the operator's decision, recorded
+in the Decision Register. M25's −93 dBm episodic source is still unidentified.
