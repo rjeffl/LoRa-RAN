@@ -16,7 +16,8 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from rssi_analyze import NO_READING, hourly, parse, peak_histogram, summarise
+from rssi_analyze import (NO_READING, band_buckets, coincidence, episodes, events,
+                          frame_times, hourly, parse, peak_histogram, periodicity, summarise)
 from rssi_report import report
 
 BOOT = "2026-09-17T20:00:00Z,CHAN-BOOT,abc1234,917400000,9,1250,1000,-1100,10"
@@ -238,6 +239,169 @@ class Reporting(unittest.TestCase):
                                  fmin=NO_READING, fmax=NO_READING, fmean=NO_READING)])
         t = report(b)
         self.assertIn("Not quiet: unobserved", t)
+
+
+def frame(host, n, direction, t_ms, peer=1):
+    """A FRAME line as frame_log.cpp renders it, trimmed to the fields read here."""
+    return "%s,FRAME #%d %s t=%d peer=0x%02x type=3 schema=0 frag=0x01 seq=%d" % (
+        host, n, direction, t_ms, peer, n)
+
+
+def periodic_bursts(period_ms, count, drop_every=0, bucket_ms=1000, peak=-750):
+    """Single-sample bursts every period_ms, timed on millis(), with every drop_every-th
+    occurrence missed the way a burst shorter than the sampling interval is."""
+    return parse(periodic_lines(period_ms, count, drop_every, bucket_ms, peak))[0]
+
+
+def periodic_lines(period_ms, count, drop_every=0, bucket_ms=1000, peak=-750):
+    lines = [BOOT]
+    for i in range(count):
+        if drop_every and i % drop_every == drop_every - 1:
+            continue
+        t = 10000 + i * period_ms
+        lines.append(chan("2026-09-18T04:00:00Z", t // bucket_ms, t, above=1, peak=peak))
+    return lines
+
+
+class FrameTimes(unittest.TestCase):
+    def test_transmissions_and_receptions_are_told_apart(self):
+        b = parse([BOOT, frame("x", 1, "tx", 5000), frame("x", 2, "rx", 6000),
+                   frame("x", 3, "tx", 4000)])[0]
+        self.assertEqual([4000, 5000], frame_times(b, "tx"))
+        self.assertEqual([6000], frame_times(b, "rx"))
+        self.assertEqual([4000, 5000, 6000], frame_times(b))
+
+    def test_a_frame_line_without_a_time_is_left_out_not_guessed(self):
+        b = parse([BOOT, "x,FRAME #12 rx peer=0xf3 seq=4"])[0]
+        self.assertEqual([], frame_times(b))
+
+
+class Events(unittest.TestCase):
+    def test_a_burst_straddling_a_bucket_boundary_is_one_event(self):
+        b = parse([BOOT, chan("x", 10, 10000, above=1), chan("x", 11, 11000, above=1),
+                   chan("x", 20, 20000, above=1)])[0]
+        ev = events(b.buckets)
+        self.assertEqual(2, len(ev))
+        self.assertEqual(10000, ev[0]["start_ms"])
+
+
+class Periodicity(unittest.TestCase):
+    def test_a_fixed_period_is_found_with_occurrences_missed(self):
+        b = periodic_bursts(130690, 60, drop_every=4)
+        p = periodicity(band_buckets(b, -800, -700))
+        self.assertTrue(p["periodic"])
+        self.assertAlmostEqual(130.69, p["period_ms"] / 1000.0, places=1)
+        self.assertEqual(60 - 15, p["events"])
+        # Occurrence 60 was one of the dropped ones, so the span ends at occurrence 59.
+        self.assertEqual(59, p["spanned"])
+        self.assertAlmostEqual(45 / 59.0, p["catch_rate"])
+
+    def test_the_period_is_in_seconds_not_in_buckets(self):
+        # The slip the first analysis made: buckets that run 1009 ms instead of 1000 make
+        # a fit on the bucket sequence report a period in buckets that reads as seconds.
+        lines = [BOOT]
+        for i in range(20):
+            t = i * 130000
+            lines.append(chan("x", t // 1009, t, above=1, peak=-750, dur=1009))
+        p = periodicity(band_buckets(parse(lines)[0], -800, -700))
+        self.assertAlmostEqual(130000, p["period_ms"], delta=1)
+
+    def test_scattered_excursions_are_not_called_periodic(self):
+        starts = [3000, 71000, 90000, 250000, 262000, 400000, 470000, 480000, 700000,
+                  705000, 912000, 1001000]
+        b = parse([BOOT] + [chan("x", t // 1000, t, above=1) for t in starts])[0]
+        p = periodicity(b.buckets)
+        self.assertFalse(p["periodic"])
+
+    def test_too_few_events_gives_no_verdict_rather_than_a_guess(self):
+        b = periodic_bursts(130690, 4)
+        self.assertIsNone(periodicity(b.buckets))
+
+    def test_mostly_multi_period_gaps_are_not_a_clock(self):
+        # Five events on a 100 s grid with most occurrences missing: each fits the line,
+        # but only one gap in four is a single period.
+        starts = [0, 300000, 600000, 700000, 1100000]
+        b = parse([BOOT] + [chan("x", t // 1000, t, above=1) for t in starts])[0]
+        p = periodicity(b.buckets)
+        self.assertFalse(p["periodic"])
+
+
+class Coincidence(unittest.TestCase):
+    def test_buckets_beside_our_own_transmissions_score_high(self):
+        tx = [10000 + 30000 * i for i in range(10)]
+        b = parse([BOOT] + [chan("x", t // 1000, t - 200) for t in tx])[0]
+        c = coincidence(b.buckets, tx)
+        self.assertEqual(10, c["near"])
+        self.assertEqual(1.0, c["rate"])
+        self.assertLess(c["chance"], 0.2)
+
+    def test_chance_is_the_share_of_the_timeline_the_windows_cover(self):
+        # Two buckets bound a 100 s span; two transmissions, each window 2.5 s wide.
+        b = parse([BOOT, chan("x", 0, 0), chan("x", 100, 100000)])[0]
+        c = coincidence(b.buckets, [30000, 60000])
+        self.assertAlmostEqual(0.05, c["chance"])
+
+    def test_overlapping_windows_are_not_counted_twice(self):
+        b = parse([BOOT, chan("x", 0, 0), chan("x", 100, 100000)])[0]
+        c = coincidence(b.buckets, [30000, 30500])
+        self.assertAlmostEqual(0.03, c["chance"])
+
+    def test_no_transmissions_gives_no_figure(self):
+        b = parse([BOOT, chan("x", 0, 0)])[0]
+        self.assertIsNone(coincidence(b.buckets, []))
+
+
+class Episodes(unittest.TestCase):
+    def test_busy_buckets_close_together_are_one_episode(self):
+        b = parse([BOOT, chan("x", 100, 100000, above=30, peak=-930),
+                   chan("x", 105, 105000, above=20, peak=-920),
+                   chan("x", 130, 130000, above=4, peak=-940)])[0]
+        e = episodes(b)
+        self.assertEqual(2, len(e))
+        self.assertEqual(6, e[0]["span"])
+        self.assertEqual(2, e[0]["busy"])
+        self.assertEqual(50, e[0]["above"])
+        self.assertEqual(-920, e[0]["peak"])
+
+    def test_single_sample_hits_do_not_make_an_episode(self):
+        b = parse([BOOT, chan("x", 100, 100000, above=1), chan("x", 101, 101000, above=2)])[0]
+        self.assertEqual([], episodes(b))
+
+
+class HistogramDetail(unittest.TestCase):
+    def test_each_band_says_how_much_occupancy_it_carries(self):
+        b = parse([BOOT, chan("x", 0, 0, peak=-750, above=1),
+                   chan("x", 1, 1000, peak=-930, above=36),
+                   chan("x", 2, 2000, peak=-935, above=4)])[0]
+        h = {r["lo"]: r for r in peak_histogram(b)}
+        self.assertEqual(1, h[-800]["single"])
+        self.assertEqual(40, h[-1000]["above"])
+        self.assertEqual(0, h[-1000]["single"])
+
+
+class ReportingSources(unittest.TestCase):
+    def test_a_periodic_source_is_named_with_its_period(self):
+        # The report needs a rollup before it prints anything; see Reporting.
+        lines = periodic_lines(130690, 40, drop_every=5) + [
+            chansum("2026-09-18T05:30:00Z", 0, 5300, above=32, peak=-750)]
+        t = report(parse(lines))
+        self.assertIn("PERIODIC every 130.69 s", t)
+
+    def test_a_band_near_our_transmissions_is_compared_with_chance(self):
+        lines = [BOOT]
+        for i in range(10):
+            t = 10000 + 30000 * i
+            lines.append(chan("x", t // 1000, t - 200, above=1, peak=-1090))
+            lines.append(frame("x", i, "tx", t))
+        lines.append(chansum("x", 0, 300, above=10, peak=-1090))
+        t = report(parse(lines))
+        self.assertIn("near our own tx 10 of 10", t)
+        self.assertIn("chance", t)
+
+    def test_the_largest_episode_is_listed(self):
+        b = parse([BOOT, chan("2026-09-18T04:02:57Z", 100, 100000, above=36, peak=-930),
+                   chansum("2026-09-18T04:03:00Z", 60, 119, above=36, peak=-930)])
+        self.assertIn("2026-09-18T04:02:57Z", report(b))
 
 
 if __name__ == "__main__":
