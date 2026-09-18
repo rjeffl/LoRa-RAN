@@ -128,6 +128,19 @@ class RxLadder {
   // that this bridge cannot parse, which is what R-3.1f's distinct reason needs.
   uint8_t last_ver() const { return last_ver_; }
 
+  // BF-27 - `type`, `schema` and `frag` of the frame last offered, off the wire, for the
+  // same reason and by the same route as `last_ver()`. Impl Plan 6.6 asks the raw frame
+  // log to carry the type and schema of EVERY frame including a discarded one, and a
+  // frame refused before stage 6 has no filled lran::Header to read them from. All three
+  // read 0 when the frame was too short to have a header, which `last_status()` says.
+  //
+  // RAW BYTES, NOT DECODED ENUMS. A frame discarded at stage 6 carries a `type` this
+  // build has no name for, and that byte is the whole diagnosis - casting it to MsgType
+  // to store it would be casting it to a value the enumeration does not have.
+  uint8_t last_type() const { return last_type_; }
+  uint8_t last_schema() const { return last_schema_; }
+  uint8_t last_frag() const { return last_frag_; }
+
   // Whether the registry holds a key for this address (spec 9.1). BF-19a asks before
   // answering anything, because spec 14.2 sends an ERROR to a registered source only.
   bool registered(lran::NodeId src) const {
@@ -152,6 +165,9 @@ class RxLadder {
   lran::NodeId    last_src_ = 0;
   lran::Seq       last_seq_ = 0;
   uint8_t         last_ver_ = 0;
+  uint8_t         last_type_   = 0;
+  uint8_t         last_schema_ = 0;
+  uint8_t         last_frag_   = 0;
 };
 
 }  // namespace bridge

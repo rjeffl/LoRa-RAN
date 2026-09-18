@@ -16,6 +16,7 @@
 #include <cmath>
 #include <new>
 
+#include "frame_log.h"
 #include "queues.h"
 #include "rx_deaf.h"
 #include "rx_wake.h"
@@ -43,6 +44,17 @@ alignas(SX1262) uint8_t     g_radio_storage[sizeof(SX1262)];
 SX1262*                     g_radio = nullptr;
 
 RadioPins g_pins{};
+
+// BF-27 - Impl Plan 6.6's raw frame log. Written from lora_task only and drained by
+// log_task, which is what frame_log.h's single-producer claim rests on.
+//
+// ALWAYS RECORDING, WITH NO RUNTIME LEVER TO TURN IT OFF. A lever would need the
+// HA-visible configuration path, which does not exist and whose route is an open
+// operator decision (docs/bridge/HANDOFF.md); building one here would decide it by
+// default. The cost this leaves running is a 24-byte store per frame, bounded by the
+// frame rate the link already carries - the DRAIN is where the cost would be, and that
+// is log_task's, which is the lowest-priority task in the bridge (tasks.h).
+FrameLog g_frame_log;
 PhyConfig g_phy{};
 
 lran::Counters g_counters;
@@ -301,6 +313,44 @@ void reply_error(lran::Status s, lran::NodeId src, lran::Seq seq, uint32_t now_m
   (void)send_tx(tx);
 }
 
+// BF-27 - one record for a reception. Impl Plan 6.6.
+//
+// THE LADDER'S `last_*` ARE ONLY READ WHEN THE LADDER RAN. On a header error, a PHY CRC
+// failure or a driver error, accept() was never called and those accessors still hold
+// the PREVIOUS frame's header - reading them would attribute a loss to whichever node
+// happened to transmit last, which is worse than recording nothing.
+//
+// RSSI AND SNR ARE ONLY READ WHERE THEY MEAN THIS FRAME. getRSSI() answers for the last
+// completed reception and is not cleared, the same trap getPacketLength() sets; on a
+// header error there was no completed reception, so the record carries no radio
+// metadata rather than the previous frame's.
+void log_rx(RxOutcome outcome, uint32_t now_ms, bool ladder_ran, bool radio_meta,
+            float rssi, float snr) {
+  FrameLogEntry e;
+  e.ms      = now_ms;
+  e.deaf_ms = g_stats.rx_deaf_ms;
+  e.dir     = static_cast<uint8_t>(FrameDir::Rx);
+  e.rx      = static_cast<uint8_t>(outcome);
+
+  if (ladder_ran) {
+    e.status = static_cast<uint8_t>(g_ladder.last_status());
+    e.peer   = g_ladder.last_src();
+    e.seq    = g_ladder.last_seq();
+    e.type   = g_ladder.last_type();
+    e.schema = g_ladder.last_schema();
+    e.frag   = g_ladder.last_frag();
+  } else {
+    e.status = kStatusNotRun;
+  }
+
+  if (radio_meta) {
+    e.rssi_dbm = static_cast<int16_t>(std::lround(rssi));
+    e.snr_db   = snr_to_i8(snr);
+  }
+
+  g_frame_log.record(e);
+}
+
 void service_receive(uint32_t now_ms) {
   const RxWake wake = rx_wake(g_dio1, now_ms, g_last_irq_read_ms, kIrqReadMs);
   if (wake == RxWake::Skip) return;
@@ -309,13 +359,19 @@ void service_receive(uint32_t now_ms) {
 
   const uint32_t irq = g_radio->getIrqFlags();
 
-  switch (rx_pass(wake, (irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0,
-                  (irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0)) {
+  // Kept, rather than switched on directly: BF-27's record needs to say which of the
+  // two delivering cases this was, and re-deriving it below would be a second place for
+  // the same answer to be got wrong.
+  const RxPass pass = rx_pass(wake, (irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0,
+                              (irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0);
+
+  switch (pass) {
     case RxPass::HeaderError:
       // spec 14 stage 1, the header half. A LoRa header that fails its own CRC raises no
       // RX_DONE and never reaches DIO1, so it is found by the timed read or not at all.
       // Counted as the PHY CRC error it is, and receive is restarted to clear the register.
       g_ladder.on_phy_crc_error();
+      log_rx(RxOutcome::HeaderError, now_ms, false, false, 0.0f, 0.0f);
       start_receive(now_ms);
       return;
     case RxPass::WakeEmpty:
@@ -346,10 +402,14 @@ void service_receive(uint32_t now_ms) {
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     g_ladder.on_phy_crc_error();  // spec 14 stage 1
+    // The reception COMPLETED - rssi and snr describe this frame, and a corrupt frame's
+    // signal level is the measurement that separates an RF story from a software one.
+    log_rx(RxOutcome::PhyCrc, now_ms, false, true, rssi, snr);
     return;
   }
   if (st != RADIOLIB_ERR_NONE) {
     ++g_stats.rx_driver_errors;
+    log_rx(RxOutcome::DriverError, now_ms, false, false, 0.0f, 0.0f);
     return;
   }
 
@@ -370,7 +430,11 @@ void service_receive(uint32_t now_ms) {
           (static_cast<uint16_t>(g_ladder.last_src()) << 8) | g_ladder.last_ver());
     }
   }
-  // TODO(BF-27): the raw frame log, with g_ladder.last_status() as the discard reason.
+  // BF-27 - Impl Plan 6.6. After the branch, so `last_status()` is the ladder's verdict
+  // on THIS frame: Ok for a delivered payload, and for an incomplete reassembly set too
+  // (rx_ladder.h), which is why `frag` is in the record.
+  log_rx(pass == RxPass::Orphan ? RxOutcome::Orphan : RxOutcome::Packet, now_ms, true,
+         true, rssi, snr);
 }
 
 TxStep report_cad(CadResult result, uint32_t now_ms) {
@@ -395,6 +459,32 @@ void start_transmit(uint32_t now_ms) {
   g_tx_timeout_ms =
       5 + static_cast<uint32_t>((g_radio->getTimeOnAir(g_tx.len) * 5) / 1000);
   enter_mode(Mode::Transmit, now_ms);
+
+  // BF-27 - Impl Plan 6.6's "in and out". RECORDED AFTER enter_mode(), so `deaf_ms`
+  // carries the CAD that preceded this transmission rather than leaving it to the next
+  // record: a bridge action and the deafness it cost belong to the same line.
+  //
+  // Read off the encoded frame rather than from a header the caller keeps, because
+  // lora_task has no decoded view of what it is sending - the originator encoded it
+  // (queues.h) and the bytes are the only thing that crossed.
+  {
+    FrameLogEntry e;
+    e.ms      = now_ms;
+    e.deaf_ms = g_stats.rx_deaf_ms;
+    e.dir     = static_cast<uint8_t>(FrameDir::Tx);
+    e.rx      = static_cast<uint8_t>(RxOutcome::Transmitted);
+    e.status  = static_cast<uint8_t>(lran::Status::Ok);
+    e.peer    = g_tx.dst;
+    if (g_tx.len >= lran::kHdrLen) {
+      // spec 5.2, 5.4, 5.6, 5.7 - explicit offsets, little-endian (root rule 1).
+      e.type   = g_tx.bytes[1];
+      e.seq    = static_cast<lran::Seq>(static_cast<uint16_t>(g_tx.bytes[4]) |
+                                     (static_cast<uint16_t>(g_tx.bytes[5]) << 8));
+      e.frag   = g_tx.bytes[10];
+      e.schema = g_tx.bytes[11];
+    }
+    g_frame_log.record(e);
+  }
 }
 
 // A frame is arriving when the radio has seen a valid header and no RX_DONE yet. Only a
@@ -604,6 +694,10 @@ void lora_set_auth(lran::IMac* mac, const PeerKeys* keys) { g_ladder.set_auth(ma
 bool lora_radio_ready() { return g_ready; }
 
 bool lora_idle() { return g_idle; }
+
+bool lora_take_frame_log(FrameLogEntry* out) { return g_frame_log.read_next(out); }
+
+uint32_t lora_frame_log_lost() { return g_frame_log.lost(); }
 
 void lora_diag_snapshot(lran::Counters* counters, LoraStats* stats) {
   portENTER_CRITICAL(&g_diag_mux);

@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "error_reply.h"
+#include "frame_log.h"
 #include "lran/counters.h"
 #include "lran/link/media_access.h"
 #include "lran/mac.h"
@@ -77,6 +78,15 @@ bool lora_radio_ready();
 // R-5.3d. True when no frame is waiting or on the air, no reassembly set is incomplete,
 // and the radio is receiving - or is down, when there is nothing an OTA could interrupt.
 bool lora_idle();
+
+// BF-27 - Impl Plan 6.6. Takes the oldest record the raw frame log still holds, or false
+// when it is empty. FOR log_task AND NO OTHER CALLER: frame_log.h's ring is
+// single-consumer, and a second reader would take records the first never sees.
+bool lora_take_frame_log(FrameLogEntry* out);
+
+// Records the ring overwrote before log_task drained them. Cumulative; the index gaps in
+// the drained records say where they fell.
+uint32_t lora_frame_log_lost();
 
 // lora_task's counters, as one consistent view, for the diagnostic publication (BF-19).
 // Safe from any task. lora_task copies them under a spinlock once a second, so the view is

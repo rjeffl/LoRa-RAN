@@ -678,6 +678,57 @@ void test_a_refused_version_is_readable_after_the_discard() {
   TEST_ASSERT_EQUAL_UINT8(kProtoVer - 2, ladder.last_ver());
 }
 
+// BF-27 - Impl Plan 6.6 asks the raw frame log to carry the type and schema of EVERY
+// frame including a discarded one, and a frame refused at stage 4 has no filled
+// lran::Header. Read off the wire, like `src`, `seq` and `ver` beside them.
+void test_a_refused_frames_type_and_schema_are_readable_after_the_discard() {
+  Counters c;
+  RxLadder ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+  const size_t len = status_at_version(kProtoVer - 2, buf);
+  TEST_ASSERT_FALSE(ladder.accept(buf, len, 1000, &d));
+
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Status), ladder.last_type());
+  TEST_ASSERT_EQUAL_UINT8(kSchemaGateLinkStatusV1, ladder.last_schema());
+  TEST_ASSERT_EQUAL_HEX8(0x01, ladder.last_frag());  // spec 5.6 - single, unfragmented
+}
+
+// The same three on a frame that PASSED, because a log whose fields only work on the
+// failure path describes half a timeline.
+void test_an_accepted_frames_type_and_schema_are_readable_too() {
+  Counters c;
+  RxLadder ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+
+  uint8_t    buf[kMaxFrame];
+  RxDelivery d;
+  const size_t len = status_at_version(kProtoVer, buf);
+  TEST_ASSERT_TRUE(ladder.accept(buf, len, 1000, &d));
+
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Status), ladder.last_type());
+  TEST_ASSERT_EQUAL_UINT8(kSchemaGateLinkStatusV1, ladder.last_schema());
+  TEST_ASSERT_EQUAL_HEX8(0x01, ladder.last_frag());
+}
+
+// A frame too short to have a header leaves all three at 0, which is what
+// `last_status()` already says - and the log must not invent a type for it.
+void test_a_runt_leaves_the_header_fields_alone() {
+  Counters c;
+  RxLadder ladder(&c);
+  ladder.set_auth(nullptr, &g_any);
+
+  const uint8_t runt[4] = {0, 0, 0, 0};
+  RxDelivery    d;
+  TEST_ASSERT_FALSE(ladder.accept(runt, sizeof(runt), 1000, &d));
+
+  TEST_ASSERT_EQUAL_UINT8(0, ladder.last_type());
+  TEST_ASSERT_EQUAL_UINT8(0, ladder.last_schema());
+  TEST_ASSERT_EQUAL_UINT8(0, ladder.last_frag());
+}
+
 // ---------------------------------------------------------------------------
 // rx_wake.h - why service_receive ran, and what the IRQ register made of it.
 //
@@ -792,6 +843,9 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_ladder_accepts_n_minus_one_and_refuses_n_minus_two);
   RUN_TEST(test_a_refused_version_is_readable_after_the_discard);
+  RUN_TEST(test_a_refused_frames_type_and_schema_are_readable_after_the_discard);
+  RUN_TEST(test_an_accepted_frames_type_and_schema_are_readable_too);
+  RUN_TEST(test_a_runt_leaves_the_header_fields_alone);
   RUN_TEST(test_heltec_pins_match_impl_plan_10_8_1);
   RUN_TEST(test_heltec_tcxo_and_rf_switch_are_set);
   RUN_TEST(test_phy_is_the_d1_working_point);
