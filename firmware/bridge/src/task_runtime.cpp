@@ -790,23 +790,31 @@ size_t drain_frame_log() {
   // the air, which is the one conclusion this whole instrument exists to get right.
   const uint32_t lost = lora_frame_log_lost();
 
+  // NOT RETAINED, and spec 16.2's table says a `/state` leaf is. THE DEVIATION IS
+  // DELIBERATE AND IS RAISED, not assumed: this topic carries a rolling window of
+  // arrivals, and a retained one replays a burst that finished days ago as though it
+  // were arriving now - spec 16.3's own argument, reaching a topic 16.3 does not cover.
+  // Impl Plan 6.6.1 has it, and it is a spec finding rather than a local decision left
+  // in a comment.
+  if (topic_diag("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
+  g_log_msg.retain = false;
+  g_log_msg.qos    = 0;
+
   size_t sent = 0;
   while (sent < n) {
+    // RENDERED STRAIGHT INTO THE MESSAGE rather than into a local and then through
+    // make_publish(), which is what every other publisher here does. The reason is the
+    // stack: log_task has 3072 bytes and a payload buffer is 768 of them, so the copy
+    // make_publish() exists to do would be paid twice on the one task that has no room
+    // for it. What make_publish() enforces is kept - render_batch refuses rather than
+    // truncating, topic_diag above refuses an oversized topic, and the retain flag is
+    // set once, away from the loop, where spec 16.3's rule is readable.
     size_t       consumed = 0;
     const size_t len      = render_batch(&g_log_batch[sent], n - sent, lost,
                                          g_log_msg.payload, kMaxPayloadLen, &consumed);
     if (len == 0 || consumed == 0) break;  // cannot happen for kMaxPayloadLen; not a loop
 
-    // NOT RETAINED, and spec 16.2's table says a `/state` leaf is. THE DEVIATION IS
-    // DELIBERATE AND IS RAISED, not assumed: this topic carries a rolling window of
-    // arrivals, and a retained one replays a burst that finished days ago as though it
-    // were arriving now - spec 16.3's own argument, reaching a topic 16.3 does not
-    // cover. docs/bridge/engineering-log.md has it, and it is a spec finding, not a
-    // local decision to leave in a comment.
-    if (topic_diag("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) break;
     g_log_msg.payload_len = len;
-    g_log_msg.retain      = false;
-    g_log_msg.qos         = 0;
     (void)send_publish(g_log_msg);
 
     sent += consumed;
