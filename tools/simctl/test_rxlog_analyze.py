@@ -192,6 +192,19 @@ class WhatTheBridgeWasDoing(unittest.TestCase):
         loss = streams[(0xF0, TYPE_STATUS)].losses[0]
         self.assertTrue(loss.tx_inside)
 
+    def test_another_peers_frame_does_not_hide_a_transmission(self):
+        # The walk is bounded by the two arrivals of THIS stream. Reading it as "walk
+        # back to the previous delivered frame" ends it at 0xF0's arrival and misses the
+        # transmit behind it - invisible on a one-sender bench, wrong on any other.
+        streams = analyze([
+            rx(0, 0, 1, peer=0xF3),
+            tx(1, 200, 9, peer=0x01),
+            rx(2, 400, 77, peer=0xF0),
+            rx(3, 600, 3, peer=0xF3),
+        ])
+        loss = streams[(0xF3, TYPE_STATUS)].losses[0]
+        self.assertTrue(loss.tx_inside)
+
     def test_a_transmission_outside_the_gap_is_not_attributed_to_it(self):
         # THE WHOLE POINT OF WALKING BACK ONLY TO THE PREVIOUS ARRIVAL. A transmit
         # earlier in the burst is not an explanation for this gap, and counting it as

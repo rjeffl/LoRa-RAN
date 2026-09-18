@@ -178,6 +178,7 @@ def analyze(records):
         if stream.arrivals == 0:
             stream.arrivals = 1
             stream._last = rec
+            stream._last_pos = i
             continue
 
         prev = stream._last
@@ -200,28 +201,31 @@ def analyze(records):
                     # the difference of their fields - which is the whole reason the
                     # running total is in every record rather than published on its own.
                     deaf_ms=int(rec[K_DEAF]) - int(prev[K_DEAF]),
-                    tx_inside=_transmitted_between(records, i),
+                    tx_inside=_transmitted_between(records, stream._last_pos, i),
                 )
             )
         stream._last = rec
+        stream._last_pos = i
 
     for stream in streams.values():
-        if hasattr(stream, "_last"):
-            del stream._last
+        for attr in ("_last", "_last_pos"):
+            if hasattr(stream, attr):
+                delattr(stream, attr)
     return streams
 
 
-def _transmitted_between(records, i):
-    """True when a Tx record sits between records[i] and the Rx record before it.
+def _transmitted_between(records, prev_pos, pos):
+    """True when a Tx record sits between two arrivals of the SAME stream.
 
-    Walks back over the records the log ordered between the two arrivals, which is what
-    makes this a per-gap answer rather than a correlation across a whole burst.
+    Bounded by the two positions rather than by "walk back to the previous delivered
+    frame", which was wrong the moment a second node transmitted: another peer's frame
+    arriving inside the gap would end the walk early and hide the bridge's own
+    transmission behind it. This bench has one sender, so the difference never showed -
+    which is exactly why it is worth fixing before one with two does.
     """
-    for rec in reversed(records[:i]):
+    for rec in records[prev_pos + 1:pos]:
         if rec[K_DIR] == DIR_TX:
             return True
-        if rec[K_DIR] == DIR_RX and int(rec[K_STATUS]) == STATUS_OK:
-            return False
     return False
 
 

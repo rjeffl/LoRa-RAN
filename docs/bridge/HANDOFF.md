@@ -147,7 +147,7 @@ leaving their measurements standing.
   never contended for the channel, while the radio left receive three times for 643 ms.
 - **`tools/simctl/per_measure.py` is the instrument for a PER figure**, with 30 host tests
   in CI and its arithmetic separated from its I/O; **`rxlog.py` is the instrument for
-  *which* frames**, with 35 more on the same split. **`rx_wake.h`, `rx_deaf.h` and
+  *which* frames**, with 36 more on the same split. **`rx_wake.h`, `rx_deaf.h` and
   `frame_log.h` are the bridge-side half**, with 33 between them.
 
 ## Read these, in this order
@@ -187,7 +187,7 @@ python3 tools/checks/bridge_partitions.py       # A/B table; add --firmware/--el
 python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
 python3 tools/simctl/test_simctl.py             # simctl's verdict logic, no board
 python3 tools/simctl/test_per_measure.py        # M22 PER arithmetic and its guards, no board (30)
-python3 tools/simctl/test_rxlog_analyze.py      # BF-27 frame-log arithmetic and its guards (35)
+python3 tools/simctl/test_rxlog_analyze.py      # BF-27 frame-log arithmetic and its guards (36)
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/vectors/check.py                  # W4 vectors, self-check
 ```
