@@ -192,6 +192,11 @@ needs a *real* secret still needs a decision, not a secret pasted into a workflo
 - Append findings to `docs/<node>/engineering-log.md` as they happen — measurements,
   surprises, things that cost an hour. Dated entries. This is the record that answers
   "why is it like this" in eighteen months.
+- **Split a log when a reader resuming work can no longer find the latest entries
+  quickly.** At a milestone boundary, move whole entries, unedited, into
+  `engineering-log-<first date>_<last date>.md` beside it, and name that file at the top of
+  the live log. Keep in the live file every entry that an open investigation still relies
+  on. Moving an entry does not rewrite it. The bridge log was split this way on 2026-09-18.
 - Use docs-as-code workflow with all repository documents. As doc updates are identified, make changes at the repo level for commit along with code or test results that support it.
 
 ### A document must not record where a branch currently points
