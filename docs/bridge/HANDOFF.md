@@ -53,7 +53,14 @@ USB serial.
 
 ```bash
 python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
+ps -ef | grep -c "[r]ssi_capture"          # 1 while it is still running
 ```
+
+**The capture file is gitignored while it is being written, and that line is meant to be
+deleted.** Tracking a file that is appended to for ten hours keeps the working tree dirty,
+and a `-dirty` git stamp on the boot banner is how this project proves an image matches no
+commit. **When the capture ends, remove its line from `.gitignore` and commit the file** —
+it is the deliverable and it belongs beside every other run record in `data/`.
 
 **Both simnodes were powered down for it, deliberately.** The sampler skips a reception
 only once a valid LoRa header is seen, so roughly 33 ms of every one of our own frames'
