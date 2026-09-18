@@ -1,7 +1,7 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.26
+**Version:** 0.27
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.37
@@ -244,7 +244,7 @@ Plan §8.1 and the engineering log.
 | **BF-24** | **Publication policy** — `publish.cpp`, §6.3's whole table | **Opus** | **R-5.2b is the requirement most easily lost in implementation**, because republishing the cached value is the path of least resistance and produces a dashboard that looks healthy. A dead VE.Direct link showing plausible unchanged numbers indefinitely is worse than an obviously unavailable entity |
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**) | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
 | **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator) | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
-| **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6) | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator** |
+| **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. The other three tools are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
 ---
 
@@ -286,6 +286,13 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.27** — **BF-27's raw frame log is built**, out of task order and on purpose: it was
+  the last instrument the receive path's 1 s knee had left, and the other three tools in
+  §6.6 block nothing. The BF-27 row says what is done and what is not. The measurement it
+  produced is in the engineering log and **it did not reproduce the spacing curve**, which
+  makes an interleaved sweep the thing to run before BF-24. This document inherits Bridge
+  Impl Plan v0.38.
 
 - **v0.26** — **B3b is accepted, and V-B12 left it rather than gaining a task.** The gap
   v0.25 raised — *"V-B12 remains, and no task owns it"* — is closed by moving the

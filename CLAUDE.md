@@ -143,6 +143,8 @@ pio run  -d firmware/bridge -e heltec         # bridge target - NEEDS secrets.h
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
 
 python3 tools/simctl/test_simctl.py           # simctl's verdict logic, no board
+python3 tools/simctl/test_rxlog_analyze.py    # BF-27's frame-log arithmetic, no board
+python3 tools/simctl/test_rssi_analyze.py     # M25's channel-capture arithmetic, no board
 python3 tools/checks/simctl_catalogue.py      # simctl's rows vs. the firmware catalogue
 python3 tools/simctl/simctl.py --list         # the 10.5 catalogue as simctl runs it
 

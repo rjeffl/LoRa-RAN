@@ -32,8 +32,11 @@ void RxLadder::on_phy_crc_error() {
 
 bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDelivery* out) {
   if (counters_ != nullptr) ++counters_->rx_frames;
-  last_src_ = 0;
-  last_seq_ = 0;
+  last_src_    = 0;
+  last_seq_    = 0;
+  last_type_   = 0;
+  last_schema_ = 0;
+  last_frag_   = 0;
 
   lran::DecodeCtx ctx;
   ctx.self     = lran::kNodeBridge;
@@ -68,6 +71,14 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
     // after three missed polls, which R-3.1f says it must NOT do. This is how the version
     // survives the discard.
     last_ver_ = buf[0];
+
+    // BF-27 - `type` is byte 1, `frag` byte 10 and `schema` byte 11 (spec 5.2, 5.6,
+    // 5.7), read the same way and for the same reason: Impl Plan 6.6's raw frame log
+    // records what a DISCARDED frame claimed to be, and the stages that discard one
+    // early are exactly the stages where `f.hdr` was never filled.
+    last_type_   = buf[1];
+    last_frag_   = buf[10];
+    last_schema_ = buf[11];
   }
 
   lran::Frame f;

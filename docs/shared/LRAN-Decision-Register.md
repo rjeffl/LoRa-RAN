@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.11
+**Version:** 0.12
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-16
@@ -494,6 +494,14 @@ decision fixes, closing **M19** and **W7**.
 - **`cad_backoffs` is the instrument for the channel.** M20 measured 125 kHz every 200 kHz,
   so **37.5 % of the band was never looked at** and a transmitter sitting entirely in a gap
   is invisible at any level. §12.3's defaults were also chosen against an empty channel.
+
+  > **That instrument cannot do this job, found 2026-09-17 — see M25.** `cad_backoffs`
+  > counts a **busy CAD only**, which the bridge answered the same day with `cad_free`;
+  > and a LoRa CAD detects a LoRa preamble **at the configured spreading factor**, so it
+  > is blind to the property's Z-Wave and Insteon FSK at any signal level, and to LoRa at
+  > another SF. **D33's status is unchanged here** and this is not a reopening — it is the
+  > record that the check named against standing condition 3 cannot fire. M25 builds one
+  > that can; M26 completes the §3.1 inventory it would be read against.
 - **The range-test firmware still transmits on the provisional 915.0 MHz**, which is
   `weather-island`'s own peak. It is a bench instrument and this is not urgent, but a re-run
   on the old channel produces data that will be distrusted later.
@@ -627,6 +635,8 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M24 | ~~**Whether the SX126x can filter node addresses in LoRa mode**~~ | **Done (2026-09-16).** **It cannot.** In SX1261/2 Rev 1.1 (`DS.SX1261-2.W.APP`, December 2017) `AddrComp` is GFSK `PacketParam5` (Table 13-56) with `NodeAddrReg` `0x06CD` and `BroadcastReg` `0x06CE` (Tables 13-57, 13-58), all under §13.4.6.1 **GFSK Packet Parameters**; the LoRa packet parameters in §13.4.6.2 are preamble length, header type, payload length, CRC type and invert-IQ (Tables 13-66 to 13-70) — **no address parameter, no address register**. Raised by **BF-16** and carried unverified through two revisions. **Protocol Spec v0.12 withdraws the §12.1 requirement**; addressing is §14 stage 5, in software. **§17.1 loses the silicon discard it assumed for duty-cycled nodes — now W14**, owed before WellLink is built on that profile and moot if **D19** makes WellLink mains-powered |
 | M22 | **Bridge LoRa packet error rate with WiFi idle vs. saturated.** Run a sustained MQTT or iperf flood while the bridge receives a known `PING` sequence; compare PER and RSSI against the WiFi-idle baseline | Confirms the deliberate "**no** mutual exclusion on the bridge" policy (Bridge PRD). If PER degrades, the fallback is **physical antenna separation via the IPEX pigtail**, not firmware arbitration — ESP-IDF's coexistence arbitration has no visibility into an SPI-attached SX1262, so there is no hook to build on | Bridge Impl Plan |
 | M23 | **BLE RSSI to the BMS from the Stamp-S3A at its final mounting position**, inside the plastic enclosure inside the closed **steel** gate-controller enclosure, ~6–8 in from the pack. Sample **at least three positions and two orientations** — both ends share one reverberant cavity, so the risk is a standing-wave null, not attenuation. In the same session, measure **LoRa-to-BLE isolation** by logging BLE RSSI with the LoRa transmitter keyed and unkeyed | **D28**, superseding **M5**. Prior figures (−80 dBm, and −50 to −60 dBm) both used a Heltec V3 rather than the Stamp-S3A's internal antenna. Run before committing the mounting hardware; it does **not** gate M6 or B1b. A poor reading is a cable, connector and null question before it is an antenna verdict | GateLink Impl Plan |
+| M25 | **Long-duration channel occupancy at 917.4 MHz, measured at the bridge.** Six to twelve hours of continuous RSSI sampling from `lora_task` (~100 samples a second, `chan_monitor.h`), captured over USB serial by `tools/simctl/rssi_capture.py` and read by `rssi_report.py`. **Run it with the simnodes powered down**: the sampler skips a reception only once a valid LoRa header is seen, so ~33 ms of every one of our own frames' preambles would otherwise register as a large excursion | **D33 standing condition 3**, which says the ambient survey finds no co-channel occupant. **The instrument §3.4 names for keeping the channel under observation cannot test it**: `cad_backoffs` counts a busy CAD only (answered 2026-09-17 with `cad_free`), and a LoRa CAD detects a LoRa preamble **at the configured spreading factor** — so it is blind to the property's Z-Wave and Insteon FSK at any level, and to LoRa at another SF. **M20 measured 917.4 at floor, on 653 samples per bin**; a 60 dB peak-to-mean at 916.0 shows how bursty the neighbours are, and a low-duty-cycle occupant is exactly what that dwell could miss | Bridge Impl Plan |
+| M26 | **Confirm the frequencies and power classes of the property's Z-Wave and Insteon equipment**, and add them to the §3.1 inventory. Z-Wave matters most: the classic US band is near 908.4 MHz at low power, while Z-Wave Long Range uses 912 MHz and 920 MHz and permits far higher power | **§3.1's inventory records YoLink only** — *"four YoLink temperature sensors and a switch, on a YoLink hub, all inside the dwelling"*. The operator identified Z-Wave and Insteon on 2026-09-17 and neither appears anywhere in this repository. The inventory is what D33 standing condition 3 and D1's channel choice were reasoned against | Decision Register |
 
 ---
 
@@ -693,6 +703,13 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
+  operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which
+  §3.1's inventory records, and neither of which a LoRa CAD can detect. **No decision
+  changes status**: the entries record that D33 standing condition 3's named check cannot
+  fire, and schedule the measurement that would let it. Bridge engineering log,
+  2026-09-17.
 
 - **v0.11** — **D35–D42 resolved: the spec v0.12 set.** Eight questions raised during
   bridge B3a and simnode B0, collected in `LRAN-Spec-v0.12-Brief` and accepted by the

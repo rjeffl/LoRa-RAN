@@ -99,6 +99,22 @@ jobs:
       - name: M22 PER arithmetic
         run: python3 tools/simctl/test_per_measure.py
 
+      # Impl Plan §6.6: BF-27's frame-log arithmetic. The guards are the point again,
+      # and they are different guards - a `seq` jump that is a spec §10.3 resync rather
+      # than 40 000 losses, a PING echo carrying the bridge's sequence into a node's
+      # stream (W11), and the ring's own overwrites kept apart from a dropped MQTT
+      # message. Each of those, folded in, produces a confident and wrong verdict about
+      # the receive path.
+      - name: BF-27 frame-log arithmetic
+        run: python3 tools/simctl/test_rxlog_analyze.py
+
+      # M25: the channel-capture arithmetic. Its guards are about a capture that ran for
+      # hours unattended — a reboot mid-run puts two millis() clocks in one file, and a
+      # bucket that sampled nothing is unobserved rather than quiet. Both produce a
+      # confident wrong occupancy figure if folded in.
+      - name: M25 channel-capture arithmetic
+        run: python3 tools/simctl/test_rssi_analyze.py
+
       # Impl Plan §5.2 and Bridge PRD §1.3 property 2: lora_task never blocks on the
       # network. Prose has never stopped anyone writing that line, and the failure is
       # silent — telemetry lost during an outage that the bridge appeared to survive.

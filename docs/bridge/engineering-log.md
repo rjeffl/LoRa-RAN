@@ -2293,3 +2293,194 @@ points at the firmware. The two cheap instruments are spent, and both came back 
 
 **It still matters beyond M22.** A fragmented `STATUS` is exactly this traffic pattern, and
 **BF-24's decode work meets it first**.
+
+---
+
+## 2026-09-17 — the frame log lands, and the spacing curve does not reproduce
+
+**Ten bursts, 385 flood frames, 9 lost. At a 250 ms gap the loss rate was 2.50 %; at
+2000 ms it was 1.90 %.** Those two are the arms that measured 5.6 % and 0 % this morning.
+Today they are indistinguishable.
+
+**BF-27's raw frame log is built** (Impl Plan §6.6): one record per frame in and out, with
+source, type, schema, RSSI, SNR, the discard reason and the running `rx_deaf_ms`, drained
+by `log_task` to serial and to `lran/bridge/diag/rxlog/state`. `tools/simctl/rxlog.py`
+reads it. The session's records are committed as
+[`data/bf27-framelog-session-2026-09-17.json`](./data/bf27-framelog-session-2026-09-17.json)
+and re-read with `rxlog.py --read`.
+
+### What the log says about the mechanism, per frame
+
+The question the two spent instruments could not answer was **position**. It now has an
+answer, and it agrees with them.
+
+| Of the 9 lost frames | |
+|---|---|
+| Gaps with a bridge transmission inside | 4 of 9 |
+| Deaf share of the gap, per loss | 3.43 % to 11.05 % |
+| **Frames the bridge's own deafness can account for, at most** | **0.52 of 9** |
+
+**That ceiling is the honest form of the number and the tool refuses to report anything
+stronger.** `rx_deaf_ms` is a total and says nothing about *where* in a gap the deafness
+fell, so its share of the gap is the most of that gap it could have covered. Four gaps
+contain a transmission and still cannot account for their losses: the largest single
+contribution is 11 % of one gap.
+
+> **An earlier draft of the tool got this wrong and the bench caught it.** It classified
+> any gap with non-zero deaf time as "the bridge was not listening", which turned 21 ms
+> inside a 612 ms gap into a verdict against the firmware. The first run printed exactly
+> that, and it was wrong: the bridge was listening for 96.6 % of that gap. A ceiling needs
+> no threshold and no assumption about where the deafness fell, so that is what it reports
+> now. `test_rxlog_analyze.py` carries the case.
+
+### Three cross-checks the log gives for free, and all three are clean
+
+**376 receptions, every one of them `Packet`.** Zero `Orphan` — no frame in this session
+was found by the timed read, so **no interrupt was missed at any spacing**, which is
+`rx_no_interrupt` read per frame instead of per burst. Zero `PhyCrc` and zero
+`HeaderError`: **nothing arrived corrupt**. Zero `DriverError`.
+
+**All 376 passed the receive ladder with `Status::Ok`.** Nothing was discarded at any spec
+§14 stage.
+
+**RSSI −39 to −36 dBm, SNR +10 to +12 dB, across all ten bursts.** Three dB of spread over
+twenty minutes. The link is not marginal in any ordinary sense.
+
+**The ring never overwrote a record** in any run, so `log_task` outran the drain at both
+spacings and none of the above is an artifact of the instrument losing its own output.
+
+### The finding that was not being looked for
+
+**The losses cluster in time and not by spacing.** In order of running, with the bridge's
+own uptime clock:
+
+| # | Arm | Frames | Lost | PER | First record at |
+|---|---|---|---|---|---|
+| 1 | gap 250 | 40 | 2 | 5.00 % | 163 s |
+| 2 | gap 250 | 40 | 3 | 7.50 % | 355 s |
+| 3 | gap 2000 | 25 | 2 | 8.00 % | 411 s |
+| 4 | gap 2000 | 40 | 0 | 0 % | 551 s |
+| 5 | gap 2000 | 40 | 0 | 0 % | 677 s |
+| 6 | gap 250 | 40 | 0 | 0 % | 791 s |
+| 7 | gap 250 | 40 | 0 | 0 % | 859 s |
+| 8 | gap 250 | 40 | 0 | 0 % | 904 s |
+| 9 | gap 250 | 40 | 0 | 0 % | 950 s |
+| 10 | gap 250 | 40 | 2 | 5.00 % | 998 s |
+
+Every loss falls in runs 1–3 or run 10. Runs 4–9 are clean and they span both spacings.
+**A 2000 ms control produced 8 % and a 250 ms arm produced 0 %, in the same session, on
+the same boards.** Within a lossy run the losses sit close together — 3 and 4 frames
+apart at 250 ms, 5 apart at 2000 ms.
+
+**This is stated as an observation, not as a conclusion, and it does not retract this
+morning's entries.** Those runs measured what they measured; today's measure something
+different on the same bench. What it does do is make **spacing a suspect variable rather
+than the established one**, and the whole investigation since the first M22 burst has been
+framed on the assumption that spacing is what moves the number.
+
+### What would settle it
+
+**Interleave the arms instead of running them in blocks.** Every sweep so far, including
+this one, ran one spacing to completion before starting the next, so a slow change in the
+environment is indistinguishable from an effect of spacing. Alternating 250 and 2000 within
+one session separates them, and it is cheap — a burst is 45 s.
+
+**That test is the one to run before BF-24 rather than after.** If the knee is
+environmental, the 1 s threshold recorded on 2026-09-17 and the `backoff_max_ms` reasoning
+that leaned on it are describing a quiet afternoon rather than a property of this firmware.
+
+### What is no longer open
+
+**The bridge's transmit path, as a per-frame explanation.** It was ruled out this morning
+by constancy across bursts; it is now ruled out inside each individual gap, by a ceiling
+that never exceeds 11 % of any one of them.
+
+---
+
+## 2026-09-17 — the bench is not a quiet channel, and the instrument that would have said so is blind
+
+**The operator named three families of 900 MHz equipment running on the property: YoLink
+LoRa products, Z-Wave and Insteon.** Only YoLink is recorded anywhere in the repo. That
+turns the receive path's losses from an unexplained firmware behaviour into a question with
+a named alternative, and it puts three problems on the table that matter more than the
+anomaly that surfaced them.
+
+### What the survey actually measured at the bridge's own location
+
+From `docs/rangetest/data/2026-09-05-survey-campaign-r11.csv`, site `bridge-house`:
+
+| Frequency | Peak | Mean | Floor |
+|---|---|---|---|
+| **917.4 MHz — the operating channel** | **−113.0 dBm** | −114.4 dBm | −116.0 dBm |
+| 916.0 MHz — the YoLink cluster's peak | **−54.0 dBm** | −113.8 dBm | −116.0 dBm |
+| 908.4 / 912.0 / 920.0 / 904.0 MHz | −112 to −113 dBm | ≈ −114 dBm | ≈ −116 dBm |
+
+**The YoLink hub's peak sits 60 dB above its own mean in the same bin.** That is §5.4's
+"every occupant bursty" as a number: it is on the air for a small fraction of the samples.
+
+### What that evidence supports, and what it does not
+
+**It does not support co-channel capture at the bench.** The wanted signal is −37 dBm at
+one metre (BF-27's frame log, RSSI −39 to −36 across 376 receptions). The loudest thing at
+`bridge-house` is −54 dBm, **17 dB below the wanted signal and 1.4 MHz away**. Nothing the
+survey saw is strong enough or close enough to take the receiver off a −37 dBm frame.
+
+**It cannot exclude an intermittent occupant either, and the survey said so first.** Each
+bin holds 653 samples across 74 passes — a fraction of a second of dwell, spread thin. An
+emitter with a low duty cycle is likely to be missed outright. §5.4: *"absence of a peak was
+already weak evidence; the gaps make it weaker."* **A loss pattern clustered in time is
+exactly what that sampling design could not have detected**, which is why the behavioural
+observation and the survey do not contradict each other.
+
+### Three findings, and the third is the one to act on
+
+**1. The equipment inventory is incomplete and it is load-bearing.** Decision Register §3.1
+records *"four YoLink temperature sensors and a switch, on a YoLink hub, all inside the
+dwelling"* and nothing else. **Z-Wave and Insteon appear nowhere.** Which Z-Wave matters:
+the classic US band is near 908.4 MHz at low power, while Z-Wave Long Range uses 912 MHz
+and 920 MHz and permits far higher power. The survey read all three at floor — briefly.
+**The frequencies and power classes of the Z-Wave and Insteon equipment are unconfirmed
+here and are recorded as needing confirmation rather than as fact.**
+
+**2. D33 standing condition 3 has an instrument that cannot test it.** The condition is
+*"the ambient survey finds no co-channel occupant on the chosen frequency"*, and §3.4 names
+`cad_backoffs` as the instrument that keeps the channel under observation. It cannot do the
+job, for two reasons found this week:
+
+- **`cad_backoffs` counts a busy CAD only.** Established 2026-09-17 and answered with
+  `cad_free`; every run before that date reads a free CAD as no contention at all.
+- **LoRa CAD detects a LoRa preamble at the configured spreading factor.** It is
+  structurally blind to Z-Wave and Insteon FSK, and to LoRa at another SF. **Two of the
+  three named families cannot move it at any signal level.**
+
+This is the pattern root `CLAUDE.md` names: a load-bearing premise whose falsifying check is
+tracked somewhere that cannot fire. **D33's status is not changed here** — that belongs to
+the register and to the operator. The gap is raised as **M25**.
+
+**3. No link has ever been measured on the operating channel.** Every walk, every bench
+trace and B1b's gate-bearing run were captured at **915.0 MHz**, the range test's
+provisional frequency — which §3.4 already flags as `weather-island`'s own peak. **917.4 MHz
+has a survey behind it and no link measurement at all.**
+
+### The margin inversion, which is why this outranks the bench anomaly
+
+| | Wanted signal at the bridge | Loudest neighbour at the bridge |
+|---|---|---|
+| Bench, 1 m | **−37 dBm** | −54 dBm — **17 dB below** the wanted signal |
+| Gate, 87 m | **≈ −100 dBm** (B1b median at 915.0) | −80 to −89 dBm — **10 to 20 dB above** it |
+
+**The ordering flips by roughly 46 dB between the bench and the deployed link.** Bench
+behaviour under interference is therefore not predictive of GateLink's, and it is optimistic
+in the wrong direction. A 2 % loss rate at one metre is not reassuring about 87 m; it is a
+figure taken where the wanted signal dominates everything else on the property.
+
+### What is being built for it
+
+**A channel-occupancy sampler on the bridge**, reusing BF-27's ring and drain. Periodic
+`getRssiInst()` from `lora_task` while the radio is in receive, accumulated into fixed
+buckets and emitted to serial for a long unattended capture. **It is modulation-agnostic**,
+which is the whole point: it sees FSK, LoRa at any spreading factor, and anything else that
+puts energy in the channel — the three things CAD cannot.
+
+**Its timestamps are `millis()`, the same clock the frame log stamps**, so a loss and a
+channel excursion can be put on one timeline rather than argued about separately.

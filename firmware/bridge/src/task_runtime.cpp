@@ -69,7 +69,16 @@ uint8_t      g_command_storage[queue_storage_bytes(kCommandQueueDepth,
 StaticQueue_t g_command_queue_buf;
 QueueHandle_t g_command_queue = nullptr;
 
-// TODO(BF-11a): g_log_queue - log_task drains it; until then log_task ticks idle.
+// BF-27 - log_task drains lora_link's frame-log ring directly (frame_log.h), which is
+// why there is no g_log_queue here. A queue would have cost lora_task a copy into it and
+// bought nothing: the ring IS the queue, single-producer and single-consumer, and it
+// overwrites where a queue would refuse - which for a diagnostic timeline is the right
+// failure. TODO(BF-11a): the LEVELED log still has no queue.
+
+// Records moved per pass. Sixteen is four batches of the four-a-second a `--gap 250`
+// burst produces, so the drain outruns the ring by two orders of magnitude and the
+// budget exists to bound the pass, not to pace it.
+inline constexpr size_t kLogDrainBudget = 16;
 
 // The transport, static like everything else here (root rule 3). The seam is
 // MqttTransport; this is the only line in the firmware that names PubSubClient's
@@ -489,10 +498,6 @@ void sched_diag(uint32_t now_ms) {
 // Task bodies.
 // ---------------------------------------------------------------------------
 
-// How long lora_task waits for DIO1 before its next pass. It bounds how long a frame
-// queued by another task waits to be picked up, and it is the resolution of a spec 12.3
-// backoff; a reception wakes the task at once regardless.
-constexpr uint32_t kLoraMaxWaitMs = 10;
 
 // Highest priority, and it never blocks on the network or on a queue. Its outputs are
 // the zero-tick queue sends; its one wait is lora_wait(), bounded and on the radio's
@@ -757,11 +762,101 @@ void ui_task(void*) {
   }
 }
 
+// BF-27 - Impl Plan 6.6. Statics rather than locals for the reason sched_task's
+// g_sched_msg gives: a PublishMessage is ~872 bytes and this task's stack is 3072.
+// log_task is the only writer of both.
+PublishMessage g_log_msg;
+FrameLogEntry  g_log_batch[kLogDrainBudget];
+
+// One pass of the raw frame log's drain. Returns how many records it moved, so the
+// caller can tell a busy tick from an idle one.
+size_t drain_frame_log() {
+  size_t n = 0;
+  while (n < kLogDrainBudget && lora_take_frame_log(&g_log_batch[n])) {
+    // Serial first, because it survives a broker that is down - which is exactly the
+    // condition a receive-path investigation must not also lose its log to.
+    char line[160];
+    if (render_line(g_log_batch[n], line, sizeof(line)) > 0) Serial.println(line);
+    ++n;
+  }
+  if (n == 0) return 0;
+
+  // `lost` travels WITH the records rather than on a counter topic of its own: a reader
+  // that has to go and find it somewhere else will read a gap in `i` as a lost frame on
+  // the air, which is the one conclusion this whole instrument exists to get right.
+  const uint32_t lost = lora_frame_log_lost();
+
+  // NOT RETAINED, and spec 16.2's table says a `/state` leaf is. THE DEVIATION IS
+  // DELIBERATE AND IS RAISED, not assumed: this topic carries a rolling window of
+  // arrivals, and a retained one replays a burst that finished days ago as though it
+  // were arriving now - spec 16.3's own argument, reaching a topic 16.3 does not cover.
+  // Impl Plan 6.6.1 has it, and it is a spec finding rather than a local decision left
+  // in a comment.
+  if (topic_diag("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
+  g_log_msg.retain = false;
+  g_log_msg.qos    = 0;
+
+  size_t sent = 0;
+  while (sent < n) {
+    // RENDERED STRAIGHT INTO THE MESSAGE rather than into a local and then through
+    // make_publish(), which is what every other publisher here does. The reason is the
+    // stack: log_task has 3072 bytes and a payload buffer is 768 of them, so the copy
+    // make_publish() exists to do would be paid twice on the one task that has no room
+    // for it. What make_publish() enforces is kept - render_batch refuses rather than
+    // truncating, topic_diag above refuses an oversized topic, and the retain flag is
+    // set once, away from the loop, where spec 16.3's rule is readable.
+    size_t       consumed = 0;
+    const size_t len      = render_batch(&g_log_batch[sent], n - sent, lost,
+                                         g_log_msg.payload, kMaxPayloadLen, &consumed);
+    if (len == 0 || consumed == 0) break;  // cannot happen for kMaxPayloadLen; not a loop
+
+    g_log_msg.payload_len = len;
+    (void)send_publish(g_log_msg);
+
+    sent += consumed;
+  }
+  return n;
+}
+
+// M25 - the channel buckets, to serial only. NOT TO MQTT, unlike the frame log: a
+// six-to-twelve-hour capture is 43 200 buckets, and a retained-or-not topic carrying a
+// message a second for half a day is a different kind of object from a diagnostic. The
+// serial line is the deliverable and tools/simctl/rssi_capture.py is what reads it.
+ChanRollupper g_chan_rollup;
+
+size_t drain_chan() {
+  size_t     n = 0;
+  ChanBucket b;
+  char       line[192];
+
+  while (n < kLogDrainBudget && lora_take_chan(&b)) {
+    // A bucket that saw something gets its own line; every bucket, loud or quiet, goes
+    // into the rollup. chan_monitor.h has the reasoning - dropping the quiet ones
+    // outright would take the denominator with them.
+    if (chan_notable(b) && render_chan(b, line, sizeof(line)) > 0) Serial.println(line);
+
+    g_chan_rollup.add(b);
+    if (g_chan_rollup.due()) {
+      ChanRollup r;
+      if (g_chan_rollup.take(&r) && render_chan_rollup(r, line, sizeof(line)) > 0) {
+        Serial.println(line);
+      }
+    }
+    ++n;
+  }
+  return n;
+}
+
 void log_task(void*) {
   for (;;) {
-    // TODO(BF-11a): drain the log queue. Lowest priority on purpose - a log that
-    // can preempt the radio changes what it measures.
-    vTaskDelay(pdMS_TO_TICKS(100));
+    // LOWEST PRIORITY ON PURPOSE - a log that can preempt the radio changes what it
+    // measures, and BF-27's whole subject is what the radio was doing.
+    //
+    // A busy tick comes straight back rather than sleeping: the ring is 64 records and
+    // a drain that always sleeps 100 ms between budgets falls behind a burst and starts
+    // overwriting, which is loss this task invented rather than found.
+    const size_t moved = drain_frame_log() + drain_chan();
+    if (moved < kLogDrainBudget) vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
 
