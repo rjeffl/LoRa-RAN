@@ -33,6 +33,7 @@ recorded YoLink only until then.
 | **Insteon** | A **2413U PowerLinc Modem (USB)**, plus a mix of **dual-band** and **wireless-only** devices. No Insteon Hub | Insteon i2/RF |
 | **YoLink** | A hub, four temperature sensors and a switch, all inside the dwelling (§3.1) | LoRa, proprietary protocol |
 | **Davis** | A **Davis Vantage Pro2** weather station, **transmitter ID 1**. Its transmitter sits at M20's survey position 2, `weather-island`, **on the line between the bridge and GateLink's site** | Frequency-hopping GFSK |
+| **Dakota Alert** | A driveway occupancy sensor, standing in for the gate controller, which LRAN cannot reach yet. The transmitter is within 30 ft of the gate controller, at M20's survey position 1, `gatelink-gate`; the receiver is near the production bridge location. Model not yet recorded | 433.92 MHz, outside the 902–928 MHz band (§7) |
 
 **Insteon's "dual-band" means powerline plus RF, not two radio frequencies.** A dual-band
 device carries Insteon's 131.65 kHz powerline signal and the same 915 MHz radio that a
@@ -49,6 +50,7 @@ wireless-only device uses. For this inventory, both kinds are one radio.
 | **Insteon i2/RF** | **915.000 MHz**; grants 914.9–915.1 MHz, the PLM 914.94 MHz | FSK, Manchester; 9,124 symbols/s, 4,562 bit/s | **200 kHz peak-to-peak**, so tones near 914.90 and 915.10 MHz | Not stated in any source found | "Part 15 Low Power Transceiver", subpart C | −2.4 MHz |
 | **YoLink** | **923.3 MHz** | LoRa; SF and bandwidth not published | Not published | Not stated | "Part 15 Low Power Communication Device Transmitter", subpart C | +5.9 MHz |
 | **Davis** | **51 hop channels, 902.382–927.470 MHz**, about 0.5 MHz apart; one at **917.434 MHz** | GFSK, 19.2 kbps; 16 bytes on air, **6.7 ms** a packet | See §6 | Not stated | Frequency hopping, per Davis | **+0.034 MHz on one channel**, inside the 125 kHz receive bandwidth |
+| *Dakota Alert* | *433.92 MHz* | — | — | Not stated | §15.231, periodic and security transmitters | *−483.5 MHz; outside the band* |
 
 **The §15.249 ceiling is the same one LRAN works under.** It limits the fundamental to
 50 mV/m at 3 m, about **−1.2 dBm EIRP**, as Protocol Specification §18.2 states for LRAN. A
@@ -89,7 +91,7 @@ ever replaced with a Long Range one, this inventory changes.** 920 MHz is 2.6 MH
 
 **Which rate carries which traffic is not stated in the sources used here.** Every 500- and
 700-series device supports 100 kbps, so traffic between two such devices can use 916.00 MHz.
-M20 saw energy on both 916.0 and 908.4 MHz (§7).
+M20 saw energy on both 916.0 and 908.4 MHz (§8).
 
 ## 4. Insteon
 
@@ -159,7 +161,35 @@ transmitter or a leaf-and-soil station at another ID would hop the same table on
 The M25 capture shows one periodic source at 917.4 MHz, which is consistent with a single
 transmitter.
 
-## 7. What M20's survey saw at each frequency
+## 7. Dakota Alert — checked, and outside the band
+
+**Every Dakota Alert Part 15 product found transmits on 433.92 MHz**, so the driveway sensor
+is not one of LRAN's neighbours. The operator expected 433 MHz, and the FCC grants agree. Among
+Dakota Alert's 19 FCC IDs:
+
+| FCC ID | Product | Frequency | Rule part | Granted |
+|---|---|---|---|---|
+| [QK83000T](https://fccid.io/QK83000T) | Driveway Radio | 433.92 MHz | 15C | 2004-12-21 |
+| [QK8UT3000](https://fccid.io/QK8UT3000) | Universal Transmitter (3000 series) | 433.92 MHz | 15.231 | 2006-05-12 |
+| [QK8DCT-2500](https://fccid.io/QK8DCT-2500) | DCT-2500 transmitter module | 433.92 MHz | 15.231 | 2010-02-09 |
+| [QK8DCT-4000](https://fccid.io/QK8DCT-4000) | DCT-4000 wireless transmitter | 433.92 MHz | 15.231 | 2018-10-12 |
+| [QK8PB-4000-B](https://fccid.io/QK8PB-4000-B) | PB-4000 wireless probe transmitter | 433.92 MHz | 15C | 2024-01-25 |
+| [QK8RH-4000](https://fccid.io/QK8RH-4000) | DCHT-4000 rubber hose transmitter | 433.92 MHz | 15C | 2024-12-03 |
+| [QK8MALERT](https://fccid.io/QK8MALERT) | MURS Alert | **151.8–154.6 MHz**, 1.1 W ERP | 95J (MURS) | 2002-10-25 |
+
+**No Dakota Alert grant opened here is in 902–928 MHz.** The other 12 IDs are nine 2500- and
+4000-series transmitters and sensors, which were not opened individually, and three more MURS
+models. Retailers describe both the 2500 and 4000 series as 433 MHz.
+
+**No harmonic lands near LRAN's channel.** The second harmonic of 433.92 MHz is 867.84 MHz,
+below the band. **The MURS line is the one caveat, and only if the sensor is a MURS model.** The
+sixth harmonics of the five MURS channels fall at 910.9–911.6 MHz and 927.4–927.6 MHz: more
+than 5 MHz from 917.4 MHz, but inside the band's top edge.
+
+**The model number settles which family this is.** A 2500-, 3000- or 4000-series sensor is
+433.92 MHz; a MURS sensor is VHF.
+
+## 8. What M20's survey saw at each frequency
 
 **M20 measured 125 kHz every 200 kHz, with 653 samples per bin**, so each figure below is a
 peak over a short dwell. The table gives peak dBm at each site; the floor was −115 to −117 dBm
@@ -200,7 +230,7 @@ there, but its nearest hop channel, 914.927 MHz, sits at the edge of the 915.0 M
 than inside it. At propane-tank,
 −88 dBm at 908.4 MHz is Z-Wave, the Davis channel at 908.403 MHz or something else.
 
-## 8. What it means for LRAN on 917.4 MHz
+## 9. What it means for LRAN on 917.4 MHz
 
 **The Davis is the only inventoried transmitter that lands in LRAN's channel.** Once every
 130.69 s, for about 6.7 ms. **It sits on the path between the bridge and the gate**, so both
@@ -223,11 +253,12 @@ offset. This document does not establish that.
 the inventoried systems puts a nominal channel at 917.4 MHz except the Davis, and the Davis does
 not transmit in episodes lasting seconds.
 
-## 9. Open, and how each item closes
+## 10. Open, and how each item closes
 
 | Item | Closed by | Owner |
 |---|---|---|
 | ~~Davis transmitter ID~~ | **Closed 2026-09-18: ID 1**, read on the console | Operator |
+| Dakota Alert model number, to confirm 433.92 MHz rather than MURS | The transmitter's or receiver's label | Operator |
 | The Davis burst's level at GateLink's site | A capture at the gate, or GateLink's own RSSI once it runs | GateLink bring-up |
 | Z-Wave and Insteon device model numbers against §3 and §4 | The controller's and the PLM's device lists | Operator, **M26** |
 | Whether the 916.0 MHz cluster is Z-Wave | The Z-Wave controller's frame log, time-aligned with a survey dwelling on 916.0 MHz | **M26** |
@@ -246,6 +277,7 @@ not transmit in episodes lasting seconds.
 - FCC grants via fccid.io: [SBP2413U](https://fccid.io/SBP2413U) (PLM, 914.94 MHz), [SBP2487S](https://fccid.io/SBP2487S) (dual-band switch, 914.9–915.1 MHz), [SBP2440](https://fccid.io/SBP2440) (RemoteLinc, 915.0 MHz), [SBP22422](https://fccid.io/SBP22422) (Insteon Hub, 914.9–915.1 MHz; not deployed here), [2ATM71603](https://fccid.io/2ATM71603) (YoLink hub, 923.3 MHz).
 - YoSmart, [YoLink Hub product page](https://shop.yosmart.com/products/ys1603) — "LoRa: 923.3MHZ".
 - [dekay/DavisRFM69](https://github.com/dekay/DavisRFM69) — `DavisRFM69.h` North American hop table and packet length, `DavisRFM69.cpp` preamble, sync and bit rate; and its [RF Protocol wiki page](https://github.com/dekay/DavisRFM69/wiki/RF-Protocol) — transmit interval by ID.
+- FCC grants for Dakota Alert (grantee [QK8](https://fccid.io/QK8)): QK83000T, QK8UT3000, QK8DCT-2500, QK8DCT-4000, QK8PB-4000-B, QK8RH-4000 and QK8MALERT, linked in §7. [Absolute Automation, Dakota Alert 4000](https://www.absoluteautomation.com/collections/dakota-alert-4000) — 4000 series at 433 MHz.
 - Davis Instruments, [Vantage Pro2 ISS](https://www.davisinstruments.com/products/wireless-vantage-pro2-integrated-sensor-suite) — frequency-hopping spread-spectrum radio.
 - LRAN: [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) §3.1, §3.4, §5.4, M20, M25, M26; [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) §12.1, §18.2; [bridge engineering log](../bridge/engineering-log.md), 2026-09-18; [`docs/rangetest/data/README.md`](../rangetest/data/README.md), survey schema and coverage.
 
@@ -253,4 +285,4 @@ not transmit in episodes lasting seconds.
 
 | Version | Date | Change |
 |---|---|---|
-| **v0.1** | 2026-09-18 | Initial release. The Davis transmitter ID was read as 1 the same day, confirming the hop-cycle prediction, before the document merged. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |
+| **v0.1** | 2026-09-18 | Initial release. The Davis transmitter ID was read as 1 the same day, confirming the hop-cycle prediction, before the document merged. The Dakota Alert driveway sensor was added the same day, as checked and outside the band. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |

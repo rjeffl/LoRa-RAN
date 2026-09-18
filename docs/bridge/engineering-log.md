@@ -871,3 +871,23 @@ stands as written.
 neighbour leaking in. D33 standing condition 3 requires no co-channel occupant on the chosen
 frequency. Whether a 6.7 ms burst every 130.69 s reopens D33 is the operator's decision, recorded
 in the Decision Register. M25's −93 dBm episodic source is still unidentified.
+
+---
+
+## 2026-09-18 — the Dakota Alert driveway sensor is 433.92 MHz, not a neighbour
+
+**The operator runs a Dakota Alert driveway occupancy sensor** in place of the gate controller,
+which LRAN cannot reach yet. Its transmitter is within 30 ft of the gate controller, at M20's
+survey position 1, `gatelink-gate`, and its receiver is near the production bridge location.
+The operator expected 433 MHz and asked for it to be checked.
+
+**Every Dakota Alert Part 15 grant opened is 433.92 MHz**, from the 2004 Driveway Radio to the
+2024 DCHT-4000 hose transmitter, and none of the company's 19 FCC IDs shows a 902–928 MHz
+grant. Its second harmonic is 867.84 MHz, below the band. So it does not bear on 917.4 MHz or on
+any channel LRAN might move to.
+
+**One caveat, if the sensor turns out to be a MURS model.** Dakota Alert's MURS line transmits at
+151.8–154.6 MHz, up to 1.1 W ERP, and the sixth harmonics of those channels fall at
+910.9–911.6 and 927.4–927.6 MHz. That is well clear of 917.4 MHz and of 917.2 MHz, and inside
+the band's top edge. The model number decides it.
+[`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §7 has the grants.
