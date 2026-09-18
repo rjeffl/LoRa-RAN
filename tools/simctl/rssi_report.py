@@ -12,14 +12,15 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rssi_analyze import hourly, parse, peak_histogram, summarise
+from rssi_analyze import (band_buckets, coincidence, episodes, frame_times, hourly, parse,
+                          peak_histogram, periodicity, summarise)
 
 
 def dbm(v):
     return "--" if v is None else "%.1f" % (v / 10.0)
 
 
-def report(boots, top=12, show_hourly=True):
+def report(boots, top=12, show_hourly=True, top_episodes=8):
     out = []
     if not boots:
         out.append("NO DATA. The file holds no CHAN lines.")
@@ -77,11 +78,45 @@ def report(boots, top=12, show_hourly=True):
 
         out.append("")
         out.append("  peak distribution, observed buckets:")
-        for row in peak_histogram(b):
-            if row["buckets"] == 0:
-                continue
+        bands = [r for r in peak_histogram(b) if r["buckets"]]
+        for row in bands:
             hi = "and up" if row["hi"] is None else "to %s" % dbm(row["hi"])
-            out.append("    %8s dBm %-12s %6d bucket(s)" % (dbm(row["lo"]), hi, row["buckets"]))
+            out.append("    %8s dBm %-12s %6d bucket(s)   %6d samples above   %5d single-sample"
+                       % (dbm(row["lo"]), hi, row["buckets"], row["above"], row["single"]))
+
+        tx = frame_times(b, "tx")
+        out.append("")
+        out.append("  periodicity, per band (timed on millis()):")
+        for row in bands:
+            name = "%s dBm band" % dbm(row["lo"])
+            per = periodicity(band_buckets(b, row["lo"], row["hi"]))
+            if per is None:
+                out.append("    %-18s too few events to say" % name)
+            elif not per["periodic"]:
+                out.append("    %-18s not periodic (%d events)" % (name, per["events"]))
+            else:
+                out.append("    %-18s PERIODIC every %.2f s: %d events, largest residual"
+                           " %.2f s, %d of %d gaps one period"
+                           % (name, per["period_ms"] / 1000.0, per["events"],
+                              per["max_residual_ms"] / 1000.0, per["single_period_gaps"],
+                              per["gaps"]))
+                out.append("    %-18s caught %d of %d occurrences (%.0f %%), %s to %s"
+                           % ("", per["events"], per["spanned"], 100 * per["catch_rate"],
+                              per["first"], per["last"]))
+            if tx:
+                c = coincidence(band_buckets(b, row["lo"], row["hi"]), tx)
+                if c and c["chance"] is not None:
+                    out.append("    %-18s near our own tx %d of %d = %.1f %%, chance %.1f %%"
+                               % ("", c["near"], c["buckets"], 100 * c["rate"],
+                                  100 * c["chance"]))
+
+        eps = sorted(episodes(b), key=lambda e: -e["above"])[:top_episodes]
+        if eps:
+            out.append("")
+            out.append("  largest episodes (buckets with 3+ samples above, joined within 10):")
+            for e in eps:
+                out.append("    %s  %4d s span  %3d busy  %5d samples above  peak %7s dBm"
+                           % (e["host"], e["span"], e["busy"], e["above"], dbm(e["peak"])))
 
         exc = sorted(s["excursions"], key=lambda x: -x["peak"])[:top]
         if exc:
@@ -121,11 +156,13 @@ def main():
     ap.add_argument("capture", help="file written by rssi_capture.py")
     ap.add_argument("--top", type=int, default=12, help="strongest excursions to list")
     ap.add_argument("--no-hourly", action="store_true")
+    ap.add_argument("--episodes", type=int, default=8, help="largest episodes to list")
     args = ap.parse_args()
 
     with open(args.capture, "r", encoding="utf-8", errors="replace") as fh:
         boots = parse(fh)
-    print(report(boots, top=args.top, show_hourly=not args.no_hourly))
+    print(report(boots, top=args.top, show_hourly=not args.no_hourly,
+                 top_episodes=args.episodes))
     return 0
 
 

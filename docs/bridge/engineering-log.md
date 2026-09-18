@@ -766,3 +766,44 @@ samples above threshold, joined when 10 s apart or less) came from an ad hoc scr
 the committed capture. **That script is not committed**, so those figures can be recomputed from
 the capture but not yet by a tested tool. Folding them into `rssi_analyze.py` with host tests
 would make them reproducible the way the rest of M25's arithmetic is.
+
+---
+
+## 2026-09-18 — M25's source analysis moves into `rssi_analyze.py`, and corrects two figures in the entry above
+
+**The period is 130.69 s, not 130.66 s, and the chance baseline for coinciding with a poll is
+8.3 %, not 8.1 %.** Neither correction changes a conclusion in the entry above. The entry
+stands as written; this one supersedes those two numbers.
+
+**The period was fitted on the wrong axis.** The ad hoc script fitted occurrence number
+against bucket sequence, which gives a period in buckets. A bucket runs 1000 ms nominally but
+sometimes 1007 or 1009 ms, so 130.66 buckets is 130.69 s once each event is timed by its
+`millis()` start. The largest residual on that axis is 0.52 s, not 0.54.
+
+**The chance baseline was sampled rather than computed.** The script placed 20,000 buckets at
+random and got 8.1 %. The tool now takes the share of the capture's timeline covered by the
+windows around each transmission, which is 8.3 %. The periodic source's own rate, 16 of 201 or
+8.0 %, is unchanged and still at chance.
+
+**The exact baseline turned up one thing the entry above missed.** Buckets peaking at −110 to
+−101 dBm fall near one of our own transmissions **14.2 %** of the time: 113 of 795 buckets
+where about 66 are expected. The excess sits in the buckets that contain a transmission: 78
+hits where about 26 would be expected. So part of that weakest band is associated with the
+bridge's own transmit cycle, not with the channel. **The mechanism is not established.** A reading
+taken as the radio returns to receive, before it settles, would produce it, but that is a
+hypothesis and nothing here tests it. The excess is about 50 buckets, a few percent of the
+occupancy figure. It does not touch the periodic source, whose rate is at chance, or the
+−93 dBm source, at 9.7 % against 8.3 %.
+
+**What the tool now reports.** `rssi_report.py` prints each band's share of the samples above
+threshold and its count of single-sample buckets. For each band it gives a periodicity verdict
+fitted on `millis()`, and the rate at which the band falls near our own transmissions,
+alongside chance. It then lists the largest episodes. The arithmetic is in `rssi_analyze.py`:
+`periodicity()`, `coincidence()`, `episodes()`, `events()`, `frame_times()` and
+`band_buckets()`, with 18 new host tests in `tools/simctl/test_rssi_analyze.py`. One test pins
+the axis mistake: buckets 1009 ms long must still give a period in milliseconds.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
+python3 tools/simctl/test_rssi_analyze.py
+```

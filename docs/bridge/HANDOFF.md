@@ -15,12 +15,14 @@ wholesale.
 ## The next job, in one place
 
 **M25's capture is analysed, and it does not explain the bench losses.** The engineering
-log's 2026-09-18 entry has the numbers. In short:
+log's two 2026-09-18 entries have the numbers; the second corrects two figures in the first,
+and `rssi_report.py` now reproduces every figure. In short:
 
 - **917.4 MHz is not empty.** Above −110 dBm it was occupied 0.0912 % of the time over ten
   hours, by at least two sources. One is strictly periodic: bursts near −75 dBm every
-  **130.66 s**. The other bursts near −93 dBm, sometimes for tens of seconds. Neither is the
-  bridge, and neither is identified.
+  **130.69 s**. The other bursts near −93 dBm, sometimes for tens of seconds. Neither is the
+  bridge, and neither is identified. Part of the weakest band, −110 to −101 dBm, is
+  associated with the bridge's own transmissions, by a mechanism not yet established.
 - **Nothing came within 34 dB of the bench's −37 dBm wanted signal**, and the simnode's media
   access never drops a frame on a busy channel. So the capture excludes an occupant loud
   enough to matter at one metre, in the hours it covered.
@@ -33,7 +35,7 @@ log's 2026-09-18 entry has the numbers. In short:
    co-channel occupant on 917.4 MHz. The capture found energy in its receive bandwidth, and
    it cannot say whether that energy is co-channel or a neighbour leaking in. Decision
    Register §3.4 and the M25 row are where the answer is recorded.
-2. **Which device fires every 130.66 s?** That belongs to **M26**. At the gate, the entry
+2. **Which device fires every 130.69 s?** That belongs to **M26**. At the gate, the entry
    estimates that the periodic source alone overlaps about 0.85 % of maximum-length SF9
    uplink frames, at about 26 dB above the wanted signal.
 
