@@ -48,8 +48,7 @@ episodic source is still unidentified, and the capture cannot tell whether it is
 **The site's 900 MHz equipment is now researched, from published sources.**
 [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) gives Z-Wave (916.00 and
 908.4 MHz), Insteon (915.0 MHz), YoLink (923.3 MHz) and the Davis (51 hop channels). The
-Dakota Alert driveway sensor at the gate is 433.92 MHz on every Part 15 model found, outside
-the band; its model number is not yet recorded. It also
+Dakota Alert driveway sensor at the gate, a DAPT-4000, is 433.92 MHz, outside the band. It also
 finds that M20's −54 dBm at 916.0 MHz in the house is on Z-Wave's channel, not YoLink's, which
 Decision Register §5.4 will need to reflect. That part of **M26** is done; confirming model
 numbers is still open.

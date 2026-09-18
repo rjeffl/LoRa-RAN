@@ -33,7 +33,7 @@ recorded YoLink only until then.
 | **Insteon** | A **2413U PowerLinc Modem (USB)**, plus a mix of **dual-band** and **wireless-only** devices. No Insteon Hub | Insteon i2/RF |
 | **YoLink** | A hub, four temperature sensors and a switch, all inside the dwelling (§3.1) | LoRa, proprietary protocol |
 | **Davis** | A **Davis Vantage Pro2** weather station, **transmitter ID 1**. Its transmitter sits at M20's survey position 2, `weather-island`, **on the line between the bridge and GateLink's site** | Frequency-hopping GFSK |
-| **Dakota Alert** | A driveway occupancy sensor, standing in for the gate controller, which LRAN cannot reach yet. The transmitter is within 30 ft of the gate controller, at M20's survey position 1, `gatelink-gate`; the receiver is near the production bridge location. Model not yet recorded | 433.92 MHz, outside the 902–928 MHz band (§7) |
+| **Dakota Alert** | A driveway occupancy sensor, standing in for the gate controller, which LRAN cannot reach yet. The transmitter is within 30 ft of the gate controller, at M20's survey position 1, `gatelink-gate`; the receiver is near the production bridge location. **Model DAPT-4000**, a 4000-series dual-probe directional vehicle sensor | 433.92 MHz, outside the 902–928 MHz band (§7) |
 
 **Insteon's "dual-band" means powerline plus RF, not two radio frequencies.** A dual-band
 device carries Insteon's 131.65 kHz powerline signal and the same 915 MHz radio that a
@@ -186,8 +186,10 @@ below the band. **The MURS line is the one caveat, and only if the sensor is a M
 sixth harmonics of the five MURS channels fall at 910.9–911.6 MHz and 927.4–927.6 MHz: more
 than 5 MHz from 917.4 MHz, but inside the band's top edge.
 
-**The model number settles which family this is.** A 2500-, 3000- or 4000-series sensor is
-433.92 MHz; a MURS sensor is VHF.
+**The sensor is a DAPT-4000, so it is 433.92 MHz and the MURS caveat does not apply.** The
+operator read the model on 2026-09-18, and its manual gives 433 MHz. Its likely FCC ID is
+[QK8PB-4000](https://fccid.io/QK8PB-4000), "PB-4000 Directional Probe Alarm": 433.92 MHz under
+§15.231, granted 2019-05-07. That match is by product name; the unit's label would confirm it.
 
 ## 8. What M20's survey saw at each frequency
 
@@ -258,7 +260,7 @@ not transmit in episodes lasting seconds.
 | Item | Closed by | Owner |
 |---|---|---|
 | ~~Davis transmitter ID~~ | **Closed 2026-09-18: ID 1**, read on the console | Operator |
-| Dakota Alert model number, to confirm 433.92 MHz rather than MURS | The transmitter's or receiver's label | Operator |
+| ~~Dakota Alert model number~~ | **Closed 2026-09-18: DAPT-4000**, 433 MHz per its manual | Operator |
 | The Davis burst's level at GateLink's site | A capture at the gate, or GateLink's own RSSI once it runs | GateLink bring-up |
 | Z-Wave and Insteon device model numbers against §3 and §4 | The controller's and the PLM's device lists | Operator, **M26** |
 | Whether the 916.0 MHz cluster is Z-Wave | The Z-Wave controller's frame log, time-aligned with a survey dwelling on 916.0 MHz | **M26** |
@@ -285,4 +287,4 @@ not transmit in episodes lasting seconds.
 
 | Version | Date | Change |
 |---|---|---|
-| **v0.1** | 2026-09-18 | Initial release. The Davis transmitter ID was read as 1 the same day, confirming the hop-cycle prediction, before the document merged. The Dakota Alert driveway sensor was added the same day, as checked and outside the band. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |
+| **v0.1** | 2026-09-18 | Initial release. The Davis transmitter ID was read as 1 the same day, confirming the hop-cycle prediction, before the document merged. The Dakota Alert driveway sensor was added the same day, as checked and outside the band, and its model read as DAPT-4000. Z-Wave, Insteon, YoLink and Davis specifications from published sources; M20's survey read at each frequency; the Davis hop cycle matched to M25's periodic source |

@@ -891,3 +891,13 @@ any channel LRAN might move to.
 910.9–911.6 and 927.4–927.6 MHz. That is well clear of 917.4 MHz and of 917.2 MHz, and inside
 the band's top edge. The model number decides it.
 [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) §7 has the grants.
+
+---
+
+## 2026-09-18 — the Dakota Alert sensor is a DAPT-4000, at 433.92 MHz
+
+**The operator read the model as DAPT-4000**, a 4000-series dual-probe directional vehicle
+sensor, and its manual gives 433 MHz. That closes the MURS caveat in the entry above: the sensor
+is not VHF, and nothing it transmits reaches 902–928 MHz. Its likely FCC ID is QK8PB-4000,
+"PB-4000 Directional Probe Alarm", at 433.92 MHz under §15.231. The match is by product name,
+not read from the unit's label.
