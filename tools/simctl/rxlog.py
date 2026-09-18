@@ -122,41 +122,50 @@ def format_report(batches):
                          " loss." % s.resyncs)
         for loss in s.losses:
             lines.append("    after seq %-6d %2d missing   gap %5d ms   deaf %4d ms"
-                         "   tx inside: %s"
+                         " (%5.2f %% of the gap)   tx inside: %s"
                          % (loss.after_seq, loss.count, loss.dt_ms, loss.deaf_ms,
+                            100.0 * loss.deaf_fraction,
                             "yes" if loss.tx_inside else "no"))
 
-    total, candidate, receiving = verdict(streams)
+    total, tx_gaps, attributable = verdict(streams)
     lines.append("")
     if total == 0:
         lines.append("NO LOSSES. Nothing to attribute.")
         return "\n".join(lines)
 
-    lines.append("%d frame(s) lost:" % total)
-    lines.append("  %d with the bridge transmitting or deaf inside the gap" % candidate)
-    lines.append("  %d with the bridge's radio in RECEIVE for the whole gap" % receiving)
+    lines.append("%d frame(s) lost. %d gap(s) had a bridge transmission inside."
+                 % (total, tx_gaps))
+    lines.append("The bridge's own deafness can account for AT MOST %.2f of them."
+                 % attributable)
+    lines.append("  A ceiling, not an estimate: deaf_ms is a total and does not say"
+                 " where in the gap")
+    lines.append("  it fell, so its share of the gap is the most of that gap it could"
+                 " have covered.")
     lines.append("")
 
     # THE READING, stated rather than left to the operator - and stated as a direction
     # for the next step, not as a conclusion. One burst is one burst.
-    if receiving == 0:
-        lines.append("Every loss falls where the bridge was not listening. That points"
-                     " at this firmware's")
-        lines.append("half duplex - which the aggregate rx_deaf_ms did NOT show"
-                     " (engineering log, 2026-09-17),")
-        lines.append("so a disagreement between the two is itself the finding.")
-    elif candidate == 0:
-        lines.append("Every loss falls while the bridge's radio was in receive. The"
-                     " transmit path is not")
-        lines.append("involved in any of them, which agrees with the aggregate result"
-                     " and leaves the SX1262's")
-        lines.append("buffer handling and the RF environment - neither answerable from"
-                     " the bridge's counters.")
+    share = attributable / total
+    if share < 0.25:
+        lines.append("The transmit path cannot be the story here: the bridge was"
+                     " listening for essentially")
+        lines.append("all of every gap. That AGREES with the aggregate rx_deaf_ms"
+                     " result (engineering log,")
+        lines.append("2026-09-17) and now agrees with it per frame. What is left is the"
+                     " SX1262's own buffer")
+        lines.append("handling and the RF environment, neither of which the bridge's"
+                     " counters can reach.")
+    elif share > 0.75:
+        lines.append("The bridge's deafness could account for most of this loss, which"
+                     " the aggregate")
+        lines.append("rx_deaf_ms did NOT show (engineering log, 2026-09-17). A"
+                     " disagreement between the two")
+        lines.append("is itself the finding - check the spacing before believing either.")
     else:
-        lines.append("Mixed. Sweep the spacing before reading either column: a gap the"
-                     " bridge was deaf")
-        lines.append("across is only its fault if the deafness covers enough of the gap"
-                     " to matter.")
+        lines.append("Mixed, and one burst will not settle it. Sweep the spacing: the"
+                     " ceiling should")
+        lines.append("track the deafness and not the loss rate if the transmit path is"
+                     " innocent.")
     return "\n".join(lines)
 
 

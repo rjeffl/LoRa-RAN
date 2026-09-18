@@ -96,17 +96,27 @@ class Loss:
         self.tx_inside = tx_inside  # the bridge transmitted during it
 
     @property
-    def explained_by_the_bridge(self):
-        """True when this firmware was demonstrably not listening for some of the gap.
+    def deaf_fraction(self):
+        """Share of the gap the bridge's radio was out of receive. 0.0 when it was not.
 
-        DEAF TIME AND A TRANSMISSION ARE BOTH ACCEPTED AS EXPLANATIONS, and neither is
-        proof: the radio being out of receive for 200 ms of a 250 ms gap makes the loss
-        the bridge's, while 2 ms of it does not. The threshold is the caller's, because
-        it depends on the spacing being swept. What this property claims is only that
-        the bridge is a CANDIDATE for this gap - the interesting number is how many gaps
-        it is not a candidate for at all.
+        AND THIS IS AN UPPER BOUND ON THE BRIDGE'S RESPONSIBILITY FOR THE GAP, which is
+        the only honest thing to do with it. `deaf_ms` is a total and says nothing about
+        WHERE in the gap the deafness fell, so the chance it covered the instant the
+        missing frame would have arrived is at most its share of the gap. A run whose
+        gaps are 612 ms with 21 ms of deafness in them puts that ceiling at 3.4 %, and
+        calling such a gap "the bridge was not listening" is the confident and wrong
+        verdict this module exists to refuse.
+
+        A TRANSMISSION NEEDS NO SEPARATE TERM. rx_deaf_ms already counts CAD and
+        transmission together (rx_deaf.h), so a transmit inside the gap is in this
+        figure. `tx_inside` says what KIND of deafness it was; the arithmetic is here.
         """
-        return self.tx_inside or self.deaf_ms > 0
+        return (float(self.deaf_ms) / self.dt_ms) if self.dt_ms > 0 else 0.0
+
+    @property
+    def attributable_frames(self):
+        """Frames in this gap the bridge's deafness could account for, at most."""
+        return self.count * self.deaf_fraction
 
 
 def seq_delta(prev, cur):
@@ -216,17 +226,26 @@ def _transmitted_between(records, i):
 
 
 def verdict(streams):
-    """The split the whole instrument exists to produce.
+    """The figure the whole instrument exists to produce.
 
-    Returns (total, bridge_candidate, receiving_throughout). The third is the one to
-    read: a loss the bridge cannot be blamed for, because its own radio was in receive
-    for every millisecond of the gap.
+    Returns (total_lost, tx_gaps, attributable). `attributable` is the CEILING on how
+    many of the lost frames the bridge's own deafness could account for - the sum of
+    each gap's deaf share, which is that gap's upper bound.
+
+    A CEILING RATHER THAN A CLASSIFICATION, AND DELIBERATELY NO THRESHOLD. Splitting the
+    losses into "the bridge's" and "not the bridge's" needs a line drawn at some deaf
+    fraction, and every value for that line is an assumption about where in the gap the
+    deafness fell - which is exactly what the instrument cannot see. A ceiling needs no
+    such assumption: 2 lost frames against a ceiling of 0.07 says the transmit path
+    cannot be the story here, with nothing taken on faith.
     """
     total = 0
-    candidate = 0
+    tx_gaps = 0
+    attributable = 0.0
     for stream in streams.values():
         for loss in stream.losses:
             total += loss.count
-            if loss.explained_by_the_bridge:
-                candidate += loss.count
-    return total, candidate, total - candidate
+            attributable += loss.attributable_frames
+            if loss.tx_inside:
+                tx_gaps += 1
+    return total, tx_gaps, attributable

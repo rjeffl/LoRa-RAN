@@ -27,8 +27,8 @@ from rxlog_analyze import (
     verdict,
 )
 
-TYPE_STATUS = 0x03
-TYPE_PING = 0x06
+TYPE_STATUS = 0x04  # lran::MsgType::Status
+TYPE_PING = 0x07    # lran::MsgType::Ping
 
 
 def rx(index, ms, seq, peer=0xF0, msg_type=TYPE_STATUS, deaf=0, st=0):
@@ -40,7 +40,7 @@ def rx(index, ms, seq, peer=0xF0, msg_type=TYPE_STATUS, deaf=0, st=0):
 
 def tx(index, ms, seq, peer=0xF0, deaf=0):
     return {"i": index, "ms": ms, "deaf": deaf, "d": "tx", "peer": peer,
-            "type": 0x01, "schema": 0xFF, "frag": 1, "seq": seq,
+            "type": 0x03, "schema": 0x00, "frag": 1, "seq": seq,
             "rssi": None, "snr": None, "st": 0, "rx": 5}
 
 
@@ -191,7 +191,6 @@ class WhatTheBridgeWasDoing(unittest.TestCase):
         streams = analyze([rx(0, 0, 1), tx(1, 300, 9), rx(2, 600, 3)])
         loss = streams[(0xF0, TYPE_STATUS)].losses[0]
         self.assertTrue(loss.tx_inside)
-        self.assertTrue(loss.explained_by_the_bridge)
 
     def test_a_transmission_outside_the_gap_is_not_attributed_to_it(self):
         # THE WHOLE POINT OF WALKING BACK ONLY TO THE PREVIOUS ARRIVAL. A transmit
@@ -211,26 +210,50 @@ class WhatTheBridgeWasDoing(unittest.TestCase):
         loss = streams[(0xF0, TYPE_STATUS)].losses[0]
         self.assertEqual(0, loss.deaf_ms)
         self.assertFalse(loss.tx_inside)
-        self.assertFalse(loss.explained_by_the_bridge)
+        self.assertEqual(0.0, loss.deaf_fraction)
+
+    def test_the_deaf_share_of_the_gap_is_a_ceiling_and_not_a_verdict(self):
+        # THE BUG THIS TEST EXISTS FOR, found by running the tool on the bench
+        # 2026-09-17: 21 ms of deafness in a 612 ms gap was reported as "the bridge was
+        # not listening". It was listening for 96.6 % of it.
+        streams = analyze([rx(0, 0, 1, deaf=600), rx(1, 612, 3, deaf=621)])
+        loss = streams[(0xF0, TYPE_STATUS)].losses[0]
+        self.assertAlmostEqual(21.0 / 612.0, loss.deaf_fraction, places=6)
+        self.assertAlmostEqual(21.0 / 612.0, loss.attributable_frames, places=6)
+
+    def test_several_missing_frames_scale_the_ceiling(self):
+        streams = analyze([rx(0, 0, 1, deaf=0), rx(1, 1000, 4, deaf=500)])
+        loss = streams[(0xF0, TYPE_STATUS)].losses[0]
+        self.assertEqual(2, loss.count)
+        self.assertAlmostEqual(0.5, loss.deaf_fraction, places=6)
+        self.assertAlmostEqual(1.0, loss.attributable_frames, places=6)
+
+    def test_a_zero_length_gap_does_not_divide_by_zero(self):
+        streams = analyze([rx(0, 100, 1, deaf=0), rx(1, 100, 3, deaf=0)])
+        self.assertEqual(0.0, streams[(0xF0, TYPE_STATUS)].losses[0].deaf_fraction)
 
 
 class Verdict(unittest.TestCase):
-    def test_the_split_is_what_the_instrument_reports(self):
-        # Two gaps: one with the bridge deaf across it, one with it listening.
+    def test_the_ceiling_is_the_sum_of_the_gaps_deaf_shares(self):
         streams = analyze([
             rx(0, 0, 1, deaf=600),
-            rx(1, 500, 3, deaf=643),   # 1 lost, bridge was deaf 43 ms
-            rx(2, 750, 4, deaf=643),
-            rx(3, 1250, 6, deaf=643),  # 1 lost, bridge in receive throughout
+            rx(1, 500, 3, deaf=850),   # 1 lost, deaf 250 ms of 500 -> ceiling 0.5
+            rx(2, 750, 4, deaf=850),
+            rx(3, 1250, 6, deaf=850),  # 1 lost, deaf 0 ms -> ceiling 0
         ])
-        total, candidate, receiving = verdict(streams)
+        total, tx_gaps, attributable = verdict(streams)
         self.assertEqual(2, total)
-        self.assertEqual(1, candidate)
-        self.assertEqual(1, receiving)
+        self.assertEqual(0, tx_gaps)
+        self.assertAlmostEqual(0.5, attributable, places=6)
+
+    def test_a_gap_the_bridge_was_deaf_right_across_has_a_ceiling_of_one(self):
+        streams = analyze([rx(0, 0, 1, deaf=0), rx(1, 500, 3, deaf=500)])
+        _, _, attributable = verdict(streams)
+        self.assertAlmostEqual(1.0, attributable, places=6)
 
     def test_a_clean_burst_reports_nothing_rather_than_dividing_by_zero(self):
-        self.assertEqual((0, 0, 0), verdict(analyze([rx(i, i * 250, i + 1)
-                                                     for i in range(5)])))
+        self.assertEqual((0, 0, 0.0), verdict(analyze([rx(i, i * 250, i + 1)
+                                                       for i in range(5)])))
 
 
 class Reporting(unittest.TestCase):
@@ -250,13 +273,21 @@ class Reporting(unittest.TestCase):
     def test_losses_while_receiving_point_away_from_this_firmware(self):
         text = format_report([{"lost": 0, "f": [
             rx(0, 0, 1, deaf=600), rx(1, 500, 3, deaf=600)]}])
-        self.assertIn("in RECEIVE for the whole gap", text)
-        self.assertIn("transmit path is not", text)
+        self.assertIn("AT MOST 0.00", text)
+        self.assertIn("transmit path cannot be the story", text)
 
-    def test_losses_while_deaf_point_at_it(self):
+    def test_a_small_deafness_in_a_long_gap_does_not_become_a_verdict(self):
+        # The bench case from 2026-09-17: 21 ms of a 612 ms gap. The report must not
+        # read that as the bridge having been deaf for the loss.
         text = format_report([{"lost": 0, "f": [
-            rx(0, 0, 1, deaf=600), rx(1, 500, 3, deaf=700)]}])
-        self.assertIn("not listening", text)
+            rx(0, 0, 1, deaf=600), rx(1, 612, 3, deaf=621)]}])
+        self.assertIn("transmit path cannot be the story", text)
+        self.assertNotIn("not listening", text)
+
+    def test_losses_the_bridge_was_deaf_right_across_point_at_it(self):
+        text = format_report([{"lost": 0, "f": [
+            rx(0, 0, 1, deaf=0), rx(1, 500, 3, deaf=500)]}])
+        self.assertIn("could account for most of this loss", text)
 
     def test_a_ring_overwrite_is_flagged_before_the_gaps_are_read(self):
         # A gap below may be a record that was MADE and lost, not a frame that never
