@@ -45,6 +45,30 @@ HA-visible token; the third leaves root rule 8 unmet.
 record of the move; the engineering log's 2026-09-17 entries are the measurement.
 **Its saturated arm stays blocked** until the lever above has a route.
 
+**A ten-hour channel capture was started on 2026-09-17 and is the first thing to read
+next session.** M25. The bridge is sampling RSSI on 917.4 MHz about a hundred times a
+second and writing it to
+[`data/m25-chan-baseline-2026-09-17.log`](./data/m25-chan-baseline-2026-09-17.log) over
+USB serial.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-baseline-2026-09-17.log
+```
+
+**Both simnodes were powered down for it, deliberately.** The sampler skips a reception
+only once a valid LoRa header is seen, so roughly 33 ms of every one of our own frames'
+preambles would otherwise land in the samples as a large excursion at −37 dBm and swamp
+the occupancy figure. **A capture with the simnodes running is a different experiment** —
+loss against occupancy — and must not be pooled with this one.
+
+**Why it outranks the sweep below.** The operator identified **YoLink, Z-Wave and Insteon**
+on the property on 2026-09-17. Only YoLink is in the Decision Register's inventory (§3.1),
+and M20 measured the YoLink hub at **−54 dBm peak against a −113.8 dBm mean in the same
+bin** at the bridge's own location — a 60 dB peak-to-mean. The losses being clustered in
+time now has a named alternative to firmware, and **the survey's 653 samples per bin could
+not have excluded it**. See the engineering log's last 2026-09-17 entry, and **M25** and
+**M26** in the register.
+
 **One thing must land before BF-24, and it is no longer the instrument — it is a
 sweep.** BF-24 decodes a fragmented `STATUS`, which is the traffic pattern that loses
 frames on this firmware, so decoding into it first means debugging two problems at once.
@@ -255,7 +279,7 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `1375c3f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, and `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27). Confirmed on air the same day: `lran/bridge/version` reads `0.1.0`, `git 1375c3f`, `slot app0`. It replaced the `d2212c9` image flashed earlier that day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-17 from `1375c3f`, a clean tree** — `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, and `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27). Confirmed on air the same day: `lran/bridge/version` reads `0.1.0`, `git 1375c3f`, `slot app0`. It replaced the `d2212c9` image flashed earlier that day. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. **Polls, receives and publishes**: WiFi, broker and radio all up. **A ten-hour M25 capture was started on it 2026-09-17 and holds that port** — `rssi_capture.py` opens with DTR and RTS low so it does not reboot the board, but a second opener will still fail or steal bytes. Check for a running `rssi_capture.py` before touching this port |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error` — **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21)**. Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | On USB. **The port name moves across replug** — it was `/dev/cu.usbserial-4` and was `/dev/cu.usbserial-3` on 2026-09-17. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH`. **Both were disabled by hand on 2026-09-17 and that is gone after any reboot** |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | On USB as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **`f3` `ROLE_FAULT` was added by hand for M22 and is gone after any reboot** — **and it was gone on 2026-09-17 afternoon**, so this board had rebooted since the morning runs. It was rebuilt the same way (`id add f3 ROLE_FAULT`, `disable f1`), with a fresh `ctx`. **Check `id list` before believing a run**, rather than assuming the bench survived |
 
