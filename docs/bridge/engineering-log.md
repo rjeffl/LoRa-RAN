@@ -1137,3 +1137,66 @@ never transmits), and log both boards side by side for an hour.
 
 **The XIAO now samples 917.2 MHz**, stored in its NVS by the retune above. Its next boot says
 so in `CHAN-BOOT`.
+
+---
+
+## 2026-09-19 — the "carrier" was a stuck receiver in the Heltec, set off by the bridge's polls
+
+**This entry supersedes the one above, which blamed the XIAO + Wio Kit. The XIAO is not the
+source, and there was no carrier.** The simnode Heltec, running `firmware/chan-capture/` at
+917.4 MHz, read a flat −74 dBm because its own receiver stuck after each of the bridge's polls
+at 917.6 MHz, a metre away. Restarting receive clears it, and the image now restarts receive
+every 100 ms. The entry above stands as written, as a record of what was believed at the time.
+
+**Why the entry above was wrong.** Its unplug test watched the Heltec for 32 s, and its quiet
+"before" window for 20 s. Every watch began by opening the Heltec's port, which reboots it, and
+the reading then jumped some seconds later. Those two watches were too short to see a jump that
+had nothing to do with the XIAO. A continuous capture with no reboots settled it: the reading
+jumped at 04:49:10 and stayed at −74 dBm after the XIAO was unplugged at about 04:53.
+
+**The trigger is the bridge's poll.** Every jump came within a second of a poll in the bridge's
+917.6 MHz capture file, six of six:
+
+| Heltec reading jumps to −74 dBm | Bridge poll |
+|---|---|
+| 04:37:08 | 04:37:09 |
+| about 04:39:08 | 04:39:09 |
+| about 04:47:08 | 04:47:09 |
+| 04:49:10 | 04:49:09 |
+| 04:51:20, back after a brief dip | 04:51:19 |
+| 04:55:10 | 04:55:09 |
+
+**The state is invisible to the radio's own flags.** A watchdog on `PREAMBLE_DETECTED` and
+`HEADER_VALID` never fired, and a live probe at 05:07 read the IRQ status as **0x0000** in the
+middle of an episode, with RSSI at −73.0 dBm. So the modem was not mid-reception. A forced
+restart then read −113.0 dBm 50 ms later, and the next poll, at 05:07:19, stuck it again. The
+level it sticks at is close to the level of the poll itself, which reads −70 dBm. Why the
+receiver holds it is not established.
+
+**Neither Vext nor the OLED panel is involved.** The image from before the panel change, which
+never touches Vext, stuck at 04:55:10 after the poll at 04:55:09.
+
+**The fix: restart receive every 100 ms, just after a sample.** Over 3.5 minutes and eight
+polls on build `6bf9a38`'s code, no plateau appeared. Each poll read as about 19 samples at
+−70 dBm, about 190 ms, which fits a short SF9 frame. The floor held at −114 dBm. The Davis was
+caught twice, at 05:09:54 and 05:12:04, 130 s apart. One sample in 3.5 minutes was skipped. The
+cost is that a frame longer than 100 ms is rarely decoded, so `own_rx` undercounts in these
+files; the energy is still sampled.
+
+**Why the bridge never showed it.** The bridge restarts receive after each of its own
+transmissions, so a stuck state would end at its next poll. M25's ten hours show no plateau.
+**What this does not establish** is whether the bridge's receiver sticks between polls when a
+strong signal on another channel arrives. At the bench that costs nothing, because a −37 dBm
+frame clears a −74 dBm stuck floor by 37 dB. At the gate, where the wanted signal is about
+−100 dBm, a receiver stuck 40 dB high would miss frames until its next transmission. **That is
+an open question, not a finding.** The check that would settle it is a bridge-side capture with
+a strong off-channel LoRa burst and no poll for a minute afterwards, and no task owns it yet.
+
+**The XIAO's own floor is still unexplained.** It read −109 dBm with a mean of −107 dBm on the
+build without the restart, 5 to 7 dB above the Heltec. Whether it was stuck too, from boot, is
+the next thing to check on the new build.
+
+**Two things the 917.6 MHz capture's log entry should carry.** The simnode Heltec sat on
+917.4 MHz beside the bridge from 04:24 onward, never transmitting, and the XIAO did the same
+from 04:24 to about 04:53 and again from 04:36. Neither transmits, so neither can put energy on
+917.6 MHz; the entry should say so rather than leave the reader to wonder.
