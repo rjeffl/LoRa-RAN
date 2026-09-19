@@ -1200,3 +1200,141 @@ the next thing to check on the new build.
 917.4 MHz beside the bridge from 04:24 onward, never transmitting, and the XIAO did the same
 from 04:24 to about 04:53 and again from 04:36. Neither transmits, so neither can put energy on
 917.6 MHz; the entry should say so rather than leave the reader to wonder.
+
+---
+
+## 2026-09-19 — the 917.6 MHz capture: no Davis, and a −46 dBm source no other capture has shown
+
+**917.6 MHz passes the D1 brief's first test and fails the other two as read.** No source there
+was periodic, so the Davis hop that M25 found at 917.4 MHz is absent. Occupancy read 0.1467 %
+against M25's 0.0912 % over the same UTC hours one day earlier. A source at −45 to −47 dBm
+appeared 18 times, 25 dB above anything M25 or the 917.2 MHz capture recorded. The two captures
+are a day apart, so neither failure separates frequency from day.
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) §5's parallel
+run is the comparison that can.
+
+**The run.** The bridge board sampled RSSI on 917.6 MHz from 2026-09-19T03:43:07Z to
+13:43:08Z. It ran image `91e63dd`, the capture-only bridge build, polling peers 0x01 and 0x02
+once a minute each; neither was powered. The run is one segment: 9.99 h, 35,950 buckets and
+3,568,887 samples, with 25,385 opportunities skipped (0.7 %). `rssi_capture.py
+--reset-on-open` opened it. The capture is `docs/bridge/data/m25-chan-917600-2026-09-19.log`.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917600-2026-09-19.log
+```
+
+| | 917.6 MHz, 2026-09-19, 03:43 to 13:43 UTC | 917.4 MHz, M25, 2026-09-18, 03:44 to 13:43 UTC |
+|---|---|---|
+| Floor, per-minute mean | median −115.1 dBm, range −117.0 to −113.0 | median −115.5 dBm, range −117.0 to −115.0 |
+| Strongest sample | **−45.0 dBm** | −71.0 dBm |
+| Occupancy above −110 dBm | 5,236 of 3,568,887 samples, **0.1467 %** | 3,256 of 3,568,828, 0.0912 % |
+| Periodic source | **none in any band** | 130.69 s, the Davis |
+| Buckets peaking −60 dBm and up | **19**, 82 samples above | 0 |
+| Buckets peaking −80 to −70 dBm | 26, 94 samples above | 201, 216 samples above |
+| Buckets peaking −90 to −80 dBm | 68, 279 samples above | 29, 74 samples above |
+| Buckets peaking −100 to −90 dBm | 234, 1,648 samples above | 144, 1,756 samples above |
+| Buckets peaking −110 to −100 dBm | 828, **3,135** samples above | 795, 1,211 samples above |
+
+### What was on the bench
+
+**Nothing else transmitted on LRAN's PHY after 04:24:25 UTC.** Both simnode boards ran simnode
+firmware on 917.4 MHz from about 04:03 to 04:13 UTC, by the operator's estimate, and the XIAO
+booted simnode firmware again from about 04:22 until it was flashed at 04:24:25. From then on,
+both ran `firmware/chan-capture/`, which calls no transmit. The simnode Heltec sat on 917.4 MHz
+about a metre from the bridge board for the rest of the capture and was rebooted many times
+between 04:25 and 05:27. The XIAO was unplugged by 05:40, when the last handoff was written. The 2026-09-19 entries above
+have the detail.
+
+### Test 1, no periodic source: passed
+
+**No band at 917.6 MHz is periodic, so the Davis leaves no trace 0.166 MHz from its 917.434 MHz
+hop.** At 917.4 MHz, M25 caught 73 % of about 274 Davis cycles, each at −74 to −77 dBm. Here,
+none reached −110 dBm. So the receiver rejects a Davis burst at 0.166 MHz offset by at least
+33 dB, assuming the Davis reached the bench at the same level both nights. The
+handoff listed rejection at 0.25 MHz as unmeasured. A channel filter rejects more as the offset
+grows, so 917.2 MHz's neighbouring hops, 0.234 and 0.266 MHz away, should be rejected at least
+as well. That is an inference; 0.25 MHz itself is still not measured.
+
+### Test 2, occupancy no higher than 917.4 MHz's: failed as read, a day apart
+
+**917.6 MHz read higher than M25 in eight of the nine full hours**, by 1.7 to 3.1 times.
+
+| Hour (UTC) | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|
+| 917.6 MHz, 2026-09-19, % | 0.107 | 0.170 | 0.170 | 0.153 | 0.139 | 0.149 | 0.135 | 0.148 | 0.165 |
+| 917.4 MHz, 2026-09-18, % | 0.228 | 0.093 | 0.101 | 0.078 | 0.068 | 0.048 | 0.048 | 0.068 | 0.062 |
+
+**Almost all of the excess sits in the weakest band.** 917.6 MHz counted 1,980 more samples above
+threshold than M25, and 1,924 of them peak at −110 to −101 dBm. The band holds about as many
+buckets at both frequencies, 828 against 795, but the buckets at 917.6 MHz are longer: 200 of the
+828 hold one sample above threshold, against 610 of M25's 795. **The excess was there before any
+other board was powered.** Hour 03, from 03:43 to 04:00, held 93 samples above threshold in that
+band against M25's 22.
+
+**The weakest band is not tied to the bridge's transmissions at 917.6 MHz.** 79 of its 828
+buckets fall near one, 9.5 %, against 8.3 % by chance. The same figure read 14.2 % at 917.4 MHz
+and 21.0 % at 917.2 MHz. Why it differs between frequencies is not established.
+
+### Test 3, no episodic source stronger than at 917.4 MHz: failed
+
+**Two sources decide it.**
+
+1. **The −93 dBm episodic source reads about the same.** Seven of the eight largest episodes peak at
+   −91 to −96 dBm, and one at −82 dBm, against −91 and −92 dBm at 917.4 MHz. The −100 to −90 dBm band holds more buckets,
+   234 against 144, and a similar number of samples above threshold, 1,648 against 1,756.
+2. **A source at −45 to −47 dBm appears in 18 buckets, and nothing like it appears in either
+   other capture.** A nineteenth bucket, at 13:22:25 UTC, peaked at −51 dBm with 7 samples above
+   threshold and may be the same source. The 18 run from 04:33:13 to 12:16:45 UTC, 00:33 to
+   08:16 local time. Each holds 1 to 6 samples above threshold, so each burst lasts about 10 to
+   60 ms. They arrive one to four an hour with no period. Twice two arrive less than a minute apart,
+   10:18:17 and 10:18:53, and 11:21:46 and 11:21:55. The buckets at 09:22:06 and 09:22:07 are
+   consecutive and may hold one burst. Two of the 19 fall near a bridge transmission, at chance.
+
+**The level held within 2 dB across nine hours**, which fits one transmitter at a fixed position
+and power. It is unidentified. At the gate, where frames arrive near −100 dBm, a burst at this
+level would sit about 54 dB above the wanted signal. That estimate comes from bench-position
+RSSI, as M25's did.
+
+**One timing needs checking before the source counts against 917.6 MHz.** The simnode Heltec
+went onto the bench at 04:24, on `chan-capture` at 917.4 MHz, and the first burst came at
+04:33. M25 and the 917.2 MHz capture, which ran with no other board powered, show nothing above
+−71 dBm. Reading −46 dBm a metre away needs about −14 dBm radiated, from the 31.7 dB free-space
+loss at 1 m, and the image calls no transmit. So this is a coincidence to test, not an
+attribution. **A 917.6 MHz capture with no other board powered would settle it**: if the
+bursts continue, the board is not their source.
+
+**Z-Wave at 916.00 MHz is an unlikely source.** It sits 1.6 MHz below 917.6 MHz and 1.4 MHz
+below 917.4 MHz, where M25 saw nothing above −71 dBm. That was a different night, and the test
+below found nothing either.
+
+### The thermostat test at 13:43 to 13:44 UTC
+
+**The operator sent three status requests to a Z-Wave thermostat 6 to 8 m from both Heltecs,
+and no receiver recorded anything that can be tied to them.** The operator's log places the
+requests between 13:43 and 13:44 UTC (09:43 to 09:44 EDT), to within about 10 s. That window
+straddles the unattended handover between captures:
+
+| UTC | Receivers | Seen |
+|---|---|---|
+| 13:42:50 to 13:43:08 | bridge board, 917.6 MHz | One sample at −110 dBm in each of two buckets, 13:42:53 and 13:42:54. That band ran about 1.4 buckets a minute over the capture, so two are background |
+| 13:43:08 to 13:44:03 | **none** | The 917.6 MHz capture had closed. The script flashed the bridge board and rebooted both boards to check them |
+| 13:44:03 to 13:45:13 | both Heltecs, 917.4 MHz | **No sample above −110 dBm on either board** |
+
+**Any request after 13:44:03 put nothing above −110 dBm on 917.4 MHz**, 1.40 MHz above Z-Wave's
+100 kbps channel. Three things limit what that shows:
+
+- **The thermostat's data rate is not known.** At 40 or 9.6 kbps it transmits on 908.4 MHz,
+  9 MHz away, and the test says nothing about 916.00 MHz.
+- **The sampler can miss a short frame.** It reads instantaneous RSSI once every 10 ms. A Z-Wave
+  frame at 100 kbps lasts a few milliseconds, by estimate from the rate, so one frame is caught
+  with a probability of roughly its length over 10 ms. An exchange of several frames is likely,
+  not certain, to land at least one sample.
+- **Which requests fell after 13:44:03 is not known**, because the times are good to about 10 s.
+
+**The events just after the window are not the thermostat.** Both boards caught a weak event
+at 13:45:30, five samples each at −107 and −105 dBm, and the simnode Heltec caught another at
+13:46:54 at −109 dBm. Both fall outside the window. Single samples at −73 dBm at 13:46:06 and
+13:48:17 are 131 s apart, the Davis period.
+
+**Repeating the test with times to the second would answer it.** During day 1 the boards sit on
+917.4 and 917.2 MHz, 1.4 and 1.2 MHz above 916.00 MHz, so one repeat covers two offsets.
