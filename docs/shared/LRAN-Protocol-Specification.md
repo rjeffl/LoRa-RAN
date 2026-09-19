@@ -905,8 +905,8 @@ Three properties are load-bearing and must survive into the implementation:
 - **The ACK carries the effective value, not the requested one.** Out-of-range values
   are clamped to the documented range and the clamp is reported (`status = CLAMPED`),
   rather than applied quietly.
-- **`persist_status` is honest.** A node with no usable microSD still applies and
-  still ACKs the change, with `persist_status = APPLIED_NOT_PERSISTED`. HA must never
+- **`persist_status` is honest.** A node with no usable nonvolatile store (§8.11) still
+  applies and still ACKs the change, with `persist_status = APPLIED_NOT_PERSISTED`. HA must never
   be told a value was saved when it was not.
 
 **A full parameter set may not fit one frame.** A `CONFIG` entry is `4 + len` bytes, so
@@ -927,8 +927,8 @@ retrying one to learn whether the first took effect is the wrong instinct. Until
 readback arrives, Home Assistant is told the outcome is `unknown` (§16.7.3).
 
 **`POLL` bit 1 and `REQUEST_CONFIG` are answered by an unsolicited `CONFIG_ACK`** with
-`op` = `GET_ALL`, carrying the node's full effective configuration, sent on the node's own
-`seq` (**D45**). It follows the `STATUS` a poll produces, or the `COMMAND_ACK` a
+`op` = `GET_ALL`, carrying the node's full effective configuration, with a `seq` from the
+node's status sequence space (§10.2, **D45**). It follows the `STATUS` a poll produces, or the `COMMAND_ACK` a
 `REQUEST_CONFIG` produces. Its `persist_status` reports whether the node's current
 overrides are persisted. It correlates to no request and carries no MAC, for the reason
 `STATUS` carries none (§9.2). A `CONFIG` with `op` = `GET` or `GET_ALL` remains the
@@ -1471,6 +1471,9 @@ The bridge does not have a context; it is the party that tracks everyone else's.
 The bridge MUST treat status `seq` as advisory. It is useful for discarding duplicates
 within a short window and for detecting loss in diagnostics. **It MUST NOT be used to
 reject frames**, because a status frame arriving out of order is still current data.
+
+**The status space covers every frame a node sends unprompted by an authenticated
+request**: `STATUS`, `EVENT`, and since v0.13 the unsolicited `CONFIG_ACK` readback (§7.4).
 
 **A bridge-originated unauthenticated frame's `seq` belongs to neither space.** `POLL`
 carries a `seq` so an answer can be matched to the poll that asked for it (§6.4), and
