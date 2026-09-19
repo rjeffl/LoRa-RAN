@@ -21,7 +21,7 @@ place D1's and D33's status is recorded**
 **Move D1's frequency from 917.4 MHz to 917.2 MHz, and change nothing else.** SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted, §15.249 Envelope A and `backoff_max_ms` = 1500 all stay.
 
-**Before committing, capture 917.2, 917.4 and 917.6 MHz side by side over the same day.** The
+**Before committing, capture each candidate beside 917.4 MHz over the same day.** The
 two candidates differ on one untested question: whether Z-Wave's 916.0 MHz traffic reaches a
 receiver 1.2 MHz away. The first 917.2 MHz capture added a second: an evening source near
 −89 dBm that a capture at 917.4 MHz over the same hours would place. §5 gives the method and
@@ -145,7 +145,7 @@ log, time-aligned with a capture, would confirm it.
 
 ## 5. How to decide
 
-**Capture every candidate over the same hours, one receiver per frequency.** Captures taken
+**Capture each candidate beside 917.4 MHz over the same hours, one receiver per frequency.** Captures taken
 one after another cannot separate frequency from time of day. M25's occupancy at 917.4 MHz
 moved almost five-fold between hours. The first 917.2 MHz capture ran from 15:14 to 01:14 UTC
 and M25 from 03:44 to 13:43 UTC, so the two shared no hour. That capture found a source near
@@ -161,9 +161,11 @@ transmits, so receivers a metre apart stay out of each other's captures.
 serial console stores a frequency and reboots, and every boot states the frequency in
 `CHAN-BOOT`.
 
-**Three boards are available**: the two Heltec V3s and the XIAO with the Wio-SX1262 Kit. The
-bridge board runs this image for the run, not a capture-only bridge image, because a bridge
-polls. **Power nothing else up that transmits on LRAN's PHY.** Record each receiver's board,
+**Two Heltec V3s run it: the bridge board and the simnode Heltec**, the operator's choice on
+2026-09-19. The XIAO with the Wio-SX1262 Kit reads its floor at −110 dBm, 4 dB above the
+Heltecs, so against the firmware's fixed −110 dBm threshold it counts every sample as
+occupied. The bridge board runs this image for the run, not a capture-only bridge image,
+because a bridge polls. **Power nothing else up that transmits on LRAN's PHY.** Record each receiver's board,
 enclosure, antenna and position in the engineering log, because the capture file carries none
 of them.
 
@@ -174,15 +176,18 @@ back. The calibration hour below measures that bias, and the rotation removes it
 
 ### 5.2 The run
 
-1. **Calibrate: one hour with every receiver on 917.4 MHz**, started within a minute of each
-   other. Every receiver hears the same Davis hop every 130.69 s, so the calibration has a
-   common source as well as a common floor. For each receiver, record its median floor, its
-   median Davis peak and its occupancy.
-2. **Capture for 24 hours with one receiver on each of 917.2, 917.4 and 917.6 MHz.** A full
-   day puts every hour in every file, so the start time does not matter.
-3. **Rotate if the calibration says to.** Run a second 24 hours with each receiver moved to
-   another frequency if the calibration hour shows receivers' floors or Davis peaks more than
-   1 dB apart, or their occupancies more than 20 % apart. Either spread is as large as the
+1. **Calibrate: one hour with both receivers on 917.4 MHz**, started together. Both hear the
+   same Davis hop every 130.69 s, so the calibration has a common source as well as a common
+   floor. For each receiver, record its median floor, its median Davis peak and its
+   occupancy.
+2. **Capture for 24 hours with one receiver on 917.4 MHz and the other on a candidate.**
+   917.4 MHz is the same-run baseline both tests compare against. A full day puts every hour
+   in every file, so the start time does not matter. **917.2 MHz goes first**, because the
+   evening source was found there; **917.6 MHz follows** on a second day, after its own
+   calibration hour.
+3. **Swap the receivers if the calibration says to.** Put each receiver on the other's
+   frequency for the next day if the calibration hour shows their floors or Davis peaks more
+   than 1 dB apart, or their occupancies more than 20 % apart. Either spread is as large as the
    differences tests 2 and 3 judge.
 4. **Read each file with `tools/simctl/rssi_report.py`**, and compare the three hour by hour.
    `rssi_report.py` does not yet apply a receiver's offset; until it does, state each
@@ -254,4 +259,4 @@ the register already flags, and this change does not touch it.
 | Version | Date | Change |
 |---|---|---|
 | **v0.1** | 2026-09-18 | Initial release. Written because M25 and the site RF inventory identified the Davis Vantage Pro2 on a hop channel inside 917.4 MHz's receive bandwidth |
-| **v0.2** | 2026-09-19 | §5 rewritten for same-hour captures, one listen-only receiver per frequency (`firmware/chan-capture/`), with a calibration hour and a conditional rotation. The first 917.2 MHz capture shared no hour with M25 and found an evening source M25's hours could not show. §5.3's occupancy baseline is 917.4 MHz in the same run, not M25's 0.0912 %. The Recommendation and §4 name the same-hours condition; §6 drops `chan_monitor.h`, whose comment no longer names 917.4 MHz |
+| **v0.2** | 2026-09-19 | §5 rewritten for same-hour captures on listen-only receivers (`firmware/chan-capture/`): two Heltecs, one on 917.4 MHz as the baseline and one on a candidate each day, with a calibration hour and a conditional swap. The operator chose Heltecs only after the XIAO's floor read −110 dBm. The first 917.2 MHz capture shared no hour with M25 and found an evening source M25's hours could not show. §5.3's occupancy baseline is 917.4 MHz in the same run, not M25's 0.0912 %. The Recommendation and §4 name the same-hours condition; §6 drops `chan_monitor.h`, whose comment no longer names 917.4 MHz |
