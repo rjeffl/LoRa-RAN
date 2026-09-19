@@ -1,14 +1,14 @@
 # LRAN D1 — frequency change brief, 917.4 to 917.2 MHz
 
 **Document:** `LRAN-D1-Frequency-Change-Brief`
-**Version:** 0.1
+**Version:** 0.2
 **Status:** **Draft for decision.** Nothing here is decided; the operator decides, and the
 Decision Register records it
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12** (`ver = 2`)
 **Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **the only
 place D1's and D33's status is recorded**
-**Last updated:** 2026-09-18
+**Last updated:** 2026-09-19
 
 > **This document decides nothing.** It sets out why D1's frequency should be reopened, the
 > candidates, and the one measurement that separates the two best ones. **When the operator
@@ -21,9 +21,11 @@ place D1's and D33's status is recorded**
 **Move D1's frequency from 917.4 MHz to 917.2 MHz, and change nothing else.** SF9, BW 125 kHz,
 CR 4/5, −4 dBm conducted, §15.249 Envelope A and `backoff_max_ms` = 1500 all stay.
 
-**Before committing, run one overnight capture at each of 917.2 and 917.6 MHz.** The two
-candidates differ on one untested question: whether Z-Wave's 916.0 MHz traffic reaches a
-receiver 1.2 MHz away. Two nights of bench time answer it. §5 gives the acceptance test.
+**Before committing, capture 917.2, 917.4 and 917.6 MHz side by side over the same day.** The
+two candidates differ on one untested question: whether Z-Wave's 916.0 MHz traffic reaches a
+receiver 1.2 MHz away. The first 917.2 MHz capture added a second: an evening source near
+−89 dBm that a capture at 917.4 MHz over the same hours would place. §5 gives the method and
+the acceptance test.
 
 **Decide before GateLink is built.** Today the change touches one constant, three bench boards
 flashed over USB or OTA, and the documents. Once GateLink is at the gate, it also means a USB
@@ -137,30 +139,73 @@ of it. Two facts bound the hypothesis without settling it:
   at 1.2–1.6 MHz has not been measured here.
 - **The episodic source could equally be a device nobody has inventoried.**
 
-**A capture at each candidate tests it directly.** If the episodic source is Z-Wave, it should
-read stronger at 917.2 MHz than at 917.4, and weaker at 917.6. The Z-Wave controller's own frame
+**A capture at each candidate over the same hours tests it directly.** If the episodic source
+is Z-Wave, it should read stronger at 917.2 MHz than at 917.4, and weaker at 917.6. The Z-Wave controller's own frame
 log, time-aligned with a capture, would confirm it.
 
 ## 5. How to decide
 
-1. **Build a capture-only image of the bridge at 917.2 MHz.** On a throwaway branch, change
-   `kPhy.freq_hz` in `lib/lran-link/include/lran/link/radio_config.h` and nothing else. Commit it,
-   so the boot banner does not read `-dirty`, and flash the bridge board over USB. Never merge it.
-2. **Run ten hours with both simnodes powered down**, as for M25, and read it with
-   `tools/simctl/rssi_report.py`. The `CHAN-BOOT` line records the frequency, so the capture
-   cannot be mistaken for 917.4 MHz data.
-3. **Repeat at 917.6 MHz** on another night.
-4. **Accept 917.2 MHz if all three hold:**
-   - no periodic source at 130.69 s, or at any other period;
-   - occupancy above −110 dBm no higher than 917.4 MHz's 0.0912 %;
-   - the episodic source no stronger than at 917.4 MHz.
-5. **Prefer 917.6 MHz instead if its capture passes the first two tests and shows the episodic
-   source clearly weaker than 917.2 MHz does.** That is the result §4's hypothesis predicts. If
-   neither candidate passes, D1 needs a wider search than this brief covers.
+**Capture every candidate over the same hours, one receiver per frequency.** Captures taken
+one after another cannot separate frequency from time of day. M25's occupancy at 917.4 MHz
+moved almost five-fold between hours. The first 917.2 MHz capture ran from 15:14 to 01:14 UTC
+and M25 from 03:44 to 13:43 UTC, so the two shared no hour. That capture found a source near
+−89 dBm from about 18:00 to 23:50 UTC, and M25 never listened at those hours. The bridge
+engineering log's 2026-09-18 entry has the figures.
 
-**The captures are comparable only against the same hours.** M25's occupancy moved almost
-five-fold between hours. Start each capture at the same time of day as M25's, 03:43 UTC, or
-compare hour by hour.
+### 5.1 The receivers
+
+**Run `firmware/chan-capture/` on every receiver.** It is a listen-only image: it runs the
+bridge's sampler, writes the same `CHAN`, `CHANSUM` and `CHAN-BOOT` lines, and never
+transmits, so receivers a metre apart stay out of each other's captures.
+`tools/checks/chan_capture_never_transmits.py` holds it to that in CI. `freq <hz>` on its
+serial console stores a frequency and reboots, and every boot states the frequency in
+`CHAN-BOOT`.
+
+**Three boards are available**: the two Heltec V3s and the XIAO with the Wio-SX1262 Kit. The
+bridge board runs this image for the run, not a capture-only bridge image, because a bridge
+polls. **Power nothing else up that transmits on LRAN's PHY.** Record each receiver's board,
+enclosure, antenna and position in the engineering log, because the capture file carries none
+of them.
+
+**Receivers do not read alike, and occupancy cannot be corrected afterwards.** The firmware
+counts samples above a fixed −110 dBm and keeps only each second's peak. A receiver that reads
+2 dB hot counts more occupancy than its neighbours, and no analysis of the file can take that
+back. The calibration hour below measures that bias, and the rotation removes it.
+
+### 5.2 The run
+
+1. **Calibrate: one hour with every receiver on 917.4 MHz**, started within a minute of each
+   other. Every receiver hears the same Davis hop every 130.69 s, so the calibration has a
+   common source as well as a common floor. For each receiver, record its median floor, its
+   median Davis peak and its occupancy.
+2. **Capture for 24 hours with one receiver on each of 917.2, 917.4 and 917.6 MHz.** A full
+   day puts every hour in every file, so the start time does not matter.
+3. **Rotate if the calibration says to.** Run a second 24 hours with each receiver moved to
+   another frequency if the calibration hour shows receivers' floors or Davis peaks more than
+   1 dB apart, or their occupancies more than 20 % apart. Either spread is as large as the
+   differences tests 2 and 3 judge.
+4. **Read each file with `tools/simctl/rssi_report.py`**, and compare the three hour by hour.
+   `rssi_report.py` does not yet apply a receiver's offset; until it does, state each
+   receiver's calibration beside every figure compared across receivers.
+
+### 5.3 The tests
+
+1. **Accept 917.2 MHz if all three hold over the same hours:**
+   - no periodic source at 130.69 s, or at any other period;
+   - occupancy above −110 dBm no higher than 917.4 MHz's in the same run, hour by hour;
+   - no episodic source stronger than at 917.4 MHz in the same hours. That covers both the
+     −93 dBm source M25 found and the −89 dBm evening source the first 917.2 MHz capture found.
+2. **Prefer 917.6 MHz instead if it passes the first two tests and its episodic sources read
+   clearly weaker than at 917.2 MHz.** That is the result §4's hypothesis predicts. If neither
+   candidate passes, D1 needs a wider search than this brief covers.
+
+**A source that reads the same on all three frequencies does not separate them.** A broadband
+or nearby source would do that, and it would bear on the gate link at every candidate. It
+would still need identifying, and it would not decide D1.
+
+**The single-channel captures stand as records.** The first 917.2 MHz capture and the
+917.6 MHz capture started on 2026-09-19 are correct for their hours. The 917.6 MHz capture
+covers M25's hours, so it can be read against M25 directly.
 
 ## 6. What moves with the decision
 
@@ -172,11 +217,14 @@ compare hour by hour.
 2. **Protocol Specification §12.1**, the frequency row and its fixed-in-v0.10 note, as a
    revision to v0.13. **`ver` stays 2.** Every binding citation then moves to v0.13;
    `python3 tools/checks/spec_citation_version.py` finds them.
-3. **One constant and its tests.** `kPhy.freq_hz` in `lib/lran-link/include/lran/link/radio_config.h`;
-   the assertions in `firmware/bridge/test/test_lora/test_lora.cpp` and
-   `firmware/simnode/test/test_identity/test_identity.cpp`; the PHY line of the bridge's boot
-   banner in `firmware/bridge/src/main.cpp`; and the comments naming 917.4 MHz in
-   `chan_monitor.h`, `lora_link.cpp` and `tools/simctl/rssi_analyze.py`.
+3. **One constant and its tests:**
+   - `kPhy.freq_hz` in `lib/lran-link/include/lran/link/radio_config.h`;
+   - the assertions in `firmware/bridge/test/test_lora/test_lora.cpp` and
+     `firmware/simnode/test/test_identity/test_identity.cpp`;
+   - the PHY line of the bridge's boot banner in `firmware/bridge/src/main.cpp`;
+   - the comments naming 917.4 MHz in `lora_link.cpp` and `tools/simctl/rssi_analyze.py`.
+
+   `firmware/chan-capture/` samples `kPhy.freq_hz` when nothing is stored, and needs no change.
 4. **Three boards.** The bridge over USB or OTA, and both simnodes over USB. Every board must
    move together, because one SX1262 listens on one frequency.
 5. **Documents that state the current PHY.** Seventeen files outside the archive and the dated
@@ -206,3 +254,4 @@ the register already flags, and this change does not touch it.
 | Version | Date | Change |
 |---|---|---|
 | **v0.1** | 2026-09-18 | Initial release. Written because M25 and the site RF inventory identified the Davis Vantage Pro2 on a hop channel inside 917.4 MHz's receive bandwidth |
+| **v0.2** | 2026-09-19 | §5 rewritten for same-hour captures, one listen-only receiver per frequency (`firmware/chan-capture/`), with a calibration hour and a conditional rotation. The first 917.2 MHz capture shared no hour with M25 and found an evening source M25's hours could not show. §5.3's occupancy baseline is 917.4 MHz in the same run, not M25's 0.0912 %. The Recommendation and §4 name the same-hours condition; §6 drops `chan_monitor.h`, whose comment no longer names 917.4 MHz |
