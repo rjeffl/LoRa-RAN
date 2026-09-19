@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.27
+**Version:** 0.28
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.37
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.9
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-19
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -238,12 +238,18 @@ rather than every criterion in the milestone. **BF-23 carries the part that unbl
 bridge's WiFi transmit hard enough to test R-4.4. The idle arm is already measured — Impl
 Plan §8.1 and the engineering log.
 
+**BF-32 is the configuration path that BF-23's lever half and BF-26 both wait on.** It
+was added on 2026-09-19, when the operator chose the general `config/set` route (**D43**)
+and spec v0.13 §16.7 defined its payloads (**D48**). Build it first; the other two then
+reduce to *"this value reads the table"*.
+
 | # | Task | Model | Why |
 |---|---|---|---|
 | **BF-23** | Discovery generation, per-node-type templates, republish on broker reconnect (§4.4, R-3.3b/c/d). **Built and host-tested 2026-09-17**, Impl Plan §4.4.1: one device per registered node plus the bridge, retained, on boot and on every reconnect through the same path. `ha/discovery/` is generated from `discovery.cpp` and checked in CI. **The reconnect path is not an explicit test but an explicit absence of a branch** — there is no "first time" flag to skip. **Bench nodes are gated out until BF-26** (spec §16.6). **NOT DONE: the runtime timing levers.** Every `TODO(BF-23)` on a timing constant is still there; the path from HA needs `lran/<node>/config/set`'s payload, which spec §16.2.1 leaves undefined, and `/lib/lran-config/`, which has no task | **Sonnet** | Payload shape is specified and example payloads are committed to `/ha/`. The reconnect path is the one that gets skipped, so make it an explicit test rather than a hope |
 | **BF-24** | **Publication policy** — `publish.cpp`, §6.3's whole table | **Opus** | **R-5.2b is the requirement most easily lost in implementation**, because republishing the cached value is the path of least resistance and produces a dashboard that looks healthy. A dead VE.Direct link showing plausible unchanged numbers indefinitely is worse than an obviously unavailable entity |
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**) | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
-| **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator) | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
+| **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator) **Unblocked 2026-09-19 by BF-32**, which builds all three | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
+| **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7). **Added 2026-09-19** | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/` |
 | **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. The other three tools are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
 ---
@@ -286,6 +292,12 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.28** — **BF-32 added: `/lib/lran-config/` and the `config/*` path.** The operator
+  chose the general `config/set` route on 2026-09-19 and accepted `LRAN-Config-Set-Brief`
+  (**D43–D49**). The gap BF-26's deferral and BF-23's lever half both named, *"none exists
+  or has a task,"* now has one, and BF-26's row says so. The binding citation stays at
+  v0.12 until spec v0.13's sweep.
 
 - **v0.27** — **BF-27's raw frame log is built**, out of task order and on purpose: it was
   the last instrument the receive path's 1 s knee had left, and the other three tools in

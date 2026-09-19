@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.18
+**Version:** 0.19
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-19
 
 ---
 
@@ -577,9 +577,11 @@ into a workflow file.
 
 ### 9.4 Configuration — one source of truth
 
-`/lib/lran-config/` declares every runtime parameter **once** — name, type, unit,
-range, default. The firmware defaults, the HA `number` discovery payloads and
-`/docs/gatelink-config.md` are all **generated** from that table.
+`/lib/lran-config/` declares every runtime parameter **once** — name, owner, type, unit,
+range, default — in a hand-written C++ table. The firmware defaults, the HA `number`
+discovery payloads and `/docs/gatelink-config.md` are all **derived from that table by
+code** (**D44**), and Home Assistant sets a parameter over `lran/<node>/config/set`
+(**D43**, Protocol Spec §16.7).
 
 > Three hand-maintained copies of a parameter table drift, and the drift is silent: HA
 > offers a range the firmware clamps, or documentation describes a default that changed
@@ -688,11 +690,12 @@ assumed now.
 |---|---|---|
 | **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.18 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.12** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D42** and the measurement backlog **M1–M24**. Single source of truth for decision status | v0.11 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.9 |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D49** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.13 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.10 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-P8-CommandGate-Brief`](./shared/LRAN-P8-CommandGate-Brief.md) | **Superseded 2026-09-11 by Decision Register §3.2.1**, which amended D34 on this brief's recommendations. Kept as the reasoning: the `seq` high-water timing that would double-execute a retry, the in-flight window, cache sizing | v0.2 |
 | [`LRAN-Spec-v0.12-Brief`](./shared/LRAN-Spec-v0.12-Brief.md) | **Superseded 2026-09-16 by Decision Register §3.5**, which resolved **D35–D42** on this brief's recommendations. Kept as the reasoning, including the options not taken: the `ERROR` reflection vector and the config-fragmentation contradiction | v0.2 |
+| [`LRAN-Config-Set-Brief`](./shared/LRAN-Config-Set-Brief.md) | **Superseded 2026-09-19 by Decision Register §3.6**, which resolved **D43–D49** on this brief's recommendations. Kept as the reasoning, including the five passages v0.12 left stale and the readback option not taken | v0.2 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.12 |
@@ -732,6 +735,16 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.19** — **§9.4 says how the one source of truth works, and §12 registers
+  `LRAN-Config-Set-Brief`.** The operator chose the general `config/set` route and accepted
+  the brief on 2026-09-19 (**D43–D49**). §9.4 said the parameter table's outputs were
+  *generated*, while the Protocol Library Plan chose a hand-written table with no
+  generator; **D44** keeps the hand-written table and derives every output by code.
+  §12's rows for the Decision Register and the Library Plan move to v0.13 and v0.10, and
+  the register row's version, which read v0.11 through the register's v0.12, is corrected.
+  The protocol specification row stays at v0.12 until v0.13's citation sweep. No
+  architecture changes.
 
 - **v0.18** — **Protocol specification v0.11 → v0.12, and §12's version column corrected.**
   The specification answers the nine questions bridge B3a and simnode B0 raised: a new

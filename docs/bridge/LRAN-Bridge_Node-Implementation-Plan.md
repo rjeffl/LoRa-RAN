@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.38
+**Version:** 0.39
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-19
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1550,8 +1550,9 @@ bridge's counters, or drive the row from one board and listen on a second.**
 of spec v0.6's sole behavioural change. §11.2 states that a single-frame frame never
 begins, joins, displaces or expires a set. The defect it fixes is a receiver routing every
 frame through one slot per peer, where **a node's periodic `STATUS` destroys that same
-node's in-progress fragmented `CONFIG_ACK`** — recoverable by readback, and reliably
-recurring. It is silent by construction: the offending frame belongs to no set, so nothing
+node's in-progress fragmented set**. The v0.6 example was a fragmented `CONFIG_ACK`,
+which spec v0.12 made impossible (D38); `PING` is now the only fragmentable type, and the
+defect is the same for it. It is silent by construction: the offending frame belongs to no set, so nothing
 is counted. That is why the expected result is a *set that completes and a counter that
 does not move*, and why no other entry can substitute for it.
 
@@ -2094,6 +2095,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.39** | **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |
