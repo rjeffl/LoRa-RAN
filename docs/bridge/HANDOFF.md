@@ -72,6 +72,15 @@ read it with `rssi_report.py`, and add an engineering-log entry.
 python3 tools/simctl/rssi_report.py docs/bridge/data/<file>
 ```
 
+**Read day 1 side by side with `rssi_compare.py`**: occupancy, median floor and band counts
+per UTC hour for both files. It compares no peak level across the two boards, for the
+reason above.
+
+```bash
+python3 tools/simctl/rssi_compare.py docs/bridge/data/d1-par-917400-flat-office-2026-09-19.log \
+    docs/bridge/data/d1-par-917200-handheld-office-2026-09-19.log --labels 917.4 917.2
+```
+
 **Day 1 answers one question: does 917.4 MHz show the −89 dBm evening source over the same
 hours as 917.2 MHz?** On 2026-09-18 that source ran on 917.2 MHz from 17:57 to 23:49 UTC. This
 session proposes the rule below for what each answer means; **the choice is the operator's**:
