@@ -16,7 +16,7 @@
 #include <cmath>
 #include <new>
 
-#include "chan_monitor.h"
+#include "lran/link/chan_monitor.h"
 #include "frame_log.h"
 #include "queues.h"
 #include "rx_deaf.h"

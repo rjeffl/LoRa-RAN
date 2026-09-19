@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// M25's channel occupancy accumulator. chan_monitor.h has the reasoning.
+// M25's channel occupancy accumulator; see lran/link/chan_monitor.h.
 
-#include "chan_monitor.h"
+#include "lran/link/chan_monitor.h"
 
 #include <cstdio>
 
-namespace bridge {
+namespace lran {
+namespace link {
 namespace {
 
 uint32_t saturating_add(uint32_t a, uint32_t b) {
@@ -198,4 +199,5 @@ size_t render_chan_boot(const char* git, uint32_t freq_hz, uint8_t sf, uint16_t 
   return static_cast<size_t>(n);
 }
 
-}  // namespace bridge
+}  // namespace link
+}  // namespace lran
