@@ -2237,9 +2237,9 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/<domain>/state` | bridge → HA | **Yes** | Decoded state |
 | `lran/<node>/cmd/<action>/set` | HA → bridge | No | Command request |
 | `lran/<node>/cmd/ack` | bridge → HA | No | `COMMAND_ACK` outcome |
-| `lran/<node>/config/set` | HA → bridge | No | Configuration change |
-| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` |
-| `lran/<node>/config/ack` | bridge → HA | No | Outcome of the last change |
+| `lran/<node>/config/set` | HA → bridge | No | Configuration change or request (§16.7.2) |
+| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` (§16.7.4, W15) |
+| `lran/<node>/config/ack` | bridge → HA | No | Outcome of the last `config/set` (§16.7.3) |
 | `lran/<node>/event/<name>` | bridge → HA | **No — never** | §16.3 |
 | `lran/<node>/vedirect/hex/request` | HA → bridge | No | Raw HEX request string |
 | `lran/<node>/vedirect/hex/response` | bridge → HA | No | Raw HEX response + status |
