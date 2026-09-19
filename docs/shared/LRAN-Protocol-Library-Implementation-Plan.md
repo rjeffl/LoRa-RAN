@@ -715,7 +715,6 @@ widened to provide.
 | **P5** | **Fragmentation and sequencing** | Reassembly across 2 and 15 fragments, out of order, with timeout expiry driven by an injected clock. RFC 1982 comparison exhaustively tested near the wrap |
 | **P6** | **W4 vectors committed** | Every vector in §5 passes. **The vector generator and the library disagree nowhere.** Test run wired into CI |
 | **P7** | **Target build** | Compiles for ESP32-S3 under the Arduino framework with the mbedTLS `IMac`. Flash and RAM footprint recorded in `/docs/protocol-lib/engineering-log.md` |
-
 | **P8** | **`CommandGate` — D34, amended 2026-09-11** | §9.4 steps 4–5 and step 6's high-water update, per peer, **the mark advancing in `check()`**. Dedup returns the **cached** ACK without re-executing; `seq` below the high-water mark is refused; the step-4-before-step-5 order is asserted by a test that would fail if reversed. `reset_context()` clears the cache. Exhaustive `seq` tests near the wrap, as P5. `rx_rejected_seq` and `rx_dup_command` move, and `total_dropped()` includes the first and not the second. **Added by the amendment:** a second `check(s)` before `record(s)` returns `InFlight`, never `Execute`, and after `record(s)` returns the recorded result; a failed execution is cached and never retried; runtime depth changes evict oldest-first and never read beyond capacity. The suite runs on the ESP32-S3 as P7's does |
 
 **P6 gates simnode B0. P7 gates bridge B2. P8 gates simnode B0 as well** — `ROLE_GATELINK`
@@ -727,6 +726,10 @@ confirm the suite can fail — advancing the mark in `record()` fails the window
 checking `seq` before the cache fails the order test. `sizeof(CommandGate)` is **148 B
 on the ESP32-S3**. The engineering log's 2026-09-11 entry carries the detail. **Nothing
 in this library now stands between simnode B0 and its start.**
+
+> **Superseded by the paragraph above.** The next paragraph is the status as of
+> 2026-08-30 and is left as written. Since then P8 was met (2026-09-11) and **W9 closed on
+> 2026-09-05**, over RF on the range test firmware.
 
 **P1–P7 are met** as of 2026-08-30, against specification **v0.6**: 107 tests under
 `native` and 110 on the Heltec V3, 72 W4 vectors passing on host and on target with zero
@@ -775,7 +778,9 @@ is RF or software.
   code. `ParamDef` gains an `owner`. IDs follow spec v0.13's blocks. The bridge's list
   replaces v0.9's sketch with the eleven values the firmware already has, and the node
   list gains `cad_retries` and `backoff_max_ms`. **Names and ranges are proposals** for
-  the operator to review before BF-32 codes them. The binding citation stays at v0.12
+  the operator to review before BF-32 codes them. §6's 2026-08-30 status paragraph, which
+  still read *"P8 is outstanding"* and *"W9 remains"*, is marked superseded, and a blank
+  line that split the milestone table before P8 is removed. The binding citation stays at v0.12
   until spec v0.13's sweep.
 
 - **v0.9** — **Protocol specification v0.11 → v0.12; `Counters` gains a field.**
