@@ -186,8 +186,10 @@ do not touch this file:
    `len` a frame-level `BAD_LENGTH`.
 3. **When to run the citation sweep** that moves the header to v0.13.
 
-**Also still owed on `spec-v0.13`**: the whole-document style passes that root `CLAUDE.md` asks
-for on every document the branch opened. **W15** (`CONFIG_ACK` has no default-or-override flag)
+**Also still owed**: the whole-document style passes. The fact reviews are done, and they
+corrected stale facts in five documents. The spec's style pass goes on its own branch, as
+agreed on 2026-09-16 for spec revisions; the Bridge and GateLink Implementation Plans' are
+owed on the same terms. **W15** (`CONFIG_ACK` has no default-or-override flag)
 and **W16** (nothing says when a node sends `CONFIG_CHANGE`) are open, both GateLink's.
 
 **Once BF-32 lands, BF-23's lever half and BF-26 reduce to reading its table.** Every
