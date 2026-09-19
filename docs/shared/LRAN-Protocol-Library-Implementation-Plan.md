@@ -41,9 +41,9 @@ deduplication gate of Protocol Spec §9.4 steps 4–5.
 The library moves bytes and validates them. **It does not decide anything** — and D34
 does not change that. `CommandGate` returns a *verdict*; executing a command, and
 choosing what to do when one is refused, stay with the caller. The test for whether
-something belongs here is not "is it framing" but **"is it validation against receiver
-state, with no allocation, no I/O and an injected clock"** — which is what `Reassembler`
-already is, and what put steps 4–5 on this side of the line while dispatch stayed on
+something belongs here is **"is it validation against receiver state, with no allocation,
+no I/O and an injected clock"**, not "is it framing". `Reassembler` already passes it, and
+the same test put steps 4–5 on this side of the line while dispatch stayed on
 the other.
 
 ### 1.1 Six rules, each with a consequence
@@ -239,8 +239,8 @@ struct Frame {
 
 **`Frame` does not own its payload.** It points into the RX buffer the radio filled. This
 is what keeps rule 1 satisfiable — but it means a `Frame` must not outlive the buffer it
-was decoded from. The bridge's `lora_task` copies into a queue entry before handing off;
-that copy is the task's responsibility, not the library's, and it is stated here so the
+was decoded from. The bridge's `lora_task` copies into a queue entry before handing off.
+That copy is the task's responsibility, not the library's. It is stated here so the
 lifetime rule is documented where the type is defined rather than discovered at runtime.
 
 ### 3.4 `lran/mac.h` — injected crypto
@@ -318,8 +318,8 @@ Status encode(const Header&, const uint8_t* payload, size_t payload_len,
 
 **Splitting decode is the single most consequential API choice here.** A one-shot
 `decode()` forces every caller to either accept the library's ordering or reimplement the
-ladder, and the ordering *is* the specification — §14 exists precisely so that a frame is
-rejected at the earliest possible stage and counted there. Two phases also let the bridge
+ladder. The ordering *is* the specification: §14 exists so that a frame is rejected at the
+earliest possible stage and counted there. Two phases also let the bridge
 count and log a frame it cannot fully parse, which is what makes a version-skew or
 schema-skew problem diagnosable rather than merely visible as a rising discard count.
 
@@ -353,9 +353,9 @@ extern const CounterField kCounterRegistry[kCounterRegistryLen];
 
 **Field names are normative** — Protocol Spec §14.1 is the registry and this struct
 mirrors it in order. The v0.5 revision exists because `rx_reassembly_timeout` and
-`rx_fragment_overflow` shipped through P1–P5 without the `rx_` prefix the prose used and
-nothing anywhere listed the names together; `kCounterRegistry` is that list, and a
-`static_assert` on `sizeof(Counters)` fails the build if a field is added without one.
+`rx_fragment_overflow` shipped through P1–P5 without the `rx_` prefix the prose used, and
+nothing anywhere listed the names together. `kCounterRegistry` is that list. A
+`static_assert` on `sizeof(Counters)` fails the build if a field is added without a row.
 `total_dropped()` sums only the registry rows §14.1 marks — `rx_frag_duplicate`,
 `rx_frag_late` and `rx_dup_command` are normal traffic and must not make a health metric
 climb during correct operation.
@@ -368,10 +368,10 @@ halfway. A node holds one peer, so the check is a single comparison.
 
 `bump(Status)` being the only place the mapping exists is what guarantees the bridge and
 every node report the same thing under the same name. It carries **no `default:` label**,
-so adding a `Status` enumerator without a counter is a `-Werror=switch` build failure. `rx_crc_err` is the PHY CRC and is
-bumped by the radio driver, not by the codec — it is the one counter the library cannot
-own, and Bridge Impl Plan §10.5 records that it is also the one discard path that cannot
-be tested at a desk.
+so adding a `Status` enumerator without a counter is a `-Werror=switch` build failure.
+`rx_crc_err` is the PHY CRC and is bumped by the radio driver, not by the codec. It is the
+one counter the library cannot own, and Bridge Impl Plan §10.5 records that it is also the
+one discard path that cannot be tested at a desk.
 
 ### 3.7 `lran/seq.h` — serial-number arithmetic
 
@@ -525,8 +525,8 @@ call can produce it, and caching before execution would return a success ACK for
 command that then failed.
 
 **The mark advances in `check()`, before dispatch** — the order spec §9.4 step 6 gives.
-A command whose execution fails has still consumed its `seq`, which is correct because
-`seq` is attacker-visible and must not be reusable; the failure is recorded as its result,
+A command whose execution fails has still consumed its `seq`. That is correct, because
+`seq` is attacker-visible and must not be reusable. The failure is recorded as its result,
 so a retry receives the cached failure rather than a second attempt.
 
 **Between `check()` and `record()` the entry is in flight.** A retry that finds it gets
@@ -640,8 +640,8 @@ owner's block. That is the one thing a generator would have given for free, and 
 cheap to keep.
 
 **The bridge's list is an inventory of the firmware, not a design.** Each row is a value
-the bridge already has, marked `TODO(BF-23)` or `TODO(BF-26)` or sitting behind
-`lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. v0.9's sketch
+the bridge already has. Most carry a `TODO(BF-23)` or `TODO(BF-26)` marker; the rest sit
+behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. v0.9's sketch
 named `republish_interval_s` and `mppt_write_arm_timeout_s`; they are not here because
 nothing implements them yet. BF-24 and BF-29 add them when they build the behaviour.
 
