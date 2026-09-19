@@ -901,3 +901,123 @@ sensor, and its manual gives 433 MHz. That closes the MURS caveat in the entry a
 is not VHF, and nothing it transmits reaches 902–928 MHz. Its likely FCC ID is QK8PB-4000,
 "PB-4000 Directional Probe Alarm", at 433.92 MHz under §15.231. The match is by product name,
 not read from the unit's label.
+
+---
+
+## 2026-09-18 — the 917.2 MHz capture: no Davis, and an evening source at −89 dBm that M25's hours never covered
+
+**917.2 MHz passes the first of the D1 brief's three tests and cannot be judged on the other
+two.** Over ten hours, no source there was periodic, so the Davis hop that M25 found at 917.4 MHz
+is absent. Occupancy read 0.3260 % against M25's 0.0912 %. Most of the excess comes from a source
+near −89 dBm that ran from about 18:00 to 23:50 UTC, and M25 covered none of those hours.
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) §5 compares
+captures only over the same hours, so this capture cannot say whether 917.2 MHz is busier than
+917.4 MHz or whether the evening is busier than the night. **Choosing the next capture is the
+operator's call.**
+
+**The run.** The bridge board sampled RSSI on 917.2 MHz from 2026-09-18T15:14:06Z to
+2026-09-19T01:14:04Z, with both simnodes powered down. It ran image `5e752e9`, the capture-only
+build on branch `capture-917200`, which is `ecc2e6f` with `kPhy.freq_hz` alone changed. The run is
+one segment: 9.99 h, 35,950 buckets and 3,568,897 samples, with 25,359 opportunities skipped
+(0.7 %). A scratch wrapper reset the board once on open so that `CHAN-BOOT` was recorded. The
+capture is `docs/bridge/data/m25-chan-917200-2026-09-18.log`.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917200-2026-09-18.log
+```
+
+| | 917.2 MHz, 15:14 to 01:14 UTC | 917.4 MHz, M25, 03:44 to 13:43 UTC |
+|---|---|---|
+| Floor, per-minute mean | median **−115.9 dBm**, range −117.0 to −114.0 | median −115.5 dBm, range −117.0 to −115.0 |
+| Strongest sample | **−79.0 dBm** | −71.0 dBm |
+| Occupancy above −110 dBm | 11,636 of 3,568,897 samples, **0.3260 %** | 3,256 of 3,568,828, 0.0912 % |
+| Occupancy by full hour (UTC) | 0.064 % to 0.668 % | 0.048 % to 0.228 % |
+| Periodic source | **none in any band** | 130.69 s, the Davis |
+| Buckets peaking −80 to −70 dBm | 1 | 201 |
+| Buckets peaking −90 to −80 dBm | **356**, 6,698 samples above | 29, 74 samples above |
+| Buckets peaking −100 to −90 dBm | 227, 2,758 samples above | 144, 1,756 samples above |
+| Buckets peaking −110 to −100 dBm | 953, 2,169 samples above | 795, 1,211 samples above |
+
+### Test 1, no periodic source: passed
+
+**No band at 917.2 MHz is periodic.** The −80 dBm band holds one bucket, at 16:18:53 UTC, which
+peaked at −79 dBm with 20 of 100 samples above threshold. A Davis hop covers one sample. Over ten
+hours the Davis cycles about 275 times, and at 917.4 MHz M25 caught 73 % of them. So the Davis
+leaves no trace at 917.2 MHz, 0.2 MHz from its nearest hop. **The receiver's rejection of a Davis
+burst at 0.25 MHz offset is still not measured.** This capture shows only that none reached
+−110 dBm.
+
+### Test 2, occupancy no higher than 0.0912 %: failed as read, and not comparable
+
+**The ten-hour figure is 3.6 times M25's, and the excess is confined to five hours.**
+
+| Hour (UTC) | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 00 | 01 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Occupancy, % | 0.148 | 0.132 | 0.115 | **0.476** | **0.365** | **0.515** | **0.668** | **0.579** | 0.197 | 0.064 | 0.144 |
+
+Hours 15 and 01 are partial. The hours outside 18 to 22 read 0.064 % to 0.197 %, inside M25's
+hourly range of 0.048 % to 0.228 %. **No hour of this run overlaps an hour of M25's**, so the
+comparison §5 asks for cannot be made from these two files.
+
+### Test 3, the episodic source no stronger than at 917.4 MHz: not answerable
+
+**Two sources account for the busy hours, and they differ in level.**
+
+1. **Hour 18 holds episodes at −94 to −96 dBm** in the −100 to −90 dBm band, clustered between
+   18:01 and 18:26 UTC. That band holds 1,556 samples above threshold in hour 18 and 37 to 246 in
+   every other hour. By level and shape, these episodes match M25's −93 dBm episodic source, which
+   peaked at −91 to −94 dBm at 917.4 MHz.
+2. **A source at −90 and −89 dBm runs from 17:57 to 23:49 UTC and nowhere else.** 328 of the 356
+   buckets peaking between −90 and −80 dBm peak at exactly −90 or −89 dBm, and all 328 fall in
+   that window. They hold a median of 17 of 100 samples above threshold, so the source is
+   above threshold for about a sixth of each busy second. They form 166 events with no period. Hours 19 to 23 hold 48, 85, 113, 81 and
+   20 of those buckets, and every other hour holds three or fewer. **This source is what lifts hours 19
+   to 22.** Nothing at M25's 917.4 MHz resembles it: that band held 29 buckets in ten hours, with
+   peaks spread from −90 to −81 dBm.
+
+**The build machine's clock runs at UTC−4**, so the second source ran from about 14:00 to 20:00
+local time. Whether it has anything to do with activity on the property, the capture cannot say.
+
+**Source 2 is either specific to 917.2 MHz or specific to the evening, and the capture cannot tell
+which.** M25 never listened at 917.4 MHz between 14:00 and 01:00 UTC. So test 3 cannot be settled
+as §5 frames it. Source 1 peaked 2 to 3 dB weaker than at 917.4 MHz. Source 2 is 2 to 5 dB stronger
+than M25's episodic source, in hours M25 did not cover.
+
+### What it bears on
+
+**At the gate, source 2 would sit about 11 dB above the wanted signal.** The gate's frames arrive
+at the bridge near −100 dBm, and source 2 peaks at −89 dBm at the bridge. A frame that overlaps
+one of its busy seconds is likely lost. That is an estimate from bench-position RSSI, as M25's
+was, and no link has been measured at 917.2 MHz.
+
+**The weakest band's association with our own transmissions held.** 200 of the 953 buckets
+peaking at −110 to −101 dBm fall near a bridge transmission, 21.0 %, against 14.2 % at 917.4 MHz
+and 8.3 % by chance. The 3.72-hour reading of 24.7 % is superseded by this figure. The mechanism
+is still not established. The −100 and −90 dBm bands sit at 8.8 % and 9.8 %, at chance, so neither
+source above is tied to the bridge's transmit cycle.
+
+**Two captures would settle the hour question, and they answer different things.**
+
+- **917.4 MHz from 15:14 UTC** says whether source 2 is on 917.4 MHz in the evening too. If it
+  is, the evening is busier on both channels, and source 2 does not count against 917.2 MHz. If it
+  is not, source 2 belongs to 917.2 MHz.
+- **917.2 MHz from 03:43 UTC** answers §5's test 2 against M25 directly, and says nothing about
+  source 2.
+
+The first changes what §5 can conclude; the second applies §5 as written. **The 917.6 MHz capture
+now running starts at 03:43 UTC and covers M25's hours only**, so it will be comparable with M25
+and will not show whether source 2 reaches 917.6 MHz.
+
+### The handover and `--reset-on-open`
+
+**The unattended handover worked.** The 917.2 MHz capture exited at 01:14:09Z. The arming script
+flashed `91e63dd` on its first attempt at 01:14:19Z, removed its copy of `secrets.h`, and started
+the 917.6 MHz capture at 03:43:07Z.
+
+**`--reset-on-open` worked on its first hardware run.** The 917.6 MHz file opens with `#RESET`,
+then the banner's `PHY: 917.6 MHz` line and `CHAN-BOOT,91e63dd,917600000`, all within the first
+second.
+
+**The 917.6 MHz file name carries the UTC date, and M25's carries the local one.** M25's capture
+began at 03:43 UTC on 2026-09-18 and is named `2026-09-17`; the 917.6 MHz capture began at the same
+hour a day later and is named `2026-09-19`. The two are one night apart, not two.

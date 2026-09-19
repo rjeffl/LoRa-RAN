@@ -1,13 +1,12 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-18, at the end of the session that armed an unattended 917.6 MHz capture
-for the night.** That session read the running 917.2 MHz capture at 3.72 hours, built a
-917.6 MHz capture-only image, and left a script to flash it and start its capture at 03:43 UTC.
-Earlier the same day, the session before it identified the Davis weather station on
-917.4 MHz. In order, it committed and analysed M25's ten-hour capture, researched the
-property's radios, drafted a D1 frequency change, started the 917.2 MHz capture and added
-`--reset-on-open` to the capture tool. A housekeeping pass split the engineering log and moved
-the traps to [`traps.md`](./traps.md). This file replaces the previous one wholesale.
+**Written 2026-09-18, late, by the session that committed the 917.2 MHz capture.** The
+unattended handover armed the session before worked: the 917.2 MHz capture ended at 01:14 UTC on
+2026-09-19, the script flashed the 917.6 MHz image, and the 917.6 MHz capture started at 03:43 UTC.
+This session read the 917.2 MHz capture, committed it and logged its figures. Earlier the same
+day, sessions identified the Davis weather station on 917.4 MHz, drafted a D1 frequency change,
+added `--reset-on-open` to the capture tool and split the engineering log. This file replaces the
+previous one wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,100 +16,74 @@ the traps to [`traps.md`](./traps.md). This file replaces the previous one whole
 
 ## The next job, in one place
 
-**Check that the overnight handover worked, then commit the 917.2 MHz capture.** Two
-captures run back to back, and a script joins them with no one at the bench. They are the two
-that [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) §5 asks
-for before D1's frequency moves.
+**Commit the 917.6 MHz capture after it ends at about 13:43 UTC on 2026-09-19, then put both
+captures in front of the operator.** The 917.2 MHz capture is committed, and its engineering-log
+entry has the figures. **It passes one of the D1 brief's three tests and cannot be judged on the
+other two**, because an evening source it found falls in hours M25 never covered.
 
-| UTC | Event |
-|---|---|
-| 2026-09-18 15:14:03 | The 917.2 MHz capture starts, on image `5e752e9` |
-| 2026-09-19, about 01:14 | The 917.2 MHz capture ends after ten hours |
-| Shortly after | The script USB-flashes `91e63dd`, the 917.6 MHz capture-only image |
-| 2026-09-19 03:43:00 | The script starts a ten-hour 917.6 MHz capture with `--reset-on-open` |
-| 2026-09-19, about 13:43 | The 917.6 MHz capture ends |
-
-The 917.6 MHz capture starts at 03:43 UTC because M25 did, and brief §5 compares captures
-only over the same hours.
-
-**Read the script's log first.** The script writes a line at each step, and an abort says
-why. It lives in the arming session's scratch directory, under `caffeinate -i`, so the Mac
-does not idle-sleep; closing the lid on battery still sleeps it.
+**The 917.6 MHz capture is running now**, on image `91e63dd`, from 2026-09-19T03:43:07Z. It holds
+`/dev/cu.usbserial-0001`, so leave the bridge board's port alone until it ends. Its file already
+shows `#RESET`, the `PHY: 917.6 MHz` banner and `CHAN-BOOT,91e63dd,917600000`.
 
 ```bash
-cat /private/tmp/claude-501/-Users-jefflee-Documents-Computers-Network-Automation-Projects-LoRa-RAN/a5fc1a55-87aa-4272-b321-ea6b526182b9/scratchpad/arm_917600.log
-pgrep -fl 'arm_917600|rssi_capture|capture_with_reset'   # which run is live, if any
+pgrep -fl 'arm_917600|rssi_capture'   # empty once the capture has ended
+tail -1 docs/bridge/data/m25-chan-917600-2026-09-19.log   # "# M25 capture closed ..." when done
 ```
 
-The script aborts without flashing if 03:43 UTC has already passed, if the port is missing,
-if another capture holds it, or if its worktree is not clean at `91e63dd`. It tries the flash
-three times. Whatever the flash's result, it then deletes the copy of `secrets.h` that the
-build needed from its worktree.
-
-**Then check the 917.6 MHz file's first lines.** This run is `--reset-on-open`'s first use on
-hardware. Look for `#RESET`, the `PHY: 917.6 MHz` banner and `CHAN-BOOT,91e63dd,917600000`:
+**To commit it**, remove its line from `.git/info/exclude`, which keeps it out of git while it
+grows. Then run the report and add an engineering-log entry beside the 917.2 MHz one:
 
 ```bash
-grep -m3 -E '#RESET|PHY:|CHAN-BOOT' docs/bridge/data/m25-chan-917600-2026-09-19.log
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917600-2026-09-19.log
 ```
 
-**If the script aborted, start the run by hand at the next 03:43 UTC.** Flash branch
-`capture-917600` from a clean tree, then start the capture. A run started at another hour
-cannot be read against M25 for occupancy.
+**The 917.6 MHz capture covers M25's hours, 03:43 to 13:43 UTC**, so D1 brief §5's three tests
+apply to it against M25 directly. It says nothing about the evening.
+
+**What the 917.2 MHz capture found**, from the 2026-09-18 log entry:
+
+- **No periodic source in any band.** The Davis leaves no trace 0.2 MHz from its nearest hop.
+- **Occupancy 0.3260 %, against M25's 0.0912 %, over hours that do not overlap.** The hours
+  outside 18 to 22 UTC read 0.064 % to 0.197 %, inside M25's hourly range.
+- **A source at −90 and −89 dBm from 17:57 to 23:49 UTC**, in 328 buckets and nowhere else in
+  ten hours. Nothing like it appears in M25's capture. At the gate it would sit about 11 dB above
+  the wanted signal.
+
+**Whether that source is specific to 917.2 MHz or to the evening is the open question**, and two
+captures would answer different parts of it. The log entry sets them out. **A 917.4 MHz capture
+from 15:14 UTC** says whether the source is on 917.4 MHz in the evening too. **A 917.2 MHz capture
+from 03:43 UTC** answers brief §5's occupancy test as written. **Which to run, if either, is the
+operator's call**, and it can wait for the 917.6 MHz result.
+
+**Two operator decisions wait on the captures:**
+
+1. **D1's frequency.** The brief recommends 917.2 MHz, off the Davis hop, with 917.6 MHz as the
+   alternative. The evening source weakens the case for 917.2 MHz until one of the captures above
+   places it. The brief asks for the decision before GateLink is built, because afterwards the
+   same change means a USB reflash at the gate.
+2. **Whether D33 reopens.** Standing condition 3 requires no co-channel occupant on the chosen
+   frequency, and at 917.4 MHz the Davis is one. The brief's §6 lists everything the Decision
+   Register revision would carry: D1, D33, M25, M26, §3.1's inventory and §5.4's attribution of
+   the 916.0 MHz cluster.
+
+**The bridge runs the 917.6 MHz capture-only image, `91e63dd` on branch `capture-917600`, which is
+never merged.** It is `ecc2e6f`'s firmware with `kPhy.freq_hz` alone changed, as the 917.2 MHz
+image `5e752e9` on `capture-917200` was. No firmware or lib file has changed since `ecc2e6f`.
+Stopping the capture early keeps its file up to the last flush: `pkill -INT -f rssi_capture`.
+
+**The bench is split across two channels until the bridge is reflashed.** The bridge is on
+917.6 MHz and both simnodes are on 917.4 MHz, so they cannot hear each other. **Reflash the bridge
+from the branch being worked on before any simnode work**, the interleaved sweep included. Its
+boot banner's `PHY:` line and `CHAN-BOOT` both state the frequency. **A further capture needs its
+own image**: flash `ecc2e6f` for 917.4 MHz, or branch `capture-917200` for 917.2 MHz, from a clean
+tree, and start it with `--reset-on-open`:
 
 ```bash
 ~/.platformio/penv/bin/python tools/simctl/rssi_capture.py --reset-on-open \
-    --port /dev/cu.usbserial-0001 --out docs/bridge/data/m25-chan-917600-$(date -u +%F).log --hours 10
+    --port /dev/cu.usbserial-0001 --out docs/bridge/data/m25-chan-<freq>-$(date -u +%F).log --hours 10
 ```
 
-**Commit the 917.2 MHz capture once it has ended.** Remove its line from
-`.git/info/exclude`, which kept it out of git while it grew. Commit it beside M25's under
-`docs/bridge/data/`, and add an engineering-log entry with the report's figures. **Do the same
-for the 917.6 MHz capture after about 13:43 UTC.** Its line is in `.git/info/exclude` too.
-
-```bash
-python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917200-2026-09-18.log
-```
-
-**The 917.2 MHz capture cannot settle brief §5's occupancy test.** It runs from 15:14 to
-01:14 UTC, and M25 ran from 03:44 to 13:42 UTC, so the two share no hour. The
-engineering-log entry has to say so. A second 917.2 MHz capture started at 03:43 UTC would
-answer the test, and whether to run one is the operator's call. The Davis test and the
-episodic source's peak level do not depend on the hour. *What 2026-09-18 established* has the
-reading at 3.72 hours.
-
-**Then put both captures in front of the operator**, who decides D1 with the brief.
-
-**The bridge runs capture-only images through the night, and neither is ever merged.** Until
-about 01:14 UTC it runs `5e752e9` on branch `capture-917200`, at 917.2 MHz. After the flash
-it runs `91e63dd` on branch `capture-917600`, at 917.6 MHz. Both are `ecc2e6f`'s firmware,
-the image M25 ran, with `kPhy.freq_hz` alone changed. No firmware or lib file has changed
-since `ecc2e6f`. `91e63dd` was built in a worktree in the arming session's scratch directory,
-and the pushed branch is the copy that lasts. Stopping either run early keeps its file up to
-the last flush: `pkill -INT -f rssi_capture`, or `-f capture_with_reset` for the 917.2 MHz
-run.
-
-**The 917.2 MHz capture was started through a scratch wrapper**, `capture_with_reset`, which
-reset the board once so `CHAN-BOOT` was recorded. The wrapper lived in the earlier session's
-scratch directory. `--reset-on-open` replaces it.
-
-**The bench is split across two channels until the bridge is reflashed.** The bridge is on
-917.2 MHz, then 917.6 MHz, and both simnodes are on 917.4 MHz, so they cannot hear each other.
-**Reflash the bridge from the branch being worked on before any simnode work**, the
-interleaved sweep included. Its boot banner's `PHY:` line and `CHAN-BOOT` both state the
-frequency.
-
-**Two operator decisions wait, and neither blocks the captures:**
-
-1. **D1's frequency.** The brief recommends 917.2 MHz, off the Davis hop, with 917.6 MHz as the
-   alternative, and asks for the decision before GateLink is built. Afterwards, the same change
-   means a USB reflash at the gate.
-2. **Whether D33 reopens.** Standing condition 3 requires no co-channel occupant on the chosen
-   frequency, and at 917.4 MHz the Davis is one. Moving off its hop answers it. The brief's §6
-   lists everything the Decision Register revision would carry: D1, D33, M25, M26, §3.1's
-   inventory and §5.4's attribution of the 916.0 MHz cluster.
-
-**After the captures, run the interleaved sweep, then BF-24.** The ten frame-log bursts of
+**After the captures, run the interleaved sweep, then BF-24.** It does not wait on D1. The ten frame-log bursts of
 2026-09-17 put a 250 ms gap at **2.50 %** and a 2000 ms gap at **1.90 %**, where the same arms
 had read 5.6 % and 0 % that morning. Every loss fell in four of the ten runs whatever the
 spacing, so the losses look clustered in **time**. **Every sweep on record ran one spacing to
@@ -181,8 +154,7 @@ defaults to the bridge.** **Drive a command from the broker**: publish to
 
 ## What 2026-09-18 established
 
-The engineering log's 2026-09-18 entries have the numbers. The 917.2 MHz reading at 3.72
-hours is the exception: it is recorded only here until the run's own log entry replaces it.
+The engineering log's 2026-09-18 entries have the numbers, the 917.2 MHz capture's included.
 [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) has the research, with sources.
 
 - **917.4 MHz is not empty.** Over M25's ten hours it was occupied 0.0912 % of the time above
@@ -208,22 +180,22 @@ hours is the exception: it is recorded only here until the run's own log entry r
   Decision Register §5.4's candidate attribution.
 - **One published Davis unit runs 33 kHz below nominal.** If this one does too, its
   "917.434 MHz" hop sits almost exactly on 917.4 MHz.
-- **At 917.2 MHz the Davis is absent over the capture's first 3.72 hours**, 15:14 to 18:57
-  UTC, about 102 of its hop cycles. No band reads periodic. The −80 dBm band holds one bucket,
-  against 201 at 917.4 MHz, and its one event covers 20 of 100 samples where a Davis hop covers
-  one. The events between −90 and −79 dBm are bursts of 3 to 20 samples, from a source nothing
-  identifies.
-- **Occupancy at 917.2 MHz read 0.2231 % above −110 dBm at 3.72 hours, against M25's
-  0.0912 %, over hours M25 did not cover.** Hours 15 to 17 UTC read 0.148 %, 0.132 % and
-  0.115 %. Hour 18 read 0.488 %, from a cluster of episodes between 18:01 and 18:26. M25's
-  own hours ran from 0.048 % to 0.228 %.
-- **The episodic source peaked at −94 to −96 dBm at 917.2 MHz**, against −91 to −94 dBm at
-  917.4 MHz. Its band, −100 to −90 dBm, held 2050 samples in 3.72 hours, against 1756 in M25's
-  ten, again over different hours.
+- **At 917.2 MHz the Davis is absent over the capture's first 3.72 hours**, 15:14 to 18:- **At 917.2 MHz no band is periodic over ten hours**, about 275 Davis hop cycles, so the Davis
+  leaves no trace 0.2 MHz from its nearest hop. The −80 dBm band holds one bucket, against 201 at
+  917.4 MHz.
+- **Occupancy at 917.2 MHz read 0.3260 %, against M25's 0.0912 %, over hours that do not
+  overlap.** Hours 18 to 22 UTC read 0.365 % to 0.668 %. The other hours read 0.064 % to 0.197 %,
+  inside M25's hourly range of 0.048 % to 0.228 %.
+- **A source at −90 and −89 dBm ran at 917.2 MHz from 17:57 to 23:49 UTC** and nowhere else in
+  the capture: 328 buckets, 166 events, no period. Nothing like it appears in M25's capture, which
+  never covered those hours. It is unidentified.
+- **Episodes at −94 to −96 dBm clustered between 18:01 and 18:26 UTC**, matching M25's −93 dBm
+  episodic source by level and shape.
 - **The weakest band's association with the bridge's own transmissions is stronger at
-  917.2 MHz.** 24.7 % of its events fell near one, against 14.2 % at 917.4 MHz and 8.3 % by
+  917.2 MHz**: 21.0 % of its buckets fell near one, against 14.2 % at 917.4 MHz and 8.3 % by
   chance. The mechanism is still not established.
-- **The tools grew.** `rssi_analyze.py` finds periodic sources, compares a band's timing with
+- **The unattended handover worked, and so did `--reset-on-open` on its first hardware run.**
+ with
   our own transmissions against chance, and groups episodes. `rssi_capture.py` gained
   `--reset-on-open`. Both have host tests in CI.
 
@@ -302,8 +274,8 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; Z-Wave and Insteon model numbers not yet confirmed. **D1's frequency** — a change to 917.2 MHz is drafted. Its 917.2 MHz capture ends at about 01:14 UTC on 2026-09-19, and a 917.6 MHz capture is armed for 03:43 UTC. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | Check the overnight handover, then commit the 917.2 MHz and 917.6 MHz captures. The operator then decides D1 and D33, and whether 917.2 MHz needs a capture over M25's hours. Reflash the bridge, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
+| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; Z-Wave and Insteon model numbers not yet confirmed. **D1's frequency** — a change to 917.2 MHz is drafted. Its 917.2 MHz capture is committed and cannot be judged against M25's hours; the 917.6 MHz capture runs until about 13:43 UTC on 2026-09-19. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | Commit the 917.6 MHz capture once it ends. The operator then decides D1 and D33, and whether to run a 917.4 MHz evening capture or a 917.2 MHz capture over M25's hours. Reflash the bridge, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -384,7 +356,7 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-18 from `5e752e9`, the 917.2 MHz capture-only image on branch `capture-917200`**. It is `ecc2e6f`'s firmware with `kPhy.freq_hz` changed, and it was flashed from a clean tree. **An unattended script is set to USB-flash `91e63dd`, the 917.6 MHz capture-only image on branch `capture-917600`, after the 917.2 MHz capture ends at about 01:14 UTC on 2026-09-19.** The script's log records whether it did. Before `5e752e9` it ran `ecc2e6f`, USB-flashed 2026-09-17. It carries `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27) and `chan_monitor.h`'s RSSI sampler on serial (M25). **The capture file's `CHAN-BOOT` line names the running image** (`CHAN-BOOT,ecc2e6f,917400000,...`); check it rather than trusting this row. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. It polls, receives and publishes, with WiFi, broker and radio all up. **The 917.2 MHz capture has held this port since 2026-09-18T15:14:03Z**, through a scratch wrapper that reset the board once on open so `CHAN-BOOT` was recorded. **The 917.6 MHz capture holds it from 03:43 UTC on 2026-09-19 until about 13:43.** A second opener fails or steals bytes, so check for a running `rssi_capture.py` before touching the port |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-19T01:14Z from `91e63dd`, the 917.6 MHz capture-only image on branch `capture-917600`**, by the unattended script. It is `ecc2e6f`'s firmware with `kPhy.freq_hz` changed, built from a clean tree. Before it the board ran `5e752e9`, the 917.2 MHz capture-only image on `capture-917200`, from 2026-09-18, and before that `ecc2e6f`, USB-flashed 2026-09-17. It carries `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27) and `chan_monitor.h`'s RSSI sampler on serial (M25). **The capture file's `CHAN-BOOT` line names the running image** (`CHAN-BOOT,ecc2e6f,917400000,...`); check it rather than trusting this row. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. It polls, receives and publishes, with WiFi, broker and radio all up. **The 917.6 MHz capture holds this port from 2026-09-19T03:43:07Z until about 13:43 UTC**, started with `--reset-on-open`. A second opener fails or steals bytes, so check for a running `rssi_capture.py` before touching the port |
 | Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error`. **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21).** Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. **Its port name moves across replug**: it has been `/dev/cu.usbserial-4` and `/dev/cu.usbserial-3`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. Last seen as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **The M22 setup (`id add f3 ROLE_FAULT`, `disable f1`) is gone after any reboot**, so rebuild it and **check `id list` before believing a run** |
 
@@ -416,9 +388,8 @@ stick (Bridge PRD **R-4.3a.1**). The gain is a term in D1's EIRP arithmetic, and
 [`traps.md`](./traps.md#behaviour-that-changed-before-2026-09-16).
 
 - **The bridge board runs capture-only images since 2026-09-18 15:14 UTC**: 917.2 MHz
-  (`5e752e9`) until about 01:14 UTC on 2026-09-19, then 917.6 MHz (`91e63dd`) once the script
-  flashes it. Anything it records until it is reflashed from the branch being worked on is
-  data from one of those frequencies. `CHAN-BOOT` and the banner's `PHY:` line say which; a
+  (`5e752e9`) until 01:14 UTC on 2026-09-19, then 917.6 MHz (`91e63dd`). Anything it records
+  until it is reflashed from the branch being worked on is data from one of those frequencies. `CHAN-BOOT` and the banner's `PHY:` line say which; a
   record without either cannot be placed.
 - **`rssi_capture.py` can reset the board on open since 2026-09-18** (`--reset-on-open`) and
   then writes a `#RESET` line. A capture file without one was started on a running board.
