@@ -79,11 +79,31 @@ than the bridge board, so a source at −89 dBm on the simnode Heltec may land a
 the bridge board. Band counts compare hours within one file safely; across files they carry
 that bias.
 
-**At 20:31 UTC, 2.5 hours into the evening**, 917.2 MHz was busier every hour: occupancy
-1.3× 917.4 MHz's in hour 18, 1.8× in hour 19 and 2.2× in the first half of hour 20. The
-−90 to −80 dBm band held 26 and 18 buckets per hour on 917.2 MHz against 2 and 3 on
-917.4 MHz, with the bias above. That is an interim reading of a run with 21 hours left, not
-day 1's result.
+**The evening hours are in, read at 23:56 UTC. They lean toward 917.4 MHz, and they are
+not day 1's result** — 18 hours of the run remain, and the operator decides.
+
+| Hour UTC | 917.4 MHz occupancy | 917.2 MHz occupancy | −90 to −80 dBm buckets, 917.4 / 917.2 |
+|---|---|---|---|
+| 18 | 0.295 % | 0.371 % | 2 / 26 |
+| 19 | 0.141 % | 0.258 % | 3 / 18 |
+| 20 | 0.208 % | 0.281 % | 1 / 23 |
+| 21 | 0.420 % | 0.481 % | 0 / 31 |
+| 22 | 0.074 % | 0.125 % | 1 / 32 |
+| 23 | 0.190 % | 0.250 % | 1 / 31 |
+
+**917.2 MHz carried more occupancy in every hour**, 1.2 to 1.7 times 917.4 MHz's, and it
+carried the −90 to −80 dBm band that 2026-09-18's capture found in the evening. On
+917.4 MHz that band holds 0 to 3 buckets an hour.
+
+**The gain bias does not explain it.** In the calibration hour, with both boards on
+917.4 MHz, the −100 to −90 dBm band held 91 buckets on the bridge board and 92 on the
+simnode Heltec, so the episodic source reads the same band on both. Only the Davis showed
+the 8 dB spread. If the evening source reached 917.4 MHz 8 dB down, it would show in the
+bridge board's −100 to −90 dBm band, which instead tracks the simnode Heltec's.
+
+**One band is biased the other way.** The −110 to −100 dBm band holds roughly twice as many
+buckets on the simnode Heltec, in the calibration hour as well (89 against 46), because its
+floor sits 0.1 dB lower and more excursions clear the threshold. Weigh that band lightly.
 
 ```bash
 python3 tools/simctl/rssi_compare.py docs/bridge/data/d1-par-917400-flat-office-2026-09-19.log \
