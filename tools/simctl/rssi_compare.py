@@ -11,6 +11,12 @@
 #
 # Occupancy and band counts only. A peak level from one board compared with a peak level
 # from another measures direction as much as the channel (engineering log, 2026-09-19).
+#
+# THE BAND COUNTS CARRY THAT BIAS TOO. A bucket's band is set by its peak, so a board that
+# reads a source 8 dB hot files it one band higher than the other board does. Compare band
+# counts within one file across hours, or across files only after checking the two boards'
+# calibration-hour peaks for a common source. OCCUPANCY is the like-for-like figure: at the
+# office the two boards agreed on it within 5 % on a common channel.
 
 import argparse
 import os

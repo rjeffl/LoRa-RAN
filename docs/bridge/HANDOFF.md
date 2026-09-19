@@ -73,8 +73,17 @@ python3 tools/simctl/rssi_report.py docs/bridge/data/<file>
 ```
 
 **Read day 1 side by side with `rssi_compare.py`**: occupancy, median floor and band counts
-per UTC hour for both files. It compares no peak level across the two boards, for the
-reason above.
+per UTC hour for both files. **Judge the two frequencies on occupancy.** A band count is set
+by a peak level, and in the calibration hour the simnode Heltec read the Davis 8 dB hotter
+than the bridge board, so a source at −89 dBm on the simnode Heltec may land a band lower on
+the bridge board. Band counts compare hours within one file safely; across files they carry
+that bias.
+
+**At 20:31 UTC, 2.5 hours into the evening**, 917.2 MHz was busier every hour: occupancy
+1.3× 917.4 MHz's in hour 18, 1.8× in hour 19 and 2.2× in the first half of hour 20. The
+−90 to −80 dBm band held 26 and 18 buckets per hour on 917.2 MHz against 2 and 3 on
+917.4 MHz, with the bias above. That is an interim reading of a run with 21 hours left, not
+day 1's result.
 
 ```bash
 python3 tools/simctl/rssi_compare.py docs/bridge/data/d1-par-917400-flat-office-2026-09-19.log \
