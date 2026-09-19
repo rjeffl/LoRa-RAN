@@ -57,19 +57,32 @@ D1 brief's §5, now v0.2, answers it with a same-day run: one listen-only receiv
 changes and what is untested. **Whether to run it is the operator's call**, and it supersedes
 the two single-channel follow-ups the 2026-09-18 entry offered.
 
-**To set up the parallel run, after the 917.6 MHz capture ends:**
+**The listen-only image has run on the bench, and it changed twice on 2026-09-19.** The
+engineering log's last three entries have the detail. In short:
 
-1. **Plug in the simnode Heltec and the XIAO holding PRG or BOOT**, so their simnode firmware
-   never starts and never transmits. Flash `firmware/chan-capture/` to all three boards, the
-   bridge board included.
-2. **Set each board's frequency** with `freq <hz>` on its serial console, and check each
-   file's `CHAN-BOOT`.
-3. **Try `--reset-on-open` on the XIAO first**, in a short capture, and check for `#RESET` and
-   `CHAN-BOOT` before leaving it unattended.
+- **A receiver that never transmits must restart receive on a timer.** Without it, each bridge
+  poll 0.2 MHz away left the simnode Heltec reading a flat −74 dBm until a restart. The IRQ
+  status read 0x0000 throughout, so no flag shows it. `6bf9a38` restarts every 100 ms, and
+  the plateaus are gone.
+- **The entry blaming the XIAO for a carrier is superseded** by the one after it. There was
+  no carrier.
+- **The XIAO's floor is −110 dBm against the Heltec's −114 dBm**, side by side on 917.4 MHz for
+  4 minutes. So as §5 stands, the XIAO would report the channel busy all the time.
 
-**The simnodes were plugged in briefly during the 917.6 MHz capture**, about 04:03 to
-04:13 UTC. The 2026-09-19 log entry found nothing in the file attributable to them. **Its
-917.6 MHz log entry should record that window.**
+**Operator decision: which receivers run brief §5.** Heltecs only, the bridge board and the
+simnode Heltec, two frequencies a day; or the XIAO kept with a per-receiver threshold, which
+`chan-capture` does not have yet. The first needs no code; the second changes what §5's
+occupancy test means.
+
+**Both simnode boards run `chan-capture` now**, at 917.4 MHz, and never transmit. **Reflash
+each from `firmware/simnode/` before any simnode work**, the interleaved sweep included.
+
+**Record in the 917.6 MHz capture's log entry what was on the bench during it.** Both simnode
+boards were plugged in from about 04:03 to 04:13 UTC on simnode firmware; the XIAO booted
+simnode firmware again from about 04:22 until it was flashed at 04:24:25. After that, both ran
+`chan-capture` at 917.4 or 917.2 MHz, which never transmits. The simnode Heltec's port was
+opened and the board rebooted many times between 04:25 and 05:27 for the tests above. None of
+it shows in the 917.6 MHz file as anything but the bridge's own polls.
 
 **Two operator decisions wait on the captures:**
 
@@ -373,8 +386,8 @@ them in its own roles, and its rows do not transfer here.
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `bridge` / `heltec`, **USB-flashed 2026-09-19T01:14Z from `91e63dd`, the 917.6 MHz capture-only image on branch `capture-917600`**, by the unattended script. It is `ecc2e6f`'s firmware with `kPhy.freq_hz` changed, built from a clean tree. Before it the board ran `5e752e9`, the 917.2 MHz capture-only image on `capture-917200`, from 2026-09-18, and before that `ecc2e6f`, USB-flashed 2026-09-17. It carries `rx_wake.h`'s two receive counters, `rx_deaf.h`'s two, `frame_log.h`'s per-frame record on `lran/bridge/diag/rxlog/state` (BF-27) and `chan_monitor.h`'s RSSI sampler on serial (M25). **The capture file's `CHAN-BOOT` line names the running image** (`CHAN-BOOT,ecc2e6f,917400000,...`); check it rather than trusting this row. **The frame log did not change what it measures**: the 2000 ms control read 0/40 twice with it running, as it did without | NVS: nothing this node depends on yet | On USB to the macOS build machine, last seen as `/dev/cu.usbserial-0001`. It polls, receives and publishes, with WiFi, broker and radio all up. **The 917.6 MHz capture holds this port from 2026-09-19T03:43:07Z until about 13:43 UTC**, started with `--reset-on-open`. A second opener fails or steals bytes, so check for a running `rssi_capture.py` before touching the port |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `simnode` / `simnode-heltec`, last flashed 2026-09-16 with `Node::on_error`. **BEHIND: it has neither `ctx_reject` nor the completed `set_displaced` (BF-21).** Reflash before using it for the catalogue. MAC `44:1b:f6:fa:bc:2c` | Nothing persists; identities reset on every boot | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. **Its port name moves across replug**: it has been `/dev/cu.usbserial-4` and `/dev/cu.usbserial-3`. Boots with `f0` `ROLE_RANGE` and `f2` `ROLE_HEALTH` |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `simnode` / `simnode-xiao-wio`, **reflashed 2026-09-16 for BF-21**, so it HAS `ctx_reject` and the completed `set_displaced`. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*` | B1b position log, dumped and committed | **Powered down on 2026-09-17 for M25's capture**; whether it has been powered up since is not recorded. Last seen as `/dev/cu.usbmodem2101`. Boots with `f1` `ROLE_GATELINK` alone. **The M22 setup (`id add f3 ROLE_FAULT`, `disable f1`) is gone after any reboot**, so rebuild it and **check `id list` before believing a run** |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | **`chan-capture` / `heltec` since 2026-09-19, not simnode firmware.** Last flashed from `6bf9a38`, the build with the 100 ms receive restart. MAC `44:1b:f6:fa:bc:2c`. **Reflash `firmware/simnode -e simnode-heltec` before any simnode work**; it was BEHIND on `ctx_reject` and `set_displaced` (BF-21) before this anyway | NVS: `chan-capture`'s frequency, **917.4 MHz** | On USB as `/dev/cu.usbserial-4`, sampling 917.4 MHz and never transmitting. **Its floor reads −114 dBm.** Its port name moves across replug |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | **`chan-capture` / `xiao-wio` since 2026-09-19, not simnode firmware.** Last flashed from `01f4332`, which has the 100 ms receive restart. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*`. **Reflash `firmware/simnode -e simnode-xiao-wio` before any simnode work** | NVS: `chan-capture`'s frequency, **917.4 MHz**; the B1b position log, dumped and committed | On USB as `/dev/cu.usbmodem2101`, sampling 917.4 MHz and never transmitting. **Its floor reads −110 dBm, 4 dB above the Heltec's**, so every sample counts as occupied against `chan-capture`'s fixed −110 dBm threshold. **Its OLED is switched off by the image**, so a dark panel no longer means it is unpowered |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
 `-dirty` git field on the banner means the running image matches no commit.
