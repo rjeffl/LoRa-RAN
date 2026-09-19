@@ -1499,3 +1499,94 @@ carry `office` in their names:
 **Every earlier capture was taken at the bench**, so a figure from these files compared with M25,
 the 917.2 MHz capture or the 917.6 MHz capture also compares two locations. Day 1's own test does
 not: it compares two frequencies over the same hours at one location.
+
+## 2026-09-19 — the office calibration hour: the external monitor raised both floors, and the run restarted without it
+
+**The first office calibration hour failed brief §5.2 step 3 on all three counts, and the cause
+was the external monitor.** With the monitor off, a second calibration hour passed on floor and
+occupancy and failed on the Davis peak alone, which depends on direction. Day 1 started at
+17:56:58 UTC with the monitor disconnected, and runs as armed.
+
+### The first hour, monitor on
+
+The hour ran from 15:37:59 to 16:37:59 UTC, with both boards on 917.4 MHz at the positions the
+previous entry records:
+
+| | Bridge board | Simnode Heltec | Step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −114.6 dBm | **−112.8 dBm** | 1.8 dB apart: fails |
+| Davis, median peak | −66 dBm | −60 dBm | 6 dB apart: fails |
+| Occupancy above −110 dBm | 512 samples, 0.144 % | **42,224 samples, 11.9 %** | 83 times: fails |
+
+**The simnode Heltec's occupancy was its own floor.** 3,336 of its 3,401 excursions fell in the
+−110 dBm band. Its floor sat about 2.8 dB under the threshold, so ordinary noise crossed it.
+
+**Both floors fell together for three minutes.** From 15:47 to 15:49 UTC the simnode Heltec read
+−116.0 dBm and the bridge board −115.9 dBm, and the simnode Heltec's occupancy went to zero.
+Both came back at 15:50. The operator knew of no transmitter nearby. The monitor blanks when the
+screen does, and sits about 0.3 m from the simnode Heltec and about 1 m from the bridge board.
+The simnode Heltec's USB port on the laptop is next to the HDMI port.
+
+**Disconnecting the monitor settled it.** The operator unplugged the monitor and switched it off
+at 16:52 UTC. Day 1 had started at 16:38:25 and was running, so the step shows in its files:
+
+| Per-minute floor | 16:50–16:52, monitor on | 16:53–16:55, monitor off |
+|---|---|---|
+| Bridge board, 917.4 MHz | −114.7 dBm | **−115.9 dBm** |
+| Simnode Heltec, 917.2 MHz | −112.3 dBm | **−116.0 dBm** |
+| Simnode Heltec, samples above −110 dBm per minute | 1,792–2,232 | **7–17** |
+
+**The monitor's noise reached 917.2 MHz as it reached 917.4 MHz**, so it raised the floor
+without favouring either frequency. It cost the simnode Heltec 3.7 dB at 0.3 m and the bridge
+board 1.2 dB at 1 m. **The bridge board is at its production position**, so that 1.2 dB is what
+the monitor costs the bridge's receiver whenever both are on. It has not been measured at any
+other spacing.
+
+**Day 1 was stopped at 16:56:06 UTC and the run restarted from a fresh calibration hour.** The
+four files taken with the monitor on are committed under `-monitor` names, as evidence for this
+entry rather than as D1 data:
+
+| File | What it holds |
+|---|---|
+| `d1-cal-917400-flat-office-monitor-2026-09-19.log` | The first calibration hour, bridge board |
+| `d1-cal-917400-handheld-office-monitor-2026-09-19.log` | The first calibration hour, simnode Heltec |
+| `d1-par-917400-flat-office-monitor-2026-09-19.log` | Day 1's first 18 minutes, bridge board, and the step at 16:53 |
+| `d1-par-917200-handheld-office-monitor-2026-09-19.log` | Day 1's first 18 minutes, simnode Heltec, and the step at 16:53 |
+
+### The second hour, monitor off
+
+This hour ran from 16:56:32 to 17:56:32 UTC. Nothing else changed: the same boards, images,
+positions, laptop and Bluetooth devices.
+
+| | Bridge board | Simnode Heltec | Step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −115.9 dBm | −116.0 dBm | 0.1 dB apart: passes |
+| Davis, median peak | −68 dBm, 25 of about 27 hops | −60 dBm, 20 hops | 8 dB apart: fails |
+| Occupancy above −110 dBm | 2,527 samples, 0.712 % | 2,663 samples, 0.750 % | 5.4 % apart: passes |
+
+**Step 3 acts on the next day, not on day 1.** It puts each receiver on the other's frequency
+*for the next day*. Day 1 therefore runs as armed, and the swap applies to day 2 if day 2 is
+run. The failure is on the Davis peak alone. At the bench, the bridge board's Davis reading
+stepped 8 dB with nothing recorded as moved, so a peak compared across two boards measures
+direction as much as either receiver. Day 1 should be read on occupancy, as the previous
+calibration entry concluded.
+
+**164 of the bridge board's 169 recorded buckets coincide with the simnode Heltec's**, so the two
+boards heard the same channel.
+
+**917.4 MHz carried an episodic source near −95 dBm through hour 17 UTC.** On the bridge board,
+buckets peaking between −100 and −90 dBm rose from 2 to 9 per ten minutes over 15:40–16:30 to 20
+to 28 per ten minutes over 17:00–17:30. The monitor could not have hidden them: they sit about
+18 dB above even the simnode Heltec's raised floor. The largest episodes peaked at −95 dBm and lasted 2 to 17 s. The
+band holds 2,222 of the hour's 2,527 samples above threshold, which is why this hour's occupancy
+is six times the bench calibration hour's 0.123 %. The bench hour covered other hours, at another
+location.
+
+**This is the signature 2026-09-18's 917.2 MHz capture found in hour 18**, episodes at −94 to
+−96 dBm. It is not the −89 dBm evening source: the −90 to −80 dBm band holds 6 buckets here,
+against 356 in that capture. Whether the −89 dBm source reaches 917.4 MHz is day 1's question,
+from 17:57 UTC.
+
+**Day 1's files** keep the names the previous entry gave them. Both boards were checked by MAC
+and frequency before the start: the bridge board `35c8471` on 917.4 MHz, the simnode Heltec
+`6bf9a38` on 917.2 MHz. Both 24-hour captures end at about 17:57 UTC on 2026-09-20.
