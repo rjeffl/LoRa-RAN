@@ -3,8 +3,8 @@
 # Three jobs, ordered by how fast they tell you something useful:
 #
 #   checks     seconds, no toolchain. Repository invariants and the host tools.
-#   native     the Unity suites on the host: library, range test, bridge.
-#   firmware   both range-test targets and the bridge, then the PA table mirror.
+#   native     the Unity suites on the host: libraries and every firmware.
+#   firmware   every firmware target, then the checks that read a built image.
 #
 # `main` stays buildable (root CLAUDE.md), so a pull request runs all three
 # before merge. They are independent and run in parallel; a firmware target
@@ -129,6 +129,15 @@ jobs:
           python3 tools/checks/lora_task_never_blocks.py --self-test
           python3 tools/checks/lora_task_never_blocks.py
 
+      # D1 frequency change brief §5: several listen-only receivers a metre apart, each on
+      # a candidate frequency 0.2 MHz from the next. The comparison assumes none of them
+      # transmits, and a receiver that did would show in its neighbours' captures as an
+      # excursion nothing could trace. The check reads source text; its fixtures run first.
+      - name: chan-capture never transmits
+        run: |
+          python3 tools/checks/chan_capture_never_transmits.py --self-test
+          python3 tools/checks/chan_capture_never_transmits.py
+
       # Impl Plan §6.5, R-5.3c: the bridge's A/B partition table cannot be changed on
       # a deployed board without a USB flash. Two equal OTA slots, otadata, no factory
       # partition, no overlap, inside 8 MB. The image-size and symbol checks need a
@@ -168,7 +177,8 @@ jobs:
         run: pio test -d lib/lran-protocol -e native
 
       # Spec 12.3 media access, shared by the bridge and the simnode. Moved out of the
-      # bridge on 2026-09-14 so the two firmwares run one implementation of it.
+      # bridge on 2026-09-14 so the two firmwares run one implementation of it. M25's
+      # channel sampler joined it on 2026-09-19, shared by the bridge and chan-capture.
       - name: Radio-link library
         run: pio test -d lib/lran-link -e native
 
@@ -191,6 +201,10 @@ jobs:
       # the committed W4 test key, and the repo root is off the native include path.
       - name: Simnode firmware
         run: pio test -d firmware/simnode -e native
+
+      # The listen-only receiver's frequency rules and console grammar. No secrets.
+      - name: Channel-capture firmware
+        run: pio test -d firmware/chan-capture -e native
 
   firmware:
     name: Firmware targets
@@ -239,6 +253,13 @@ jobs:
         run: |
           pio run -d firmware/simnode -e simnode-heltec
           pio run -d firmware/simnode -e simnode-xiao-wio
+
+      # The listen-only receiver needs no secrets.h. Both boards, because brief §5 runs
+      # them side by side.
+      - name: Channel capture (Heltec V3, XIAO ESP32S3 + Wio-SX1262 Kit)
+        run: |
+          pio run -d firmware/chan-capture -e heltec
+          pio run -d firmware/chan-capture -e xiao-wio
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
