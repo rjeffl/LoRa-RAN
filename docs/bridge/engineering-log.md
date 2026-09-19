@@ -1075,3 +1075,65 @@ window is recorded here so an analysis can exclude it.
 Specification **v0.11**; the specification is at v0.12. `tools/checks/spec_citation_version.py`
 does not read `library.json`, so nothing caught it. It is left as found, because reconciling
 comes before the citation changes.
+
+---
+
+## 2026-09-19 — the XIAO + Wio Kit radiates a carrier near 917.4 MHz, whatever it is tuned to
+
+**A narrowband signal at about −73 dBm appears on 917.4 MHz at the simnode Heltec whenever
+the XIAO + Wio-SX1262 Kit is powered, starting some tens of seconds after the XIAO boots.** It
+goes when the XIAO is unplugged and returns when it is plugged back in. It does not move when
+the XIAO is retuned. The source is the XIAO assembly's hardware, and which part of it is not
+established. Both boards were running `firmware/chan-capture/` at `f86c5dd`, which transmits
+nothing, a metre or less apart on the bench.
+
+**What was seen, in order, all in UTC on 2026-09-19:**
+
+| Time | XIAO | Heltec at 917.4 MHz |
+|---|---|---|
+| 04:25 | 917.4 MHz, first image | Nothing above −110 dBm, over 6 s |
+| 04:29–04:31 | 917.4 MHz, panel-off image | Quiet about 10 s after its own reset, then every sample above −110 dBm. Floor −74 dBm, peak −70 to −73 dBm, flat to 1 dB for 68 s |
+| 04:35 | **unplugged** | Floor −114 dBm, nothing above −110 dBm, over 32 s |
+| 04:36 | **plugged back in** | Quiet for 43 s, then −70 dBm from mid-bucket 44 |
+| 04:38 | 917.4 MHz | Nothing above −110 dBm, over 20 s |
+| 04:38–04:40 | **retuned to 917.2 MHz** and rebooted | Loud from bucket 36, about 40 s after the XIAO's reboot, peaks −70 to −72 dBm |
+
+**The XIAO does not hear it.** Its own floor at 917.4 MHz read −109 dBm with a mean of
+−107 dBm, 5 to 7 dB above the Heltec's quiet floor, and its strongest sample was −82 dBm.
+**The bridge's 917.6 MHz capture does not show it either**: its floor held at −115 dBm through
+the whole window. So the signal sits inside 917.4 MHz's receive bandwidth and outside
+917.6 MHz's.
+
+**Ruled out:**
+
+- **The XIAO's receiver leaking its local oscillator.** That leak would follow the tuning, and
+  retuning the XIAO to 917.2 MHz left the carrier at 917.4 MHz.
+- **The OLED panel.** Switching it off at boot left the XIAO's floor unchanged, and the carrier
+  appeared after the panel was off.
+- **Anything on the property.** A receiver a metre away cannot see a −73 dBm carrier that
+  arrives from outside while a second receiver beside it sees nothing, and the carrier leaves
+  when the XIAO is unplugged.
+
+**Not established:** which part radiates. The candidates are the ESP32-S3 and its clocks, the
+expansion board, the Kit's own circuitry, and the USB cable as an antenna. Nor is it
+established whether the delay after boot and the gaps are regular, or whether the XIAO
+radiates it while running simnode firmware. **Three tests would separate them:** power the XIAO
+from a battery pack with no USB data, remove the Wio Kit's antenna (safe on a receiver that
+never transmits), and log both boards side by side for an hour.
+
+**What it bears on:**
+
+- **Brief §5's parallel run.** The XIAO cannot sit a metre from another receiver on 917.4 MHz,
+  and a receiver next to it is measuring the XIAO. Until the source is found, the run has two
+  usable receivers, both Heltecs.
+- **Every bench measurement with the XIAO powered.** The XIAO has been the target-radio simnode
+  on 917.4 MHz since 2026-09-14, and the flooding node in M22's sweeps. A −73 dBm carrier sits
+  36 dB below the bench's −37 dBm wanted signal, and a LoRa CAD does not detect a carrier, so it
+  is not an obvious cause of the one-metre losses. **Whether it was present during those runs
+  is not known**, because no capture ran with the XIAO powered. M25's capture ran with both
+  simnodes powered down.
+- **GateLink.** Its module is the header-board Wio-SX1262 (p-6379), not this Kit, on a
+  different host. Whether that board radiates the same way is untested.
+
+**The XIAO now samples 917.2 MHz**, stored in its NVS by the retune above. Its next boot says
+so in `CHAN-BOOT`.
