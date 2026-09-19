@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.12
+**Version:** 0.13
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-19
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,8 +39,8 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D42** for
-decisions and **M24** for measurement-backlog items.
+**Adding a decision.** New numbers continue from the highest issued, currently **D49** for
+decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -175,7 +175,14 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D39** | Which sequence space a bridge-originated unauthenticated `seq` belongs to | **Neither. It is local and advisory**, advances no high-water mark, and MUST NOT be used to reject. `POLL` carries one so an answer can be matched to its poll | Protocol Spec §10.2, §6.4 (**BF-17**) |
 | **D40** | Whether a discard made before the MAC check may be attributed to the `src` it names | **No.** A counter raised before stage 9 is the **receiver's own**; only stage 9 onward may be published per node. Before authentication `src` is a claim, and attributing those discards would let any transmitter move another node's counters and another node's Home Assistant history | Protocol Spec §14.1 (**BF-19**) |
 | **D41** | Whether the bridge sends §14's `ERROR` replies, and how they are addressed | **Registered sources only, rate-limited.** `error_min_interval_ms` default **1000**, runtime-settable; `src` the sender's own, `ctx_id` **`0`** (unknown, §5.5), `ref_seq` the offending frame's. A receiver MUST NOT adopt a zero `ctx_id`. Answering any `src` was rejected as a reflection vector: a spoofed frame would make the receiver transmit at an attacker's chosen rate. `BAD_CRC` and `BAD_VERSION` stay optional. New **§14.2** | Protocol Spec §14.2 (**BF-19a**) |
-| **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
+| **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number. *Amended 2026-09-19:* the `config/*` payloads now have their caller, and **D48** defines them | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
+| **D43** | Route for runtime configuration from Home Assistant | **The general `lran/<node>/config/set`, with `/lib/lran-config/` behind it**, for the bridge's parameters and every node's. A narrow single-purpose topic was rejected because it spends an HA-visible token that cannot be renamed; a serial-only lever was rejected because it leaves root rule 8 unmet on nodes that cannot be reflashed without a walk. See §3.6 | System PRD §9.4, Protocol Spec §16.7 (**BF-32**) |
+| **D44** | Whether the parameter table is generated or hand-written | **A hand-written C++ table is the one source**, and every other copy is derived from it by code: firmware defaults and HA `number` discovery read it directly, and a host tool writes `/docs/gatelink-config.md` for a check to diff, as `tools/ha/dump_discovery.cpp` does for `/ha/`. No generator, no YAML, and nothing maintained by hand against the header | Protocol Library Plan §4, System PRD §9.4, Protocol Spec §7.4 |
+| **D45** | What answers `POLL` `poll_flags` bit 1 and `REQUEST_CONFIG` | **An unsolicited `CONFIG_ACK` with `op` = `GET_ALL`, on the node's own `seq`** — what simnode BF-6 already sends. It carries no MAC, for the reason `STATUS` carries none: a spoofed readback misreports configuration as a spoofed `STATUS` misreports state (§9.5). `CONFIG` `GET` and `GET_ALL` stay as the authenticated read. Retiring bit 1 and `REQUEST_CONFIG` was rejected: it breaks working simnode code and a published HA button, and costs an authenticated frame per readback | Protocol Spec §6.4, §7.4, §8.1, §9.2 |
+| **D46** | Whether `param_id` is one namespace, and whose schema `0x12` is | **One namespace for the fleet, allocated in blocks per owner**: `0x0000`–`0x00FF` bridge, `0x0100`–`0x01FF` every node, `0x1000`–`0x1FFF` GateLink, `0x2000`–`0x2FFF` WellLink. Schema `0x12` keeps its value and becomes **node config v1**, carried by any node. No byte changes | Protocol Spec §7.1, §7.4 |
+| **D47** | Where a parameter about a node is held | **Each parameter declares its owner**: the bridge, globally; the bridge, per node; or the node. The bridge applies its own half of a `config/set`, sends the node's half as `CONFIG`, and publishes one `config/ack` when both have an outcome. `config/state` shows the node's and the bridge's per-node values together, so HA sees one device with one configuration | Protocol Spec §16.7, Protocol Library Plan §4 |
+| **D48** | The `config/set`, `config/ack` and `config/state` payloads (**closes D42's deferral**) | **One JSON topic per node, keyed by parameter name**, not `param_id`. HA `number` entities publish into it through a `command_template`. `config/ack` carries per-entry status and the **effective** value, and a new persistence outcome, **`unknown`**, for a `CONFIG` that got no `CONFIG_ACK`; the bridge resolves it by readback and publishes a second `config/ack` | Protocol Spec §16.7 (**BF-32**) |
+| **D49** | What `persist_status` means on a node with no microSD slot | **The bridge persists to NVS.** §8.11's `APPLIED_NOT_PERSISTED` means *no usable nonvolatile store* — microSD on GateLink, NVS on the bridge — and the bridge reports it only when an NVS write fails | Protocol Spec §8.11, §16.6 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -545,6 +552,36 @@ against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied o
 
 ---
 
+### 3.6 D43–D49 — runtime configuration from Home Assistant, 2026-09-19
+
+**The operator chose the general route on 2026-09-19 (D43) and accepted all eight
+recommendations of `LRAN-Config-Set-Brief` the same day**, which is superseded. Six became
+D44–D49. The other two were not choices: the bridge's parameter list is written into
+Protocol Library Plan §4 for review, and **BF-32** owns the build.
+
+**The property §3.5 checked holds again.** No answer changes a frame layout, a header
+field, an enumeration value or the authentication scope. D46 renames schema `0x12`
+without changing its value, and D45 defines a reply the specification had left
+unwritten, so `ver` stays `2` and no test vector regenerates.
+
+**Two answers are worth reading for their reasoning:**
+
+- **D45 writes down what an implementation already did.** The specification offered three
+  ways to request a readback and defined a reply for one. Simnode BF-6 answered the other
+  two with an unsolicited `CONFIG_ACK`, which contradicted §9.2's reason for leaving
+  `CONFIG_ACK` unauthenticated. The rule now says what the simnode does, and why that is
+  safe, as D40 did for BF-19.
+- **D44 resolves a disagreement BF-23 had already made moot.** System PRD §9.4 said
+  *generated*; Protocol Library Plan §4 said *hand-written, maintained by hand*. BF-23
+  generated `/ha/` from the firmware's own `discovery.cpp`, which showed that a
+  hand-written table and code-derived outputs are compatible.
+
+**Found in the same pass, and not decisions.** Five passages still described `CONFIG` and
+`CONFIG_ACK` as fragmented after D38. Protocol Spec v0.13 corrects them; the brief's §2
+lists them.
+
+---
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -703,6 +740,13 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.13** — **D43–D49 resolved: runtime configuration from Home Assistant.** The
+  operator chose the general `config/set` route and accepted every recommendation of
+  `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
+  the reasoning. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
+  frame layout changes, so `ver` stays `2`. §1's highest issued numbers are corrected to
+  **D49** and **M26**; v0.12 added M25 and M26 without updating them.
 
 - **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
   operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which

@@ -1,13 +1,15 @@
 # LRAN `config/set` and `/lib/lran-config/` — decision brief
 
 **Document:** `LRAN-Config-Set-Brief`
-**Version:** 0.1
-**Status:** **Open.** The route is decided; the eight questions in §3 are not. The Decision
-Register records nothing from this brief until the operator answers them
+**Version:** 0.2
+**Status:** **Superseded 2026-09-19.** The operator accepted all eight recommendations the
+day the brief was written. The Decision Register's **§3.6** and **D43–D49** are the record,
+Protocol Spec v0.13 carries the outcomes, and this brief is kept as the reasoning.
+Questions 7 and 8 were work rather than choices: Protocol Library Plan §4 carries the
+bridge's parameter list and **BF-32** owns the build
 **Parent document:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12** (`ver = 2`)
-**Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **D42** deferred
-`config/set` and `config/ack` until they had a caller; they now have one
+**Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **D43–D49**, resolved
 **Last updated:** 2026-09-19
 
 > **The operator chose the general `config/set` on 2026-09-19**, with `/lib/lran-config/`
