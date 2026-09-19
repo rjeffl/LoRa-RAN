@@ -27,13 +27,16 @@ def render(cmp, la, lb):
     if sa != 1 or sb != 1:
         out.append("segments: %s %d, %s %d - pooled per UTC hour on the host clock" %
                    (la, sa, lb, sb))
-    head = "%-13s  %9s %9s  %7s %7s" % ("hour UTC", la + " occ%", lb + " occ%",
-                                         la[:5] + " fl", lb[:5] + " fl")
+    # Band cells read "a/b"; wide enough for both labels in full, so two labels that share
+    # a prefix (917.4, 917.2) stay distinguishable.
+    w = max(9, len(la) + len(lb) + 1)
+    head = "%-13s  %11s %11s  %9s %9s" % ("hour UTC", la + " occ%", lb + " occ%",
+                                           la + " fl", lb + " fl")
     for lo in edges:
-        head += "  %9s" % ("%d dBm" % (lo // 10))
+        head += "  %*s" % (w, "%d dBm" % (lo // 10))
     out.append(head)
-    out.append("%-13s  %9s %9s  %7s %7s" % ("", "", "", "", "") +
-               "".join("  %9s" % ("%s/%s" % (la[:4], lb[:4])) for _ in edges))
+    out.append("%-13s  %11s %11s  %9s %9s" % ("", "", "", "", "") +
+               "".join("  %*s" % (w, "%s/%s" % (la, lb)) for _ in edges))
 
     def occ(side):
         return "--" if side is None or side["occupancy"] is None else \
@@ -45,11 +48,11 @@ def render(cmp, la, lb):
 
     for r in cmp["rows"]:
         a, b = r["a"], r["b"]
-        line = "%-13s  %9s %9s  %7s %7s" % (r["hour"], occ(a), occ(b), fl(a), fl(b))
+        line = "%-13s  %11s %11s  %9s %9s" % (r["hour"], occ(a), occ(b), fl(a), fl(b))
         for lo in edges:
             na = "--" if a is None else str(a["bands"][lo])
             nb = "--" if b is None else str(b["bands"][lo])
-            line += "  %9s" % ("%s/%s" % (na, nb))
+            line += "  %*s" % (w, "%s/%s" % (na, nb))
         out.append(line)
     return "\n".join(out)
 
