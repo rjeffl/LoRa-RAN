@@ -1338,3 +1338,128 @@ at 13:45:30, five samples each at −107 and −105 dBm, and the simnode Heltec 
 
 **Repeating the test with times to the second would answer it.** During day 1 the boards sit on
 917.4 and 917.2 MHz, 1.4 and 1.2 MHz above 916.00 MHz, so one repeat covers two offsets.
+
+---
+
+## 2026-09-19 — the calibration hour: the two Heltecs agree on floor and occupancy, and differ by direction
+
+**The two receivers pass brief §5.2 step 3 on floor and occupancy, and their Davis peaks are too
+unstable to calibrate against.** Floors agreed to 0.3 dB and occupancies to 3.5 %. Over the whole
+hour the median Davis peaks differ by 1.0 dB, which is at the rule's limit rather than over it.
+But the bridge board's Davis reading stepped up by about 8 dB at 14:09 UTC while the simnode
+Heltec's did not move. So the offset between two receivers depends on where the signal comes
+from, and no single figure corrects one to the other. **No swap is called for by the rule as
+written.** Day 1 started on the planned assignment at 14:44:30.
+
+**The run.** Both Heltecs ran `firmware/chan-capture/` on 917.4 MHz from 13:44:03 to 14:44:03
+UTC. `rssi_capture.py --reset-on-open` reset both together. They were the bridge board (flat
+case, the 3.0 dBi stick, image `35c8471`) and the simnode Heltec (handheld case, its own antenna,
+image `6bf9a38`).
+They sat about a metre apart on the bench, and nothing else was powered. Each file holds one
+segment of 3,550 buckets and 354,999 samples, with one opportunity skipped. Both booted in the
+same second and sample every 10 ms, so their samples fall within about 2 ms of each other.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/d1-cal-917400-flat-2026-09-19.log
+python3 tools/simctl/rssi_report.py docs/bridge/data/d1-cal-917400-handheld-2026-09-19.log
+```
+
+| | Bridge board | Simnode Heltec | Rule, brief §5.2 step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −115.2 dBm | −114.9 dBm | within 1 dB: **met** |
+| Occupancy above −110 dBm | 436 samples, 0.1228 % | 421 samples, 0.1186 % | within 20 %: **met**, 3.5 % apart |
+| Davis peak, median over the hour | −72 dBm, 21 of 27 hops caught | −73 dBm, 19 of 27 caught | within 1 dB: **at the limit** |
+| Davis peak, median before 14:09 | −73 dBm | about −73.5 dBm | |
+| Davis peak, median after 14:09 | **−65 dBm** | −74 dBm | |
+
+**Every source both receivers can hear, they heard in the same bucket.** 53 of the bridge board's
+65 buckets with a sample above threshold have a partner in the simnode Heltec's file. A Davis hop
+lasts 6.7 ms and each receiver samples every 10 ms. So one receiver often caught a hop at −72 dBm
+while the other caught its edge at −105 dBm or missed it.
+
+**The step at 14:09 belongs to the bridge board's position, not to its receiver.** From 14:10 on,
+eight of its twelve Davis readings sit at −64 or −65 dBm, against −72 to −73 dBm before. The
+simnode Heltec read −71 to −77 dBm throughout. Before 14:20, both boards read the −93 dBm
+episodic source at −94 to −95 dBm. After 14:30, the bridge board read it 3 to 7 dB *weaker* than
+the simnode Heltec, at −93 to −95 dBm against −88 to −90 dBm. A receiver that ran hot would read both
+sources hot. A change in antenna orientation or surroundings changes the gain toward one
+direction and not the other, and the Davis and the episodic source arrive from different
+directions. **What changed at 14:09 is not recorded.** The operator was sending the thermostat
+requests below at that time.
+
+**What that means for day 1.** A peak level compared across the two files carries this
+direction-dependent uncertainty, up to about 9 dB. Occupancy, which tests 2 and 3 mostly rest
+on, agreed to 3.5 % over the hour.
+
+**`rssi_report.py` split the Davis across two bands on the bridge board**: −80 dBm before the
+step and −70 dBm after. It reported the Davis as periodic in the first, with 10 of 26 hops caught,
+and as not periodic in the second. The Davis figures in the table assign hops by their position on
+the 130.69 s lattice instead, using a scratch script that is not in the repository.
+
+### Z-Wave on the property does not reach −110 dBm on 917.4 MHz
+
+**The ZEN17 in the basement is the better test, and it shows nothing.** It reports water pressure
+every 30 s, about 120 reports an hour. It is built on 700-series silicon and reports to an Aeotec
+Gen5 stick, a 500-series controller, so both ends support 100 kbps on 916.00 MHz. That the link
+actually uses that rate is inferred from the silicon and not confirmed. A report and its ACK at
+100 kbps add up to a few milliseconds of air each, so a sampler reading every 10 ms would catch a
+large share if they reached −110 dBm. The excursions were checked for pairs separated by 29 to 31,
+59 to 61 and 89 to 91 s:
+
+| Capture | Excursions peaking below −85 dBm | Pairs at those spacings | Average pairs per 1 s of spacing |
+|---|---|---|---|
+| Calibration hour, bridge board | 44 | **1 at 30 s, 0 at 60 s**, 3 at 90 s | 0.51 |
+| Calibration hour, simnode Heltec | 43 | **2 at 30 s, 0 at 60 s**, 8 at 90 s | 0.58 |
+| 917.6 MHz, 10 h | 1,101 | 24 at 30 s, 46 at 60 s | 35.1 |
+| 917.4 MHz, M25, 10 h | 948 | 38 at 30 s, 65 at 60 s | 26.6 |
+| 917.2 MHz, 10 h | 1,531 | 102 at 30 s, 136 at 60 s | 79.1 |
+
+**A ZEN17 visible at 917.4 MHz would have put dozens of events an hour on a 30 s grid.** The
+calibration hour has none: its pairs at 30 and 60 s sit at or below the average for any spacing.
+The simnode Heltec's eight pairs near 90 s come from episodes several buckets long, which pair
+with each other, and 30 and 60 s show nothing to match. M25 and the 917.2 MHz capture show a slight excess at 30 s, about two
+standard deviations, which is not a period. Their excess at 60 s is the bridge's own polls, once a
+minute to each of two peers; the calibration hour had no bridge. **So Z-Wave's 100 kbps channel,
+1.4 MHz below 917.4 MHz, stays below −110 dBm at the bench**, provided the ZEN17 uses it.
+
+**The thermostat test could not have seen the thermostat.** It is a Trane TCONT624 from about
+2014, which the operator believes is not Z-Wave Plus. A device of that age transmits at 9.6 or
+40 kbps on 908.4 MHz, 9 MHz below 917.4 MHz. The repeat at 10:09:00, 10:11:00 and 10:13:00 EDT
+matched nothing: the controller's log (Indigo) stamped the reports at 14:09:00, 14:11:30 and
+14:13:00 UTC. The minute summaries covering 14:09:00 and 14:11:30 counted no sample above
+−110 dBm on either board. The nearest excursion to 14:13:00 came 11 s after it, and Indigo can
+group entries under one stamp later than the traffic, not earlier. Each board also caught
+excursions at 14:09:47 and 14:10:49 that match the background: short, −98 to −106 dBm, three to
+five samples, the same shape as five events between 13:44 and 14:09. **The HVAC fan's hourly
+cycle leaves no trace either.** Sorted by minute of the hour, minutes :00 to :01 and :10 to :11
+are no busier than the rest in any of the three ten-hour captures.
+
+### What the captures establish for D1
+
+**Four findings hold across every capture so far:**
+
+1. **The Davis is the only periodic occupant, and only at 917.4 MHz.** It visits for 6.7 ms every
+   130.69 s, a duty of 0.005 %, and reads −64 to −77 dBm at the bench depending on the receiver's
+   position. It leaves no trace at 917.2 or 917.6 MHz, so the receiver rejects it by at least
+   33 dB at 0.166 MHz offset.
+2. **The −93 dBm episodic source appears at all three frequencies at similar levels.** Brief §5.3
+   says a source like that does not separate the candidates.
+3. **Z-Wave does not reach any candidate**, on the ZEN17's evidence, if its link runs at 100 kbps.
+4. **Occupancy runs 0.1 to 0.3 % at every candidate**, and almost all of it lies below −100 dBm.
+
+**Overlap per frame is about 1 % from each source, at bench levels, before any retry.** A
+maximum-length SF9 frame lasts 1,107 ms. It overlaps a Davis hop with probability (1.107 +
+0.0067) / 130.69, which is 0.85 %. In the calibration hour, 14 non-Davis events on the bridge board
+reached −100 dBm, the level of a GateLink frame at the bridge. With bucket granularity that
+bounds overlap at about 0.8 % per frame. The Davis is periodic and a retry goes out within
+`backoff_max_ms` = 1500 ms, so two consecutive frames cannot both land on its hop. These are
+bench-position figures. GateLink sits nearer the Davis transmitter, and nothing has been measured
+there.
+
+**Each candidate has one finding still open:**
+
+| Frequency | Against it | What settles it |
+|---|---|---|
+| 917.4 MHz | The Davis is a co-channel occupant, so D33 standing condition 3 is not met as written | An operator decision to accept a 0.005 % periodic occupant, recorded in the Decision Register |
+| 917.2 MHz | The −89 dBm source from 17:57 to 23:49 UTC on 2026-09-18 | **Day 1**, now running: whether 917.4 MHz shows the source over the same hours |
+| 917.6 MHz | 18 bursts at −45 to −47 dBm | A capture at 917.6 MHz with no other board powered |
