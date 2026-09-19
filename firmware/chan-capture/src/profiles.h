@@ -8,8 +8,12 @@
 // the Heltec by the range test and the bridge, the Kit by range-test pass 2. The values
 // carry over; simnode code does not.
 //
-// No panel. This image has nothing to show that the capture file does not already record,
-// and an OLED left dark cannot be mistaken for a board still running simnode firmware.
+// THE PANEL IS SWITCHED OFF, NOT MERELY LEFT ALONE. This image draws nothing, but an SSD1306
+// keeps its last frame for as long as it has power. The XIAO expansion board's panel has no
+// reset line and no Vext, so after a reflash from the simnode it went on showing "f1
+// ROLE_GATELINK" over a board that was sampling (operator, 2026-09-19). Switching it off at
+// boot makes a dark panel mean what it looks like, and stops its charge pump running beside
+// a receiver whose floor is the measurement.
 
 #pragma once
 
@@ -50,12 +54,42 @@ inline constexpr RadioPins kXiaoWioKitRadio = {
     /* dio2_as_rf_switch */ true,
 };
 
+// Only what switching the panel off needs. Values from firmware/simnode/src/profiles.h,
+// where both panels are confirmed on hardware.
+struct PanelPins {
+  uint8_t addr;  // SSD1306 I2C address
+  int8_t  sda;
+  int8_t  scl;
+  int8_t  vext;  // Vext enable, ACTIVE LOW, or kPinNone when the panel is powered directly
+};
+
+// Heltec V3: the panel hangs off Vext, so holding Vext high unpowers it.
+inline constexpr PanelPins kHeltecV3Panel = {0x3C, 17, 18, 36};
+
+// XIAO expansion board: powered directly, so it is told to switch off over I2C.
+inline constexpr PanelPins kXiaoExpansionPanel = {0x3C, 5, 6, kPinNone};
+
+constexpr bool pin_in_radio(int8_t pin, const RadioPins& r) {
+  if (pin == kPinNone) return false;
+  return pin == r.nss || pin == r.rst || pin == r.busy || pin == r.dio1 || pin == r.sck ||
+         pin == r.miso || pin == r.mosi || pin == r.rf_sw;
+}
+constexpr bool panel_collides(const PanelPins& p, const RadioPins& r) {
+  return pin_in_radio(p.sda, r) || pin_in_radio(p.scl, r) || pin_in_radio(p.vext, r);
+}
+static_assert(!panel_collides(kHeltecV3Panel, kHeltecV3Radio),
+              "Heltec V3: a panel pin collides with a radio pin");
+static_assert(!panel_collides(kXiaoExpansionPanel, kXiaoWioKitRadio),
+              "XIAO Kit: a panel pin collides with a radio pin");
+
 #if defined(LRAN_PROFILE_HELTEC)
 inline constexpr const char* kBoardName = "heltec_wifi_lora_32_V3";
 inline constexpr RadioPins   kRadio     = kHeltecV3Radio;
+inline constexpr PanelPins   kPanel     = kHeltecV3Panel;
 #elif defined(LRAN_PROFILE_XIAO_WIO_KIT)
 inline constexpr const char* kBoardName = "xiao_esp32s3+wio_sx1262_kit";
 inline constexpr RadioPins   kRadio     = kXiaoWioKitRadio;
+inline constexpr PanelPins   kPanel     = kXiaoExpansionPanel;
 #endif
 
 }  // namespace chancap

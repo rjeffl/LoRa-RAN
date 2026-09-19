@@ -28,6 +28,7 @@
 
 #include <Arduino.h>
 #include <Preferences.h>
+#include <Wire.h>
 #include <esp_mac.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -70,6 +71,27 @@ ChanMonitor              g_chan;
 ChanRollupper            g_rollup;
 chancap::FreqChoice      g_freq{};
 Preferences              g_prefs;
+
+// profiles.h says why. On the Heltec, Vext high unpowers the panel. On the XIAO the panel is
+// powered directly, so it gets DISPLAYOFF (0xAE) and CHARGEPUMP disable (0x8D, 0x10), the
+// SSD1306's own commands, sent once. No I2C traffic follows, so the bus is quiet for the run.
+void panel_off() {
+  const chancap::PanelPins& p = chancap::kPanel;
+  if (p.vext != chancap::kPinNone) {
+    pinMode(p.vext, OUTPUT);
+    digitalWrite(p.vext, HIGH);
+    return;
+  }
+  Wire.begin(p.sda, p.scl);
+  Wire.beginTransmission(p.addr);
+  Wire.write(0x00);  // control byte: a command stream follows
+  Wire.write(0xAE);
+  Wire.write(0x8D);
+  Wire.write(0x10);
+  const uint8_t st = Wire.endTransmission();
+  Wire.end();
+  if (st != 0) Serial.printf("panel: no answer at 0x%02x (I2C status %u)\n", p.addr, st);
+}
 
 // The sampler. Highest priority of the two tasks so a serial write can never delay a
 // reading; the ring between them is ChanMonitor's.
@@ -249,6 +271,7 @@ void setup() {
   g_freq = chancap::choose_freq(has, has ? g_prefs.getUInt(kPrefsFreqKey, 0) : 0,
                                 lran::link::kPhy.freq_hz);
 
+  panel_off();
   print_header();
 
   chancap::receiver_start(chancap::kRadio, lran::link::kPhy, g_freq.hz, millis());
