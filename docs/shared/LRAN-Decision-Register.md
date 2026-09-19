@@ -153,7 +153,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D14** | Decode placement | **Moot.** The node reads discrete inputs and drives discrete relays; there is nothing to decode | System PRD §3.3 |
 | **D15** | Battery SOC source | **BLE BMS.** The pack is a **TDT** unit; the access sequence is documented and an independent client validated over 32 consecutive polls with zero CRC failures. SmartShunt demoted to a physical-layer contingency behind **D28** | GateLink PRD |
 | **D16** | OTA policy | **Bridge yes, remote nodes no.** The bridge is on the LAN, mains powered and physically accessible; a bad flash ~87 m away is a walk with a laptop and there is no second radio path to recover through | Bridge PRD |
-| **D17** | Naming | **LRAN umbrella; `lran/` MQTT root; GateLink / WellLink / Bridge Node.** *Amended 2026-09-10:* the bridge was recorded here as **LoRaBridge**, the name it carried before its own documents settled on **Bridge Node**; both ran side by side across the set until an audit found them. `lran-bridge` remains the firmware target and **"LoRa Bridge" remains the HA device name** — a user-visible string, not a second node name. **One live instance is deliberately left:** Protocol Spec §5.3's node-table gloss still reads `(LoRaBridge)`, deferred to the next substantive specification revision rather than bumping v0.9 to v0.10 for a name gloss and restaking all 21 binding citations | System PRD §1.3 |
+| **D17** | Naming | **LRAN umbrella; `lran/` MQTT root; GateLink / WellLink / Bridge Node.** *Amended 2026-09-10:* the bridge was recorded here as **LoRaBridge**, the name it carried before its own documents settled on **Bridge Node**; both ran side by side across the set until an audit found them. `lran-bridge` remains the firmware target and **"LoRa Bridge" remains the HA device name** — a user-visible string, not a second node name. The one instance deferred then, Protocol Spec §5.3's node-table gloss, was changed with the next substantive revision: **spec v0.10 reads `(Bridge Node)`** | System PRD §1.3 |
 | **D18** | Auto-close observability | **Resolved, and better than expected.** `OUT = Moving` stays energized through the auto-close countdown, so auto-close state *is* observable — and hold state falls out of it for free | GateLink PRD |
 | **D20** | Gate controller standby policy | **Standby retained**, timeout measured at **60 s**. Command relays wake the board on their own, so nothing is lost by keeping it | GateLink PRD |
 | **D21** | Wake mechanism | **None needed.** Every command relay drives a command-class input, so the pulse that carries the command is also the pulse that wakes the board | GateLink PRD |
@@ -753,7 +753,7 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 
 ## 6. Changelog
 
-- **v0.13** — **D43–D54 resolved: runtime configuration from Home Assistant.** The
+- **v0.13** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D54 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of
   `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
   the reasoning. **D50–D54** followed from the v0.13 read-through the same day, filling five

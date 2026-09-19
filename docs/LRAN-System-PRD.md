@@ -90,10 +90,9 @@ document set — including in **D17**, which recorded the older one. Bridge Node
 name; `lran-bridge` is the firmware target; "LoRa Bridge" stays as the **HA device name**,
 which is a user-visible string rather than a second name for the node. **D17 is amended
 accordingly** — the register is the only place a decision's status is recorded, so the
-rename is not complete until it is recorded there. **Protocol Spec §5.3's node-table gloss
-still reads `(LoRaBridge)` and is deliberately left**: changing it bumps the specification
-and restakes all 21 binding citations, so it waits for the next substantive specification
-revision. D17 carries that deferral.
+rename is not complete until it is recorded there. Protocol Spec §5.3's node-table gloss was
+deferred to the next substantive specification revision, and **spec v0.10 changed it** to
+`(Bridge Node)`.
 
 ---
 
@@ -743,8 +742,9 @@ assumed now.
   generator; **D44** keeps the hand-written table and derives every output by code.
   §12's rows for the Decision Register and the Library Plan move to v0.13 and v0.10, and
   the register row's version, which read v0.11 through the register's v0.12, is corrected.
-  The protocol specification row stays at v0.12 until v0.13's citation sweep. No
-  architecture changes.
+  The protocol specification row stays at v0.12 until v0.13's citation sweep. §1.3 no
+  longer says spec §5.3 still reads `(LoRaBridge)`: spec v0.10 changed it. No architecture
+  changes.
 
 - **v0.18** — **Protocol specification v0.11 → v0.12, and §12's version column corrected.**
   The specification answers the nine questions bridge B3a and simnode B0 raised: a new
