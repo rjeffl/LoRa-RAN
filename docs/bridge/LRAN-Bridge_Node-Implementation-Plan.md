@@ -569,6 +569,10 @@ from Home Assistant to a stored value is `lran/<node>/config/set`, whose payload
 not exist and has no task. **That gap is real and predates this task**; it is the same one
 that deferred BF-26 on 2026-09-14.
 
+> **Closed on paper 2026-09-19.** Spec v0.13 §16.7 defines the `config/*` payloads
+> (D43–D54), Protocol Library Plan §4 lists the bridge's parameters, and **BF-32** owns the
+> build. Every `TODO(BF-23)` above becomes a read of that table once BF-32 lands.
+
 ---
 
 ## 5. Firmware architecture
@@ -2095,7 +2099,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.39** | **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
+| **v0.39** | **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |
