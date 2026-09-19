@@ -65,6 +65,8 @@ Command parse_command(const char* line) {
   while (v < n && !is_space(s[v])) ++v;
 
   if (v == 4 && std::strncmp(s, "help", 4) == 0 && v == n) return {CommandKind::Help, 0};
+  if (v == 5 && std::strncmp(s, "radio", 5) == 0 && v == n) return {CommandKind::Radio, 0};
+  if (v == 7 && std::strncmp(s, "restart", 7) == 0 && v == n) return {CommandKind::Restart, 0};
 
   if (v == 4 && std::strncmp(s, "freq", 4) == 0) {
     if (v == n) return {CommandKind::ShowFreq, 0};

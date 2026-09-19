@@ -38,6 +38,26 @@ void IRAM_ATTR on_dio1() { g_dio1 = true; }
 
 constexpr uint32_t kBeginRetryMs = 10000;
 
+// WHY RECEIVE IS RESTARTED ON A TIMER. The first bench run of this image, 2026-09-19, read a
+// flat -74 dBm for minutes on a quiet channel. Each episode began within a second of the
+// bridge polling at 917.6 MHz, a metre away and 0.2 MHz off, and lasted until receive was
+// restarted: a restart brought the reading from -73 to -113 dBm at once. During an episode
+// the IRQ status read 0x0000, so the modem was not mid-reception, and no flag the radio
+// raises shows the state (bridge engineering log). The bridge never showed it because it
+// restarts receive after every transmission. A receiver that never transmits has to restart
+// on purpose, and on a timer, because it cannot detect the state.
+//
+// Every 100 ms bounds an episode to ten samples. A restart is a few SPI commands and the
+// sample after it is taken 10 ms later, so it costs no sample.
+constexpr uint32_t kRestartEveryMs = 100;
+uint32_t           g_last_restart_ms = 0;
+
+// RadioLib's defaults: RX_DONE alone reaches DIO1.
+int16_t start_receive() {
+  g_dio1 = false;
+  return g_radio->startReceive();  // continuous; RadioLib enters standby first
+}
+
 uint8_t g_rx_buf[256];  // read and discarded: the frame is evidence of a sender, not data
 
 // spec 12.1 and 12.2, at this image's frequency. Every call checked but one, which returns
@@ -76,7 +96,23 @@ int16_t radio_begin() {
   if (st != RADIOLIB_ERR_NONE) return st;
 
   g_radio->setDio1Action(on_dio1);
-  return g_radio->startReceive();  // continuous: RADIOLIB_SX126X_RX_TIMEOUT_INF
+  return start_receive();
+}
+
+// startReceive() enters standby, reapplies the IRQ settings, clears the IRQ register and
+// starts receive (RadioLib 7.7.1, SX126x::stageMode), which is what clears the stuck state.
+bool restart_receive(uint32_t now_ms) {
+  g_last_restart_ms = now_ms;
+  ++g_stats.restarts;
+  const int16_t st  = start_receive();
+  if (st != RADIOLIB_ERR_NONE) {
+    ++g_stats.restart_failures;
+    g_stats.last_begin_status = st;
+    g_ready                   = false;
+    g_begin_failed_ms         = now_ms;
+    return false;
+  }
+  return true;
 }
 
 void try_begin(uint32_t now_ms) {
@@ -88,8 +124,9 @@ void try_begin(uint32_t now_ms) {
     ++g_stats.begin_failures;
     return;
   }
-  g_dio1  = false;
-  g_ready = true;
+  g_dio1            = false;
+  g_ready           = true;
+  g_last_restart_ms = now_ms;
 }
 
 }  // namespace
@@ -119,11 +156,9 @@ bool receiver_service(uint32_t now_ms) {
   if (!g_dio1) return false;
   g_dio1 = false;
 
-  // RadioLib's default receive mask routes RX_DONE alone to DIO1, and the SX1262 raises
-  // RX_DONE on a CRC failure as well. readData() reads the buffer and clears the IRQ
-  // register without leaving receive (RadioLib 7.7.1, SX126x.cpp), which is what lets DIO1
-  // fire for the next frame. NEVER ASK getPacketLength() WHETHER A PACKET ARRIVED - it holds
-  // the last length.
+  // RX_DONE is raised on a CRC failure too. readData() reads the buffer and clears the IRQ
+  // register without leaving receive (RadioLib 7.7.1, SX126x.cpp). NEVER ASK
+  // getPacketLength() WHETHER A PACKET ARRIVED - it holds the last length.
   const int16_t st = g_radio->readData(g_rx_buf, 0);
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     ++g_stats.frames_bad_crc;
@@ -131,6 +166,25 @@ bool receiver_service(uint32_t now_ms) {
     ++g_stats.frames_heard;
   }
   return true;
+}
+
+void receiver_after_sample(uint32_t now_ms) {
+  if (g_radio == nullptr || !g_ready) return;
+  if (now_ms - g_last_restart_ms >= kRestartEveryMs) restart_receive(now_ms);
+}
+
+RadioProbe receiver_probe() {
+  RadioProbe p;
+  p.ready = g_ready;
+  if (g_radio == nullptr || !g_ready) return p;
+  p.irq        = g_radio->getIrqFlags();
+  p.rssi_dbm10 = receiver_rssi_dbm10();
+  return p;
+}
+
+bool receiver_restart(uint32_t now_ms) {
+  if (g_radio == nullptr || !g_ready) return false;
+  return restart_receive(now_ms);
 }
 
 bool receiver_ready() { return g_ready; }

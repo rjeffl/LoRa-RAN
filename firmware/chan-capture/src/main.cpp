@@ -25,6 +25,11 @@
 //   - It never skips for a reception of its own, because it has none. `own_rx` in its CHAN
 //     lines counts LRAN-PHY frames it HEARD, and the samples during them are counted as
 //     channel, which is what they are to a receiver that did not send them.
+//   - It restarts receive every 100 ms. Without that, a strong burst 0.2 MHz away left the
+//     receiver reading about -74 dBm until something restarted it (receiver.cpp). The
+//     bridge restarts receive after each of its own transmissions instead. A frame longer
+//     than 100 ms is therefore rarely decoded here, so `own_rx` undercounts; the energy is
+//     still sampled.
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -32,6 +37,9 @@
 #include <esp_mac.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+
+#include <atomic>
+#include <cstdlib>
 
 #include "capture_config.h"
 #include "lran/link/chan_monitor.h"
@@ -72,6 +80,15 @@ ChanRollupper            g_rollup;
 chancap::FreqChoice      g_freq{};
 Preferences              g_prefs;
 
+// A console request handed to the sampler task, which alone touches the SPI bus. The loop
+// sets it; the sampler serves it and publishes the answer; the loop prints it.
+enum Request : uint8_t { kReqNone = 0, kReqProbe = 1, kReqRestart = 2, kReqDone = 3 };
+std::atomic<uint8_t> g_request{kReqNone};
+chancap::RadioProbe  g_probe_before;
+chancap::RadioProbe  g_probe_after;
+bool                 g_restart_ok = false;
+uint8_t              g_request_kind = kReqNone;
+
 // profiles.h says why. On the Heltec, Vext high unpowers the panel. On the XIAO the panel is
 // powered directly, so it gets DISPLAYOFF (0xAE) and CHARGEPUMP disable (0x8D, 0x10), the
 // SSD1306's own commands, sent once. No I2C traffic follows, so the bus is quiet for the run.
@@ -99,9 +116,27 @@ void sample_task(void*) {
   TickType_t last = xTaskGetTickCount();
   for (;;) {
     const uint32_t now_ms = millis();
+    const uint8_t req = g_request.load(std::memory_order_acquire);
+    if (req == kReqProbe || req == kReqRestart) {
+      g_request_kind = req;
+      g_probe_before = chancap::receiver_probe();
+      if (req == kReqRestart) {
+        g_restart_ok = chancap::receiver_restart(now_ms);
+        vTaskDelay(pdMS_TO_TICKS(50));  // let the receiver settle before reading it again
+        g_probe_after = chancap::receiver_probe();
+        g_chan.skip(now_ms);
+      }
+      g_request.store(kReqDone, std::memory_order_release);
+      if (req == kReqRestart) {
+        last = xTaskGetTickCount();
+        continue;
+      }
+    }
+
     if (chancap::receiver_service(now_ms)) g_chan.note_own_rx();
     if (chancap::receiver_ready()) {
       g_chan.sample(chancap::receiver_rssi_dbm10(), now_ms);
+      chancap::receiver_after_sample(now_ms);
     } else {
       g_chan.skip(now_ms);
     }
@@ -143,10 +178,44 @@ void print_header() {
   }
 }
 
+void print_probe(const char* label, const chancap::RadioProbe& p) {
+  if (!p.ready) {
+    Serial.printf("radio: %s - receiver down\n", label);
+    return;
+  }
+  Serial.printf("radio: %s - irq 0x%04lx, rssi %d.%d dBm\n", label,
+                static_cast<unsigned long>(p.irq), p.rssi_dbm10 / 10, std::abs(p.rssi_dbm10 % 10));
+}
+
+// Hands a request to the sampler task and waits for it, with a bound: a sampler that never
+// answers is itself worth a line.
+void run_request(uint8_t req) {
+  g_request.store(req, std::memory_order_release);
+  const uint32_t t0 = millis();
+  while (g_request.load(std::memory_order_acquire) != kReqDone) {
+    if (millis() - t0 > 1000) {
+      Serial.println(F("radio: the sampler did not answer within 1 s"));
+      g_request.store(kReqNone, std::memory_order_release);
+      return;
+    }
+    delay(5);
+  }
+  if (g_request_kind == kReqRestart) {
+    print_probe("before restart", g_probe_before);
+    Serial.printf("radio: restart %s\n", g_restart_ok ? "ok" : "FAILED");
+    print_probe("after restart", g_probe_after);
+  } else {
+    print_probe("now", g_probe_before);
+  }
+  g_request.store(kReqNone, std::memory_order_release);
+}
+
 void print_help() {
   Serial.println(F("capture: commands"));
   Serial.println(F("  freq         the frequency this boot samples"));
   Serial.println(F("  freq <hz>    store <hz> for the next boot, then reboot"));
+  Serial.println(F("  radio        the SX1262's IRQ status and one RSSI reading"));
+  Serial.println(F("  restart      standby, then restart receive"));
   Serial.printf("               whole hertz, %lu to %lu\n",
                 static_cast<unsigned long>(chancap::kFreqMinHz),
                 static_cast<unsigned long>(chancap::kFreqMaxHz));
@@ -162,6 +231,12 @@ void handle_line(const char* line) {
       return;
     case chancap::CommandKind::Help:
       print_help();
+      return;
+    case chancap::CommandKind::Radio:
+      run_request(kReqProbe);
+      return;
+    case chancap::CommandKind::Restart:
+      run_request(kReqRestart);
       return;
     case chancap::CommandKind::BadFreq:
       Serial.println(F("capture: freq refused - give whole hertz inside the band; try help"));
@@ -247,6 +322,15 @@ void report_state() {
     }
     was_ready = ready;
     first     = false;
+  }
+
+  // Timer restarts are ten a second and not worth a line each; a failed one is.
+  static uint32_t failures_seen = 0;
+  const chancap::ReceiverStats& st = chancap::receiver_stats();
+  if (st.restart_failures != failures_seen) {
+    Serial.printf("radio: %lu receive restart(s) failed in all\n",
+                  static_cast<unsigned long>(st.restart_failures));
+    failures_seen = st.restart_failures;
   }
 
   const uint32_t lost = g_chan.lost();

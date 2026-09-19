@@ -55,11 +55,15 @@ const char* freq_source_name(FreqSource s);
 //
 //   freq            print the frequency this boot is sampling
 //   freq <hz>       store <hz> for the next boot, then reboot
+//   radio           print the SX1262's IRQ status and one RSSI reading
+//   restart         put the radio in standby and restart receive
 //   help
 enum class CommandKind : uint8_t {
   Empty,
   ShowFreq,
   SetFreq,
+  Radio,
+  Restart,
   Help,
   BadFreq,   // `freq` with an argument that is not a whole number of hertz in the band
   Unknown,

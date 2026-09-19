@@ -78,6 +78,14 @@ void test_freq_refuses_anything_but_whole_hertz_in_the_band() {
   TEST_ASSERT_EQUAL(CommandKind::BadFreq, parse_command("freq 917200000 917400000").kind);
 }
 
+void test_radio_and_restart_take_no_argument() {
+  TEST_ASSERT_EQUAL(CommandKind::Radio, parse_command("radio\r\n").kind);
+  TEST_ASSERT_EQUAL(CommandKind::Restart, parse_command(" restart ").kind);
+  TEST_ASSERT_EQUAL(CommandKind::Unknown, parse_command("radio now").kind);
+  TEST_ASSERT_EQUAL(CommandKind::Unknown, parse_command("restart 1").kind);
+  TEST_ASSERT_EQUAL(CommandKind::Unknown, parse_command("radios").kind);
+}
+
 void test_blank_help_and_unknown_lines() {
   TEST_ASSERT_EQUAL(CommandKind::Empty, parse_command("").kind);
   TEST_ASSERT_EQUAL(CommandKind::Empty, parse_command(" \r\n").kind);
@@ -97,6 +105,7 @@ int main(int, char**) {
   RUN_TEST(test_freq_alone_shows_the_frequency);
   RUN_TEST(test_freq_with_hertz_sets_it);
   RUN_TEST(test_freq_refuses_anything_but_whole_hertz_in_the_band);
+  RUN_TEST(test_radio_and_restart_take_no_argument);
   RUN_TEST(test_blank_help_and_unknown_lines);
   return UNITY_END();
 }

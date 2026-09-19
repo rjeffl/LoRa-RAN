@@ -27,6 +27,10 @@ struct ReceiverStats {
   int16_t  last_begin_status = 0;
   uint32_t frames_heard      = 0;  // RX_DONE with a good CRC: an LRAN-PHY frame on the channel
   uint32_t frames_bad_crc    = 0;
+
+  // Receive restarts on the 100 ms timer (receiver.cpp says why), and those that failed.
+  uint32_t restarts         = 0;
+  uint32_t restart_failures = 0;
 };
 
 // Tunes to `freq_hz` with every other PHY field from `phy` (spec 12.1), and enters continuous
@@ -34,9 +38,23 @@ struct ReceiverStats {
 void receiver_start(const lran::link::RadioPins& pins, const lran::link::PhyConfig& phy,
                     uint32_t freq_hz, uint32_t now_ms);
 
-// One pass. Clears a completed reception so DIO1 can fire again. Returns true when a frame
-// finished in this pass, CRC good or bad - the caller notes it against the open bucket.
+// One pass before the sample: clears a completed reception so DIO1 can fire again. Returns
+// true when a frame finished, CRC good or bad - the caller notes it against the open bucket.
 bool receiver_service(uint32_t now_ms);
+
+// One pass after the sample: restarts receive when 100 ms have passed since the last restart,
+// so the next sample, 10 ms later, reads a receiver that cannot have been stuck for longer.
+void receiver_after_sample(uint32_t now_ms);
+
+// For the `radio` and `restart` console commands. Called from the sampler task only, like
+// everything else here: it is the one task that touches the SPI bus.
+struct RadioProbe {
+  uint32_t irq          = 0;  // GetIrqStatus, raw SX126x bits
+  int16_t  rssi_dbm10   = 0;
+  bool     ready        = false;
+};
+RadioProbe receiver_probe();
+bool       receiver_restart(uint32_t now_ms);  // true when receive came back up
 
 bool receiver_ready();
 
