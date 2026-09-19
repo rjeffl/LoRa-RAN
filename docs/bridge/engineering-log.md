@@ -1463,3 +1463,39 @@ there.
 | 917.4 MHz | The Davis is a co-channel occupant, so D33 standing condition 3 is not met as written | An operator decision to accept a 0.005 % periodic occupant, recorded in the Decision Register |
 | 917.2 MHz | The −89 dBm source from 17:57 to 23:49 UTC on 2026-09-18 | **Day 1**, now running: whether 917.4 MHz shows the source over the same hours |
 | 917.6 MHz | 18 bursts at −45 to −47 dBm | A capture at 917.6 MHz with no other board powered |
+
+---
+
+## 2026-09-19 — the parallel run moves to the production bridge location and restarts
+
+**Day 1 at the bench was stopped at 15:28 UTC, 44 minutes in, and the run restarted at the
+bridge's target location with its own calibration hour.** The bench was needed for another
+project. A capture that spans a move is two captures, and the first calibration hour showed that
+moving one board changes its reading of a source by up to 8 dB, so no figure could be carried
+across the move. The 44 minutes covered none of the evening hours that day 1 exists to test.
+Their two files, `d1-par-917400-flat-2026-09-19.log` and `d1-par-917200-handheld-2026-09-19.log`,
+stay uncommitted. The arming script was stopped first. Its background captures ignored SIGINT,
+as background jobs of a non-interactive shell do, and were ended with SIGTERM.
+
+**The new position, as the operator described it.** The office, against the NW wall, at desk
+height: M20's `bridge-house` site. The bridge board sits at its target location with the 3.0 dBi
+stick, and the simnode Heltec sits about 1.5 m from it. Also powered nearby: the laptop running
+the captures on AC power, an external monitor, and a Bluetooth keyboard and mouse. Bluetooth
+works at 2.4 GHz, outside the band; the monitor is recorded because it is new to these captures.
+
+**The run.** Nothing was reflashed. The bridge board runs `chan-capture` `35c8471` on
+`/dev/cu.usbserial-0001`, and the simnode Heltec runs `6bf9a38`, now on `/dev/cu.usbserial-3`.
+Both were identified by MAC before the start. The calibration hour began at 15:37:59 UTC with
+both on 917.4 MHz. The 24-hour run follows it, with the simnode Heltec on 917.2 MHz. The files
+carry `office` in their names:
+
+| File | Board | Frequency |
+|---|---|---|
+| `d1-cal-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz, 1 h |
+| `d1-cal-917400-handheld-office-2026-09-19.log` | simnode Heltec | 917.4 MHz, 1 h |
+| `d1-par-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz, 24 h |
+| `d1-par-917200-handheld-office-2026-09-19.log` | simnode Heltec | 917.2 MHz, 24 h |
+
+**Every earlier capture was taken at the bench**, so a figure from these files compared with M25,
+the 917.2 MHz capture or the 917.6 MHz capture also compares two locations. Day 1's own test does
+not: it compares two frequencies over the same hours at one location.

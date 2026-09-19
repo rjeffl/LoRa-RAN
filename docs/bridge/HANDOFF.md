@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-19 at about 15:10 UTC, by the session that committed the 917.6 MHz capture and
-the calibration hour of the D1 brief's §5 run.** That session read both against M25, ran the
-operator's Z-Wave tests, and drew what the captures establish for D1. Day 1 of the parallel run
-was running when it stopped. This file replaces the previous one wholesale.
+**Written 2026-09-19 at about 15:45 UTC, by the session that committed the 917.6 MHz capture and
+the bench calibration hour of the D1 brief's §5 run.** That session read both against M25, ran
+the operator's Z-Wave tests, and drew what the captures establish for D1. It then stopped day 1
+at the bench for a move and restarted the run at the bridge's target location in the office. That
+run was going when it stopped. This file replaces the previous one wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -13,28 +14,40 @@ was running when it stopped. This file replaces the previous one wholesale.
 
 ## The next job, in one place
 
-**Commit day 1's two files after about 14:45 UTC on 2026-09-20, then take D1's frequency to the
-operator.** All the work is on branch `d1-parallel-capture`, draft PR #81, stacked on #80.
+**Commit the office calibration hour and day 1 after about 16:39 UTC on 2026-09-20, then take
+D1's frequency to the operator.** All the work is on branch `d1-parallel-capture`, draft PR #81, stacked on #80.
 
 | UTC | Event |
 |---|---|
-| 2026-09-19, 14:44:30 | Day 1 started: the bridge board on 917.4 MHz, the simnode Heltec on 917.2 MHz, both on `chan-capture` |
-| 2026-09-20, about 14:45 | Both 24-hour captures end, and the arming script exits |
+| 2026-09-19, 15:28 | Day 1 at the bench stopped for a move, 44 minutes in. Its files stay uncommitted |
+| 2026-09-19, 15:37:59 | **Calibration hour at the office position**: both boards on 917.4 MHz |
+| 2026-09-19, about 16:38 | Day 1 starts: the bridge board on 917.4 MHz, the simnode Heltec on 917.2 MHz, both on `chan-capture` |
+| 2026-09-20, about 16:39 | Both 24-hour captures end, and the arming script exits |
+
+**The position is the office, NW wall, desk height**, M20's `bridge-house` site. The bridge board
+is at its target location and the simnode Heltec about 1.5 m from it. The engineering log's last
+entry records the move and what else is powered nearby.
 
 **Read the script's log first.** It writes a line at each step, and an abort says why. It runs
-under `caffeinate -i`; closing the lid on battery still sleeps the Mac.
+under `caffeinate -is` on AC power; closing the lid still sleeps the Mac.
 
 ```bash
-cat /private/tmp/claude-501/-Users-jefflee-Documents-Computers-Network-Automation-Projects-LoRa-RAN/c68f4097-99e9-4095-903b-8e479da25d2e/scratchpad/arm_parallel.log
-pgrep -fl 'arm_parallel|rssi_capture'   # which run is live, if any
+cat /private/tmp/claude-501/-Users-jefflee-Documents-Computers-Network-Automation-Projects-LoRa-RAN/bc22e893-971b-46f8-ae7f-4c9770036215/scratchpad/arm_office.log
+pgrep -fl 'arm_office|rssi_capture'   # which run is live, if any
 ```
 
 **The files land in `docs/bridge/data/`**, each listed in `.git/info/exclude` while it grows:
 
 | File | Board | Frequency |
 |---|---|---|
-| `d1-par-917400-flat-2026-09-19.log` | bridge board, `chan-capture` `35c8471` | 917.4 MHz, 24 h |
-| `d1-par-917200-handheld-2026-09-19.log` | simnode Heltec, `chan-capture` `6bf9a38` | 917.2 MHz, 24 h |
+| `d1-cal-917400-flat-office-2026-09-19.log` | bridge board, `chan-capture` `35c8471` | 917.4 MHz, 1 h |
+| `d1-cal-917400-handheld-office-2026-09-19.log` | simnode Heltec, `chan-capture` `6bf9a38` | 917.4 MHz, 1 h |
+| `d1-par-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz, 24 h |
+| `d1-par-917200-handheld-office-2026-09-19.log` | simnode Heltec | 917.2 MHz, 24 h |
+
+**Read the office calibration hour first**, against brief §5.2 step 3, as the bench one was read
+in the engineering log. Its figures, not the bench's, go beside day 1's. The two stopped bench
+files without `office` in their names are not to be committed.
 
 **To commit a finished file**, remove its line from `.git/info/exclude`, check its `CHAN-BOOT`,
 read it with `rssi_report.py`, and add an engineering-log entry.
@@ -53,8 +66,8 @@ session proposes the rule below for what each answer means; **the choice is the 
   which is worse than the Davis's 6.7 ms every 130.69 s. That favours staying on 917.4 MHz and
   recording the Davis as an accepted occupant against D33 standing condition 3.
 
-**Compare occupancy between the two files, not peak levels.** The calibration hour found floors
-0.3 dB apart and occupancy 3.5 % apart, so no swap was needed. But the bridge board's Davis
+**Compare occupancy between the two files, not peak levels.** At the bench the calibration hour
+found floors 0.3 dB apart and occupancy 3.5 % apart, so no swap was needed. But the bridge board's Davis
 reading stepped up about 8 dB at 14:09 UTC while its reading of the episodic source fell. A peak
 level compared across the files carries up to about 9 dB of uncertainty that depends on direction.
 **Do not move either board or its antenna during day 1.**
@@ -310,8 +323,8 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. **D1's frequency** — the 917.2 and 917.6 MHz single captures and the calibration hour are committed; day 1 runs until about 14:45 UTC on 2026-09-20. **The 917.6 MHz −46 dBm source** — unidentified. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | After 2026-09-20 14:45 UTC, commit day 1 and read it against the rule in *The next job*. The operator then decides D1 and D33; day 2 at 917.6 MHz only if day 1 rules out 917.2 MHz. Reflash the boards, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
+| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. **D1's frequency** — the 917.2 and 917.6 MHz single captures and the calibration hour are committed; day 1 was stopped at the bench for a move and restarted in the office, and runs until about 16:39 UTC on 2026-09-20. **The 917.6 MHz −46 dBm source** — unidentified. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | After 2026-09-20 16:39 UTC, commit the office calibration hour and day 1 and read it against the rule in *The next job*. The operator then decides D1 and D33; day 2 at 917.6 MHz only if day 1 rules out 917.2 MHz. Reflash the boards, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -392,8 +405,8 @@ them in its own roles, and its rows do not transfer here.
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | **`chan-capture` / `heltec` at `35c8471` since 2026-09-19T13:43:41Z**, flashed by the arming script. It runs no bridge firmware at all: no WiFi, no MQTT, no polls. MAC `44:1b:f6:f9:70:14`. **Reflash `firmware/bridge -e heltec` from the branch being worked on before any bridge work.** **The capture file's `CHAN-BOOT` line names the running image**; check it rather than trusting this row | NVS: `chan-capture`'s frequency, **917.4 MHz** | On USB as `/dev/cu.usbserial-0001`, sampling 917.4 MHz for day 1. **A capture holds this port until about 2026-09-20T14:45Z.** A second opener fails or steals bytes, so check `pgrep -fl rssi_capture` before touching the port. **Its Davis reading moved about 8 dB at 14:09 UTC on 2026-09-19** with nothing recorded as moved; leave it and its antenna where they are until day 1 ends |
-| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | **`chan-capture` / `heltec` since 2026-09-19, not simnode firmware.** Last flashed from `6bf9a38`, the build with the 100 ms receive restart. MAC `44:1b:f6:fa:bc:2c`. **Reflash `firmware/simnode -e simnode-heltec` before any simnode work**; it was BEHIND on `ctx_reject` and `set_displaced` (BF-21) before this anyway | NVS: `chan-capture`'s frequency, **917.2 MHz**, set by the arming script for day 1 | On USB as `/dev/cu.usbserial-4`, sampling 917.2 MHz and never transmitting. **A capture holds this port until about 2026-09-20T14:45Z.** **Its floor reads −114.9 dBm**, within 0.3 dB of the bridge board's in the calibration hour. Its port name moves across replug |
+| Heltec WiFi LoRa 32 V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | **`chan-capture` / `heltec` at `35c8471` since 2026-09-19T13:43:41Z**, flashed by the arming script. It runs no bridge firmware at all: no WiFi, no MQTT, no polls. MAC `44:1b:f6:f9:70:14`. **Reflash `firmware/bridge -e heltec` from the branch being worked on before any bridge work.** **The capture file's `CHAN-BOOT` line names the running image**; check it rather than trusting this row | NVS: `chan-capture`'s frequency, **917.4 MHz** | **At its target location in the office, NW wall, desk height, since 2026-09-19 about 15:35 UTC.** On USB as `/dev/cu.usbserial-0001`, sampling 917.4 MHz. **A capture holds this port until about 2026-09-20T16:39Z.** A second opener fails or steals bytes, so check `pgrep -fl rssi_capture` before touching the port. At the bench, **its Davis reading moved about 8 dB at 14:09 UTC on 2026-09-19** with nothing recorded as moved; leave it and its antenna where they are until day 1 ends |
+| Heltec WiFi LoRa 32 V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | **`chan-capture` / `heltec` since 2026-09-19, not simnode firmware.** Last flashed from `6bf9a38`, the build with the 100 ms receive restart. MAC `44:1b:f6:fa:bc:2c`. **Reflash `firmware/simnode -e simnode-heltec` before any simnode work**; it was BEHIND on `ctx_reject` and `set_displaced` (BF-21) before this anyway | NVS: `chan-capture`'s frequency. The arming script sets **917.4 MHz** for the calibration hour and **917.2 MHz** for day 1 | **In the office, about 1.5 m from the bridge board, since 2026-09-19 about 15:35 UTC.** On USB as `/dev/cu.usbserial-3`, never transmitting. **A capture holds this port until about 2026-09-20T16:39Z.** At the bench **its floor read −114.9 dBm**, within 0.3 dB of the bridge board's. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** (p-5982, B2B) | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | **`chan-capture` / `xiao-wio` since 2026-09-19, not simnode firmware.** Last flashed from `01f4332`, which has the 100 ms receive restart. MAC `68:ee:8f:4b:85:f4`. Native USB, so it enumerates as `/dev/cu.usbmodem*`. **Reflash `firmware/simnode -e simnode-xiao-wio` before any simnode work** | NVS: `chan-capture`'s frequency, **917.4 MHz**; the B1b position log, dumped and committed | On USB as `/dev/cu.usbmodem2101`, sampling 917.4 MHz and never transmitting. **Its floor reads −110 dBm, 4 dB above the Heltec's**, so every sample counts as occupied against `chan-capture`'s fixed −110 dBm threshold. **Its OLED is switched off by the image**, so a dark panel no longer means it is unpowered |
 
 **A USB flash puts the bridge board back in a known state.** Flash from a committed tree: a
