@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D49** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D54** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -183,6 +183,11 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D47** | Where a parameter about a node is held | **Each parameter declares its owner**: the bridge, globally; the bridge, per node; or the node. The bridge applies its own half of a `config/set`, sends the node's half as `CONFIG`, and publishes one `config/ack` when both have an outcome. `config/state` shows the node's and the bridge's per-node values together, so HA sees one device with one configuration | Protocol Spec §16.7, Protocol Library Plan §4 |
 | **D48** | The `config/set`, `config/ack` and `config/state` payloads (**closes D42's deferral**) | **One JSON topic per node, keyed by parameter name**, not `param_id`. HA `number` entities publish into it through a `command_template`. `config/ack` carries per-entry status and the **effective** value, and a new persistence outcome, **`unknown`**, for a `CONFIG` that got no `CONFIG_ACK`; the bridge resolves it by readback and publishes a second `config/ack` | Protocol Spec §16.7 (**BF-32**) |
 | **D49** | What `persist_status` means on a node with no microSD slot | **The bridge persists to NVS.** §8.11's `APPLIED_NOT_PERSISTED` means *no usable nonvolatile store* — microSD on GateLink, NVS on the bridge — and the bridge reports it only when an NVS write fails | Protocol Spec §8.11, §16.6 |
+| **D50** | How a `GET` entry, a `GET_ALL` and a `RESTORE_DEFAULTS` are encoded | **A `GET` entry carries the expected `ptype` and `len` = 0. `GET_ALL` and `RESTORE_DEFAULTS` carry `count` = 0**, and a receiver ignores any entries it finds in one. What simnode BF-6 already reads | Protocol Spec §7.4, §8.10 |
+| **D51** | An entry whose `len` does not match its `ptype` | **Rejected with `TYPE_MISMATCH`; the rest of the set applies.** `len` delimits the entry, so the frame stays parseable. Discarding the frame was rejected: it would break §7.4's per-entry results. What simnode BF-6 already does | Protocol Spec §7.4 |
+| **D52** | What answers `RESTORE_DEFAULTS` | **The full effective configuration, as for `GET_ALL`**, so the bridge can republish `config/state` without a second readback. Simnode BF-6 answers with no results and changes to match | Protocol Spec §7.4, §8.10 |
+| **D53** | What `persist_status` means for a read, and when `NOT_APPLIED` applies | **After a write, what was applied; after a read, whether the current overrides are persisted** (`PERSISTED` when there are none). `NOT_APPLIED` means nothing was applied: an unknown `op`, or a `SET` whose every entry was rejected | Protocol Spec §7.4, §8.11 |
+| **D54** | Whether a dedup hit repeats `REQUEST_STATUS`'s or `REQUEST_CONFIG`'s follow-up frame | **No. A dedup hit repeats the ACK and nothing else**; the bridge recovers a missing follow-up with `POLL` bit 0 or bit 1. What simnode BF-6 already does | Protocol Spec §10.4 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -552,7 +557,7 @@ against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied o
 
 ---
 
-### 3.6 D43–D49 — runtime configuration from Home Assistant, 2026-09-19
+### 3.6 D43–D54 — runtime configuration from Home Assistant, 2026-09-19
 
 **The operator chose the general route on 2026-09-19 (D43) and accepted all eight
 recommendations of `LRAN-Config-Set-Brief` the same day**, which is superseded. Six became
@@ -575,6 +580,13 @@ unwritten, so `ver` stays `2` and no test vector regenerates.
   *generated*; Protocol Library Plan §4 said *hand-written, maintained by hand*. BF-23
   generated `/ha/` from the firmware's own `discovery.cpp`, which showed that a
   hand-written table and code-derived outputs are compatible.
+
+**D50–D54 came from the v0.13 read-through the same day**, and the operator accepted each
+recommendation. Each fills a gap in §7.4, §8.10, §8.11 or §10.4 that simnode BF-6 had
+already filled locally. Four adopt what the simnode does. D52 does not: the simnode answers
+`RESTORE_DEFAULTS` with no results, which would leave the bridge unable to republish
+`config/state` without a second readback. The read-through also opened **W16**, on when a
+node sends `CONFIG_CHANGE`, and left it to GateLink.
 
 **Found in the same pass, and not decisions.** Five passages still described `CONFIG` and
 `CONFIG_ACK` as fragmented after D38. Protocol Spec v0.13 corrects them; the brief's §2
@@ -741,12 +753,13 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 
 ## 6. Changelog
 
-- **v0.13** — **D43–D49 resolved: runtime configuration from Home Assistant.** The
+- **v0.13** — **D43–D54 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of
   `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
-  the reasoning. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
+  the reasoning. **D50–D54** followed from the v0.13 read-through the same day, filling five
+  gaps in `CONFIG` semantics. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
   frame layout changes, so `ver` stays `2`. §1's highest issued numbers are corrected to
-  **D49** and **M26**; v0.12 added M25 and M26 without updating them.
+  **D54** and **M26**; v0.12 added M25 and M26 without updating them.
 
 - **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
   operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which

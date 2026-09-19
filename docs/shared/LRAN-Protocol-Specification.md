@@ -877,6 +877,17 @@ it falls in.
 | 3 | `uint8` | `len` — value length in bytes |
 | 4.. | `uint8[len]` | value, little-endian |
 
+**What an entry carries depends on `op`** (**D50**). A `SET` entry carries a value. A `GET`
+entry names the parameter and the `ptype` the sender expects, with `len` = 0 and no value.
+A `GET_ALL` or `RESTORE_DEFAULTS` carries `count` = 0 and no entries; a receiver that finds
+entries in one ignores them.
+
+**An entry whose `len` does not match its `ptype` is rejected with `TYPE_MISMATCH`**, and
+the rest of the set still applies (**D51**). `len` alone delimits the entry, so the frame
+stays parseable and the error stays per entry, as §7.4's first load-bearing property
+requires. So is an entry whose `ptype` differs from the one the node holds for that
+`param_id`; its result carries the value the node holds.
+
 **`CONFIG_ACK` payload:**
 
 | Off | Type | Field |
@@ -885,6 +896,17 @@ it falls in.
 | 1 | `uint8` | `persist_status` — §8.11 |
 | 2 | `uint8` | `count` |
 | 3.. | result entries | `uint16 param_id`, `uint8 status` (§8.12), `uint8 ptype`, `uint8 len`, `uint8[len]` *effective* value |
+
+**What `persist_status` reports depends on `op`** (**D53**). After a `SET` or
+`RESTORE_DEFAULTS` it reports what was applied: `PERSISTED`, `APPLIED_NOT_PERSISTED`, or
+`NOT_APPLIED` when nothing in the set was applied — an unknown `op`, or a `SET` whose every
+entry was rejected. After a read — `GET`, `GET_ALL` or the unsolicited readback — it
+reports whether the node's current overrides are persisted, and reads `PERSISTED` when
+there are none.
+
+**`RESTORE_DEFAULTS` is answered with the full effective configuration**, exactly as
+`GET_ALL` is (**D52**), so the bridge can republish `config/state` (§16.7.4) without a
+second readback.
 
 **A repeated `CONFIG` is answered from the dedup cache, not re-applied.** `CONFIG` is
 authenticated, so §9.4 steps 4–6 govern it exactly as they govern `COMMAND`: a second
@@ -1182,9 +1204,9 @@ up**, and that requires HA to be able to route it independently.
 | Value | Name |
 |---|---|
 | `0x01` | `SET` |
-| `0x02` | `GET` — the listed `param_id`s |
-| `0x03` | `GET_ALL` — the full effective configuration |
-| `0x04` | `RESTORE_DEFAULTS` — clears all overrides |
+| `0x02` | `GET` — the listed `param_id`s; each entry `len` = 0 (§7.4) |
+| `0x03` | `GET_ALL` — the full effective configuration; `count` = 0 |
+| `0x04` | `RESTORE_DEFAULTS` — clears all overrides; `count` = 0, answered with the full effective configuration (§7.4) |
 
 ### 8.11 `persist_status`
 
@@ -1192,7 +1214,7 @@ up**, and that requires HA to be able to route it independently.
 |---|---|
 | `0x00` | `PERSISTED` |
 | `0x01` | `APPLIED_NOT_PERSISTED` — no usable nonvolatile store: microSD on GateLink, NVS on the bridge (**D49**); RAM only until reboot |
-| `0x02` | `NOT_APPLIED` — the whole set was rejected |
+| `0x02` | `NOT_APPLIED` — nothing in the set was applied: an unknown `op`, or a `SET` whose every entry was rejected (§7.4) |
 
 ### 8.12 per-entry config `status`
 
@@ -1522,6 +1544,12 @@ a retry that finds it receives nothing and is counted in `rx_dup_command` (§9.4
 in-flight entry occupies a cache slot like any other. If `dedup_cache_depth` newer
 commands are accepted before it completes, it is evicted, and its retry is refused at
 §9.4 step 5 — never executed again.
+
+**A dedup hit repeats the ACK and nothing else** (**D54**). `REQUEST_STATUS` and
+`REQUEST_CONFIG` follow a fresh execution with a `STATUS` or an unsolicited `CONFIG_ACK`
+readback (§7.4). A retry answered from the cache does not send it again. A bridge that got
+the ACK but not the frame after it recovers the frame with a `POLL`: bit 0 for status, bit
+1 for the readback (§6.4).
 
 ### 10.5 Wrap behavior
 
@@ -2551,6 +2579,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W14 | **How a duty-cycled node avoids waking on the whole fleet's traffic** | §17.1 | §17.1 assumed the SX126x would discard a frame addressed elsewhere in silicon. **It cannot: LoRa has no hardware address filter** (§12.1, confirmed against the datasheet as **M24**). Every frame on the channel wakes a duty-cycled receiver and is judged in software at stage 5, so the power model that made §17.1 worth building is unquantified. Owed before WellLink is built on that profile, and **not owed at all if D19 makes WellLink mains-powered** |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 | W15 | **`CONFIG_ACK` carries no default-or-override flag** | §7.4, §16.7.4 | GateLink PRD R-5.3e requires each published value marked `default` or `override`. §7.4's result entry has no bit for it, so the bridge infers `source` by comparing with the table's default, and an override set equal to its default reads `default`. Closing it needs a result-entry field or a separate readback; either is a schema change. Opened in v0.13 |
+| W16 | **When a node sends `status_reason` `CONFIG_CHANGE`** | §8.7 | §8.7 defines the value, and no section says what triggers it. Every configuration change the bridge causes is already reported by a `CONFIG_ACK`, so the value is for a change the bridge did not cause — for example a node falling back to defaults when its microSD fails at boot — which is GateLink's to define. Owner: GateLink **M3**. Opened in v0.13 |
 
 ### 18.1 W5, resolved — fixed channel at low power
 
@@ -2760,8 +2789,13 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   (D45). §7.4 says the parameter table is hand-written and everything else derived by code
   (D44), and §8.11 names the bridge's NVS (D49). **Corrected**, because D38 made `CONFIG`
   and `CONFIG_ACK` single-frame and these still described them as fragmented: §7.4's
-  full-set and lost-ACK paragraphs, §6.6.2 and §9.4. **W15** opens: `CONFIG_ACK` has no
-  default-or-override flag. **The header stays at v0.12 until the citation sweep**, which
+  full-set and lost-ACK paragraphs, §6.6.2 and §9.4. **D50–D54**, from the v0.13
+  read-through, fill five gaps the simnode had already filled locally: how a `GET` entry and
+  a `GET_ALL` are encoded, a `len` that disagrees with its `ptype`, what answers
+  `RESTORE_DEFAULTS`, what `persist_status` means for a read and when `NOT_APPLIED` applies
+  (§7.4, §8.10, §8.11), and that a dedup hit does not repeat a follow-up frame (§10.4).
+  **W15** opens: `CONFIG_ACK` has no default-or-override flag. **W16** opens: nothing says
+  when a node sends `CONFIG_CHANGE`. **The header stays at v0.12 until the citation sweep**, which
   the operator deferred until the revision is nearer complete.
 
 - **v0.12** — **Nine questions raised during bridge B3a and simnode B0 are answered, and
