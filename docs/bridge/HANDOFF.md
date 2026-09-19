@@ -49,11 +49,27 @@ apply to it against M25 directly. It says nothing about the evening.
   ten hours. Nothing like it appears in M25's capture. At the gate it would sit about 11 dB above
   the wanted signal.
 
-**Whether that source is specific to 917.2 MHz or to the evening is the open question**, and two
-captures would answer different parts of it. The log entry sets them out. **A 917.4 MHz capture
-from 15:14 UTC** says whether the source is on 917.4 MHz in the evening too. **A 917.2 MHz capture
-from 03:43 UTC** answers brief §5's occupancy test as written. **Which to run, if either, is the
-operator's call**, and it can wait for the 917.6 MHz result.
+**Whether that source is specific to 917.2 MHz or to the evening is the open question.** The
+D1 brief's §5, now v0.2, answers it with a same-day run: one listen-only receiver on each of
+917.2, 917.4 and 917.6 MHz, after a calibration hour with all of them on 917.4 MHz.
+`firmware/chan-capture/` is that receiver, built and host-tested on branch
+`d1-parallel-capture` and **not yet run on hardware**. The 2026-09-19 log entry says what it
+changes and what is untested. **Whether to run it is the operator's call**, and it supersedes
+the two single-channel follow-ups the 2026-09-18 entry offered.
+
+**To set up the parallel run, after the 917.6 MHz capture ends:**
+
+1. **Plug in the simnode Heltec and the XIAO holding PRG or BOOT**, so their simnode firmware
+   never starts and never transmits. Flash `firmware/chan-capture/` to all three boards, the
+   bridge board included.
+2. **Set each board's frequency** with `freq <hz>` on its serial console, and check each
+   file's `CHAN-BOOT`.
+3. **Try `--reset-on-open` on the XIAO first**, in a short capture, and check for `#RESET` and
+   `CHAN-BOOT` before leaving it unattended.
+
+**The simnodes were plugged in briefly during the 917.6 MHz capture**, about 04:03 to
+04:13 UTC. The 2026-09-19 log entry found nothing in the file attributable to them. **Its
+917.6 MHz log entry should record that window.**
 
 **Two operator decisions wait on the captures:**
 
@@ -275,7 +291,7 @@ is a dated reading of the documents above and adds recommendations, not facts.
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
 | Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; Z-Wave and Insteon model numbers not yet confirmed. **D1's frequency** — a change to 917.2 MHz is drafted. Its 917.2 MHz capture is committed and cannot be judged against M25's hours; the 917.6 MHz capture runs until about 13:43 UTC on 2026-09-19. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 deferred. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | Commit the 917.6 MHz capture once it ends. The operator then decides D1 and D33, and whether to run a 917.4 MHz evening capture or a 917.2 MHz capture over M25's hours. Reflash the bridge, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
+| Queue | Commit the 917.6 MHz capture once it ends. The operator then decides whether to run brief §5's parallel capture on `firmware/chan-capture/`, and then D1 and D33. Reflash the bridge, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite

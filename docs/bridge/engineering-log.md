@@ -1021,3 +1021,57 @@ second.
 **The 917.6 MHz file name carries the UTC date, and M25's carries the local one.** M25's capture
 began at 03:43 UTC on 2026-09-18 and is named `2026-09-17`; the 917.6 MHz capture began at the same
 hour a day later and is named `2026-09-19`. The two are one night apart, not two.
+
+---
+
+## 2026-09-19 — a listen-only receiver, so the candidate frequencies can share their hours
+
+**`firmware/chan-capture/` is built and has not yet run on hardware.** It is a receiver that
+samples one channel's RSSI about 100 times a second, writes the bridge's `CHAN`, `CHANSUM` and
+`CHAN-BOOT` lines, and never transmits. It exists because the entry above could not separate
+frequency from time of day. With one of these on each candidate frequency, a capture compares
+channels over the same hours by construction.
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) v0.2 §5 now
+asks for that run in place of captures taken one after another.
+
+**The sampler moved into `lib/lran-link/`**, from `firmware/bridge/src/`, so the bridge and the
+new image summarise a capture with one implementation. Its 23 host tests moved with it and
+pass. The bridge's host suite and its Heltec target build unchanged.
+
+**Why a new image and not the capture-only bridge images.** Those poll, so several of them a
+metre apart would put their own frames into each other's captures, at 0.2 MHz offsets where the
+receiver's rejection has not been measured. Two of them on one broker would also fight over
+the MQTT client ID `lran-bridge`. `tools/checks/chan_capture_never_transmits.py` now fails CI
+if the new image's source calls a transmit, a CAD, `setOutputPower`, WiFi or Bluetooth.
+
+**Its files differ from the bridge's in three ways**, and `firmware/chan-capture/CLAUDE.md`
+lists them: no `FRAME` lines, a fixed 10 ms sampling period, and `own_rx` counting LRAN-PHY
+frames heard rather than frames received as the bridge.
+
+**Occupancy cannot be corrected for a receiver's bias after the fact.** The firmware counts
+samples at or above a fixed −110 dBm and keeps only each second's peak, so a receiver that
+reads 2 dB hot counts more occupancy and the file cannot say so. That is why brief §5 opens
+with a calibration hour, every receiver on 917.4 MHz under the same Davis hop, and rotates the
+receivers if they disagree. **The rotation thresholds in §5, 1 dB and 20 %, are proposals**,
+sized to the differences tests 2 and 3 judge, and are the operator's to change.
+
+**Untested:**
+
+- **No capture has run on this image.** The frequency command, NVS storage and the sampling
+  period are exercised only by the host tests and the build.
+- **`rssi_capture.py --reset-on-open` is untested on the XIAO.** It was built for the Heltec's
+  CP2102. On the XIAO's native USB the reset may work, may do nothing, or may enter the
+  bootloader, and the port disappears and returns across it.
+
+**The simnodes were plugged in briefly during the 917.6 MHz capture**, between about 04:03 and
+04:13 UTC by the operator's estimate, then unplugged. Both carry simnode firmware on 917.4 MHz.
+The capture over that window holds only weak, short events, −96 to −110 dBm and 2 to 10
+samples each, and no run of consecutive samples as long as an SF9 frame. Minutes 04:10 to 04:12
+counted 10, 17 and 20 samples above threshold, a little above their neighbours and within what
+the episodic source produces. **So nothing in the file is attributable to the boards**, and the
+window is recorded here so an analysis can exclude it.
+
+**One citation the check does not read is stale.** `lib/lran-link/library.json` cites Protocol
+Specification **v0.11**; the specification is at v0.12. `tools/checks/spec_citation_version.py`
+does not read `library.json`, so nothing caught it. It is left as found, because reconciling
+comes before the citation changes.
