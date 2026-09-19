@@ -1911,7 +1911,7 @@ by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
 | Point | Decision |
 |---|---|
 | Synthetic marking | **Schema `0xFE` is the marker.** `push <hex> [reason]` takes any spec §8.7 name and defaults to `DEBUG_SYNTHETIC` |
-| `CONFIG` without `/lib/lran-config/` | **A generic RAM store** of 21 entries: any `param_id` with a consistent `ptype` and `len`, always `APPLIED_NOT_PERSISTED`. No `param_id` is declared here |
+| `CONFIG` without `/lib/lran-config/` | **A generic RAM store** of 21 entries: any `param_id` with a consistent `ptype` and `len`. Every override is RAM-only, so a write that took effect reads `APPLIED_NOT_PERSISTED`, a `SET` with every entry rejected `NOT_APPLIED`, and a read with no override held `PERSISTED` (spec §7.4, D53). `RESTORE_DEFAULTS` empties the store and answers as `GET_ALL` does (D52). No `param_id` is declared here |
 | `ack` modes | `suppress [count]` and `dup [count]` **arm the bounded `ack_suppress` and `ack_dup` faults**. `delay <ms>` is a setting that lasts until `ack <hex> normal` |
 | `cmd_replay`, `cmd_stale_seq` targets | **A target on the same board is fed through the node's receive path and never transmitted.** Another board's target needs `to <hex> ctx <hex32>`, and `seq <n>` when its high-water mark is above zero |
 
@@ -2100,7 +2100,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
+| **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§10.9.2's `CONFIG` row follows D52 and D53**, as the simnode now does. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |

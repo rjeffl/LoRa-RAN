@@ -24,7 +24,7 @@
 #include "lran/mac.h"
 #include "lran/messages.h"
 #include "lran/reassembly.h"
-#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/node_config_v1.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/schema/node_health_v1.h"

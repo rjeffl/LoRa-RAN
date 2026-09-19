@@ -32,7 +32,7 @@
 #include "lran/frame.h"
 #include "lran/mac.h"
 #include "lran/messages.h"
-#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/node_config_v1.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "sink.h"
 
@@ -216,10 +216,10 @@ class Node {
                               uint32_t now_ms);
   bool            send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLinkEventV1& ev);
   bool            send_config_ack(Identity& e, lran::NodeId dst,
-                                  const lran::schema::GateLinkConfigAckV1& ack);
+                                  const lran::schema::NodeConfigAckV1& ack);
   bool            send_config_readback(Identity& e, lran::NodeId dst);
-  void            apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
-                               lran::schema::GateLinkConfigAckV1* out);
+  void            apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
+                               lran::schema::NodeConfigAckV1* out);
 
   IdentityTable* ids_;
   Outbox*        out_;
@@ -234,8 +234,8 @@ class Node {
 
   // A full CONFIG and CONFIG_ACK are several hundred bytes each; held here rather than on
   // the loop task's stack. Only one config is ever in progress, because the node is one loop.
-  lran::schema::GateLinkConfigV1    cfg_rx_;
-  lran::schema::GateLinkConfigAckV1 cfg_ack_;
+  lran::schema::NodeConfigV1    cfg_rx_;
+  lran::schema::NodeConfigAckV1 cfg_ack_;
 };
 
 }  // namespace simnode

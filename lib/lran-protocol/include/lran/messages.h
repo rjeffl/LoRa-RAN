@@ -42,7 +42,8 @@ inline constexpr size_t kCommandAckLen = 6;
 
 // spec 6.4 - POLL, 1 byte.
 struct Poll {
-  uint8_t poll_flags = 0;  // bit 0 full status, bit 1 config readback, 7:2 reserved
+  uint8_t poll_flags = 0;  // bit 0 full status, bit 1 config readback (an unsolicited
+                           // CONFIG_ACK, spec 7.4 D45), 7:2 reserved
 };
 inline constexpr size_t kPollLen = 1;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 
-#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/node_config_v1.h"
 
 #include "lran/bytes.h"
 
@@ -66,7 +66,7 @@ int32_t entry_signed(const uint8_t* value, uint8_t len, PType t) {
   return static_cast<int32_t>(raw);
 }
 
-Status serialize(const GateLinkConfigV1& v, uint8_t* out, size_t cap, size_t* written) {
+Status serialize(const NodeConfigV1& v, uint8_t* out, size_t cap, size_t* written) {
   if (v.count > kMaxConfigEntries) return Status::BadLength;
   ByteWriter w(out, cap);
   w.u8(static_cast<uint8_t>(v.op));  // spec 7.4 off 0
@@ -85,7 +85,7 @@ Status serialize(const GateLinkConfigV1& v, uint8_t* out, size_t cap, size_t* wr
   return Status::Ok;
 }
 
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigV1* out) {
+Status deserialize(const uint8_t* in, size_t len, NodeConfigV1* out) {
   if (len < kConfigHdrLen) return Status::BadLength;
   ByteReader r(in, len);
   out->op    = static_cast<ConfigOp>(r.u8());
@@ -107,7 +107,7 @@ Status deserialize(const uint8_t* in, size_t len, GateLinkConfigV1* out) {
   return (r.ok() && r.read() == len) ? Status::Ok : Status::BadLength;
 }
 
-Status serialize(const GateLinkConfigAckV1& v, uint8_t* out, size_t cap,
+Status serialize(const NodeConfigAckV1& v, uint8_t* out, size_t cap,
                  size_t* written) {
   if (v.count > kMaxConfigAckEntries) return Status::BadLength;
   ByteWriter w(out, cap);
@@ -129,7 +129,7 @@ Status serialize(const GateLinkConfigAckV1& v, uint8_t* out, size_t cap,
   return Status::Ok;
 }
 
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigAckV1* out) {
+Status deserialize(const uint8_t* in, size_t len, NodeConfigAckV1* out) {
   if (len < kConfigAckHdrLen) return Status::BadLength;
   ByteReader r(in, len);
   out->op             = static_cast<ConfigOp>(r.u8());

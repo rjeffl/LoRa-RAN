@@ -112,9 +112,9 @@ void test_schema_type_pairing_matches_registry() {
   TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaGateLinkStatusV1));
   // 0x11 GateLink event v1 -> EVENT
   TEST_ASSERT_TRUE(schema_is_known(MsgType::Event, kSchemaGateLinkEventV1));
-  // 0x12 GateLink config v1 -> CONFIG and CONFIG_ACK, both
-  TEST_ASSERT_TRUE(schema_is_known(MsgType::Config, kSchemaGateLinkConfigV1));
-  TEST_ASSERT_TRUE(schema_is_known(MsgType::ConfigAck, kSchemaGateLinkConfigV1));
+  // 0x12 node config v1 -> CONFIG and CONFIG_ACK, both
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Config, kSchemaNodeConfigV1));
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::ConfigAck, kSchemaNodeConfigV1));
   // 0xF0 generic node health -> STATUS. v0.3 left this undefined: §7.5 said "emitted
   // by every node type" without naming a type and §19 listed it as though it were
   // one. It is a STATUS schema, not a message type.
@@ -126,7 +126,7 @@ void test_schema_type_pairing_matches_registry() {
   // stage 8, which is the whole point of validating the pair.
   TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaGateLinkEventV1));   // 0x11
   TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaGateLinkStatusV1));   // 0x10
-  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaGateLinkConfigV1));  // 0x12
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Status, kSchemaNodeConfigV1));  // 0x12
   TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaNodeHealthV1));       // 0xF0
   TEST_ASSERT_FALSE(schema_is_known(MsgType::ConfigAck, kSchemaGateLinkStatusV1));
   TEST_ASSERT_FALSE(schema_is_known(MsgType::Config, kSchemaNodeHealthV1));
@@ -324,7 +324,7 @@ void test_node_health_offsets() {
 
 // spec 7.4 - CONFIG entry layout, offsets within an entry.
 void test_config_entry_offsets() {
-  GateLinkConfigV1 cfg;
+  NodeConfigV1 cfg;
   cfg.op    = ConfigOp::Set;
   cfg.count = 1;
   TEST_ASSERT_TRUE(entry_pack(&cfg.entries[0], 0x0102, PType::U32, 0xAABBCCDDu));
@@ -344,7 +344,7 @@ void test_config_entry_offsets() {
 
 // spec 7.4 - the ACK carries the effective value and a per-entry status.
 void test_config_ack_entry_offsets() {
-  GateLinkConfigAckV1 ack;
+  NodeConfigAckV1 ack;
   ack.op             = ConfigOp::Set;
   ack.persist_status = PersistStatus::AppliedNotPersisted;
   ack.count          = 1;
@@ -365,7 +365,7 @@ void test_config_ack_entry_offsets() {
   TEST_ASSERT_EQUAL_HEX8(0x02, buf[7]);  // len
   assert_u16_at(buf, 8, 30000);          // effective value
 
-  GateLinkConfigAckV1 b;
+  NodeConfigAckV1 b;
   TEST_ASSERT_EQUAL(Status::Ok, deserialize(buf, n, &b));
   TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, b.persist_status);
   TEST_ASSERT_EQUAL(ParamStatus::Clamped, b.entries[0].status);

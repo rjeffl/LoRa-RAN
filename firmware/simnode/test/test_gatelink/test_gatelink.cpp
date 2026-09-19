@@ -114,12 +114,12 @@ void poll(Board& b, uint8_t flags) {
   bridge_send(b, MsgType::Poll, 9, p, 1, kSchemaNone);
 }
 
-void config(Board& b, Seq seq, const schema::GateLinkConfigV1& cfg) {
+void config(Board& b, Seq seq, const schema::NodeConfigV1& cfg) {
   uint8_t p[kMaxSchemaPayload];
   size_t  n = 0;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                         static_cast<int>(schema::serialize(cfg, p, sizeof(p), &n)));
-  bridge_send(b, MsgType::Config, seq, p, n, kSchemaGateLinkConfigV1);
+  bridge_send(b, MsgType::Config, seq, p, n, kSchemaNodeConfigV1);
 }
 
 // One frame the bridge hears from the board, decoded as the bridge would.
@@ -166,11 +166,11 @@ schema::GateLinkStatusV1 next_status(Board& b, Header* hdr = nullptr) {
   return s;
 }
 
-schema::GateLinkConfigAckV1 next_config_ack(Board& b) {
+schema::NodeConfigAckV1 next_config_ack(Board& b) {
   Heard h;
   TEST_ASSERT_TRUE_MESSAGE(hear(b, &h), "no frame queued");
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::ConfigAck), static_cast<uint8_t>(h.hdr.type));
-  schema::GateLinkConfigAckV1 a;
+  schema::NodeConfigAckV1 a;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                         static_cast<int>(schema::deserialize(h.payload, h.len, &a)));
   return a;
@@ -205,9 +205,10 @@ void test_poll_config_readback_follows_the_status() {
   Board b;
   poll(b, kPollFlagFullStatus | kPollFlagConfigReadback);
   next_status(b);
-  const schema::GateLinkConfigAckV1 a = next_config_ack(b);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ConfigOp::GetAll), static_cast<uint8_t>(a.op));
-  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
+  // spec 7.4, D53 - a read reports the current overrides, and a fresh node holds none.
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::Persisted),
                           static_cast<uint8_t>(a.persist_status));
   TEST_ASSERT_EQUAL_UINT8(0, a.count);
 }
@@ -484,13 +485,13 @@ void test_role_health_does_not_answer_a_command() {
 
 namespace {
 
-schema::GateLinkConfigV1 cfg_of(ConfigOp op) {
-  schema::GateLinkConfigV1 c;
+schema::NodeConfigV1 cfg_of(ConfigOp op) {
+  schema::NodeConfigV1 c;
   c.op = op;
   return c;
 }
 
-void add_entry(schema::GateLinkConfigV1* c, uint16_t id, PType t, uint32_t raw) {
+void add_entry(schema::NodeConfigV1* c, uint16_t id, PType t, uint32_t raw) {
   TEST_ASSERT_TRUE(schema::entry_pack(&c->entries[c->count++], id, t, raw));
 }
 
@@ -502,7 +503,7 @@ void test_config_set_get_and_restore() {
   add_entry(&set, 0x0101, PType::U16, 500);
   add_entry(&set, 0x0102, PType::U8, 7);
   config(b, 1, set);
-  schema::GateLinkConfigAckV1 a = next_config_ack(b);
+  schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(2, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
                           static_cast<uint8_t>(a.persist_status));  // RAM: honest (spec 7.4)
@@ -528,10 +529,37 @@ void test_config_set_get_and_restore() {
                           static_cast<uint8_t>(a.entries[0].status));
   TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(a.entries[0].value, a.entries[0].len));
 
-  config(b, 4, cfg_of(ConfigOp::RestoreDefaults));
-  next_config_ack(b);
-  config(b, 5, cfg_of(ConfigOp::GetAll));
+  // D53 - a read while an override is held reports it unpersisted (the store is RAM).
+  config(b, 4, cfg_of(ConfigOp::GetAll));
+  a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(2, a.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
+                          static_cast<uint8_t>(a.persist_status));
+
+  // D52 - RESTORE_DEFAULTS is answered with the full effective configuration: empty here.
+  config(b, 5, cfg_of(ConfigOp::RestoreDefaults));
+  a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ConfigOp::RestoreDefaults), static_cast<uint8_t>(a.op));
+  TEST_ASSERT_EQUAL_UINT8(0, a.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::Persisted),
+                          static_cast<uint8_t>(a.persist_status));
+  config(b, 6, cfg_of(ConfigOp::GetAll));
   TEST_ASSERT_EQUAL_UINT8(0, next_config_ack(b).count);
+}
+
+// spec 8.11, D53 - NOT_APPLIED means nothing took effect: a SET whose every entry was refused.
+void test_a_set_with_every_entry_rejected_is_not_applied() {
+  Board b;
+  auto  set = cfg_of(ConfigOp::Set);
+  add_entry(&set, 0x0101, PType::U16, 500);
+  set.entries[0].len = 4;  // disagrees with its ptype: TYPE_MISMATCH (spec 7.4, D51)
+  config(b, 1, set);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(1, a.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::TypeMismatch),
+                          static_cast<uint8_t>(a.entries[0].status));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::NotApplied),
+                          static_cast<uint8_t>(a.persist_status));
 }
 
 // spec 9.4 applies steps 4-6 to every authenticated type, and words the step 4 answer as a
@@ -553,7 +581,7 @@ void test_the_config_store_is_bounded() {
   for (uint16_t i = 0; i < kConfigStoreDepth + 1; ++i) add_entry(&set, 0x0200 + i, PType::U8, i);
   b.log.expect("RAM store full");
   config(b, 1, set);
-  const schema::GateLinkConfigAckV1 a = next_config_ack(b);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(kConfigStoreDepth + 1, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok),
                           static_cast<uint8_t>(a.entries[kConfigStoreDepth - 1].status));
@@ -563,15 +591,15 @@ void test_the_config_store_is_bounded() {
 }
 
 // Twenty-four u32 entries fit one CONFIG (spec 7.4's figure), but their results do not fit one
-// CONFIG_ACK, and spec 3.1 caps a fragmented set at the same 196 bytes. The ACK is cut and the
-// cut is logged - raised for spec v0.12, not settled here.
+// CONFIG_ACK, which is single-frame (spec 11.4). The ACK is cut and the cut is logged; how a
+// node splits one is spec W10's open question, not settled here.
 void test_a_config_ack_that_cannot_fit_is_cut_and_logged() {
   Board b;
   auto  set = cfg_of(ConfigOp::Set);
   for (uint16_t i = 0; i < 24; ++i) add_entry(&set, 0x0300 + i, PType::U32, 100000u + i);
   b.log.expect("did not fit");
   config(b, 1, set);
-  const schema::GateLinkConfigAckV1 a = next_config_ack(b);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(21, a.count);
   TEST_ASSERT_TRUE(b.log.seen());
 }
@@ -642,6 +670,7 @@ int main() {
   RUN_TEST(test_role_health_does_not_answer_a_command);
 
   RUN_TEST(test_config_set_get_and_restore);
+  RUN_TEST(test_a_set_with_every_entry_rejected_is_not_applied);
   RUN_TEST(test_a_repeated_config_is_answered_from_the_cache);
   RUN_TEST(test_the_config_store_is_bounded);
   RUN_TEST(test_a_config_ack_that_cannot_fit_is_cut_and_logged);

@@ -61,7 +61,7 @@ bool schema_is_known(MsgType type, SchemaId schema) {
       return schema == kSchemaGateLinkEventV1;
     case MsgType::Config:
     case MsgType::ConfigAck:
-      return schema == kSchemaGateLinkConfigV1;
+      return schema == kSchemaNodeConfigV1;
     default:
       return false;
   }

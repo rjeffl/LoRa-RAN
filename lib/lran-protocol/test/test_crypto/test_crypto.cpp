@@ -341,7 +341,7 @@ void build_authenticated_config_set(FragSet* fs) {
   h.dst    = kNodeGateLink;
   h.seq    = 0x0101;  // spec 11.1 - ONE seq, shared by every fragment of the set
   h.ctx_id = 0xDEADBEEFu;
-  h.schema = kSchemaGateLinkConfigV1;
+  h.schema = kSchemaNodeConfigV1;
 
   EncodeCtx ec;
   ec.mac      = &g_mac;

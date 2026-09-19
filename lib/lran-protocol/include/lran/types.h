@@ -52,7 +52,7 @@ enum class MsgType : uint8_t {
 inline constexpr SchemaId kSchemaNone             = 0x00;
 inline constexpr SchemaId kSchemaGateLinkStatusV1 = 0x10;  // 78 B, spec 7.2
 inline constexpr SchemaId kSchemaGateLinkEventV1  = 0x11;  // 16 B, spec 7.3
-inline constexpr SchemaId kSchemaGateLinkConfigV1 = 0x12;  // variable, spec 7.4
+inline constexpr SchemaId kSchemaNodeConfigV1     = 0x12;  // variable, spec 7.4 - any node (D46)
 inline constexpr SchemaId kSchemaNodeHealthV1     = 0xF0;  // 20 B, spec 7.5
 inline constexpr SchemaId kSchemaSimnodeStatusV1  = 0xFE;  // 78 B, mirrors 0x10
 

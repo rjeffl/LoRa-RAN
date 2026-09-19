@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Schema 0x12 - GateLink config v1, variable. Spec 7.4.
+// Schema 0x12 - node config v1, variable. Spec 7.4. Registered as "GateLink config v1" until
+// spec v0.13, which made it any node's without changing a byte (D46).
 //
 // Carried by both CONFIG and CONFIG_ACK. param_id values, types, ranges and defaults
 // are declared once in /lib/lran-config/ and are deliberately NOT enumerated here -
@@ -55,13 +56,13 @@ struct ConfigAckEntry {
   uint8_t     value[kMaxParamValueLen] = {0, 0, 0, 0};
 };
 
-struct GateLinkConfigV1 {
+struct NodeConfigV1 {
   ConfigOp op    = ConfigOp::Get;  // spec 8.10
   uint8_t  count = 0;
   ConfigEntry entries[kMaxConfigEntries] = {};
 };
 
-struct GateLinkConfigAckV1 {
+struct NodeConfigAckV1 {
   ConfigOp      op = ConfigOp::Get;
   // spec 7.4 - honest. A node with no usable microSD still applies and still ACKs
   // the change, with APPLIED_NOT_PERSISTED. HA must never be told a value was saved
@@ -80,11 +81,11 @@ bool     entry_pack(ConfigAckEntry* e, uint16_t param_id, ParamStatus s, PType t
 uint32_t entry_raw(const uint8_t* value, uint8_t len);
 int32_t  entry_signed(const uint8_t* value, uint8_t len, PType t);
 
-Status serialize(const GateLinkConfigV1& v, uint8_t* out, size_t cap, size_t* written);
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigV1* out);
-Status serialize(const GateLinkConfigAckV1& v, uint8_t* out, size_t cap,
+Status serialize(const NodeConfigV1& v, uint8_t* out, size_t cap, size_t* written);
+Status deserialize(const uint8_t* in, size_t len, NodeConfigV1* out);
+Status serialize(const NodeConfigAckV1& v, uint8_t* out, size_t cap,
                  size_t* written);
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigAckV1* out);
+Status deserialize(const uint8_t* in, size_t len, NodeConfigAckV1* out);
 
 }  // namespace schema
 }  // namespace lran

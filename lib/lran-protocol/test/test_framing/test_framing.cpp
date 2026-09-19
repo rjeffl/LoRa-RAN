@@ -911,7 +911,7 @@ void test_hex_req_read_needs_no_mac() {
 // --- spec 7.4: variable CONFIG payloads are validated structurally -----------
 
 void test_config_payload_structure_validated() {
-  schema::GateLinkConfigV1 cfg;
+  schema::NodeConfigV1 cfg;
   cfg.op    = ConfigOp::Set;
   cfg.count = 2;
   schema::entry_pack(&cfg.entries[0], 0x0001, PType::U16, 300);
@@ -926,7 +926,7 @@ void test_config_payload_structure_validated() {
   size_t  n = 0;
   Header h = poll_header();
   h.type   = MsgType::Config;
-  h.schema = kSchemaGateLinkConfigV1;
+  h.schema = kSchemaNodeConfigV1;
   EncodeCtx ec;
   ec.mac = &g_mac;
   ec.node_key = kKey;
@@ -938,7 +938,7 @@ void test_config_payload_structure_validated() {
   TEST_ASSERT_EQUAL(Status::Ok, decode_payload(buf, n, node_ctx(&c), &f));
   TEST_ASSERT_NOT_NULL(f.mac);  // spec 9.2 - CONFIG is authenticated
 
-  schema::GateLinkConfigV1 back;
+  schema::NodeConfigV1 back;
   TEST_ASSERT_EQUAL(Status::Ok, schema::deserialize(f.payload, f.payload_len, &back));
   TEST_ASSERT_EQUAL_UINT8(2, back.count);
   TEST_ASSERT_EQUAL_HEX16(0x0001, back.entries[0].param_id);
@@ -948,7 +948,7 @@ void test_config_payload_structure_validated() {
   // A count that overruns the declared payload is rejected, not partly parsed.
   uint8_t bad[8] = {static_cast<uint8_t>(ConfigOp::Set), 2, 0x01, 0x00, 0x02, 0x02,
                     0x2C, 0x01};
-  schema::GateLinkConfigV1 junk;
+  schema::NodeConfigV1 junk;
   TEST_ASSERT_EQUAL(Status::BadLength, schema::deserialize(bad, sizeof(bad), &junk));
 }
 
