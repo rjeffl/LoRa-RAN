@@ -1,0 +1,1 @@
+{"~":"lran/bridge","name":"Frames transmitted","uniq_id":"lran_bridge_tx_frames","stat_t":"~/diag/radio/state","val_tpl":"{{ value_json.tx_frames }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"frames","stat_cla":"total_increasing","ent_cat":"diagnostic","dev":{"ids":["lran_bridge"],"name":"LoRa Bridge","mf":"LRAN","mdl":"LoRa Bridge"}}

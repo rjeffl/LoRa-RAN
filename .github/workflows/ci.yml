@@ -147,6 +147,15 @@ jobs:
           python3 tools/checks/bridge_partitions.py --self-test
           python3 tools/checks/bridge_partitions.py
 
+      # Impl Plan §4.4: the committed discovery examples against what the firmware would
+      # actually publish. It compiles `discovery.cpp` with the host g++ — no PlatformIO
+      # and no Xtensa toolchain, so it stays in this job — and diffs the result against
+      # `ha/discovery/`. An example nobody checks drifts from the code the first time a
+      # table row changes, silently, in the artifact somebody reaches for when Home
+      # Assistant is not cooperating.
+      - name: Home Assistant discovery examples
+        run: python3 tools/checks/ha_examples.py
+
   native:
     name: Host Unity suites
     runs-on: ubuntu-latest

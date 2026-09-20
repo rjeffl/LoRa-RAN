@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"Request configuration","uniq_id":"lran_welllink_cmd_request_config","cmd_t":"~/cmd/request_config/set","payload_press":"PRESS","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

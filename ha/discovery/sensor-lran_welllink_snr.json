@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"SNR","uniq_id":"lran_welllink_snr","stat_t":"~/diag/state","val_tpl":"{{ value_json.snr_db }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"dB","stat_cla":"measurement","ent_cat":"diagnostic","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

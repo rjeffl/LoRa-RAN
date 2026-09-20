@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Robert J. Lee
+//
+// The JSON object writer. Written for BF-19's diagnostic documents and lifted out of
+// diag_json.cpp by BF-23, when discovery became its second user.
+//
+// ARDUINO-FREE AND HEADER-ONLY, like the accounting headers beside it. Both callers are
+// host-tested, and a document that has to be read by Home Assistant is exactly the kind
+// of thing that should be checked at a desk rather than at the broker.
+//
+// IT REFUSES RATHER THAN TRUNCATES, and that is the whole reason it exists instead of
+// snprintf at each call site. Truncated JSON is worse than absent: Home Assistant logs a
+// parse error against a topic that looks alive while the entity keeps a stale value
+// (firmware/bridge/CLAUDE.md). A document that did not fit reports 0 and leaves an empty
+// string, and the caller drops the publication.
+
+#pragma once
+
+#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+
+namespace bridge {
+
+class JsonObject {
+ public:
+  JsonObject(char* out, size_t cap) : out_(out), cap_(cap) {
+    if (out_ == nullptr || cap_ == 0) {
+      ok_ = false;
+      return;
+    }
+    append("{");
+  }
+
+  void u32(const char* key, uint32_t v) { field(key, "%lu", static_cast<unsigned long>(v)); }
+  void i32(const char* key, int32_t v) { field(key, "%ld", static_cast<long>(v)); }
+  void null(const char* key) { field(key, "null"); }
+  void boolean(const char* key, bool v) { field(key, v ? "true" : "false"); }
+
+  // A string value, quoted and escaped. A null pointer writes nothing at all - not
+  // `null`, not an empty string - so a table row that leaves a field unset simply omits
+  // the key. Home Assistant treats an absent discovery key as "use the default", where
+  // an explicit null is a value.
+  void str(const char* key, const char* v) {
+    if (v == nullptr) return;
+    open_key(key);
+    append("\"");
+    escape(v);
+    append("\"");
+  }
+
+  // Already-formatted JSON - an array or a nested object the caller built. Nothing here
+  // validates it, so the caller owns its shape.
+  void raw(const char* key, const char* json) {
+    if (json == nullptr) return;
+    open_key(key);
+    append("%s", json);
+  }
+
+  size_t finish() {
+    append("}");
+    if (!ok_) {
+      if (out_ != nullptr && cap_ > 0) out_[0] = '\0';
+      return 0;
+    }
+    return len_;
+  }
+
+ private:
+  void open_key(const char* key) {
+    append(first_ ? "\"%s\":" : ",\"%s\":", key);
+    first_ = false;
+  }
+
+  void field(const char* key, const char* fmt, ...) {
+    open_key(key);
+    va_list ap;
+    va_start(ap, fmt);
+    vappend(fmt, ap);
+    va_end(ap);
+  }
+
+  // RFC 8259's two mandatory escapes plus the control range. Everything the bridge puts
+  // in a string today is ASCII from a table, so this guards a future caller rather than
+  // a present one - but a stray quote in a value would produce a document Home Assistant
+  // cannot parse, which is the failure this class exists to prevent.
+  void escape(const char* v) {
+    for (const char* p = v; *p != '\0' && ok_; ++p) {
+      const unsigned char c = static_cast<unsigned char>(*p);
+      if (c == '"' || c == '\\') {
+        append("\\%c", *p);
+      } else if (c < 0x20) {
+        append("\\u%04x", static_cast<unsigned>(c));
+      } else {
+        append("%c", *p);
+      }
+    }
+  }
+
+  void append(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vappend(fmt, ap);
+    va_end(ap);
+  }
+
+  void vappend(const char* fmt, va_list ap) {
+    if (!ok_) return;
+    const int n = std::vsnprintf(out_ + len_, cap_ - len_, fmt, ap);
+    if (n < 0 || static_cast<size_t>(n) >= cap_ - len_) {
+      ok_ = false;
+      return;
+    }
+    len_ += static_cast<size_t>(n);
+  }
+
+  char*  out_;
+  size_t cap_;
+  size_t len_   = 0;
+  bool   ok_    = true;
+  bool   first_ = true;
+};
+
+}  // namespace bridge
