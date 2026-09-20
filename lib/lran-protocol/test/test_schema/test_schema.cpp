@@ -372,6 +372,75 @@ void test_config_ack_entry_offsets() {
   TEST_ASSERT_EQUAL_UINT32(30000, entry_raw(b.entries[0].value, b.entries[0].len));
 }
 
+// spec 7.4.1, D57 - a readback too large for one frame is several CONFIG_ACK messages,
+// every one but the last marked. The marker is bit 7 of the wire `count` byte.
+void test_more_follows_rides_in_count_bit_7() {
+  NodeConfigAckV1 ack;
+  ack.op             = ConfigOp::GetAll;
+  ack.persist_status = PersistStatus::Persisted;
+  ack.more_follows   = true;
+  ack.count          = 2;
+  TEST_ASSERT_TRUE(entry_pack(&ack.entries[0], 0x0100, ParamStatus::Ok, PType::U8, 8));
+  TEST_ASSERT_TRUE(entry_pack(&ack.entries[1], 0x0101, ParamStatus::Ok, PType::U16, 5000));
+
+  uint8_t buf[kMaxSchemaPayload] = {};
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, serialize(ack, buf, sizeof(buf), &n));
+
+  // The marker shares the count byte and moves no offset: the first entry still starts
+  // at 3, which is what keeps this schema 0x12.
+  TEST_ASSERT_EQUAL_HEX8(0x82, buf[2]);
+  assert_u16_at(buf, 3, 0x0100);
+  TEST_ASSERT_EQUAL_UINT32(3 + (5 + 1) + (5 + 2), n);
+
+  NodeConfigAckV1 b;
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(buf, n, &b));
+  TEST_ASSERT_TRUE(b.more_follows);
+  TEST_ASSERT_EQUAL_UINT8(2, b.count);
+  TEST_ASSERT_EQUAL_UINT32(5000, entry_raw(b.entries[1].value, b.entries[1].len));
+}
+
+// The last message of an answer, and every answer that fits one frame, leaves bit 7
+// clear. Every vector committed before D57 is this case, which is why none of them moved.
+void test_a_single_message_answer_leaves_more_follows_clear() {
+  NodeConfigAckV1 ack;
+  ack.op    = ConfigOp::GetAll;
+  ack.count = 1;
+  TEST_ASSERT_TRUE(entry_pack(&ack.entries[0], 0x0100, ParamStatus::Ok, PType::U8, 8));
+
+  uint8_t buf[kMaxSchemaPayload] = {};
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, serialize(ack, buf, sizeof(buf), &n));
+  TEST_ASSERT_EQUAL_HEX8(0x01, buf[2]);
+
+  NodeConfigAckV1 b;
+  b.more_follows = true;  // deserialize must clear it, not leave the caller's value
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(buf, n, &b));
+  TEST_ASSERT_FALSE(b.more_follows);
+  TEST_ASSERT_EQUAL_UINT8(1, b.count);
+}
+
+// A count byte of 0x80 | n must read as n results, not as a length failure. A receiver
+// that masked nothing would reject the frame on length, which is the cost spec 7.4.1
+// records for narrowing the field.
+void test_a_marked_count_is_masked_before_the_entry_bound() {
+  const uint8_t buf[] = {
+      static_cast<uint8_t>(ConfigOp::GetAll),
+      static_cast<uint8_t>(PersistStatus::Persisted),
+      0x81,        // MORE_FOLLOWS | 1
+      0x00, 0x01,  // param_id 0x0100, little-endian
+      0x00,        // status = OK
+      0x01,        // ptype = U8
+      0x01,        // len
+      0x08,        // value
+  };
+  NodeConfigAckV1 b;
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(buf, sizeof(buf), &b));
+  TEST_ASSERT_TRUE(b.more_follows);
+  TEST_ASSERT_EQUAL_UINT8(1, b.count);
+  TEST_ASSERT_EQUAL_HEX16(0x0100, b.entries[0].param_id);
+}
+
 void test_config_signed_values_sign_extend() {
   ConfigEntry e;
   TEST_ASSERT_TRUE(entry_pack(&e, 0x0010, PType::I16, static_cast<uint32_t>(-40)));
@@ -453,6 +522,9 @@ int run_all() {
   RUN_TEST(test_config_entry_offsets);
   RUN_TEST(test_config_ack_entry_offsets);
   RUN_TEST(test_config_signed_values_sign_extend);
+  RUN_TEST(test_more_follows_rides_in_count_bit_7);
+  RUN_TEST(test_a_single_message_answer_leaves_more_follows_clear);
+  RUN_TEST(test_a_marked_count_is_masked_before_the_entry_bound);
   RUN_TEST(test_an_over_wide_value_is_skipped_and_the_set_still_parses);
   RUN_TEST(test_an_over_wide_value_cannot_be_encoded);
   RUN_TEST(test_config_entry_caps_are_derived);

@@ -40,6 +40,18 @@ inline constexpr size_t kMaxConfigEntries =
 inline constexpr size_t kMaxConfigAckEntries =
     (kMaxSchemaPayload - kConfigAckHdrLen) / (kConfigAckEntryHdrLen + 1);  // 32
 
+// spec 7.4.1, D57 - MORE_FOLLOWS, bit 7 of the CONFIG_ACK `count` byte. The static_assert
+// is the whole argument for putting it there: a result count that could reach 128 would
+// collide with the marker, and a payload cap raised far enough to allow that has to be
+// read against this rule rather than around it.
+inline constexpr uint8_t kConfigAckMoreFollows = 0x80;
+static_assert(kMaxConfigAckEntries < kConfigAckMoreFollows,
+              "spec 7.4.1 - count bit 7 is MORE_FOLLOWS and must stay unreachable");
+
+// spec 7.4.1, D57 - a node sends at most this many messages in one answer, so a bridge
+// staging one has a termination condition that does not depend on the node.
+inline constexpr uint8_t kMaxConfigAckMessages = 4;
+
 struct ConfigEntry {
   uint16_t param_id = 0;
   PType    ptype    = PType::U8;
@@ -68,6 +80,11 @@ struct NodeConfigV1 {
 
 struct NodeConfigAckV1 {
   ConfigOp      op = ConfigOp::Get;
+  // spec 7.4.1, D57 - bit 7 of the wire `count`. An answer too large for one frame is
+  // several CONFIG_ACK messages, every one but the last marked. It rides in `count`
+  // because 193 bytes of payload hold at most 32 results, so the top two bits of that
+  // byte are unreachable and schema 0x12 keeps every offset it had.
+  bool          more_follows = false;
   // spec 7.4 - honest. A node with no usable microSD still applies and still ACKs
   // the change, with APPLIED_NOT_PERSISTED. HA must never be told a value was saved
   // when it was not.

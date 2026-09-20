@@ -461,10 +461,15 @@ def p_config(op: int, entries) -> bytes:
     return out
 
 
-def p_config_ack(op: int, persist_status: int, results) -> bytes:
+def p_config_ack(op: int, persist_status: int, results, more_follows: bool = False) -> bytes:
     """§7.4 - [op][persist_status][count][ uint16 param_id, uint8 status, uint8 ptype,
-    uint8 len, uint8[len] EFFECTIVE value ]"""
-    out = u8(op) + u8(persist_status) + u8(len(results))
+    uint8 len, uint8[len] EFFECTIVE value ]
+
+    §7.4.1 - bit 7 of count is MORE_FOLLOWS: another CONFIG_ACK of this answer follows.
+    Bits 6:0 are the result count, which §7.4.1 bounds at 32 because 193 bytes remain for
+    results once op, persist_status and count are taken."""
+    assert len(results) < 0x80, "§7.4.1 - count bit 7 is MORE_FOLLOWS, not a count bit"
+    out = u8(op) + u8(persist_status) + u8(len(results) | (0x80 if more_follows else 0))
     for param_id, status, ptype, value in results:
         val = _encode_value(ptype, value)
         out += u16(param_id) + u8(status) + u8(ptype) + u8(len(val)) + val
@@ -1010,6 +1015,25 @@ def build_single():
                     type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=702,
                     ctx_id=GATE_CTX, schema=0x12, payload=ack_small, self_id=NODE_BRIDGE,
                     note="CLAMPED entry carries the EFFECTIVE value (1200), persist_status = APPLIED_NOT_PERSISTED."))
+
+    # §7.4.1 - an answer too large for one frame, as two messages. The pair is the point:
+    # the marked one and the final one differ in bit 7 of one byte and nowhere else, so a
+    # codec that ignores the bit reads the first as 133 results and fails on length.
+    ack_part1 = p_config_ack(0x03, 0x00, [(0x0100, 0x00, PTYPE_U8, 8),
+                                          (0x0101, 0x00, PTYPE_U16, 5000)],
+                             more_follows=True)
+    v.append(single("config_ack_get_all_more_follows", "§7.4.1",
+                    type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=703,
+                    ctx_id=GATE_CTX, schema=0x12, payload=ack_part1, self_id=NODE_BRIDGE,
+                    note="First message of a split GET_ALL answer: count byte reads 0x82, "
+                         "MORE_FOLLOWS set over a count of 2."))
+    ack_part2 = p_config_ack(0x03, 0x00, [(0x0102, 0x00, PTYPE_U8, 5),
+                                          (0x0114, 0x00, PTYPE_I16, -4)])
+    v.append(single("config_ack_get_all_final", "§7.4.1",
+                    type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=703,
+                    ctx_id=GATE_CTX, schema=0x12, payload=ack_part2, self_id=NODE_BRIDGE,
+                    note="Last message of the same answer, same seq: count byte reads 0x02. "
+                         "A receiver closes the transaction here, not on the first message."))
     return v
 
 

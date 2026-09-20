@@ -120,7 +120,9 @@ Status serialize(const NodeConfigAckV1& v, uint8_t* out, size_t cap,
   ByteWriter w(out, cap);
   w.u8(static_cast<uint8_t>(v.op));              // spec 7.4 off 0
   w.u8(static_cast<uint8_t>(v.persist_status));  // off 1
-  w.u8(v.count);                                 // off 2
+  // spec 7.4.1, D57 - bit 7 is MORE_FOLLOWS, bits 6:0 the result count. The count is
+  // already bounded at 32 above, so the marker never collides with a value.
+  w.u8(static_cast<uint8_t>(v.count | (v.more_follows ? kConfigAckMoreFollows : 0)));
   for (uint8_t i = 0; i < v.count; ++i) {
     const ConfigAckEntry& e = v.entries[i];
     if (e.len > kMaxParamValueLen) return Status::BadLength;
@@ -141,7 +143,9 @@ Status deserialize(const uint8_t* in, size_t len, NodeConfigAckV1* out) {
   ByteReader r(in, len);
   out->op             = static_cast<ConfigOp>(r.u8());
   out->persist_status = static_cast<PersistStatus>(r.u8());
-  out->count          = r.u8();
+  const uint8_t count_byte = r.u8();  // spec 7.4.1, D57
+  out->more_follows        = (count_byte & kConfigAckMoreFollows) != 0;
+  out->count               = static_cast<uint8_t>(count_byte & ~kConfigAckMoreFollows);
   if (out->count > kMaxConfigAckEntries) return Status::BadLength;
   for (uint8_t i = 0; i < out->count; ++i) {
     ConfigAckEntry& e = out->entries[i];
