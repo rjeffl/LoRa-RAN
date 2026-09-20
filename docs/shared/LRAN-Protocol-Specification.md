@@ -877,16 +877,25 @@ it falls in.
 | 3 | `uint8` | `len` — value length in bytes |
 | 4.. | `uint8[len]` | value, little-endian |
 
-**What an entry carries depends on `op`** (**D50**). A `SET` entry carries a value. A `GET`
-entry names the parameter and the `ptype` the sender expects, with `len` = 0 and no value.
-A `GET_ALL` or `RESTORE_DEFAULTS` carries `count` = 0 and no entries; a receiver that finds
-entries in one ignores them.
+**`len` is the total number of value bytes, and it is a multiple of the `ptype`'s unit
+width** (**D55**): 1 for `u8` and `bool`, 2 for `u16` and `i16`, 4 for `u32` and `i32`.
+`len / width` is the number of units the value carries.
 
-**An entry whose `len` does not match its `ptype` is rejected with `TYPE_MISMATCH`**, and
-the rest of the set still applies (**D51**). `len` alone delimits the entry, so the frame
-stays parseable and the error stays per entry, as §7.4's first load-bearing property
-requires. So is an entry whose `ptype` differs from the one the node holds for that
-`param_id`; its result carries the value the node holds.
+| `len / width` | Meaning |
+|---|---|
+| 0 | No value. A `GET` entry, which names the parameter and the `ptype` the sender expects |
+| 1 | A scalar — every parameter defined today |
+| N | An array of N units, in wire order. **A string is `ptype` = `u8`** with `len` its length in bytes, not NUL-terminated |
+
+**An entry the receiver cannot take is rejected on its own, with `TYPE_MISMATCH`, and the
+rest of the set still applies** (**D51**). That covers a `len` that is not a multiple of the
+width, a value wider than the receiver can store, an array where the parameter is a scalar,
+and a `ptype` that differs from the one the node holds for that `param_id` — whose result
+carries the value the node holds. **A receiver MUST NOT discard the frame for any of
+them.** `len` tells it how many bytes to skip, so a node built before a wider type or an
+array parameter existed still reads the rest of a set that uses one, and answers for the
+entry it could not take. That is the same forward-compatibility bargain as §4's reserved
+bits.
 
 **`CONFIG_ACK` payload:**
 
@@ -1225,6 +1234,11 @@ up**, and that requires HA to be able to route it independently.
 | `0x02` | `CLAMPED` — applied at a range endpoint; the ACK carries the effective value |
 | `0x03` | `TYPE_MISMATCH` |
 | `0x04` | `READ_ONLY` |
+
+**`READ_ONLY` also covers a parameter the node publishes but cannot yet apply**, which is
+how §12.4's PHY parameters answer a `SET` until the commit-and-revert path is built
+(**D56**). A readable value that refuses a write is honest; a write that half-applies is
+not.
 
 ### 8.13 `HEX_RSP` `status`
 
@@ -1774,7 +1788,7 @@ must reserve it before any schema needs it — a `frag` field added later is a `
 | Header mode | **Explicit** | Required by §2.1 |
 | CRC | **Enabled** | Required by §2.1 |
 | Sync word | Private (`0x12` / SX126x `0x1424`) | Not the LoRaWAN value |
-| SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10 | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
+| SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10, and **settable at runtime under §12.4** (**D56**) | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
 | Node-address filtering | **Unavailable in LoRa mode. Not used** | The SX126x address filter is a **GFSK** feature; the LoRa packet handler has no address field. Verified against the datasheet — see below. Addressing is entirely §14's stage 5, in software |
 
 **All nodes share one frequency, SF, BW and sync word.** Per-node channels would
@@ -1837,11 +1851,17 @@ from a measurement will be reopened by the first unexplained `cad_backoffs` read
 > **37.5 % of the band was never looked at**, and a transmitter sitting entirely in a gap is
 > invisible at any level. It is the instrument that would catch one.
 
-**LoRa PHY parameters are not runtime-configurable.** Changing them from HA means
-changing the link you are changing them over; one mismatch and the node is unreachable
-until someone walks to it with a laptop. If this is ever wanted it needs a
-commit-and-revert scheme — apply, require a confirmation frame within N seconds,
-otherwise revert. Out of scope for v1.
+**The PHY parameters are configurable at runtime, and only under §12.4's
+commit-and-revert.** Changing one from HA means changing the link you are changing it
+over, and one mismatch strands a node that has no OTA. §12.4 is what makes that survivable:
+the node applies the change, and reverts to its last known-good settings unless the bridge
+confirms over the new ones inside a trial window.
+
+> **Changed in v0.13 (D56).** v0.1 through v0.12 put this out of scope for v1 and named
+> the scheme that would be needed. The operator brought it into scope on 2026-09-19:
+> adapting a working point in the field without a walk to the gate is worth more than the
+> simplicity of a fixed PHY, and the parameters are declared now so Home Assistant can read
+> them before it can write them.
 
 ### 12.2 Radio pin map is injected, not hardcoded
 
@@ -1907,6 +1927,53 @@ backoffs than the bridge is the reading worth investigating.
 **FCC.** 915 MHz ISM under Part 15. Not LoRaWAN, so no TTN duty-cycle policy applies.
 The operating mode is settled — see §18.1 — and constrains TX power, which §12.1
 records.
+
+---
+
+### 12.4 Changing the PHY at runtime — commit and revert
+
+**Every PHY parameter in §12.1's table is a `/lib/lran-config/` parameter** — frequency,
+SF, BW, CR and TX power — except the sync word, the header mode and the CRC setting, which
+are contractual and stay fixed. Each node holds its own copy and the bridge holds one.
+
+**A PHY change is a fleet operation, not a per-node one.** §12.1 requires one frequency,
+SF, BW and sync word across the fleet, because one SX1262 cannot listen on several. A set
+that moves one node without the rest moves it off the air.
+
+**The scheme, and every part of it is load-bearing:**
+
+1. **One atomic set.** SF, BW, CR, TX power and frequency travel in **one** `CONFIG`
+   message, never across several (§11.4 gives no atomicity across messages). A node applies
+   them together and recomputes what depends on them — §12.3's backoff window is derived
+   from the resulting airtime, not carried separately.
+2. **The old settings are persisted first.** Last known-good goes to the nonvolatile store
+   before the radio is retuned, so a reboot mid-trial comes back on settings that work.
+3. **A trial window opens on apply.** `phy_trial_s` (default 120) starts when the node
+   retunes. The node answers its `CONFIG_ACK` **on the old settings** before retuning, so
+   the bridge learns the change was accepted even if the new settings fail.
+4. **Confirmation is a frame received on the new settings.** Any authenticated frame from
+   the bridge counts. Nothing else does — an ACK the node sent proves its transmitter, not
+   the link.
+5. **Silence reverts, at both ends.** A node that hears nothing before `phy_trial_s`
+   expires restores the persisted settings. The bridge runs its own trial window for its
+   own radio and reverts the same way, so a node that never received the set and a bridge
+   whose fleet went quiet both return to the last working configuration without a visit.
+6. **`EVENT` on revert.** A revert is reported once the link is back, so a failed change is
+   visible in Home Assistant rather than inferred from a node that went quiet and came back.
+
+**TX power is clamped by the firmware, not by the operator.** §18.2's ceiling is an EIRP
+limit under §15.249, so the parameter's range in `/lib/lran-config/` stops at the D33
+ceiling and a value above it is `CLAMPED`, reported, and never applied. Widening that range
+is a D33 decision, not a configuration change.
+
+**BW carries the same coupling.** D1's fourth bound makes bandwidth and the FCC rule
+section one decision (§18.2), so BW stays at 125 kHz until an envelope decision says
+otherwise, whatever the parameter table's range permits.
+
+**Until the machinery exists, the parameters are declared and read-only.** A node that has
+not built §12.1a answers a `SET` on any of them with `READ_ONLY` (§8.12) and applies
+nothing. Home Assistant can read the effective PHY from the first release that carries the
+table.
 
 ---
 
@@ -2795,7 +2862,15 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   `RESTORE_DEFAULTS`, what `persist_status` means for a read and when `NOT_APPLIED` applies
   (§7.4, §8.10, §8.11), and that a dedup hit does not repeat a follow-up frame (§10.4).
   **W15** opens: `CONFIG_ACK` has no default-or-override flag. **W16** opens: nothing says
-  when a node sends `CONFIG_CHANGE`. **The header stays at v0.12 until the citation sweep**, which
+  when a node sends `CONFIG_CHANGE`. **D55** makes §7.4's `len` a byte count that is a
+  multiple of the `ptype`'s width, so an entry can carry an array and a string is `u8`
+  bytes; an entry a receiver cannot take is still rejected alone, which is what lets an
+  older node read a set using a type it does not know. **D56 brings the PHY parameters into
+  runtime configuration** under new **§12.4**'s commit-and-revert: one atomic set, the old
+  settings persisted first, a trial window, confirmation by a frame received on the new
+  settings, and both ends reverting on silence. §12.1's *"not runtime-configurable"* is
+  withdrawn, TX power stays clamped by D33 and BW by the envelope coupling, and a node that
+  has not built the path answers `READ_ONLY` (§8.12). **The header stays at v0.12 until the citation sweep**, which
   the operator deferred until the revision is nearer complete.
 
 - **v0.12** — **Nine questions raised during bridge B3a and simnode B0 are answered, and

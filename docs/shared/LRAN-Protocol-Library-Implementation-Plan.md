@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.10
+**Version:** 0.11
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -584,6 +584,10 @@ namespace lran::config {
 
 enum class PType : uint8_t { U8=1, U16=2, U32=3, I16=4, I32=5, Bool=6 };  // spec 7.4 ptype
 
+// D56 - a parameter the node publishes but cannot yet apply answers a SET with
+// READ_ONLY (spec 8.12, 12.4). Honest, and it costs one byte per row.
+enum class Access : uint8_t { ReadWrite, ReadOnly };
+
 // D47 - who holds the value, and so which topic sets it (spec 16.7.1).
 enum class Owner : uint8_t {
   BridgeGlobal,   // lran/bridge/config/set; never carried by a frame
@@ -595,6 +599,7 @@ struct ParamDef {
   uint16_t    id;           // spec 7.4, D46 - one namespace, a block per owner
   const char* name;         // the HA object_id: permanent once published (spec 16.7)
   Owner       owner;
+  Access      access;      // D56 - ReadOnly for a row the firmware cannot apply yet
   PType       type;
   int32_t     min, max, def;
   const char* unit;         // nullptr if unitless
@@ -604,27 +609,38 @@ struct ParamDef {
 // 0x0000-0x00FF - the bridge. Defaults are the firmware's as of BF-19/BF-19a/BF-20;
 // ranges are proposed (see below).
 inline constexpr ParamDef kBridgeParams[] = {
-  {0x0001, "simnode_diag_enable",        Owner::BridgeGlobal,  PType::Bool,   0,     1,     0, nullptr, "Publish bench nodes, spec 16.6"},
-  {0x0002, "diag_interval_s",            Owner::BridgeGlobal,  PType::U16,   10,  3600,    60, "s",  "Diagnostics publication period (BF-19)"},
-  {0x0003, "missed_poll_threshold",      Owner::BridgeGlobal,  PType::U8,     1,    20,     3, nullptr, "Unanswered polls before offline, spec 16.5"},
-  {0x0004, "poll_reply_timeout_ms",      Owner::BridgeGlobal,  PType::U16, 2000, 30000, 10000, "ms", "Poll outstanding before it counts as missed"},
-  {0x0005, "command_ack_timeout_ms",     Owner::BridgeGlobal,  PType::U16,  500, 30000,  3000, "ms", "ACK wait before retry, Impl Plan 6.2"},
-  {0x0006, "cmd_retries",                Owner::BridgeGlobal,  PType::U8,     0,    10,     3, nullptr, "Retries after the first, SAME seq"},
-  {0x0007, "cad_retries",                Owner::BridgeGlobal,  PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
-  {0x0008, "backoff_max_ms",             Owner::BridgeGlobal,  PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
-  {0x0009, "frag_reassembly_timeout_ms", Owner::BridgeGlobal,  PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
-  {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
-  {0x0080, "poll_interval_s",            Owner::BridgePerNode, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
+  {0x0001, "simnode_diag_enable",        Owner::BridgeGlobal, Access::ReadWrite,  PType::Bool,   0,     1,     0, nullptr, "Publish bench nodes, spec 16.6"},
+  {0x0002, "diag_interval_s",            Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,   10,  3600,    60, "s",  "Diagnostics publication period (BF-19)"},
+  {0x0003, "missed_poll_threshold",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     1,    20,     3, nullptr, "Unanswered polls before offline, spec 16.5"},
+  {0x0004, "poll_reply_timeout_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 2000, 30000, 10000, "ms", "Poll outstanding before it counts as missed"},
+  {0x0005, "command_ack_timeout_ms",     Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  3000, "ms", "ACK wait before retry, Impl Plan 6.2"},
+  {0x0006, "cmd_retries",                Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     0,    10,     3, nullptr, "Retries after the first, SAME seq"},
+  {0x0007, "cad_retries",                Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
+  {0x0008, "backoff_max_ms",             Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
+  {0x0009, "frag_reassembly_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
+  {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
+  {0x0080, "poll_interval_s",            Owner::BridgePerNode, Access::ReadWrite, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
 };
 
 // 0x0100-0x01FF - every node. dedup_cache_depth is D34's, and is runtime-settable
 // because a node that cannot be reflashed without a walk to the gate may not carry a
 // fixed sizing constant either (root rule 8). Its max is the compiled cache size.
 inline constexpr ParamDef kNodeCommonParams[] = {
-  {0x0100, "dedup_cache_depth",          Owner::Node, PType::U8,     1,    32,     8, nullptr, "Cached command results, spec 10.4"},
-  {0x0101, "frag_reassembly_timeout_ms", Owner::Node, PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
-  {0x0102, "cad_retries",                Owner::Node, PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
-  {0x0103, "backoff_max_ms",             Owner::Node, PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
+  {0x0100, "dedup_cache_depth",          Owner::Node, Access::ReadWrite, PType::U8,     1,    32,     8, nullptr, "Cached command results, spec 10.4"},
+  {0x0101, "frag_reassembly_timeout_ms", Owner::Node, Access::ReadWrite, PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
+  {0x0102, "cad_retries",                Owner::Node, Access::ReadWrite, PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
+  {0x0103, "backoff_max_ms",             Owner::Node, Access::ReadWrite, PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
+
+  // D56 - the PHY, spec 12.1's table. Every node holds a copy and so does the bridge,
+  // because one SX1262 listens on one configuration: a change is a fleet operation.
+  // READ_ONLY until BF-33 builds spec 12.4's commit-and-revert, so HA can read the
+  // working point before it can change it. The defaults are D1's.
+  {0x0110, "freq_hz",                 Owner::Node, Access::ReadOnly, PType::U32, 902000000, 928000000, 917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
+  {0x0111, "spreading_factor",        Owner::Node, Access::ReadOnly, PType::U8,     7,    12,     9, nullptr, "SF, spec 12.1 - fleet-wide"},
+  {0x0112, "bandwidth_khz",           Owner::Node, Access::ReadOnly, PType::U16,  125,   500,   125, "kHz", "BW - 125 until an envelope decision, spec 18.2"},
+  {0x0113, "coding_rate_denominator", Owner::Node, Access::ReadOnly, PType::U8,     5,     8,     5, nullptr, "CR 4/N, spec 12.1"},
+  {0x0114, "tx_power_dbm",            Owner::Node, Access::ReadOnly, PType::I16,   -9,    -4,    -4, "dBm", "Conducted; the maximum IS D33's ceiling, spec 18.2"},
+  {0x0115, "phy_trial_s",             Owner::Node, Access::ReadOnly, PType::U16,   30,   900,   120, "s",  "Revert window after a PHY change, spec 12.4"},
 };
 
 // 0x1000-0x1FFF GateLink and 0x2000-0x2FFF WellLink are declared by their own
@@ -644,6 +660,17 @@ the bridge already has. Most carry a `TODO(BF-23)` or `TODO(BF-26)` marker; the 
 behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. v0.9's sketch
 named `republish_interval_s` and `mppt_write_arm_timeout_s`; they are not here because
 nothing implements them yet. BF-24 and BF-29 add them when they build the behaviour.
+
+**The PHY rows are read-only until BF-33.** D56 brought spec §12.1's parameters into
+runtime configuration under §12.4's commit-and-revert, and declaring them now lets Home
+Assistant read the working point from the first release that carries the table. A `SET`
+answers `READ_ONLY` (spec §8.12) until the trial-and-revert path exists, because a PHY
+change that half-applies strands a node that has no OTA. **`tx_power_dbm`'s maximum is
+D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
+either range is a decision, not a configuration change.
+
+**GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
+milestone, and **W10** says to count its parameters against §7.4's ceilings first.
 
 **Three things in the table are proposals for the operator to review before BF-32 codes
 them**, because each becomes permanent the moment HA sees it:
@@ -772,13 +799,24 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.11** — **§4 declares the PHY parameters** per **D56**: `freq_hz`,
+  `spreading_factor`, `bandwidth_khz`, `coding_rate_denominator`, `tx_power_dbm` and
+  `phy_trial_s`, held per node and by the bridge for its own radio. They are **read-only
+  until BF-33** builds spec §12.4's commit-and-revert, so Home Assistant can read the
+  working point before it can change it, and `ParamDef` gains an `access` field to carry
+  that. `tx_power_dbm`'s maximum is D33's ceiling and `bandwidth_khz` stays at 125 until an
+  envelope decision. GateLink's block is still unwritten, behind **W10**.
+
 - **v0.10** — **§4 rewritten for D44, D46 and D47, and the bridge's parameter list
   inventoried from the firmware.** The table stays hand-written, but nothing is maintained
   by hand against it any more: discovery and `/docs/gatelink-config.md` are derived by
   code. `ParamDef` gains an `owner`. IDs follow spec v0.13's blocks. The bridge's list
   replaces v0.9's sketch with the eleven values the firmware already has, and the node
   list gains `cad_retries` and `backoff_max_ms`. **Names and ranges are proposals** for
-  the operator to review before BF-32 codes them. §6's 2026-08-30 status paragraph, which
+  the operator to review before BF-32 codes them. **The PHY parameters are declared** per
+  **D56** — frequency, SF, BW, CR, TX power and `phy_trial_s`, per node — read-only until
+  **BF-33** builds spec §12.4's commit-and-revert, and `ParamDef` gains an `access` field
+  to say so. §6's 2026-08-30 status paragraph, which
   still read *"P8 is outstanding"* and *"W9 remains"*, is marked superseded, and a blank
   line that split the milestone table before P8 is removed. The binding citation stays at v0.12
   until spec v0.13's sweep.

@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D54** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D56** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -188,6 +188,8 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D52** | What answers `RESTORE_DEFAULTS` | **The full effective configuration, as for `GET_ALL`**, so the bridge can republish `config/state` without a second readback. Simnode BF-6 answers with no results and changes to match | Protocol Spec §7.4, §8.10 |
 | **D53** | What `persist_status` means for a read, and when `NOT_APPLIED` applies | **After a write, what was applied; after a read, whether the current overrides are persisted** (`PERSISTED` when there are none). `NOT_APPLIED` means nothing was applied: an unknown `op`, or a `SET` whose every entry was rejected | Protocol Spec §7.4, §8.11 |
 | **D54** | Whether a dedup hit repeats `REQUEST_STATUS`'s or `REQUEST_CONFIG`'s follow-up frame | **No. A dedup hit repeats the ACK and nothing else**; the bridge recovers a missing follow-up with `POLL` bit 0 or bit 1. What simnode BF-6 already does | Protocol Spec §10.4 |
+| **D55** | What `len` means in a `CONFIG` entry | **The total number of value bytes, and a multiple of the `ptype`'s unit width** (1, 2 or 4). `len / width` is the number of units: 0 for a `GET`, 1 for a scalar, N for an array. **A string is `ptype` = `u8`** with `len` its length. An entry the receiver cannot take — a `len` that is not a multiple, a value too wide to store, an array where the parameter is a scalar — is rejected alone with `TYPE_MISMATCH` (**D51**) and never discards the frame, so a node built before a type existed still reads a set that uses it | Protocol Spec §7.4 (**BF-32**) |
+| **D56** | Whether the LoRa PHY parameters are runtime-configurable | **Yes, under new §12.4's commit-and-revert**, reversing §12.1's *"out of scope for v1"*. Frequency, SF, BW, CR and TX power become `/lib/lran-config/` parameters, held per node; the sync word, header mode and CRC stay contractual. One atomic `CONFIG`, last known-good persisted first, `phy_trial_s` (default 120) from apply, confirmation is a frame **received** on the new settings, and both ends revert on silence. **TX power stays clamped by D33** and BW by the envelope coupling; widening either is a decision, not a configuration change. A node that has not built the path answers `READ_ONLY`. The operator's reasoning, 2026-09-19: *"within reason configurability (aka ability to adapt on the fly) proves more successful in the long run and minimizes recompile changes"* | Protocol Spec §12.1, §12.4, §8.12; Protocol Library Plan §4 (**BF-33**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -557,7 +559,7 @@ against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied o
 
 ---
 
-### 3.6 D43–D54 — runtime configuration from Home Assistant, 2026-09-19
+### 3.6 D43–D56 — runtime configuration from Home Assistant, 2026-09-19
 
 **The operator chose the general route on 2026-09-19 (D43) and accepted all eight
 recommendations of `LRAN-Config-Set-Brief` the same day**, which is superseded. Six became
@@ -587,6 +589,21 @@ already filled locally. Four adopt what the simnode does. D52 does not: the simn
 `RESTORE_DEFAULTS` with no results, which would leave the bridge unable to republish
 `config/state` without a second readback. The read-through also opened **W16**, on when a
 node sends `CONFIG_CHANGE`, and left it to GateLink.
+
+**D55 and D56 came from the operator's reading of the brief**, later the same day, and
+neither adopts an implementation's behaviour the way D45 and D50–D54 do.
+
+- **D55 generalises `len`.** The operator read it as a unit count and asked which it was.
+  Defining it as a byte count that is a multiple of the `ptype`'s width answers both: a
+  scalar is one unit, a string is `u8` bytes, and an array needs no new `ptype`. Nothing on
+  the wire changes, because every value defined today is one unit wide.
+- **D56 reverses a v1 scope decision, and the specification had already named the
+  mechanism.** §12.1 said PHY parameters were not runtime-configurable, *"if this is ever
+  wanted it needs a commit-and-revert scheme — apply, require a confirmation frame within N
+  seconds, otherwise revert."* The operator judged field adaptability worth more than the
+  simplicity of a fixed PHY. The scheme is §12.4, and the parameters are declared
+  `READ_ONLY` until **BF-33** builds it, so Home Assistant can read the working point before
+  it can change it.
 
 **Found in the same pass, and not decisions.** Five passages still described `CONFIG` and
 `CONFIG_ACK` as fragmented after D38. Protocol Spec v0.13 corrects them; the brief's §2
@@ -753,13 +770,15 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 
 ## 6. Changelog
 
-- **v0.13** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D54 resolved: runtime configuration from Home Assistant.** The
+- **v0.13** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of
   `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
   the reasoning. **D50–D54** followed from the v0.13 read-through the same day, filling five
-  gaps in `CONFIG` semantics. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
+  gaps in `CONFIG` semantics. **D55 and D56** followed from the operator's reading: `len`
+  becomes a byte count that is a multiple of the `ptype`'s width, and the PHY parameters
+  become runtime-configurable under §12.4's commit-and-revert. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
   frame layout changes, so `ver` stays `2`. §1's highest issued numbers are corrected to
-  **D54** and **M26**; v0.12 added M25 and M26 without updating them.
+  **D56** and **M26**; v0.12 added M25 and M26 without updating them.
 
 - **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
   operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which
