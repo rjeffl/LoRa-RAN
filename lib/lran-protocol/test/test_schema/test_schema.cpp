@@ -385,6 +385,46 @@ void test_config_signed_values_sign_extend() {
 }
 
 // Caps derive from kMaxSchemaPayload, so they cannot drift out of agreement with it.
+// spec 7.4, D55/D51 - a value wider than this build stores costs THE ENTRY, not the
+// frame. Without this, a node built today drops a whole set the day a wider type or an
+// array parameter is added, instead of answering TYPE_MISMATCH for the one entry.
+void test_an_over_wide_value_is_skipped_and_the_set_still_parses() {
+  // Two entries by hand: param 0x0110 with len 8, then param 0x0102 with a normal u8.
+  const uint8_t payload[] = {
+      static_cast<uint8_t>(ConfigOp::Set), 2,
+      0x10, 0x01, static_cast<uint8_t>(PType::U32), 8,
+      1, 2, 3, 4, 5, 6, 7, 8,
+      0x02, 0x01, static_cast<uint8_t>(PType::U8), 1, 7,
+  };
+  NodeConfigV1 out;
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(payload, sizeof(payload), &out));
+  TEST_ASSERT_EQUAL_UINT8(2, out.count);
+
+  // The wide entry keeps its declared length and carries no value, so a caller cannot
+  // act on a partly read one. It answers TYPE_MISMATCH by its len against its ptype.
+  TEST_ASSERT_EQUAL_HEX16(0x0110, out.entries[0].param_id);
+  TEST_ASSERT_EQUAL_UINT8(8, out.entries[0].len);
+  TEST_ASSERT_EQUAL_UINT32(0, entry_raw(out.entries[0].value, 4));
+
+  // The entry behind it is intact - the point of the whole rule.
+  TEST_ASSERT_EQUAL_HEX16(0x0102, out.entries[1].param_id);
+  TEST_ASSERT_EQUAL_UINT8(1, out.entries[1].len);
+  TEST_ASSERT_EQUAL_UINT32(7, entry_raw(out.entries[1].value, 1));
+}
+
+// This build cannot produce a value it cannot store, so the encoder still refuses.
+void test_an_over_wide_value_cannot_be_encoded() {
+  NodeConfigV1 cfg;
+  cfg.op    = ConfigOp::Set;
+  cfg.count = 1;
+  cfg.entries[0].param_id = 0x0110;
+  cfg.entries[0].ptype    = PType::U32;
+  cfg.entries[0].len      = 8;
+  uint8_t buf[kMaxSchemaPayload];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::BadLength, serialize(cfg, buf, sizeof(buf), &n));
+}
+
 void test_config_entry_caps_are_derived() {
   TEST_ASSERT_EQUAL_UINT32(38, kMaxConfigEntries);
   TEST_ASSERT_EQUAL_UINT32(32, kMaxConfigAckEntries);
@@ -413,6 +453,8 @@ int run_all() {
   RUN_TEST(test_config_entry_offsets);
   RUN_TEST(test_config_ack_entry_offsets);
   RUN_TEST(test_config_signed_values_sign_extend);
+  RUN_TEST(test_an_over_wide_value_is_skipped_and_the_set_still_parses);
+  RUN_TEST(test_an_over_wide_value_cannot_be_encoded);
   RUN_TEST(test_config_entry_caps_are_derived);
   RUN_TEST(test_schema_serialize_rejects_small_buffer);
   return UNITY_END();

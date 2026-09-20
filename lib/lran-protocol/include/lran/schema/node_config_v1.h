@@ -19,7 +19,11 @@
 namespace lran {
 namespace schema {
 
-// spec 7.4 - the widest ptype is u32/i32, so four value bytes covers every entry.
+// spec 7.4, D55 - `len` is the total value bytes and a multiple of the ptype's unit
+// width, so `len / width` units travel. Every parameter defined today is one unit, and
+// four bytes covers the widest (u32/i32). A longer value - an array, or a string as u8
+// bytes - is READ past and answered TYPE_MISMATCH per entry rather than discarding the
+// frame (D51). Raising this cap is what a string parameter costs, when one exists.
 inline constexpr size_t kMaxParamValueLen = 4;
 
 // Entry sizes on the wire: a CONFIG entry is 4 + len, a CONFIG_ACK result is 5 + len.
@@ -39,7 +43,7 @@ inline constexpr size_t kMaxConfigAckEntries =
 struct ConfigEntry {
   uint16_t param_id = 0;
   PType    ptype    = PType::U8;
-  uint8_t  len      = 0;  // value length in bytes, <= kMaxParamValueLen
+  uint8_t  len      = 0;  // total value bytes (D55); this build stores <= kMaxParamValueLen
   uint8_t  value[kMaxParamValueLen] = {0, 0, 0, 0};  // little-endian
 };
 
