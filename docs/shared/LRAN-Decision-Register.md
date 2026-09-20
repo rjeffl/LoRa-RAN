@@ -623,7 +623,9 @@ the sequence because it asks the requester to know nothing about how many parame
 lists them.
 
 **Two GateLink documents disagree with D56 and with Library Plan §4**, found while counting
-for W10 and not fixed here:
+for W10 and not fixed here. They are tracked in
+[`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md) and fixed at the GateLink
+milestone, with whatever else its implementation surfaces (operator, 2026-09-20):
 
 - **GateLink PRD §5.3.1 still lists the LoRa PHY parameters as not runtime-configurable**,
   with the reasoning *"changing these from HA means changing the link you are changing them

@@ -696,7 +696,8 @@ VE.Direct staleness, `mppt_write_arm_timeout_s` and `republish_interval_s`.
 *every* interval, window, threshold and debounce to be configurable. Spec §7.4.1 is what a
 node does when the margin runs out: several `CONFIG_ACK` messages, marked `MORE_FOLLOWS`.
 
-**Two findings from the count belong to GateLink's documents, not to this one.** GateLink
+**Two findings from the count belong to GateLink's documents, not to this one**, and are
+tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
 PRD §5.3.1 still lists the PHY parameters as not runtime-configurable, which **D56**
 reversed, and those six rows are the whole margin above. The PRD also calls the transmit
 power `tx_conducted_dbm` where this table calls it `tx_power_dbm`, and this table's name
