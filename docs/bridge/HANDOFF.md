@@ -129,27 +129,30 @@ git log --oneline -1 origin/main -- tools/checks/ha_examples.py   # empty: not o
 
 **Runtime configuration from Home Assistant is decided: D43–D56, accepted 2026-09-19.** The
 operator chose the general `config/set` route with `/lib/lran-config/` behind it, accepted every
-recommendation of `LRAN-Config-Set-Brief` — which is committed on `spec-v0.13`, not here, so
-it is named rather than linked — and of the v0.13
+recommendation of [`LRAN-Config-Set-Brief`](../shared/LRAN-Config-Set-Brief.md) and of the v0.13
 read-through, and then decided two more: **D55**, `len` is a byte count and a multiple of the
 `ptype`'s width, so an entry can carry an array and a string is `u8` bytes; and **D56**, the PHY
 parameters become runtime-configurable under new spec §12.4's commit-and-revert. Decision
-Register §3.6 is the record. The work sits on three branches that do not touch this file:
+Register §3.6 is the record, and **D57** joins it. **The documents are on `main`**: §16.7's
+`config/*` payloads, §12.4's PHY scheme, §7.4's `len` rule and §7.4.1's `MORE_FOLLOWS`, the
+register entries, Library Plan §4's parameter table, **BF-32** and **BF-33** in the tasks, and
+corrections to five passages v0.12 left stale. *Git state* below confirms it.
 
-- **`spec-v0.13`** carries the Protocol Spec v0.13 draft: §16.7's `config/*` payloads, §12.4's
-  PHY scheme, §7.4's `len` rule, the register entries, Library Plan §4's parameter table,
-  **BF-32** and **BF-33** in the tasks, and corrections to five passages v0.12 left stale.
-  **The spec header stays at v0.12** until the citation sweep, which the operator wants run
-  once, at the end of this pass.
-- **`b4-lran-config`**, stacked on it, carries the code that conforms: the `NodeConfigV1`
-  rename, the simnode's D52/D53 behaviour, and the codec skipping an over-wide value rather
-  than dropping the frame. **BF-32's library half is in** — `/lib/lran-config/`'s table and
-  store, host-tested in `native`, plus `MORE_FOLLOWS` on `CONFIG_ACK` (**D57**, spec §7.4.1).
-  The bridge half is step 2 above.
-- **`docs/prose-review-policy`** changes root `CLAUDE.md`: a whole-document prose review now
-  happens **when the operator asks**, not because a document was opened. New prose still meets
-  the skill, and stale facts are still raised whenever seen. It is small, independent and ready
-  to merge.
+**The spec header is pinned at v0.12 and says so.** §20's top entry is a **v0.13 draft** and
+its sections are authoritative, but the header and all **31 binding citations** still read
+v0.12, because each citing document has to be *reconciled* before its number moves.
+`spec_citation_version.py` is green at v0.12 and lists the sites. **The sweep runs once, when
+the configuration pass is finished** — the operator's rule — and BF-32's bridge half is still
+open. The specification's own header block explains this; do not cite "v0.13" from another
+document meanwhile.
+
+**One branch is still open on this work:**
+
+- **`b4-lran-config`** carries the code that conforms: the `NodeConfigV1` rename, the
+  simnode's D52/D53 behaviour, and the codec skipping an over-wide value rather than dropping
+  the frame. **BF-32's library half is in** — `/lib/lran-config/`'s table and store,
+  host-tested in `native`, plus `MORE_FOLLOWS` on `CONFIG_ACK` (**D57**, spec §7.4.1). The
+  bridge half is step 2 above.
 
 **BF-32 is unblocked.** The operator accepted Library Plan §4's names and ranges on 2026-09-19.
 Start with the library half, host-tested in `native`, then the bridge's table, NVS persistence,
@@ -164,7 +167,8 @@ the `config/set` subscriber, the bridge and node halves of a set, and the `confi
    until an envelope decision. All six PHY rows are `READ_ONLY` until **BF-33** builds §12.4.
 2. **Whether BF-33 belongs in B4** or in a milestone of its own. It consumes BF-32's table, but
    it is radio work with its own bench cost.
-3. **When to run the citation sweep.** The operator's rule: once, when the spec edits for this
+3. **When to run the citation sweep**, now the only thing holding the spec header at v0.12.
+   The operator's rule: once, when the spec edits for this
    pass are done. `spec_citation_version.py` passes at v0.12 meanwhile.
 
 **Also still owed**: the whole-document style passes. The fact reviews are done, and they
@@ -353,7 +357,7 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. It no longer gates D1 or D33; what still needs it is §5.4's attribution of the 915.8–916.4 MHz cluster. **The 917.6 MHz −46 dBm source** — unidentified, and no capture is planned. **The 2026-09-20T13:25:22Z wideband event** — unidentified. **`periodicity()`'s verdict on a long capture** — a known defect, left unfixed by operator direction. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32**, which the other two wait on. **Spec v0.13**: drafted through D56, citation sweep and style passes owed. **BF-33** is new and unstarted. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Not done | **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. It no longer gates D1 or D33; what still needs it is §5.4's attribution of the 915.8–916.4 MHz cluster. **The 917.6 MHz −46 dBm source** — unidentified, and no capture is planned. **The 2026-09-20T13:25:22Z wideband event** — unidentified. **`periodicity()`'s verdict on a long capture** — a known defect, left unfixed by operator direction. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32**, which the other two wait on. **Spec v0.13**: drafted through **D57** and on `main`, with the header pinned at v0.12; the citation sweep across 31 sites and the style passes are owed. **BF-33** is new and unstarted. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
 | Queue | Reflash the three bench boards from their own projects, then BF-32's bridge half, then the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it. **No measurement is queued**: D1 is closed at 917.4 MHz, M25 is done and day 2 is not needed |
 
 ```bash
