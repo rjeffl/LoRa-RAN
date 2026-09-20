@@ -41,6 +41,20 @@ runs several receivers side by side, one per candidate frequency, over the same 
 - **Two receivers do not read the same.** The Heltec and the XIAO + Wio Kit differ in front
   end, RF switch and antenna, and two boards of one kind can differ too. Brief §5 puts every
   receiver on one frequency first to measure the offset between them.
+- **`rssi_report.py` calls a periodic source "not periodic" once a capture runs long enough,
+  and the verdict is wrong rather than the source.** Day 1's 24-hour capture reported the
+  property's Davis station as "not periodic (509 events)" in the −70 to −60 dBm band, where
+  the same events fit a 130.6882 s clock to a **median residual of 0.54 s** over 660
+  occurrences. Two defects in `periodicity()` in `tools/simctl/rssi_analyze.py` combine, and
+  both grow with capture length: a gap shorter than half the guessed period is charged a whole
+  period, so a foreign event in the band invents an occurrence; and the verdict gates on the
+  **maximum** residual, so one foreign event flips a clean clock. Neither shows over one hour.
+  **Read a long capture's periodicity by seeding a fit with a known period and reading the
+  residuals** rather than trusting the printed verdict.
+  [`LRAN-D1-Parallel-Capture-Analysis`](../../docs/shared/LRAN-D1-Parallel-Capture-Analysis.md)
+  has the figures and the mechanism. **Unfixed on 2026-09-20** by operator direction, since no
+  capture is planned; fix it before the next run, because the verdict is what this repository
+  cites when it attributes an occupant.
 - **The XIAO has not run a long capture yet.** Its native USB drops output written before the
   host opens the port, so `setup()` waits up to 5 s for a host before printing the header.
   **`rssi_capture.py --reset-on-open` was built for the Heltec's CP2102 and is untested on

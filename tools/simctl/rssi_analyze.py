@@ -376,6 +376,26 @@ def periodicity(buckets, min_events=5, min_period_ms=5000, tolerance_ms=2000):
     THE VERDICT needs both: no event further than tolerance_ms from the fitted line, and
     at least half the gaps exactly one period long. A handful of events that happen to fit
     a line with most gaps at several periods is not evidence of a clock.
+
+    KNOWN DEFECT, AND THE VERDICT IS NOT TO BE TRUSTED ON A LONG CAPTURE. On day 1's
+    24-hour parallel capture this returned periodic=False for the property's Davis station,
+    whose 509 events fit a 130.6882 s clock to a MEDIAN RESIDUAL OF 0.54 s over 660
+    occurrences. Two defects combine, and both grow with capture length:
+
+      1. A gap shorter than half guess_ms rounds to 0 and is raised to 1 below, so a
+         foreign event between two real occurrences is charged a whole period. Over that
+         run it inflated the occurrence count from 660 to 687 and pulled the fitted period
+         from 130.69 s to 125.59 s.
+      2. The verdict gates on max_resid, with no allowance for an outlier, so one foreign
+         event in the band flips a clean clock. Here max_resid was 660.7 s.
+
+    Neither shows over one hour, because foreign events in a narrow band are rare enough
+    not to appear. UNFIXED on 2026-09-20 by operator direction: no capture is planned, and
+    the firmware that produces these files is parked. Fix it before the next long capture -
+    this verdict is what the documents cite when they attribute an occupant, D33 standing
+    condition 3's Davis included. Until then, seed a fit with a known period and read the
+    residuals directly. firmware/chan-capture/CLAUDE.md carries the same warning, and
+    docs/shared/LRAN-D1-Parallel-Capture-Analysis.md has the figures.
     """
     ev = events(buckets)
     if len(ev) < min_events:

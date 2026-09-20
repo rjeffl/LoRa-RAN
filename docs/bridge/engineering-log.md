@@ -1590,3 +1590,90 @@ from 17:57 UTC.
 **Day 1's files** keep the names the previous entry gave them. Both boards were checked by MAC
 and frequency before the start: the bridge board `35c8471` on 917.4 MHz, the simnode Heltec
 `6bf9a38` on 917.2 MHz. Both 24-hour captures end at about 17:57 UTC on 2026-09-20.
+
+---
+
+## 2026-09-20 — day 1 is in: 917.2 MHz is busier in all 24 hours, and the Davis holds its clock
+
+**Both 24-hour captures ran to completion and closed clean.** Opened 2026-09-19T17:56:58Z,
+closed 2026-09-20T17:56:58Z, 23.99 h over 86,350 buckets, **8,634,999 samples each with one
+skipped sample each**, 1440 `CHANSUM` minutes each and no gap. The bridge board ran
+`chan-capture` `35c8471` on 917.4 MHz and the simnode Heltec `6bf9a38` on 917.2 MHz, both
+confirmed from the files' `CHAN-BOOT` lines. Nothing moved, nothing transmitted and the
+external monitor stayed off for the whole run.
+
+| File | Board | Frequency |
+|---|---|---|
+| `d1-par-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz |
+| `d1-par-917200-handheld-office-2026-09-19.log` | simnode Heltec | 917.2 MHz |
+
+### The result
+
+| | 917.4 MHz | 917.2 MHz |
+|---|---|---|
+| Occupancy above −110 dBm | **0.2095 %** | **0.3050 %** |
+| Median floor | −115.9 dBm | −116.0 dBm |
+| Strongest sample | −42.0 dBm | −39.0 dBm |
+| −90 to −80 dBm buckets | **68** | **713** |
+| −70 to −60 dBm buckets | **510** | 33 |
+
+**917.2 MHz carried more occupancy in 24 of 24 full hours**, by 1.06 to 2.64 times, mean 1.45.
+No hour ran the other way. Hour-by-hour occupancy on the two channels correlates at
+**r = 0.978**, so the property's own activity moves both receivers together and the 917.2 MHz
+excess sits on top of that common signal. This is what the parallel run was for.
+
+**Brief §5.3 test 1 fails for 917.2 MHz** on its occupancy and episodic-source conditions.
+
+**The gain bias does not explain the −90 to −80 dBm band.** If that source reached 917.4 MHz
+8 dB down it would land in the −100 to −90 dBm band, which instead tracks across the two files
+at 838 buckets against 1043 — a difference of 205, nowhere near the 713 it would have to
+absorb. The −110 to −100 dBm row is weighed lightly as before: the simnode Heltec's floor sits
+0.1 dB lower and more excursions clear the fixed threshold.
+
+### The Davis, confirmed over a full day
+
+**The 917.4 MHz −70 to −60 dBm band fits 130.6882 s with a median residual of 0.54 s**, across
+660 occurrences, with 92 % of the 509 caught events within 2 s of the grid and a catch rate of
+0.77. The band holds 16 to 25 buckets an hour, every hour. The 2026-09-18 figure of 130.69 s
+holds, now over 24 hours rather than one.
+
+### The 917.2 MHz source is not the Davis and is not an evening source
+
+**It runs in all 24 hours**, 15 to 51 buckets an hour, heaviest at 04 and 12–13 UTC. The
+2026-09-18 entry read it as an evening source because that capture ran 17:57 to 23:49 UTC. It
+is continuous, which is worse than the brief assumed when it weighed this source against the
+Davis's 6.7 ms every 130.69 s.
+
+**Its gaps cluster at 130 s often enough to suggest the Davis at a reduced level, and it is
+not.** Two tests rejected that: only 22 of its 577 events, 3.8 %, fall within ±2 s of a
+917.4 MHz Davis event, against 4.0 % with the times shifted by 65 s as a control; and only 13
+of 577, 2 %, land within 2 s of a 130.69 s grid. It stays unidentified.
+
+### One wideband event, on both channels
+
+**At 13:25:22Z both boards recorded their strongest excursion of the day in the same second** —
+−42.0 dBm at 917.4 MHz and −39.0 dBm at 917.2 MHz, one bucket wide, 4 and 9 samples above
+threshold, and the only −60 dBm-and-up bucket in either file. At least 200 kHz wide, keyed once
+in 24 hours, unidentified. It reads on both channels, so it does not separate them.
+
+### `rssi_report.py` called the Davis "not periodic", and the tool is wrong
+
+**The printed verdict for the −70 dBm band was "not periodic (509 events)"**, on the same
+events that fit a clock to half a second. Two defects in `periodicity()` combine and both grow
+with capture length: a gap shorter than half the guessed period is charged a whole period, so a
+foreign event invents an occurrence — 687 against 660 here, dragging the fitted period to
+125.59 s — and the verdict gates on the **maximum** residual, 660.7 s here against a median of
+0.54 s, so one foreign event flips a clean clock. Neither shows over one hour.
+
+**Left unfixed by operator direction**, since no capture is planned and the firmware is parked.
+The figures above were computed by seeding a fit with a known period and reading the residuals
+directly, not from the tool's verdict. `firmware/chan-capture/CLAUDE.md` and the `periodicity()`
+docstring both carry the warning now.
+
+### What this entry does not do
+
+**It records no decision.** The operator's direction on reading this was that **917.4 MHz is the
+target moving forward**, which declines brief §6's move. D1's and D33's status live in the
+Decision Register and are not changed here, and the brief is not yet marked superseded.
+[`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) carries
+the full reading.
