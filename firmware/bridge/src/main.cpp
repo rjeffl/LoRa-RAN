@@ -15,7 +15,7 @@
 
 #include <Arduino.h>
 
-#include "chan_monitor.h"
+#include "lran/link/chan_monitor.h"
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
@@ -101,7 +101,7 @@ void setup() {
   // reboot is visible rather than inferred from a timestamp going backwards.
   {
     char line[160];
-    if (bridge::render_chan_boot(LRAN_BRIDGE_GIT, bridge::kPhy.freq_hz, bridge::kPhy.sf,
+    if (lran::link::render_chan_boot(LRAN_BRIDGE_GIT, bridge::kPhy.freq_hz, bridge::kPhy.sf,
                                  bridge::kPhy.bw_khz10, bridge::kLoraMaxWaitMs, line,
                                  sizeof(line)) > 0) {
       Serial.println(line);
