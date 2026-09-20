@@ -1,0 +1,211 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Robert J. Lee
+
+#include "lran/config/store.h"
+
+namespace lran {
+namespace config {
+namespace {
+
+// spec 7.4 - the wire carries `len` bytes little-endian. The codec's entry_pack takes the
+// raw bits, so a negative value is converted here rather than there.
+uint32_t raw_bits(Value v, PType t) {
+  switch (ptype_width(t)) {
+    case 1: return static_cast<uint32_t>(v) & 0xFFu;
+    case 2: return static_cast<uint32_t>(v) & 0xFFFFu;
+    default: return static_cast<uint32_t>(v);
+  }
+}
+
+Value clamp(Value v, const ParamDef& d) {
+  if (v < d.min) return d.min;
+  if (v > d.max) return d.max;
+  return v;
+}
+
+}  // namespace
+
+bool Table::add_block(const ParamDef* rows, size_t n) {
+  if (rows == nullptr || n == 0) return false;
+  if (nblocks_ >= kMaxBlocks) return false;
+  if (total_ + n > kMaxTableParams) return false;
+  // Ascending across blocks as well as inside one, so a readback walk needs no sort
+  // (spec 7.4.1). A block added out of order is a build-time mistake, and returning
+  // false here is how it surfaces instead of producing a shuffled answer.
+  if (nblocks_ > 0) {
+    const ParamDef* prev = blocks_[nblocks_ - 1];
+    if (!(prev[counts_[nblocks_ - 1] - 1].id < rows[0].id)) return false;
+  }
+  blocks_[nblocks_] = rows;
+  counts_[nblocks_] = n;
+  ++nblocks_;
+  total_ += n;
+  return true;
+}
+
+const ParamDef* Table::at(size_t i) const {
+  for (size_t b = 0; b < nblocks_; ++b) {
+    if (i < counts_[b]) return &blocks_[b][i];
+    i -= counts_[b];
+  }
+  return nullptr;
+}
+
+const ParamDef* Table::find(uint16_t id) const {
+  for (size_t b = 0; b < nblocks_; ++b) {
+    for (size_t i = 0; i < counts_[b]; ++i) {
+      if (blocks_[b][i].id == id) return &blocks_[b][i];
+    }
+  }
+  return nullptr;
+}
+
+Store::Override* Store::slot(uint16_t id) {
+  for (size_t i = 0; i < noverrides_; ++i) {
+    if (overrides_[i].id == id) return &overrides_[i];
+  }
+  return nullptr;
+}
+
+const Store::Override* Store::slot(uint16_t id) const {
+  for (size_t i = 0; i < noverrides_; ++i) {
+    if (overrides_[i].id == id) return &overrides_[i];
+  }
+  return nullptr;
+}
+
+Value Store::effective(uint16_t id) const {
+  const ParamDef* d = find(id);
+  if (d == nullptr) return 0;
+  const Override* o = slot(id);
+  return (o != nullptr && o->set) ? o->value : d->def;
+}
+
+bool Store::is_override(uint16_t id) const {
+  const Override* o = slot(id);
+  return o != nullptr && o->set;
+}
+
+schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied,
+                                    bool* persisted) {
+  if (applied != nullptr) *applied = false;
+  if (persisted != nullptr) *persisted = true;
+
+  schema::ConfigAckEntry out;
+  const ParamDef*        d = find(in.param_id);
+
+  // spec 7.4 - an unknown key is rejected on its own with a reason, and the rest of the
+  // set still applies. It has no effective value, so the result carries none.
+  if (d == nullptr) {
+    out.param_id = in.param_id;
+    out.status   = ParamStatus::UnknownParam;
+    out.ptype    = in.ptype;
+    out.len      = 0;
+    return out;
+  }
+
+  // D51 - a ptype that differs from the one the node holds, or a `len` that is not one
+  // unit of it, costs the entry and not the frame. D55 makes `len` a byte count that is a
+  // multiple of the width, so anything but exactly one unit is an array where this
+  // parameter is a scalar. The result carries the value the node holds.
+  const size_t width = ptype_width(d->type);
+  if (in.ptype != d->type || in.len != width) {
+    schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
+                       raw_bits(effective(in.param_id), d->type));
+    return out;
+  }
+
+  // D56 - a row the firmware publishes but cannot yet apply answers READ_ONLY, carrying
+  // the value it does hold. A readable value that refuses a write is honest; a write that
+  // half-applies is not.
+  if (d->access == Access::ReadOnly) {
+    schema::entry_pack(&out, in.param_id, ParamStatus::ReadOnly, d->type,
+                       raw_bits(effective(in.param_id), d->type));
+    return out;
+  }
+
+  const Value requested = schema::entry_signed(in.value, in.len, in.ptype);
+  const Value eff       = clamp(requested, *d);
+
+  Override* o = slot(in.param_id);
+  if (o == nullptr) {
+    if (noverrides_ >= kMaxTableParams) {
+      // Unreachable while the table itself is capped at kMaxTableParams, and a silent
+      // wrong answer if it ever stops being true.
+      schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
+                         raw_bits(effective(in.param_id), d->type));
+      return out;
+    }
+    o = &overrides_[noverrides_++];
+    o->id = in.param_id;
+  }
+  o->value = eff;
+  o->set   = true;
+
+  if (applied != nullptr) *applied = true;
+  const bool saved = (persist_ != nullptr) && persist_->usable() &&
+                     persist_->save(in.param_id, eff);
+  if (persisted != nullptr) *persisted = saved;
+
+  // spec 7.4 - the ACK carries the effective value, and a clamp is reported rather than
+  // applied quietly.
+  schema::entry_pack(&out, in.param_id,
+                     eff == requested ? ParamStatus::Ok : ParamStatus::Clamped, d->type,
+                     raw_bits(eff, d->type));
+  return out;
+}
+
+bool Store::restore_defaults() {
+  noverrides_ = 0;
+  for (size_t i = 0; i < kMaxTableParams; ++i) overrides_[i] = Override{};
+  if (persist_ == nullptr || !persist_->usable()) return false;
+  return persist_->clear_all();
+}
+
+PersistStatus Store::read_persist_status() const {
+  // D53 - after a read, this reports whether the node's current overrides are persisted,
+  // and reads PERSISTED when there are none.
+  if (noverrides_ == 0) return PersistStatus::Persisted;
+  if (persist_ == nullptr || !persist_->usable()) {
+    return PersistStatus::AppliedNotPersisted;
+  }
+  return PersistStatus::Persisted;
+}
+
+bool Store::next_readback_message(ReadbackCursor* cursor, ConfigOp op,
+                                  schema::NodeConfigAckV1* out) const {
+  if (cursor == nullptr || out == nullptr) return false;
+  if (cursor->next >= table_.size()) return false;
+  if (cursor->messages >= schema::kMaxConfigAckMessages) return false;
+
+  *out                = schema::NodeConfigAckV1{};
+  out->op             = op;
+  out->persist_status = read_persist_status();
+
+  size_t used = schema::kConfigAckHdrLen;
+  while (cursor->next < table_.size()) {
+    const ParamDef* d = table_.at(cursor->next);
+    if (d == nullptr) break;
+    const size_t cost = result_bytes(d->type);
+    if (used + cost > kMaxSchemaPayload) break;
+    if (out->count >= schema::kMaxConfigAckEntries) break;
+    schema::entry_pack(&out->entries[out->count], d->id, ParamStatus::Ok, d->type,
+                       raw_bits(effective(d->id), d->type));
+    ++out->count;
+    used += cost;
+    ++cursor->next;
+  }
+  ++cursor->messages;
+
+  // spec 7.4.1 - mark every message but the last. The bound is the node's own promise:
+  // an answer it cannot finish inside kMaxConfigAckMessages ends unmarked rather than
+  // marked and abandoned, because a bridge holding a marked last message waits out
+  // config_readback_timeout_ms for a message that is never coming.
+  const bool more = cursor->next < table_.size() &&
+                    cursor->messages < schema::kMaxConfigAckMessages;
+  out->more_follows = more;
+  return out->count > 0;
+}
+
+}  // namespace config
+}  // namespace lran

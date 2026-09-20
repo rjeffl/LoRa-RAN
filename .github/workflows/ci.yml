@@ -182,6 +182,12 @@ jobs:
       - name: Fault-injection library
         run: pio test -d lib/lran-sim -e native
 
+      # BF-32's library half. The parameter table every other copy is derived from
+      # (D44), and the policy a CONFIG set runs through. Arduino-free, so the SET rules
+      # of spec 7.4 and the split readback of 7.4.1 are tested without a board.
+      - name: Configuration library
+        run: pio test -d lib/lran-config -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 
