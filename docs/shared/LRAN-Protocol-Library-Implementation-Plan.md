@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.11
+**Version:** 0.12
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -619,6 +619,7 @@ inline constexpr ParamDef kBridgeParams[] = {
   {0x0008, "backoff_max_ms",             Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
   {0x0009, "frag_reassembly_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
   {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
+  {0x000B, "config_readback_timeout_ms",  Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000, 15000, "ms", "Wait for a split readback to complete, spec 7.4.1 (D57)"},
   {0x0080, "poll_interval_s",            Owner::BridgePerNode, Access::ReadWrite, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
 };
 
@@ -670,7 +671,37 @@ D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision
 either range is a decision, not a configuration change.
 
 **GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
-milestone, and **W10** says to count its parameters against §7.4's ceilings first.
+milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
+
+**What a readback costs, counted against spec §7.4's budget.** A `CONFIG_ACK` has 193
+bytes for results, and a result entry is `5 + len`. Every node carries the node-common and
+PHY blocks, so a node's readback is those plus its own block:
+
+| Block | Rows | Bytes |
+|---|---|---|
+| Node-common, `0x0100`–`0x0103` | 4 | 26 |
+| PHY, `0x0110`–`0x0115` | 6 | 42 |
+| GateLink, named in its PRD and Implementation Plan today | 15 | 103 |
+| **A GateLink readback, as the documents stand** | **25** | **171 of 193** |
+| The rows GateLink PRD R-5.3a and R-5.4 imply but do not name | 31 | 211 of 193 |
+
+The 15 named are `relay_pulse_ms`, `post_wake_settle_ms`, `command_confirm_timeout_s`,
+`hold_confirm_ms`, `input_poll_ms`, `input_debounce_samples`, `detect_sequence_window_ms`,
+`detect_sequence_idle_ms`, `held_open_alert_repeat_s`, `hex_timeout_ms`, `bms_poll_s`,
+`charge_inhibit_confirm_s`, `display_timeout_s`, `unlock_settle_ms` and `cause_window_ms`.
+The unnamed six are the dry-run switch (R-5.4a), the buzzer, injection spacing (R-5.4b),
+VE.Direct staleness, `mppt_write_arm_timeout_s` and `republish_interval_s`.
+
+**GateLink fits one frame today, with three `uint16` rows to spare**, and R-5.3a requires
+*every* interval, window, threshold and debounce to be configurable. Spec §7.4.1 is what a
+node does when the margin runs out: several `CONFIG_ACK` messages, marked `MORE_FOLLOWS`.
+
+**Two findings from the count belong to GateLink's documents, not to this one**, and are
+tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
+PRD §5.3.1 still lists the PHY parameters as not runtime-configurable, which **D56**
+reversed, and those six rows are the whole margin above. The PRD also calls the transmit
+power `tx_conducted_dbm` where this table calls it `tx_power_dbm`, and this table's name
+becomes a permanent Home Assistant `object_id`.
 
 **Three things in the table are proposals for the operator to review before BF-32 codes
 them**, because each becomes permanent the moment HA sees it:
@@ -799,13 +830,23 @@ is RF or software.
 
 ## 8. Changelog
 
+- **v0.12** — **§4 counts a readback against spec §7.4's budget, which closes W10**
+  (**D57**). A `CONFIG_ACK` has 193 bytes for results; GateLink's 25 named rows take 171 of
+  them, and the rows its PRD implies but does not name take it to 211. §4 carries the table
+  and names all of them. **`config_readback_timeout_ms` is added** at `0x000B`, the bridge's
+  wait for an answer split across several `CONFIG_ACK` messages (spec §7.4.1). Two findings
+  are recorded against GateLink's own documents rather than fixed here: PRD §5.3.1 still
+  lists the PHY as not runtime-configurable after D56 reversed that, and it calls the
+  transmit power `tx_conducted_dbm` where §4 calls it `tx_power_dbm`.
+
 - **v0.11** — **§4 declares the PHY parameters** per **D56**: `freq_hz`,
   `spreading_factor`, `bandwidth_khz`, `coding_rate_denominator`, `tx_power_dbm` and
   `phy_trial_s`, held per node and by the bridge for its own radio. They are **read-only
   until BF-33** builds spec §12.4's commit-and-revert, so Home Assistant can read the
   working point before it can change it, and `ParamDef` gains an `access` field to carry
   that. `tx_power_dbm`'s maximum is D33's ceiling and `bandwidth_khz` stays at 125 until an
-  envelope decision. GateLink's block is still unwritten, behind **W10**.
+  envelope decision. GateLink's block is still unwritten; **W10 is closed by D57**, and §4
+  carries the count that closed it.
 
 - **v0.10** — **§4 rewritten for D44, D46 and D47, and the bridge's parameter list
   inventoried from the firmware.** The table stays hand-written, but nothing is maintained

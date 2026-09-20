@@ -4,7 +4,7 @@
 **Version:** 0.13
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-20
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D56** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D57** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -190,6 +190,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D54** | Whether a dedup hit repeats `REQUEST_STATUS`'s or `REQUEST_CONFIG`'s follow-up frame | **No. A dedup hit repeats the ACK and nothing else**; the bridge recovers a missing follow-up with `POLL` bit 0 or bit 1. What simnode BF-6 already does | Protocol Spec §10.4 |
 | **D55** | What `len` means in a `CONFIG` entry | **The total number of value bytes, and a multiple of the `ptype`'s unit width** (1, 2 or 4). `len / width` is the number of units: 0 for a `GET`, 1 for a scalar, N for an array. **A string is `ptype` = `u8`** with `len` its length. An entry the receiver cannot take — a `len` that is not a multiple, a value too wide to store, an array where the parameter is a scalar — is rejected alone with `TYPE_MISMATCH` (**D51**) and never discards the frame, so a node built before a type existed still reads a set that uses it | Protocol Spec §7.4 (**BF-32**) |
 | **D56** | Whether the LoRa PHY parameters are runtime-configurable | **Yes, under new §12.4's commit-and-revert**, reversing §12.1's *"out of scope for v1"*. Frequency, SF, BW, CR and TX power become `/lib/lran-config/` parameters, held per node; the sync word, header mode and CRC stay contractual. One atomic `CONFIG`, last known-good persisted first, `phy_trial_s` (default 120) from apply, confirmation is a frame **received** on the new settings, and both ends revert on silence. **TX power stays clamped by D33** and BW by the envelope coupling; widening either is a decision, not a configuration change. A node that has not built the path answers `READ_ONLY`. The operator's reasoning, 2026-09-19: *"within reason configurability (aka ability to adapt on the fly) proves more successful in the long run and minimizes recompile changes"* | Protocol Spec §12.1, §12.4, §8.12; Protocol Library Plan §4 (**BF-33**) |
+| **D57** | How a node answers a `GET_ALL` too large for one frame | **Several `CONFIG_ACK` messages, every one but the last marked `MORE_FOLLOWS`** — bit 7 of `count`, whose top two bits are unreachable because 193 bytes of payload hold at most 32 results. Schema `0x12` keeps its layout and offsets. The node walks its table in ascending `param_id` across the answer, repeats `op` and `persist_status` on every message, and sends at most **4** messages. A solicited answer repeats the request's `seq`, so **the bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message with `MORE_FOLLOWS` clear. A repeated `GET_ALL` is answered by walking the table again rather than from the dedup cache, because a read applies nothing. The bridge never publishes `config/state` from an answer that did not complete; it abandons one on `config_readback_timeout_ms` and requests another | Protocol Spec §7.4.1, §11.4, §16.7.4; Protocol Library Plan §4 (**BF-32**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -559,7 +560,7 @@ against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied o
 
 ---
 
-### 3.6 D43–D56 — runtime configuration from Home Assistant, 2026-09-19
+### 3.6 D43–D57 — runtime configuration from Home Assistant, 2026-09-19 and 2026-09-20
 
 **The operator chose the general route on 2026-09-19 (D43) and accepted all eight
 recommendations of `LRAN-Config-Set-Brief` the same day**, which is superseded. Six became
@@ -605,9 +606,34 @@ neither adopts an implementation's behaviour the way D45 and D50–D54 do.
   `READ_ONLY` until **BF-33** builds it, so Home Assistant can read the working point before
   it can change it.
 
+**D57 answers W10, on 2026-09-20, and the count is why.** W10 had asked for GateLink's real
+parameters to be counted against §7.4's ceilings before `/lib/lran-config/` was designed. The
+count: **25 named rows at 171 bytes** of the 193 a `CONFIG_ACK` has for results, which fits one
+frame with three `uint16` rows to spare. The rows GateLink PRD R-5.3a and R-5.4 imply but do not
+name — the dry-run switch, the buzzer, injection spacing, VE.Direct staleness,
+`mppt_write_arm_timeout_s`, `republish_interval_s` — take it to 211 bytes. **The operator decided
+on the margin rather than the overflow**: a requirement that every interval, window, threshold and
+debounce be configurable will cross three rows during GateLink's implementation, and enumerating
+the list now does not bound it. Of the three routes considered — a marked sequence, a paged
+`GET_ALL` carrying an offset, and a rule that a node's set must fit one frame — the operator chose
+the sequence because it asks the requester to know nothing about how many parameters exist.
+
 **Found in the same pass, and not decisions.** Five passages still described `CONFIG` and
 `CONFIG_ACK` as fragmented after D38. Protocol Spec v0.13 corrects them; the brief's §2
 lists them.
+
+**Two GateLink documents disagree with D56 and with Library Plan §4**, found while counting
+for W10 and not fixed here. They are tracked in
+[`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md) and fixed at the GateLink
+milestone, with whatever else its implementation surfaces (operator, 2026-09-20):
+
+- **GateLink PRD §5.3.1 still lists the LoRa PHY parameters as not runtime-configurable**,
+  with the reasoning *"changing these from HA means changing the link you are changing them
+  over."* **D56 decided the opposite** and §12.4's commit-and-revert is the answer to that
+  objection. Those six rows are also the whole of the margin the count above found.
+- **`tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names**, the first in
+  the GateLink PRD and the second in Library Plan §4, where it becomes a permanent Home
+  Assistant `object_id`.
 
 ---
 
@@ -777,8 +803,11 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
   gaps in `CONFIG` semantics. **D55 and D56** followed from the operator's reading: `len`
   becomes a byte count that is a multiple of the `ptype`'s width, and the PHY parameters
   become runtime-configurable under §12.4's commit-and-revert. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
-  frame layout changes, so `ver` stays `2`. §1's highest issued numbers are corrected to
-  **D56** and **M26**; v0.12 added M25 and M26 without updating them.
+  frame layout changes, so `ver` stays `2`. **D57 closes W10 on 2026-09-20**: a `GET_ALL`
+  answer too large for one frame becomes several `CONFIG_ACK` messages marked
+  `MORE_FOLLOWS`, and §3.6 carries the count that settled it — GateLink's named parameters
+  reach 171 of 193 bytes, three rows short of the ceiling. §1's highest issued numbers are
+  corrected to **D57** and **M26**; v0.12 added M25 and M26 without updating them.
 
 - **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
   operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which
