@@ -2,14 +2,27 @@
 
 **Document:** `LRAN-D1-Frequency-Change-Brief`
 **Version:** 0.2
-**Status:** **Draft for decision.** Nothing here is decided; the operator decides, and the
-Decision Register records it
+**Status:** **SUPERSEDED 2026-09-20.** The recommendation below was **declined**: D1's
+frequency stays **917.4 MHz**. [`LRAN-Decision-Register`](./LRAN-Decision-Register.md)
+**§3.4.1** is the record. Kept as the dated account of why the question was asked and how it
+was to be answered, and **not edited to agree with the outcome**
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12** (`ver = 2`)
 **Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **the only
 place D1's and D33's status is recorded**
 **Last updated:** 2026-09-19
 
+> **Superseded 2026-09-20, on the measurement this brief specified.** §5's parallel run
+> answered §5.3 test 1 against 917.2 MHz: it carried more occupancy in **24 of 24 hours**,
+> 0.3050 % against 917.4 MHz's 0.2095 %, and the −89 dBm source turned out to run in all 24
+> hours rather than the six the first capture suggested. **The operator accepted 917.4 MHz.**
+> §6's list of what moves is **not executed** — no constant, no boot banner, no test
+> assertion, no specification revision, no board and no citation sweep. **Register §3.4.1 is
+> the record**, and it also restates D33's standing condition 3, which this brief's evidence
+> showed to be false as written. The full reading is in
+> [`LRAN-D1-Parallel-Capture-Analysis`](./LRAN-D1-Parallel-Capture-Analysis.md). Read this
+> document only for how the choice was framed.
+>
 > **This document decides nothing.** It sets out why D1's frequency should be reopened, the
 > candidates, and the one measurement that separates the two best ones. **When the operator
 > decides, the register is the file that changes**, and this brief is then marked superseded

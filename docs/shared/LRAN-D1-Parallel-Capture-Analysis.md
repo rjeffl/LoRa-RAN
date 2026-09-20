@@ -1,9 +1,10 @@
 # LRAN D1 — the parallel capture, 917.4 MHz beside 917.2 MHz
 
 **Document:** `LRAN-D1-Parallel-Capture-Analysis`
-**Version:** 0.1
-**Status:** **Measurement record.** It reads one run and decides nothing; the operator
-decides, and the Decision Register records it
+**Version:** 0.2
+**Status:** **Measurement record.** It reads one run and decides nothing. **The operator
+accepted 917.4 MHz on 2026-09-20 on this reading**, and
+[`LRAN-Decision-Register`](./LRAN-Decision-Register.md) **§3.4.1** is the record
 **Parent document:** [`LRAN-D1-Frequency-Change-Brief`](./LRAN-D1-Frequency-Change-Brief.md) §5
 **Binding protocol:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12** (`ver = 2`)
 **Decision status:** [`LRAN-Decision-Register`](./LRAN-Decision-Register.md) — **the only
@@ -168,11 +169,14 @@ reading the residuals directly**, not by trusting the tool's verdict.
 - **M26 is still open.** The property's Z-Wave and Insteon equipment is named but no link's
   data rate is confirmed, and §3.1's inventory is what D33 standing condition 3 was reasoned
   against.
-- **This document records no decision.** D1's and D33's status live in the Decision Register,
-  and the brief is marked superseded there rather than edited here.
+- **This document records no decision.** D1's and D33's status live in the Decision Register.
+  **§3.4.1 records the operator's acceptance of 917.4 MHz on 2026-09-20**, restates D33's
+  standing condition 3 around characterising occupants rather than finding none, and accepts
+  the Davis under it. The brief is marked superseded there rather than edited.
 
 ## Changelog
 
 | Version | Date | Change |
 |---|---|---|
 | 0.1 | 2026-09-20 | First issue. Reads the 24-hour parallel capture of 2026-09-19 to 2026-09-20 against brief §5.3 |
+| 0.2 | 2026-09-20 | The operator accepted 917.4 MHz. Status and the closing section point at Register §3.4.1; the reading itself is unchanged |
