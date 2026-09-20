@@ -1,10 +1,17 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-20 at about 19:00 UTC, by the session that read day 1 of the D1 brief's §5
-run and built BF-32's library half.** That session committed both 24-hour captures, took the
-reading to the operator, and **recorded the operator's acceptance of 917.4 MHz**. The capture
-exercise is over: no board is holding a serial port, nothing is armed, and no measurement is
-pending. This file replaces the previous one wholesale.
+**Written 2026-09-20 at about 20:30 UTC, by the session that read day 1 of the D1 brief's §5
+run, closed D1, and merged the backlog of open work.** This file replaces the previous one
+wholesale.
+
+**That session merged #80, #81 and #82 and deleted every branch they left behind**, so the
+backlog of open documentation and capture work is gone. **How many branches and PRs are open
+now is not written here** — *Git state* below has the commands, and the answer was one of each
+when this was written.
+
+**What is durable: no measurement is pending or queued.** The capture exercise is over, no
+board holds a serial port, nothing is armed, and D1 no longer waits on anything. That is the
+unusual part of this stopping point and the reason the next job needs no bench time.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -15,7 +22,8 @@ pending. This file replaces the previous one wholesale.
 ## The next job, in one place
 
 **D1 is closed and the next work is B4, which needs no board and no measurement.** *Git
-state* below has the commands that show where every branch stands.
+state* below has the commands that show where every branch stands — run them rather than
+trusting the paragraph above, which was true when it was written.
 
 **First actions, in order:**
 
@@ -342,10 +350,10 @@ all of it, with the numbers.
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next; §6's B3b tasks are all built |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has, what it does not, and its traps |
-| 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9–§12, §14, §16 | keys, context, reassembly, radio, the discard ladder, MQTT. **§18.2, never §18.1 alone** |
-| 9 | [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) | the proposed move to 917.2 MHz, the two captures that decide it (§5), and what moves with it (§6) |
+| 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) §9–§12, §14, §16 | keys, context, reassembly, radio, the discard ladder, MQTT. **§18.2, never §18.1 alone.** For configuration work add **§7.4**, **§7.4.1**, **§8.10**, **§8.11**, **§12.4** and **§16.7**, all new or rewritten in the v0.13 draft. **Read the header block first**: the version is pinned at v0.12 on purpose and the block says why |
+| 9 | [`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) | why 917.4 MHz won, over 24 hours beside 917.2 MHz, and the two sources it leaves unidentified. [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) is **superseded** — read it only for how the question was framed, never for the outcome |
 | 10 | [`LRAN-Site-RF-Inventory`](../shared/LRAN-Site-RF-Inventory.md) | the property's Z-Wave, Insteon, YoLink, Davis and Dakota Alert radios, and what M20 saw at each frequency |
-| 11 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.1** the site's 900 MHz equipment; **§3.4** D33's standing conditions and the note against its own instrument; **§5.4** M20's channel evidence; **M25**, **M26** |
+| 11 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) **v0.14** | **§3.4.1** D1 closed at 917.4 MHz and D33's standing condition 3 **restated** — read this before reasoning about the channel, because §3.1's condition 3 is false as written and left that way as a dated record; **§3.6** D43–D57, the configuration set; **§3.1** the site's 900 MHz equipment; **§5.4** M20's channel evidence; **M25** done, **M26** open |
 | 12 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
 [`briefs/2026-09-17-session-brief.md`](./briefs/2026-09-17-session-brief.md) is optional. It
@@ -356,9 +364,9 @@ is a dated reading of the documents above and adds recommendations, not facts.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. It no longer gates D1 or D33; what still needs it is §5.4's attribution of the 915.8–916.4 MHz cluster. **The 917.6 MHz −46 dBm source** — unidentified, and no capture is planned. **The 2026-09-20T13:25:22Z wideband event** — unidentified. **`periodicity()`'s verdict on a long capture** — a known defect, left unfixed by operator direction. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32**, which the other two wait on. **Spec v0.13**: drafted through **D57** and on `main`, with the header pinned at v0.12; the citation sweep across 31 sites and the style passes are owed. **BF-33** is new and unstarted. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
-| Queue | Reflash the three bench boards from their own projects, then BF-32's bridge half, then the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it. **No measurement is queued**: D1 is closed at 917.4 MHz, M25 is done and day 2 is not needed |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**, **M24**, **M25**. **D1** and **D33** — both **confirmed on 24 hours of measurement on 2026-09-20**, register §3.4.1; **D34 amended**; **D35–D42**; **D43–D57**, register §3.6. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log. BF-23's **discovery** half. `firmware/chan-capture/` and `lib/lran-link`'s `ChanMonitor`. **BF-32's library half**, `/lib/lran-config/`. Spec **v0.13 drafted**, header pinned |
+| Not done | **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. It no longer gates D1 or D33; what still needs it is §5.4's attribution of the 915.8–916.4 MHz cluster. **The 917.6 MHz −46 dBm source** — unidentified, and no capture is planned. **The 2026-09-20T13:25:22Z wideband event** — unidentified. **`periodicity()`'s verdict on a long capture** — a known defect, left unfixed by operator direction. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32's bridge half**, which the other two wait on — its library half is in. **The citation sweep**, 31 sites, which is the only thing holding the spec header at v0.12; the style passes are owed with it. **BF-33** is new and unstarted. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Queue | Reflash the three bench boards from their own projects, then **BF-32's bridge half on `b4-lran-config` (#83)**, then the interleaved sweep, then BF-24. **No measurement is queued**: D1 is closed at 917.4 MHz, M25 is done, and day 2 at 917.6 MHz is not needed. The citation sweep waits for the configuration pass to finish |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -407,12 +415,44 @@ git branch -vv | grep ': gone]'                 # local branches whose remote wa
 **Permanent history is citable; moving state is not.** `4250e00` (six document defects),
 `ebdcf0d` (the `LoRaBridge` retirement and the D33 bench-power reconciliation), `8253085`
 (**P8**, with D34's amendment and spec v0.11), `28ffd82` (the poll-to-answer instrument),
-`65508bf` (the 2026-09-16 catalogue and W9 record) and `76e6d11` (M25's capture).
+`65508bf` (the 2026-09-16 catalogue and W9 record) and `76e6d11` (M25's capture). From
+2026-09-20: `530a137` (day 1's two captures and their reading), `47b8c87` (D1 accepted,
+D33's condition 3 restated, register v0.13), `a6db7a6` (`MORE_FOLLOWS`, D57) and `8fba937`
+(`/lib/lran-config/`).
 
 **Merging a stack: never pass `--delete-branch`.** Deleting a base branch **closes** the PR
 stacked on it rather than retargeting it. Merge each PR without it, retarget the next to
 `main` while it is still open, then delete branches by hand. **This worked as written on
-2026-09-16** for #59 → #60 → #61.
+2026-09-16** for #59 → #60 → #61 and again on **2026-09-20** for #80 → #81 and #82 → #83.
+
+**Retargeting is a separate step, and GitHub will not do it for you.** Merging the base
+without `--delete-branch` leaves the stacked PR still pointing at the merged branch, so
+merging *it* would merge into that branch and not into `main`. On 2026-09-20 #81 still read
+`base=m25-capture-reset` after #80 merged. **Check `gh pr view <n> --json baseRefName` after
+every stack merge** and `gh pr edit <n> --base main` before merging the child.
+
+**Expect the child to conflict once retargeted, and merge `main` in rather than rebasing.**
+A rebase rewrites the commits the *next* PR in the stack is built on. On 2026-09-20 both
+#81 and #83 needed `git merge origin/main`, and both conflicts were the same shape: two
+branches each correct about a different line of one list. `platformio.ini`'s
+`build_src_filter` — one side removed a moved file, the other added a new one — and root
+`CLAUDE.md`'s layout block. **Take both sides and run the suites**; neither was a real
+disagreement.
+
+**Two branches revising one document will collide on its version number, silently.** Both
+`spec-v0.13` and `d1-parallel-capture` independently wrote Decision Register **v0.13**, and
+**git auto-merged the version line, because both sides had typed the same text.** The only
+visible conflict was the changelog. So a document can merge claiming a version another
+revision already published, with no conflict to warn you. **Before revising a shared
+document, read the other branch's copy** — `git show origin/<branch>:<path>` — and take the
+next version. Put the new reasoning in a **`.N` subsection** under the section that closed
+the decision, the §3.2.1 precedent, rather than the next free number: §3.4.1 and §3.6 then
+coexist and nothing renumbers.
+
+**Deleting a remote branch is the operator's command, not the agent's.** `git push origin
+--delete` is refused here as a destructive action, and routing around it with `gh api` is
+not the answer. Do the local half — `git worktree remove`, then `git branch -d` — record the
+tip SHAs, and hand over one `git push origin --delete <names…>` line.
 
 **A push touching `.github/workflows/` needs workflow token scope.** It was refused once, on
 2026-09-08, and accepted since. Try the push; if it is refused, the operator refreshes auth.
