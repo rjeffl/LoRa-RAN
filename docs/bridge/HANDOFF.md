@@ -1,12 +1,13 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-19 at about 18:10 UTC, by the session that ran the D1 brief's §5 run at the
+**Written 2026-09-20 at about 01:20 UTC, by the session that ran the D1 brief's §5 run at the
 bridge's target location and settled runtime configuration from Home Assistant.** That session
 found that the office's external monitor raised both receivers' floors, restarted the run with
-the monitor disconnected, and left day 1 running. The operator also chose the general
-`config/set` route and accepted D43–D54 the same day. Spec v0.13 is drafted on its own branch,
-and the code that conforms to it is on a branch stacked on that one. This file replaces the
-previous one wholesale.
+the monitor disconnected, and left day 1 running with its evening hours read. The operator also
+chose the general `config/set` route and accepted **D43–D56** across the day. Spec v0.13 is
+drafted on its own branch, the code that conforms to it is on a branch stacked on that one, and
+a third branch changes root `CLAUDE.md`'s prose-review rule. This file replaces the previous one
+wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,6 +20,18 @@ previous one wholesale.
 **Commit day 1 after about 17:57 UTC on 2026-09-20, then take D1's frequency to the operator.**
 The D1 work is on branch `d1-parallel-capture`. *Git state* below has the commands that show
 where it and the configuration branches stand.
+
+**First actions, in order:**
+
+1. **Check the run is alive** — `pgrep -fl 'arm_office|rssi_capture'` and the tail of the
+   script log. Two captures, and the arming script exits after both.
+2. **After about 17:57 UTC, read day 1**: `rssi_compare.py` for the two files hour by hour,
+   then `rssi_report.py` on each. Judge the frequencies on **occupancy**, for the reason
+   below.
+3. **Commit day 1** — remove the two lines from `.git/info/exclude`, write the engineering-log
+   entry, and put the reading to the operator with the rule below. D1 and D33 are the
+   operator's to close.
+4. **BF-32 can start at any point**, on `b4-lran-config`; it needs no board and no capture.
 
 | UTC | Event |
 |---|---|
@@ -191,29 +204,44 @@ git fetch origin -p
 git log --oneline -1 origin/main -- tools/checks/ha_examples.py   # empty: not on main yet
 ```
 
-**Runtime configuration from Home Assistant is decided: D43–D54, accepted 2026-09-19.** The
-operator chose the general `config/set` route with `/lib/lran-config/` behind it, and accepted
-every recommendation of [`LRAN-Config-Set-Brief`](../shared/LRAN-Config-Set-Brief.md) and of the
-v0.13 read-through. Decision Register §3.6 is the record. The work sits on two branches that
-do not touch this file:
+**Runtime configuration from Home Assistant is decided: D43–D56, accepted 2026-09-19.** The
+operator chose the general `config/set` route with `/lib/lran-config/` behind it, accepted every
+recommendation of [`LRAN-Config-Set-Brief`](../shared/LRAN-Config-Set-Brief.md) and of the v0.13
+read-through, and then decided two more: **D55**, `len` is a byte count and a multiple of the
+`ptype`'s width, so an entry can carry an array and a string is `u8` bytes; and **D56**, the PHY
+parameters become runtime-configurable under new spec §12.4's commit-and-revert. Decision
+Register §3.6 is the record. The work sits on three branches that do not touch this file:
 
-- **`spec-v0.13`** carries the Protocol Spec v0.13 draft: new §16.7 defines `config/set`,
-  `config/ack` and `config/state`. It also carries the register entries, Library Plan §4's
-  parameter table, **BF-32** in the tasks, and corrections to five passages v0.12 left stale.
-  **The spec header stays at v0.12** until the citation sweep, which the operator deferred until
-  the revision is nearer complete.
-- **`b4-lran-config`**, stacked on it, carries the code that conforms: the `NodeConfigV1` rename
-  and the simnode's D52/D53 behaviour. **BF-32 itself has not started.**
+- **`spec-v0.13`** carries the Protocol Spec v0.13 draft: §16.7's `config/*` payloads, §12.4's
+  PHY scheme, §7.4's `len` rule, the register entries, Library Plan §4's parameter table,
+  **BF-32** and **BF-33** in the tasks, and corrections to five passages v0.12 left stale.
+  **The spec header stays at v0.12** until the citation sweep, which the operator wants run
+  once, at the end of this pass.
+- **`b4-lran-config`**, stacked on it, carries the code that conforms: the `NodeConfigV1`
+  rename, the simnode's D52/D53 behaviour, and the codec skipping an over-wide value rather
+  than dropping the frame. **BF-32 itself has not started.**
+- **`docs/prose-review-policy`** changes root `CLAUDE.md`: a whole-document prose review now
+  happens **when the operator asks**, not because a document was opened. New prose still meets
+  the skill, and stale facts are still raised whenever seen. It is small, independent and ready
+  to merge.
 
-**Three things wait on the operator, and BF-32 waits on the first:**
+**BF-32 is unblocked.** The operator accepted Library Plan §4's names and ranges on 2026-09-19.
+Start with the library half, host-tested in `native`, then the bridge's table, NVS persistence,
+the `config/set` subscriber, the bridge and node halves of a set, and the `config/ack` and
+`config/state` publication.
 
-1. **Library Plan §4's parameter names and ranges.** Each name becomes a permanent HA
-   `object_id`. The defaults are the firmware's; every range is a proposal, not a measurement.
-2. **D51 against the codec.** D51 rejects an entry whose `len` disagrees with its `ptype` as
-   `TYPE_MISMATCH`, and says the frame stays parseable. `node_config_v1.cpp` discards the whole
-   frame when `len` exceeds 4 bytes. Either the codec skips the bytes, or §7.4 makes an over-wide
-   `len` a frame-level `BAD_LENGTH`.
-3. **When to run the citation sweep** that moves the header to v0.13.
+**Three things are open for the operator, and none blocks BF-32:**
+
+1. **The PHY rows' ranges**, which the session chose rather than measured: `spreading_factor`
+   7–12, `bandwidth_khz` 125–500, `tx_power_dbm` −9 to −4, `phy_trial_s` 30–900 s. The defaults
+   are D1's. `tx_power_dbm`'s maximum **is** D33's ceiling, and `bandwidth_khz` stays at 125
+   until an envelope decision. All six PHY rows are `READ_ONLY` until **BF-33** builds §12.4.
+2. **Whether BF-33 belongs in B4** or in a milestone of its own. It consumes BF-32's table, but
+   it is radio work with its own bench cost.
+3. **When to run the citation sweep.** The operator's rule: once, when the spec edits for this
+   pass are done. `spec_citation_version.py` passes at v0.12 meanwhile.
+
+**If D1 moves off 917.4 MHz, `freq_hz`'s default row in Library Plan §4 moves with it.**
 
 **Also still owed**: the whole-document style passes. The fact reviews are done, and they
 corrected stale facts in five documents. The spec's style pass goes on its own branch, as
@@ -401,7 +429,7 @@ is a dated reading of the documents above and adds recommendations, not facts.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**, **M20**, **M21**. **D1**, **D33**; **D34 amended**. **V-B3**, **V-B9**, **V-B10**, **W9**. **BF-2**–**BF-9**, **BF-15**–**BF-22**. BF-27's frame log |
-| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. **D1's frequency** — the 917.2 and 917.6 MHz single captures and the calibration hour are committed; day 1 was stopped at the bench for a move, restarted in the office, restarted again without the external monitor, and runs until about 17:57 UTC on 2026-09-20. The office calibration hour is committed. **The 917.6 MHz −46 dBm source** — unidentified. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32**, which the other two wait on. **Spec v0.13**: drafted, citation sweep and style passes owed. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
+| Not done | **M25** — measured and analysed on 2026-09-18; whether it reopens D33 is the operator's call. **M26** — researched from published sources on 2026-09-18; the Z-Wave hardware is now named (Aeotec Gen5 stick, ZEN17, Trane TCONT624) but no link's data rate is confirmed, and Insteon model numbers are not. **D1's frequency** — the 917.2 and 917.6 MHz single captures and the calibration hour are committed; day 1 was stopped at the bench for a move, restarted in the office, restarted again without the external monitor, and runs until about 17:57 UTC on 2026-09-20. The office calibration hour is committed. **The 917.6 MHz −46 dBm source** — unidentified. **B4**: BF-23's lever half, BF-24, BF-25, BF-26 and **BF-32**, which the other two wait on. **Spec v0.13**: drafted through D56, citation sweep and style passes owed. **BF-33** is new and unstarted. **BF-27's other three tools**. **V-B12**, a B4 criterion with its idle arm measured. **M22** open. **BF-11a**, **BF-11b** |
 | Queue | After 2026-09-20 17:57 UTC, commit day 1 and read it against the rule in *The next job*. The operator then decides D1 and D33; day 2 at 917.6 MHz only if day 1 rules out 917.2 MHz. Reflash the boards, then run the interleaved sweep, then BF-24. BF-23's discovery half waits on none of it |
 
 ```bash
