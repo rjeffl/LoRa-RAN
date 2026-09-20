@@ -102,7 +102,7 @@ below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 ```
 lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
             vedirect, bms-ble                               [planned]
-firmware/   bridge/, range-test/, simnode/                   [built]
+firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [built]  rangetest/ [built]
             ha/ [built]
@@ -125,7 +125,7 @@ These work today:
 ```bash
 pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
-pio test -d lib/lran-link -e native           # spec 12.3 media access, bridge and simnode
+pio test -d lib/lran-link -e native           # spec 12.3 media access and M25's sampler
 pio test -d lib/lran-sim -e native            # fault frames: encode, patch, reseal, vs. W4
 pio test -d lib/lran-config -e native         # BF-32's table, the SET rules and 7.4.1's split
 python3 tools/vectors/check.py                # W4 vectors, self-check
@@ -148,12 +148,18 @@ python3 tools/checks/ha_examples.py           # ha/discovery/ vs. the firmware i
 python3 tools/simctl/test_simctl.py           # simctl's verdict logic, no board
 python3 tools/simctl/test_rxlog_analyze.py    # BF-27's frame-log arithmetic, no board
 python3 tools/simctl/test_rssi_analyze.py     # M25's channel-capture arithmetic, no board
+python3 tools/simctl/test_rssi_capture.py     # M25's capture tool: the reset pulse, no board
 python3 tools/checks/simctl_catalogue.py      # simctl's rows vs. the firmware catalogue
 python3 tools/simctl/simctl.py --list         # the 10.5 catalogue as simctl runs it
 
 pio test -d firmware/simnode -e native        # simnode host suite, no secrets
 pio run  -d firmware/simnode -e simnode-heltec     # NEEDS secrets.h (master key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio   # XIAO ESP32S3 + Wio-SX1262 Kit
+
+pio test -d firmware/chan-capture -e native   # listen-only receiver, no secrets
+pio run  -d firmware/chan-capture -e heltec   # Heltec V3; `freq <hz>` on serial sets the channel
+pio run  -d firmware/chan-capture -e xiao-wio # XIAO ESP32S3 + Wio-SX1262 Kit
+python3 tools/checks/chan_capture_never_transmits.py  # the receiver calls nothing that sends
 ```
 
 **`firmware/bridge/` and `firmware/simnode/` need `secrets.h`.** Copy
@@ -273,10 +279,23 @@ revising, not as a cleanup pass afterward. It carries the reader-first rules: re
 first, named actor, condition before instruction, one term per concept, and a list of
 stock machine-writing patterns to keep out.
 
-**Opening an existing document for edits means reviewing all of it with the skill.** This
-covers the protocol specification, PRDs, implementation plans, task documents, READMEs
-and this file. Review the whole document, not only the lines the change needs, and keep
-that review from burying the change it rides with:
+**Every passage you write or revise meets the skill** — the lines the change touches, and
+the sections it reaches into. That is the standard for new prose anywhere in the repo,
+including the protocol specification, PRDs, implementation plans, task documents, READMEs
+and this file.
+
+**A whole-document prose review happens when the operator asks for one.** Do not start one
+because a document was opened for an edit. Reviewing three thousand lines of specification
+to land a two-line correction buries the change and spends the session on wording; the
+operator decides when a document is worth that pass, and on which branch. *Decided
+2026-09-19, after a v0.13 edit turned into a review of six governing documents.*
+
+**Reading a document is not the same as restyling it.** Notice what is wrong while you are
+in there, and say so — **a wrong fact, a contradiction or drift from the specification is
+never a style finding.** Fix it in its own commit, with the evidence in the message, or
+list it in the PR description. *Working style* below governs it.
+
+When the operator does direct a review:
 
 - **Fix the sections the change touches in the same commit.**
 - **Fix the rest of the document in a separate commit** on the same branch, marked
@@ -285,10 +304,11 @@ that review from burying the change it rides with:
 - **If the review finds more than the branch should carry, list the findings instead.**
   Put them in the PR description and fix them on their own branch. The same applies when
   another open branch is already editing the document.
+- **A spec revision's style pass goes on its own branch**, agreed 2026-09-16: a version
+  bump already drags a citation sweep across the document set, and wording changes on top
+  of that make the diff unreadable.
 - **Leave dated records alone.** Changelog entries, engineering-log entries and handoff
   files follow the dated-records rule below.
-- **A wrong fact, a contradiction or drift from the specification is not a style
-  finding.** Raise it, as *Working style* says; do not fix it in the style-only commit.
 
 Order of precedence when the skill and this repo disagree:
 

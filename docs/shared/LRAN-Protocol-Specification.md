@@ -1,17 +1,31 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.12
+**Version:** 0.12 — **deliberately pinned; §20 carries a v0.13 draft.** See *The header is
+behind the content, on purpose* below
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-20
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
 > topic. Where a node needs a new field, the change is made here and the version is
 > bumped (§13).
+
+> **The header is behind the content, on purpose.** §20's top entry is **v0.13 (draft)** and
+> the sections it names are written, but this header still reads **0.12** and every binding
+> citation in the repository still names v0.12. That is deliberate: bumping the header
+> obliges **31 citation sites** to move with it, and each one has to be *reconciled* with
+> v0.13's changes first, not just renumbered. `python3
+> tools/checks/spec_citation_version.py` lists them and is green at v0.12 today.
+>
+> **The sweep runs once, when the configuration pass is finished** — the operator's rule,
+> and BF-32's bridge half is still open. **Until then, read §20's v0.13 entry as the current
+> statement of intent and the sections themselves as authoritative**, and do not cite
+> "v0.13" from another document. A node document citing v0.12 is correct right now, which is
+> the one case root `CLAUDE.md`'s version rule does not cover.
 
 ---
 

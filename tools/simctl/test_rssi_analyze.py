@@ -16,8 +16,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from rssi_analyze import (NO_READING, band_buckets, coincidence, episodes, events,
-                          frame_times, hourly, parse, peak_histogram, periodicity, summarise)
+from rssi_analyze import (NO_READING, band_buckets, coincidence, compare_hourly, episodes,
+                          events, frame_times, hourly, parse, peak_histogram, periodicity,
+                          summarise)
 from rssi_report import report
 
 BOOT = "2026-09-17T20:00:00Z,CHAN-BOOT,abc1234,917400000,9,1250,1000,-1100,10"
@@ -402,6 +403,56 @@ class ReportingSources(unittest.TestCase):
         b = parse([BOOT, chan("2026-09-18T04:02:57Z", 100, 100000, above=36, peak=-930),
                    chansum("2026-09-18T04:03:00Z", 60, 119, above=36, peak=-930)])
         self.assertIn("2026-09-18T04:02:57Z", report(b))
+
+
+class CompareHourly(unittest.TestCase):
+    """D1 brief section 5 - two captures over the same hours, side by side."""
+
+    A = [BOOT,
+         chansum("2026-09-17T20:01:00Z", 0, 59, samples=6000, above=60, fmean=-1160),
+         chansum("2026-09-17T20:02:00Z", 60, 119, samples=6000, above=0, fmean=-1150),
+         chan("2026-09-17T20:01:30Z", 30, 30000, above=40, peak=-950),
+         chan("2026-09-17T20:01:31Z", 31, 31000, above=20, peak=-1050),
+         chansum("2026-09-17T21:00:00Z", 120, 179, samples=6000, above=6)]
+    B = [BOOT.replace("917400000", "917200000"),
+         chansum("2026-09-17T20:01:00Z", 0, 59, samples=6000, above=600, fmean=-1120),
+         chan("2026-09-17T20:01:30Z", 30, 30000, above=600, peak=-1080)]
+
+    def test_occupancy_is_per_hour_against_samples_taken(self):
+        c = compare_hourly(parse(self.A), parse(self.B))
+        h20 = c["rows"][0]
+        self.assertEqual("2026-09-17T20", h20["hour"])
+        self.assertAlmostEqual(60 / 12000, h20["a"]["occupancy"])
+        self.assertAlmostEqual(600 / 6000, h20["b"]["occupancy"])
+
+    def test_an_hour_one_file_does_not_cover_is_none_not_zero(self):
+        c = compare_hourly(parse(self.A), parse(self.B))
+        h21 = c["rows"][1]
+        self.assertEqual("2026-09-17T21", h21["hour"])
+        self.assertIsNotNone(h21["a"])
+        self.assertIsNone(h21["b"])
+
+    def test_bands_count_logged_buckets_by_peak(self):
+        c = compare_hourly(parse(self.A), parse(self.B))
+        a = c["rows"][0]["a"]["bands"]
+        b = c["rows"][0]["b"]["bands"]
+        self.assertEqual(1, a[-1000])   # -95 dBm
+        self.assertEqual(1, a[-1100])   # -105 dBm
+        self.assertEqual(0, a[-900])
+        self.assertEqual(1, b[-1100])   # -108 dBm
+
+    def test_the_floor_is_a_median_and_skips_no_reading(self):
+        lines = self.A + [chansum("2026-09-17T20:03:00Z", 180, 239, fmean=NO_READING)]
+        c = compare_hourly(parse(lines), parse(self.B))
+        self.assertEqual(-1150, c["rows"][0]["a"]["floor_median"])
+
+    def test_segments_are_counted_so_pooling_is_visible(self):
+        rebooted = self.A + [BOOT.replace("20:00:00", "21:30:00"),
+                             chansum("2026-09-17T21:31:00Z", 0, 59, samples=6000, above=0)]
+        c = compare_hourly(parse(rebooted), parse(self.B))
+        self.assertEqual((2, 1), c["segments"])
+        # Both segments' 21:xx rollups land in one row, on the host clock.
+        self.assertEqual(12000, c["rows"][1]["a"]["samples"])
 
 
 if __name__ == "__main__":

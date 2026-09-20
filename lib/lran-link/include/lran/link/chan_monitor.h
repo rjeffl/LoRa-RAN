@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// What else is on 917.4 MHz, sampled continuously and summarised per second (M25).
-// Engineering log, 2026-09-17.
+// What else is on the channel, sampled continuously and summarised per second (M25).
+// Bridge engineering log, 2026-09-17.
+//
+// TWO FIRMWARES RUN IT. The bridge samples from lora_task between its own frames, and
+// firmware/chan-capture/ samples from a receiver that never transmits. Moved here from the
+// bridge on 2026-09-19 so that captures from the two are summarised by one implementation:
+// D1 frequency change brief 5 compares them bucket for bucket, and two copies of this
+// arithmetic are how two receivers come to disagree about the same second.
 //
 // ARDUINO-FREE AND HOST-TESTED, like rx_wake.h, rx_deaf.h and frame_log.h: the
 // accumulation is arithmetic, and arithmetic that decides what a twelve-hour capture
@@ -39,7 +45,8 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace bridge {
+namespace lran {
+namespace link {
 
 // Tenths of a dBm, matching the survey campaign's `peak_dbm10` columns so the two
 // datasets can be read with the same habits (docs/rangetest/data/).
@@ -98,20 +105,21 @@ struct ChanBucket {
 };
 
 // Eight seconds of backlog against a drain that runs ten times a second. The ring exists
-// so log_task's serial write can never stall lora_task, not because it is expected to fill.
+// so the serial writer can never stall the sampler, not because it is expected to fill.
+// On the bridge those are log_task and lora_task.
 inline constexpr size_t kChanSlots = 8;
 
 // Nominal bucket length. Compile-time, and root rule 8 does not reach it: the rule is
-// about a node that cannot be reflashed without a walk to the gate, and the bridge is
-// USB- and OTA-reflashable in the house. A runtime lever would need the HA-visible
+// about a node that cannot be reflashed without a walk to the gate, and both firmwares
+// that run this are reflashable in the house. A runtime lever would need the HA-visible
 // configuration path, whose route is an open operator decision - see docs/bridge/HANDOFF.md.
 inline constexpr uint32_t kChanBucketMs = 1000;
 
-// Single-producer (lora_task), single-consumer (log_task). The ring and the torn-slot
-// check are frame_log.h's, for the reasons given there.
+// Single-producer (the sampler), single-consumer (the serial writer). The ring and the
+// torn-slot check are the bridge's frame_log.h's, for the reasons given there.
 class ChanMonitor {
  public:
-  // One RSSI reading, from lora_task. Closes and publishes a bucket when the nominal
+  // One RSSI reading, from the sampler. Closes and publishes a bucket when the nominal
   // length has elapsed.
   void sample(Dbm10 rssi, uint32_t now_ms);
 
@@ -238,4 +246,5 @@ size_t render_chan_rollup(const ChanRollup& r, char* out, size_t cap);
 size_t render_chan_boot(const char* git, uint32_t freq_hz, uint8_t sf, uint16_t bw_khz10,
                         uint32_t wait_ms, char* out, size_t cap);
 
-}  // namespace bridge
+}  // namespace link
+}  // namespace lran

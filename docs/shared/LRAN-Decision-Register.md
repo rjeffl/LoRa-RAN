@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.13
+**Version:** 0.14
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-20
@@ -165,8 +165,8 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D31** | Copyright holder name | **Robert J. Lee**, a personal name rather than a project or entity name. `LICENSE` now exists at the repo root carrying the MIT text and `Copyright (c) 2026 Robert J. Lee`, and the 87 source files that carried the `<holder>` placeholder carry the name. **The first public push is no longer blocked by this**; §11.3's separate `THIRD_PARTY_NOTICES.md` obligation was written the same day | System PRD §11.2 |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
-| **D1** | **LoRa PHY parameters** — SF / BW / CR / frequency / TX power | **SF9, BW 125 kHz, CR 4/5, 917.4 MHz, −4 dBm conducted with the fitted 3.0 dBi antenna**, inside D33's Envelope A. Closed **2026-09-10** on the evidence assembled in `LRAN-D1-PHY-Decision-Brief`, which is superseded by this row. **`backoff_max_ms` rises to 1500** as the one configuration change SF9 forces. See §3.4 | System PRD §5.1, Protocol Spec §12.1 |
-| **D33** | FCC Part 15 operating mode (**closes W5**) | **Envelope A — §15.249, single fixed channel, no hopping, BW 125 kHz, −4 dBm conducted with a 3.0 dBi antenna.** Reopened 2026-09-06 by M21 and **closed again 2026-09-10 in the same motion as D1**, because §2.1's fourth bound makes `BW` and the rule section one decision. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) is retained as a documented fallback behind its three triggers. Permanently: the modules' grants **do not transfer**, so the operative frame is **§15.23 home-built** and **no node may be represented as FCC certified**. Reasoning in §3.1 (2026-08-30), §3.3 (reopened) and §3.4 (closed) | Protocol Spec §18.1, §18.2 |
+| **D1** | **LoRa PHY parameters** — SF / BW / CR / frequency / TX power | **SF9, BW 125 kHz, CR 4/5, 917.4 MHz, −4 dBm conducted with the fitted 3.0 dBi antenna**, inside D33's Envelope A. Closed **2026-09-10** on the evidence assembled in `LRAN-D1-PHY-Decision-Brief`, which is superseded by this row. **`backoff_max_ms` rises to 1500** as the one configuration change SF9 forces. *Confirmed 2026-09-20:* the proposed move to 917.2 MHz is **declined** on 24 hours of parallel measurement, and every parameter in this row stands unchanged. `LRAN-D1-Frequency-Change-Brief` is superseded. See §3.4 and §3.4.1 | System PRD §5.1, Protocol Spec §12.1 |
+| **D33** | FCC Part 15 operating mode (**closes W5**) | **Envelope A — §15.249, single fixed channel, no hopping, BW 125 kHz, −4 dBm conducted with a 3.0 dBi antenna.** Reopened 2026-09-06 by M21 and **closed again 2026-09-10 in the same motion as D1**, because §2.1's fourth bound makes `BW` and the rule section one decision. Envelope B (§15.247 DTS, BW500, 903.0–914.2 MHz) is retained as a documented fallback behind its three triggers. Permanently: the modules' grants **do not transfer**, so the operative frame is **§15.23 home-built** and **no node may be represented as FCC certified**. *Standing condition 3 answered 2026-09-20, and not as it was written:* 917.4 MHz **does** carry a co-channel occupant, the property's Davis station, and **D33 is not reopened** because that occupant is now characterised and its airtime is negligible. The condition is restated in §3.4.1 so it can be tested again. Reasoning in §3.1 (2026-08-30), §3.3 (reopened), §3.4 (closed) and §3.4.1 (condition 3) | Protocol Spec §18.1, §18.2 |
 | **D34** | Home for Protocol Spec §9.4 steps 4–6 (**closes W12**) | **Split, not placed whole.** Steps 4, 5 and the state half of 6 become `lran::CommandGate` in `/lib/lran-protocol/` — one per peer, immediately after `Reassembler`. The **dispatch** half of step 6 stays in the application. The gate returns a verdict; the caller decides. See §3.2. *Amended 2026-09-11:* the high-water mark advances in `check()`, **before** dispatch, as spec §9.4 step 6 orders it; the single-threaded-receiver precondition is withdrawn; a retry inside the execution window is **in flight** — counted in `rx_dup_command`, not answered; cache storage is 32 entries, **128 B per peer**. Split and placement unchanged. See §3.2.1 | Protocol Library Impl Plan §3, §6 (**P8**) |
 | **D35** | A frame from a source the receiver holds no key for (**Protocol Spec §14**) | **New stage 9a, counter `rx_unknown_src`, counted into `rx_dropped`, never answered.** Placed after authentication so a forged `src` is still rejected by the MAC check first, and separate from `rx_not_addressed` because *not for me* and *I do not know you* lead an operator to different places. See §3.5 | Protocol Spec §14, §14.1 (**BF-15a**) |
 | **D36** | How a `DUPLICATE_CACHED` `COMMAND_ACK` carries the cached result | **In `detail`**, which §6.3 already defines as result-specific. No wire change. The original answer's own `detail` is not reproduced, and §6.3 now says so rather than leaving it to be discovered. Codifies what simnode BF-6 shipped | Protocol Spec §6.3, §9.4 (**BF-18**) |
@@ -523,6 +523,96 @@ decision fixes, closing **M19** and **W7**.
 
 ---
 
+### 3.4.1 D1's frequency confirmed, and D33's standing condition 3 answered, 2026-09-20
+
+**The operator accepted 917.4 MHz on 2026-09-20, and every parameter in §3.4 stands
+unchanged.** [`LRAN-D1-Frequency-Change-Brief`](./LRAN-D1-Frequency-Change-Brief.md)
+proposed moving to 917.2 MHz; the brief is **superseded by this section** and is kept as the
+dated record of why the question was asked. Its §6 list of what would move is **not
+executed**: no constant changes, no boot banner, no test assertion, no specification
+revision and no board is reflashed. **`ver` stays 2 and no citation sweep is triggered.**
+
+**The measurement is brief §5's parallel run**, and it is the first direct look at the
+chosen channel over a full day. Both receivers ran `firmware/chan-capture/` over the same
+24 hours, 2026-09-19T17:56:58Z to 2026-09-20T17:56:58Z, 8,634,999 samples each with one
+skipped sample each and no gap. Full reading in
+[`LRAN-D1-Parallel-Capture-Analysis`](./LRAN-D1-Parallel-Capture-Analysis.md); the bridge
+engineering log's 2026-09-20 entry has the same figures as a dated record.
+
+| | 917.4 MHz | 917.2 MHz |
+|---|---|---|
+| Occupancy above −110 dBm | **0.2095 %** | **0.3050 %** |
+| Hours carrying more occupancy | 0 of 24 | **24 of 24** |
+| −90 to −80 dBm buckets | **68** | **713** |
+
+**917.2 MHz fails brief §5.3 test 1** on its occupancy and episodic-source conditions.
+Hour-by-hour occupancy on the two channels correlates at **r = 0.978**, so the property's
+own activity moves both receivers together and the 917.2 MHz excess is attributable to the
+channel rather than to a schedule. The excess is not the receivers' gain difference either:
+a source reaching 917.4 MHz 8 dB down would appear in the −100 to −90 dBm band, and that
+band tracks across the two files at 838 buckets against 1043.
+
+**The choice is between one characterised occupant and two unidentified ones.** 917.2 MHz
+carries an aperiodic source near −89 dBm in **all 24 hours**, not the six the first capture
+suggested, and it is unidentified. 917.6 MHz has its own unexplained bursts at −45 to
+−47 dBm. 917.4 MHz's only structured occupant is the Davis, whose airtime is now measured.
+**Day 2 at 917.6 MHz is not needed for D1**: it was to run only if day 1 ruled out
+917.2 MHz, and day 1 ruled 917.2 MHz out instead.
+
+#### D33 standing condition 3 is not met as written, and D33 is not reopened
+
+**§3.1's condition 3 reads "the ambient survey (M20) finds no co-channel occupant on the
+chosen frequency."** That is false for 917.4 MHz and has been since 2026-09-18: the
+property's **Davis Vantage Pro2** transmits there. §3.1 says losing any one of the three
+conditions reopens D33, so this has to be settled rather than noted.
+
+**It is settled by characterising the occupant instead of denying it.** Day 1 measured the
+Davis over 660 occurrences: a fitted period of **130.6882 s** with a median residual of
+**0.54 s**, a burst of about 6.7 ms, a duty cycle of **0.005 %**, and an overlap with a
+maximum-length SF9 frame of about **0.85 %** before any retry. A retry reuses `seq` and goes
+out within `backoff_max_ms` = 1500 ms, so it cannot land on the same hop. **That is not a
+threat to the link, and no collision mitigation beyond the existing retry is indicated.**
+
+**Condition 3 is therefore restated, and this is the version to test against:**
+
+> **3.** Every co-channel occupant on the chosen frequency is **identified or
+> characterised**, and their aggregate airtime leaves the link's measured margin intact. An
+> occupant that is neither identified nor characterised reopens D33; a characterised one
+> with negligible airtime is recorded here and accepted.
+
+**The Davis is recorded as an accepted occupant under it.** So is the −93 dBm episodic
+source, which appears at all three candidate frequencies and therefore separates none of
+them — characterised as to airtime, still unidentified as to source.
+
+**Two occupants stay open under this condition and neither reopens D33 on its own**, because
+neither is co-channel at a level that touches the margin: the aperiodic −89 dBm source on
+917.2 MHz, which is not a frequency LRAN uses; and a single wideband event at
+2026-09-20T13:25:22Z that read −42 dBm at 917.4 MHz and −39 dBm at 917.2 MHz in the same
+second, one second wide, once in 24 hours.
+
+**What replaced the instrument, and what did not.** §3.4 recorded that `cad_backoffs` cannot
+test this condition, and v0.12 recorded that its named check cannot fire. The instrument is
+now `firmware/chan-capture/` plus `tools/simctl/rssi_analyze.py`, which sample the channel
+directly at about 100 samples a second regardless of modulation or spreading factor.
+**M20's own limit is not lifted**: it measured 125 kHz every 200 kHz, so 37.5 % of the band
+is still unlooked-at, and every "clear" verdict in §5.4 still carries that bound. What day 1
+establishes is the **chosen channel**, continuously, not the band.
+
+**§3.1 and §5.4 are left as written.** They are dated records of what was decided and
+measured on 2026-08-30 and 2026-09-06, and this section is where the change lives.
+**§5.4's attribution of the 915.8–916.4 MHz cluster is unchanged and still unconfirmed**:
+both day-1 receivers were 125 kHz wide and at least 1.2 MHz away, so this measurement says
+nothing about that cluster. **M26** still owns it.
+
+**One caveat on the tooling, and it does not affect the figures above.** `periodicity()` in
+`tools/simctl/rssi_analyze.py` reports this same Davis as "not periodic" once a capture runs
+a full day, through two defects that only appear at that length. It is **unfixed by operator
+direction**, since no further capture is planned. Every period and residual quoted here was
+computed by seeding a fit with a known period and reading the residuals directly.
+`firmware/chan-capture/CLAUDE.md` and the function's own docstring carry the warning.
+
+---
+
 ### 3.5 D35–D42 — the spec v0.12 set, 2026-09-16
 
 **Eight questions raised during bridge B3a and simnode B0, decided together because they
@@ -727,8 +817,8 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M24 | ~~**Whether the SX126x can filter node addresses in LoRa mode**~~ | **Done (2026-09-16).** **It cannot.** In SX1261/2 Rev 1.1 (`DS.SX1261-2.W.APP`, December 2017) `AddrComp` is GFSK `PacketParam5` (Table 13-56) with `NodeAddrReg` `0x06CD` and `BroadcastReg` `0x06CE` (Tables 13-57, 13-58), all under §13.4.6.1 **GFSK Packet Parameters**; the LoRa packet parameters in §13.4.6.2 are preamble length, header type, payload length, CRC type and invert-IQ (Tables 13-66 to 13-70) — **no address parameter, no address register**. Raised by **BF-16** and carried unverified through two revisions. **Protocol Spec v0.12 withdraws the §12.1 requirement**; addressing is §14 stage 5, in software. **§17.1 loses the silicon discard it assumed for duty-cycled nodes — now W14**, owed before WellLink is built on that profile and moot if **D19** makes WellLink mains-powered |
 | M22 | **Bridge LoRa packet error rate with WiFi idle vs. saturated.** Run a sustained MQTT or iperf flood while the bridge receives a known `PING` sequence; compare PER and RSSI against the WiFi-idle baseline | Confirms the deliberate "**no** mutual exclusion on the bridge" policy (Bridge PRD). If PER degrades, the fallback is **physical antenna separation via the IPEX pigtail**, not firmware arbitration — ESP-IDF's coexistence arbitration has no visibility into an SPI-attached SX1262, so there is no hook to build on | Bridge Impl Plan |
 | M23 | **BLE RSSI to the BMS from the Stamp-S3A at its final mounting position**, inside the plastic enclosure inside the closed **steel** gate-controller enclosure, ~6–8 in from the pack. Sample **at least three positions and two orientations** — both ends share one reverberant cavity, so the risk is a standing-wave null, not attenuation. In the same session, measure **LoRa-to-BLE isolation** by logging BLE RSSI with the LoRa transmitter keyed and unkeyed | **D28**, superseding **M5**. Prior figures (−80 dBm, and −50 to −60 dBm) both used a Heltec V3 rather than the Stamp-S3A's internal antenna. Run before committing the mounting hardware; it does **not** gate M6 or B1b. A poor reading is a cable, connector and null question before it is an antenna verdict | GateLink Impl Plan |
-| M25 | **Long-duration channel occupancy at 917.4 MHz, measured at the bridge.** Six to twelve hours of continuous RSSI sampling from `lora_task` (~100 samples a second, `chan_monitor.h`), captured over USB serial by `tools/simctl/rssi_capture.py` and read by `rssi_report.py`. **Run it with the simnodes powered down**: the sampler skips a reception only once a valid LoRa header is seen, so ~33 ms of every one of our own frames' preambles would otherwise register as a large excursion | **D33 standing condition 3**, which says the ambient survey finds no co-channel occupant. **The instrument §3.4 names for keeping the channel under observation cannot test it**: `cad_backoffs` counts a busy CAD only (answered 2026-09-17 with `cad_free`), and a LoRa CAD detects a LoRa preamble **at the configured spreading factor** — so it is blind to the property's Z-Wave and Insteon FSK at any level, and to LoRa at another SF. **M20 measured 917.4 at floor, on 653 samples per bin**; a 60 dB peak-to-mean at 916.0 shows how bursty the neighbours are, and a low-duty-cycle occupant is exactly what that dwell could miss | Bridge Impl Plan |
-| M26 | **Confirm the frequencies and power classes of the property's Z-Wave and Insteon equipment**, and add them to the §3.1 inventory. Z-Wave matters most: the classic US band is near 908.4 MHz at low power, while Z-Wave Long Range uses 912 MHz and 920 MHz and permits far higher power | **§3.1's inventory records YoLink only** — *"four YoLink temperature sensors and a switch, on a YoLink hub, all inside the dwelling"*. The operator identified Z-Wave and Insteon on 2026-09-17 and neither appears anywhere in this repository. The inventory is what D33 standing condition 3 and D1's channel choice were reasoned against | Decision Register |
+| M25 | ~~**Long-duration channel occupancy at 917.4 MHz, measured at the bridge**~~ | **Done (2026-09-20).** **The channel carries one periodic occupant, the property's Davis Vantage Pro2**, at about 6.7 ms every 130.6882 s — a 0.005 % duty and about 0.85 % overlap with a maximum-length SF9 frame. `lora_task`'s sampler was not the instrument in the end: it was moved into `lib/lran-link/` as `ChanMonitor` and given a listen-only firmware, `firmware/chan-capture/`, so several receivers could sample different frequencies over the same hours without the bridge's own polls in the data. Measured first on 2026-09-18 over M25's own hours, then over **24 hours on 2026-09-19 to 2026-09-20** beside 917.2 MHz. **D33 standing condition 3 is answered and restated in §3.4.1**, and the Davis is recorded there as an accepted occupant. The 917.2 MHz and 917.6 MHz captures and the −93 dBm episodic source are in the same section; the bridge engineering log's 2026-09-18 to 2026-09-20 entries have every number | Bridge Impl Plan |
+| M26 | **Confirm the frequencies and power classes of the property's Z-Wave and Insteon equipment**, and add them to the §3.1 inventory. Z-Wave matters most: the classic US band is near 908.4 MHz at low power, while Z-Wave Long Range uses 912 MHz and 920 MHz and permits far higher power | **Still open, and no longer gating D1 or D33.** §3.1's inventory records YoLink only — *"four YoLink temperature sensors and a switch, on a YoLink hub, all inside the dwelling"*. The operator identified Z-Wave and Insteon on 2026-09-17 and neither appears anywhere in this repository. **What changed on 2026-09-20:** D1's channel and D33's condition 3 were settled by measuring 917.4 MHz directly for 24 hours rather than by reasoning from the inventory, which is the stronger evidence and does not depend on this row. What still needs it: **§5.4's attribution of the 915.8–916.4 MHz cluster**, the loudest thing in the M20 campaign and still only guessed at as the YoLink hub — both day-1 receivers were 125 kHz wide and at least 1.2 MHz away, so that capture says nothing about it. Z-Wave stayed below −110 dBm at 917.4 MHz across all 24 hours, and the ZEN17's 30 s reporting leaves no 30 s grid in any capture | Decision Register |
 
 ---
 
@@ -796,7 +886,7 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 
 ## 6. Changelog
 
-- **v0.13** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
+- **v0.14** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of
   `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
   the reasoning. **D50–D54** followed from the v0.13 read-through the same day, filling five
@@ -808,6 +898,22 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
   `MORE_FOLLOWS`, and §3.6 carries the count that settled it — GateLink's named parameters
   reach 171 of 193 bytes, three rows short of the ceiling. §1's highest issued numbers are
   corrected to **D57** and **M26**; v0.12 added M25 and M26 without updating them.
+
+- **v0.13** — **D1's frequency confirmed on 24 hours of measurement, and D33's standing
+  condition 3 answered.** The operator accepted **917.4 MHz** on 2026-09-20 and declined
+  `LRAN-D1-Frequency-Change-Brief`'s proposed move to 917.2 MHz, which measured busier in
+  **24 of 24 hours** in brief §5's parallel run. **No parameter changes**, so brief §6's
+  list is not executed: no constant, no boot banner, no test assertion, no specification
+  revision, no board and no citation sweep. **D33 is not reopened**, but condition 3 was
+  false as written — 917.4 MHz does carry a co-channel occupant — so new **§3.4.1**
+  restates it around characterising occupants rather than finding none, and records the
+  Davis as accepted at a 0.005 % duty. **M25 is done**: the instrument became
+  `firmware/chan-capture/` rather than `lora_task`'s sampler. **M26 stays open and stops
+  gating D1 and D33**; what still needs it is §5.4's unconfirmed attribution of the
+  915.8–916.4 MHz cluster. §3.1 and §5.4 are left as written, being dated records. The
+  brief is superseded. Highest issued numbers are unchanged at **D42** and **M26** — this
+  revision mints no decision. Bridge engineering log, 2026-09-20; full reading in
+  `LRAN-D1-Parallel-Capture-Analysis`.
 
 - **v0.12** — **M25 and M26 added; §3.4 gains a note against its own instrument.** The
   operator identified Z-Wave and Insteon on the property on 2026-09-17, neither of which

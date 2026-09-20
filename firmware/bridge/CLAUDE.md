@@ -125,8 +125,9 @@ records the choices. **Four things to keep:**
 - **There is no runtime enable and adding one is not a small change.** It needs the
   HA-visible configuration path, whose route is an open operator decision.
 
-**`M25` — the channel monitor, built 2026-09-17.** `chan_monitor.{h,cpp}` samples raw
-RSSI from `lora_task` (~100/s, one per `kLoraMaxWaitMs` wake) and `log_task` writes it to
+**`M25` — the channel monitor, built 2026-09-17.** `chan_monitor.{h,cpp}` has lived in
+`lib/lran-link/` since 2026-09-19, shared with the listen-only `firmware/chan-capture/`. The
+bridge samples raw RSSI from `lora_task` (~100/s, one per `kLoraMaxWaitMs` wake) and `log_task` writes it to
 serial; `tools/simctl/rssi_capture.py` captures a long unattended run and
 `rssi_report.py` reads it. **Four things to keep:**
 
