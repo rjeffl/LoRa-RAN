@@ -147,6 +147,7 @@ python3 tools/checks/ha_examples.py           # ha/discovery/ vs. the firmware i
 python3 tools/simctl/test_simctl.py           # simctl's verdict logic, no board
 python3 tools/simctl/test_rxlog_analyze.py    # BF-27's frame-log arithmetic, no board
 python3 tools/simctl/test_rssi_analyze.py     # M25's channel-capture arithmetic, no board
+python3 tools/simctl/test_rssi_capture.py     # M25's capture tool: the reset pulse, no board
 python3 tools/checks/simctl_catalogue.py      # simctl's rows vs. the firmware catalogue
 python3 tools/simctl/simctl.py --list         # the 10.5 catalogue as simctl runs it
 

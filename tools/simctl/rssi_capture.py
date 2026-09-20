@@ -27,6 +27,13 @@
 #   python3 tools/simctl/rssi_capture.py --port /dev/cu.usbserial-0001 \
 #       --out docs/bridge/data/m25-chan-$(date +%F).log --hours 8
 #
+# --reset-on-open reboots the bridge ONCE, on the first open, so the capture starts with the
+# boot banner and its CHAN-BOOT line. That line is printed only from setup(), and it is the
+# one record of which image and which frequency a capture measured. Without the flag, a
+# capture started after a flash begins mid-run and the file never says what it was taken
+# on. A reconnect later in the run never resets: restarting the board at 3 am would restart
+# the thing being measured.
+#
 # Run it detached for a long capture, and it is safe to leave:
 #
 #   nohup python3 tools/simctl/rssi_capture.py ... > /tmp/m25.progress 2>&1 &
@@ -38,6 +45,10 @@ import time
 from datetime import datetime, timezone
 
 DEFAULT_FLUSH_S = 10.0
+
+# How long EN is held low. esptool's hard reset holds it for 100 ms; a little more costs
+# nothing and survives a slow USB bridge.
+RESET_HOLD_S = 0.12
 
 
 def iso_now():
@@ -61,39 +72,77 @@ def open_port(port, baud):
     return s
 
 
-def capture(port, baud, out_path, deadline, flush_s, progress):
+def pulse_reset(ser, sleep=time.sleep):
+    """Reboots the board into its application, not into the bootloader.
+
+    On the Heltec V3's CP2102 auto-reset circuit, RTS drives EN and DTR drives GPIO0.
+    Holding DTR deasserted keeps GPIO0 high, so the chip boots normally; asserting RTS
+    pulls EN low, and releasing it lets the chip run. THE ORDER MATTERS: DTR first. With
+    DTR asserted while EN rises, GPIO0 is low and the board comes up in the ROM
+    bootloader, silent, which reads as a capture of a dead bridge.
+    """
+    ser.dtr = False
+    ser.rts = True
+    sleep(RESET_HOLD_S)
+    ser.rts = False
+
+
+def _port_errors():
+    """The exceptions a port raises. pyserial's SerialException is an IOError, so OSError
+    alone would do; naming it keeps the intent readable. The host tests run without
+    pyserial installed, and fall back to OSError."""
+    try:
+        import serial
+        return (OSError, serial.SerialException)
+    except ImportError:
+        return (OSError,)
+
+
+def capture(port, baud, out_path, deadline, flush_s, progress, reset_on_open=False,
+            opener=None, clock=time.time, sleep=time.sleep):
     """Reads lines until the deadline or Ctrl-C. Returns a small summary dict.
 
     RECONNECTS RATHER THAN EXITING. A USB hub that drops for a second at 3 am must not
     end an eight-hour run; the gap is recorded as a marker line so the analysis can see
     it rather than reading straight across it.
-    """
-    import serial
 
-    stats = {"lines": 0, "chan": 0, "frame": 0, "boots": 0, "reconnects": 0}
-    last_flush = time.time()
-    last_note = time.time()
+    reset_on_open reboots the board after the FIRST open only, and writes a #RESET marker
+    so the file says the tool did it. `opener`, `clock` and `sleep` are for the host tests.
+    """
+    errors = _port_errors()
+    opener = opener or open_port
+
+    stats = {"lines": 0, "chan": 0, "frame": 0, "boots": 0, "reconnects": 0, "resets": 0}
+    last_flush = clock()
+    last_note = clock()
     ser = None
+    opened_before = False
 
     with open(out_path, "a", encoding="utf-8", errors="replace") as fh:
         fh.write("# M25 capture opened %s port=%s baud=%d\n" % (iso_now(), port, baud))
         fh.flush()
 
-        while time.time() < deadline:
+        while clock() < deadline:
             if ser is None:
                 try:
-                    ser = open_port(port, baud)
+                    ser = opener(port, baud)
                     fh.write("%s,#PORT-OPEN\n" % iso_now())
                     fh.flush()
-                except (OSError, serial.SerialException) as exc:
+                except errors as exc:
                     fh.write("%s,#PORT-WAIT,%s\n" % (iso_now(), exc))
                     fh.flush()
-                    time.sleep(5.0)
+                    sleep(5.0)
                     continue
+                if reset_on_open and not opened_before:
+                    pulse_reset(ser, sleep)
+                    fh.write("%s,#RESET\n" % iso_now())
+                    fh.flush()
+                    stats["resets"] += 1
+                opened_before = True
 
             try:
                 raw = ser.readline()
-            except (OSError, serial.SerialException) as exc:
+            except errors as exc:
                 fh.write("%s,#PORT-LOST,%s\n" % (iso_now(), exc))
                 fh.flush()
                 try:
@@ -102,7 +151,7 @@ def capture(port, baud, out_path, deadline, flush_s, progress):
                     pass
                 ser = None
                 stats["reconnects"] += 1
-                time.sleep(2.0)
+                sleep(2.0)
                 continue
 
             if raw:
@@ -117,7 +166,7 @@ def capture(port, baud, out_path, deadline, flush_s, progress):
                     elif line.startswith("FRAME"):
                         stats["frame"] += 1
 
-            now = time.time()
+            now = clock()
             if now - last_flush >= flush_s:
                 fh.flush()
                 os.fsync(fh.fileno())
@@ -150,6 +199,9 @@ def main():
     ap.add_argument("--flush-seconds", type=float, default=DEFAULT_FLUSH_S,
                     help="how often to fsync, so a killed run keeps what it had")
     ap.add_argument("--quiet", action="store_true", help="no per-minute progress line")
+    ap.add_argument("--reset-on-open", action="store_true",
+                    help="reboot the board once on the first open, so the file starts with "
+                         "its boot banner and CHAN-BOOT line; never on a reconnect")
     args = ap.parse_args()
 
     deadline = time.time() + args.hours * 3600.0
@@ -158,7 +210,8 @@ def main():
 
     try:
         stats = capture(args.port, args.baud, args.out, deadline,
-                        args.flush_seconds, not args.quiet)
+                        args.flush_seconds, not args.quiet,
+                        reset_on_open=args.reset_on_open)
     except KeyboardInterrupt:
         print("\ninterrupted - the file is intact up to the last flush", file=sys.stderr)
         return 0
