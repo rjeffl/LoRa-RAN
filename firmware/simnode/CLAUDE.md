@@ -242,7 +242,9 @@ and the two whose correct result is that **`rx_dropped` does not move** — `fra
 v0.6's sole behavioural change (§11.2: a single frame never begins, joins, displaces or
 expires a set), the simnode is the only thing that can produce the sequence, and the
 defect it catches — a node's periodic `STATUS` destroying that node's in-progress
-fragmented `CONFIG_ACK` on the bridge — is **silent by construction**. Expected result is
+fragmented set on the bridge — is **silent by construction**. `PING` is the only
+fragmentable type since spec v0.12 (D38), so the set the row builds is a `PING`, not the
+`CONFIG_ACK` this note once named. Expected result is
 a set that completes and a counter that stays still.
 
 **§10.5's counter column comes from Protocol Spec §14.1**, not from the table. A row whose

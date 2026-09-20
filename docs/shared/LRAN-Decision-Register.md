@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.13
+**Version:** 0.14
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-20
@@ -39,8 +39,8 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D42** for
-decisions and **M24** for measurement-backlog items.
+**Adding a decision.** New numbers continue from the highest issued, currently **D57** for
+decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
 
@@ -153,7 +153,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D14** | Decode placement | **Moot.** The node reads discrete inputs and drives discrete relays; there is nothing to decode | System PRD §3.3 |
 | **D15** | Battery SOC source | **BLE BMS.** The pack is a **TDT** unit; the access sequence is documented and an independent client validated over 32 consecutive polls with zero CRC failures. SmartShunt demoted to a physical-layer contingency behind **D28** | GateLink PRD |
 | **D16** | OTA policy | **Bridge yes, remote nodes no.** The bridge is on the LAN, mains powered and physically accessible; a bad flash ~87 m away is a walk with a laptop and there is no second radio path to recover through | Bridge PRD |
-| **D17** | Naming | **LRAN umbrella; `lran/` MQTT root; GateLink / WellLink / Bridge Node.** *Amended 2026-09-10:* the bridge was recorded here as **LoRaBridge**, the name it carried before its own documents settled on **Bridge Node**; both ran side by side across the set until an audit found them. `lran-bridge` remains the firmware target and **"LoRa Bridge" remains the HA device name** — a user-visible string, not a second node name. **One live instance is deliberately left:** Protocol Spec §5.3's node-table gloss still reads `(LoRaBridge)`, deferred to the next substantive specification revision rather than bumping v0.9 to v0.10 for a name gloss and restaking all 21 binding citations | System PRD §1.3 |
+| **D17** | Naming | **LRAN umbrella; `lran/` MQTT root; GateLink / WellLink / Bridge Node.** *Amended 2026-09-10:* the bridge was recorded here as **LoRaBridge**, the name it carried before its own documents settled on **Bridge Node**; both ran side by side across the set until an audit found them. `lran-bridge` remains the firmware target and **"LoRa Bridge" remains the HA device name** — a user-visible string, not a second node name. The one instance deferred then, Protocol Spec §5.3's node-table gloss, was changed with the next substantive revision: **spec v0.10 reads `(Bridge Node)`** | System PRD §1.3 |
 | **D18** | Auto-close observability | **Resolved, and better than expected.** `OUT = Moving` stays energized through the auto-close countdown, so auto-close state *is* observable — and hold state falls out of it for free | GateLink PRD |
 | **D20** | Gate controller standby policy | **Standby retained**, timeout measured at **60 s**. Command relays wake the board on their own, so nothing is lost by keeping it | GateLink PRD |
 | **D21** | Wake mechanism | **None needed.** Every command relay drives a command-class input, so the pulse that carries the command is also the pulse that wakes the board | GateLink PRD |
@@ -175,7 +175,22 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D39** | Which sequence space a bridge-originated unauthenticated `seq` belongs to | **Neither. It is local and advisory**, advances no high-water mark, and MUST NOT be used to reject. `POLL` carries one so an answer can be matched to its poll | Protocol Spec §10.2, §6.4 (**BF-17**) |
 | **D40** | Whether a discard made before the MAC check may be attributed to the `src` it names | **No.** A counter raised before stage 9 is the **receiver's own**; only stage 9 onward may be published per node. Before authentication `src` is a claim, and attributing those discards would let any transmitter move another node's counters and another node's Home Assistant history | Protocol Spec §14.1 (**BF-19**) |
 | **D41** | Whether the bridge sends §14's `ERROR` replies, and how they are addressed | **Registered sources only, rate-limited.** `error_min_interval_ms` default **1000**, runtime-settable; `src` the sender's own, `ctx_id` **`0`** (unknown, §5.5), `ref_seq` the offending frame's. A receiver MUST NOT adopt a zero `ctx_id`. Answering any `src` was rejected as a reflection vector: a spoofed frame would make the receiver transmit at an attacker's chosen rate. `BAD_CRC` and `BAD_VERSION` stay optional. New **§14.2** | Protocol Spec §14.2 (**BF-19a**) |
-| **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
+| **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number. *Amended 2026-09-19:* the `config/*` payloads now have their caller, and **D48** defines them | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
+| **D43** | Route for runtime configuration from Home Assistant | **The general `lran/<node>/config/set`, with `/lib/lran-config/` behind it**, for the bridge's parameters and every node's. A narrow single-purpose topic was rejected because it spends an HA-visible token that cannot be renamed; a serial-only lever was rejected because it leaves root rule 8 unmet on nodes that cannot be reflashed without a walk. See §3.6 | System PRD §9.4, Protocol Spec §16.7 (**BF-32**) |
+| **D44** | Whether the parameter table is generated or hand-written | **A hand-written C++ table is the one source**, and every other copy is derived from it by code: firmware defaults and HA `number` discovery read it directly, and a host tool writes `/docs/gatelink-config.md` for a check to diff, as `tools/ha/dump_discovery.cpp` does for `/ha/`. No generator, no YAML, and nothing maintained by hand against the header | Protocol Library Plan §4, System PRD §9.4, Protocol Spec §7.4 |
+| **D45** | What answers `POLL` `poll_flags` bit 1 and `REQUEST_CONFIG` | **An unsolicited `CONFIG_ACK` with `op` = `GET_ALL`, with a `seq` from the node's status sequence space** (§10.2) — what simnode BF-6 already sends. It carries no MAC, for the reason `STATUS` carries none: a spoofed readback misreports configuration as a spoofed `STATUS` misreports state (§9.5). `CONFIG` `GET` and `GET_ALL` stay as the authenticated read. Retiring bit 1 and `REQUEST_CONFIG` was rejected: it breaks working simnode code and a published HA button, and costs an authenticated frame per readback | Protocol Spec §6.4, §7.4, §8.1, §9.2 |
+| **D46** | Whether `param_id` is one namespace, and whose schema `0x12` is | **One namespace for the fleet, allocated in blocks per owner**: `0x0000`–`0x00FF` bridge, `0x0100`–`0x01FF` every node, `0x1000`–`0x1FFF` GateLink, `0x2000`–`0x2FFF` WellLink. Schema `0x12` keeps its value and becomes **node config v1**, carried by any node. No byte changes | Protocol Spec §7.1, §7.4 |
+| **D47** | Where a parameter about a node is held | **Each parameter declares its owner**: the bridge, globally; the bridge, per node; or the node. The bridge applies its own half of a `config/set`, sends the node's half as `CONFIG`, and publishes one `config/ack` when both have an outcome. `config/state` shows the node's and the bridge's per-node values together, so HA sees one device with one configuration | Protocol Spec §16.7, Protocol Library Plan §4 |
+| **D48** | The `config/set`, `config/ack` and `config/state` payloads (**closes D42's deferral**) | **One JSON topic per node, keyed by parameter name**, not `param_id`. HA `number` entities publish into it through a `command_template`. `config/ack` carries per-entry status and the **effective** value, and a new persistence outcome, **`unknown`**, for a `CONFIG` that got no `CONFIG_ACK`; the bridge resolves it by readback and publishes a second `config/ack` | Protocol Spec §16.7 (**BF-32**) |
+| **D49** | What `persist_status` means on a node with no microSD slot | **The bridge persists to NVS.** §8.11's `APPLIED_NOT_PERSISTED` means *no usable nonvolatile store* — microSD on GateLink, NVS on the bridge — and the bridge reports it only when an NVS write fails | Protocol Spec §8.11, §16.6 |
+| **D50** | How a `GET` entry, a `GET_ALL` and a `RESTORE_DEFAULTS` are encoded | **A `GET` entry carries the expected `ptype` and `len` = 0. `GET_ALL` and `RESTORE_DEFAULTS` carry `count` = 0**, and a receiver ignores any entries it finds in one. What simnode BF-6 already reads | Protocol Spec §7.4, §8.10 |
+| **D51** | An entry whose `len` does not match its `ptype` | **Rejected with `TYPE_MISMATCH`; the rest of the set applies.** `len` delimits the entry, so the frame stays parseable. Discarding the frame was rejected: it would break §7.4's per-entry results. What simnode BF-6 already does | Protocol Spec §7.4 |
+| **D52** | What answers `RESTORE_DEFAULTS` | **The full effective configuration, as for `GET_ALL`**, so the bridge can republish `config/state` without a second readback. Simnode BF-6 answers with no results and changes to match | Protocol Spec §7.4, §8.10 |
+| **D53** | What `persist_status` means for a read, and when `NOT_APPLIED` applies | **After a write, what was applied; after a read, whether the current overrides are persisted** (`PERSISTED` when there are none). `NOT_APPLIED` means nothing was applied: an unknown `op`, or a `SET` whose every entry was rejected | Protocol Spec §7.4, §8.11 |
+| **D54** | Whether a dedup hit repeats `REQUEST_STATUS`'s or `REQUEST_CONFIG`'s follow-up frame | **No. A dedup hit repeats the ACK and nothing else**; the bridge recovers a missing follow-up with `POLL` bit 0 or bit 1. What simnode BF-6 already does | Protocol Spec §10.4 |
+| **D55** | What `len` means in a `CONFIG` entry | **The total number of value bytes, and a multiple of the `ptype`'s unit width** (1, 2 or 4). `len / width` is the number of units: 0 for a `GET`, 1 for a scalar, N for an array. **A string is `ptype` = `u8`** with `len` its length. An entry the receiver cannot take — a `len` that is not a multiple, a value too wide to store, an array where the parameter is a scalar — is rejected alone with `TYPE_MISMATCH` (**D51**) and never discards the frame, so a node built before a type existed still reads a set that uses it | Protocol Spec §7.4 (**BF-32**) |
+| **D56** | Whether the LoRa PHY parameters are runtime-configurable | **Yes, under new §12.4's commit-and-revert**, reversing §12.1's *"out of scope for v1"*. Frequency, SF, BW, CR and TX power become `/lib/lran-config/` parameters, held per node; the sync word, header mode and CRC stay contractual. One atomic `CONFIG`, last known-good persisted first, `phy_trial_s` (default 120) from apply, confirmation is a frame **received** on the new settings, and both ends revert on silence. **TX power stays clamped by D33** and BW by the envelope coupling; widening either is a decision, not a configuration change. A node that has not built the path answers `READ_ONLY`. The operator's reasoning, 2026-09-19: *"within reason configurability (aka ability to adapt on the fly) proves more successful in the long run and minimizes recompile changes"* | Protocol Spec §12.1, §12.4, §8.12; Protocol Library Plan §4 (**BF-33**) |
+| **D57** | How a node answers a `GET_ALL` too large for one frame | **Several `CONFIG_ACK` messages, every one but the last marked `MORE_FOLLOWS`** — bit 7 of `count`, whose top two bits are unreachable because 193 bytes of payload hold at most 32 results. Schema `0x12` keeps its layout and offsets. The node walks its table in ascending `param_id` across the answer, repeats `op` and `persist_status` on every message, and sends at most **4** messages. A solicited answer repeats the request's `seq`, so **the bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message with `MORE_FOLLOWS` clear. A repeated `GET_ALL` is answered by walking the table again rather than from the dedup cache, because a read applies nothing. The bridge never publishes `config/state` from an answer that did not complete; it abandons one on `config_readback_timeout_ms` and requests another | Protocol Spec §7.4.1, §11.4, §16.7.4; Protocol Library Plan §4 (**BF-32**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -635,6 +650,83 @@ against the datasheet, and it costs Protocol Spec §17.1 a mechanism it relied o
 
 ---
 
+### 3.6 D43–D57 — runtime configuration from Home Assistant, 2026-09-19 and 2026-09-20
+
+**The operator chose the general route on 2026-09-19 (D43) and accepted all eight
+recommendations of `LRAN-Config-Set-Brief` the same day**, which is superseded. Six became
+D44–D49. The other two were not choices: the bridge's parameter list is written into
+Protocol Library Plan §4 for review, and **BF-32** owns the build.
+
+**The property §3.5 checked holds again.** No answer changes a frame layout, a header
+field, an enumeration value or the authentication scope. D46 renames schema `0x12`
+without changing its value, and D45 defines a reply the specification had left
+unwritten, so `ver` stays `2` and no test vector regenerates.
+
+**Two answers are worth reading for their reasoning:**
+
+- **D45 writes down what an implementation already did.** The specification offered three
+  ways to request a readback and defined a reply for one. Simnode BF-6 answered the other
+  two with an unsolicited `CONFIG_ACK`, which contradicted §9.2's reason for leaving
+  `CONFIG_ACK` unauthenticated. The rule now says what the simnode does, and why that is
+  safe, as D40 did for BF-19.
+- **D44 resolves a disagreement BF-23 had already made moot.** System PRD §9.4 said
+  *generated*; Protocol Library Plan §4 said *hand-written, maintained by hand*. BF-23
+  generated `/ha/` from the firmware's own `discovery.cpp`, which showed that a
+  hand-written table and code-derived outputs are compatible.
+
+**D50–D54 came from the v0.13 read-through the same day**, and the operator accepted each
+recommendation. Each fills a gap in §7.4, §8.10, §8.11 or §10.4 that simnode BF-6 had
+already filled locally. Four adopt what the simnode does. D52 does not: the simnode answers
+`RESTORE_DEFAULTS` with no results, which would leave the bridge unable to republish
+`config/state` without a second readback. The read-through also opened **W16**, on when a
+node sends `CONFIG_CHANGE`, and left it to GateLink.
+
+**D55 and D56 came from the operator's reading of the brief**, later the same day, and
+neither adopts an implementation's behaviour the way D45 and D50–D54 do.
+
+- **D55 generalises `len`.** The operator read it as a unit count and asked which it was.
+  Defining it as a byte count that is a multiple of the `ptype`'s width answers both: a
+  scalar is one unit, a string is `u8` bytes, and an array needs no new `ptype`. Nothing on
+  the wire changes, because every value defined today is one unit wide.
+- **D56 reverses a v1 scope decision, and the specification had already named the
+  mechanism.** §12.1 said PHY parameters were not runtime-configurable, *"if this is ever
+  wanted it needs a commit-and-revert scheme — apply, require a confirmation frame within N
+  seconds, otherwise revert."* The operator judged field adaptability worth more than the
+  simplicity of a fixed PHY. The scheme is §12.4, and the parameters are declared
+  `READ_ONLY` until **BF-33** builds it, so Home Assistant can read the working point before
+  it can change it.
+
+**D57 answers W10, on 2026-09-20, and the count is why.** W10 had asked for GateLink's real
+parameters to be counted against §7.4's ceilings before `/lib/lran-config/` was designed. The
+count: **25 named rows at 171 bytes** of the 193 a `CONFIG_ACK` has for results, which fits one
+frame with three `uint16` rows to spare. The rows GateLink PRD R-5.3a and R-5.4 imply but do not
+name — the dry-run switch, the buzzer, injection spacing, VE.Direct staleness,
+`mppt_write_arm_timeout_s`, `republish_interval_s` — take it to 211 bytes. **The operator decided
+on the margin rather than the overflow**: a requirement that every interval, window, threshold and
+debounce be configurable will cross three rows during GateLink's implementation, and enumerating
+the list now does not bound it. Of the three routes considered — a marked sequence, a paged
+`GET_ALL` carrying an offset, and a rule that a node's set must fit one frame — the operator chose
+the sequence because it asks the requester to know nothing about how many parameters exist.
+
+**Found in the same pass, and not decisions.** Five passages still described `CONFIG` and
+`CONFIG_ACK` as fragmented after D38. Protocol Spec v0.13 corrects them; the brief's §2
+lists them.
+
+**Two GateLink documents disagree with D56 and with Library Plan §4**, found while counting
+for W10 and not fixed here. They are tracked in
+[`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md) and fixed at the GateLink
+milestone, with whatever else its implementation surfaces (operator, 2026-09-20):
+
+- **GateLink PRD §5.3.1 still lists the LoRa PHY parameters as not runtime-configurable**,
+  with the reasoning *"changing these from HA means changing the link you are changing them
+  over."* **D56 decided the opposite** and §12.4's commit-and-revert is the answer to that
+  objection. Those six rows are also the whole of the margin the count above found.
+- **`tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names**, the first in
+  the GateLink PRD and the second in Library Plan §4, where it becomes a permanent Home
+  Assistant `object_id`.
+
+---
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -793,6 +885,19 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.14** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
+  operator chose the general `config/set` route and accepted every recommendation of
+  `LRAN-Config-Set-Brief` on 2026-09-19; the brief is **superseded**. New **§3.6** carries
+  the reasoning. **D50–D54** followed from the v0.13 read-through the same day, filling five
+  gaps in `CONFIG` semantics. **D55 and D56** followed from the operator's reading: `len`
+  becomes a byte count that is a multiple of the `ptype`'s width, and the PHY parameters
+  become runtime-configurable under §12.4's commit-and-revert. **D42 is amended**: its deferred `config/*` payloads are now D48's. No
+  frame layout changes, so `ver` stays `2`. **D57 closes W10 on 2026-09-20**: a `GET_ALL`
+  answer too large for one frame becomes several `CONFIG_ACK` messages marked
+  `MORE_FOLLOWS`, and §3.6 carries the count that settled it — GateLink's named parameters
+  reach 171 of 193 bytes, three rows short of the ceiling. §1's highest issued numbers are
+  corrected to **D57** and **M26**; v0.12 added M25 and M26 without updating them.
 
 - **v0.13** — **D1's frequency confirmed on 24 hours of measurement, and D33's standing
   condition 3 answered.** The operator accepted **917.4 MHz** on 2026-09-20 and declined

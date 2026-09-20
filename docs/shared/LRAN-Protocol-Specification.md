@@ -1,17 +1,31 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.12
+**Version:** 0.12 — **deliberately pinned; §20 carries a v0.13 draft.** See *The header is
+behind the content, on purpose* below
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-20
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
 > topic. Where a node needs a new field, the change is made here and the version is
 > bumped (§13).
+
+> **The header is behind the content, on purpose.** §20's top entry is **v0.13 (draft)** and
+> the sections it names are written, but this header still reads **0.12** and every binding
+> citation in the repository still names v0.12. That is deliberate: bumping the header
+> obliges **31 citation sites** to move with it, and each one has to be *reconciled* with
+> v0.13's changes first, not just renumbered. `python3
+> tools/checks/spec_citation_version.py` lists them and is green at v0.12 today.
+>
+> **The sweep runs once, when the configuration pass is finished** — the operator's rule,
+> and BF-32's bridge half is still open. **Until then, read §20's v0.13 entry as the current
+> statement of intent and the sections themselves as authoritative**, and do not cite
+> "v0.13" from another document. A node document citing v0.12 is correct right now, which is
+> the one case root `CLAUDE.md`'s version rule does not cover.
 
 ---
 
@@ -468,6 +482,9 @@ schema rather than overloading this field (§13.2).
 |---|---|---|
 | 0 | `uint8` | `poll_flags` — bit 0: request full status; bit 1: request config readback; 7:2 reserved, write `0` |
 
+**Bit 1 is answered by an unsolicited `CONFIG_ACK`** carrying the node's full effective
+configuration, sent after the `STATUS` the poll produces (§7.4, **D45**).
+
 ### 6.5 `ERROR` — 4 bytes
 
 | Offset | Type | Field |
@@ -533,10 +550,9 @@ that makes it a valid test.
 > Maximum *frame* size is exercised separately by the unfragmented 222-byte `PING` of
 > §6.6.1. Between the two, both worst cases are reachable from the bench.
 
-This is the only mechanism in the protocol that exercises reassembly over the air
-before an installed node depends on it. §11.5 records why that matters now rather
-than hypothetically: `CONFIG_ACK` is expected to cross the single-frame boundary on
-GateLink, and GateLink has no OTA.
+This is the only mechanism in the protocol that exercises reassembly over the air, and
+since v0.12 `PING` is the only fragmentable type (§11.4). §11.5 records why the path stays
+specified and tested with no schema depending on it.
 
 #### 6.6.3 `PATTERN_FILL`
 
@@ -572,7 +588,7 @@ register semantics; see §7.6 for the payload and the authentication rule.
 | `0x00` | Not applicable (types without a schema) | all other types | — |
 | `0x10` | **GateLink status v1** | `STATUS` | 78 B |
 | `0x11` | **GateLink event v1** | `EVENT` | 16 B |
-| `0x12` | **GateLink config v1** | `CONFIG`, `CONFIG_ACK` | variable |
+| `0x12` | **Node config v1** — any node (§7.4) | `CONFIG`, `CONFIG_ACK` | variable |
 | `0x20` | WellLink status v1 — *reserved, not defined* | `STATUS` | — |
 | `0x21` | WellLink event v1 — *reserved, not defined* | `EVENT` | — |
 | `0xF0` | **Generic node health** — all nodes | `STATUS` | 20 B |
@@ -836,9 +852,27 @@ delivering direction when it becomes known.
 
 ---
 
-### 7.4 Schema `0x12` — GateLink config v1 (variable)
+### 7.4 Schema `0x12` — Node config v1 (variable)
 
-Carried by both `CONFIG` and `CONFIG_ACK`.
+Carried by both `CONFIG` and `CONFIG_ACK`, from and to any node. Nodes differ in which
+parameters they hold, not in how a parameter is encoded.
+
+**`param_id` is one namespace for the fleet**, allocated in blocks per owner (**D46**):
+
+| Block | Owner |
+|---|---|
+| `0x0000`–`0x00FF` | the bridge — set over MQTT (§16.7), **never carried by a frame** |
+| `0x0100`–`0x01FF` | every node |
+| `0x1000`–`0x1FFF` | GateLink |
+| `0x2000`–`0x2FFF` | WellLink |
+
+A node answers a `param_id` it does not hold with `UNKNOWN_PARAM` (§8.12), whichever block
+it falls in.
+
+> **Changed in v0.13.** v0.4 through v0.12 registered `0x12` as *GateLink config v1*
+> while the parameter table sketched in Protocol Library Plan §4 already held bridge and
+> node-common IDs, and WellLink had no config schema. The value is unchanged; only the
+> name and scope are.
 
 **`CONFIG` payload:**
 
@@ -857,14 +891,45 @@ Carried by both `CONFIG` and `CONFIG_ACK`.
 | 3 | `uint8` | `len` — value length in bytes |
 | 4.. | `uint8[len]` | value, little-endian |
 
+**`len` is the total number of value bytes, and it is a multiple of the `ptype`'s unit
+width** (**D55**): 1 for `u8` and `bool`, 2 for `u16` and `i16`, 4 for `u32` and `i32`.
+`len / width` is the number of units the value carries.
+
+| `len / width` | Meaning |
+|---|---|
+| 0 | No value. A `GET` entry, which names the parameter and the `ptype` the sender expects |
+| 1 | A scalar — every parameter defined today |
+| N | An array of N units, in wire order. **A string is `ptype` = `u8`** with `len` its length in bytes, not NUL-terminated |
+
+**An entry the receiver cannot take is rejected on its own, with `TYPE_MISMATCH`, and the
+rest of the set still applies** (**D51**). That covers a `len` that is not a multiple of the
+width, a value wider than the receiver can store, an array where the parameter is a scalar,
+and a `ptype` that differs from the one the node holds for that `param_id` — whose result
+carries the value the node holds. **A receiver MUST NOT discard the frame for any of
+them.** `len` tells it how many bytes to skip, so a node built before a wider type or an
+array parameter existed still reads the rest of a set that uses one, and answers for the
+entry it could not take. That is the same forward-compatibility bargain as §4's reserved
+bits.
+
 **`CONFIG_ACK` payload:**
 
 | Off | Type | Field |
 |---|---|---|
 | 0 | `uint8` | `op` — echoed |
 | 1 | `uint8` | `persist_status` — §8.11 |
-| 2 | `uint8` | `count` |
+| 2 | `uint8` | `count` — bit 7 `MORE_FOLLOWS`, bits 6:0 the result count (§7.4.1) |
 | 3.. | result entries | `uint16 param_id`, `uint8 status` (§8.12), `uint8 ptype`, `uint8 len`, `uint8[len]` *effective* value |
+
+**What `persist_status` reports depends on `op`** (**D53**). After a `SET` or
+`RESTORE_DEFAULTS` it reports what was applied: `PERSISTED`, `APPLIED_NOT_PERSISTED`, or
+`NOT_APPLIED` when nothing in the set was applied — an unknown `op`, or a `SET` whose every
+entry was rejected. After a read — `GET`, `GET_ALL` or the unsolicited readback — it
+reports whether the node's current overrides are persisted, and reads `PERSISTED` when
+there are none.
+
+**`RESTORE_DEFAULTS` is answered with the full effective configuration**, exactly as
+`GET_ALL` is (**D52**), so the bridge can republish `config/state` (§16.7.4) without a
+second readback.
 
 **A repeated `CONFIG` is answered from the dedup cache, not re-applied.** `CONFIG` is
 authenticated, so §9.4 steps 4–6 govern it exactly as they govern `COMMAND`: a second
@@ -885,30 +950,122 @@ Three properties are load-bearing and must survive into the implementation:
 - **The ACK carries the effective value, not the requested one.** Out-of-range values
   are clamped to the documented range and the clamp is reported (`status = CLAMPED`),
   rather than applied quietly.
-- **`persist_status` is honest.** A node with no usable microSD still applies and
-  still ACKs the change, with `persist_status = APPLIED_NOT_PERSISTED`. HA must never
+- **`persist_status` is honest.** A node with no usable nonvolatile store (§8.11) still
+  applies and still ACKs the change, with `persist_status = APPLIED_NOT_PERSISTED`. HA must never
   be told a value was saved when it was not.
 
-**A full parameter set does not fit one frame.** A `CONFIG` entry is `4 + len`
-bytes, so a push carrying `uint32` values fills `LRAN_MAX_SCHEMA_PAYLOAD` (196 B,
-§3.1) at **24 entries**; a `CONFIG_ACK` result entry is `5 + len`, filling it at
-**21**. GateLink's requirement that every timing interval be reconfigurable without
-reflashing makes a full-set push and a full-set readback (`poll_flags` bit 1, §6.4)
-realistic frames, and they are therefore **the first fragmented frames the system is
-expected to produce.** Both types are fragmentable; see §11.4.
+**A full parameter set may not fit one frame.** A `CONFIG` entry is `4 + len` bytes and a
+`CONFIG_ACK` result entry is `5 + len`, so what binds is the **193 bytes** left of
+`LRAN_MAX_SCHEMA_PAYLOAD` (196 B, §3.1) once `op`, `persist_status` and `count` are taken.
+At `uint32` values that is **24 entries** pushed and **21 results** returned; at `uint16`
+values it is 27 results. GateLink's requirement that every timing interval be
+reconfigurable without reflashing makes a full-set push and a full-set readback realistic,
+and Protocol Library Plan §4 counts its parameters against that budget. **Both types are
+single-frame** (§11.4), so a set larger than one frame is sent as several `CONFIG`
+messages, with no atomicity across them. **§7.4.1 is how an answer larger than one frame
+is returned** (**D57**).
 
-**A lost `CONFIG_ACK` fragment is recovered by readback, not retransmission.** An
-incomplete set is discarded whole (§11.2), which for a `CONFIG_ACK` would leave the
+**A lost `CONFIG_ACK` is recovered by readback, not retransmission.** It leaves the
 bridge holding no result for a write it authenticated. The bridge SHALL treat a
 `CONFIG` with no completed `CONFIG_ACK` inside its ACK timeout as **outcome unknown**,
 never as failure, and resolve it with a `POLL` carrying `poll_flags` bit 1. Config
 state is idempotently readable; a config write is not idempotently repeatable, and
-retrying one to learn whether the first took effect is the wrong instinct.
+retrying one to learn whether the first took effect is the wrong instinct. Until the
+readback arrives, Home Assistant is told the outcome is `unknown` (§16.7.3).
 
-`param_id` values, types, ranges and defaults are declared once in `/lib/lran-config/`
-and generated from there into firmware defaults, HA discovery payloads and
-`/docs/gatelink-config.md`. **This document does not enumerate them** — three
+**`POLL` bit 1 and `REQUEST_CONFIG` are answered by an unsolicited `CONFIG_ACK`** with
+`op` = `GET_ALL`, carrying the node's full effective configuration, with a `seq` from the
+node's status sequence space (§10.2, **D45**). It follows the `STATUS` a poll produces, or the `COMMAND_ACK` a
+`REQUEST_CONFIG` produces. Its `persist_status` reports whether the node's current
+overrides are persisted. It correlates to no request and carries no MAC, for the reason
+`STATUS` carries none (§9.2). A `CONFIG` with `op` = `GET` or `GET_ALL` remains the
+authenticated read, answered by a `CONFIG_ACK` correlated by `seq`.
+
+> **Decided in v0.13.** v0.12 named both requests and defined a reply for neither.
+> Simnode BF-6 answered both this way; the rule now says what it does, as D40 did for
+> BF-19.
+
+`param_id` values, names, types, ranges and defaults are declared once, in a hand-written
+C++ table in `/lib/lran-config/`, and every other copy is derived from it by code:
+firmware defaults and HA discovery read the table directly, and a host tool writes
+`/docs/gatelink-config.md` (**D44**). **This document does not enumerate them** — three
 hand-maintained copies would drift.
+
+
+#### 7.4.1 An answer larger than one frame — `MORE_FOLLOWS`
+
+**A node that cannot fit a `GET_ALL` answer in one frame sends several `CONFIG_ACK`
+messages and marks every message but the last** (**D57**). The marker is bit 7 of `count`:
+
+| `count` bit | Meaning |
+|---|---|
+| 7 | `MORE_FOLLOWS` — another `CONFIG_ACK` of this answer follows |
+| 6:0 | Result entries in this message |
+
+**Bit 7 is free by construction.** A result entry is at least 6 bytes, and 193 bytes remain
+for results once `op`, `persist_status` and `count` are taken, so `count` cannot exceed 32.
+A node whose answer fits one frame leaves bit 7 clear, which is what every implementation
+written before this rule already emits.
+
+> **Why not a new field, or a new schema ID.** §13.2 sends a payload field addition to a
+> new schema ID, and that is the right default. It is not taken here because `count`'s
+> top two bits are unreachable at any payload size this protocol allows, so the marker
+> costs no byte and changes no offset. Schema `0x12` keeps its layout, and the committed
+> W4 vectors keep their bytes with bit 7 clear, already meaning what this rule says it
+> means. The cost is recorded rather than hidden: a field's domain is narrowed, so a
+> receiver that ignored the high bits before this revision reads a count of 128 or more
+> and rejects the frame on length. Nothing is fielded that does so.
+
+**The rule covers both readbacks.** A `CONFIG` with `op` = `GET_ALL` or
+`RESTORE_DEFAULTS` is answered this way, and so is the unsolicited readback that answers
+`POLL` bit 1 and `REQUEST_CONFIG`. A `GET` naming more parameters than one answer holds is
+answered the same way. A `SET` is not: the bridge sends a set it cannot fit as several
+`CONFIG` messages, as above, and each one is answered on its own.
+
+**The node walks its table in ascending `param_id` across the whole answer.** The table is
+already unique and ascending, so a walk produces that order without sorting. An answer
+whose order is fixed is one the bridge can merge without deciding which copy of a
+parameter is newer.
+
+**Every message of one answer repeats `op` and `persist_status` unchanged.**
+`persist_status` describes the node's store rather than the message (§8.11), so a reader
+that sees any message of the answer learns it.
+
+**A solicited answer repeats the request's `seq` on every message.** Correlation is by
+`seq` (§9.2), and the answer is one reply to one request. **The bridge SHALL accept more
+than one `CONFIG_ACK` bearing a given `seq`, and SHALL close the transaction on the
+message whose `MORE_FOLLOWS` is clear.** A bridge that closes on the first message strands
+the rest of the answer and reports a configuration it did not finish reading.
+
+**An unsolicited readback takes one value from the node's status sequence space per
+message** (§10.2, **D45**), in the order sent. Status `seq` is advisory and non-rejecting,
+so it orders the answer without gating it.
+
+**A node SHALL send at most 4 messages in one answer**, which is about 110 results at
+typical widths. The bound exists so a bridge staging an answer has a termination
+condition that does not depend on the node being correct. A node whose table cannot be
+answered in 4 messages has outgrown this mechanism, and splitting it is a decision rather
+than an implementation detail.
+
+**A repeated `GET_ALL` is answered by walking the table again, not from the dedup cache.**
+§10.4's cache exists because applying a `SET` twice is unsafe, and a read applies nothing.
+Regenerating the answer also keeps the cache from having to hold several frames per entry,
+and a value that changed between the first answer and the retry is reported as it now
+stands. A repeated `SET` is still answered from the cache, unchanged.
+
+**The bridge SHALL NOT publish `config/state` from an incomplete answer** (§16.7.4). It
+holds the answer until a message arrives with `MORE_FOLLOWS` clear, or until
+`config_readback_timeout_ms` expires from the first message. On expiry the bridge
+abandons the answer, counts it in the bridge-local `config_readback_abandoned`, and
+requests a fresh readback with `POLL` bit 1. **That counter is bridge-local and
+deliberately not a §14.1 counter**, for the reason `rx_deaf_ms` and `cad_free` are not:
+nothing was discarded on the wire, and schema `0xF0` is a node health schema.
+
+> **Rejected: merging each message into `config/state` as it arrives.** It needs no
+> staging and no timeout, and it publishes a retained object in which values from this
+> answer and values from the last one cannot be told apart. A parameter whose message was
+> lost keeps its previous value and reads as current. That is the failure `persist_status`
+> exists to prevent on the write path, and R-5.2b prevents on the publication path.
 
 ---
 
@@ -990,7 +1147,7 @@ on one UART — is a node implementation matter and is specified in
 | `0x03` | `HOLD_OPEN` | Open and latch — OPEN+LOCK |
 | `0x04` | `RELEASE_HOLD` | UNLOCK; auto-close then closes |
 | `0x10` | `REQUEST_STATUS` | — |
-| `0x11` | `REQUEST_CONFIG` | — |
+| `0x11` | `REQUEST_CONFIG` | — (its `COMMAND_ACK` is followed by an unsolicited `CONFIG_ACK` readback, §7.4) |
 | `0x20` | `SET_DEBUG_MODE` | `arg2` = bitmask of debug modes |
 | `0x21` | `SET_RELAY_DRY_RUN` | `arg` = `0` off, `1` on |
 | `0x22` | `SET_BMS_POLLING` | `arg` = `0` off, `1` on |
@@ -1148,17 +1305,17 @@ up**, and that requires HA to be able to route it independently.
 | Value | Name |
 |---|---|
 | `0x01` | `SET` |
-| `0x02` | `GET` — the listed `param_id`s |
-| `0x03` | `GET_ALL` — the full effective configuration |
-| `0x04` | `RESTORE_DEFAULTS` — clears all overrides |
+| `0x02` | `GET` — the listed `param_id`s; each entry `len` = 0 (§7.4) |
+| `0x03` | `GET_ALL` — the full effective configuration; `count` = 0 |
+| `0x04` | `RESTORE_DEFAULTS` — clears all overrides; `count` = 0, answered with the full effective configuration (§7.4) |
 
 ### 8.11 `persist_status`
 
 | Value | Name |
 |---|---|
 | `0x00` | `PERSISTED` |
-| `0x01` | `APPLIED_NOT_PERSISTED` — no usable microSD; RAM only until reboot |
-| `0x02` | `NOT_APPLIED` — the whole set was rejected |
+| `0x01` | `APPLIED_NOT_PERSISTED` — no usable nonvolatile store: microSD on GateLink, NVS on the bridge (**D49**); RAM only until reboot |
+| `0x02` | `NOT_APPLIED` — nothing in the set was applied: an unknown `op`, or a `SET` whose every entry was rejected (§7.4) |
 
 ### 8.12 per-entry config `status`
 
@@ -1169,6 +1326,11 @@ up**, and that requires HA to be able to route it independently.
 | `0x02` | `CLAMPED` — applied at a range endpoint; the ACK carries the effective value |
 | `0x03` | `TYPE_MISMATCH` |
 | `0x04` | `READ_ONLY` |
+
+**`READ_ONLY` also covers a parameter the node publishes but cannot yet apply**, which is
+how §12.4's PHY parameters answer a `SET` until the commit-and-revert path is built
+(**D56**). A readable value that refuses a write is honest; a write that half-applies is
+not.
 
 ### 8.13 `HEX_RSP` `status`
 
@@ -1267,7 +1429,7 @@ every provisioned node.
 | `HEX_REQ` — Set (`0x8`) / Restart (`0x6`) | **Yes** | Writes MPPT config — a battery-damage path under LiFePO4 (§7.6) |
 | `HEX_REQ` — Get (`0x7`) and other reads | No | Read-only, consistent with status |
 | `STATUS`, `EVENT`, `POLL`, `PING`, `ERROR` | No | Spoofed status is a nuisance, not a hazard (§9.5) |
-| `COMMAND_ACK`, `CONFIG_ACK`, `HEX_RSP` | No | Correlated to an authenticated request by `seq` |
+| `COMMAND_ACK`, `CONFIG_ACK`, `HEX_RSP` | No | Correlated to an authenticated request by `seq`. **The exception is `CONFIG_ACK`'s unsolicited `GET_ALL` readback** (§7.4), which correlates to nothing and is unauthenticated for the reason `STATUS` is: a spoofed readback misreports configuration as a spoofed `STATUS` misreports state (§9.5) |
 
 **An encoder MUST NOT emit an authenticated type without a MAC.** A build with no key
 material available fails the send and reports the failure; it does not fall back to an
@@ -1302,7 +1464,7 @@ where the airtime analysis (§15.2) shows four bytes buys nothing worth having.
 
 Verification splits across the reassembly boundary (§11): **authentication is per
 frame, replay protection is per set.** For an unfragmented frame — which in v1 is
-every authenticated frame except a multi-fragment `CONFIG` — the two halves run back
+every authenticated frame (§11.4) — the two halves run back
 to back and the order is exactly v0.3's.
 
 **Per frame, on every fragment, before it is buffered:**
@@ -1438,6 +1600,9 @@ The bridge MUST treat status `seq` as advisory. It is useful for discarding dupl
 within a short window and for detecting loss in diagnostics. **It MUST NOT be used to
 reject frames**, because a status frame arriving out of order is still current data.
 
+**The status space covers every frame a node sends unprompted by an authenticated
+request**: `STATUS`, `EVENT`, and since v0.13 the unsolicited `CONFIG_ACK` readback (§7.4).
+
 **A bridge-originated unauthenticated frame's `seq` belongs to neither space.** `POLL`
 carries a `seq` so an answer can be matched to the poll that asked for it (§6.4), and
 that value is **local to the sender and advisory**: it is not replay-relevant, it MUST
@@ -1485,6 +1650,12 @@ a retry that finds it receives nothing and is counted in `rx_dup_command` (§9.4
 in-flight entry occupies a cache slot like any other. If `dedup_cache_depth` newer
 commands are accepted before it completes, it is evicted, and its retry is refused at
 §9.4 step 5 — never executed again.
+
+**A dedup hit repeats the ACK and nothing else** (**D54**). `REQUEST_STATUS` and
+`REQUEST_CONFIG` follow a fresh execution with a `STATUS` or an unsolicited `CONFIG_ACK`
+readback (§7.4). A retry answered from the cache does not send it again. A bridge that got
+the ACK but not the frame after it recovers the frame with a `POLL`: bit 0 for status, bit
+1 for the readback (§6.4).
 
 ### 10.5 Wrap behavior
 
@@ -1638,7 +1809,7 @@ serial-number arithmetic (RFC 1982 style), not a plain `>`.
 | Type | Fragmentable | Note |
 |---|---|---|
 | `CONFIG` | **No in v1** | See below. A set is capped at what one authenticated frame carries — 24 `uint32` entries (§7.4) |
-| `CONFIG_ACK` | **No in v1** | Capped at 21 result entries (§7.4). Loss recovery is readback, not retransmission |
+| `CONFIG_ACK` | **No in v1** | An answer too large for one frame is several messages, marked `MORE_FOLLOWS` (§7.4.1). Loss recovery is readback, not retransmission |
 | `PING` | **Yes** | The bench vehicle for this section (§6.6.2) |
 | `STATUS`, `EVENT` | Permitted, unused in v1 | Every defined schema is fixed and fits. Fire-and-forget: a dropped fragment discards the set with no retry |
 | `COMMAND` | **No** | 4 bytes. Single-frame commands keep authentication and replay logic simple |
@@ -1709,7 +1880,7 @@ must reserve it before any schema needs it — a `frag` field added later is a `
 | Header mode | **Explicit** | Required by §2.1 |
 | CRC | **Enabled** | Required by §2.1 |
 | Sync word | Private (`0x12` / SX126x `0x1424`) | Not the LoRaWAN value |
-| SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10 | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
+| SF / BW / CR / TX power | **SF9 / BW 125 kHz / CR 4/5 / −4 dBm conducted** with a 3.0 dBi antenna, under §15.249 Envelope A. Fixed by **D1**, 2026-09-10, and **settable at runtime under §12.4** (**D56**) | §15.1 gives the airtime consequences and §12.3 the backoff window they set; §18.2 gives the ceiling and the envelope coupling |
 | Node-address filtering | **Unavailable in LoRa mode. Not used** | The SX126x address filter is a **GFSK** feature; the LoRa packet handler has no address field. Verified against the datasheet — see below. Addressing is entirely §14's stage 5, in software |
 
 **All nodes share one frequency, SF, BW and sync word.** Per-node channels would
@@ -1772,11 +1943,17 @@ from a measurement will be reopened by the first unexplained `cad_backoffs` read
 > **37.5 % of the band was never looked at**, and a transmitter sitting entirely in a gap is
 > invisible at any level. It is the instrument that would catch one.
 
-**LoRa PHY parameters are not runtime-configurable.** Changing them from HA means
-changing the link you are changing them over; one mismatch and the node is unreachable
-until someone walks to it with a laptop. If this is ever wanted it needs a
-commit-and-revert scheme — apply, require a confirmation frame within N seconds,
-otherwise revert. Out of scope for v1.
+**The PHY parameters are configurable at runtime, and only under §12.4's
+commit-and-revert.** Changing one from HA means changing the link you are changing it
+over, and one mismatch strands a node that has no OTA. §12.4 is what makes that survivable:
+the node applies the change, and reverts to its last known-good settings unless the bridge
+confirms over the new ones inside a trial window.
+
+> **Changed in v0.13 (D56).** v0.1 through v0.12 put this out of scope for v1 and named
+> the scheme that would be needed. The operator brought it into scope on 2026-09-19:
+> adapting a working point in the field without a walk to the gate is worth more than the
+> simplicity of a fixed PHY, and the parameters are declared now so Home Assistant can read
+> them before it can write them.
 
 ### 12.2 Radio pin map is injected, not hardcoded
 
@@ -1842,6 +2019,53 @@ backoffs than the bridge is the reading worth investigating.
 **FCC.** 915 MHz ISM under Part 15. Not LoRaWAN, so no TTN duty-cycle policy applies.
 The operating mode is settled — see §18.1 — and constrains TX power, which §12.1
 records.
+
+---
+
+### 12.4 Changing the PHY at runtime — commit and revert
+
+**Every PHY parameter in §12.1's table is a `/lib/lran-config/` parameter** — frequency,
+SF, BW, CR and TX power — except the sync word, the header mode and the CRC setting, which
+are contractual and stay fixed. Each node holds its own copy and the bridge holds one.
+
+**A PHY change is a fleet operation, not a per-node one.** §12.1 requires one frequency,
+SF, BW and sync word across the fleet, because one SX1262 cannot listen on several. A set
+that moves one node without the rest moves it off the air.
+
+**The scheme, and every part of it is load-bearing:**
+
+1. **One atomic set.** SF, BW, CR, TX power and frequency travel in **one** `CONFIG`
+   message, never across several (§11.4 gives no atomicity across messages). A node applies
+   them together and recomputes what depends on them — §12.3's backoff window is derived
+   from the resulting airtime, not carried separately.
+2. **The old settings are persisted first.** Last known-good goes to the nonvolatile store
+   before the radio is retuned, so a reboot mid-trial comes back on settings that work.
+3. **A trial window opens on apply.** `phy_trial_s` (default 120) starts when the node
+   retunes. The node answers its `CONFIG_ACK` **on the old settings** before retuning, so
+   the bridge learns the change was accepted even if the new settings fail.
+4. **Confirmation is a frame received on the new settings.** Any authenticated frame from
+   the bridge counts. Nothing else does — an ACK the node sent proves its transmitter, not
+   the link.
+5. **Silence reverts, at both ends.** A node that hears nothing before `phy_trial_s`
+   expires restores the persisted settings. The bridge runs its own trial window for its
+   own radio and reverts the same way, so a node that never received the set and a bridge
+   whose fleet went quiet both return to the last working configuration without a visit.
+6. **`EVENT` on revert.** A revert is reported once the link is back, so a failed change is
+   visible in Home Assistant rather than inferred from a node that went quiet and came back.
+
+**TX power is clamped by the firmware, not by the operator.** §18.2's ceiling is an EIRP
+limit under §15.249, so the parameter's range in `/lib/lran-config/` stops at the D33
+ceiling and a value above it is `CLAMPED`, reported, and never applied. Widening that range
+is a D33 decision, not a configuration change.
+
+**BW carries the same coupling.** D1's fourth bound makes bandwidth and the FCC rule
+section one decision (§18.2), so BW stays at 125 kHz until an envelope decision says
+otherwise, whatever the parameter table's range permits.
+
+**Until the machinery exists, the parameters are declared and read-only.** A node that has
+not built §12.1a answers a `SET` on any of them with `READ_ONLY` (§8.12) and applies
+nothing. Home Assistant can read the effective PHY from the first release that carries the
+table.
 
 ---
 
@@ -2172,9 +2396,9 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/<domain>/state` | bridge → HA | **Yes** | Decoded state |
 | `lran/<node>/cmd/<action>/set` | HA → bridge | No | Command request |
 | `lran/<node>/cmd/ack` | bridge → HA | No | `COMMAND_ACK` outcome |
-| `lran/<node>/config/set` | HA → bridge | No | Configuration change |
-| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` |
-| `lran/<node>/config/ack` | bridge → HA | No | Outcome of the last change |
+| `lran/<node>/config/set` | HA → bridge | No | Configuration change or request (§16.7.2) |
+| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` (§16.7.4, W15) |
+| `lran/<node>/config/ack` | bridge → HA | No | Outcome of the last `config/set` (§16.7.3) |
 | `lran/<node>/event/<name>` | bridge → HA | **No — never** | §16.3 |
 | `lran/<node>/vedirect/hex/request` | HA → bridge | No | Raw HEX request string |
 | `lran/<node>/vedirect/hex/response` | bridge → HA | No | Raw HEX response + status |
@@ -2217,10 +2441,9 @@ how JSON says it.
 every §14.1 counter by its normative name plus `rx_dropped` and `rx_frames`. §14.1 says
 why they are the bridge's rather than each node's.
 
-**`config/set` and `config/ack` are deliberately left undefined.** Neither has an
-implementation, a configuration library or an inbound path, and a payload specified
-before its first caller is a guess carrying a version number. They are defined when that
-work is scheduled.
+**The three `config/*` payloads are defined in §16.7.** v0.12 left `config/set` and
+`config/ack` undefined until they had a caller (D42). BF-18's inbound path and the bridge's
+runtime parameters are that caller (**D48**).
 
 ### 16.3 Event topics are never retained — a hard rule
 
@@ -2293,8 +2516,8 @@ configuration flag:
 | `simnode_diag_enable` | bool | **`false`** | When `false`, frames from `0xF0`–`0xFE` are decoded, counted in the bridge's own diagnostics, and **not published**. When `true`, they are published per the topic restriction above |
 
 The flag is a bridge parameter in `/lib/lran-config/` and is settable at runtime from
-HA over `lran/bridge/config/set` (§7.4, §16.2), with the same per-entry ACK and
-`persist_status` semantics as any node parameter. It requires **no reflash and no
+HA over `lran/bridge/config/set` (§16.7), with the same per-entry ACK and
+`persist_status` semantics as any node parameter, persisted to NVS (§8.11). It requires **no reflash and no
 separate firmware build** — the point is to be able to enable bench visibility on a
 running system during a development session and turn it off again afterwards.
 
@@ -2310,6 +2533,103 @@ discovery configs for a simnode, they carry `entity_category: diagnostic` and a
 excluded from dashboards by default. Bench entities are **not** removed from HA when
 the flag is cleared — the bridge publishes `offline` to their availability topic and
 leaves the entities in place, so re-enabling does not churn `unique_id` registrations.
+
+### 16.7 Configuration
+
+**Home Assistant changes a parameter by publishing to `config/set`. The bridge answers on
+`config/ack` and keeps `config/state` current.** One topic per node carries every
+parameter, keyed by name (**D43**, **D48**). The names are the `/lib/lran-config/`
+table's (§7.4), and each is also the HA entity's `object_id`. **A published name is
+therefore permanent**: renaming it orphans the entity.
+
+#### 16.7.1 Who holds a parameter
+
+Each parameter in the table declares its owner (**D47**):
+
+| Owner | Set on | Applied by | Example |
+|---|---|---|---|
+| bridge, global | `lran/bridge/config/set` | the bridge | `simnode_diag_enable` |
+| bridge, per node | `lran/<node>/config/set` | the bridge, for that node | `poll_interval_s` |
+| node | `lran/<node>/config/set` | the node, from a `CONFIG` the bridge sends | `dedup_cache_depth` |
+
+**A set on a node's topic may name parameters of both kinds.** The bridge applies its own
+half, sends the node's half as one or more `CONFIG` messages (§7.4), and publishes **one**
+`config/ack` when every half has an outcome. Bridge parameters never cross the air. A name
+the table does not hold for that topic is `unknown_param`.
+
+#### 16.7.2 `config/set` — HA → bridge, not retained
+
+A JSON object carrying exactly one of these keys:
+
+| Key | Type | Meaning | §8.10 `op` |
+|---|---|---|---|
+| `set` | object | Parameter name → value | `SET` |
+| `op` | string | `get_all` or `restore_defaults` | `GET_ALL`, `RESTORE_DEFAULTS` |
+
+A value is a JSON integer, or `true` / `false` for a `bool`. Any other value is
+`type_mismatch` for that entry. A payload that is not a JSON object carrying exactly one of
+those keys is answered on `config/ack` with `persist` = `not_applied`, no `results` and an
+`error` string, and nothing is applied.
+
+An HA `number` entity publishes into this topic through its discovery `command_template`,
+for example `{"set": {"poll_interval_s": {{ value }}}}`, and reads its state from
+`config/state` through a `value_template` such as
+`{{ value_json.poll_interval_s.value }}`. Both options are in HA's MQTT `number`
+integration, checked on 2026-09-19.
+
+```json
+{"set": {"poll_interval_s": 120, "dedup_cache_depth": 8}}
+{"op": "restore_defaults"}
+```
+
+#### 16.7.3 `config/ack` — bridge → HA, not retained
+
+| Key | Type | Meaning |
+|---|---|---|
+| `op` | string | `set`, `get_all` or `restore_defaults`, echoed |
+| `persist` | string | `persisted`, `applied_not_persisted`, `not_applied` (§8.11), or `unknown` |
+| `results` | object | Parameter name → `{"status": ..., "value": ...}` |
+| `error` | string | Present only when the `config/set` payload was rejected whole |
+
+`status` is `ok`, `unknown_param`, `clamped`, `type_mismatch` or `read_only` (§8.12), or
+`unknown`. **`value` is the effective value, not the requested one**, and `null` where
+nothing was applied or the outcome is not known.
+
+**`unknown` is the one outcome with no §8.11 counterpart.** It reports a `CONFIG` that got
+no `CONFIG_ACK` inside its ACK timeout, which §7.4 requires be treated as neither success
+nor failure. That half's entries carry `status` = `unknown`. The bridge then requests a
+readback with `POLL` bit 1 and, when it arrives, publishes `config/state` and a second
+`config/ack` for the same parameters, carrying their effective values.
+
+**When a set had two halves, `persist` is `unknown` if either half's outcome is unknown.**
+Otherwise it is the less persisted of the two, in the order `not_applied`,
+`applied_not_persisted`, `persisted`. Per-entry `status` says which entries each outcome
+concerns.
+
+```json
+{"op": "set", "persist": "applied_not_persisted",
+ "results": {"poll_interval_s":   {"status": "ok",      "value": 120},
+             "dedup_cache_depth": {"status": "clamped", "value": 32}}}
+```
+
+#### 16.7.4 `config/state` — bridge → HA, retained
+
+A JSON object: parameter name → `{"value": ..., "source": "default" | "override"}`. A
+node's topic carries the node's parameters and the bridge's per-node ones for that node;
+`lran/bridge/config/state` carries the bridge's global ones. A value the bridge has never
+read back is `null`. The bridge republishes it after every `config/ack` that changed a
+value, after every readback, and on reconnect to the broker.
+
+**The bridge publishes it from a complete readback only.** An answer split across several
+`CONFIG_ACK` messages (§7.4.1) is held until the message with `MORE_FOLLOWS` clear
+arrives. When `config_readback_timeout_ms` expires first, the bridge abandons that answer
+and requests another, and this topic keeps the values it last published. A retained object
+carrying half of one readback and half of an older one cannot be read back apart.
+
+**`source` for a node-held parameter is inferred, not reported.** `CONFIG_ACK` carries no
+override flag, so the bridge compares the effective value with the table's default, and an
+override equal to its default reads `default`. GateLink PRD R-5.3e asks for the node's own
+marking; **W15** tracks the gap.
 
 ---
 
@@ -2418,11 +2738,13 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W7 | ~~Airtime table regeneration~~ | — | **Closed 2026-09-10 with D1** (SF9 / BW125 / CR 4/5). The table was already on that basis, so it was **confirmed rather than recomputed**, and §12.3's window was set against its maximum-`PING` row in the same motion — 1107 ms at SF9, window raised to 1500. Original wording: recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
 | W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
-| W10 | **Config entry count vs. one frame** | §7.4 | `/lib/lran-config/` does not exist yet, so the size of a full-set `CONFIG_ACK` readback is unknown. **v0.12 changes what the answer costs**: `CONFIG` and `CONFIG_ACK` are now single-frame (§11.4), so exceeding 24 entries or 21 results is not a fragmentation path but a **split into several messages**, with no atomicity across them. Count GateLink's real parameters against those ceilings before `/lib/lran-config/` is designed. Fragmentation is no longer on the config critical path, which is what this item used to put there |
+| W10 | ~~Config entry count vs. one frame~~ | — | **Closed in v0.13 by D57.** A node that cannot fit an answer in one frame sends several `CONFIG_ACK` messages, marking every message but the last with `MORE_FOLLOWS`, bit 7 of `count` (§7.4.1). The counting half is answered too: what binds is **193 bytes**, not a result count, and Protocol Library Plan §4 counts GateLink's parameters against it — **25 named rows at 171 B**, which fits one frame with three `uint16` rows to spare, against a requirement (GateLink PRD R-5.3a) that every interval, window, threshold and debounce be configurable. The rows R-5.3a and R-5.4 imply but do not name take it to 211 B. **The margin, not the overflow, is what settled it**: a ceiling three rows away would have been reached during GateLink's implementation, and the split rule was cheaper to specify while §7.4 was already open than to retrofit under a version bump. Original scope: count GateLink's real parameters against the ceilings before `/lib/lran-config/` is designed |
 | W13 | ~~No vector reaches §11.2's dead-space clause~~ | — | **Closed. Unit-test coverage is sufficient and no raw-frames vector form will be built.** A duplicate fragment of differing length exhausting staging is a **non-conforming-sender** path: §11.1 fixes every non-final fragment to one length, so a conforming sender cannot produce it, and W4's generator emits conforming senders by construction. That is a **boundary of the method, not a gap in it** — the vector shape witnesses two implementations of a conforming sender against each other, and a frame no conforming sender emits has no second implementation to be witnessed against. `test_duplicate_fragment_of_different_length_overwrites` drives the receiver directly and covers both halves: the overwrite wins, and the superseded copy is charged against staging rather than against the reassembly cap. A raw-frames vector form is a meaningful amount of tooling for one clause, and it would compare the codec against a hand-written frame rather than against an independent reading, which is most of what makes W4 worth having. Revisit if a second non-conforming-sender clause appears: one is a unit test, several are a vector form |
 | W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition. **v0.11:** the window is answered — a retry inside it is counted and not answered, and the high-water mark advances before dispatch (D34 amended 2026-09-11) |
 | W14 | **How a duty-cycled node avoids waking on the whole fleet's traffic** | §17.1 | §17.1 assumed the SX126x would discard a frame addressed elsewhere in silicon. **It cannot: LoRa has no hardware address filter** (§12.1, confirmed against the datasheet as **M24**). Every frame on the channel wakes a duty-cycled receiver and is judged in software at stage 5, so the power model that made §17.1 worth building is unquantified. Owed before WellLink is built on that profile, and **not owed at all if D19 makes WellLink mains-powered** |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
+| W15 | **`CONFIG_ACK` carries no default-or-override flag** | §7.4, §16.7.4 | GateLink PRD R-5.3e requires each published value marked `default` or `override`. §7.4's result entry has no bit for it, so the bridge infers `source` by comparing with the table's default, and an override set equal to its default reads `default`. Closing it needs a result-entry field or a separate readback; either is a schema change. Opened in v0.13 |
+| W16 | **When a node sends `status_reason` `CONFIG_CHANGE`** | §8.7 | §8.7 defines the value, and no section says what triggers it. Every configuration change the bridge causes is already reported by a `CONFIG_ACK`, so the value is for a change the bridge did not cause — for example a node falling back to defaults when its microSD fails at boot — which is GateLink's to define. Owner: GateLink **M3**. Opened in v0.13 |
 
 ### 18.1 W5, resolved — fixed channel at low power
 
@@ -2620,6 +2942,42 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.13 (draft, 2026-09-19)** — **Runtime configuration from Home Assistant: the
+  `config/*` payloads are defined, and five passages v0.12 left stale are corrected.**
+  `ver` stays at `2`; **no frame layout, header field, enumeration value or authentication
+  scope changes, and no test vector regenerates.** New **§16.7** defines `config/set`,
+  `config/ack` and `config/state` (D43, D47, D48), including the new `unknown` outcome for a
+  `CONFIG` that got no `CONFIG_ACK`. Schema `0x12` becomes **node config v1** and
+  `param_id` one namespace allocated in blocks (§7.1, §7.4, D46). §6.4, §7.4, §8.1 and §9.2
+  define the unsolicited `GET_ALL` readback that answers `POLL` bit 1 and `REQUEST_CONFIG`
+  (D45). §7.4 says the parameter table is hand-written and everything else derived by code
+  (D44), and §8.11 names the bridge's NVS (D49). **Corrected**, because D38 made `CONFIG`
+  and `CONFIG_ACK` single-frame and these still described them as fragmented: §7.4's
+  full-set and lost-ACK paragraphs, §6.6.2 and §9.4. **D50–D54**, from the v0.13
+  read-through, fill five gaps the simnode had already filled locally: how a `GET` entry and
+  a `GET_ALL` are encoded, a `len` that disagrees with its `ptype`, what answers
+  `RESTORE_DEFAULTS`, what `persist_status` means for a read and when `NOT_APPLIED` applies
+  (§7.4, §8.10, §8.11), and that a dedup hit does not repeat a follow-up frame (§10.4).
+  **W15** opens: `CONFIG_ACK` has no default-or-override flag. **W16** opens: nothing says
+  when a node sends `CONFIG_CHANGE`. **D55** makes §7.4's `len` a byte count that is a
+  multiple of the `ptype`'s width, so an entry can carry an array and a string is `u8`
+  bytes; an entry a receiver cannot take is still rejected alone, which is what lets an
+  older node read a set using a type it does not know. **D56 brings the PHY parameters into
+  runtime configuration** under new **§12.4**'s commit-and-revert: one atomic set, the old
+  settings persisted first, a trial window, confirmation by a frame received on the new
+  settings, and both ends reverting on silence. §12.1's *"not runtime-configurable"* is
+  withdrawn, TX power stays clamped by D33 and BW by the envelope coupling, and a node that
+  has not built the path answers `READ_ONLY` (§8.12). **D57 closes W10**: new **§7.4.1**
+  splits a readback larger than one frame across several `CONFIG_ACK` messages, marked with
+  `MORE_FOLLOWS`, bit 7 of `count`, which is unreachable at any payload size this protocol
+  allows. Schema `0x12` keeps its layout and its offsets, so the committed vectors keep
+  their bytes; **W4 gains cases for a multi-message answer**, which is new coverage rather
+  than a regeneration. §7.4.1 also settles what a repeated `GET_ALL` does — the node walks
+  its table again rather than replaying a cached answer, because a read applies nothing —
+  and §16.7.4 forbids publishing `config/state` from an answer that never completed.
+  **The header stays at v0.12 until the citation sweep**, which
+  the operator deferred until the revision is nearer complete.
 
 - **v0.12** — **Nine questions raised during bridge B3a and simnode B0 are answered, and
   one datasheet premise is corrected.** `ver` stays at `2`; **no frame layout, header

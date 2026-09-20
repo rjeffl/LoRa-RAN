@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.38
+**Version:** 0.39
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-19
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -518,7 +518,7 @@ as `lran/bridge/version`'s was (BF-13).
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
 | `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
 | A refused publication | Not retried; the next interval carries newer numbers |
-| `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), host-tested, not yet on air.** Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
+| `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), and confirmed on air the same day**: one reply per §14 stage that names one, read at the simnode. Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
 | Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
 
 ### 4.4 Home Assistant discovery
@@ -568,6 +568,10 @@ from Home Assistant to a stored value is `lran/<node>/config/set`, whose payload
 §16.2.1 leaves undefined until the work is scheduled, and `/lib/lran-config/`, which does
 not exist and has no task. **That gap is real and predates this task**; it is the same one
 that deferred BF-26 on 2026-09-14.
+
+> **Closed on paper 2026-09-19.** Spec v0.13 §16.7 defines the `config/*` payloads
+> (D43–D54), Protocol Library Plan §4 lists the bridge's parameters, and **BF-32** owns the
+> build. Every `TODO(BF-23)` above becomes a read of that table once BF-32 lands.
 
 ---
 
@@ -1550,8 +1554,9 @@ bridge's counters, or drive the row from one board and listen on a second.**
 of spec v0.6's sole behavioural change. §11.2 states that a single-frame frame never
 begins, joins, displaces or expires a set. The defect it fixes is a receiver routing every
 frame through one slot per peer, where **a node's periodic `STATUS` destroys that same
-node's in-progress fragmented `CONFIG_ACK`** — recoverable by readback, and reliably
-recurring. It is silent by construction: the offending frame belongs to no set, so nothing
+node's in-progress fragmented set**. The v0.6 example was a fragmented `CONFIG_ACK`,
+which spec v0.12 made impossible (D38); `PING` is now the only fragmentable type, and the
+defect is the same for it. It is silent by construction: the offending frame belongs to no set, so nothing
 is counted. That is why the expected result is a *set that completes and a counter that
 does not move*, and why no other entry can substitute for it.
 
@@ -1877,7 +1882,8 @@ set in both directions. The engineering log has the transcript.
 
 **What this slice does not do:** `ROLE_GATELINK`, `push`, `event`, `ack` and `field`
 (BF-6); the fault catalogue and `fault` (BF-8); self-disarm and the OLED (BF-9).
-**The XIAO profile builds and has not been flashed.** `/lib/lran-sim/` (BF-7) followed the
+**The XIAO profile built and had not been flashed** when this slice landed; it first ran
+`simnode-xiao-wio` on 2026-09-15, at B0's acceptance. `/lib/lran-sim/` (BF-7) followed the
 slice and is described in §10.5.2; the simnode does not call it until BF-8.
 
 > **A gap on the bridge, not the simnode.** §17.3 makes RF loopback "required of every node
@@ -2094,6 +2100,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
 | **v0.36** | **New §7.2.1** — BF-21's `simctl`; §10.5's `set_displaced` completes its displacing set and gains `ctx_reject` |

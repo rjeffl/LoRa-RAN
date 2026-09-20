@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.9
+**Version:** 0.10
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-19
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -750,8 +750,10 @@ Three layers — firmware defaults, microSD overrides, RAM live values — carri
 authenticated `CONFIG`/`CONFIG_ACK` pair (Protocol Spec §7.4).
 
 **Parameters are declared once in `/lib/lran-config/`** — name, type, unit, range,
-default — and the firmware defaults, the HA `number` discovery payloads and
-`/docs/gatelink-config.md` are all **generated** from that table. Three hand-maintained
+default — in a hand-written C++ table, and the firmware defaults, the HA `number`
+discovery payloads and `/docs/gatelink-config.md` are all **derived from it by code**
+(**D44**). GateLink's parameters take `param_id`s from `0x1000`–`0x1FFF`, and the ones
+every node holds from `0x0100`–`0x01FF` (Protocol Spec §7.4, **D46**). Three hand-maintained
 copies drift, silently: HA offers a range the firmware clamps, or documentation describes
 a default that changed two revisions ago.
 
@@ -1140,6 +1142,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.10** — **§6.4 follows D44 and D46.** The parameter table stays hand-written, and its
+  outputs are derived by code rather than *generated*, which had implied a generator the
+  project decided against. GateLink's `param_id` block is named. No requirement, milestone
+  or BOM line changes. The binding citation stays at v0.12 until spec v0.13's sweep.
 
 - **v0.9** — **Protocol specification v0.11 → v0.12.** §4.1's radio table loses its
   address-filtering row: the SX126x filters node addresses in **GFSK only**, verified

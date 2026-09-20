@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.9
+**Version:** 0.12
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-19
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -41,9 +41,9 @@ deduplication gate of Protocol Spec §9.4 steps 4–5.
 The library moves bytes and validates them. **It does not decide anything** — and D34
 does not change that. `CommandGate` returns a *verdict*; executing a command, and
 choosing what to do when one is refused, stay with the caller. The test for whether
-something belongs here is not "is it framing" but **"is it validation against receiver
-state, with no allocation, no I/O and an injected clock"** — which is what `Reassembler`
-already is, and what put steps 4–5 on this side of the line while dispatch stayed on
+something belongs here is **"is it validation against receiver state, with no allocation,
+no I/O and an injected clock"**, not "is it framing". `Reassembler` already passes it, and
+the same test put steps 4–5 on this side of the line while dispatch stayed on
 the other.
 
 ### 1.1 Six rules, each with a consequence
@@ -239,8 +239,8 @@ struct Frame {
 
 **`Frame` does not own its payload.** It points into the RX buffer the radio filled. This
 is what keeps rule 1 satisfiable — but it means a `Frame` must not outlive the buffer it
-was decoded from. The bridge's `lora_task` copies into a queue entry before handing off;
-that copy is the task's responsibility, not the library's, and it is stated here so the
+was decoded from. The bridge's `lora_task` copies into a queue entry before handing off.
+That copy is the task's responsibility, not the library's. It is stated here so the
 lifetime rule is documented where the type is defined rather than discovered at runtime.
 
 ### 3.4 `lran/mac.h` — injected crypto
@@ -318,8 +318,8 @@ Status encode(const Header&, const uint8_t* payload, size_t payload_len,
 
 **Splitting decode is the single most consequential API choice here.** A one-shot
 `decode()` forces every caller to either accept the library's ordering or reimplement the
-ladder, and the ordering *is* the specification — §14 exists precisely so that a frame is
-rejected at the earliest possible stage and counted there. Two phases also let the bridge
+ladder. The ordering *is* the specification: §14 exists so that a frame is rejected at the
+earliest possible stage and counted there. Two phases also let the bridge
 count and log a frame it cannot fully parse, which is what makes a version-skew or
 schema-skew problem diagnosable rather than merely visible as a rising discard count.
 
@@ -353,9 +353,9 @@ extern const CounterField kCounterRegistry[kCounterRegistryLen];
 
 **Field names are normative** — Protocol Spec §14.1 is the registry and this struct
 mirrors it in order. The v0.5 revision exists because `rx_reassembly_timeout` and
-`rx_fragment_overflow` shipped through P1–P5 without the `rx_` prefix the prose used and
-nothing anywhere listed the names together; `kCounterRegistry` is that list, and a
-`static_assert` on `sizeof(Counters)` fails the build if a field is added without one.
+`rx_fragment_overflow` shipped through P1–P5 without the `rx_` prefix the prose used, and
+nothing anywhere listed the names together. `kCounterRegistry` is that list. A
+`static_assert` on `sizeof(Counters)` fails the build if a field is added without a row.
 `total_dropped()` sums only the registry rows §14.1 marks — `rx_frag_duplicate`,
 `rx_frag_late` and `rx_dup_command` are normal traffic and must not make a health metric
 climb during correct operation.
@@ -368,10 +368,10 @@ halfway. A node holds one peer, so the check is a single comparison.
 
 `bump(Status)` being the only place the mapping exists is what guarantees the bridge and
 every node report the same thing under the same name. It carries **no `default:` label**,
-so adding a `Status` enumerator without a counter is a `-Werror=switch` build failure. `rx_crc_err` is the PHY CRC and is
-bumped by the radio driver, not by the codec — it is the one counter the library cannot
-own, and Bridge Impl Plan §10.5 records that it is also the one discard path that cannot
-be tested at a desk.
+so adding a `Status` enumerator without a counter is a `-Werror=switch` build failure.
+`rx_crc_err` is the PHY CRC and is bumped by the radio driver, not by the codec. It is the
+one counter the library cannot own, and Bridge Impl Plan §10.5 records that it is also the
+one discard path that cannot be tested at a desk.
 
 ### 3.7 `lran/seq.h` — serial-number arithmetic
 
@@ -525,8 +525,8 @@ call can produce it, and caching before execution would return a success ACK for
 command that then failed.
 
 **The mark advances in `check()`, before dispatch** — the order spec §9.4 step 6 gives.
-A command whose execution fails has still consumed its `seq`, which is correct because
-`seq` is attacker-visible and must not be reusable; the failure is recorded as its result,
+A command whose execution fails has still consumed its `seq`. That is correct, because
+`seq` is attacker-visible and must not be reusable. The failure is recorded as its result,
 so a retry receives the cached failure rather than a second attempt.
 
 **Between `check()` and `record()` the entry is in flight.** A retry that finds it gets
@@ -568,51 +568,153 @@ between the calls, not inside one.
 
 ## 4. Companion library: `/lib/lran-config/`
 
-Hand-written C++ headers, one per node type plus one for the bridge. No generator, no
-YAML. **The cost of that choice is that HA discovery payloads and
-`/docs/gatelink-config.md` are now maintained by hand against this header**, so the header
-must be self-documenting enough that a drift is obvious on inspection.
+**One hand-written C++ table per owner, and every other copy derived from it by code**
+(**D44**). Firmware defaults and HA `number` discovery read the table directly. A host tool,
+built the way `tools/ha/dump_discovery.cpp` is, writes `/docs/gatelink-config.md`, and a
+check diffs it, so the document cannot drift from the header. No generator, no YAML.
+
+> **Changed in v0.10.** v0.1 through v0.9 chose hand-written headers and accepted that HA
+> discovery payloads and the GateLink document would be *"maintained by hand against this
+> header."* BF-23 then built discovery from the firmware's own `discovery.cpp` and
+> generated `/ha/` from it, which showed the hand-written table and code-derived outputs
+> are compatible. System PRD §9.4 had said *generated* throughout; D44 reconciles the two.
 
 ```cpp
 namespace lran::config {
 
-enum class PType : uint8_t { U8=1, U16=2, U32=3, I16=4, I32=5, Bool=6 };
+enum class PType : uint8_t { U8=1, U16=2, U32=3, I16=4, I32=5, Bool=6 };  // spec 7.4 ptype
+
+// D56 - a parameter the node publishes but cannot yet apply answers a SET with
+// READ_ONLY (spec 8.12, 12.4). Honest, and it costs one byte per row.
+enum class Access : uint8_t { ReadWrite, ReadOnly };
+
+// D47 - who holds the value, and so which topic sets it (spec 16.7.1).
+enum class Owner : uint8_t {
+  BridgeGlobal,   // lran/bridge/config/set; never carried by a frame
+  BridgePerNode,  // lran/<node>/config/set; applied by the bridge, one value per node
+  Node,           // lran/<node>/config/set; sent to the node as CONFIG
+};
 
 struct ParamDef {
-  uint16_t    id;
-  const char* name;         // matches the HA entity object_id
+  uint16_t    id;           // spec 7.4, D46 - one namespace, a block per owner
+  const char* name;         // the HA object_id: permanent once published (spec 16.7)
+  Owner       owner;
+  Access      access;      // D56 - ReadOnly for a row the firmware cannot apply yet
   PType       type;
   int32_t     min, max, def;
   const char* unit;         // nullptr if unitless
   const char* doc;          // one line - this IS the documentation
 };
 
-// Bridge parameters
+// 0x0000-0x00FF - the bridge. Defaults are the firmware's as of BF-19/BF-19a/BF-20;
+// ranges are proposed (see below).
 inline constexpr ParamDef kBridgeParams[] = {
-  {0x0001, "poll_interval_s",        PType::U16,  10, 3600,  60, "s",  "Per-node poll period"},
-  {0x0002, "command_ack_timeout_ms", PType::U16, 500, 30000, 3000,"ms", "ACK wait before retry"},
-  {0x0003, "cmd_retries",            PType::U8,    0,    10,    3, nullptr, "Retries, SAME seq"},
-  {0x0004, "missed_poll_threshold",  PType::U8,    1,    20,    3, nullptr, "Polls before offline"},
-  {0x0005, "republish_interval_s",   PType::U16,  60, 86400,  900,"s",  "Heartbeat republish"},
-  {0x0006, "mppt_write_arm_timeout_s",PType::U16, 30,  3600,  300,"s",  "HEX write arm expiry"},
-  {0x0007, "simnode_diag_enable",    PType::Bool,  0,     1,    0, nullptr, "Publish bench nodes (Bridge Impl 4.2a)"},
+  {0x0001, "simnode_diag_enable",        Owner::BridgeGlobal, Access::ReadWrite,  PType::Bool,   0,     1,     0, nullptr, "Publish bench nodes, spec 16.6"},
+  {0x0002, "diag_interval_s",            Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,   10,  3600,    60, "s",  "Diagnostics publication period (BF-19)"},
+  {0x0003, "missed_poll_threshold",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     1,    20,     3, nullptr, "Unanswered polls before offline, spec 16.5"},
+  {0x0004, "poll_reply_timeout_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 2000, 30000, 10000, "ms", "Poll outstanding before it counts as missed"},
+  {0x0005, "command_ack_timeout_ms",     Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  3000, "ms", "ACK wait before retry, Impl Plan 6.2"},
+  {0x0006, "cmd_retries",                Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     0,    10,     3, nullptr, "Retries after the first, SAME seq"},
+  {0x0007, "cad_retries",                Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
+  {0x0008, "backoff_max_ms",             Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
+  {0x0009, "frag_reassembly_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
+  {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
+  {0x000B, "config_readback_timeout_ms",  Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000, 15000, "ms", "Wait for a split readback to complete, spec 7.4.1 (D57)"},
+  {0x0080, "poll_interval_s",            Owner::BridgePerNode, Access::ReadWrite, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
 };
 
-// Node parameters shared by every commandable node. dedup_cache_depth is D34's,
-// and is runtime-settable because a node that cannot be reflashed without a walk
-// to the gate may not carry a fixed sizing constant either (root rule 8).
+// 0x0100-0x01FF - every node. dedup_cache_depth is D34's, and is runtime-settable
+// because a node that cannot be reflashed without a walk to the gate may not carry a
+// fixed sizing constant either (root rule 8). Its max is the compiled cache size.
 inline constexpr ParamDef kNodeCommonParams[] = {
-  {0x0100, "dedup_cache_depth",       PType::U8,    1,    32,    8, nullptr, "Cached command results, spec 10.4"},
-  {0x0101, "frag_reassembly_timeout_ms", PType::U16, 500, 30000, 5000, "ms", "Fragment set window, spec 11.2"},
+  {0x0100, "dedup_cache_depth",          Owner::Node, Access::ReadWrite, PType::U8,     1,    32,     8, nullptr, "Cached command results, spec 10.4"},
+  {0x0101, "frag_reassembly_timeout_ms", Owner::Node, Access::ReadWrite, PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
+  {0x0102, "cad_retries",                Owner::Node, Access::ReadWrite, PType::U8,     0,    10,     5, nullptr, "CAD attempts before transmitting regardless, spec 12.3"},
+  {0x0103, "backoff_max_ms",             Owner::Node, Access::ReadWrite, PType::U16,  100,  5000,  1500, "ms", "Upper bound of the random CAD backoff, spec 12.3"},
+
+  // D56 - the PHY, spec 12.1's table. Every node holds a copy and so does the bridge,
+  // because one SX1262 listens on one configuration: a change is a fleet operation.
+  // READ_ONLY until BF-33 builds spec 12.4's commit-and-revert, so HA can read the
+  // working point before it can change it. The defaults are D1's.
+  {0x0110, "freq_hz",                 Owner::Node, Access::ReadOnly, PType::U32, 902000000, 928000000, 917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
+  {0x0111, "spreading_factor",        Owner::Node, Access::ReadOnly, PType::U8,     7,    12,     9, nullptr, "SF, spec 12.1 - fleet-wide"},
+  {0x0112, "bandwidth_khz",           Owner::Node, Access::ReadOnly, PType::U16,  125,   500,   125, "kHz", "BW - 125 until an envelope decision, spec 18.2"},
+  {0x0113, "coding_rate_denominator", Owner::Node, Access::ReadOnly, PType::U8,     5,     8,     5, nullptr, "CR 4/N, spec 12.1"},
+  {0x0114, "tx_power_dbm",            Owner::Node, Access::ReadOnly, PType::I16,   -9,    -4,    -4, "dBm", "Conducted; the maximum IS D33's ceiling, spec 18.2"},
+  {0x0115, "phy_trial_s",             Owner::Node, Access::ReadOnly, PType::U16,   30,   900,   120, "s",  "Revert window after a PHY change, spec 12.4"},
 };
+
+// 0x1000-0x1FFF GateLink and 0x2000-0x2FFF WellLink are declared by their own
+// milestones, counted against spec 7.4's ceilings first (W10).
 
 constexpr const ParamDef* find(uint16_t id);   // constexpr - no runtime table build
 
 }  // namespace lran::config
 ```
 
-A `static_assert` verifies IDs are unique and ascending at compile time. That is the one
-thing a generator would have given for free, and it is cheap to keep.
+A `static_assert` verifies that IDs are unique and ascending, and that each falls in its
+owner's block. That is the one thing a generator would have given for free, and it is
+cheap to keep.
+
+**The bridge's list is an inventory of the firmware, not a design.** Each row is a value
+the bridge already has. Most carry a `TODO(BF-23)` or `TODO(BF-26)` marker; the rest sit
+behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. v0.9's sketch
+named `republish_interval_s` and `mppt_write_arm_timeout_s`; they are not here because
+nothing implements them yet. BF-24 and BF-29 add them when they build the behaviour.
+
+**The PHY rows are read-only until BF-33.** D56 brought spec §12.1's parameters into
+runtime configuration under §12.4's commit-and-revert, and declaring them now lets Home
+Assistant read the working point from the first release that carries the table. A `SET`
+answers `READ_ONLY` (spec §8.12) until the trial-and-revert path exists, because a PHY
+change that half-applies strands a node that has no OTA. **`tx_power_dbm`'s maximum is
+D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
+either range is a decision, not a configuration change.
+
+**GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
+milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
+
+**What a readback costs, counted against spec §7.4's budget.** A `CONFIG_ACK` has 193
+bytes for results, and a result entry is `5 + len`. Every node carries the node-common and
+PHY blocks, so a node's readback is those plus its own block:
+
+| Block | Rows | Bytes |
+|---|---|---|
+| Node-common, `0x0100`–`0x0103` | 4 | 26 |
+| PHY, `0x0110`–`0x0115` | 6 | 42 |
+| GateLink, named in its PRD and Implementation Plan today | 15 | 103 |
+| **A GateLink readback, as the documents stand** | **25** | **171 of 193** |
+| The rows GateLink PRD R-5.3a and R-5.4 imply but do not name | 31 | 211 of 193 |
+
+The 15 named are `relay_pulse_ms`, `post_wake_settle_ms`, `command_confirm_timeout_s`,
+`hold_confirm_ms`, `input_poll_ms`, `input_debounce_samples`, `detect_sequence_window_ms`,
+`detect_sequence_idle_ms`, `held_open_alert_repeat_s`, `hex_timeout_ms`, `bms_poll_s`,
+`charge_inhibit_confirm_s`, `display_timeout_s`, `unlock_settle_ms` and `cause_window_ms`.
+The unnamed six are the dry-run switch (R-5.4a), the buzzer, injection spacing (R-5.4b),
+VE.Direct staleness, `mppt_write_arm_timeout_s` and `republish_interval_s`.
+
+**GateLink fits one frame today, with three `uint16` rows to spare**, and R-5.3a requires
+*every* interval, window, threshold and debounce to be configurable. Spec §7.4.1 is what a
+node does when the margin runs out: several `CONFIG_ACK` messages, marked `MORE_FOLLOWS`.
+
+**Two findings from the count belong to GateLink's documents, not to this one**, and are
+tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
+PRD §5.3.1 still lists the PHY parameters as not runtime-configurable, which **D56**
+reversed, and those six rows are the whole margin above. The PRD also calls the transmit
+power `tx_conducted_dbm` where this table calls it `tx_power_dbm`, and this table's name
+becomes a permanent Home Assistant `object_id`.
+
+**Three things in the table are proposals for the operator to review before BF-32 codes
+them**, because each becomes permanent the moment HA sees it:
+
+- **The names.** Each is an HA `object_id` (spec §16.7). `diag_interval_s` drops the
+  firmware's `g_` prefix; the rest are the names the firmware and the specification
+  already use.
+- **The ranges.** Every default is the firmware's, and no range is. Each range here was
+  chosen to contain the default with room either side. None is derived from a
+  measurement. A value outside its range is clamped and the clamp reported (spec §7.4).
+- **Names shared by two owners.** `frag_reassembly_timeout_ms`, `cad_retries` and
+  `backoff_max_ms` exist on the bridge and on every node, with different IDs. HA sees each
+  as an entity of a different device, so the names do not collide there.
 
 ---
 
@@ -671,7 +773,6 @@ widened to provide.
 | **P5** | **Fragmentation and sequencing** | Reassembly across 2 and 15 fragments, out of order, with timeout expiry driven by an injected clock. RFC 1982 comparison exhaustively tested near the wrap |
 | **P6** | **W4 vectors committed** | Every vector in §5 passes. **The vector generator and the library disagree nowhere.** Test run wired into CI |
 | **P7** | **Target build** | Compiles for ESP32-S3 under the Arduino framework with the mbedTLS `IMac`. Flash and RAM footprint recorded in `/docs/protocol-lib/engineering-log.md` |
-
 | **P8** | **`CommandGate` — D34, amended 2026-09-11** | §9.4 steps 4–5 and step 6's high-water update, per peer, **the mark advancing in `check()`**. Dedup returns the **cached** ACK without re-executing; `seq` below the high-water mark is refused; the step-4-before-step-5 order is asserted by a test that would fail if reversed. `reset_context()` clears the cache. Exhaustive `seq` tests near the wrap, as P5. `rx_rejected_seq` and `rx_dup_command` move, and `total_dropped()` includes the first and not the second. **Added by the amendment:** a second `check(s)` before `record(s)` returns `InFlight`, never `Execute`, and after `record(s)` returns the recorded result; a failed execution is cached and never retried; runtime depth changes evict oldest-first and never read beyond capacity. The suite runs on the ESP32-S3 as P7's does |
 
 **P6 gates simnode B0. P7 gates bridge B2. P8 gates simnode B0 as well** — `ROLE_GATELINK`
@@ -683,6 +784,10 @@ confirm the suite can fail — advancing the mark in `record()` fails the window
 checking `seq` before the cache fails the order test. `sizeof(CommandGate)` is **148 B
 on the ESP32-S3**. The engineering log's 2026-09-11 entry carries the detail. **Nothing
 in this library now stands between simnode B0 and its start.**
+
+> **Superseded by the paragraph above.** The next paragraph is the status as of
+> 2026-08-30 and is left as written. Since then P8 was met (2026-09-11) and **W9 closed on
+> 2026-09-05**, over RF on the range test firmware.
 
 **P1–P7 are met** as of 2026-08-30, against specification **v0.6**: 107 tests under
 `native` and 110 on the Heltec V3, 72 W4 vectors passing on host and on target with zero
@@ -724,6 +829,38 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.12** — **§4 counts a readback against spec §7.4's budget, which closes W10**
+  (**D57**). A `CONFIG_ACK` has 193 bytes for results; GateLink's 25 named rows take 171 of
+  them, and the rows its PRD implies but does not name take it to 211. §4 carries the table
+  and names all of them. **`config_readback_timeout_ms` is added** at `0x000B`, the bridge's
+  wait for an answer split across several `CONFIG_ACK` messages (spec §7.4.1). Two findings
+  are recorded against GateLink's own documents rather than fixed here: PRD §5.3.1 still
+  lists the PHY as not runtime-configurable after D56 reversed that, and it calls the
+  transmit power `tx_conducted_dbm` where §4 calls it `tx_power_dbm`.
+
+- **v0.11** — **§4 declares the PHY parameters** per **D56**: `freq_hz`,
+  `spreading_factor`, `bandwidth_khz`, `coding_rate_denominator`, `tx_power_dbm` and
+  `phy_trial_s`, held per node and by the bridge for its own radio. They are **read-only
+  until BF-33** builds spec §12.4's commit-and-revert, so Home Assistant can read the
+  working point before it can change it, and `ParamDef` gains an `access` field to carry
+  that. `tx_power_dbm`'s maximum is D33's ceiling and `bandwidth_khz` stays at 125 until an
+  envelope decision. GateLink's block is still unwritten; **W10 is closed by D57**, and §4
+  carries the count that closed it.
+
+- **v0.10** — **§4 rewritten for D44, D46 and D47, and the bridge's parameter list
+  inventoried from the firmware.** The table stays hand-written, but nothing is maintained
+  by hand against it any more: discovery and `/docs/gatelink-config.md` are derived by
+  code. `ParamDef` gains an `owner`. IDs follow spec v0.13's blocks. The bridge's list
+  replaces v0.9's sketch with the eleven values the firmware already has, and the node
+  list gains `cad_retries` and `backoff_max_ms`. **Names and ranges are proposals** for
+  the operator to review before BF-32 codes them. **The PHY parameters are declared** per
+  **D56** — frequency, SF, BW, CR, TX power and `phy_trial_s`, per node — read-only until
+  **BF-33** builds spec §12.4's commit-and-revert, and `ParamDef` gains an `access` field
+  to say so. §6's 2026-08-30 status paragraph, which
+  still read *"P8 is outstanding"* and *"W9 remains"*, is marked superseded, and a blank
+  line that split the milestone table before P8 is removed. The binding citation stays at v0.12
+  until spec v0.13's sweep.
 
 - **v0.9** — **Protocol specification v0.11 → v0.12; `Counters` gains a field.**
   **`rx_unknown_src`** joins the struct and `kCounterRegistry` (spec §14 stage 9a, §14.1),

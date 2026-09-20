@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.27
+**Version:** 0.30
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.37
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.39
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.9
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-17
+**Last updated:** 2026-09-19
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -163,14 +163,14 @@ measures — a B3 failure must not be ambiguous between the two (Implementation 
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-2** | Project skeleton, two PlatformIO environments, `RadioPins` profiles for Heltec and XIAO+Wio Kit (§10.8, §10.8.1). **Built 2026-09-14; Heltec proven on air, XIAO builds but not flashed** — Impl Plan §10.9 | **Sonnet** | The pin maps are transcribed and already proven over the air — 192 frames out, 192 echoes back. Wrong values fail loudly at `begin()` or at the first probe |
+| **BF-2** | Project skeleton, two PlatformIO environments, `RadioPins` profiles for Heltec and XIAO+Wio Kit (§10.8, §10.8.1). **Built 2026-09-14; Heltec proven on air. The XIAO first ran `simnode-xiao-wio` on 2026-09-15**, at B0's acceptance — Impl Plan §10.9 | **Sonnet** | The pin maps are transcribed and already proven over the air — 192 frames out, 192 echoes back. Wrong values fail loudly at `begin()` or at the first probe |
 | **BF-3** | Identity table — up to four logical nodes, independent key, `ctx_id`, sequence spaces, `enabled` (§10.3). **Built 2026-09-14, host-tested; three identities across two boards on air** | **Opus** | The bridge must not be able to tell four identities on one radio from four radios. If anything keys on the radio rather than `node_id`, **BG-2** is already broken and the seam stays hidden until WellLink |
 | **BF-4** | Serial console — every command in §10.4's table. **Built 2026-09-14**: the core first, `fault` with BF-8, and `push`, `event`, `ack`, `field` with BF-6 | **Sonnet** | A closed command table with defined effects. Wrong parsing is immediately visible at the prompt |
 | **BF-5** | `ROLE_RANGE` and `ROLE_HEALTH` (§10.2). **Built 2026-09-14; PING echo proven on air**, single, full-size and 15-fragment | **Sonnet** | Deliberately impoverished by design. `PING` echo and `0xF0` on poll |
-| **BF-6** | `ROLE_GATELINK` — `0xFE` status, `0x11` events, `COMMAND_ACK`, `0x12` config (§10.2). **Built 2026-09-14, host-tested; not yet on air** — Impl Plan §10.9.2. The five command-path faults came with it | **Opus** | The only role that accepts a `COMMAND`, so it is where `CommandGate` is exercised and where the synthetic marking rule bites. Synthetic data reaching HA history unmarked is **a bug in both nodes at once**, and it looks like real history |
+| **BF-6** | `ROLE_GATELINK` — `0xFE` status, `0x11` events, `COMMAND_ACK`, `0x12` config (§10.2). **Built 2026-09-14, host-tested; on air from 2026-09-15** — Impl Plan §10.9.2. The five command-path faults came with it | **Opus** | The only role that accepts a `COMMAND`, so it is where `CommandGate` is exercised and where the synthetic marking rule bites. Synthetic data reaching HA history unmarked is **a bug in both nodes at once**, and it looks like real history |
 | **BF-7** | `/lib/lran-sim/` — the **patch-after-encode primitive** (§10.5.2). **Built 2026-09-14**; host-tested against the W4 negative vectors, and not called by the simnode until BF-8 | **Opus** | §10.6 rule 1: never a second serializer. The primitive's surface is what keeps that true while making `oversize`, `frag_zero` and `frag_command` reachable. Scope it before B0, not during — "discovering it mid-milestone is how a second serializer gets written" |
 | **BF-8** | The §10.5 fault catalogue — 27 entries against the primitive from BF-7. **Built 2026-09-14**; host-tested against the codec's receive ladder, command-path entries wait for BF-6 | **Sonnet** | Each row states the frame, the counter and the expected behaviour, and §14.1 is the normative counter registry. Table-driven, verifiable, high volume — the best delegation candidate in the list |
-| **BF-9** | Fault self-disarm and OLED armed-state display (§10.6 rule 2). **Built 2026-09-14; confirmed on the Heltec's panel by eye, XIAO not flashed.** Self-disarm came with BF-8. Both profiles drive a panel (Impl Plan §10.9.1) | **Sonnet** | Bounded count, then disarm. A short rule with an obvious test |
+| **BF-9** | Fault self-disarm and OLED armed-state display (§10.6 rule 2). **Built 2026-09-14; confirmed on the Heltec's panel by eye, and on the XIAO's on 2026-09-15**, where the operator watched a fault bar count down and clear. Self-disarm came with BF-8. Both profiles drive a panel (Impl Plan §10.9.1) | **Sonnet** | Bounded count, then disarm. A short rule with an obvious test |
 
 > **BF-8 depends on BF-7 and must not start before it.** Handing the catalogue out while
 > the primitive is still undesigned is the exact path §10.5.2 warns about.
@@ -214,8 +214,8 @@ Decision Register D35–D42). BF-18 has §6.3's `detail` for a `DUPLICATE_CACHED
 | # | Task | Model | Why |
 |---|---|---|---|
 | **BF-15** | **Per-node registry** — §4.2's table, HKDF key derivation at load, `is_bench` (§4.2, R-3.1c). **Built 2026-09-14, host-tested** — Impl Plan §4.2.1 | **Opus** | The abstraction the whole fleet story rests on. *"If adding a node requires touching the scheduler, the availability watchdog or the MQTT layer, the abstraction has leaked."* The bench IDs being ordinary entries is itself the test |
-| **BF-16** | `lora_link.cpp` — RadioLib, frame in and out, MAC verify, reassembly (§5.3). **Built 2026-09-13, host-tested; not yet on air** — Impl Plan §5.3.1 | **Opus** | Where the never-block rule is honoured or lost, and where reassembly state either respects §11.2 or destroys a peer's in-progress set |
-| **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d). **Built 2026-09-14, host-tested; no poll on air yet** — Impl Plan §6.1.1 | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
+| **BF-16** | `lora_link.cpp` — RadioLib, frame in and out, MAC verify, reassembly (§5.3). **Built 2026-09-13, host-tested; on air from 2026-09-15**, when B3a went on air — Impl Plan §5.3.1 | **Opus** | Where the never-block rule is honoured or lost, and where reassembly state either respects §11.2 or destroys a peer's in-progress set |
+| **BF-17** | Poll scheduler — per-node interval, **fleet-wide serialization** (§6.1, R-3.1d). **Built 2026-09-14, host-tested; polling on air from 2026-09-15** — Impl Plan §6.1.1 | **Sonnet** | One timer per node and one outstanding poll fleet-wide. Cheap, bounded, and testable against simnode |
 | **BF-18** | **Command path and retry** — §6.2's state machine, **same `seq` on retry** (**BS-3**), **and the bridge's MQTT receive path**. **Built and confirmed on air 2026-09-16** — `command.{h,cpp}`, 20 host tests; a command from Home Assistant executed at a simnode, a suppressed ACK was retried with the same `seq` and answered `DUPLICATE_CACHED` *not executed*, and spec §10.3's resync adopted the node's context and retried once. **`ResyncFailed` stays host-tested**: the rejection-to-retry window is under a second and the bench could not force a second `REJECTED_CTX`. Impl Plan §6.2.1 | **Opus** | Root rule 2 at the bridge end. Incrementing `seq` on retry *looks like a fix for a stuck command* and is a second gate command. The context resync must retry exactly once — a resync loop is a transmit storm across the whole channel |
 | **BF-19** | §14 discard ladder wiring — every counter in `kCounterRegistry`, named and published. **Built 2026-09-14, host-tested; the discard counters are the bridge's, not per node** — Impl Plan §4.3.2 | **Sonnet** | The registry is normative and the fault catalogue tests each stage. Mechanical, high-volume, and caught immediately by BF-8's faults |
 | **BF-19a** | `ERROR` replies for §14 stages 3–10, **to spec v0.12 §14.2**. **Built and confirmed on air 2026-09-16** — `error_reply.{h,cpp}`, 13 tests; ten replies read at the simnode, one per §14 stage that names one, and `errors_suppressed` reached 2. **Bound 1 stays host-only**: no unregistered source was produced on the bench. Registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. `BAD_CRC` and `BAD_VERSION` stay optional and unbuilt. Split from BF-19 with the operator, 2026-09-14 | **Opus** | Every reply goes to a solar node on the strength of an unauthenticated header and competes with polls for airtime. **The rate limit is the load-bearing part**: without it a forged frame makes the bridge transmit at a rate someone else chooses |
@@ -238,12 +238,23 @@ rather than every criterion in the milestone. **BF-23 carries the part that unbl
 bridge's WiFi transmit hard enough to test R-4.4. The idle arm is already measured — Impl
 Plan §8.1 and the engineering log.
 
+**BF-33 may not belong in B4.** It is here because it consumes BF-32's table and nothing
+else is closer, but spec §12.4's commit-and-revert is radio work with a bench cost of its
+own. Moving it to its own milestone is the operator's call.
+
+**BF-32 is the configuration path that BF-23's lever half and BF-26 both wait on.** It
+was added on 2026-09-19, when the operator chose the general `config/set` route (**D43**)
+and spec v0.13 §16.7 defined its payloads (**D48**). Build it first; the other two then
+reduce to *"this value reads the table"*.
+
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-23** | Discovery generation, per-node-type templates, republish on broker reconnect (§4.4, R-3.3b/c/d). **Built and host-tested 2026-09-17**, Impl Plan §4.4.1: one device per registered node plus the bridge, retained, on boot and on every reconnect through the same path. `ha/discovery/` is generated from `discovery.cpp` and checked in CI. **The reconnect path is not an explicit test but an explicit absence of a branch** — there is no "first time" flag to skip. **Bench nodes are gated out until BF-26** (spec §16.6). **NOT DONE: the runtime timing levers.** Every `TODO(BF-23)` on a timing constant is still there; the path from HA needs `lran/<node>/config/set`'s payload, which spec §16.2.1 leaves undefined, and `/lib/lran-config/`, which has no task | **Sonnet** | Payload shape is specified and example payloads are committed to `/ha/`. The reconnect path is the one that gets skipped, so make it an explicit test rather than a hope |
+| **BF-23** | Discovery generation, per-node-type templates, republish on broker reconnect (§4.4, R-3.3b/c/d). **Built and host-tested 2026-09-17**, Impl Plan §4.4.1: one device per registered node plus the bridge, retained, on boot and on every reconnect through the same path. `ha/discovery/` is generated from `discovery.cpp` and checked in CI. **The reconnect path is not an explicit test but an explicit absence of a branch** — there is no "first time" flag to skip. **Bench nodes are gated out until BF-26** (spec §16.6). **NOT DONE: the runtime timing levers.** Every `TODO(BF-23)` on a timing constant is still there; the path from HA needs `lran/<node>/config/set`'s payload, which spec §16.2.1 leaves undefined, and `/lib/lran-config/`, which has no task. **Answered 2026-09-19**: spec v0.13 §16.7 defines the payload, and **BF-32** builds the library | **Sonnet** | Payload shape is specified and example payloads are committed to `/ha/`. The reconnect path is the one that gets skipped, so make it an explicit test rather than a hope |
 | **BF-24** | **Publication policy** — `publish.cpp`, §6.3's whole table | **Opus** | **R-5.2b is the requirement most easily lost in implementation**, because republishing the cached value is the path of least resistance and produces a dashboard that looks healthy. A dead VE.Direct link showing plausible unchanged numbers indefinitely is worse than an obviously unavailable entity |
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**) | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
-| **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator) | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
+| **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator). **Unblocked 2026-09-19 by BF-32**, which builds all three | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
+| **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7), and the reassembly of a readback split across several `CONFIG_ACK` messages (spec §7.4.1, **D57**). **Added 2026-09-19** | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/`. **The split readback has two traps of its own**: the bridge must accept more than one `CONFIG_ACK` for a single `seq`, and it must publish `config/state` only once the answer completes |
+| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19.** Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
 | **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. The other three tools are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
 ---
@@ -271,11 +282,11 @@ so a task handed over needs to carry its own context.
 2. **The reading list, scoped** — the sections that bind this task and no more. The range
    test tasks document's *"Read these, and only these sections"* table is the pattern that
    worked.
-3. **The invariants it could break.** Root `CLAUDE.md`'s nine rules are not optional and
+3. **The invariants it could break.** Root `CLAUDE.md`'s ten rules are not optional and
    are not obvious from the code: never `memcpy` a struct to the wire, never vary `seq` on
    retry, no dynamic allocation, never discard a frame silently, reserved bits written
    zero and ignored, sentinels not zero, the library keeps building `native`, timing is
-   runtime-configurable, RadioLib pinned.
+   runtime-configurable, RadioLib pinned, TX power capped by D33.
 4. **How its output gets checked** — which test, which vector, which milestone criterion.
 
 **Review every delegated result against the invariant, not against the diff.** The
@@ -286,6 +297,28 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.30** — **BF-32's row gains the split readback** (spec §7.4.1, **D57**): a `GET_ALL`
+  answer too large for one frame arrives as several `CONFIG_ACK` messages, and the row names
+  the two traps — the bridge accepts more than one `CONFIG_ACK` per `seq`, and it publishes
+  `config/state` only once the answer completes. **The shared-codec citation moves from
+  v0.10 to v0.12**, reconciled rather than bumped: v0.11 declared the PHY rows, which BF-33's
+  row already covers, and v0.12 added the readback count and `config_readback_timeout_ms`,
+  which BF-32's row now covers.
+
+- **v0.29** — **BF-33 added: spec §12.4's PHY commit-and-revert**, on **D56**, which brought
+  frequency, SF, BW, CR and TX power into runtime configuration. The row says what carries
+  the weight, and §7 says BF-33 may belong in its own milestone rather than B4.
+
+- **v0.28** — **BF-32 added: `/lib/lran-config/` and the `config/*` path.** The operator
+  chose the general `config/set` route on 2026-09-19 and accepted `LRAN-Config-Set-Brief`
+  (**D43–D49**), then D50–D54 the same day. The gap BF-26's deferral and BF-23's lever half
+  both named, *"none exists or has a task,"* now has one, and BF-26's and BF-23's rows say
+  so. **Five rows' on-air status is corrected** from the engineering log's 2026-09-15 entry:
+  the XIAO ran `simnode-xiao-wio` and showed BF-9's fault bar, and BF-6, BF-16 and BF-17
+  went on air with B3a. §9 counts root `CLAUDE.md`'s rules as ten, with D33's TX-power
+  cap, and the header cites Impl Plan v0.39 and Library Plan v0.10. The binding citation stays at
+  v0.12 until spec v0.13's sweep.
 
 - **v0.27** — **BF-27's raw frame log is built**, out of task order and on purpose: it was
   the last instrument the receive path's 1 s knee had left, and the other three tools in
