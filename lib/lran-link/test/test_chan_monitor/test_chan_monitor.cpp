@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// M25 - the channel monitor's accumulation and its serial format. chan_monitor.h has the
-// reasoning.
+// M25 - the channel monitor's accumulation and its serial format. lran/link/chan_monitor.h
+// has the reasoning.
 //
 // WHAT THIS CANNOT COVER. That GET_RSSI_INST answers for the channel rather than for the
 // last packet, that lora_task wakes as often as kLoraMaxWaitMs says, or that the skip
@@ -16,9 +16,9 @@
 #include <cstring>
 #include <string>
 
-#include "chan_monitor.h"
+#include "lran/link/chan_monitor.h"
 
-using namespace bridge;
+using namespace lran::link;
 
 void setUp() {}
 void tearDown() {}

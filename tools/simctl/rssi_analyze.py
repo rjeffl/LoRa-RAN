@@ -253,6 +253,57 @@ def band_buckets(boot, lo, hi=None):
             and b["peak"] >= lo and (hi is None or b["peak"] < hi)]
 
 
+def compare_hourly(a_boots, b_boots, edges_dbm10=(-1100, -1000, -900, -800, -700)):
+    """Two captures taken over the same hours, side by side, one row per UTC hour.
+
+    THE D1 BRIEF'S PARALLEL RUN (section 5) puts one receiver on 917.4 MHz and one on a
+    candidate, and reads them over the same hours so a schedule on the property cannot
+    masquerade as a difference between frequencies. The calibration hours showed that
+    two boards' readings of one source differ by direction by up to 8 dB, so this
+    compares OCCUPANCY and BAND COUNTS, never a peak level from one file against a peak
+    level from the other.
+
+    Each argument is a list of Boot segments. Rows are keyed by the host timestamp's
+    hour, and the host clock runs straight through a reboot, so the segments of one file
+    are pooled per hour. `segments` says how many there were, so a reader sees that
+    pooling happened rather than having to guess (the first rule at the top of this
+    file). An hour one file does not cover is None on that side, not zero.
+    """
+    def side(boots):
+        rows = {}
+        for boot in boots:
+            for x in boot.rollups:  # the denominator, for the reason summarise() gives
+                r = rows.setdefault(x["host"][:13], {"samples": 0, "above": 0,
+                                                     "floors": [], "bands": {}})
+                r["samples"] += x["samples"]
+                r["above"] += x["above"]
+                if x["floor_mean"] != NO_READING:
+                    r["floors"].append(x["floor_mean"])
+            for b in boot.buckets:
+                if b["samples"] == 0 or b["peak"] == NO_READING:
+                    continue
+                r = rows.setdefault(b["host"][:13], {"samples": 0, "above": 0,
+                                                     "floors": [], "bands": {}})
+                for i, lo in enumerate(edges_dbm10):
+                    hi = edges_dbm10[i + 1] if i + 1 < len(edges_dbm10) else None
+                    if b["peak"] >= lo and (hi is None or b["peak"] < hi):
+                        r["bands"][lo] = r["bands"].get(lo, 0) + 1
+                        break
+        for r in rows.values():
+            r["occupancy"] = (r["above"] / r["samples"]) if r["samples"] else None
+            fl = sorted(r.pop("floors"))
+            r["floor_median"] = fl[len(fl) // 2] if fl else None
+            r["bands"] = {lo: r["bands"].get(lo, 0) for lo in edges_dbm10}
+        return rows
+
+    A, B = side(a_boots), side(b_boots)
+    return {
+        "segments": (len(a_boots), len(b_boots)),
+        "edges_dbm10": tuple(edges_dbm10),
+        "rows": [{"hour": h, "a": A.get(h), "b": B.get(h)} for h in sorted(set(A) | set(B))],
+    }
+
+
 def frame_loss_windows(boot, radius_ms=2000):
     """Host timestamps of buckets around which a FRAME line was recorded.
 
@@ -325,6 +376,26 @@ def periodicity(buckets, min_events=5, min_period_ms=5000, tolerance_ms=2000):
     THE VERDICT needs both: no event further than tolerance_ms from the fitted line, and
     at least half the gaps exactly one period long. A handful of events that happen to fit
     a line with most gaps at several periods is not evidence of a clock.
+
+    KNOWN DEFECT, AND THE VERDICT IS NOT TO BE TRUSTED ON A LONG CAPTURE. On day 1's
+    24-hour parallel capture this returned periodic=False for the property's Davis station,
+    whose 509 events fit a 130.6882 s clock to a MEDIAN RESIDUAL OF 0.54 s over 660
+    occurrences. Two defects combine, and both grow with capture length:
+
+      1. A gap shorter than half guess_ms rounds to 0 and is raised to 1 below, so a
+         foreign event between two real occurrences is charged a whole period. Over that
+         run it inflated the occurrence count from 660 to 687 and pulled the fitted period
+         from 130.69 s to 125.59 s.
+      2. The verdict gates on max_resid, with no allowance for an outlier, so one foreign
+         event in the band flips a clean clock. Here max_resid was 660.7 s.
+
+    Neither shows over one hour, because foreign events in a narrow band are rare enough
+    not to appear. UNFIXED on 2026-09-20 by operator direction: no capture is planned, and
+    the firmware that produces these files is parked. Fix it before the next long capture -
+    this verdict is what the documents cite when they attribute an occupant, D33 standing
+    condition 3's Davis included. Until then, seed a fit with a known period and read the
+    residuals directly. firmware/chan-capture/CLAUDE.md carries the same warning, and
+    docs/shared/LRAN-D1-Parallel-Capture-Analysis.md has the figures.
     """
     ev = events(buckets)
     if len(ev) < min_events:

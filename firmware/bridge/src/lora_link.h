@@ -20,10 +20,10 @@
 
 #include <cstdint>
 
-#include "chan_monitor.h"
 #include "error_reply.h"
 #include "frame_log.h"
 #include "lran/counters.h"
+#include "lran/link/chan_monitor.h"
 #include "lran/link/media_access.h"
 #include "lran/mac.h"
 #include "lora_stats.h"
@@ -36,6 +36,18 @@ using lran::link::CadResult;
 using lran::link::MediaAccess;
 using lran::link::MediaAccessConfig;
 using lran::link::TxStep;
+
+// M25's sampler, moved to lib/lran-link on 2026-09-19 so firmware/chan-capture/ runs the
+// same arithmetic. The names stay unqualified here, as they were when the file was ours.
+using lran::link::ChanBucket;
+using lran::link::ChanMonitor;
+using lran::link::ChanRollup;
+using lran::link::ChanRollupper;
+using lran::link::chan_notable;
+using lran::link::Dbm10;
+using lran::link::render_chan;
+using lran::link::render_chan_boot;
+using lran::link::render_chan_rollup;
 
 // Records the calling task as the one DIO1 wakes, then brings the radio up against the
 // injected pin map (spec 12.2) and the fixed PHY (spec 12.1). Call once, at the top of

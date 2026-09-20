@@ -102,7 +102,7 @@ below, and read `docs/<node>/HANDOFF.md` and the engineering logs.
 ```
 lib/        lran-protocol, lran-link, lran-sim               [built]
             lran-config, vedirect, bms-ble                  [planned]
-firmware/   bridge/, range-test/, simnode/                   [built]
+firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/ [built]  checks/ [built]  simctl/ [built]  rangetest/ [built]
             ha/ [built]
@@ -125,7 +125,7 @@ These work today:
 ```bash
 pio test -d lib/lran-protocol -e native       # host Unity suite
 pio test -d lib/lran-protocol -e esp32s3      # same suite on a Heltec V3
-pio test -d lib/lran-link -e native           # spec 12.3 media access, bridge and simnode
+pio test -d lib/lran-link -e native           # spec 12.3 media access and M25's sampler
 pio test -d lib/lran-sim -e native            # fault frames: encode, patch, reseal, vs. W4
 python3 tools/vectors/check.py                # W4 vectors, self-check
 python3 tools/vectors/generate.py             # regenerate after any protocol change
@@ -154,6 +154,11 @@ python3 tools/simctl/simctl.py --list         # the 10.5 catalogue as simctl run
 pio test -d firmware/simnode -e native        # simnode host suite, no secrets
 pio run  -d firmware/simnode -e simnode-heltec     # NEEDS secrets.h (master key only)
 pio run  -d firmware/simnode -e simnode-xiao-wio   # XIAO ESP32S3 + Wio-SX1262 Kit
+
+pio test -d firmware/chan-capture -e native   # listen-only receiver, no secrets
+pio run  -d firmware/chan-capture -e heltec   # Heltec V3; `freq <hz>` on serial sets the channel
+pio run  -d firmware/chan-capture -e xiao-wio # XIAO ESP32S3 + Wio-SX1262 Kit
+python3 tools/checks/chan_capture_never_transmits.py  # the receiver calls nothing that sends
 ```
 
 **`firmware/bridge/` and `firmware/simnode/` need `secrets.h`.** Copy

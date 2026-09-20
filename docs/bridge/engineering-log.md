@@ -1021,3 +1021,659 @@ second.
 **The 917.6 MHz file name carries the UTC date, and M25's carries the local one.** M25's capture
 began at 03:43 UTC on 2026-09-18 and is named `2026-09-17`; the 917.6 MHz capture began at the same
 hour a day later and is named `2026-09-19`. The two are one night apart, not two.
+
+---
+
+## 2026-09-19 — a listen-only receiver, so the candidate frequencies can share their hours
+
+**`firmware/chan-capture/` is built and has not yet run on hardware.** It is a receiver that
+samples one channel's RSSI about 100 times a second, writes the bridge's `CHAN`, `CHANSUM` and
+`CHAN-BOOT` lines, and never transmits. It exists because the entry above could not separate
+frequency from time of day. With one of these on each candidate frequency, a capture compares
+channels over the same hours by construction.
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) v0.2 §5 now
+asks for that run in place of captures taken one after another.
+
+**The sampler moved into `lib/lran-link/`**, from `firmware/bridge/src/`, so the bridge and the
+new image summarise a capture with one implementation. Its 23 host tests moved with it and
+pass. The bridge's host suite and its Heltec target build unchanged.
+
+**Why a new image and not the capture-only bridge images.** Those poll, so several of them a
+metre apart would put their own frames into each other's captures, at 0.2 MHz offsets where the
+receiver's rejection has not been measured. Two of them on one broker would also fight over
+the MQTT client ID `lran-bridge`. `tools/checks/chan_capture_never_transmits.py` now fails CI
+if the new image's source calls a transmit, a CAD, `setOutputPower`, WiFi or Bluetooth.
+
+**Its files differ from the bridge's in three ways**, and `firmware/chan-capture/CLAUDE.md`
+lists them: no `FRAME` lines, a fixed 10 ms sampling period, and `own_rx` counting LRAN-PHY
+frames heard rather than frames received as the bridge.
+
+**Occupancy cannot be corrected for a receiver's bias after the fact.** The firmware counts
+samples at or above a fixed −110 dBm and keeps only each second's peak, so a receiver that
+reads 2 dB hot counts more occupancy and the file cannot say so. That is why brief §5 opens
+with a calibration hour, every receiver on 917.4 MHz under the same Davis hop, and rotates the
+receivers if they disagree. **The rotation thresholds in §5, 1 dB and 20 %, are proposals**,
+sized to the differences tests 2 and 3 judge, and are the operator's to change.
+
+**Untested:**
+
+- **No capture has run on this image.** The frequency command, NVS storage and the sampling
+  period are exercised only by the host tests and the build.
+- **`rssi_capture.py --reset-on-open` is untested on the XIAO.** It was built for the Heltec's
+  CP2102. On the XIAO's native USB the reset may work, may do nothing, or may enter the
+  bootloader, and the port disappears and returns across it.
+
+**The simnodes were plugged in briefly during the 917.6 MHz capture**, between about 04:03 and
+04:13 UTC by the operator's estimate, then unplugged. Both carry simnode firmware on 917.4 MHz.
+The capture over that window holds only weak, short events, −96 to −110 dBm and 2 to 10
+samples each, and no run of consecutive samples as long as an SF9 frame. Minutes 04:10 to 04:12
+counted 10, 17 and 20 samples above threshold, a little above their neighbours and within what
+the episodic source produces. **So nothing in the file is attributable to the boards**, and the
+window is recorded here so an analysis can exclude it.
+
+**One citation the check does not read is stale.** `lib/lran-link/library.json` cites Protocol
+Specification **v0.11**; the specification is at v0.12. `tools/checks/spec_citation_version.py`
+does not read `library.json`, so nothing caught it. It is left as found, because reconciling
+comes before the citation changes.
+
+---
+
+## 2026-09-19 — the XIAO + Wio Kit radiates a carrier near 917.4 MHz, whatever it is tuned to
+
+**A narrowband signal at about −73 dBm appears on 917.4 MHz at the simnode Heltec whenever
+the XIAO + Wio-SX1262 Kit is powered, starting some tens of seconds after the XIAO boots.** It
+goes when the XIAO is unplugged and returns when it is plugged back in. It does not move when
+the XIAO is retuned. The source is the XIAO assembly's hardware, and which part of it is not
+established. Both boards were running `firmware/chan-capture/` at `f86c5dd`, which transmits
+nothing, a metre or less apart on the bench.
+
+**What was seen, in order, all in UTC on 2026-09-19:**
+
+| Time | XIAO | Heltec at 917.4 MHz |
+|---|---|---|
+| 04:25 | 917.4 MHz, first image | Nothing above −110 dBm, over 6 s |
+| 04:29–04:31 | 917.4 MHz, panel-off image | Quiet about 10 s after its own reset, then every sample above −110 dBm. Floor −74 dBm, peak −70 to −73 dBm, flat to 1 dB for 68 s |
+| 04:35 | **unplugged** | Floor −114 dBm, nothing above −110 dBm, over 32 s |
+| 04:36 | **plugged back in** | Quiet for 43 s, then −70 dBm from mid-bucket 44 |
+| 04:38 | 917.4 MHz | Nothing above −110 dBm, over 20 s |
+| 04:38–04:40 | **retuned to 917.2 MHz** and rebooted | Loud from bucket 36, about 40 s after the XIAO's reboot, peaks −70 to −72 dBm |
+
+**The XIAO does not hear it.** Its own floor at 917.4 MHz read −109 dBm with a mean of
+−107 dBm, 5 to 7 dB above the Heltec's quiet floor, and its strongest sample was −82 dBm.
+**The bridge's 917.6 MHz capture does not show it either**: its floor held at −115 dBm through
+the whole window. So the signal sits inside 917.4 MHz's receive bandwidth and outside
+917.6 MHz's.
+
+**Ruled out:**
+
+- **The XIAO's receiver leaking its local oscillator.** That leak would follow the tuning, and
+  retuning the XIAO to 917.2 MHz left the carrier at 917.4 MHz.
+- **The OLED panel.** Switching it off at boot left the XIAO's floor unchanged, and the carrier
+  appeared after the panel was off.
+- **Anything on the property.** A receiver a metre away cannot see a −73 dBm carrier that
+  arrives from outside while a second receiver beside it sees nothing, and the carrier leaves
+  when the XIAO is unplugged.
+
+**Not established:** which part radiates. The candidates are the ESP32-S3 and its clocks, the
+expansion board, the Kit's own circuitry, and the USB cable as an antenna. Nor is it
+established whether the delay after boot and the gaps are regular, or whether the XIAO
+radiates it while running simnode firmware. **Three tests would separate them:** power the XIAO
+from a battery pack with no USB data, remove the Wio Kit's antenna (safe on a receiver that
+never transmits), and log both boards side by side for an hour.
+
+**What it bears on:**
+
+- **Brief §5's parallel run.** The XIAO cannot sit a metre from another receiver on 917.4 MHz,
+  and a receiver next to it is measuring the XIAO. Until the source is found, the run has two
+  usable receivers, both Heltecs.
+- **Every bench measurement with the XIAO powered.** The XIAO has been the target-radio simnode
+  on 917.4 MHz since 2026-09-14, and the flooding node in M22's sweeps. A −73 dBm carrier sits
+  36 dB below the bench's −37 dBm wanted signal, and a LoRa CAD does not detect a carrier, so it
+  is not an obvious cause of the one-metre losses. **Whether it was present during those runs
+  is not known**, because no capture ran with the XIAO powered. M25's capture ran with both
+  simnodes powered down.
+- **GateLink.** Its module is the header-board Wio-SX1262 (p-6379), not this Kit, on a
+  different host. Whether that board radiates the same way is untested.
+
+**The XIAO now samples 917.2 MHz**, stored in its NVS by the retune above. Its next boot says
+so in `CHAN-BOOT`.
+
+---
+
+## 2026-09-19 — the "carrier" was a stuck receiver in the Heltec, set off by the bridge's polls
+
+**This entry supersedes the one above, which blamed the XIAO + Wio Kit. The XIAO is not the
+source, and there was no carrier.** The simnode Heltec, running `firmware/chan-capture/` at
+917.4 MHz, read a flat −74 dBm because its own receiver stuck after each of the bridge's polls
+at 917.6 MHz, a metre away. Restarting receive clears it, and the image now restarts receive
+every 100 ms. The entry above stands as written, as a record of what was believed at the time.
+
+**Why the entry above was wrong.** Its unplug test watched the Heltec for 32 s, and its quiet
+"before" window for 20 s. Every watch began by opening the Heltec's port, which reboots it, and
+the reading then jumped some seconds later. Those two watches were too short to see a jump that
+had nothing to do with the XIAO. A continuous capture with no reboots settled it: the reading
+jumped at 04:49:10 and stayed at −74 dBm after the XIAO was unplugged at about 04:53.
+
+**The trigger is the bridge's poll.** Every jump came within a second of a poll in the bridge's
+917.6 MHz capture file, six of six:
+
+| Heltec reading jumps to −74 dBm | Bridge poll |
+|---|---|
+| 04:37:08 | 04:37:09 |
+| about 04:39:08 | 04:39:09 |
+| about 04:47:08 | 04:47:09 |
+| 04:49:10 | 04:49:09 |
+| 04:51:20, back after a brief dip | 04:51:19 |
+| 04:55:10 | 04:55:09 |
+
+**The state is invisible to the radio's own flags.** A watchdog on `PREAMBLE_DETECTED` and
+`HEADER_VALID` never fired, and a live probe at 05:07 read the IRQ status as **0x0000** in the
+middle of an episode, with RSSI at −73.0 dBm. So the modem was not mid-reception. A forced
+restart then read −113.0 dBm 50 ms later, and the next poll, at 05:07:19, stuck it again. The
+level it sticks at is close to the level of the poll itself, which reads −70 dBm. Why the
+receiver holds it is not established.
+
+**Neither Vext nor the OLED panel is involved.** The image from before the panel change, which
+never touches Vext, stuck at 04:55:10 after the poll at 04:55:09.
+
+**The fix: restart receive every 100 ms, just after a sample.** Over 3.5 minutes and eight
+polls on build `6bf9a38`'s code, no plateau appeared. Each poll read as about 19 samples at
+−70 dBm, about 190 ms, which fits a short SF9 frame. The floor held at −114 dBm. The Davis was
+caught twice, at 05:09:54 and 05:12:04, 130 s apart. One sample in 3.5 minutes was skipped. The
+cost is that a frame longer than 100 ms is rarely decoded, so `own_rx` undercounts in these
+files; the energy is still sampled.
+
+**Why the bridge never showed it.** The bridge restarts receive after each of its own
+transmissions, so a stuck state would end at its next poll. M25's ten hours show no plateau.
+**What this does not establish** is whether the bridge's receiver sticks between polls when a
+strong signal on another channel arrives. At the bench that costs nothing, because a −37 dBm
+frame clears a −74 dBm stuck floor by 37 dB. At the gate, where the wanted signal is about
+−100 dBm, a receiver stuck 40 dB high would miss frames until its next transmission. **That is
+an open question, not a finding.** The check that would settle it is a bridge-side capture with
+a strong off-channel LoRa burst and no poll for a minute afterwards, and no task owns it yet.
+
+**The XIAO's own floor is still unexplained.** It read −109 dBm with a mean of −107 dBm on the
+build without the restart, 5 to 7 dB above the Heltec. Whether it was stuck too, from boot, is
+the next thing to check on the new build.
+
+**Two things the 917.6 MHz capture's log entry should carry.** The simnode Heltec sat on
+917.4 MHz beside the bridge from 04:24 onward, never transmitting, and the XIAO did the same
+from 04:24 to about 04:53 and again from 04:36. Neither transmits, so neither can put energy on
+917.6 MHz; the entry should say so rather than leave the reader to wonder.
+
+---
+
+## 2026-09-19 — the 917.6 MHz capture: no Davis, and a −46 dBm source no other capture has shown
+
+**917.6 MHz passes the D1 brief's first test and fails the other two as read.** No source there
+was periodic, so the Davis hop that M25 found at 917.4 MHz is absent. Occupancy read 0.1467 %
+against M25's 0.0912 % over the same UTC hours one day earlier. A source at −45 to −47 dBm
+appeared 18 times, 25 dB above anything M25 or the 917.2 MHz capture recorded. The two captures
+are a day apart, so neither failure separates frequency from day.
+[`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) §5's parallel
+run is the comparison that can.
+
+**The run.** The bridge board sampled RSSI on 917.6 MHz from 2026-09-19T03:43:07Z to
+13:43:08Z. It ran image `91e63dd`, the capture-only bridge build, polling peers 0x01 and 0x02
+once a minute each; neither was powered. The run is one segment: 9.99 h, 35,950 buckets and
+3,568,887 samples, with 25,385 opportunities skipped (0.7 %). `rssi_capture.py
+--reset-on-open` opened it. The capture is `docs/bridge/data/m25-chan-917600-2026-09-19.log`.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/m25-chan-917600-2026-09-19.log
+```
+
+| | 917.6 MHz, 2026-09-19, 03:43 to 13:43 UTC | 917.4 MHz, M25, 2026-09-18, 03:44 to 13:43 UTC |
+|---|---|---|
+| Floor, per-minute mean | median −115.1 dBm, range −117.0 to −113.0 | median −115.5 dBm, range −117.0 to −115.0 |
+| Strongest sample | **−45.0 dBm** | −71.0 dBm |
+| Occupancy above −110 dBm | 5,236 of 3,568,887 samples, **0.1467 %** | 3,256 of 3,568,828, 0.0912 % |
+| Periodic source | **none in any band** | 130.69 s, the Davis |
+| Buckets peaking −60 dBm and up | **19**, 82 samples above | 0 |
+| Buckets peaking −80 to −70 dBm | 26, 94 samples above | 201, 216 samples above |
+| Buckets peaking −90 to −80 dBm | 68, 279 samples above | 29, 74 samples above |
+| Buckets peaking −100 to −90 dBm | 234, 1,648 samples above | 144, 1,756 samples above |
+| Buckets peaking −110 to −100 dBm | 828, **3,135** samples above | 795, 1,211 samples above |
+
+### What was on the bench
+
+**Nothing else transmitted on LRAN's PHY after 04:24:25 UTC.** Both simnode boards ran simnode
+firmware on 917.4 MHz from about 04:03 to 04:13 UTC, by the operator's estimate, and the XIAO
+booted simnode firmware again from about 04:22 until it was flashed at 04:24:25. From then on,
+both ran `firmware/chan-capture/`, which calls no transmit. The simnode Heltec sat on 917.4 MHz
+about a metre from the bridge board for the rest of the capture and was rebooted many times
+between 04:25 and 05:27. The XIAO was unplugged by 05:40, when the last handoff was written. The 2026-09-19 entries above
+have the detail.
+
+### Test 1, no periodic source: passed
+
+**No band at 917.6 MHz is periodic, so the Davis leaves no trace 0.166 MHz from its 917.434 MHz
+hop.** At 917.4 MHz, M25 caught 73 % of about 274 Davis cycles, each at −74 to −77 dBm. Here,
+none reached −110 dBm. So the receiver rejects a Davis burst at 0.166 MHz offset by at least
+33 dB, assuming the Davis reached the bench at the same level both nights. The
+handoff listed rejection at 0.25 MHz as unmeasured. A channel filter rejects more as the offset
+grows, so 917.2 MHz's neighbouring hops, 0.234 and 0.266 MHz away, should be rejected at least
+as well. That is an inference; 0.25 MHz itself is still not measured.
+
+### Test 2, occupancy no higher than 917.4 MHz's: failed as read, a day apart
+
+**917.6 MHz read higher than M25 in eight of the nine full hours**, by 1.7 to 3.1 times.
+
+| Hour (UTC) | 04 | 05 | 06 | 07 | 08 | 09 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|
+| 917.6 MHz, 2026-09-19, % | 0.107 | 0.170 | 0.170 | 0.153 | 0.139 | 0.149 | 0.135 | 0.148 | 0.165 |
+| 917.4 MHz, 2026-09-18, % | 0.228 | 0.093 | 0.101 | 0.078 | 0.068 | 0.048 | 0.048 | 0.068 | 0.062 |
+
+**Almost all of the excess sits in the weakest band.** 917.6 MHz counted 1,980 more samples above
+threshold than M25, and 1,924 of them peak at −110 to −101 dBm. The band holds about as many
+buckets at both frequencies, 828 against 795, but the buckets at 917.6 MHz are longer: 200 of the
+828 hold one sample above threshold, against 610 of M25's 795. **The excess was there before any
+other board was powered.** Hour 03, from 03:43 to 04:00, held 93 samples above threshold in that
+band against M25's 22.
+
+**The weakest band is not tied to the bridge's transmissions at 917.6 MHz.** 79 of its 828
+buckets fall near one, 9.5 %, against 8.3 % by chance. The same figure read 14.2 % at 917.4 MHz
+and 21.0 % at 917.2 MHz. Why it differs between frequencies is not established.
+
+### Test 3, no episodic source stronger than at 917.4 MHz: failed
+
+**Two sources decide it.**
+
+1. **The −93 dBm episodic source reads about the same.** Seven of the eight largest episodes peak at
+   −91 to −96 dBm, and one at −82 dBm, against −91 and −92 dBm at 917.4 MHz. The −100 to −90 dBm band holds more buckets,
+   234 against 144, and a similar number of samples above threshold, 1,648 against 1,756.
+2. **A source at −45 to −47 dBm appears in 18 buckets, and nothing like it appears in either
+   other capture.** A nineteenth bucket, at 13:22:25 UTC, peaked at −51 dBm with 7 samples above
+   threshold and may be the same source. The 18 run from 04:33:13 to 12:16:45 UTC, 00:33 to
+   08:16 local time. Each holds 1 to 6 samples above threshold, so each burst lasts about 10 to
+   60 ms. They arrive one to four an hour with no period. Twice two arrive less than a minute apart,
+   10:18:17 and 10:18:53, and 11:21:46 and 11:21:55. The buckets at 09:22:06 and 09:22:07 are
+   consecutive and may hold one burst. Two of the 19 fall near a bridge transmission, at chance.
+
+**The level held within 2 dB across nine hours**, which fits one transmitter at a fixed position
+and power. It is unidentified. At the gate, where frames arrive near −100 dBm, a burst at this
+level would sit about 54 dB above the wanted signal. That estimate comes from bench-position
+RSSI, as M25's did.
+
+**One timing needs checking before the source counts against 917.6 MHz.** The simnode Heltec
+went onto the bench at 04:24, on `chan-capture` at 917.4 MHz, and the first burst came at
+04:33. M25 and the 917.2 MHz capture, which ran with no other board powered, show nothing above
+−71 dBm. Reading −46 dBm a metre away needs about −14 dBm radiated, from the 31.7 dB free-space
+loss at 1 m, and the image calls no transmit. So this is a coincidence to test, not an
+attribution. **A 917.6 MHz capture with no other board powered would settle it**: if the
+bursts continue, the board is not their source.
+
+**Z-Wave at 916.00 MHz is an unlikely source.** It sits 1.6 MHz below 917.6 MHz and 1.4 MHz
+below 917.4 MHz, where M25 saw nothing above −71 dBm. That was a different night, and the test
+below found nothing either.
+
+### The thermostat test at 13:43 to 13:44 UTC
+
+**The operator sent three status requests to a Z-Wave thermostat 6 to 8 m from both Heltecs,
+and no receiver recorded anything that can be tied to them.** The operator's log places the
+requests between 13:43 and 13:44 UTC (09:43 to 09:44 EDT), to within about 10 s. That window
+straddles the unattended handover between captures:
+
+| UTC | Receivers | Seen |
+|---|---|---|
+| 13:42:50 to 13:43:08 | bridge board, 917.6 MHz | One sample at −110 dBm in each of two buckets, 13:42:53 and 13:42:54. That band ran about 1.4 buckets a minute over the capture, so two are background |
+| 13:43:08 to 13:44:03 | **none** | The 917.6 MHz capture had closed. The script flashed the bridge board and rebooted both boards to check them |
+| 13:44:03 to 13:45:13 | both Heltecs, 917.4 MHz | **No sample above −110 dBm on either board** |
+
+**Any request after 13:44:03 put nothing above −110 dBm on 917.4 MHz**, 1.40 MHz above Z-Wave's
+100 kbps channel. Three things limit what that shows:
+
+- **The thermostat's data rate is not known.** At 40 or 9.6 kbps it transmits on 908.4 MHz,
+  9 MHz away, and the test says nothing about 916.00 MHz.
+- **The sampler can miss a short frame.** It reads instantaneous RSSI once every 10 ms. A Z-Wave
+  frame at 100 kbps lasts a few milliseconds, by estimate from the rate, so one frame is caught
+  with a probability of roughly its length over 10 ms. An exchange of several frames is likely,
+  not certain, to land at least one sample.
+- **Which requests fell after 13:44:03 is not known**, because the times are good to about 10 s.
+
+**The events just after the window are not the thermostat.** Both boards caught a weak event
+at 13:45:30, five samples each at −107 and −105 dBm, and the simnode Heltec caught another at
+13:46:54 at −109 dBm. Both fall outside the window. Single samples at −73 dBm at 13:46:06 and
+13:48:17 are 131 s apart, the Davis period.
+
+**Repeating the test with times to the second would answer it.** During day 1 the boards sit on
+917.4 and 917.2 MHz, 1.4 and 1.2 MHz above 916.00 MHz, so one repeat covers two offsets.
+
+---
+
+## 2026-09-19 — the calibration hour: the two Heltecs agree on floor and occupancy, and differ by direction
+
+**The two receivers pass brief §5.2 step 3 on floor and occupancy, and their Davis peaks are too
+unstable to calibrate against.** Floors agreed to 0.3 dB and occupancies to 3.5 %. Over the whole
+hour the median Davis peaks differ by 1.0 dB, which is at the rule's limit rather than over it.
+But the bridge board's Davis reading stepped up by about 8 dB at 14:09 UTC while the simnode
+Heltec's did not move. So the offset between two receivers depends on where the signal comes
+from, and no single figure corrects one to the other. **No swap is called for by the rule as
+written.** Day 1 started on the planned assignment at 14:44:30.
+
+**The run.** Both Heltecs ran `firmware/chan-capture/` on 917.4 MHz from 13:44:03 to 14:44:03
+UTC. `rssi_capture.py --reset-on-open` reset both together. They were the bridge board (flat
+case, the 3.0 dBi stick, image `35c8471`) and the simnode Heltec (handheld case, its own antenna,
+image `6bf9a38`).
+They sat about a metre apart on the bench, and nothing else was powered. Each file holds one
+segment of 3,550 buckets and 354,999 samples, with one opportunity skipped. Both booted in the
+same second and sample every 10 ms, so their samples fall within about 2 ms of each other.
+
+```bash
+python3 tools/simctl/rssi_report.py docs/bridge/data/d1-cal-917400-flat-2026-09-19.log
+python3 tools/simctl/rssi_report.py docs/bridge/data/d1-cal-917400-handheld-2026-09-19.log
+```
+
+| | Bridge board | Simnode Heltec | Rule, brief §5.2 step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −115.2 dBm | −114.9 dBm | within 1 dB: **met** |
+| Occupancy above −110 dBm | 436 samples, 0.1228 % | 421 samples, 0.1186 % | within 20 %: **met**, 3.5 % apart |
+| Davis peak, median over the hour | −72 dBm, 21 of 27 hops caught | −73 dBm, 19 of 27 caught | within 1 dB: **at the limit** |
+| Davis peak, median before 14:09 | −73 dBm | about −73.5 dBm | |
+| Davis peak, median after 14:09 | **−65 dBm** | −74 dBm | |
+
+**Every source both receivers can hear, they heard in the same bucket.** 53 of the bridge board's
+65 buckets with a sample above threshold have a partner in the simnode Heltec's file. A Davis hop
+lasts 6.7 ms and each receiver samples every 10 ms. So one receiver often caught a hop at −72 dBm
+while the other caught its edge at −105 dBm or missed it.
+
+**The step at 14:09 belongs to the bridge board's position, not to its receiver.** From 14:10 on,
+eight of its twelve Davis readings sit at −64 or −65 dBm, against −72 to −73 dBm before. The
+simnode Heltec read −71 to −77 dBm throughout. Before 14:20, both boards read the −93 dBm
+episodic source at −94 to −95 dBm. After 14:30, the bridge board read it 3 to 7 dB *weaker* than
+the simnode Heltec, at −93 to −95 dBm against −88 to −90 dBm. A receiver that ran hot would read both
+sources hot. A change in antenna orientation or surroundings changes the gain toward one
+direction and not the other, and the Davis and the episodic source arrive from different
+directions. **What changed at 14:09 is not recorded.** The operator was sending the thermostat
+requests below at that time.
+
+**What that means for day 1.** A peak level compared across the two files carries this
+direction-dependent uncertainty, up to about 9 dB. Occupancy, which tests 2 and 3 mostly rest
+on, agreed to 3.5 % over the hour.
+
+**`rssi_report.py` split the Davis across two bands on the bridge board**: −80 dBm before the
+step and −70 dBm after. It reported the Davis as periodic in the first, with 10 of 26 hops caught,
+and as not periodic in the second. The Davis figures in the table assign hops by their position on
+the 130.69 s lattice instead, using a scratch script that is not in the repository.
+
+### Z-Wave on the property does not reach −110 dBm on 917.4 MHz
+
+**The ZEN17 in the basement is the better test, and it shows nothing.** It reports water pressure
+every 30 s, about 120 reports an hour. It is built on 700-series silicon and reports to an Aeotec
+Gen5 stick, a 500-series controller, so both ends support 100 kbps on 916.00 MHz. That the link
+actually uses that rate is inferred from the silicon and not confirmed. A report and its ACK at
+100 kbps add up to a few milliseconds of air each, so a sampler reading every 10 ms would catch a
+large share if they reached −110 dBm. The excursions were checked for pairs separated by 29 to 31,
+59 to 61 and 89 to 91 s:
+
+| Capture | Excursions peaking below −85 dBm | Pairs at those spacings | Average pairs per 1 s of spacing |
+|---|---|---|---|
+| Calibration hour, bridge board | 44 | **1 at 30 s, 0 at 60 s**, 3 at 90 s | 0.51 |
+| Calibration hour, simnode Heltec | 43 | **2 at 30 s, 0 at 60 s**, 8 at 90 s | 0.58 |
+| 917.6 MHz, 10 h | 1,101 | 24 at 30 s, 46 at 60 s | 35.1 |
+| 917.4 MHz, M25, 10 h | 948 | 38 at 30 s, 65 at 60 s | 26.6 |
+| 917.2 MHz, 10 h | 1,531 | 102 at 30 s, 136 at 60 s | 79.1 |
+
+**A ZEN17 visible at 917.4 MHz would have put dozens of events an hour on a 30 s grid.** The
+calibration hour has none: its pairs at 30 and 60 s sit at or below the average for any spacing.
+The simnode Heltec's eight pairs near 90 s come from episodes several buckets long, which pair
+with each other, and 30 and 60 s show nothing to match. M25 and the 917.2 MHz capture show a slight excess at 30 s, about two
+standard deviations, which is not a period. Their excess at 60 s is the bridge's own polls, once a
+minute to each of two peers; the calibration hour had no bridge. **So Z-Wave's 100 kbps channel,
+1.4 MHz below 917.4 MHz, stays below −110 dBm at the bench**, provided the ZEN17 uses it.
+
+**The thermostat test could not have seen the thermostat.** It is a Trane TCONT624 from about
+2014, which the operator believes is not Z-Wave Plus. A device of that age transmits at 9.6 or
+40 kbps on 908.4 MHz, 9 MHz below 917.4 MHz. The repeat at 10:09:00, 10:11:00 and 10:13:00 EDT
+matched nothing: the controller's log (Indigo) stamped the reports at 14:09:00, 14:11:30 and
+14:13:00 UTC. The minute summaries covering 14:09:00 and 14:11:30 counted no sample above
+−110 dBm on either board. The nearest excursion to 14:13:00 came 11 s after it, and Indigo can
+group entries under one stamp later than the traffic, not earlier. Each board also caught
+excursions at 14:09:47 and 14:10:49 that match the background: short, −98 to −106 dBm, three to
+five samples, the same shape as five events between 13:44 and 14:09. **The HVAC fan's hourly
+cycle leaves no trace either.** Sorted by minute of the hour, minutes :00 to :01 and :10 to :11
+are no busier than the rest in any of the three ten-hour captures.
+
+### What the captures establish for D1
+
+**Four findings hold across every capture so far:**
+
+1. **The Davis is the only periodic occupant, and only at 917.4 MHz.** It visits for 6.7 ms every
+   130.69 s, a duty of 0.005 %, and reads −64 to −77 dBm at the bench depending on the receiver's
+   position. It leaves no trace at 917.2 or 917.6 MHz, so the receiver rejects it by at least
+   33 dB at 0.166 MHz offset.
+2. **The −93 dBm episodic source appears at all three frequencies at similar levels.** Brief §5.3
+   says a source like that does not separate the candidates.
+3. **Z-Wave does not reach any candidate**, on the ZEN17's evidence, if its link runs at 100 kbps.
+4. **Occupancy runs 0.1 to 0.3 % at every candidate**, and almost all of it lies below −100 dBm.
+
+**Overlap per frame is about 1 % from each source, at bench levels, before any retry.** A
+maximum-length SF9 frame lasts 1,107 ms. It overlaps a Davis hop with probability (1.107 +
+0.0067) / 130.69, which is 0.85 %. In the calibration hour, 14 non-Davis events on the bridge board
+reached −100 dBm, the level of a GateLink frame at the bridge. With bucket granularity that
+bounds overlap at about 0.8 % per frame. The Davis is periodic and a retry goes out within
+`backoff_max_ms` = 1500 ms, so two consecutive frames cannot both land on its hop. These are
+bench-position figures. GateLink sits nearer the Davis transmitter, and nothing has been measured
+there.
+
+**Each candidate has one finding still open:**
+
+| Frequency | Against it | What settles it |
+|---|---|---|
+| 917.4 MHz | The Davis is a co-channel occupant, so D33 standing condition 3 is not met as written | An operator decision to accept a 0.005 % periodic occupant, recorded in the Decision Register |
+| 917.2 MHz | The −89 dBm source from 17:57 to 23:49 UTC on 2026-09-18 | **Day 1**, now running: whether 917.4 MHz shows the source over the same hours |
+| 917.6 MHz | 18 bursts at −45 to −47 dBm | A capture at 917.6 MHz with no other board powered |
+
+---
+
+## 2026-09-19 — the parallel run moves to the production bridge location and restarts
+
+**Day 1 at the bench was stopped at 15:28 UTC, 44 minutes in, and the run restarted at the
+bridge's target location with its own calibration hour.** The bench was needed for another
+project. A capture that spans a move is two captures, and the first calibration hour showed that
+moving one board changes its reading of a source by up to 8 dB, so no figure could be carried
+across the move. The 44 minutes covered none of the evening hours that day 1 exists to test.
+Their two files, `d1-par-917400-flat-2026-09-19.log` and `d1-par-917200-handheld-2026-09-19.log`,
+stay uncommitted. The arming script was stopped first. Its background captures ignored SIGINT,
+as background jobs of a non-interactive shell do, and were ended with SIGTERM.
+
+**The new position, as the operator described it.** The office, against the NW wall, at desk
+height: M20's `bridge-house` site. The bridge board sits at its target location with the 3.0 dBi
+stick, and the simnode Heltec sits about 1.5 m from it. Also powered nearby: the laptop running
+the captures on AC power, an external monitor, and a Bluetooth keyboard and mouse. Bluetooth
+works at 2.4 GHz, outside the band; the monitor is recorded because it is new to these captures.
+
+**The run.** Nothing was reflashed. The bridge board runs `chan-capture` `35c8471` on
+`/dev/cu.usbserial-0001`, and the simnode Heltec runs `6bf9a38`, now on `/dev/cu.usbserial-3`.
+Both were identified by MAC before the start. The calibration hour began at 15:37:59 UTC with
+both on 917.4 MHz. The 24-hour run follows it, with the simnode Heltec on 917.2 MHz. The files
+carry `office` in their names:
+
+| File | Board | Frequency |
+|---|---|---|
+| `d1-cal-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz, 1 h |
+| `d1-cal-917400-handheld-office-2026-09-19.log` | simnode Heltec | 917.4 MHz, 1 h |
+| `d1-par-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz, 24 h |
+| `d1-par-917200-handheld-office-2026-09-19.log` | simnode Heltec | 917.2 MHz, 24 h |
+
+**Every earlier capture was taken at the bench**, so a figure from these files compared with M25,
+the 917.2 MHz capture or the 917.6 MHz capture also compares two locations. Day 1's own test does
+not: it compares two frequencies over the same hours at one location.
+
+## 2026-09-19 — the office calibration hour: the external monitor raised both floors, and the run restarted without it
+
+**The first office calibration hour failed brief §5.2 step 3 on all three counts, and the cause
+was the external monitor.** With the monitor off, a second calibration hour passed on floor and
+occupancy and failed on the Davis peak alone, which depends on direction. Day 1 started at
+17:56:58 UTC with the monitor disconnected, and runs as armed.
+
+### The first hour, monitor on
+
+The hour ran from 15:37:59 to 16:37:59 UTC, with both boards on 917.4 MHz at the positions the
+previous entry records:
+
+| | Bridge board | Simnode Heltec | Step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −114.6 dBm | **−112.8 dBm** | 1.8 dB apart: fails |
+| Davis, median peak | −66 dBm | −60 dBm | 6 dB apart: fails |
+| Occupancy above −110 dBm | 512 samples, 0.144 % | **42,224 samples, 11.9 %** | 83 times: fails |
+
+**The simnode Heltec's occupancy was its own floor.** 3,336 of its 3,401 excursions fell in the
+−110 dBm band. Its floor sat about 2.8 dB under the threshold, so ordinary noise crossed it.
+
+**Both floors fell together for three minutes.** From 15:47 to 15:49 UTC the simnode Heltec read
+−116.0 dBm and the bridge board −115.9 dBm, and the simnode Heltec's occupancy went to zero.
+Both came back at 15:50. The operator knew of no transmitter nearby. The monitor blanks when the
+screen does, and sits about 0.3 m from the simnode Heltec and about 1 m from the bridge board.
+The simnode Heltec's USB port on the laptop is next to the HDMI port.
+
+**Disconnecting the monitor settled it.** The operator unplugged the monitor and switched it off
+at 16:52 UTC. Day 1 had started at 16:38:25 and was running, so the step shows in its files:
+
+| Per-minute floor | 16:50–16:52, monitor on | 16:53–16:55, monitor off |
+|---|---|---|
+| Bridge board, 917.4 MHz | −114.7 dBm | **−115.9 dBm** |
+| Simnode Heltec, 917.2 MHz | −112.3 dBm | **−116.0 dBm** |
+| Simnode Heltec, samples above −110 dBm per minute | 1,792–2,232 | **7–17** |
+
+**The monitor's noise reached 917.2 MHz as it reached 917.4 MHz**, so it raised the floor
+without favouring either frequency. It cost the simnode Heltec 3.7 dB at 0.3 m and the bridge
+board 1.2 dB at 1 m. **The bridge board is at its production position**, so that 1.2 dB is what
+the monitor costs the bridge's receiver whenever both are on. It has not been measured at any
+other spacing.
+
+**Day 1 was stopped at 16:56:06 UTC and the run restarted from a fresh calibration hour.** The
+four files taken with the monitor on are committed under `-monitor` names, as evidence for this
+entry rather than as D1 data:
+
+| File | What it holds |
+|---|---|
+| `d1-cal-917400-flat-office-monitor-2026-09-19.log` | The first calibration hour, bridge board |
+| `d1-cal-917400-handheld-office-monitor-2026-09-19.log` | The first calibration hour, simnode Heltec |
+| `d1-par-917400-flat-office-monitor-2026-09-19.log` | Day 1's first 18 minutes, bridge board, and the step at 16:53 |
+| `d1-par-917200-handheld-office-monitor-2026-09-19.log` | Day 1's first 18 minutes, simnode Heltec, and the step at 16:53 |
+
+### The second hour, monitor off
+
+This hour ran from 16:56:32 to 17:56:32 UTC. Nothing else changed: the same boards, images,
+positions, laptop and Bluetooth devices.
+
+| | Bridge board | Simnode Heltec | Step 3 |
+|---|---|---|---|
+| Floor, median per-minute mean | −115.9 dBm | −116.0 dBm | 0.1 dB apart: passes |
+| Davis, median peak | −68 dBm, 25 of about 27 hops | −60 dBm, 20 hops | 8 dB apart: fails |
+| Occupancy above −110 dBm | 2,527 samples, 0.712 % | 2,663 samples, 0.750 % | 5.4 % apart: passes |
+
+**Step 3 acts on the next day, not on day 1.** It puts each receiver on the other's frequency
+*for the next day*. Day 1 therefore runs as armed, and the swap applies to day 2 if day 2 is
+run. The failure is on the Davis peak alone. At the bench, the bridge board's Davis reading
+stepped 8 dB with nothing recorded as moved, so a peak compared across two boards measures
+direction as much as either receiver. Day 1 should be read on occupancy, as the previous
+calibration entry concluded.
+
+**164 of the bridge board's 169 recorded buckets coincide with the simnode Heltec's**, so the two
+boards heard the same channel.
+
+**917.4 MHz carried an episodic source near −95 dBm through hour 17 UTC.** On the bridge board,
+buckets peaking between −100 and −90 dBm rose from 2 to 9 per ten minutes over 15:40–16:30 to 20
+to 28 per ten minutes over 17:00–17:30. The monitor could not have hidden them: they sit about
+18 dB above even the simnode Heltec's raised floor. The largest episodes peaked at −95 dBm and lasted 2 to 17 s. The
+band holds 2,222 of the hour's 2,527 samples above threshold, which is why this hour's occupancy
+is six times the bench calibration hour's 0.123 %. The bench hour covered other hours, at another
+location.
+
+**This is the signature 2026-09-18's 917.2 MHz capture found in hour 18**, episodes at −94 to
+−96 dBm. It is not the −89 dBm evening source: the −90 to −80 dBm band holds 6 buckets here,
+against 356 in that capture. Whether the −89 dBm source reaches 917.4 MHz is day 1's question,
+from 17:57 UTC.
+
+**Day 1's files** keep the names the previous entry gave them. Both boards were checked by MAC
+and frequency before the start: the bridge board `35c8471` on 917.4 MHz, the simnode Heltec
+`6bf9a38` on 917.2 MHz. Both 24-hour captures end at about 17:57 UTC on 2026-09-20.
+
+---
+
+## 2026-09-20 — day 1 is in: 917.2 MHz is busier in all 24 hours, and the Davis holds its clock
+
+**Both 24-hour captures ran to completion and closed clean.** Opened 2026-09-19T17:56:58Z,
+closed 2026-09-20T17:56:58Z, 23.99 h over 86,350 buckets, **8,634,999 samples each with one
+skipped sample each**, 1440 `CHANSUM` minutes each and no gap. The bridge board ran
+`chan-capture` `35c8471` on 917.4 MHz and the simnode Heltec `6bf9a38` on 917.2 MHz, both
+confirmed from the files' `CHAN-BOOT` lines. Nothing moved, nothing transmitted and the
+external monitor stayed off for the whole run.
+
+| File | Board | Frequency |
+|---|---|---|
+| `d1-par-917400-flat-office-2026-09-19.log` | bridge board | 917.4 MHz |
+| `d1-par-917200-handheld-office-2026-09-19.log` | simnode Heltec | 917.2 MHz |
+
+### The result
+
+| | 917.4 MHz | 917.2 MHz |
+|---|---|---|
+| Occupancy above −110 dBm | **0.2095 %** | **0.3050 %** |
+| Median floor | −115.9 dBm | −116.0 dBm |
+| Strongest sample | −42.0 dBm | −39.0 dBm |
+| −90 to −80 dBm buckets | **68** | **713** |
+| −70 to −60 dBm buckets | **510** | 33 |
+
+**917.2 MHz carried more occupancy in 24 of 24 full hours**, by 1.06 to 2.64 times, mean 1.45.
+No hour ran the other way. Hour-by-hour occupancy on the two channels correlates at
+**r = 0.978**, so the property's own activity moves both receivers together and the 917.2 MHz
+excess sits on top of that common signal. This is what the parallel run was for.
+
+**Brief §5.3 test 1 fails for 917.2 MHz** on its occupancy and episodic-source conditions.
+
+**The gain bias does not explain the −90 to −80 dBm band.** If that source reached 917.4 MHz
+8 dB down it would land in the −100 to −90 dBm band, which instead tracks across the two files
+at 838 buckets against 1043 — a difference of 205, nowhere near the 713 it would have to
+absorb. The −110 to −100 dBm row is weighed lightly as before: the simnode Heltec's floor sits
+0.1 dB lower and more excursions clear the fixed threshold.
+
+### The Davis, confirmed over a full day
+
+**The 917.4 MHz −70 to −60 dBm band fits 130.6882 s with a median residual of 0.54 s**, across
+660 occurrences, with 92 % of the 509 caught events within 2 s of the grid and a catch rate of
+0.77. The band holds 16 to 25 buckets an hour, every hour. The 2026-09-18 figure of 130.69 s
+holds, now over 24 hours rather than one.
+
+### The 917.2 MHz source is not the Davis and is not an evening source
+
+**It runs in all 24 hours**, 15 to 51 buckets an hour, heaviest at 04 and 12–13 UTC. The
+2026-09-18 entry read it as an evening source because that capture ran 17:57 to 23:49 UTC. It
+is continuous, which is worse than the brief assumed when it weighed this source against the
+Davis's 6.7 ms every 130.69 s.
+
+**Its gaps cluster at 130 s often enough to suggest the Davis at a reduced level, and it is
+not.** Two tests rejected that: only 22 of its 577 events, 3.8 %, fall within ±2 s of a
+917.4 MHz Davis event, against 4.0 % with the times shifted by 65 s as a control; and only 13
+of 577, 2 %, land within 2 s of a 130.69 s grid. It stays unidentified.
+
+### One wideband event, on both channels
+
+**At 13:25:22Z both boards recorded their strongest excursion of the day in the same second** —
+−42.0 dBm at 917.4 MHz and −39.0 dBm at 917.2 MHz, one bucket wide, 4 and 9 samples above
+threshold, and the only −60 dBm-and-up bucket in either file. At least 200 kHz wide, keyed once
+in 24 hours, unidentified. It reads on both channels, so it does not separate them.
+
+### `rssi_report.py` called the Davis "not periodic", and the tool is wrong
+
+**The printed verdict for the −70 dBm band was "not periodic (509 events)"**, on the same
+events that fit a clock to half a second. Two defects in `periodicity()` combine and both grow
+with capture length: a gap shorter than half the guessed period is charged a whole period, so a
+foreign event invents an occurrence — 687 against 660 here, dragging the fitted period to
+125.59 s — and the verdict gates on the **maximum** residual, 660.7 s here against a median of
+0.54 s, so one foreign event flips a clean clock. Neither shows over one hour.
+
+**Left unfixed by operator direction**, since no capture is planned and the firmware is parked.
+The figures above were computed by seeding a fit with a known period and reading the residuals
+directly, not from the tool's verdict. `firmware/chan-capture/CLAUDE.md` and the `periodicity()`
+docstring both carry the warning now.
+
+### What this entry does not do
+
+**It records no decision.** The operator's direction on reading this was that **917.4 MHz is the
+target moving forward**, which declines brief §6's move. D1's and D33's status live in the
+Decision Register and are not changed here, and the brief is not yet marked superseded.
+[`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) carries
+the full reading.
