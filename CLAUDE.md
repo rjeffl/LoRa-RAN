@@ -272,10 +272,23 @@ revising, not as a cleanup pass afterward. It carries the reader-first rules: re
 first, named actor, condition before instruction, one term per concept, and a list of
 stock machine-writing patterns to keep out.
 
-**Opening an existing document for edits means reviewing all of it with the skill.** This
-covers the protocol specification, PRDs, implementation plans, task documents, READMEs
-and this file. Review the whole document, not only the lines the change needs, and keep
-that review from burying the change it rides with:
+**Every passage you write or revise meets the skill** — the lines the change touches, and
+the sections it reaches into. That is the standard for new prose anywhere in the repo,
+including the protocol specification, PRDs, implementation plans, task documents, READMEs
+and this file.
+
+**A whole-document prose review happens when the operator asks for one.** Do not start one
+because a document was opened for an edit. Reviewing three thousand lines of specification
+to land a two-line correction buries the change and spends the session on wording; the
+operator decides when a document is worth that pass, and on which branch. *Decided
+2026-09-19, after a v0.13 edit turned into a review of six governing documents.*
+
+**Reading a document is not the same as restyling it.** Notice what is wrong while you are
+in there, and say so — **a wrong fact, a contradiction or drift from the specification is
+never a style finding.** Fix it in its own commit, with the evidence in the message, or
+list it in the PR description. *Working style* below governs it.
+
+When the operator does direct a review:
 
 - **Fix the sections the change touches in the same commit.**
 - **Fix the rest of the document in a separate commit** on the same branch, marked
@@ -284,10 +297,11 @@ that review from burying the change it rides with:
 - **If the review finds more than the branch should carry, list the findings instead.**
   Put them in the PR description and fix them on their own branch. The same applies when
   another open branch is already editing the document.
+- **A spec revision's style pass goes on its own branch**, agreed 2026-09-16: a version
+  bump already drags a citation sweep across the document set, and wording changes on top
+  of that make the diff unreadable.
 - **Leave dated records alone.** Changelog entries, engineering-log entries and handoff
   files follow the dated-records rule below.
-- **A wrong fact, a contradiction or drift from the specification is not a style
-  finding.** Raise it, as *Working style* says; do not fix it in the style-only commit.
 
 Order of precedence when the skill and this repo disagree:
 
