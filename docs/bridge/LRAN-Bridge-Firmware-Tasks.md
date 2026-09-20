@@ -1,12 +1,12 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.29
+**Version:** 0.30
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.39
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.10
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-19
 
@@ -253,7 +253,7 @@ reduce to *"this value reads the table"*.
 | **BF-24** | **Publication policy** — `publish.cpp`, §6.3's whole table | **Opus** | **R-5.2b is the requirement most easily lost in implementation**, because republishing the cached value is the path of least resistance and produces a dashboard that looks healthy. A dead VE.Direct link showing plausible unchanged numbers indefinitely is worse than an obviously unavailable entity |
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**) | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
 | **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator). **Unblocked 2026-09-19 by BF-32**, which builds all three | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
-| **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7). **Added 2026-09-19** | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/` |
+| **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7), and the reassembly of a readback split across several `CONFIG_ACK` messages (spec §7.4.1, **D57**). **Added 2026-09-19** | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/`. **The split readback has two traps of its own**: the bridge must accept more than one `CONFIG_ACK` for a single `seq`, and it must publish `config/state` only once the answer completes |
 | **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19.** Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
 | **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. The other three tools are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
@@ -297,6 +297,14 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.30** — **BF-32's row gains the split readback** (spec §7.4.1, **D57**): a `GET_ALL`
+  answer too large for one frame arrives as several `CONFIG_ACK` messages, and the row names
+  the two traps — the bridge accepts more than one `CONFIG_ACK` per `seq`, and it publishes
+  `config/state` only once the answer completes. **The shared-codec citation moves from
+  v0.10 to v0.12**, reconciled rather than bumped: v0.11 declared the PHY rows, which BF-33's
+  row already covers, and v0.12 added the readback count and `config_readback_timeout_ms`,
+  which BF-32's row now covers.
 
 - **v0.29** — **BF-33 added: spec §12.4's PHY commit-and-revert**, on **D56**, which brought
   frequency, SF, BW, CR and TX power into runtime configuration. The row says what carries
