@@ -20,6 +20,17 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
   arm that lost nothing. **So do not treat "space them above 1 s" as a safe rule** — one
   2000 ms control has broken it. **A bench measurement that counts frames needs a control
   arm in the same session**, whatever the spacing.
+- **Interleave the arms; do not run one to completion and then the other.** Two sweeps on
+  2026-09-21 put 250 ms at 3.91 % against 2000 ms at 0.31 % over 1280 frames, with the
+  denser arm worse in all four run-by-half cells — and **run 1 also separated when pooled
+  by session half**, so reading either two-way split alone gives a different answer.
+  `tools/simctl/sweep_interleave.py` alternates the arms and prints the cross-tab.
+- **2000 ms is not a zero-loss spacing.** It lost 2 frames of 640 on 2026-09-21, both in a
+  gap holding a bridge transmission. Text that treats a wide gap as a clean control is
+  correct for before that date.
+- **The dense arm's rate moves by a factor of four inside one session, in either
+  direction** — 1.88 % to 7.50 % in one sweep and 4.38 % to 1.88 % in the next. **A single
+  burst is not a measurement**, and the variable behind that spread is unidentified.
 - **`cad_backoffs` counts a *busy* CAD only.** A CAD that returns free still takes the
   radio out of receive and increments nothing. A zero in that column is not evidence the
   radio stayed in receive. **Read `cad_free` and `rx_deaf_ms` beside it since

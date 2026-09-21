@@ -159,11 +159,49 @@ def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out):
             "t_start": t_start, "t_end": time.time()}
 
 
-def git_describe():
+def host_git():
+    """The commit of the tree this tool ran from. NOT the image on the bridge.
+
+    The two are different things and a capture that records one field called `git`
+    invites a reader to take it for the other. The bridge's own image is read from the
+    broker instead, and a reflash mid-session would show there and nowhere else.
+    """
     try:
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
                                        stderr=subprocess.DEVNULL).decode().strip()
     except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def bridge_version(host, port, user, password, wait_s=5.0):
+    """The bridge's running image, from its retained `lran/bridge/version`.
+
+    Provenance a reader cannot get any other way: which firmware lost these frames.
+    Returns None when the topic does not arrive, which is a bridge that has not
+    published since the broker last restarted rather than a bridge that is absent.
+    """
+    import paho.mqtt.client as mqtt
+
+    seen = []
+    c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if user:
+        c.username_pw_set(user, password)
+    c.on_connect = lambda cl, u, f, rc, props=None: cl.subscribe([(VERSION_TOPIC, 1)])
+    c.on_message = lambda cl, u, msg: seen.append(msg.payload.decode("utf-8", "replace"))
+    try:
+        c.connect(host, port, 30)
+        c.loop_start()
+        end = time.time() + wait_s
+        while time.time() < end and not seen:
+            time.sleep(0.2)
+    finally:
+        c.loop_stop()
+        c.disconnect()
+    if not seen:
+        return None
+    try:
+        return json.loads(seen[0])
+    except ValueError:
         return None
 
 
@@ -225,9 +263,12 @@ def main(argv=None):
     if len(gaps) != 2:
         ap.error("--gaps takes exactly two values")
 
-    sub = RxLogSubscriber(args.host, args.mqtt_port,
-                          os.environ.get("LRAN_MQTT_USER"),
-                          os.environ.get("LRAN_MQTT_PASSWORD"))
+    user = os.environ.get("LRAN_MQTT_USER")
+    password = os.environ.get("LRAN_MQTT_PASSWORD")
+    image = bridge_version(args.host, args.mqtt_port, user, password)
+    print("bridge image: %s" % (json.dumps(image) if image else "NOT PUBLISHED"))
+
+    sub = RxLogSubscriber(args.host, args.mqtt_port, user, password)
 
     console = Console(args.port)
     quiet = Console(args.quiet_port) if args.quiet_port else None
@@ -256,7 +297,8 @@ def main(argv=None):
             print("  sent %d, records %s to %s"
                   % (mark["sent"], mark["i_before"], mark["i_after"]))
 
-        capture = {"tool": "sweep_interleave", "git": git_describe(),
+        capture = {"tool": "sweep_interleave", "host_git": host_git(),
+                   "bridge_image": image,
                    "started": marks[0].get("t_start") if marks else None,
                    "peer": "0x%s" % args.node.lower(), "count": args.count,
                    "gaps": gaps, "pairs": args.pairs,
