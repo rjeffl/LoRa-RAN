@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.39
+**Version:** 0.41
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-21
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1160,6 +1160,88 @@ records the draft that got this wrong and what the bench printed.
 
 ---
 
+### 6.7 The configuration path — BF-32, built 2026-09-21
+
+**Spec §16.7 from Home Assistant to the node and back, in four files.** `config_json` reads
+§16.7.2's payload and writes `config/ack` and `config/state`; `config_store` holds what the
+bridge owns; `config_path` is the node half's state machine; `nvs_persist` is the store
+behind it (**D49**). The first three are Arduino-free and host-tested.
+
+#### 6.7.1 The topic decides which row a name means
+
+**Three names are in both blocks of `/lib/lran-config/`'s table** — `cad_retries`,
+`backoff_max_ms` and `frag_reassembly_timeout_ms` — because the bridge and every node each
+have their own. §16.7.1 resolves them by where the set arrived:
+
+| Topic | Rows it exposes |
+|---|---|
+| `lran/bridge/config/set` | `Owner::BridgeGlobal` |
+| `lran/<node>/config/set` | `Owner::Node` **and** `Owner::BridgePerNode` for that node |
+
+**A lookup that searched both blocks would answer the bridge's row for a set aimed at a
+node**, and the write would land on the wrong radio while the ack said `ok`. `find_param`
+takes a scope for that reason, and **a name the scope does not hold is `unknown_param`**,
+never a fall-through to the other block.
+
+#### 6.7.2 One answer for two halves
+
+**§16.7.1 asks for ONE `config/ack`, published when every half has an outcome.** A set on a
+node's topic may name parameters of both kinds, so the bridge's half — already applied on
+`mqtt_task` — travels with the job to `sched_task` and is published beside the node's.
+Publishing it early would give Home Assistant two answers to one set, the first incomplete.
+
+`persist` combines by §16.7.3's rule: `unknown` if either half is unknown, otherwise the
+less persisted of the two.
+
+#### 6.7.3 A lost `CONFIG_ACK` is recovered by readback
+
+**This is the opposite of §6.2's command rule and the difference is the point.** A command
+is idempotent through the node's `(ctx_id, seq)` dedup, so **BS-3** retries it with the same
+`seq`. A configuration write is not idempotently repeatable, and repeating one cannot tell
+you whether the first took effect. §7.4: the outcome is **`unknown`**, never failure, and
+the bridge resolves it with a `POLL` carrying bit 1.
+
+**Home Assistant is told `unknown` first and told the truth when the node answers.** An
+operator watching a dashboard learns the bridge does not know inside the ACK timeout,
+rather than after a second round trip that may also fail.
+
+#### 6.7.4 The split readback, and what it costs to get wrong
+
+Spec §7.4.1 and **D57**. Three rules, each with a host test:
+
+| Rule | What breaking it does |
+|---|---|
+| Accept **more than one** `CONFIG_ACK` bearing a given `seq` | A bridge that closes on the first strands the rest and reports a configuration it did not finish reading |
+| Close on the message whose `MORE_FOLLOWS` is **clear** | As above |
+| Publish **nothing** from an incomplete answer | A retained `config/state` holding half of this answer and half of the last cannot be read back apart |
+
+**`config_readback_timeout_ms` runs from the FIRST message of the answer**, not from the
+request, so a node several seconds into a long answer is not cut off by a clock that started
+earlier. A node that answers the poll with nothing at all is still bounded, by the window
+the poll opened. An abandoned answer counts **`config_readback_abandoned`**, which is
+bridge-local and deliberately not a §14.1 counter — nothing was discarded on the wire.
+
+#### 6.7.5 What the bench found that the host could not
+
+**Three defects, none visible at a desk.** The engineering log's 2026-09-21 entry has the
+detail; they are named here because each is a shape worth recognising again:
+
+1. **The simnode answered a solicited `CONFIG_ACK` under its status `seq`** rather than
+   repeating the request's, so correlation failed and a set that had applied was reported
+   `unknown`. Both sides were internally consistent and both suites passed.
+2. **`sched_task`'s stack overflowed** on the first set aimed at a node — a ~1 KB
+   `ConfigJob` as a local. Fixed by moving it to static storage, and the stack raised from
+   3072 to **5120 from a high-water measurement of 84 bytes free**, not from the crash.
+3. **A set's ACK blanked the rows it did not name**, because the state mirror replaced
+   wholesale. A readback replaces; a set's results merge.
+
+> **What would falsify this section.** It assumes a node's whole table can be read back
+> inside `kMaxConfigAckMessages` (§7.4.1) and staged inside the bridge's 64 rows. GateLink's
+> counted 25 parameters (**W10**) fit; a node that does not has outgrown the mechanism, and
+> `staging_overflow` in `lran/bridge/diag/*` is what says so rather than a truncated answer.
+
+---
+
 ## 7. Test and verification plan
 
 ### 7.1 Coverage matrix
@@ -2100,6 +2182,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's**, on its own branch |
 | **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§10.9.2's `CONFIG` row follows D52 and D53**, as the simnode now does. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
