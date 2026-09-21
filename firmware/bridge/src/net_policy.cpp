@@ -211,6 +211,50 @@ bool parse_cmd_topic(const char* topic, CmdTopic* out) {
   return true;
 }
 
+bool parse_config_topic(const char* topic, ConfigTopic* out) {
+  if (topic == nullptr || out == nullptr) return false;
+
+  // Exactly `lran/<node>/config/set` - four segments, matched by position, same rule
+  // as parse_cmd_topic: a well-behaved broker cannot deliver anything else, and the
+  // bridge does not act on a configuration change because a broker was well behaved.
+  if (!segment_is(topic, 0, kTopicRoot) || !segment_is(topic, 2, "config") ||
+      !segment_is(topic, 3, "set")) {
+    return false;
+  }
+  const char* extra     = nullptr;
+  size_t      extra_len = 0;
+  if (segment(topic, 4, &extra, &extra_len)) return false;  // a fifth segment
+
+  const char* node_seg = nullptr;
+  size_t      node_len = 0;
+  if (!segment(topic, 1, &node_seg, &node_len)) return false;
+
+  ConfigTopic parsed;
+  if (std::strlen(kTopicBridgeToken) == node_len &&
+      std::strncmp(kTopicBridgeToken, node_seg, node_len) == 0) {
+    parsed.is_bridge = true;
+    *out             = parsed;
+    return true;
+  }
+  if (!node_id_from_token(node_seg, node_len, &parsed.node_id)) return false;
+  *out = parsed;
+  return true;
+}
+
+size_t topic_config(const char* node, const char* leaf, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || leaf == nullptr || leaf[0] == '\0') {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = std::snprintf(out, cap, "lran/%s/config/%s", node, leaf);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 bool parse_cmd_payload(const char* payload, size_t len, uint8_t* arg, uint16_t* arg2) {
   if (arg == nullptr || arg2 == nullptr) return false;
   *arg  = 0;

@@ -58,6 +58,27 @@ class JsonObject {
     append("%s", json);
   }
 
+  // A nested object, written in place rather than built in a second buffer. Added for
+  // BF-32, whose `config/ack` is an object of objects two levels deep and whose largest
+  // document already sits close to kMaxPayloadLen - a scratch buffer per level would
+  // have cost that much stack again on a task that has other work to do.
+  //
+  // THE CALLER OWNS THE BALANCE, as it does for raw(). An end_object() that never comes
+  // produces a document this class still calls ok, because tracking depth to refuse one
+  // would be a second kind of correctness check in a class whose whole job is the first.
+  // No state is saved across the nesting: after a nested object closes, its parent has
+  // at least one member by construction, so the next sibling always takes a comma.
+  void begin_object(const char* key) {
+    open_key(key);
+    append("{");
+    first_ = true;
+  }
+
+  void end_object() {
+    append("}");
+    first_ = false;
+  }
+
   size_t finish() {
     append("}");
     if (!ok_) {

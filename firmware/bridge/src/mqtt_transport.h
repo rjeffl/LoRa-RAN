@@ -58,19 +58,26 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos);
 
 // ---------------------------------------------------------------------------
-// The inbound direction - BF-18. `lran/<node>/cmd/<action>/set` is the only thing
-// subscribed today (spec 16.2); BF-26 adds `config/set` and B5 the HEX request.
+// The inbound direction - BF-18 and BF-32. `lran/<node>/cmd/<action>/set` and
+// `lran/<node>/config/set` are subscribed today (spec 16.2, 16.7.2); B5 adds the HEX
+// request.
 //
-// TINY ON PURPOSE. An inbound payload is a Home Assistant button or switch value -
-// `PRESS`, `ON`, a small decimal (net_policy.h). 64 bytes is far more than any of
-// them and far less than the 768 an outbound state message needs, and the asymmetry
-// is the point: nothing the bridge ACTS on should arrive in a large buffer.
+// STILL SMALL, AND NO LONGER TINY. It was 64 bytes while a command payload was the only
+// thing that arrived - `PRESS`, `ON`, a small decimal (net_policy.h) - and the asymmetry
+// against the outbound 768 was the point: nothing the bridge ACTS on should arrive in a
+// large buffer. Spec 16.7.2's `config/set` is JSON and breaks that bargain, so the cap is
+// now what the largest ACCEPTABLE one needs: kMaxConfigSetEntries names at the longest
+// length config_json.h will read, each with a value, is about 450 bytes.
+//
+// IT IS NOT THE OUTBOUND CAP, and that is deliberate. A payload arriving larger than this
+// is refused whole rather than parsed, so the bound still limits what the bridge can be
+// asked to act on - it has moved, not gone.
 //
 // REFUSED, NOT TRUNCATED, like every other size limit here. A truncated topic
 // addresses something real and wrong, and a truncated payload is a different command.
 // ---------------------------------------------------------------------------
 
-inline constexpr size_t kMaxInboundPayloadLen = 64;
+inline constexpr size_t kMaxInboundPayloadLen = 512;
 
 struct InboundMessage {
   char   topic[kMaxTopicLen]            = {0};
