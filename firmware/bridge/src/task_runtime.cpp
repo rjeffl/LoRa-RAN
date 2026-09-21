@@ -23,6 +23,8 @@
 
 #include "board_ui.h"
 #include "command.h"
+#include "config_json.h"
+#include "config_store.h"
 #include "diag_json.h"
 #include "discovery.h"
 #include "lora_link.h"
@@ -30,6 +32,7 @@
 #include "mqtt_transport.h"
 #include "net_policy.h"
 #include "node_availability.h"
+#include "nvs_persist.h"
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
@@ -597,7 +600,223 @@ class CommandInbound final : public MqttInbound {
   }
 };
 
-CommandInbound g_cmd_inbound_sink;
+// ---------------------------------------------------------------------------
+// BF-32 - the configuration path's bridge half. Spec 16.7.
+//
+// IT RUNS ON mqtt_task, WHERE THE COMMAND PATH DOES NOT, and the difference is that a
+// bridge-held parameter reaches no radio. `simnode_diag_enable` and `diag_interval_s`
+// are the bridge's own; applying one is a write to a store and two publications, none
+// of which needs the scheduler's lock or a transmission. The node-held half does need
+// both, and it is not here yet.
+//
+// THE DOCUMENTS ARE STATIC, for the reason BF-19 gives for sched_task's PublishMessage.
+// A PublishMessage is ~880 bytes and a config/ack is up to 768 more; mqtt_task's stack
+// is 6144 and PubSubClient's callback already sits inside it. mqtt_task is the only task
+// that touches any of these.
+// ---------------------------------------------------------------------------
+
+// The most rows one topic's document can carry: a scope's own rows, or the largest set
+// the parser accepts, whichever is larger.
+inline constexpr size_t kMaxScopeRows = 32;
+static_assert(kMaxScopeRows >= kMaxConfigSetEntries, "a set's answer must fit");
+static_assert(kMaxScopeRows >= kBridgeGlobalCount, "the bridge's own block must fit");
+static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount,
+              "a node's block must fit");
+
+ConfigStore g_config;
+NvsPersist  g_cfg_global_persist;
+NvsPersist  g_cfg_node_persist[kNodeCount];
+
+ConfigSetRequest g_cfg_req;
+ConfigResult     g_cfg_results[kMaxScopeRows];
+ConfigStateEntry g_cfg_state_rows[kMaxScopeRows];
+PublishMessage   g_cfg_msg;
+char             g_cfg_doc[kMaxPayloadLen];
+
+struct ConfigInboundStats {
+  uint32_t received    = 0;
+  uint32_t bad_topic   = 0;
+  uint32_t bad_payload = 0;  // refused whole, spec 16.7.2's last paragraph
+  uint32_t applied     = 0;  // sets whose bridge half changed something
+  uint32_t no_answer   = 0;  // the ack or the state document did not fit, or would not go
+};
+
+ConfigInboundStats g_cfg_inbound;
+
+// `bridge`, or the node's token. Returns false for an address spec 16.1 gives no token.
+bool config_node_token(bool is_bridge, lran::NodeId node, char* out, size_t cap) {
+  if (is_bridge) {
+    return std::snprintf(out, cap, "%s", kTopicBridgeToken) > 0;
+  }
+  return node_topic_name(node, out, cap) > 0;
+}
+
+// Retained (spec 16.7.4). Published after a set that changed a value, and on every
+// broker connect.
+void publish_config_state(bool is_bridge, lran::NodeId node) {
+  char token[kMaxTopicLen];
+  char topic[kMaxTopicLen];
+  if (!config_node_token(is_bridge, node, token, sizeof(token)) ||
+      topic_config(token, "state", topic, sizeof(topic)) == 0) {
+    ++g_cfg_inbound.no_answer;
+    return;
+  }
+
+  const ConfigScope scope = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
+  const size_t      n     = g_config.state(scope, node, g_cfg_state_rows, kMaxScopeRows);
+  if (build_config_state(g_cfg_state_rows, n, g_cfg_doc, sizeof(g_cfg_doc)) == 0) {
+    // Refused rather than truncated. A truncated retained document is the worst of the
+    // three: it survives every restart until something overwrites it.
+    ++g_cfg_inbound.no_answer;
+    g_accounting.record_dropped(QueueId::Publish);
+    return;
+  }
+  if (!make_publish(&g_cfg_msg, topic, g_cfg_doc, /*retain=*/true, /*qos=*/0) ||
+      !g_mqtt.publish(g_cfg_msg)) {
+    ++g_cfg_inbound.no_answer;
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+void publish_config_ack(bool is_bridge, lran::NodeId node, lran::ConfigOp op,
+                        AckPersist persist, const ConfigResult* results, size_t n,
+                        const char* error) {
+  char token[kMaxTopicLen];
+  char topic[kMaxTopicLen];
+  if (!config_node_token(is_bridge, node, token, sizeof(token)) ||
+      topic_config(token, "ack", topic, sizeof(topic)) == 0) {
+    ++g_cfg_inbound.no_answer;
+    return;
+  }
+  if (build_config_ack(op, persist, results, n, error, g_cfg_doc, sizeof(g_cfg_doc)) == 0) {
+    ++g_cfg_inbound.no_answer;
+    g_accounting.record_dropped(QueueId::Publish);
+    return;
+  }
+  // Not retained (spec 16.7.3). An answer replayed on every HA restart would report an
+  // outcome for a set nobody had just made.
+  if (!make_publish(&g_cfg_msg, topic, g_cfg_doc, /*retain=*/false, /*qos=*/0) ||
+      !g_mqtt.publish(g_cfg_msg)) {
+    ++g_cfg_inbound.no_answer;
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+// One `config/set`, from the topic it arrived on. Spec 16.7.2.
+void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
+  const bool        is_bridge = target.is_bridge;
+  const lran::NodeId node     = target.node_id;
+  const ConfigScope scope     = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
+
+  const char* error = nullptr;
+  if (!parse_config_set(msg.payload, msg.payload_len, &g_cfg_req, &error)) {
+    // spec 16.7.2 - refused whole: `not_applied`, no results, and a reason. The reason
+    // is what tells an operator their template is wrong rather than their broker.
+    ++g_cfg_inbound.bad_payload;
+    publish_config_ack(is_bridge, node, lran::ConfigOp::Set, AckPersist::NotApplied,
+                       nullptr, 0, error);
+    return;
+  }
+
+  AckPersist persist = AckPersist::NotApplied;
+  size_t     n       = 0;
+
+  switch (g_cfg_req.op) {
+    case lran::ConfigOp::RestoreDefaults:
+      n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+      ++g_cfg_inbound.applied;
+      break;
+    case lran::ConfigOp::GetAll:
+      n = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+      break;
+    default: {
+      // TODO(BF-32): the node half. `node_half` collects the entries a node applies from
+      // a CONFIG; until that path exists they are answered `unknown` rather than dropped,
+      // because spec 7.4 makes "no CONFIG_ACK" neither success nor failure and silence
+      // would be a third thing.
+      ConfigSetRequest node_half;
+      n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
+                         &node_half);
+      for (size_t i = 0; i < node_half.count && n < kMaxScopeRows; ++i) {
+        ConfigResult r;
+        std::snprintf(r.name, sizeof(r.name), "%s", node_half.entries[i].name);
+        r.status         = ResultStatus::Unknown;
+        r.has_value      = false;
+        g_cfg_results[n++] = r;
+      }
+      if (node_half.count > 0) persist = AckPersist::Unknown;
+      if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
+        ++g_cfg_inbound.applied;
+      }
+      break;
+    }
+  }
+
+  publish_config_ack(is_bridge, node, g_cfg_req.op, persist, g_cfg_results, n, nullptr);
+
+  // Spec 16.7.4 - republished after every ack THAT CHANGED A VALUE. A GET_ALL changes
+  // nothing and neither does a set every entry of which was refused, so neither
+  // republishes: a retained document rewritten with its own contents is a new message to
+  // every subscriber for no news.
+  const bool changed = g_cfg_req.op == lran::ConfigOp::RestoreDefaults ||
+                       persist == AckPersist::Persisted ||
+                       persist == AckPersist::AppliedNotPersisted;
+  if (changed) {
+    publish_config_state(is_bridge, node);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// One sink, two topic families. MqttTransport::set_inbound takes a single sink
+// (mqtt_transport.h's one concession to PubSubClient), so the routing is here rather
+// than in the transport.
+// ---------------------------------------------------------------------------
+
+class InboundRouter final : public MqttInbound {
+ public:
+  void on_message(const InboundMessage& msg) override {
+    ConfigTopic config_target;
+    if (parse_config_topic(msg.topic, &config_target)) {
+      ++g_cfg_inbound.received;
+      // A node the registry does not carry has no store and no key. Answered nowhere,
+      // because the topic names a node this bridge does not speak to.
+      if (!config_target.is_bridge && registry_find(config_target.node_id) == nullptr) {
+        ++g_cfg_inbound.bad_topic;
+        return;
+      }
+      handle_config_set(config_target, msg);
+      return;
+    }
+    commands_.on_message(msg);
+  }
+
+ private:
+  CommandInbound commands_;
+};
+
+InboundRouter g_inbound_router;
+
+// The retained `config/state` set, republished on every broker connect (spec 16.7.4) and
+// drained a row at a time like discovery's. Row 0 is the bridge; the rest are the
+// registry's nodes in order.
+size_t g_config_state_cursor  = 0;
+bool   g_config_state_pending = false;
+
+void drain_config_state(size_t budget) {
+  if (!g_config_state_pending) return;
+  for (size_t i = 0; i < budget; ++i) {
+    if (g_config_state_cursor > kNodeCount) {
+      g_config_state_pending = false;
+      return;
+    }
+    if (g_config_state_cursor == 0) {
+      publish_config_state(/*is_bridge=*/true, 0);
+    } else {
+      publish_config_state(/*is_bridge=*/false, kNodeTable[g_config_state_cursor - 1].id);
+    }
+    ++g_config_state_cursor;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // BF-23 - the discovery configs. R-3.3b: on boot AND on every broker reconnect.
@@ -702,12 +921,23 @@ void on_mqtt_connected() {
   // healthy while every button in Home Assistant did nothing.
   (void)g_mqtt.subscribe(kTopicCmdFilter, /*qos=*/1);
 
+  // BF-32 - the configuration subscription, renewed for the same reason. Spec 16.7.2's
+  // `config/set` is not retained, so a set published during an outage is gone; what a
+  // reconnect has to put back is the retained `config/state` below, not the request.
+  (void)g_mqtt.subscribe(kTopicConfigFilter, /*qos=*/1);
+
   // BF-23 - the discovery configs, republished from the top on every connect
   // (R-3.3b). The cursor is restarted here and drained by mqtt_task's loop; a
   // reconnect part-way through a previous drain therefore starts again rather than
   // resuming into a set HA has already forgotten.
   g_discovery_cursor  = DiscoveryCursor{};
   g_discovery_pending = true;
+
+  // BF-32, spec 16.7.4 - the retained configuration state, put back the same way and for
+  // the same reason. The cursor counts the bridge itself as row 0 and the registry's
+  // nodes after it.
+  g_config_state_cursor  = 0;
+  g_config_state_pending = true;
 
   // Per-node availability (BF-20), which is a different thing from this one. sched_task
   // owns the watchdog and publishes through the queue on its next tick.
@@ -743,6 +973,8 @@ void mqtt_task(void*) {
         // After the queue: a node's current reading matters more than a config HA has
         // already got, and the set is republished on the next connect regardless.
         drain_discovery(4);
+        // After discovery: an entity must exist before its state means anything.
+        drain_config_state(2);
       } else if (mqtt_next_ms == 0 || static_cast<int32_t>(now - mqtt_next_ms) >= 0) {
         // Same unsigned-wrap-safe comparison as wifi_link.cpp: millis() wraps at
         // ~49.7 days and this node is expected to run for years.
@@ -1035,6 +1267,27 @@ bool send_publish(const PublishMessage& msg) {
   return true;
 }
 
+// BF-32 - the configuration store, before the tasks and before the network. Returns how
+// many stored values it put back, and reports nothing as a failure: a bridge whose NVS
+// refuses to open still applies every set and answers APPLIED_NOT_PERSISTED, which is
+// spec 8.11's whole point.
+size_t config_begin() {
+  const bool global_ok = g_cfg_global_persist.begin(/*global=*/true, 0);
+  lran::config::Persist* per_node[kNodeCount];
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    (void)g_cfg_node_persist[i].begin(/*global=*/false, kNodeTable[i].id);
+    per_node[i] = &g_cfg_node_persist[i];
+  }
+  g_config.begin(global_ok ? &g_cfg_global_persist : nullptr, per_node, kNodeCount);
+
+  size_t restored = nvs_restore(g_config, ConfigScope::Bridge, 0, g_cfg_global_persist);
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    restored += nvs_restore(g_config, ConfigScope::Node, kNodeTable[i].id,
+                            g_cfg_node_persist[i]);
+  }
+  return restored;
+}
+
 bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_host,
                uint16_t mqtt_port, const char* mqtt_user, const char* mqtt_password) {
   wifi_begin(ssid, wifi_password);
@@ -1042,7 +1295,7 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
   // BF-18 - the sink before the first connect. A subscription made while no sink is
   // attached delivers to nothing, and the broker will not send a retained command
   // again to make up for it (mqtt_transport.h).
-  g_mqtt.set_inbound(&g_cmd_inbound_sink);
+  g_mqtt.set_inbound(&g_inbound_router);
 
   // The LWT topic and payload are static storage, not stack: PubSubClient keeps the
   // pointers it is given and uses them on every reconnect, so a stack buffer here

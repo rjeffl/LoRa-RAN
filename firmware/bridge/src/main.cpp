@@ -170,6 +170,13 @@ void setup() {
   }
   Serial.println();
 
+  // BF-32. Before start_tasks(): mqtt_task answers `config/set` out of this store, and a
+  // set arriving before it is open would be answered from the defaults and saved nowhere.
+  // A store that will not open is not fatal - spec 8.11 makes that APPLIED_NOT_PERSISTED
+  // rather than a bridge that refuses to run.
+  Serial.printf("Config: %u stored value(s) restored\n",
+                static_cast<unsigned>(bridge::config_begin()));
+
   // BF-11. Task creation is the last thing setup() does: everything a task might
   // touch is initialized above it, and after this line the Arduino loop is the
   // lowest-value thing running.
