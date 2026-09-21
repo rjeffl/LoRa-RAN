@@ -74,6 +74,15 @@ const ParamDef* find_param(ConfigScope scope, const char* name) {
   return nullptr;
 }
 
+const ParamDef* find_param_by_id(ConfigScope scope, uint16_t id) {
+  const ParamDef* rows[lran::config::kMaxTableParams];
+  const size_t    n = scope_rows(scope, rows, lran::config::kMaxTableParams);
+  for (size_t i = 0; i < n; ++i) {
+    if (rows[i]->id == id) return rows[i];
+  }
+  return nullptr;
+}
+
 size_t scope_rows(ConfigScope scope, const ParamDef** out, size_t cap) {
   size_t n = 0;
   if (scope == ConfigScope::Bridge) {
@@ -277,9 +286,23 @@ size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry
     copy_name(e.name, sizeof(e.name), d.name);
 
     if (d.owner == Owner::Node) {
-      // Spec 16.7.4 - never read back, so null. The readback fills these in.
+      // Spec 16.7.4 - the node's own value, from the last complete readback, or null when
+      // none has arrived. Null is a different statement from "equal to the default".
       e.has_value = false;
-      out[n++]    = e;
+      for (size_t k = 0; k < kNodeCount; ++k) {
+        if (kNodeTable[k].id != node) continue;
+        for (size_t m = 0; m < kMirrorRows; ++m) {
+          if (!mirror_[k][m].set || mirror_[k][m].id != d.id) continue;
+          e.has_value = true;
+          e.value     = mirror_[k][m].value;
+          // INFERRED, NOT REPORTED. CONFIG_ACK carries no override flag, so an override
+          // equal to its default reads `default` here. W15 tracks the gap; GateLink PRD
+          // R-5.3e is what would close it.
+          e.is_override = e.value != d.def;
+          break;
+        }
+      }
+      out[n++] = e;
       continue;
     }
 
@@ -293,6 +316,54 @@ size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry
     out[n++]      = e;
   }
   return n;
+}
+
+namespace {
+
+size_t mirror_index(lran::NodeId node) {
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (kNodeTable[i].id == node) return i;
+  }
+  return kNodeCount;
+}
+
+}  // namespace
+
+void ConfigStore::note_readback(lran::NodeId node, const lran::schema::ConfigAckEntry* results,
+                                size_t n) {
+  const size_t index = mirror_index(node);
+  if (index == kNodeCount || results == nullptr) return;
+
+  // REPLACED WHOLE. A GET_ALL answer describes the node's entire table, so a row missing
+  // from it is a row the node no longer has - not one to keep from an older answer.
+  for (size_t i = 0; i < kMirrorRows; ++i) mirror_[index][i] = Mirror{};
+  note_set_results(node, results, n);
+}
+
+void ConfigStore::note_set_results(lran::NodeId node,
+                                   const lran::schema::ConfigAckEntry* results, size_t n) {
+  const size_t index = mirror_index(node);
+  if (index == kNodeCount || results == nullptr) return;
+
+  for (size_t i = 0; i < n; ++i) {
+    const lran::schema::ConfigAckEntry& e = results[i];
+    // spec 8.12 - a result that is not Ok reports no effective value to mirror.
+    if (e.status != lran::ParamStatus::Ok || e.len == 0) continue;
+    const lran::config::Value v = lran::schema::entry_signed(e.value, e.len, e.ptype);
+
+    Mirror* slot = nullptr;
+    for (size_t k = 0; k < kMirrorRows; ++k) {
+      if (mirror_[index][k].set && mirror_[index][k].id == e.param_id) {
+        slot = &mirror_[index][k];
+        break;
+      }
+      if (slot == nullptr && !mirror_[index][k].set) slot = &mirror_[index][k];
+    }
+    if (slot == nullptr) continue;  // more rows than this bridge mirrors
+    slot->id    = e.param_id;
+    slot->value = v;
+    slot->set   = true;
+  }
 }
 
 lran::config::Value ConfigStore::global_value(uint16_t id) const {

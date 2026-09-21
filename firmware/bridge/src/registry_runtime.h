@@ -14,6 +14,7 @@
 #include "lran/frame.h"
 #include "lran/mac.h"
 #include "lran/messages.h"
+#include "lran/schema/node_config_v1.h"
 #include "registry.h"
 
 namespace bridge {
@@ -59,5 +60,12 @@ bool registry_note_unsupported_version(lran::NodeId id, uint8_t ver);
 // that fills the EncodeCtx in, so no task holds a pointer to key material.
 size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                               const lran::msg::Command& cmd, uint8_t* buf, size_t cap);
+
+// The same, for an authenticated CONFIG (spec 7.4, 9.2). BF-32. Returns the frame length,
+// or 0 - for an unregistered node as well as an encode failure, because a node with no key
+// has no configuration that can reach it.
+size_t registry_build_config(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                             const lran::schema::NodeConfigV1& cfg, uint8_t* buf,
+                             size_t cap);
 
 }  // namespace bridge

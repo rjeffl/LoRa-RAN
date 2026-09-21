@@ -549,7 +549,8 @@ bool Node::send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLin
   return send(e, h, payload, n, 0);
 }
 
-bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::NodeConfigAckV1& ack) {
+bool Node::send_config_ack(Identity& e, lran::NodeId dst,
+                           const lran::schema::NodeConfigAckV1& ack, uint32_t reply_seq) {
   uint8_t payload[lran::kMaxSchemaPayload];
   size_t  n = 0;
   if (lran::schema::serialize(ack, payload, sizeof(payload), &n) != lran::Status::Ok) {
@@ -561,7 +562,13 @@ bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::No
   h.type   = lran::MsgType::ConfigAck;
   h.src    = e.id;
   h.dst    = dst;
-  h.seq    = e.tx_seq++;
+  // spec 7.4.1 - the request's `seq` when this answers one, the status space when it
+  // answers nothing. A solicited answer carrying a status seq cannot be correlated at
+  // all: the bridge is waiting on the seq it sent, and an answer under another number
+  // reads as an ACK for something else. Found on the bench on 2026-09-21, when the
+  // bridge's BF-32 path reported `unknown` for a CONFIG the simnode had already applied
+  // and answered.
+  h.seq    = reply_seq == kUseStatusSeq ? e.tx_seq++ : static_cast<lran::Seq>(reply_seq);
   h.ctx_id = e.ctx_id;
   h.schema = lran::kSchemaNodeConfigV1;
   if (!send(e, h, payload, n, 0)) {
@@ -672,7 +679,9 @@ bool Node::send_config_readback(Identity& e, lran::NodeId dst) {
   cfg_rx_    = kEmptyConfig;
   cfg_rx_.op = lran::ConfigOp::GetAll;
   apply_config(e, cfg_rx_, &cfg_ack_);
-  return send_config_ack(e, dst, cfg_ack_);
+  // Unsolicited: it answers a POLL bit 1 or a REQUEST_CONFIG and correlates to no
+  // request at all (D45).
+  return send_config_ack(e, dst, cfg_ack_, kUseStatusSeq);
 }
 
 void Node::answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
@@ -867,7 +876,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
     cfg_ack_.persist_status = lran::PersistStatus::NotApplied;
     sink_printf(log_, "config %02x <- %02x seq %u: body did not parse, NOT_APPLIED", e.id, hdr.src,
                 static_cast<unsigned>(hdr.seq));
-    send_config_ack(e, hdr.src, cfg_ack_);
+    send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
     return;
   }
 
@@ -878,7 +887,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
               static_cast<unsigned>(hdr.seq), static_cast<unsigned>(cfg_rx_.op),
               static_cast<unsigned>(cfg_rx_.count), cfg_rx_.count == 1 ? "y" : "ies",
               static_cast<unsigned>(cfg_ack_.count));
-  send_config_ack(e, hdr.src, cfg_ack_);
+  send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
 }
 
 void Node::tick_gatelink(Identity& e, uint32_t now_ms) {

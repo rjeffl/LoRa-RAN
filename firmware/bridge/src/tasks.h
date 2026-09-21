@@ -140,4 +140,10 @@ inline constexpr size_t kLogQueueDepth = 16;
 // seconds rather than as a gate that opens a minute after the button was pressed.
 inline constexpr size_t kCommandQueueDepth = 4;
 
+// BF-32. mqtt_task parses a `config/set` into one of these and sched_task runs it. Two,
+// not four: a ConfigJob is ~1 KB where a CommandRequest is six bytes, one transaction is
+// in flight across the fleet, and a configuration change is an operator at a dashboard
+// rather than a stream. A third queued behind two is refused and said so on config/ack.
+inline constexpr size_t kConfigQueueDepth = 2;
+
 }  // namespace bridge

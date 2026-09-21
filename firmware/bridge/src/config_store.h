@@ -46,6 +46,10 @@ const lran::config::ParamDef* find_param(ConfigScope scope, const char* name);
 // One of the two documents' worth of rows, in table order.
 size_t scope_rows(ConfigScope scope, const lran::config::ParamDef** out, size_t cap);
 
+// The row an id resolves to on a scope, or nullptr. A readback carries ids and
+// `config/ack` is published by NAME (spec 16.7), so this is the way back.
+const lran::config::ParamDef* find_param_by_id(ConfigScope scope, uint16_t id);
+
 // ---------------------------------------------------------------------------
 // THE PREMISE THE TABLES ARE BUILT ON, AND THE CHECK THAT WOULD FALSIFY IT.
 //
@@ -155,6 +159,25 @@ class ConfigStore {
   size_t state(ConfigScope scope, lran::NodeId node, ConfigStateEntry* out,
                size_t cap) const;
 
+  // Spec 16.7.4 - what this node is running, as it last said so. It is not an override
+  // the bridge owns and it is not a default, so it is held apart from both:
+  // `config/state` reports it, and a row nobody has heard about stays null.
+  //
+  // TWO WAYS IN, AND THE DIFFERENCE MATTERS. A GET_ALL answer describes the node's WHOLE
+  // table, so it REPLACES the mirror - a parameter the node stopped reporting must not
+  // keep a value from an older answer and read as current. A SET's CONFIG_ACK describes
+  // only the parameters it set, so it MERGES - replacing from one would blank every row
+  // the set did not name, which is what a bench run on 2026-09-21 showed: a set of
+  // backoff_max_ms alone sent dedup_cache_depth back to null on the retained topic.
+  //
+  // COMPLETE, AND ONLY COMPLETE, either way. ConfigPath is what enforces that (spec
+  // 7.4.1); these only record what it hands over. A mirror written from a partial answer
+  // is exactly the retained document 16.7.4 forbids.
+  void note_readback(lran::NodeId node, const lran::schema::ConfigAckEntry* results,
+                     size_t n);
+  void note_set_results(lran::NodeId node, const lran::schema::ConfigAckEntry* results,
+                        size_t n);
+
   // The runtime levers read their value here rather than from a constant (root rule 8).
   lran::config::Value global_value(uint16_t id) const;
   lran::config::Value node_value(lran::NodeId node, uint16_t id) const;
@@ -186,6 +209,18 @@ class ConfigStore {
   lran::config::Store* node_stores_[kNodeCount] = {};
   alignas(lran::config::Store) unsigned char node_storage_[kNodeCount]
                                                           [sizeof(lran::config::Store)];
+
+  // The readback mirror, one row per parameter a node reported. Sized for node-common
+  // plus room for a node's own block; GateLink's counted 25 (W10, Library Plan 4) is what
+  // this has to hold when GateLink arrives, and an answer larger than it is counted
+  // rather than truncated.
+  static constexpr size_t kMirrorRows = 32;
+  struct Mirror {
+    uint16_t            id    = 0;
+    lran::config::Value value = 0;
+    bool                set   = false;
+  };
+  Mirror mirror_[kNodeCount][kMirrorRows] = {};
 };
 
 }  // namespace bridge

@@ -24,6 +24,7 @@
 #include "board_ui.h"
 #include "command.h"
 #include "config_json.h"
+#include "config_path.h"
 #include "config_store.h"
 #include "diag_json.h"
 #include "discovery.h"
@@ -73,6 +74,12 @@ uint8_t      g_command_storage[queue_storage_bytes(kCommandQueueDepth,
 StaticQueue_t g_command_queue_buf;
 QueueHandle_t g_command_queue = nullptr;
 
+// BF-32. mqtt_task parses a `config/set` into one of these; sched_task runs the half
+// that has to cross the radio.
+uint8_t      g_config_storage[queue_storage_bytes(kConfigQueueDepth, sizeof(ConfigJob))];
+StaticQueue_t g_config_queue_buf;
+QueueHandle_t g_config_queue = nullptr;
+
 // BF-27 - log_task drains lora_link's frame-log ring directly (frame_log.h), which is
 // why there is no g_log_queue here. A queue would have cost lora_task a copy into it and
 // bought nothing: the ring IS the queue, single-producer and single-consumer, and it
@@ -99,7 +106,7 @@ QueueAccounting g_accounting;
 
 // Task stacks and control blocks, one pair per row of the table.
 StackType_t g_stack_lora[8192];
-StackType_t g_stack_sched[3072];
+StackType_t g_stack_sched[5120];
 StackType_t g_stack_mqtt[6144];
 StackType_t g_stack_app[6144];
 StackType_t g_stack_ota[4096];
@@ -130,6 +137,7 @@ StackType_t* stack_for(TaskId id) {
 static_assert(sizeof(StackType_t) == 1, "ESP-IDF stack depth is in bytes");
 static_assert(sizeof(g_stack_lora) / sizeof(StackType_t) == 8192, "lora stack");
 static_assert(sizeof(g_stack_mqtt) / sizeof(StackType_t) == 6144, "mqtt stack");
+static_assert(sizeof(g_stack_sched) / sizeof(StackType_t) == 5120, "sched stack");
 
 // ---------------------------------------------------------------------------
 // The poll scheduler (BF-17). sched_task decides and sends, app_task reports what it heard,
@@ -149,6 +157,45 @@ SemaphoreHandle_t g_sched_lock = nullptr;
 // there is no contention to win by splitting - each section is a handful of field
 // writes at a 1 s tick.
 CommandPath g_command;
+
+// BF-32's node half, under the SAME lock and for the same reasons: decided on
+// sched_task, reported to from app_task, and never holding the lock across a registry
+// call or a queue send.
+ConfigPath g_config_path;
+
+// The job in flight, kept beside the path rather than inside it. sched_task needs the
+// names and the bridge half's results when the transaction resolves, and one is in
+// flight across the fleet - so a copy here is simpler than an accessor that would hand
+// out a reference into the state machine.
+ConfigJob g_config_job;
+
+// The most rows one topic's document can carry: a scope's own rows, or the largest set
+// the parser accepts, whichever is larger.
+inline constexpr size_t kMaxScopeRows = 32;
+static_assert(kMaxScopeRows >= kMaxConfigSetEntries, "a set's answer must fit");
+static_assert(kMaxScopeRows >= kBridgeGlobalCount, "the bridge's own block must fit");
+static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount,
+              "a node's block must fit");
+
+ConfigStore g_config;
+NvsPersist  g_cfg_global_persist;
+NvsPersist  g_cfg_node_persist[kNodeCount];
+
+ConfigSetRequest g_cfg_req;
+ConfigResult     g_cfg_results[kMaxScopeRows];
+ConfigStateEntry g_cfg_state_rows[kMaxScopeRows];
+PublishMessage   g_cfg_msg;
+char             g_cfg_doc[kMaxPayloadLen];
+
+struct ConfigInboundStats {
+  uint32_t received    = 0;
+  uint32_t bad_topic   = 0;
+  uint32_t bad_payload = 0;  // refused whole, spec 16.7.2's last paragraph
+  uint32_t applied     = 0;  // sets whose bridge half changed something
+  uint32_t no_answer   = 0;  // the ack or the state document did not fit, or would not go
+};
+
+ConfigInboundStats g_cfg_inbound;
 
 // Read by lora_task_idle() from ota_task without the lock; written under it.
 std::atomic<bool> g_poll_outstanding{false};
@@ -171,6 +218,18 @@ void cmd_on_ack(const RxMessage& msg) {
   }
   SchedLock lock;
   g_command.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis);
+}
+
+// BF-32. A CONFIG_ACK arrived. Called from app_task; the deserialize happens outside the
+// lock, and a payload that is not a well-formed ACK is dropped here rather than reaching
+// the state machine.
+void config_on_ack(const RxMessage& msg) {
+  lran::schema::NodeConfigAckV1 ack;
+  if (lran::schema::deserialize(msg.payload, msg.payload_len, &ack) != lran::Status::Ok) {
+    return;
+  }
+  SchedLock lock;
+  g_config_path.on_config_ack(msg.hdr.src, ack, msg.hdr.seq, msg.rx_millis);
 }
 
 void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
@@ -376,6 +435,185 @@ void sched_commands(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
+// BF-32's node half on sched_task. Spec 7.4, 7.4.1, 16.7.
+//
+// THE ANSWER IS ONE PUBLICATION FOR BOTH HALVES (spec 16.7.1). The bridge's half was
+// applied on mqtt_task and rides in the job; this is where it meets the node's and the
+// two become one `config/ack`.
+// ---------------------------------------------------------------------------
+
+// Static for the reason g_sched_msg is: sched_task's stack is 3072 and these are large.
+ConfigResult     g_sched_cfg_results[kMaxScopeRows];
+ConfigStateEntry g_sched_cfg_state[kMaxScopeRows];
+char             g_sched_cfg_doc[kMaxPayloadLen];
+
+void publish_config_resolution(const ConfigStep& step) {
+  // sched_task's deepest path, reported the way lora_task reports its own. This node's
+  // CLAUDE.md asks for a stack size corrected FROM A MEASUREMENT rather than doubled
+  // after a crash, and this is the measurement.
+  Serial.printf("config: %02x outcome %d, sched stack high-water %u bytes free\n",
+                static_cast<unsigned>(step.dst), static_cast<int>(step.op_outcome),
+                static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+
+  char token[kMaxTopicLen];
+  if (node_topic_name(step.dst, token, sizeof(token)) == 0) return;
+
+  // The bridge's half first, in the order Home Assistant asked for it.
+  size_t n = 0;
+  for (size_t i = 0; i < g_config_job.bridge_result_count && n < kMaxScopeRows; ++i) {
+    g_sched_cfg_results[n++] = g_config_job.bridge_results[i];
+  }
+
+  // Then the node's, by name. A readback carries ids the request never named, which is
+  // why the way back is the table rather than the job's own list.
+  for (size_t i = 0; i < step.result_count && n < kMaxScopeRows; ++i) {
+    const lran::schema::ConfigAckEntry& e = step.results[i];
+    const lran::config::ParamDef* d = find_param_by_id(ConfigScope::Node, e.param_id);
+    if (d == nullptr) continue;  // a row this bridge's table does not carry
+    ConfigResult r;
+    std::snprintf(r.name, sizeof(r.name), "%s", d->name);
+    r.status = result_status_of(e.status);
+    if (e.len > 0) {
+      r.has_value = true;
+      r.value     = lran::schema::entry_signed(e.value, e.len, e.ptype);
+    }
+    g_sched_cfg_results[n++] = r;
+  }
+
+  // An outcome nobody knows still names the parameters it concerns (spec 16.7.3), so an
+  // operator sees which entries are in doubt rather than an empty answer.
+  if (step.op_outcome == ConfigOutcome::Unknown ||
+      step.op_outcome == ConfigOutcome::Abandoned) {
+    for (size_t i = 0; i < g_config_job.name_count && n < kMaxScopeRows; ++i) {
+      ConfigResult r;
+      std::snprintf(r.name, sizeof(r.name), "%s", g_config_job.names[i]);
+      r.status                 = ResultStatus::Unknown;
+      r.has_value              = false;
+      g_sched_cfg_results[n++] = r;
+    }
+  }
+
+  const AckPersist persist = g_config_job.bridge_result_count > 0
+                                 ? combine_persist(g_config_job.bridge_persist, step.persist)
+                                 : step.persist;
+
+  char topic[kMaxTopicLen];
+  if (topic_config(token, "ack", topic, sizeof(topic)) > 0 &&
+      build_config_ack(step.op, persist, g_sched_cfg_results, n, nullptr, g_sched_cfg_doc,
+                       sizeof(g_sched_cfg_doc)) > 0 &&
+      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  } else {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+
+  // Spec 16.7.4 - the retained state is published from a COMPLETE answer only, which is
+  // what `updates_state` means. An `unknown` or an abandoned readback changes nothing
+  // here on purpose: the last values published stay, rather than being replaced by a
+  // document half of which is this answer and half of which is the previous one.
+  if (!step.updates_state && !g_config_job.bridge_changed) return;
+  if (step.updates_state) {
+    // A readback describes the whole table and replaces the mirror; a SET's ACK describes
+    // only what it set and merges into it. config_store.h says what each one costs if
+    // they are confused.
+    if (step.op == lran::ConfigOp::GetAll || step.op == lran::ConfigOp::RestoreDefaults) {
+      g_config.note_readback(step.dst, step.results, step.result_count);
+    } else {
+      g_config.note_set_results(step.dst, step.results, step.result_count);
+    }
+  }
+  const size_t rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state,
+                                    kMaxScopeRows);
+  if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
+      build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
+                         sizeof(g_sched_cfg_doc)) > 0 &&
+      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  } else {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+// One tick. Admits a queued job when nothing is in flight, then acts on what the path
+// asks for - the same shape as sched_commands() and for the same reasons.
+void sched_config(uint32_t now_ms) {
+  {
+    bool busy = false;
+    {
+      SchedLock lock;
+      busy = g_config_path.busy();
+    }
+    if (!busy) {
+      // RECEIVED STRAIGHT INTO THE STATIC, NOT ONTO THE STACK. A ConfigJob is about a
+      // kilobyte - the CONFIG payload, the names and the bridge half's results - and
+      // sched_task's stack is 3072. A local here overflowed it and the board panicked
+      // with "Stack canary watchpoint triggered (sched)" on the first set aimed at a
+      // node, which is how this comment came to be written.
+      if (g_config_queue != nullptr &&
+          xQueueReceive(g_config_queue, &g_config_job, 0) == pdTRUE) {
+        lran::Seq seq = 0;
+        NodeState ns;
+        if (registry_take_cmd_seq(g_config_job.dst, &seq) &&
+            registry_state(g_config_job.dst, &ns)) {
+          SchedLock lock;
+          (void)g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
+        }
+      }
+    }
+  }
+
+  for (int guard = 0; guard < 4; ++guard) {
+    ConfigStep step;
+    {
+      SchedLock lock;
+      step = g_config_path.next(now_ms);
+    }
+    switch (step.action) {
+      case ConfigAction::None:
+        return;
+
+      case ConfigAction::Resolve:
+        publish_config_resolution(step);
+        continue;
+
+      case ConfigAction::RequestReadback: {
+        // spec 7.4 - a readback request, NOT a retransmission of the CONFIG. `POLL` is
+        // unauthenticated (spec 9.2) and takes a poll seq, not the command space's.
+        TxMessage tx;
+        tx.dst = step.dst;
+        NodeState ns;
+        if (!registry_state(step.dst, &ns)) return;
+        lran::Seq poll_seq = 0;
+        {
+          SchedLock lock;
+          poll_seq = g_scheduler.take_poll_seq();
+        }
+        tx.len = build_poll_frame(step.dst, ns.ctx_id, poll_seq, node_tx_ver(ns), tx.bytes,
+                                  sizeof(tx.bytes),
+                                  lran::kPollFlagFullStatus | lran::kPollFlagConfigReadback);
+        if (tx.len == 0 || !send_tx(tx)) return;
+        SchedLock lock;
+        g_config_path.on_sent(now_ms);
+        return;
+      }
+
+      case ConfigAction::SendConfig: {
+        TxMessage tx;
+        tx.dst = step.dst;
+        NodeState ns;
+        const uint8_t ver = registry_state(step.dst, &ns) ? node_tx_ver(ns) : lran::kProtoVer;
+        tx.len = registry_build_config(step.dst, step.ctx_id, step.seq, ver, step.payload,
+                                       tx.bytes, sizeof(tx.bytes));
+        if (tx.len == 0 || !send_tx(tx)) return;
+        SchedLock lock;
+        g_config_path.on_sent(now_ms);
+        return;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The availability watchdog (BF-20). sched_task owns it outright - it is written and read in
 // no other task - so it needs no lock. mqtt_task asks for a republish through an atomic, and
 // ui_task reads the counts through two more.
@@ -522,6 +760,7 @@ void sched_task(void*) {
     sched_versions();          // BF-22 - R-3.1f, spec 13.1
     sched_polls(millis());     // BF-17 - Impl Plan 6.1, R-3.1d
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
+    sched_config(millis());    // BF-32 - spec 7.4, 7.4.1, 16.7
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5
     sched_diag(millis());      // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
@@ -615,33 +854,6 @@ class CommandInbound final : public MqttInbound {
 // that touches any of these.
 // ---------------------------------------------------------------------------
 
-// The most rows one topic's document can carry: a scope's own rows, or the largest set
-// the parser accepts, whichever is larger.
-inline constexpr size_t kMaxScopeRows = 32;
-static_assert(kMaxScopeRows >= kMaxConfigSetEntries, "a set's answer must fit");
-static_assert(kMaxScopeRows >= kBridgeGlobalCount, "the bridge's own block must fit");
-static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount,
-              "a node's block must fit");
-
-ConfigStore g_config;
-NvsPersist  g_cfg_global_persist;
-NvsPersist  g_cfg_node_persist[kNodeCount];
-
-ConfigSetRequest g_cfg_req;
-ConfigResult     g_cfg_results[kMaxScopeRows];
-ConfigStateEntry g_cfg_state_rows[kMaxScopeRows];
-PublishMessage   g_cfg_msg;
-char             g_cfg_doc[kMaxPayloadLen];
-
-struct ConfigInboundStats {
-  uint32_t received    = 0;
-  uint32_t bad_topic   = 0;
-  uint32_t bad_payload = 0;  // refused whole, spec 16.7.2's last paragraph
-  uint32_t applied     = 0;  // sets whose bridge half changed something
-  uint32_t no_answer   = 0;  // the ack or the state document did not fit, or would not go
-};
-
-ConfigInboundStats g_cfg_inbound;
 
 // `bridge`, or the node's token. Returns false for an address spec 16.1 gives no token.
 bool config_node_token(bool is_bridge, lran::NodeId node, char* out, size_t cap) {
@@ -702,11 +914,50 @@ void publish_config_ack(bool is_bridge, lran::NodeId node, lran::ConfigOp op,
   }
 }
 
+// True when the job reached sched_task. False leaves the caller to answer here.
+bool queue_config_job(const ConfigJob& job) {
+  if (g_config_queue == nullptr || xQueueSend(g_config_queue, &job, 0) != pdTRUE) {
+    g_accounting.record_dropped(QueueId::Config);
+    return false;
+  }
+  g_accounting.record_sent(QueueId::Config,
+                           static_cast<size_t>(uxQueueMessagesWaiting(g_config_queue)));
+  return true;
+}
+
+// Fills the CONFIG payload from the names a set named, resolving each to its row. A name
+// that does not resolve never gets here - ConfigStore::apply answered it already.
+void fill_node_config(ConfigJob* job, const ConfigSetRequest& node_half) {
+  job->config    = lran::schema::NodeConfigV1{};
+  job->config.op = lran::ConfigOp::Set;
+  job->name_count = 0;
+
+  for (size_t i = 0; i < node_half.count; ++i) {
+    const lran::config::ParamDef* d = find_param(ConfigScope::Node, node_half.entries[i].name);
+    if (d == nullptr) continue;
+    if (job->config.count >= lran::schema::kMaxConfigEntries) break;
+
+    uint32_t raw = 0;
+    switch (lran::config::ptype_width(d->type)) {
+      case 1: raw = static_cast<uint32_t>(node_half.entries[i].value) & 0xFFu; break;
+      case 2: raw = static_cast<uint32_t>(node_half.entries[i].value) & 0xFFFFu; break;
+      default: raw = static_cast<uint32_t>(node_half.entries[i].value); break;
+    }
+    lran::schema::entry_pack(&job->config.entries[job->config.count], d->id, d->type, raw);
+    ++job->config.count;
+
+    if (job->name_count < kMaxConfigSetEntries) {
+      std::snprintf(job->names[job->name_count], kMaxParamNameLen, "%s", d->name);
+      ++job->name_count;
+    }
+  }
+}
+
 // One `config/set`, from the topic it arrived on. Spec 16.7.2.
 void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
-  const bool        is_bridge = target.is_bridge;
-  const lran::NodeId node     = target.node_id;
-  const ConfigScope scope     = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
+  const bool         is_bridge = target.is_bridge;
+  const lran::NodeId node      = target.node_id;
+  const ConfigScope  scope     = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
 
   const char* error = nullptr;
   if (!parse_config_set(msg.payload, msg.payload_len, &g_cfg_req, &error)) {
@@ -718,38 +969,67 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     return;
   }
 
-  AckPersist persist = AckPersist::NotApplied;
-  size_t     n       = 0;
+  AckPersist       persist = AckPersist::NotApplied;
+  size_t           n       = 0;
+  ConfigSetRequest node_half;
+  bool             want_node = false;
 
   switch (g_cfg_req.op) {
     case lran::ConfigOp::RestoreDefaults:
       n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
       ++g_cfg_inbound.applied;
+      want_node = !is_bridge;  // the node clears its own overrides (D52)
       break;
     case lran::ConfigOp::GetAll:
-      n = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+      n         = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+      want_node = !is_bridge;  // the node's own values come from the node
       break;
-    default: {
-      // TODO(BF-32): the node half. `node_half` collects the entries a node applies from
-      // a CONFIG; until that path exists they are answered `unknown` rather than dropped,
-      // because spec 7.4 makes "no CONFIG_ACK" neither success nor failure and silence
-      // would be a third thing.
-      ConfigSetRequest node_half;
+    default:
       n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
                          &node_half);
-      for (size_t i = 0; i < node_half.count && n < kMaxScopeRows; ++i) {
-        ConfigResult r;
-        std::snprintf(r.name, sizeof(r.name), "%s", node_half.entries[i].name);
-        r.status         = ResultStatus::Unknown;
-        r.has_value      = false;
-        g_cfg_results[n++] = r;
-      }
-      if (node_half.count > 0) persist = AckPersist::Unknown;
       if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
         ++g_cfg_inbound.applied;
       }
+      want_node = node_half.count > 0;
       break;
+  }
+
+  // SPEC 16.7.1 - ONE ack, published when EVERY half has an outcome. When a half is on
+  // the air, the bridge's results travel with the job and sched_task publishes both
+  // together. Answering here as well would give Home Assistant two answers to one set.
+  if (want_node) {
+    ConfigJob job;
+    job.dst                 = node;
+    job.op                  = g_cfg_req.op;
+    job.bridge_persist      = persist;
+    job.bridge_changed      = persist == AckPersist::Persisted ||
+                         persist == AckPersist::AppliedNotPersisted;
+    job.bridge_result_count = static_cast<uint8_t>(n < kMaxConfigSetEntries ? n
+                                                                            : kMaxConfigSetEntries);
+    for (size_t i = 0; i < job.bridge_result_count; ++i) job.bridge_results[i] = g_cfg_results[i];
+
+    if (g_cfg_req.op == lran::ConfigOp::Set) {
+      fill_node_config(&job, node_half);
+    } else {
+      job.config       = lran::schema::NodeConfigV1{};
+      job.config.op    = g_cfg_req.op;  // GET_ALL or RESTORE_DEFAULTS, no entries
+      job.config.count = 0;
     }
+
+    if (queue_config_job(job)) return;
+
+    // The queue refused it. Said so rather than left silent: the bridge's half may
+    // already have applied, and an operator is entitled to know the other half did not
+    // even leave.
+    ++g_cfg_inbound.no_answer;
+    for (size_t i = 0; i < node_half.count && n < kMaxScopeRows; ++i) {
+      ConfigResult r;
+      std::snprintf(r.name, sizeof(r.name), "%s", node_half.entries[i].name);
+      r.status         = ResultStatus::Unknown;
+      r.has_value      = false;
+      g_cfg_results[n++] = r;
+    }
+    persist = AckPersist::Unknown;
   }
 
   publish_config_ack(is_bridge, node, g_cfg_req.op, persist, g_cfg_results, n, nullptr);
@@ -1017,6 +1297,11 @@ void app_task(void*) {
     if (msg.hdr.type == lran::MsgType::CommandAck) {
       cmd_on_ack(msg);
     }
+    // BF-32. A CONFIG_ACK ends a configuration transaction (spec 7.4), and an unsolicited
+    // one answers the readback a POLL bit 1 asked for (D45). Both arrive here.
+    if (msg.hdr.type == lran::MsgType::ConfigAck) {
+      config_on_ack(msg);
+    }
     // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
     // policy, into the publish queue.
@@ -1202,6 +1487,8 @@ bool start_tasks() {
                                   &g_tx_queue_buf);
   g_publish_queue = xQueueCreateStatic(kPublishQueueDepth, sizeof(PublishMessage),
                                        g_publish_storage, &g_publish_queue_buf);
+  g_config_queue = xQueueCreateStatic(kConfigQueueDepth, sizeof(ConfigJob),
+                                      g_config_storage, &g_config_queue_buf);
   g_command_queue = xQueueCreateStatic(kCommandQueueDepth, sizeof(CommandRequest),
                                        g_command_storage, &g_command_queue_buf);
   if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||

@@ -387,6 +387,108 @@ void test_state_marks_an_override_as_one() {
   TEST_ASSERT_TRUE(e->is_override);
 }
 
+// ---------------------------------------------------------------------------
+// The readback mirror - spec 16.7.4
+// ---------------------------------------------------------------------------
+
+namespace {
+
+lran::schema::ConfigAckEntry ok_entry(uint16_t id, int32_t value) {
+  lran::schema::ConfigAckEntry e;
+  lran::schema::entry_pack(&e, id, ParamStatus::Ok, PType::U8,
+                           static_cast<uint32_t>(value) & 0xFFu);
+  return e;
+}
+
+}  // namespace
+
+void test_a_readback_fills_the_nodes_own_rows() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  const lran::schema::ConfigAckEntry results[] = {ok_entry(0x0100, 16), ok_entry(0x0102, 7)};
+  store.note_readback(lran::kNodeSim1, results, 2);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
+                               config::kMaxTableParams);
+  const ConfigStateEntry* dedup = state_named(entries, n, "dedup_cache_depth");
+  TEST_ASSERT_NOT_NULL(dedup);
+  TEST_ASSERT_TRUE(dedup->has_value);
+  TEST_ASSERT_EQUAL_INT32(16, dedup->value);
+  // Inferred, not reported: 16 differs from the table's default of 8. W15 is the gap.
+  TEST_ASSERT_TRUE(dedup->is_override);
+}
+
+void test_a_value_equal_to_its_default_reads_as_default() {
+  // Spec 16.7.4 - `source` for a node-held row is INFERRED, because CONFIG_ACK carries no
+  // override flag. An override equal to its default is indistinguishable here.
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+  const lran::schema::ConfigAckEntry results[] = {ok_entry(0x0100, 8)};
+  store.note_readback(lran::kNodeSim1, results, 1);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
+                               config::kMaxTableParams);
+  const ConfigStateEntry* dedup = state_named(entries, n, "dedup_cache_depth");
+  TEST_ASSERT_TRUE(dedup->has_value);
+  TEST_ASSERT_FALSE(dedup->is_override);
+}
+
+// THE BENCH FOUND THIS ONE. A set of one parameter must not blank every row the set did
+// not name: on 2026-09-21 a set of backoff_max_ms alone sent dedup_cache_depth back to
+// null on the retained topic, because a SET's ACK went in through the replacing path.
+void test_a_sets_ack_merges_and_does_not_blank_the_rest() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  const lran::schema::ConfigAckEntry first[] = {ok_entry(0x0100, 16)};
+  store.note_readback(lran::kNodeSim1, first, 1);
+
+  const lran::schema::ConfigAckEntry second[] = {ok_entry(0x0102, 7)};
+  store.note_set_results(lran::kNodeSim1, second, 1);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
+                               config::kMaxTableParams);
+  TEST_ASSERT_TRUE(state_named(entries, n, "dedup_cache_depth")->has_value);
+  TEST_ASSERT_TRUE(state_named(entries, n, "cad_retries")->has_value);
+  TEST_ASSERT_EQUAL_INT32(7, state_named(entries, n, "cad_retries")->value);
+}
+
+// A GET_ALL describes the whole table, so a row missing from it is a row the node no
+// longer has - not one to keep from an older answer.
+void test_a_readback_replaces_rather_than_merges() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  const lran::schema::ConfigAckEntry first[] = {ok_entry(0x0100, 16), ok_entry(0x0102, 7)};
+  store.note_readback(lran::kNodeSim1, first, 2);
+
+  const lran::schema::ConfigAckEntry second[] = {ok_entry(0x0102, 9)};
+  store.note_readback(lran::kNodeSim1, second, 1);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
+                               config::kMaxTableParams);
+  TEST_ASSERT_FALSE(state_named(entries, n, "dedup_cache_depth")->has_value);
+  TEST_ASSERT_EQUAL_INT32(9, state_named(entries, n, "cad_retries")->value);
+}
+
+// The mirror is one node's. A readback from one must not appear on another's topic.
+void test_the_mirror_is_per_node() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+  const lran::schema::ConfigAckEntry results[] = {ok_entry(0x0100, 16)};
+  store.note_readback(lran::kNodeSim1, results, 1);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeGateLink, entries,
+                               config::kMaxTableParams);
+  TEST_ASSERT_FALSE(state_named(entries, n, "dedup_cache_depth")->has_value);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -413,6 +515,12 @@ int main(int, char**) {
   RUN_TEST(test_read_all_answers_every_row_of_the_scope);
   RUN_TEST(test_a_nodes_own_rows_have_no_value_until_a_readback);
   RUN_TEST(test_state_marks_an_override_as_one);
+
+  RUN_TEST(test_a_readback_fills_the_nodes_own_rows);
+  RUN_TEST(test_a_value_equal_to_its_default_reads_as_default);
+  RUN_TEST(test_a_sets_ack_merges_and_does_not_blank_the_rest);
+  RUN_TEST(test_a_readback_replaces_rather_than_merges);
+  RUN_TEST(test_the_mirror_is_per_node);
 
   return UNITY_END();
 }

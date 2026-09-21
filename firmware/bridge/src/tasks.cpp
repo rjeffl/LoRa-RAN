@@ -31,8 +31,20 @@ constexpr TaskSpec kTable[kTaskCount] = {
     {TaskId::Lora, "lora", kPriorityLora, 8192, kCore1, 0},
 
     // 1 s tick: per-node poll scheduling, retry and backoff, the availability
-    // watchdog. Feeds the hardware watchdog (Impl Plan 5.2).
-    {TaskId::Sched, "sched", kPriorityHigh, 3072, kCore1, 1000},
+    // watchdog, and BF-32's configuration transaction. Feeds the hardware watchdog
+    // (Impl Plan 5.2).
+    //
+    // 5120, RAISED FROM 3072 IN BF-32, AND FROM A MEASUREMENT RATHER THAN A CRASH. The
+    // configuration path made this the deepest task in the firmware: a ConfigStep
+    // carries a whole CONFIG payload and sched_config() builds a TxMessage beside it.
+    // The board panicked with "Stack canary watchpoint triggered (sched)" on the first
+    // set aimed at a node, and the first correction was the real one - the ~1 KB
+    // ConfigJob moved off the stack into static storage (task_runtime.cpp). With that
+    // done, uxTaskGetStackHighWaterMark on the deepest path still reported only 84 bytes
+    // free at 3072, so the size is wrong as well as the allocation was. 5120 leaves
+    // about 2 KB. That figure, not this comment, is what says whether it is enough:
+    // task_runtime.cpp logs it on every configuration resolution.
+    {TaskId::Sched, "sched", kPriorityHigh, 5120, kCore1, 1000},
 
     // 100 ms tick plus its queue: broker connection, publish queue, subscription
     // dispatch, discovery. Core 0, with the WiFi and lwIP stacks it talks to.

@@ -102,7 +102,7 @@ uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
 }
 
 size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
-                        uint8_t* buf, size_t cap) {
+                        uint8_t* buf, size_t cap, uint8_t poll_flags) {
   lran::Header h;
   h.ver    = ver;  // R-3.1e - the version last heard from this node (BF-22)
   h.type   = lran::MsgType::Poll;
@@ -112,7 +112,7 @@ size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_
   h.ctx_id = ctx;
   h.schema = lran::kSchemaNone;
 
-  const uint8_t   payload[1] = {lran::kPollFlagFullStatus};
+  const uint8_t   payload[1] = {poll_flags};
   lran::EncodeCtx ectx;  // spec 9.2 - POLL carries no MAC
   size_t          len = 0;
   return lran::encode(h, payload, sizeof(payload), ectx, buf, cap, &len) == lran::Status::Ok ? len : 0;

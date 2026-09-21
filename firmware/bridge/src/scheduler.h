@@ -116,12 +116,16 @@ class PollScheduler {
   PollStats    stats_;
 };
 
-// spec 6.4 - a POLL to `dst` with poll_flags bit 0 (full status), carrying the node's ctx_id
-// as learned (0 until heard, which a node does not check on an unauthenticated type). Returns
-// the frame length, or 0.
+// spec 6.4 - a POLL to `dst`, carrying the node's ctx_id as learned (0 until heard, which
+// a node does not check on an unauthenticated type). Returns the frame length, or 0.
 // `ver` is what this node last announced, or kProtoVer before it has been heard
 // (R-3.1e, BF-22). Use node_tx_ver().
+//
+// `poll_flags` defaults to bit 0, full status, which is every scheduled poll. BF-32 sends
+// one with bit 1 as well: spec 7.4 resolves a CONFIG whose ACK never arrived with a
+// readback request rather than a retransmission, and bit 1 is how that is asked for.
 size_t build_poll_frame(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
-                        uint8_t* buf, size_t cap);
+                        uint8_t* buf, size_t cap,
+                        uint8_t poll_flags = lran::kPollFlagFullStatus);
 
 }  // namespace bridge

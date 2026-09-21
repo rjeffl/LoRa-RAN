@@ -89,6 +89,7 @@ enum class QueueId : uint8_t {
   Tx,       // anything  -> lora_task
   Log,      // anything  -> log_task
   Command,  // mqtt_task -> sched_task (BF-18)
+  Config,   // mqtt_task -> sched_task (BF-32)
   kCount,
 };
 
