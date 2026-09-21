@@ -108,6 +108,14 @@ jobs:
       - name: BF-27 frame-log arithmetic
         run: python3 tools/simctl/test_rxlog_analyze.py
 
+      # Impl Plan §8.1: the interleaved sweep's arithmetic. It pools one set of frames
+      # two ways - by arm and by when they were sent - and the guard worth having is the
+      # refusal: a run that moves both splits, or neither, has separated nothing, and
+      # saying so is the result. A verdict that always names a winner would have called
+      # every block-ordered sweep on record a spacing effect.
+      - name: interleaved sweep arithmetic
+        run: python3 tools/simctl/test_sweep_analyze.py
+
       # M25: the channel-capture arithmetic. Its guards are about a capture that ran for
       # hours unattended — a reboot mid-run puts two millis() clocks in one file, and a
       # bucket that sampled nothing is unobserved rather than quiet. Both produce a

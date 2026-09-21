@@ -1677,3 +1677,115 @@ target moving forward**, which declines brief §6's move. D1's and D33's status 
 Decision Register and are not changed here, and the brief is not yet marked superseded.
 [`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) carries
 the full reading.
+
+---
+
+## 2026-09-21 — the interleaved sweep: spacing is real, and a second variable rides on it
+
+**Two sweeps, 1280 flood frames, 27 lost. At a 250 ms gap the loss rate was 3.91 %; at
+2000 ms it was 0.31 %. The denser arm lost more in all four run-by-half cells**, which is
+what no sweep before this one could show.
+
+**Every sweep on record until today ran one spacing to completion before starting the
+next**, so a slow change in the environment and an effect of spacing produced the same
+table. That is why 2026-09-17's morning measured 5.6 % at 250 ms falling to 0 % at
+2000 ms, and why the same afternoon measured 2.50 % and 1.90 % with a 2000 ms control
+that lost 8 %. Impl Plan §8.1 named the interleaved run as the thing that would settle
+it. It has now run twice.
+
+### The runs
+
+`tools/simctl/sweep_interleave.py`, new today. Bridge on **`5c5f324`**, read from its own
+`lran/bridge/version`; `firmware/bridge/` is byte-identical between that commit and
+`main`, and the branch's only firmware differences are the `NodeConfigV1` rename and
+CONFIG handling in the protocol library, which a `STATUS` flood never reaches.
+
+XIAO + Wio simnode sending from **`0xF3` in `ROLE_FAULT`**, a role that answers no `POLL`,
+so the only frames that identity sends are the burst. Both simnode ports were held open
+for the whole sweep and the Heltec simnode was silenced outright, because a disabled
+identity re-enables itself on the next boot.
+
+| | run 1 | run 2 |
+|---|---|---|
+| Started, UTC | 14:46:06 | 15:05:33 |
+| Wall clock | 15.9 min | 15.8 min |
+| Frames | 640 | 640 |
+| Lost | 17 | 10 |
+
+Committed as [`data/sweep-interleaved-2026-09-21-run1.json`](./data/sweep-interleaved-2026-09-21-run1.json)
+and [`data/sweep-interleaved-2026-09-21-run2.json`](./data/sweep-interleaved-2026-09-21-run2.json),
+re-read with `sweep_interleave.py --read`.
+
+**Sixteen bursts of 40 frames each, alternating, with the leading arm swapped every pair**:
+250, 2000, 2000, 250, 250, 2000, … A plain rotation puts every 250 ms burst before its own
+2000 ms burst, so an effect that decayed through a pair would land entirely on one arm.
+
+### What the cross-tab says, and why the two-way splits do not say it
+
+**Pooled by arm, both runs separate. Pooled by session half, run 1 separates too** — 1.25 %
+against 4.06 % — and reading either split on its own gives a different answer. Holding time
+still inside each half and comparing the arms there is what tells them apart.
+
+| | 250 ms | 2000 ms |
+|---|---|---|
+| run 1, first half | 3 / 160 — **1.88 %** | 1 / 160 — **0.62 %** |
+| run 1, second half | 12 / 160 — **7.50 %** | 1 / 160 — **0.62 %** |
+| run 2, first half | 7 / 160 — **4.38 %** | 0 / 160 — **0 %** |
+| run 2, second half | 3 / 160 — **1.88 %** | 0 / 160 — **0 %** |
+| **pooled, both runs** | 25 / 640 — **3.91 %** | 2 / 640 — **0.31 %** |
+
+**Four cells out of four put the denser arm higher.** The sparse arm lost two frames in
+two sweeps, and both sat in a gap containing a bridge transmission.
+
+**A second variable moves the dense arm's magnitude, and it is not a trend.** Run 1 went
+1.88 % → 7.50 % through the session; run 2 went 4.38 % → 1.88 %, the other way. So the
+dense arm's rate varies within a session by a factor of four in either direction while the
+sparse arm sits still. **What that variable is remains unknown**, and it is the reason a
+single block-ordered sweep could land anywhere between 0 % and 8 %.
+
+### The frame log's cross-checks, and all of them are clean
+
+**1253 receptions across the two runs, every one of them `Packet`.** Zero `Orphan`, so no
+interrupt was missed at either spacing. Zero `PhyCrc`, zero `HeaderError`, zero
+`DriverError`: **nothing arrived corrupt**. Every reception passed the receive ladder with
+`Status::Ok`, so nothing was discarded at any spec §14 stage. **Every loss is a frame the
+radio never delivered.**
+
+**The ring never overwrote and nothing was lost in transport** in either run, so the gaps
+are frames rather than bookkeeping.
+
+**The bridge's own deafness can account for at most 1.15 of run 1's 17 losses and 0.99 of
+run 2's 10.** Twenty-four gaps across the two runs, seven with a bridge transmission
+inside; the largest single ceiling is 35.5 % of one gap and most are 3 to 7 %. The 250 ms
+losses sit almost entirely in **612 ms gaps** — one frame missing between two arrivals
+about two frame periods apart.
+
+**The link is 12 dB weaker than the 2026-09-17 sessions and still nowhere near marginal.**
+RSSI ran −52 to −48 dBm against that session's −39 to −36 dBm, because the bridge board
+moved to its office production position for the D1 capture and has not moved back. SNR ran
++10 to +12 dB throughout. **Absolute rates here are not comparable with 2026-09-17's**; the
+comparison inside each sweep is.
+
+### One number the seq-gap count cannot produce
+
+**`sent` minus `arrived` is 17 in run 1 where the `seq` gaps total 16.** The missing one is
+a frame lost at a burst boundary, which no `seq` gap can see because there is no later
+arrival to bound it. The sender's own TX_DONE delta is the denominator for that reason.
+
+### What this closes, and what it does not
+
+**Spacing is a variable.** The afternoon of 2026-09-17 made it a suspect rather than an
+established one, and two interleaved sweeps put it back — on this geometry, at these two
+spacings.
+
+**The mechanism is still not known**, and nothing here narrows it. The three candidates
+inside the bridge were ruled out on 2026-09-17 and stay ruled out; M25 found nothing on the
+channel loud enough to matter at one metre. A frame the radio never delivered, announced by
+no interrupt and leaving no counter, remains unexplained.
+
+**Only two spacings ran.** The 1100 ms knee recorded on 2026-09-17 was not re-measured, and
+the sweeps say nothing about where between 250 ms and 2000 ms the rate falls. Impl Plan
+§8.1's table stands as taken.
+
+**A loss rate measured at one metre is still not evidence about 87 m**, and it is optimistic
+in the wrong direction.
