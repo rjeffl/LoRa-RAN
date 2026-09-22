@@ -26,5 +26,53 @@ has not been reconciled with the intervening revisions.**
   plans** are what is handed to Claude Code for a target.
 - **Engineering logs** are dated running records — what was tried, measured, decided and
   why. One per node, at `<node>/engineering-log.md`, created at that node's bring-up.
+  **Split a log when a reader resuming work can no longer find the latest entries
+  quickly.** At a milestone boundary, move whole entries, unedited, into
+  `engineering-log-<first date>_<last date>.md` beside it, and name that file at the top of
+  the live log. Keep in the live file every entry that an open investigation still relies
+  on. Moving an entry does not rewrite it. The bridge log was split this way on 2026-09-18.
 - Every document carries a version, a status and a `Last updated` date in its header, and
   a changelog as its final section. Both are updated in the same commit as the change.
+
+### A document must not record where a branch currently points
+
+`docs/<node>/HANDOFF.md` files, and any other document, name no `origin/main` SHA, no
+"merged through #N", no current branch and no open-PR status. These went stale on every
+merge, and the correction could not ride along with the work that caused it: the branch
+being described is the branch doing the describing, so each fix needed its own branch and
+PR. Two of the five commits before 2026-09-09 on the range-test handoff exist for nothing
+else.
+
+Sort a fact into one of three places, by whether it can be kept true:
+
+| The fact is | Where it goes |
+|---|---|
+| **Derivable** — where `main` points, what is open, which branches exist, whether anything is local-only | A command in the document, never prose. `git fetch origin -p` first; two machines push here |
+| **Predictive** — "once this merges, `main` carries X" | The PR description. It is read at review time and is about a proposed state by nature. A handoff written this way is *false when committed*, which is worse than silent |
+| **Durable** — what a run measured, a trap, a push gotcha, "read these two commits in order" | The document. This is what a handoff is for |
+
+Permanent history is citable; moving state is not. `0f21c23` will always be that commit, so
+cite it freely. "`main` is at `9fee445`" describes where a pointer sat one afternoon.
+
+Start a node's handoff from [`HANDOFF-TEMPLATE.md`](./HANDOFF-TEMPLATE.md). It carries the
+sections in reading order, this rule applied inline, and what each section is for written
+where it is needed. Its blanks are `TODO(handoff):`, not `<angle brackets>`, because two
+field captures went out with `<...>` unedited — so a half-filled handoff is greppable:
+
+```bash
+grep -n "TODO(handoff)" docs/<node>/HANDOFF.md   # empty before commit
+grep -c "<!--" docs/<node>/HANDOFF.md            # 0 before commit
+```
+
+### A load-bearing premise must name the check that would falsify it
+
+If a document's argument rests on a factual premise — *"these two boards share a pad
+assignment"*, *"this counter cannot move"* — then say what would prove it false, and point
+at the place that check is actually tracked: an `M-*` item, a verify-before-build checklist,
+a test. Prose that states a falsification condition and tracks it nowhere reads like
+diligence and behaves like nothing.
+
+The case that produced this rule: Bridge Impl Plan §10.8.1 wrote *"if it ever stops being
+true, §2.3's claim collapses"* — and when it did stop being true, nothing surfaced it. It
+was found by an audit somebody thought to ask for, after the wrong pin map had already been
+copied into two other documents.
