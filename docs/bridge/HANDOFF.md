@@ -22,8 +22,27 @@ Spec v0.13 §10.6** is the rule to build against.
 
 ## The next job, in one place
 
-**First, BF-34: build D58, once `spec-v0.13-d58` merges.** Spec v0.13 §10.6 has the
-procedure, Bridge PRD R-3.1h the requirement, and Firmware Tasks §7's BF-34 row the scope:
+**First, ask the operator how BF-34 starts. Two PRs are open and both are drafts**:
+`b4-bf23-levers`, and `spec-v0.13-d58` stacked on it. Run the commands in *Git state* for
+their numbers and state. BF-34 builds against the second, and the operator has not yet
+chosen between two orders:
+
+- **Merge both first, then branch BF-34 from `main`.** This gives the cleanest history,
+  but only if the operator accepts `b4-bf23-levers` now. It is B4 work, and a milestone
+  PR stays a draft until the operator accepts it.
+- **Branch BF-34 from `spec-v0.13-d58` now**, as a third stacked branch. **This was the
+  recommendation on 2026-09-23**, because D58 is resolved and §10.6 is written. The cost is
+  a stack three deep: a review change to §10.6 has to be carried into BF-34, and the
+  stack-merge rules in *Git state* apply twice.
+
+**Whichever order is chosen, get the codec fix onto `main` early.** `2ad132e` on
+`spec-v0.13-d58` masks `MORE_FOLLOWS` in `codec.cpp`'s `CONFIG_ACK` length check. Until it
+merges, `main` drops the first message of any `GET_ALL` answer split across two
+messages, at stage 8. No simnode answer spans two messages, so the bench has not hit it. If
+the stack is going to wait, offer to cherry-pick it onto its own PR against `main`.
+
+**Then BF-34: build D58.** Spec v0.13 §10.6 has the procedure, Bridge PRD R-3.1h the
+requirement, and Firmware Tasks §7's BF-34 row the scope:
 
 1. **Library**: `Cmd::RollContext` (`0x12`) and `CommandGate::any_in_flight()`, per
    Library Plan §3.10. The three W4 vectors already pass against the codec.
@@ -136,7 +155,14 @@ name.
   sweep they were to follow ran on `spec-v0.13-d58`.
 - **Nothing checks that `vectors_data.h` matches the W4 JSON.** D57's two vectors went
   unembedded for three days and hid a codec defect (protocol-lib engineering log,
-  2026-09-23). A CI check is proposed as its own task.
+  2026-09-23). **The 2026-09-23 session raised it as a desktop-app task chip, and a chip
+  does not outlive its session, so the task is recorded here.** Add a step to `ci.yml`'s
+  `checks` job that fails when `lib/lran-protocol/test/test_vectors/vectors_data.h`
+  differs from what `python3 tools/vectors/embed.py` produces from the committed JSON.
+  Prefer a `--check` mode that renders to memory and compares, over writing the file,
+  because `run_ci_local.py` runs the checks job on a developer's tree. The same check
+  would help for the JSON against `generate.py`. Cite W4 and spec §13.2, and give it a
+  branch of its own.
 
 ## Read these, in this order
 
