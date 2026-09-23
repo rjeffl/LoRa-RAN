@@ -393,13 +393,16 @@ jobs:
       # Every run saves a new entry and restores the newest, so the cache accumulates
       # objects until the weekly run, which skips the restore, builds from nothing and
       # saves a clean one.
+      #
+      # `-run-` ends the prefix. Without it, pio-build-bridge- also matched
+      # pio-build-bridge-vb9-, and the bridge job restored the V-B9 job's objects.
       - name: Restore build cache
         if: github.event_name != 'schedule'
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
-          key: pio-build-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pio-build-${{ matrix.id }}-
+          key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pio-build-${{ matrix.id }}-run-
 
       # See this file's header for why copying the template is the decision rather
       # than a workaround. The copy is made in the runner's checkout and goes nowhere:
@@ -426,7 +429,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
-          key: pio-build-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
@@ -488,8 +491,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
-          key: pio-build-bridge-vb9-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pio-build-bridge-vb9-
+          key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pio-build-bridge-vb9-run-
 
       # The bridge's environments read secrets.h; see the firmware job.
       - name: secrets.h from the committed template
@@ -506,4 +509,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
-          key: pio-build-bridge-vb9-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
