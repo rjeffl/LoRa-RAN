@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.13 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.46
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.47
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.36 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -253,6 +253,11 @@ Impl Plan §6.5.2 after any change to `ota.cpp`, `ota_policy.cpp`, `partitions.c
 Arduino-ESP32 version**; CI's symbol check catches a lost `extern "C"`, but only a board
 proves a rollback. The two bad-image environments, `v_b9_no_network` and `v_b9_panic`,
 exist for it and are never a production build.
+
+**`v_b12_blaster` is V-B12's bench image, and it is never deployed either.** It adds
+`blaster.{h,cpp}`, a UDP transmitter driven from the USB serial port, which loads WiFi for
+the saturated arm (Impl Plan §8.1.2). Outside that environment `blaster.cpp` compiles to
+nothing and `loop()` is unchanged.
 
 ## Two network rules that are enforced, not remembered
 

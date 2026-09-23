@@ -31,7 +31,7 @@ from sweep_analyze import (
     split_halves,
     verdict,
 )
-from sweep_interleave import schedule
+from sweep_interleave import arm_name, format_blast, parse_blast, schedule
 
 PEER = 0xF3
 TYPE_STATUS = 0x04
@@ -73,6 +73,37 @@ class Schedule(unittest.TestCase):
         order = schedule([250, 2000], 5)
         self.assertEqual(order.count(250), 5)
         self.assertEqual(order.count(2000), 5)
+
+
+class Blaster(unittest.TestCase):
+    """V-B12's loaded arm: the arm names and the blaster's totals line."""
+
+    def test_the_loaded_arm_is_named_for_its_rate(self):
+        self.assertEqual(arm_name(2000), "gap2000")
+        self.assertEqual(arm_name(2000, 4000), "blast4000")
+
+    def test_the_arms_alternate_by_load(self):
+        arms = [(2000, 0), (2000, 4000)]
+        self.assertEqual(schedule(arms, 2),
+                         [(2000, 0), (2000, 4000), (2000, 4000), (2000, 0)])
+
+    def test_the_totals_line_parses(self):
+        got = parse_blast("blast: off sent=1200 bytes=1766400 fail=3 ms=30000 kbps=471")
+        self.assertEqual(got, {"state": "off", "sent": 1200, "bytes": 1766400,
+                               "fail": 3, "ms": 30000, "kbps": 471})
+
+    def test_the_start_line_is_not_a_totals_line(self):
+        # `blast: on kbps=.. bytes=.. to host:9` carries no counts; taking it for the
+        # totals would record the asked-for rate as the achieved one.
+        self.assertIsNone(parse_blast("blast: on kbps=4000 bytes=1472 to 192.168.4.52:9"))
+
+    def test_other_bridge_output_is_ignored(self):
+        self.assertIsNone(parse_blast("roll: f1 rolled to ctx 0x1234"))
+        self.assertIsNone(parse_blast("blast: refused - kbps 1..50000, bytes 16..1472"))
+
+    def test_a_missing_report_is_shown_not_dropped(self):
+        text = format_blast([{"blast_kbps": 4000, "blast": None}])
+        self.assertIn("no totals reported", text)
 
 
 class Slicing(unittest.TestCase):

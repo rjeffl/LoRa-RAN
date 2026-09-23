@@ -16,6 +16,7 @@
 #include <Arduino.h>
 
 #include "lran/link/chan_monitor.h"
+#include "blaster.h"
 #include "ota.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
@@ -193,11 +194,25 @@ void setup() {
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
   Serial.println(F("BF-15: WiFi, MQTT, OTA, the radio link and the registry. No discovery yet."));
+
+#if defined(LRAN_V_B12_BLASTER)
+  // V-B12's WiFi load, bench image only. The broker host is the one address this bench
+  // is guaranteed to reach.
+  bridge::blaster_begin(MQTT_HOST);
+#endif
 }
 
 void loop() {
   // Nothing runs here by design. The seven tasks own the work (Impl Plan 5.2), and
   // the Arduino loop task sits below all of them; code added here would run at a
   // priority chosen by Arduino rather than by the table.
+#if defined(LRAN_V_B12_BLASTER)
+  // The one exception, and only in the V-B12 bench image. The blaster wants the lowest
+  // priority there is: it is load for the tasks in the table, not a competitor to them.
+  // One tick is the pacing grain, so the delay drops from a second to 1 ms.
+  bridge::blaster_poll();
+  vTaskDelay(1);
+#else
   vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
 }

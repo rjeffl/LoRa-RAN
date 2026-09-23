@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.46
+**Version:** 0.47
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1497,6 +1497,9 @@ carry it; the dense case stays runnable because it is what made the question vis
 > on the bench the same day. **The second check is still owed**: `per_measure.py --arm
 > saturated` has not run.
 
+**§8.1.2 replaces the lever above.** `diag_interval_s` reaches its consumer, but its 10 s
+floor cannot load WiFi. The saturated arm's load is a bench-only UDP blaster instead.
+
 **§8.1.1 corrects two things above**, measured 2026-09-21: `--gap 2000` is not a zero-PER
 configuration, and the spacing effect this section assumes is real was in doubt when this
 section was written. The table and the paragraphs above stand as taken on 2026-09-17.
@@ -1534,6 +1537,36 @@ both arms of V-B12 interleaved, not in blocks.
 session — up in run 1, down in run 2 — while the sparse arm held still. That second variable
 is unidentified, and it is why a single block-ordered sweep can land anywhere between 0 %
 and 8 %. Only two spacings ran, so §8.1's 1100 ms knee is neither confirmed nor moved.
+
+### 8.1.2 The saturated arm's load is a UDP blaster, 2026-09-23
+
+**`diag_interval_s` is not the saturated arm's lever, although it reaches its consumer.**
+Its floor is 10 s (`lib/lran-config`'s row `0x0002`), and at the floor `sched_diag()`
+sends three small documents every 10 s. M22 and PRD §4.4 ask for a sustained flood.
+Running the saturated arm on this lever would close V-B12 without testing R-4.4's claim,
+which is the failure §8.1 already names for an inbound MQTT flood.
+
+**The load is `src/blaster.{h,cpp}`, in its own environment, `v_b12_blaster`.** It sends
+UDP to the broker host's discard port at a rate given at run time, and counts the packets
+the stack accepted and the ones it refused. It is controlled from the bridge's USB serial
+port with `blast <kbps> [bytes]` and `blast 0`. That keeps it off MQTT and out of the
+configuration table: every topic and row belongs to the protocol specification. The image
+is otherwise the production build. It is never deployed.
+
+**`sweep_interleave.py --bridge-port <port> --gaps 2000 --blast-kbps <rate>` runs both
+arms**, interleaved as §8.1.1 requires. The two arms share one gap and differ in load
+alone. The tool opens the bridge's port once and holds it, because opening it reboots the
+bridge. Each loaded burst records the blaster's achieved rate beside its frame count.
+
+**The frame log still counts the frames, and the bridge publishes it over the loaded
+link.** A load that backs up `log_task` overwrites the ring, and the tool then reports
+`RING OVERWROTE` and spoils the burst. The blaster stops before each burst's drain, so the
+last batches travel an idle link. The rate for a run is chosen on the bench: the highest
+rate at which no loaded burst overwrites the ring.
+
+> **What would falsify this lever.** A loaded burst whose achieved rate falls far below
+> the rate asked for had no load, whatever its PER. Checked on every run by the tool's
+> per-burst blaster table.
 
 ---
 
@@ -2312,6 +2345,10 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.47** — **New §8.1.2**: the saturated arm's load is a bench-only UDP blaster in the
+  `v_b12_blaster` environment, driven over the bridge's serial port, because
+  `diag_interval_s`'s 10 s floor cannot load WiFi. §8.1 points to it.
+
 - **v0.46** — **BF-34 is confirmed on air**, and §6.2.2 says so. The bench run passed all
   six steps and the three branches that were host-tested only.
 
@@ -2347,6 +2384,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.47** | **§8.1.2**: V-B12's saturated arm is loaded by a UDP blaster, not `diag_interval_s` |
 | **v0.46** | **§6.2.2**: BF-34 is confirmed on air |
 | **v0.45** | **§6.2.2**: BF-34 is built. A bench row rolls when first heard, and every simnode role answers a roll |
 | **v0.44** | Spec v0.13 citation. §6.2 gains D58's context roll and **BF-34**; §2.2's PHY paragraph follows D56 |
