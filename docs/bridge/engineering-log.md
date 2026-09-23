@@ -2196,3 +2196,62 @@ up the IoT network for the run instead. The
 [bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md) has the options and
 the decisions still open. §8.1's lever is not corrected yet; that edit rides with the
 blaster.
+
+---
+
+## 2026-09-23 — V-B12's blaster built, and the frame log survives a 20 Mbps load
+
+**The saturated arm now has a load, and a first calibration pair ran on the IoT network.**
+Impl Plan §8.1.2 records the design. This entry records the bench.
+
+### The bench network
+
+The operator set it up as the [bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md)
+prefers, with one change: the broker is not on the Mac.
+
+- The Mac is on the IoT network's 2.4 GHz WiFi (channel 6, WPA2) and keeps internet
+  access through it. The brief's first option held.
+- The broker is another IoT host, at 192.168.4.52:1883. The credentials in `secrets.h`
+  authenticate against it.
+- The bridge runs `v_b12_blaster`, flashed over USB from `9bd01b3`. Its `secrets.h` points
+  at the IoT network. **Restore the house values and reflash `heltec` when V-B12 is done.**
+
+**The first flash could not join the network.** `secrets.h` named the SSID `McLeeNetIoT`,
+and the bridge logged `NO_AP_FOUND` on every attempt. The operator corrected it to
+`McLeeIoT`. After that the bridge logged one `AUTH_FAIL` and one `ASSOC_FAIL` in its first
+two seconds, then associated and stayed up.
+
+### What the blaster achieves
+
+Eight seconds at each rate, 1472-byte payloads, to the broker host's discard port:
+
+| Asked | Achieved | Refused by the stack |
+|---|---|---|
+| 2000 kbps | 1996 kbps | 0 |
+| 8000 kbps | 7997 kbps | 0 |
+| 20000 kbps | 19719 kbps | 129, `ENOMEM` |
+
+**About 20 Mbps is the ceiling on this link.** The refusals start there, so a higher
+rate adds refusals rather than load.
+
+**The first image used `WiFiUDP`, and it logged every refused send at error level.** With
+the link down that came to more than 600 lines in 8 s. `9bd01b3` sends on a raw lwIP
+socket instead, and counts polls with the link down as `down`, apart from `fail`.
+
+### The calibration pair
+
+`sweep_interleave.py --gaps 2000 --blast-kbps 20000 --pairs 1 --count 20`, flooding `f3`
+from the XIAO, with the Heltec simnode quieted:
+
+| Arm | Sent | Lost | Blaster |
+|---|---|---|---|
+| `gap2000`, idle | 21 | 0 | — |
+| `blast20000` | 20 | 1 | 19854 kbps achieved, 82136 packets, 476 refused, 0 down |
+
+**The ring did not overwrite at 19854 kbps.** The frame log is therefore usable as the
+saturated arm's counter at the full load, and the brief's fourth decision needs no rate
+cap below the link's ceiling. The loss fell in a 4000 ms gap with a bridge transmission
+inside it, like both of 2026-09-21's losses at 2000 ms.
+
+**One lost frame is not a result**, and the tool says so: eight is its line. The sweep
+that answers V-B12 is still to run.

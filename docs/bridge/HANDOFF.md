@@ -1,10 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that opened V-B12's saturated arm and deferred it.**
-The documented lever cannot saturate WiFi, and the bench needs a network the operator can
-load. [`briefs/2026-09-23-vb12-bench-network-brief.md`](./briefs/2026-09-23-vb12-bench-network-brief.md)
-has both findings and the setup options. BF-34 is confirmed on air and merged, and Impl
-Plan §6.2.2 records what it decided.
+**Written 2026-09-23 by the session that built V-B12's blaster.** The saturated arm now
+has a load: the `v_b12_blaster` image, driven over the bridge's serial port (Impl Plan
+§8.1.2). The bench is on the IoT network, and one calibration pair ran. **The sweep that
+answers V-B12 has not run.** The engineering log's last entry has the bench detail.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -24,19 +23,15 @@ Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
 Continue from docs/bridge/HANDOFF.md: V-B12's saturated arm, on the bench. <setup>
 ```
 
-**V-B12's saturated arm is deferred until the operator has set up the bench network.**
-When resuming it, replace `<setup>` with the answers to the brief's *Decisions to make
-first*: the Mac's internet path, the broker host and its IoT address, whether the bridge's
-`secrets.h` already points at the IoT network, and the blaster's control and rate cap if
-they are decided. For example:
-`Setup: Mac dual-homed (wired main, WiFi IoT); Mosquitto on the Mac at 10.0.20.5; bridge
-not yet reflashed; blaster control undecided.`
+**The bench is set up for V-B12's saturated arm**, so its line needs no `<setup>` now:
+Mac on the IoT WiFi, broker at 192.168.4.52, bridge on `v_b12_blaster`. Replace `<setup>`
+with anything that has changed since.
 
 | Task | Read |
 |---|---|
 | **BF-26** (no board) | *The next job*; Impl Plan **§4.2a** and **§4.4.2**; Firmware Tasks' BF-26 row; spec **§16.6** |
 | **BF-24** (no board) | *The next job*; Impl Plan **§6.3**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row |
-| **V-B12's saturated arm** (bench, **deferred**) | *The next job*; the [bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md); *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1** and **§8.1.1** |
+| **V-B12's saturated arm** (bench, **ready**) | *The next job*; the engineering log's last entry; *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1.1** and **§8.1.2** |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -52,32 +47,32 @@ and no poll reply was heard. The retry succeeded 2.7 s later. The cause is not s
 because the simnode logs neither a `POLL` nor its reply. The engineering log's *BF-34 on
 air* entry has the detail and two candidate changes. Neither is needed to close BF-34.
 
-**Next: BF-26, then BF-24.** Neither needs a board.
+**Next: V-B12's saturated arm, while the bench is set up.** Then BF-26 and BF-24, neither
+of which needs a board.
 
-- **BF-26**, `simnode_diag_enable`. Its row is in the table, and nothing reads it yet.
-  **Consider carrying it on the lever board** (`levers.h`): `sched_task` reads it and
-  `mqtt_task` writes it. The `TODO(BF-26)` gates are in `task_runtime.cpp`. Turning the
-  switch on needs `g_availability.mark_known_pending()` and a discovery republish.
-- **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
-  `task_runtime.cpp` and `task_runtime.h`.
+- **Run the sweep.** Export the three `LRAN_MQTT_*` variables as
+  [`traps.md`](./traps.md#bench-credentials) says, then:
+  `~/.platformio/penv/bin/python -u tools/simctl/sweep_interleave.py --port
+  /dev/cu.usbmodem2101 --quiet-port /dev/cu.usbserial-4 --bridge-port
+  /dev/cu.usbserial-0001 --gaps 2000 --blast-kbps 20000 --pairs 6 --json vb12.json`.
+  About 25 minutes. Six pairs of 40 frames give 240 per arm; §8.1.1's 2 losses in 640
+  at 2000 ms says the idle arm may need more pairs than that to lose anything. Run it
+  twice, as 2026-09-21 did.
+- **20000 kbps is the rate.** It is about the link's ceiling, and the ring did not
+  overwrite at it. Read the tool's blaster table on every run: a loaded burst far below
+  that rate had no load.
+- **Then close V-B12 in the documents** — Impl Plan §8.1.2 with the result, R-4.4's
+  policy confirmed or falsified, and M22 in the Decision Register.
+- **Then restore the bench.** Put the house network's values back in `secrets.h` and
+  reflash `-e heltec` from a clean tree.
+- **BF-26** and **BF-24** are as they were: `TODO(BF-26)` gates and `TODO(BF-24)` markers
+  in `task_runtime.cpp`. Consider carrying `simnode_diag_enable` on the lever board.
 
-**Deferred: V-B12's saturated arm.** It waits on two things, and the
-[bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md) has both.
-
-- **A WiFi load.** `diag_interval_s` has a 10 s floor, so it adds three small documents
-  every 10 s, and that load is not the flood M22 asks for. A bench-only UDP blaster, rate
-  capped and counting what it sent, is the option chosen for planning. Its control and
-  build form are not decided. **Impl Plan §8.1 still names `diag_interval_s`**, and its
-  correction goes in the same commit as the blaster.
-- **A network to load.** The operator prefers to move the bridge, the Mac and a new broker
-  to the IoT network, whose 2.4 GHz radio carries only IoT traffic. The Mac must keep
-  internet access for the Claude app.
-
-The boards run `98b4b04`. Before the first arm, check with `git diff --stat 98b4b04 HEAD --
-firmware lib` whether a reflash is needed; the blaster and the IoT `secrets.h` both need
-one. Impl Plan §8.1.1 says how to run the arms: interleave them with the idle control, and
-never run them in blocks. **The roll adds one exchange per heard identity after each bridge
-boot**, so let every identity roll before a sweep's first arm.
+**The boards run different images.** The bridge runs `v_b12_blaster` at `9bd01b3`. The
+simnodes run `98b4b04`, and nothing under `firmware/simnode` or `lib` has changed since.
+Impl Plan §8.1.1 says how to run the arms: interleave them with the idle control. **The
+roll adds one exchange per heard identity after each bridge boot**, and the sweep's
+bridge port reboots the bridge, which is why the tool waits 25 s after opening it.
 
 ## Open, and not closable from here
 
@@ -125,7 +120,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **five 2026-09-23 entries** first, last one first: **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **six 2026-09-23 entries** first, last one first: **V-B12's blaster**, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12 and **§8.1.1** what the interleaved sweep found; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
@@ -142,8 +137,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, deferred on its WiFi load and bench network. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **BF-26**, then **BF-24**, neither of which needs a board. **V-B12's saturated arm** once the bench network is set up |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm: the blaster is built, and the sweep has not run. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **V-B12's saturated arm**, whose bench is set up. Then **BF-26** and **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -191,15 +186,16 @@ them before closing a session.
 
 ## Hardware state
 
-**All three boards run `98b4b04`**, flashed from a clean tree on 2026-09-23 for BF-34's
-bench run. None of them is running `chan-capture`. All three were on USB when this session
-ended. The XIAO's port had moved to `/dev/cu.usbmodem2101`. **This table names the devices
-in this subproject's terms**; the range-test handoff owns them in its own roles.
+**The bridge runs `v_b12_blaster` at `9bd01b3`**, flashed over USB on 2026-09-23 with
+`secrets.h` pointing at the IoT network (`McLeeIoT`, broker 192.168.4.52). **It is a bench
+image and must not stay deployed.** The two simnodes run `98b4b04`. All three were on USB
+when this session ended. **This table names the devices in this subproject's terms**; the
+range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
-| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3`. Its port name moves across replug |
+| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-4` on 2026-09-23. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Holds `f1` in `ROLE_GATELINK` and `f3` in `ROLE_FAULT` in NVS |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17

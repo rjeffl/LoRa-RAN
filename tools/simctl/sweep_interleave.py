@@ -39,6 +39,16 @@
 #   python3 tools/simctl/sweep_interleave.py --port /dev/cu.usbmodem1101 \
 #       --quiet-port /dev/cu.usbserial-3 --pairs 6 --json sweep.json
 #   python3 tools/simctl/sweep_interleave.py --read sweep.json    # no board, re-read
+#
+# V-B12'S SATURATED ARM. With --bridge-port and --blast-kbps, the two arms are one gap
+# with the bridge's WiFi idle and the same gap with it loaded. The bridge must run the
+# `v_b12_blaster` image (firmware/bridge/src/blaster.h). Its port is opened once and
+# held: opening it reboots the bridge and zeroes its counters. Each loaded burst records
+# what the blaster actually sent, because the rate asked for is not the load applied.
+#
+#   python3 tools/simctl/sweep_interleave.py --port /dev/cu.usbmodem2101 \
+#       --quiet-port /dev/cu.usbserial-4 --bridge-port /dev/cu.usbserial-0001 \
+#       --gaps 2000 --blast-kbps 4000 --pairs 6 --json vb12.json
 
 import argparse
 import json
@@ -57,8 +67,41 @@ from sweep_analyze import burst_from, format_report
 VERSION_TOPIC = "lran/bridge/version"
 
 
-def arm_name(gap_ms):
+def arm_name(gap_ms, blast_kbps=0):
+    if blast_kbps:
+        return "blast%d" % blast_kbps
     return "gap%d" % gap_ms
+
+
+def parse_blast(line):
+    """The blaster's `blast: off sent=.. bytes=..` line as a dict, or None.
+
+    The fields are what the stack accepted, not what was asked for: `fail` counts the
+    sends it refused, and `kbps` is the achieved rate over `ms`.
+    """
+    parts = line.split()
+    if len(parts) < 2 or parts[0] != "blast:" or parts[1] not in ("on", "off"):
+        return None
+    out = {"state": parts[1]}
+    for part in parts[2:]:
+        key, sep, value = part.partition("=")
+        if sep and value.isdigit():
+            out[key] = int(value)
+    return out if "sent" in out else None
+
+
+def blast_command(bridge, line, wait_s=1.0):
+    """Send one blaster command and return its totals line, parsed, or None."""
+    mark = time.time()
+    bridge.send(line)
+    end = mark + wait_s
+    while time.time() < end:
+        for text in bridge.since(mark):
+            parsed = parse_blast(text)
+            if parsed:
+                return parsed
+        time.sleep(0.1)
+    return None
 
 
 def schedule(gaps, pairs):
@@ -116,13 +159,24 @@ def ensure_flood_identity(console, node, out):
     print("  added %s in ROLE_FAULT" % node, file=out)
 
 
-def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out):
-    """One burst, bracketed by the bridge's record index and the sender's TX_DONE count."""
+def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out,
+              bridge=None, blast_kbps=0, blast_bytes=1472, warmup_s=2.0):
+    """One burst, bracketed by the bridge's record index and the sender's TX_DONE count.
+
+    With blast_kbps, the bridge's blaster runs from before the first frame to after the
+    last. It stops before the drain, so the last frame-log batches travel an idle link.
+    """
+    arm = arm_name(gap_ms, blast_kbps)
+    if blast_kbps:
+        bridge.send("blast %d %d" % (blast_kbps, blast_bytes))
+        time.sleep(warmup_s)
     records, _ring, _transport = merge(sub.snapshot())
     i_before = records[-1]["i"] if records else None
     tx_before = sender_tx_frames(console)
     if tx_before is None:
-        return {"arm": arm_name(gap_ms), "gap_ms": gap_ms, "count": count, "sent": 0,
+        if blast_kbps:
+            blast_command(bridge, "blast 0")
+        return {"arm": arm, "gap_ms": gap_ms, "count": count, "sent": 0,
                 "i_before": i_before, "i_after": i_before,
                 "refused": "the simnode did not answer `radio`"}
 
@@ -147,6 +201,17 @@ def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out):
         elif time.time() - stable_since >= settle_s and last > tx_before:
             break
 
+    blast = None
+    if blast_kbps:
+        blast = blast_command(bridge, "blast 0")
+        if blast is None:
+            print("  the blaster did not report its totals", file=out)
+        else:
+            print("  blaster: %d packets, %d kbps achieved, %d refused by the stack,"
+                  " %d polls with the link down"
+                  % (blast.get("sent", 0), blast.get("kbps", 0), blast.get("fail", 0),
+                     blast.get("down", 0)), file=out)
+
     # The last frames of a burst are still in flight when TX_DONE stops moving, and a
     # record that arrives after i_after is read counts as a loss here and as excess
     # traffic in the next burst.
@@ -154,9 +219,13 @@ def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out):
     records, _ring, _transport = merge(sub.snapshot())
     i_after = records[-1]["i"] if records else None
 
-    return {"arm": arm_name(gap_ms), "gap_ms": gap_ms, "count": count,
+    mark = {"arm": arm, "gap_ms": gap_ms, "count": count,
             "sent": last - tx_before, "i_before": i_before, "i_after": i_after,
             "t_start": t_start, "t_end": time.time()}
+    if blast_kbps:
+        mark["blast_kbps"] = blast_kbps
+        mark["blast"] = blast
+    return mark
 
 
 def host_git():
@@ -231,6 +300,26 @@ def report(capture, out):
         bursts.append(burst_from(mark, slice_records(records, mark), peer))
     print(format_report(bursts, peer), file=out)
 
+    loaded = [m for m in capture["marks"] if m.get("blast_kbps")]
+    if loaded:
+        print(format_blast(loaded), file=out)
+
+
+def format_blast(marks):
+    """What the blaster achieved in each loaded burst. A low `kbps` beside a low PER is a
+    load that never arrived, not a receiver that tolerated it."""
+    lines = ["", "Blaster, per loaded burst (asked / achieved kbps, packets, refused,"
+             " link-down polls):"]
+    for n, m in enumerate(marks, start=1):
+        blast = m.get("blast")
+        if not blast:
+            lines.append("  %2d  %6d / (no totals reported)" % (n, m["blast_kbps"]))
+            continue
+        lines.append("  %2d  %6d / %6d  %7d  %5d  %5d"
+                     % (n, m["blast_kbps"], blast.get("kbps", 0), blast.get("sent", 0),
+                        blast.get("fail", 0), blast.get("down", 0)))
+    return "\n".join(lines)
+
 
 def main(argv=None):
     ap = argparse.ArgumentParser(
@@ -239,7 +328,16 @@ def main(argv=None):
     ap.add_argument("--quiet-port", help="a second simnode to silence for the run")
     ap.add_argument("--node", default="f3", help="identity to flood from (default f3)")
     ap.add_argument("--count", type=int, default=40, help="frames per burst")
-    ap.add_argument("--gaps", default="250,2000", help="the two gaps, in ms")
+    ap.add_argument("--gaps", default="250,2000",
+                    help="the two gaps, in ms; one gap with --blast-kbps")
+    ap.add_argument("--bridge-port",
+                    help="the bridge's serial port, held open for the run (V-B12)")
+    ap.add_argument("--blast-kbps", type=int, default=0,
+                    help="the loaded arm's blaster rate; the other arm is idle (V-B12)")
+    ap.add_argument("--blast-bytes", type=int, default=1472,
+                    help="the blaster's UDP payload size")
+    ap.add_argument("--bridge-boot", type=float, default=25.0,
+                    help="seconds to let the bridge reach its broker after its port opens")
     ap.add_argument("--pairs", type=int, default=6, help="how many times to run both arms")
     ap.add_argument("--settle", type=float, default=4.0,
                     help="seconds TX_DONE must hold still before a burst counts as done")
@@ -260,8 +358,24 @@ def main(argv=None):
         ap.error("--port is required unless --read is given")
 
     gaps = [int(g) for g in args.gaps.split(",")]
-    if len(gaps) != 2:
-        ap.error("--gaps takes exactly two values")
+    if args.blast_kbps:
+        if not args.bridge_port:
+            ap.error("--blast-kbps needs --bridge-port")
+        if len(gaps) != 1:
+            ap.error("--gaps takes one value with --blast-kbps; the arms differ in load only")
+        arms = [(gaps[0], 0), (gaps[0], args.blast_kbps)]
+    else:
+        if len(gaps) != 2:
+            ap.error("--gaps takes exactly two values")
+        arms = [(g, 0) for g in gaps]
+
+    # First, because opening this port reboots the bridge. The broker connection and the
+    # retained version below both have to come after that boot, not before it.
+    bridge = Console(args.bridge_port) if args.bridge_port else None
+    if bridge:
+        print("bridge port open - waiting %.0f s for it to boot and reach the broker"
+              % args.bridge_boot)
+        time.sleep(args.bridge_boot)
 
     user = os.environ.get("LRAN_MQTT_USER")
     password = os.environ.get("LRAN_MQTT_PASSWORD")
@@ -284,15 +398,20 @@ def main(argv=None):
         ensure_flood_identity(console, args.node, sys.stdout)
         quiet_board(console, args.node, sys.stdout)
 
-        order = schedule(gaps, args.pairs)
+        if bridge and args.blast_kbps and blast_command(bridge, "blast") is None:
+            raise SystemExit("the bridge did not answer `blast` - is it running the"
+                             " v_b12_blaster image?")
+
+        order = schedule(arms, args.pairs)
         print("\n%d bursts of %d frames: %s\n"
-              % (len(order), args.count, " ".join(str(g) for g in order)))
+              % (len(order), args.count, " ".join(arm_name(*a) for a in order)))
 
         marks = []
-        for n, gap_ms in enumerate(order, start=1):
-            print("burst %d/%d - %s" % (n, len(order), arm_name(gap_ms)))
+        for n, (gap_ms, kbps) in enumerate(order, start=1):
+            print("burst %d/%d - %s" % (n, len(order), arm_name(gap_ms, kbps)))
             mark = run_burst(console, sub, args.node, args.count, gap_ms,
-                             args.settle, args.drain, sys.stdout)
+                             args.settle, args.drain, sys.stdout,
+                             bridge=bridge, blast_kbps=kbps, blast_bytes=args.blast_bytes)
             marks.append(mark)
             print("  sent %d, records %s to %s"
                   % (mark["sent"], mark["i_before"], mark["i_after"]))
@@ -302,11 +421,17 @@ def main(argv=None):
                    "started": marks[0].get("t_start") if marks else None,
                    "peer": "0x%s" % args.node.lower(), "count": args.count,
                    "gaps": gaps, "pairs": args.pairs,
+                   "blast_kbps": args.blast_kbps, "blast_bytes": args.blast_bytes,
                    "marks": marks, "batches": sub.snapshot()}
     finally:
         console.close()
         if quiet:
             quiet.close()
+        if bridge:
+            # A blaster left running would load the network after the run ends. Closing
+            # the port does not reboot the bridge, so the command has to be sent.
+            bridge.send("blast 0")
+            bridge.close()
         sub.close()
 
     if args.json:
