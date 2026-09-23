@@ -1944,3 +1944,62 @@ the only task that writes the stores. It is recorded in the handoff for its own 
   counted from the last one.
 - `sched_task`'s high-water mark after all three. It logs one on every configuration
   resolution.
+
+## 2026-09-23 — BF-23's lever half on air: all four bench checks pass
+
+**All four checks the lever-half entry above listed pass on the bridge board**, flashed over
+USB from `7edfe17`, a committed tree. One simnode was on the bench, the Heltec in the
+handheld case. The broker was down when the session started and came back about 12 minutes
+later. Every step below ran after that.
+
+| Check | What the bench showed |
+|---|---|
+| NVS restore at boot | Set `diag_interval_s` to 20 on the bridge and `poll_interval_s` to 60 on `simnode2`, then reset the board. Serial showed `Config: 2 stored value(s) restored`, then `levers: gen 2 - diag 20 s`. `lran/bridge/diag/state` resumed at 20 s spacing |
+| `diag_interval_s` moves `diag/state` | Set 60 → 20 s. Serial showed `levers: gen 4 - diag 20 s`. Publications went from 60 s spacing to 807, 827, 847 and 867 s on the host clock, 20 s apart to within 10 ms |
+| `poll_interval_s` counts from the last poll | f2 polled at 995.05 on a 20 s interval, and a set to 60 s arrived at about 1005. The next poll went out at 1055.05, exactly last + 60, not set + 60 |
+| `sched_task` high-water mark | **1976 bytes free** of 3072, on both a completed `get_all` (outcome 1, on f1) and one abandoned after an `unknown` (outcomes 2 then 4, on f2) |
+
+**The poll-interval set also shortened the interval.** The first set, 60 → 20 s, arrived
+just as the old 60 s poll fell due, so it could not tell "counted from the last poll" from
+"counted from the set". The 20 → 60 s set above does tell them apart. After the first set,
+f2 was polled at 906, 935 and 955. The 29 s gap was f2 waiting behind a poll to GateLink
+`0x01`, which is offline and held its 10 s reply window open from 925. That is the
+scheduler's one-poll-outstanding rule, not the lever.
+
+### My mistake: a `get_all` aimed at a `ROLE_HEALTH` identity
+
+The first `get_all` went to f2, a `ROLE_HEALTH` identity, and the simnode answers
+`CONFIG` only in `ROLE_GATELINK` (`node.cpp`). Its `stats f2` showed `unhandled 1`. The
+bridge behaved as spec §7.4 asks: `unknown` at 8 s, then a readback that was abandoned at
+15 s, **two `config/ack` publications by design**, the second carrying the readback's
+outcome. The repeat on f1, added as `ROLE_GATELINK` because the XIAO that normally holds
+f1 was unplugged, completed with outcome 1. **Use a `ROLE_GATELINK` identity for any
+configuration check on the node half.**
+
+### A defect the run found: `get_all` counts as a change
+
+`read_all()` reports the store's persist status, which is `persisted`, so
+`handle_config_set()` treats a `get_all` as a set that changed something:
+
+- it republished the lever board, which moved the generation 8 → 10 → 12 over two `get_all`
+  requests;
+- it set `bridge_changed` on the node job, so `sched_task` republished `simnode2`'s
+  retained `config/state` on the `unknown` and on the abandoned readback, with the same
+  contents, at 1089 and 1104.
+
+Both contradict the comments at those sites. A republished lever board is harmless, because
+`sched_levers()` retimes only a node whose interval moved. A retained document rewritten with
+its own contents is a new message to every subscriber, which spec §16.7.4's rule exists to
+prevent. Fixed on this branch, in its own commit.
+
+### Bench state left behind
+
+Both overrides are cleared, each with `restore_defaults`: on `lran/bridge/config/set`
+for `diag_interval_s`, and on `lran/simnode2/config/set` for the per-node row, which the
+bridge's own restore does not reach. The simnode holds f1 in `ROLE_GATELINK` in RAM only, and loses it
+on its next boot.
+
+### Still owed
+
+**V-B12's saturated arm** (Impl Plan §8.1): its lever is confirmed, and the arm has not
+run.

@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.42
+**Version:** 0.43
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -578,8 +578,8 @@ that deferred BF-26 on 2026-09-14.
 **Every bridge row in `/lib/lran-config/`'s table now reaches the code it configures**,
 except `simnode_diag_enable`, which gates publication and belongs to BF-26. Before this,
 `ConfigStore` held each row's effective value, and no code outside the tests read one, so
-every lever ran its compile-time default whatever Home Assistant set. Host-tested; **not
-yet on air**.
+every lever ran its compile-time default whatever Home Assistant set. Host-tested, and
+**confirmed on air 2026-09-23**. The engineering log's second entry that day has the run.
 
 `levers.{h,cpp}` carries the values. `levers_from()` reads a `ConfigStore` into a plain
 `Levers` struct, and `LeverBoard` carries that struct from the task that wrote the store
@@ -1436,7 +1436,9 @@ carry it; the dense case stays runnable because it is what made the question vis
 >
 > **The first check passed on 2026-09-23**, when BF-23's lever half was built: no
 > `TODO(BF-23)` remains in `task_runtime.cpp`, and `diag_interval_s` reaches
-> `g_diag_interval_s` (§4.4.2). **The second check is still owed**, and it needs the bench.
+> `g_diag_interval_s` (§4.4.2). A set moved `lran/bridge/diag/state` from 60 s to 20 s spacing
+> on the bench the same day. **The second check is still owed**: `per_measure.py --arm
+> saturated` has not run.
 
 **§8.1.1 corrects two things above**, measured 2026-09-21: `--gap 2000` is not a zero-PER
 configuration, and the spacing effect this section assumes is real was in doubt when this
@@ -2267,6 +2269,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed |
 | **v0.42** | **New §4.4.2**: BF-23's lever half. Each bridge row of the configuration table now reaches the code it configures, except `simnode_diag_enable`. Values travel on a lock-free board, are applied on the owning task, and are published after the NVS restore. Host-tested, not yet on air. **§8.1**'s falsifier records that its first check passed |
 | **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's** |
 | **v0.40** | **New §8.1.1** — two interleaved sweeps on 2026-09-21 separate spacing from the passage of time, and **correct §8.1's assumption that a 2000 ms gap loses nothing**: it measured 0.31 % over 640 frames. V-B12's two arms run interleaved rather than in blocks |
