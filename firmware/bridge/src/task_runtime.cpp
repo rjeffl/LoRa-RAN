@@ -181,6 +181,18 @@ static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonPa
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
 
+// g_config is used from two tasks. mqtt_task writes the stores and reads the mirror;
+// sched_task writes the mirror when a node transaction resolves and reads it to publish.
+// Neither ConfigStore nor Store takes a lock, so without this one a set arriving while a
+// transaction resolves could read a half-written mirror or store.
+//
+// ITS OWN LOCK, HELD ACROSS g_config CALLS AND NOTHING ELSE. Never across a publish, a
+// queue send, a registry call or SchedLock, so it nests with no other lock. A holder can
+// wait on an NVS write inside apply(); sched_task ticks at 1 s and can afford that.
+// lora_task never takes it. config_begin() runs before the tasks and takes it neither.
+StaticSemaphore_t g_config_lock_buf;
+SemaphoreHandle_t g_config_lock = nullptr;
+
 // BF-23 - the store's lever values, carried to the tasks that apply them (levers.h).
 // Published by config_begin() before the tasks start, and by mqtt_task after every set
 // that changes a bridge-held value; read by sched_task and lora_task.
@@ -212,6 +224,14 @@ class SchedLock {
   ~SchedLock() { xSemaphoreGive(g_sched_lock); }
   SchedLock(const SchedLock&)            = delete;
   SchedLock& operator=(const SchedLock&) = delete;
+};
+
+class ConfigLock {
+ public:
+  ConfigLock() { xSemaphoreTake(g_config_lock, portMAX_DELAY); }
+  ~ConfigLock() { xSemaphoreGive(g_config_lock); }
+  ConfigLock(const ConfigLock&)            = delete;
+  ConfigLock& operator=(const ConfigLock&) = delete;
 };
 
 // BF-18. A COMMAND_ACK arrived. Called from app_task; the deserialize happens outside
@@ -518,18 +538,21 @@ void publish_config_resolution(const ConfigStep& step) {
   // here on purpose: the last values published stay, rather than being replaced by a
   // document half of which is this answer and half of which is the previous one.
   if (!step.updates_state && !g_config_job.bridge_changed) return;
-  if (step.updates_state) {
-    // A readback describes the whole table and replaces the mirror; a SET's ACK describes
-    // only what it set and merges into it. config_store.h says what each one costs if
-    // they are confused.
-    if (step.op == lran::ConfigOp::GetAll || step.op == lran::ConfigOp::RestoreDefaults) {
-      g_config.note_readback(step.dst, step.results, step.result_count);
-    } else {
-      g_config.note_set_results(step.dst, step.results, step.result_count);
+  size_t rows = 0;
+  {
+    ConfigLock lock;
+    if (step.updates_state) {
+      // A readback describes the whole table and replaces the mirror; a SET's ACK
+      // describes only what it set and merges into it. config_store.h says what each one
+      // costs if they are confused.
+      if (step.op == lran::ConfigOp::GetAll || step.op == lran::ConfigOp::RestoreDefaults) {
+        g_config.note_readback(step.dst, step.results, step.result_count);
+      } else {
+        g_config.note_set_results(step.dst, step.results, step.result_count);
+      }
     }
+    rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state, kMaxScopeRows);
   }
-  const size_t rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state,
-                                    kMaxScopeRows);
   if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
       build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
                          sizeof(g_sched_cfg_doc)) > 0 &&
@@ -951,7 +974,11 @@ void publish_config_state(bool is_bridge, lran::NodeId node) {
   }
 
   const ConfigScope scope = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
-  const size_t      n     = g_config.state(scope, node, g_cfg_state_rows, kMaxScopeRows);
+  size_t            n     = 0;
+  {
+    ConfigLock lock;
+    n = g_config.state(scope, node, g_cfg_state_rows, kMaxScopeRows);
+  }
   if (build_config_state(g_cfg_state_rows, n, g_cfg_doc, sizeof(g_cfg_doc)) == 0) {
     // Refused rather than truncated. A truncated retained document is the worst of the
     // three: it survives every restart until something overwrites it.
@@ -1050,33 +1077,40 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   ConfigSetRequest node_half;
   bool             want_node = false;
 
-  switch (g_cfg_req.op) {
-    case lran::ConfigOp::RestoreDefaults:
-      n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
-      ++g_cfg_inbound.applied;
-      want_node = !is_bridge;  // the node clears its own overrides (D52)
-      break;
-    case lran::ConfigOp::GetAll:
-      n         = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
-      want_node = !is_bridge;  // the node's own values come from the node
-      break;
-    default:
-      n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
-                         &node_half);
-      if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
+  // One section from the store write to the lever read, so the levers published are the
+  // values this set left, not a mix with a resolution landing in between.
+  // LeverBoard::publish() is atomic stores only, so it is safe to call under the lock.
+  bool changed = false;
+  {
+    ConfigLock lock;
+    switch (g_cfg_req.op) {
+      case lran::ConfigOp::RestoreDefaults:
+        n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
         ++g_cfg_inbound.applied;
-      }
-      want_node = node_half.count > 0;
-      break;
-  }
+        want_node = !is_bridge;  // the node clears its own overrides (D52)
+        break;
+      case lran::ConfigOp::GetAll:
+        n         = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+        want_node = !is_bridge;  // the node's own values come from the node
+        break;
+      default:
+        n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
+                           &node_half);
+        if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
+          ++g_cfg_inbound.applied;
+        }
+        want_node = node_half.count > 0;
+        break;
+    }
 
-  // BF-23 - HERE, as soon as the store holds the value, and not beside the ack below. A
-  // set with a node half returns before that point once its job is queued, and a
-  // `poll_interval_s` riding with a node's own rows would reach the store and never its
-  // consumer. A GET_ALL changes nothing and publishes nothing.
-  const bool changed = config_set_changed(g_cfg_req.op, persist);
-  if (changed) {
-    g_levers.publish(levers_from(g_config));
+    // BF-23 - HERE, as soon as the store holds the value, and not beside the ack below. A
+    // set with a node half returns before that point once its job is queued, and a
+    // `poll_interval_s` riding with a node's own rows would reach the store and never its
+    // consumer. A GET_ALL changes nothing and publishes nothing.
+    changed = config_set_changed(g_cfg_req.op, persist);
+    if (changed) {
+      g_levers.publish(levers_from(g_config));
+    }
   }
 
   // SPEC 16.7.1 - ONE ack, published when EVERY half has an outcome. When a half is on
@@ -1558,8 +1592,9 @@ TaskFunction_t body_for(TaskId id) {
 }  // namespace
 
 bool start_tasks() {
-  g_sched_lock = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
-  if (g_sched_lock == nullptr) {
+  g_sched_lock  = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
+  g_config_lock = xSemaphoreCreateMutexStatic(&g_config_lock_buf);
+  if (g_sched_lock == nullptr || g_config_lock == nullptr) {
     return false;
   }
   g_rx_queue = xQueueCreateStatic(kRxQueueDepth, sizeof(RxMessage), g_rx_storage,
