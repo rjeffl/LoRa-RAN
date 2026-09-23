@@ -105,6 +105,7 @@ pio test -d lib/<lib> -e native               # host Unity suite, any library
 pio test -d firmware/<node> -e native         # host Unity suite, any firmware
 pio run  -d firmware/<node> -e <env>          # target build; add -t upload to flash
 python3 tools/checks/<check>.py               # repository invariants
+python3 tools/checks/run_ci_local.py          # CI's checks job, read from ci.yml; --job native adds the suites
 python3 tools/vectors/generate.py             # regenerate W4 vectors after a spec change
 ```
 
@@ -117,6 +118,11 @@ job lists, and a weekly scheduled run builds everything. **A build that starts r
 path adds it to that list in the same commit**, or a change to that path skips the build.
 Read it rather than a list here — it is executed, so it cannot go stale.
 A firmware's own `CLAUDE.md` names the commands specific to it.
+
+**Run the checks job before you push.** `run_ci_local.py` takes seconds and runs the steps
+ci.yml lists, so drift is found before a CI round trip. `git config core.hooksPath
+tools/hooks` runs it on every push, per clone. It never runs a step that touches
+`secrets.h`, because here that file is real.
 
 **`main` stays buildable**, and **no secrets are needed or available in CI**: the bridge and
 simnode need `secrets.h`, and CI copies the committed template (`LRAN-Bridge-Firmware-Tasks`

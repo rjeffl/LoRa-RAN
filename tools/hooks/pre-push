@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# Runs CI's `checks` job before a push, which takes seconds. Opt in per clone:
+#
+#   git config core.hooksPath tools/hooks
+#
+# Skip it for one push with `git push --no-verify`. The interpreter found as python3
+# needs PyYAML and pyserial; tools/checks/run_ci_local.py says which is missing.
+exec python3 "$(git rev-parse --show-toplevel)/tools/checks/run_ci_local.py"
