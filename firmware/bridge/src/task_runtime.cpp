@@ -1074,8 +1074,8 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   // set with a node half returns before that point once its job is queued, and a
   // `poll_interval_s` riding with a node's own rows would reach the store and never its
   // consumer. A GET_ALL changes nothing and publishes nothing.
-  if (g_cfg_req.op == lran::ConfigOp::RestoreDefaults || persist == AckPersist::Persisted ||
-      persist == AckPersist::AppliedNotPersisted) {
+  const bool changed = config_set_changed(g_cfg_req.op, persist);
+  if (changed) {
     g_levers.publish(levers_from(g_config));
   }
 
@@ -1087,8 +1087,7 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     job.dst                 = node;
     job.op                  = g_cfg_req.op;
     job.bridge_persist      = persist;
-    job.bridge_changed      = persist == AckPersist::Persisted ||
-                         persist == AckPersist::AppliedNotPersisted;
+    job.bridge_changed      = changed;
     job.bridge_result_count = static_cast<uint8_t>(n < kMaxConfigSetEntries ? n
                                                                             : kMaxConfigSetEntries);
     for (size_t i = 0; i < job.bridge_result_count; ++i) job.bridge_results[i] = g_cfg_results[i];
@@ -1123,9 +1122,6 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   // nothing and neither does a set every entry of which was refused, so neither
   // republishes: a retained document rewritten with its own contents is a new message to
   // every subscriber for no news.
-  const bool changed = g_cfg_req.op == lran::ConfigOp::RestoreDefaults ||
-                       persist == AckPersist::Persisted ||
-                       persist == AckPersist::AppliedNotPersisted;
   if (changed) {
     publish_config_state(is_bridge, node);
   }
