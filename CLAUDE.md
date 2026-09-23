@@ -21,7 +21,7 @@ bind code:
 | Document | Path | Authority over |
 |---|---|---|
 | `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.12, `ver = 2`** |
-| `LRAN-Decision-Register` | `docs/shared/` | **D1–D42** and measurement backlog **M1–M24**. The only place a decision's status is recorded |
+| `LRAN-Decision-Register` | `docs/shared/` | **D1–D58** and measurement backlog **M1–M26**. The only place a decision's status is recorded |
 | `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
 | `LRAN-Bridge_Node-`, `-GateLink_Node-`, `-WellLink_Node-PRD` / `-Implementation-Plan` | `docs/<node>/` | That node's requirements and build. The bridge plan also owns `lran-simnode` (§10) |
 | `LRAN-Range-Test-Firmware-Pass1-Tasks`, `-Pass2-Tasks` | `docs/rangetest/` | Range test tasks R1–R11; answers W9, M6 and M20. Pass 2 is the second board profile |
