@@ -64,6 +64,15 @@ grep -n "TODO(handoff)" docs/<node>/HANDOFF.md   # empty before commit
 grep -c "<!--" docs/<node>/HANDOFF.md            # 0 before commit
 ```
 
+**Commit the handoff on the session's own branch while that branch is still open.** On a
+branch of its own, a handoff needs its own PR and review, and it can describe work that
+reaches `main` only through another PR. #85 had to tell its reviewer to merge #83 first,
+because the handoff cited commits that only #83 carried. On the branch whose work it
+describes, the handoff merges together with that work. When a session's work spans several
+open branches, put the handoff on the one meant to merge last, and say so in that PR's
+description. Open a `docs/handoff-*` branch only when everything the session did has
+already merged.
+
 ### A load-bearing premise must name the check that would falsify it
 
 If a document's argument rests on a factual premise — *"these two boards share a pad

@@ -131,9 +131,16 @@ jobs:
         with:
           python-version: '3.12'
 
-      # capture.py's tests import pyserial. Nothing else here needs a dependency.
+      # capture.py's tests import pyserial, and run_ci_local.py reads this file with
+      # PyYAML. Nothing else here needs a dependency.
       - name: Install test dependencies
-        run: python -m pip install --upgrade pip pyserial
+        run: python -m pip install --upgrade pip pyserial pyyaml
+
+      # run_ci_local.py runs this job's steps before a push, read from this file. A
+      # change here that leaves it finding no steps fails now rather than letting it
+      # report success on a machine where it ran nothing.
+      - name: Local CI runner still parses this file
+        run: python3 tools/checks/run_ci_local.py --list --job native
 
       # Fails when a "binding protocol" citation names a version the specification
       # has moved past. v0.9 changed nothing on the wire, so no test and no vector
@@ -318,28 +325,36 @@ jobs:
     needs: changes
     if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
+    # Job-level env cannot read the runner context, so not runner.temp. The directory
+    # is in the checkout but never committed: CI does not push.
+    env:
+      PLATFORMIO_BUILD_CACHE_DIR: ${{ github.workspace }}/.pio-build-cache
     strategy:
       fail-fast: false
       matrix:
         include:
           # Heltec WiFi LoRa 32 V3, then XIAO ESP32S3 + Wio-SX1262 Kit.
           - name: Range test
+            id: range-test
             dir: firmware/range-test
             envs: heltec xiao
             secrets: false
           - name: Bridge Node
+            id: bridge
             dir: firmware/bridge
             envs: heltec
             secrets: true
           # The simnode reads LRAN_MASTER_KEY from the same secrets.h as the bridge, so
           # it builds with the all-zero key and says so at boot. Both profiles.
           - name: Simnode
+            id: simnode
             dir: firmware/simnode
             envs: simnode-heltec simnode-xiao-wio
             secrets: true
           # The listen-only receiver needs no secrets.h. Both boards, because brief §5
           # runs them side by side.
           - name: Channel capture
+            id: chan-capture
             dir: firmware/chan-capture
             envs: heltec xiao-wio
             secrets: false
@@ -368,6 +383,27 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install platformio
 
+      # SCons's derived-file cache, which PlatformIO enables through
+      # PLATFORMIO_BUILD_CACHE_DIR. An object is reused only when its build signature
+      # matches: the source's content, every header it includes, the command line and
+      # the compiler binary. A stale object cannot be picked up, and the checkout's new
+      # timestamps do not force a rebuild. Most of each build is Arduino-ESP32, which
+      # changes only with the pinned platform.
+      #
+      # Every run saves a new entry and restores the newest, so the cache accumulates
+      # objects until the weekly run, which skips the restore, builds from nothing and
+      # saves a clean one.
+      #
+      # `-run-` ends the prefix. Without it, pio-build-bridge- also matched
+      # pio-build-bridge-vb9-, and the bridge job restored the V-B9 job's objects.
+      - name: Restore build cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
+          key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pio-build-${{ matrix.id }}-run-
+
       # See this file's header for why copying the template is the decision rather
       # than a workaround. The copy is made in the runner's checkout and goes nowhere:
       # secrets.h is gitignored, and its committed template holds only placeholders.
@@ -376,6 +412,7 @@ jobs:
         run: cp secrets.h.example secrets.h
 
       - name: Build ${{ matrix.envs }}
+        id: build
         env:
           DIR: ${{ matrix.dir }}
           ENVS: ${{ matrix.envs }}
@@ -383,6 +420,16 @@ jobs:
           for env in $ENVS; do
             pio run -d "$DIR" -e "$env"
           done
+
+      # After the build, whether or not it passed: the objects that compiled are
+      # still valid, and SCons stores only those. Not when the build never ran, or an
+      # empty directory would become the newest entry and the next run would restore it.
+      - name: Save build cache
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
+          key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
@@ -413,6 +460,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.bridge == 'true'
     runs-on: ubuntu-latest
+    # Job-level env cannot read the runner context, so not runner.temp. The directory
+    # is in the checkout but never committed: CI does not push.
+    env:
+      PLATFORMIO_BUILD_CACHE_DIR: ${{ github.workspace }}/.pio-build-cache
     steps:
       - uses: actions/checkout@v4
 
@@ -434,11 +485,28 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install platformio
 
+      # The firmware job's build cache, under a key of its own; see that job.
+      - name: Restore build cache
+        if: github.event_name != 'schedule'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
+          key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pio-build-bridge-vb9-run-
+
       # The bridge's environments read secrets.h; see the firmware job.
       - name: secrets.h from the committed template
         run: cp secrets.h.example secrets.h
 
       - name: V-B9 no-network and panic images
+        id: build
         run: |
           pio run -d firmware/bridge -e v_b9_no_network
           pio run -d firmware/bridge -e v_b9_panic
+
+      - name: Save build cache
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
+          key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
