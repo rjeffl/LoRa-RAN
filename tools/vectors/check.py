@@ -35,7 +35,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"
-SPEC = "LRAN-Protocol-Specification v0.6"
+SPEC = "LRAN-Protocol-Specification v0.13"
 WIRE_VER = 2
 
 LRAN_MAX_FRAME = 222          # §3

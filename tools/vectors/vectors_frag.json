@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.6",
+  "spec": "LRAN-Protocol-Specification v0.13",
   "wire_ver": 2,
   "group": "frag",
   "generated_by": "tools/vectors/generate.py",
