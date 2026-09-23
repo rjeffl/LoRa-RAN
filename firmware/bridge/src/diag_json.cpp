@@ -24,15 +24,19 @@ static_assert(sizeof(kQueueKeys) / sizeof(kQueueKeys[0]) == kQueueCount,
 
 }  // namespace
 
-size_t diag_rx_json(const lran::Counters& c, char* out, size_t cap) {
+size_t diag_rx_json(const lran::Counters& c, const RollStats& roll, char* out, size_t cap) {
   JsonObject j(out, cap);
   for (const lran::CounterField& f : lran::kCounterRegistry) j.u32(f.name, c.*(f.field));
   j.u32("rx_dropped", c.total_dropped());
   j.u32("rx_frames", c.rx_frames);
+  // spec 14.1's bridge counters. Spelled here because they are not in kCounterRegistry:
+  // no node counts them, and the registry is what a node's schema 0xF0 is built from.
+  j.u32("ctx_rolls", roll.ctx_rolls);
+  j.u32("ctx_roll_failed", roll.ctx_roll_failed);
   return j.finish();
 }
 
-size_t diag_command_json(const CommandStats& s, char* out, size_t cap) {
+size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out, size_t cap) {
   JsonObject j(out, cap);
   j.u32("cmd_submitted", s.submitted);
   j.u32("cmd_refused_busy", s.refused_busy);
@@ -43,6 +47,11 @@ size_t diag_command_json(const CommandStats& s, char* out, size_t cap) {
   j.u32("cmd_resyncs", s.resyncs);
   j.u32("cmd_resync_failed", s.resync_failed);
   j.u32("cmd_ack_ignored", s.ack_ignored);
+  j.u32("cmd_refused_roll_pending", roll.cmd_refused);
+  j.u32("roll_sent", roll.sent);
+  j.u32("roll_retries", roll.retries);
+  j.u32("roll_busy", roll.busy);
+  j.u32("roll_by_rejected_ctx", roll.by_rejected_ctx);
   return j.finish();
 }
 

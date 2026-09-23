@@ -237,6 +237,45 @@ void test_a_set_on_a_node_topic_splits_into_two_halves() {
   TEST_ASSERT_EQUAL_INT32(16, node_half.entries[0].value);
 }
 
+// spec 10.6 bridge step 7 - the refusal while a roll is pending must pick out exactly the
+// sets that would send a CONFIG. The split apply() makes is the reference, because it is
+// what decides whether handle_config_set() queues a job.
+void test_the_roll_refusal_matches_the_node_half_apply_produces() {
+  struct Case {
+    ConfigScope scope;
+    const char* name;
+    bool        readable;
+  };
+  const Case kCases[] = {
+      {ConfigScope::Node, "dedup_cache_depth", true},   // node-held
+      {ConfigScope::Node, "dedup_cache_depth", false},  // unreadable, answered here
+      {ConfigScope::Node, "poll_interval_s", true},     // the bridge's per-node row
+      {ConfigScope::Node, "cad_retries", true},         // the node's, on its topic
+      {ConfigScope::Bridge, "cad_retries", true},       // the bridge's own
+      {ConfigScope::Node, "no_such_param", true},
+  };
+  for (const Case& c : kCases) {
+    ConfigStore store;
+    store.begin(nullptr, nullptr, 0);
+    const ConfigSetRequest req = one(c.name, 3, c.readable);
+    ConfigResult           results[4];
+    ConfigSetRequest       node_half;
+    store.apply(c.scope, c.scope == ConfigScope::Node ? lran::kNodeGateLink : 0, req, results,
+                4, nullptr, &node_half);
+    TEST_ASSERT_EQUAL_MESSAGE(node_half.count > 0, config_set_reaches_node(c.scope, req),
+                              c.name);
+  }
+
+  // GET_ALL and RESTORE_DEFAULTS reach the node from its own topic only.
+  ConfigSetRequest req;
+  req.op = ConfigOp::GetAll;
+  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, req));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, req));
+  req.op = ConfigOp::RestoreDefaults;
+  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, req));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, req));
+}
+
 // A NAME NEITHER HALF HOLDS COSTS NO FRAME. Spec 16.7.1 makes it unknown_param at the
 // bridge, so a solar node is never woken to be asked about a name the table says it does
 // not have.
@@ -504,6 +543,7 @@ int main(int, char**) {
   RUN_TEST(test_a_phy_row_refuses_the_write_and_reports_what_it_holds);
 
   RUN_TEST(test_a_set_on_a_node_topic_splits_into_two_halves);
+  RUN_TEST(test_the_roll_refusal_matches_the_node_half_apply_produces);
   RUN_TEST(test_an_unknown_name_never_reaches_the_node_half);
   RUN_TEST(test_a_per_node_row_is_isolated_between_nodes);
 

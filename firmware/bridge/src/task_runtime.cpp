@@ -26,6 +26,7 @@
 #include "config_json.h"
 #include "config_path.h"
 #include "config_store.h"
+#include "context_roll.h"
 #include "diag_json.h"
 #include "discovery.h"
 #include "levers.h"
@@ -164,6 +165,20 @@ CommandPath g_command;
 // call or a queue send.
 ConfigPath g_config_path;
 
+// BF-34, spec 10.6 - the context roll, under the SAME lock and for the same reasons as the
+// command path. It serializes with the command path as well: a roll does not start while a
+// command is in flight, and a command is not admitted while a roll is. The roll is a
+// COMMAND on the air, and command.h's one-in-flight rule is about a node's seq space,
+// which the roll resets.
+ContextRoll g_roll;
+
+// The pending bits, for mqtt_task. sched_task is the only writer, under the lock, after
+// every roll that resolves. A bit only ever clears after boot, so a reader that sees a
+// node clear can act on that without the lock.
+std::atomic<uint32_t> g_roll_pending{kAllNodesMask};
+
+bool roll_pending_for(lran::NodeId node) { return (g_roll_pending.load() & node_bit(node)) != 0; }
+
 // The job in flight, kept beside the path rather than inside it. sched_task needs the
 // names and the bridge half's results when the transaction resolves, and one is in
 // flight across the fleet - so a copy here is simpler than an accessor that would hand
@@ -211,6 +226,7 @@ struct ConfigInboundStats {
   uint32_t bad_payload = 0;  // refused whole, spec 16.7.2's last paragraph
   uint32_t applied     = 0;  // sets whose bridge half changed something
   uint32_t no_answer   = 0;  // the ack or the state document did not fit, or would not go
+  uint32_t refused_roll_pending = 0;  // spec 10.6 bridge step 7, refused whole
 };
 
 ConfigInboundStats g_cfg_inbound;
@@ -243,6 +259,9 @@ void cmd_on_ack(const RxMessage& msg) {
     return;
   }
   SchedLock lock;
+  // The roll claims its own ACK first. An ACK neither claims reaches the command path,
+  // which is the one that counts it ignored.
+  if (g_roll.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis)) return;
   g_command.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis);
 }
 
@@ -266,6 +285,9 @@ void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
     answer_ms          = g_scheduler.on_heard(src, now_ms);
     window_ms          = g_scheduler.reply_timeout_ms();
     g_poll_outstanding = g_scheduler.outstanding();
+    // spec 10.6 bridge step 2 - a pending node is rolled when it is first heard. Its
+    // ctx_id is already in the registry: app_task observed the frame before this.
+    g_roll.on_heard(src);
   }
   // B3a's poll-to-answer record (Impl Plan 6.1.1). Printed after the lock is released, so a
   // slow serial write never holds up sched_task.
@@ -391,6 +413,21 @@ void publish_cmd_ack(const CmdStep& st) {
   }
 }
 
+// spec 10.6 bridge step 7 - a request for a node whose roll is pending, refused on
+// `cmd/ack` rather than held. A held OPEN could reach the gate long after it was pressed.
+// The outcome token is this bridge's, like the rest of the document (spec 16.2 fixes the
+// topic, not the payload), and matches config/ack's `context_roll_pending`.
+void publish_cmd_refused_roll_pending(lran::NodeId dst) {
+  char node[32];
+  if (node_topic_name(dst, node, sizeof(node)) == 0) return;
+  char topic[kMaxTopicLen];
+  if (std::snprintf(topic, sizeof(topic), "lran/%s/cmd/ack", node) <= 0) return;
+  if (make_publish(&g_sched_msg, topic, "{\"outcome\":\"context_roll_pending\"}",
+                   /*retain=*/false, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  }
+}
+
 // One tick: admit a queued request if nothing is in flight, then act on whatever the
 // command path asks for. A COMMAND the TX queue refuses is not reported with on_sent(),
 // so its window never opens and the next tick transmits it again - the same bargain
@@ -401,11 +438,22 @@ void sched_commands(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    idle = !g_command.busy();
+    idle = !g_command.busy() && !g_roll.busy();
   }
   if (idle) {
     CommandRequest req;
     if (g_command_queue != nullptr && xQueueReceive(g_command_queue, &req, 0) == pdTRUE) {
+      bool refused = false;
+      {
+        SchedLock lock;
+        refused = g_roll.pending(req.dst);
+        if (refused) g_roll.note_cmd_refused();
+      }
+      if (refused) {
+        Serial.printf("cmd: %02x refused, context roll pending\n", static_cast<unsigned>(req.dst));
+        publish_cmd_refused_roll_pending(req.dst);
+        return;
+      }
       // spec 10.2 - the seq comes from the registry and is taken ONCE per command.
       // Every retry reuses it (root rule 2, BS-3).
       NodeState ns;
@@ -456,6 +504,85 @@ void sched_commands(uint32_t now_ms) {
 
     SchedLock lock;
     g_command.on_sent(now_ms);
+    return;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The context roll (BF-34) - spec 10.6, D58, PRD R-3.1h.
+//
+// THE BOOT POLL IS THE SCHEDULER'S. Spec 10.6 bridge step 1 asks for a POLL to each
+// registered node at boot, and the poll scheduler already sends one to every production
+// row on its first ticks. A bench row keeps the 2026-09-14 rule and is polled only once
+// heard, which the operator confirmed on 2026-09-23: it rolls when first heard (step 2),
+// and a simnode not on the bench costs no airtime.
+// ---------------------------------------------------------------------------
+
+void sched_roll(uint32_t now_ms) {
+  lran::NodeId node  = 0;
+  bool         start = false;
+  {
+    SchedLock lock;
+    start = !g_roll.busy() && !g_command.busy() && g_roll.next_due(&node);
+  }
+  if (start) {
+    // spec 10.6 bridge step 2 - under the ctx_id the node's frame carried, with the next
+    // command seq. A context still 0 is one never learned, and the node would refuse it.
+    NodeState ns;
+    lran::Seq seq = 0;
+    if (registry_state(node, &ns) && ns.ctx_id != 0 && registry_take_cmd_seq(node, &seq)) {
+      SchedLock lock;
+      (void)g_roll.submit(node, ns.ctx_id, seq, now_ms);
+    }
+  }
+
+  for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
+    RollStep st;
+    uint32_t pending = 0;
+    {
+      SchedLock lock;
+      st      = g_roll.next(now_ms);
+      pending = g_roll.pending_mask();
+    }
+    switch (st.action) {
+      case RollAction::None:
+        return;
+
+      case RollAction::Resolve:
+        if (st.outcome == RollOutcome::Rolled) {
+          // spec 10.6 bridge step 3 - adopt the new context and restart the seq space at
+          // 1, which is spec 10.3 step 2's write. After this the pending bit clears, and
+          // not before: a command admitted in between would carry the old context.
+          (void)registry_adopt_ctx(st.dst, st.ctx_id);
+          Serial.printf("roll: %02x rolled to ctx 0x%08lx after %u attempt(s)\n",
+                        static_cast<unsigned>(st.dst), static_cast<unsigned long>(st.ctx_id),
+                        static_cast<unsigned>(st.attempt) + 1u);
+        } else if (st.no_ack) {
+          Serial.printf("roll: %02x FAILED, no answer to %u attempt(s); still pending\n",
+                        static_cast<unsigned>(st.dst), static_cast<unsigned>(st.attempt) + 1u);
+        } else {
+          Serial.printf("roll: %02x FAILED, answered result %u; still pending\n",
+                        static_cast<unsigned>(st.dst), static_cast<unsigned>(st.result));
+        }
+        g_roll_pending = pending;
+        continue;
+
+      case RollAction::Send:
+        break;
+    }
+
+    const lran::msg::Command cmd{static_cast<uint8_t>(lran::Cmd::RollContext),
+                                 lran::kRollContextGuard, 0};
+    TxMessage                tx;
+    tx.dst = st.dst;
+    NodeState cns;
+    const uint8_t ver = registry_state(st.dst, &cns) ? node_tx_ver(cns) : lran::kProtoVer;
+    tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, ver, cmd, tx.bytes,
+                                    sizeof(tx.bytes));
+    if (tx.len == 0 || !send_tx(tx)) return;
+
+    SchedLock lock;
+    g_roll.on_sent(now_ms);
     return;
   }
 }
@@ -726,9 +853,19 @@ void sched_diag(uint32_t now_ms) {
   r.errors_suppressed = lora_errors_suppressed();
   for (size_t q = 0; q < kQueueCount; ++q) r.queues[q] = g_accounting.stat(static_cast<QueueId>(q));
 
+  // BF-18 and BF-34. A copy under the lock, then formatted outside it - the lock is never held
+  // across a queue send (BF-17's rule, and sched_publish() is one).
+  CommandStats cs;
+  RollStats    rs;
+  {
+    SchedLock lock;
+    cs = g_command.stats();
+    rs = g_roll.stats();
+  }
+
   char topic[kMaxTopicLen];
   if (topic_diag("bridge", nullptr, topic, sizeof(topic)) > 0 &&
-      diag_rx_json(c, g_sched_json, sizeof(g_sched_json)) > 0) {
+      diag_rx_json(c, rs, g_sched_json, sizeof(g_sched_json)) > 0) {
     (void)sched_publish(topic, g_sched_json);
   }
   if (topic_diag("bridge", "radio", topic, sizeof(topic)) > 0 &&
@@ -736,15 +873,8 @@ void sched_diag(uint32_t now_ms) {
     (void)sched_publish(topic, g_sched_json);
   }
 
-  // BF-18. A copy under the lock, then formatted outside it - the lock is never held
-  // across a queue send (BF-17's rule, and sched_publish() is one).
-  CommandStats cs;
-  {
-    SchedLock lock;
-    cs = g_command.stats();
-  }
   if (topic_diag("bridge", "cmd", topic, sizeof(topic)) > 0 &&
-      diag_command_json(cs, g_sched_json, sizeof(g_sched_json)) > 0) {
+      diag_command_json(cs, rs, g_sched_json, sizeof(g_sched_json)) > 0) {
     (void)sched_publish(topic, g_sched_json);
   }
 
@@ -792,6 +922,9 @@ void sched_levers() {
     // A retry COUNT, and only that. A command in flight keeps the seq its first attempt
     // took (root rule 2); a lower count ends its retries sooner, and nothing else moves.
     g_command.set_retries(v.cmd_retries);
+    // The roll is a COMMAND on the air and waits on the same two levers (BF-34).
+    g_roll.set_ack_timeout_ms(v.command_ack_timeout_ms);
+    g_roll.set_retries(v.cmd_retries);
     g_config_path.set_readback_timeout_ms(v.config_readback_timeout_ms);
     g_config_path.set_ack_timeout_ms(v.config_ack_timeout_ms);
   }
@@ -860,6 +993,7 @@ void sched_task(void*) {
     sched_levers();            // BF-23 - root rule 8
     sched_versions();          // BF-22 - R-3.1f, spec 13.1
     sched_polls(millis());     // BF-17 - Impl Plan 6.1, R-3.1d
+    sched_roll(millis());      // BF-34 - spec 10.6, R-3.1h; before any command
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
     sched_config(millis());    // BF-32 - spec 7.4, 7.4.1, 16.7
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5
@@ -1071,6 +1205,16 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     ++g_cfg_inbound.bad_payload;
     publish_config_ack(is_bridge, node, lran::ConfigOp::Set, AckPersist::NotApplied,
                        nullptr, 0, error);
+    return;
+  }
+
+  // spec 10.6 bridge step 7 - refused WHOLE while the node's roll is pending, before
+  // either half applies. Applying the bridge's half and refusing the node's would leave a
+  // set half-done, which spec 16.7.1's one-answer rule has no way to say.
+  if (!is_bridge && roll_pending_for(node) && config_set_reaches_node(scope, g_cfg_req)) {
+    ++g_cfg_inbound.refused_roll_pending;
+    publish_config_ack(is_bridge, node, g_cfg_req.op, AckPersist::NotApplied, nullptr, 0,
+                       "context_roll_pending");
     return;
   }
 

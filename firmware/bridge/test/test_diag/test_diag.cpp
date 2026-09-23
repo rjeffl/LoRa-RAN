@@ -67,7 +67,7 @@ Counters every_counter_distinct() {
 // spec 14.1 - every registry name, once, carrying its own counter.
 void test_every_spec_14_1_counter_is_published_under_its_name() {
   const Counters c = every_counter_distinct();
-  TEST_ASSERT_GREATER_THAN(0, diag_rx_json(c, g_buf, sizeof(g_buf)));
+  TEST_ASSERT_GREATER_THAN(0, diag_rx_json(c, RollStats{}, g_buf, sizeof(g_buf)));
   for (const CounterField& f : kCounterRegistry) {
     TEST_ASSERT_EQUAL_UINT_MESSAGE(1, count_of(g_buf, f.name), f.name);
     TEST_ASSERT_EQUAL_INT64_MESSAGE(c.*(f.field), value_of(g_buf, f.name), f.name);
@@ -81,7 +81,7 @@ void test_every_spec_14_1_counter_is_published_under_its_name() {
 
 // The registry's order, so the document reads like spec 14.1's table.
 void test_counters_appear_in_registry_order() {
-  diag_rx_json(every_counter_distinct(), g_buf, sizeof(g_buf));
+  diag_rx_json(every_counter_distinct(), RollStats{}, g_buf, sizeof(g_buf));
   const char* prev = g_buf;
   for (const CounterField& f : kCounterRegistry) {
     const char* p = std::strstr(g_buf, f.name);
@@ -94,7 +94,7 @@ void test_counters_appear_in_registry_order() {
 // spec 14.1 - rx_dropped is the codec's sum, which leaves out the three marked no.
 void test_rx_dropped_is_the_spec_14_1_sum() {
   const Counters c = every_counter_distinct();
-  diag_rx_json(c, g_buf, sizeof(g_buf));
+  diag_rx_json(c, RollStats{}, g_buf, sizeof(g_buf));
   TEST_ASSERT_EQUAL_INT64(c.total_dropped(), value_of(g_buf, "rx_dropped"));
   uint32_t all = 0;
   for (const CounterField& f : kCounterRegistry) all += c.*(f.field);
@@ -106,7 +106,9 @@ void test_the_worst_case_documents_fit_a_queued_publication() {
   Counters c;
   for (const CounterField& f : kCounterRegistry) c.*(f.field) = UINT32_MAX;
   c.rx_frames = UINT32_MAX;
-  const size_t rx = diag_rx_json(c, g_buf, sizeof(g_buf));
+  RollStats roll;
+  roll.ctx_rolls = roll.ctx_roll_failed = UINT32_MAX;
+  const size_t rx = diag_rx_json(c, roll, g_buf, sizeof(g_buf));
   TEST_ASSERT_GREATER_THAN(512, rx);  // would not have fitted before BF-19
   TEST_ASSERT_LESS_THAN(kMaxPayloadLen, rx);
   PublishMessage msg;
@@ -137,10 +139,10 @@ void test_the_worst_case_documents_fit_a_queued_publication() {
 void test_a_document_that_does_not_fit_is_refused_whole() {
   char small[64];
   std::memset(small, 'x', sizeof(small));
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, small, sizeof(small)));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, RollStats{}, small, sizeof(small)));
   TEST_ASSERT_EQUAL_STRING("", small);
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, nullptr, 100));
-  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, small, 0));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, RollStats{}, nullptr, 100));
+  TEST_ASSERT_EQUAL_UINT(0, diag_rx_json(Counters{}, RollStats{}, small, 0));
 }
 
 void test_the_radio_document_carries_the_driver_and_queue_numbers() {
@@ -230,9 +232,11 @@ void test_the_command_diagnostics_carry_every_stat() {
   CommandStats s;
   s.submitted = 1; s.refused_busy = 2; s.sent = 3; s.retries = 4; s.acked = 5;
   s.no_ack = 6; s.resyncs = 7; s.resync_failed = 8; s.ack_ignored = 9;
+  RollStats r;
+  r.cmd_refused = 10; r.sent = 11; r.retries = 12; r.busy = 13; r.by_rejected_ctx = 14;
 
   char out[kMaxPayloadLen];
-  TEST_ASSERT_TRUE(diag_command_json(s, out, sizeof(out)) > 0);
+  TEST_ASSERT_TRUE(diag_command_json(s, r, out, sizeof(out)) > 0);
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_submitted\":1"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_refused_busy\":2"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_sent\":3"));
@@ -242,11 +246,29 @@ void test_the_command_diagnostics_carry_every_stat() {
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_resyncs\":7"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_resync_failed\":8"));
   TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_ack_ignored\":9"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"cmd_refused_roll_pending\":10"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"roll_sent\":11"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"roll_retries\":12"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"roll_busy\":13"));
+  TEST_ASSERT_NOT_NULL(std::strstr(out, "\"roll_by_rejected_ctx\":14"));
+}
+
+// spec 14.1 - the two bridge counters, on lran/bridge/diag/state under their spec names.
+void test_the_context_roll_counters_ride_with_the_registry() {
+  RollStats r;
+  r.ctx_rolls       = 21;
+  r.ctx_roll_failed = 22;
+  TEST_ASSERT_GREATER_THAN(0, diag_rx_json(Counters{}, r, g_buf, sizeof(g_buf)));
+  TEST_ASSERT_EQUAL_INT64(21, value_of(g_buf, "ctx_rolls"));
+  TEST_ASSERT_EQUAL_INT64(22, value_of(g_buf, "ctx_roll_failed"));
+  // Not discards (spec 14.1's table says no), so rx_dropped does not move.
+  TEST_ASSERT_EQUAL_INT64(0, value_of(g_buf, "rx_dropped"));
 }
 
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_the_command_diagnostics_carry_every_stat);
+  RUN_TEST(test_the_context_roll_counters_ride_with_the_registry);
   RUN_TEST(test_every_spec_14_1_counter_is_published_under_its_name);
   RUN_TEST(test_counters_appear_in_registry_order);
   RUN_TEST(test_rx_dropped_is_the_spec_14_1_sum);
