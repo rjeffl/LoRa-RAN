@@ -185,6 +185,16 @@ class Node {
   // The `silent` fault (Impl Plan 10.5): true when this answer is to be withheld, which uses
   // one of the armed count.
   bool silenced(Identity& e, const char* what, const lran::Header& hdr);
+
+  // spec 10.6 - EVERY role answers ROLL_CONTEXT, although only ROLE_GATELINK takes other
+  // commands. A bridge rolls every node it hears after its own boot, and a role that
+  // stayed silent would fail each roll and draw another on every frame the bridge heard,
+  // which puts roll traffic inside a sweep's measurement. Decided 2026-09-23.
+  void on_roll(Identity& e, const lran::Header& hdr, const lran::msg::Command& c);
+  // A COMMAND to a role without a command path. True when it was a roll and was answered;
+  // false leaves the caller to count it unhandled.
+  bool answer_roll_only(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                        size_t len);
   void on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
                uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
 

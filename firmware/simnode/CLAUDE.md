@@ -49,6 +49,16 @@ instead of a second rejection, which is the one path the fault exists to produce
 moves `rx_reassembly_abandoned` alone; a capture from before that shows
 `rx_reassembly_timeout` as well.
 
+**`ROLL_CONTEXT` (BF-34, spec §10.6) is answered by every role, and it skips the gate.**
+Other commands stay `ROLE_GATELINK`'s alone. A bridge rolls every node it hears after it
+boots, and a role that stayed silent would draw a roll on every frame the bridge heard,
+inside whatever sweep was running. That was decided on 2026-09-23. **Keep three things:**
+the roll is answered after `ctx_reject` and before `CommandGate::check()`; it answers
+`ACTUATOR_BUSY` while `any_in_flight()` holds; and `roll_context()` changes the `ctx_id`,
+the gate and `tx_seq` only, where `new_context()` also clears what a reboot loses. The
+`ACCEPTED` ACK goes out under the new `ctx_id` through `send_fresh_ack()`, so
+`ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
+
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added
 here has no scenario there** — run it after touching `kFaultCatalogue`.

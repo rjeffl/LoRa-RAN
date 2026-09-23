@@ -480,6 +480,112 @@ void test_role_health_does_not_answer_a_command() {
 }
 
 // ---------------------------------------------------------------------------
+// ROLL_CONTEXT - spec 10.6, D58
+// ---------------------------------------------------------------------------
+
+// The failure D58 exists for: a restarted bridge's seq 1 meeting a cache that already
+// holds seq 1. After the roll the same seq executes, in a context the bridge has adopted.
+void test_a_roll_takes_a_new_context_and_acks_under_it() {
+  Board b;
+  for (Seq s = 1; s <= 5; ++s) {
+    command(b, s, Cmd::Open);
+    next_ack(b);
+  }
+  b.f1().gl.dry_run = true;
+  const CtxId    old        = b.f1().ctx_id;
+  const uint32_t dup_before = b.f1().counters.rx_dup_command;
+
+  // seq 1 sits at or below the mark and is in the cache. The roll does not judge it.
+  command(b, 1, Cmd::RollContext, kRollContextGuard);
+  Header h;
+  expect_ack(next_ack(b, &h), 1, AckResult::Accepted);
+  TEST_ASSERT_NOT_EQUAL(old, b.f1().ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(b.f1().ctx_id, h.ctx_id);  // the NEW context
+  TEST_ASSERT_EQUAL_UINT16(1, h.seq);                 // its first frame
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());
+  TEST_ASSERT_EQUAL_UINT32(dup_before, b.f1().counters.rx_dup_command);
+
+  // Nothing but the context moved (spec 10.6 node step 2).
+  TEST_ASSERT_TRUE(b.f1().gl.dry_run);
+  TEST_ASSERT_EQUAL_UINT32(5, b.f1().gl.actuations);
+
+  command(b, 1, Cmd::Open);
+  expect_ack(next_ack(b), 1, AckResult::DryRun);
+  TEST_ASSERT_EQUAL_UINT32(6, b.f1().gl.actuations);
+}
+
+// spec 10.6 node step 1 - the running command keeps its context, and the bridge's retry of
+// the roll, under the same seq, succeeds once that command has a result.
+void test_a_roll_while_a_command_executes_is_actuator_busy() {
+  Board b;
+  b.f1().gl.ack_delay_ms = 500;
+  const CtxId old        = b.f1().ctx_id;
+  command(b, 1, Cmd::Open);
+  command(b, 2, Cmd::RollContext, kRollContextGuard);
+  Header h;
+  expect_ack(next_ack(b, &h), 2, AckResult::ActuatorBusy);
+  TEST_ASSERT_EQUAL_UINT32(old, b.f1().ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(old, h.ctx_id);
+
+  b.node.tick(2000);
+  expect_ack(next_ack(b), 1, AckResult::Accepted);
+  command(b, 2, Cmd::RollContext, kRollContextGuard);
+  expect_ack(next_ack(b, &h), 2, AckResult::Accepted);
+  TEST_ASSERT_NOT_EQUAL(old, h.ctx_id);
+}
+
+void test_a_roll_with_the_wrong_guard_is_rejected_arg() {
+  Board       b;
+  const CtxId old = b.f1().ctx_id;
+  command(b, 1, Cmd::RollContext, 0x5A);
+  expect_ack(next_ack(b), 1, AckResult::RejectedArg);
+  TEST_ASSERT_EQUAL_UINT32(old, b.f1().ctx_id);
+}
+
+// spec 10.6 bridge step 4 - the node rolled and its ACK was lost, so the bridge's retry
+// carries the old ctx_id and draws REJECTED_CTX under the new one, which completes the roll.
+// The same path bounds a replayed roll: once acted on, the request fails at step 2.
+void test_a_retried_roll_after_a_lost_ack_is_rejected_ctx() {
+  Board       b;
+  const CtxId old             = b.f1().ctx_id;
+  b.f1().gl.ack_suppress_left = 1;
+  command(b, 1, Cmd::RollContext, kRollContextGuard);
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());
+  const CtxId rolled = b.f1().ctx_id;
+  TEST_ASSERT_NOT_EQUAL(old, rolled);
+
+  Send o;
+  o.ctx = old;
+  command(b, 1, Cmd::RollContext, kRollContextGuard, o);
+  Header h;
+  expect_ack(next_ack(b, &h), 1, AckResult::RejectedCtx);
+  TEST_ASSERT_EQUAL_UINT32(rolled, h.ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(rolled, b.f1().ctx_id);  // not rolled a second time
+}
+
+// Decided 2026-09-23 - every role answers a roll, so a bench identity the bridge hears
+// completes its roll rather than drawing one on every frame. Other commands stay
+// ROLE_GATELINK's alone.
+void test_role_health_answers_a_roll_and_nothing_else() {
+  Board b;
+  b.ids.add(kNodeSim2, Role::Health);
+  Identity&   f2  = *b.ids.find(kNodeSim2);
+  const CtxId old = f2.ctx_id;
+  Send        o;
+  o.dst = kNodeSim2;
+  command(b, 1, Cmd::RollContext, kRollContextGuard, o);
+  Header h;
+  expect_ack(next_ack(b, &h), 1, AckResult::Accepted);
+  TEST_ASSERT_NOT_EQUAL(old, f2.ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(f2.ctx_id, h.ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(0, f2.unhandled);
+
+  command(b, 2, Cmd::Open, 0, o);
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());
+  TEST_ASSERT_EQUAL_UINT32(1, f2.unhandled);
+}
+
+// ---------------------------------------------------------------------------
 // CONFIG - spec 7.4, the generic RAM store
 // ---------------------------------------------------------------------------
 
@@ -668,6 +774,11 @@ int main() {
   RUN_TEST(test_reboot_acks_under_the_old_context_then_boots_a_new_one);
   RUN_TEST(test_silent_withholds_a_command_before_the_gate);
   RUN_TEST(test_role_health_does_not_answer_a_command);
+  RUN_TEST(test_a_roll_takes_a_new_context_and_acks_under_it);
+  RUN_TEST(test_a_roll_while_a_command_executes_is_actuator_busy);
+  RUN_TEST(test_a_roll_with_the_wrong_guard_is_rejected_arg);
+  RUN_TEST(test_a_retried_roll_after_a_lost_ack_is_rejected_ctx);
+  RUN_TEST(test_role_health_answers_a_roll_and_nothing_else);
 
   RUN_TEST(test_config_set_get_and_restore);
   RUN_TEST(test_a_set_with_every_entry_rejected_is_not_applied);

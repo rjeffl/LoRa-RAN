@@ -149,4 +149,19 @@ bool IdentityTable::new_context(lran::NodeId id) {
   return true;
 }
 
+bool IdentityTable::roll_context(lran::NodeId id) {
+  Identity* e = find(id);
+  if (e == nullptr) return false;
+  // spec 10.6 node step 2 - DIFFERENT from the current one, not merely random. A roll that
+  // drew the same value would leave a replayed ROLL_CONTEXT valid at spec 9.4 step 2, and
+  // the replay bound in spec 10.6 rests on the ctx_id changing.
+  lran::CtxId next = random_ctx();
+  for (int i = 0; i < 16 && next == e->ctx_id; ++i) next = random_ctx();
+  if (next == e->ctx_id) next = e->ctx_id == 0xFFFFFFFFu ? 1u : e->ctx_id + 1u;
+  e->ctx_id = next;
+  e->gate.reset_context(next);
+  e->tx_seq = 1;
+  return true;
+}
+
 }  // namespace simnode

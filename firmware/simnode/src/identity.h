@@ -206,6 +206,11 @@ class IdentityTable {
   // what the old context counted.
   bool new_context(lran::NodeId id);
 
+  // spec 10.6 - a context roll, which is much less than a reboot. A new random ctx_id that
+  // differs from the current one, the gate's cache and mark cleared, and the status seq
+  // back to 1. Configuration, the actuator state, the counters and the reassembler survive.
+  bool roll_context(lran::NodeId id);
+
   // The key of simnode `id` (0xF0-0xF3), whether or not this board holds that identity, so
   // an authenticated fault can be signed for a simnode on another board. Refuses every other
   // id: this is a bench tool, and it signs for no production node.

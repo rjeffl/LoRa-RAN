@@ -802,6 +802,13 @@ void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* paylo
     return;
   }
 
+  // spec 9.4, 10.6 - a roll skips steps 4-6. The bridge sends it because its own seq
+  // cannot be trusted after a restart, so the gate must not judge that seq.
+  if (c.cmd == static_cast<uint8_t>(lran::Cmd::RollContext)) {
+    on_roll(e, hdr, c);
+    return;
+  }
+
   const lran::GateResult g = e.gate.check(hdr.seq);  // spec 9.4 steps 4-6, D34
   switch (g.verdict) {
     case lran::Verdict::Execute: {
