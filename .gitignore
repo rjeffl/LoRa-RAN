@@ -2,6 +2,8 @@
 .pio/
 .pioenvs/
 .piolibdeps/
+# SCons's derived-file cache, when PLATFORMIO_BUILD_CACHE_DIR points here (CI does)
+.pio-build-cache/
 
 # Secrets are never committed. secrets.h.example documents every field.
 secrets.h
