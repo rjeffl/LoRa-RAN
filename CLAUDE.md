@@ -187,7 +187,7 @@ in its own commit, with the evidence in the message.
   and worktrees. Close by opening the PR, merging it once the operator accepts it, and
   rewriting *Start here*. Something out of scope, a wrong document included, goes in one
   line under the handoff's *Open*, not into the session. Context in use is the budget:
-  wrap up before it passes about 40 %.
+  wrap up before it passes about 20 %, or 200k tokens.
 - **Branch per milestone**, named for it: `p4-schemas`, `b0-simnode-bringup`.
 - **Open the PR and write the description yourself.** State which acceptance criteria from
   the milestone table the branch satisfies **and which it does not** — a criterion not met
