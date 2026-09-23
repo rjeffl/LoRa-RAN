@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.19
+**Version:** 0.20
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-23
 
 ---
 
@@ -565,6 +565,16 @@ another:
 | `native` | `pio test -e native` for `/lib/lran-protocol/` and `firmware/range-test/` | Repo rule 7 — the library must keep building for the host |
 | `firmware` | Both range-test targets, then the PA table mirror | The mirror reads the *installed* RadioLib, so it can only run after a build |
 
+**Amended 2026-09-23: the two slow jobs run only when a change can reach them.** A
+`changes` job reads the diff. `native` runs when it touches `lib/`, `firmware/` or a
+workflow, and `firmware` runs on those and on the few other paths its build or its checks
+read, which ci.yml lists. `checks` still runs on every change, because the citation check
+reads `docs/`. The second bullet's intent holds: a change to `/lib/lran-protocol/` rebuilds
+every node. A weekly scheduled run builds everything, for the failure a diff cannot show:
+a cached toolchain or pinned package going bad under an unchanged tree. Before the
+amendment, the firmware job's eleven minutes ran on every documentation pull request, which
+was 9 of the 25 merged before it.
+
 **The host tools are tested in CI, not just the firmware.** The defect that destroyed a
 third of the 2026-09-05 campaign was in `capture.py`, and nothing in the repository tested
 the tool at all.
@@ -687,7 +697,7 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.18 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.20 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.12** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D54** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.13 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.10 |
@@ -734,6 +744,12 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.20** — **§9.3: CI's two slow jobs run only when a change can reach them.**
+  `native` and `firmware` now wait on a `changes` job that classifies the diff, and a
+  weekly scheduled run builds everything. `checks` still runs on every change. The
+  bridge's V-B9 bad images build only when the bridge, a library or `secrets.h.example`
+  changes. §12's row for this document, which read v0.18 through v0.19, now reads v0.20.
 
 - **v0.19** — **§9.4 says how the one source of truth works, and §12 registers
   `LRAN-Config-Set-Brief`.** The operator chose the general `config/set` route and accepted
