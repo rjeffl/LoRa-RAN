@@ -1391,6 +1391,44 @@ carry it; the dense case stays runnable because it is what made the question vis
 > gone from `task_runtime.cpp` when BF-23 is accepted, and by `per_measure.py --arm
 > saturated` returning a valid window.
 
+**§8.1.1 corrects two things above**, measured 2026-09-21: `--gap 2000` is not a zero-PER
+configuration, and the spacing effect this section assumes is real was in doubt when this
+section was written. The table and the paragraphs above stand as taken on 2026-09-17.
+
+### 8.1.1 The interleaved sweep, 2026-09-21: spacing is a variable, and so is something else
+
+**Two interleaved sweeps put the spacing effect back on the evidence, and correct §8.1's
+assumption that a 2000 ms gap loses nothing.** The engineering log's 2026-09-21 entry
+carries the numbers; this section carries what they change for V-B12.
+
+**Why an interleaved run was needed.** Every sweep before it ran one spacing to completion
+before starting the next, so a slow change in the environment and an effect of spacing
+produced the same table — and on 2026-09-17 the two readings disagreed, with a 2000 ms
+control losing 8 % and a 250 ms arm losing nothing. `tools/simctl/sweep_interleave.py`
+alternates the arms inside one session and pools the frames by arm, by position in the
+session, and by both at once. The cross-tab is the one that separates them: an arm ordering
+that holds inside both halves has survived the passage of time by construction.
+
+| Pooled over both sweeps, 1280 frames | 250 ms | 2000 ms |
+|---|---|---|
+| Lost | 25 of 640 | 2 of 640 |
+| PER | **3.91 %** | **0.31 %** |
+
+**The denser arm lost more in all four run-by-half cells**, so the effect is not an artifact
+of when the bursts ran.
+
+**What changes for the saturated arm.** `--gap 2000` remains the comparable configuration
+and the reasoning for it is unchanged, but **"a spacing whose idle PER is zero" is not
+available on this bench** — 2000 ms measured 0.31 %, and both of those losses sat in a gap
+containing a bridge transmission. **So the saturated arm needs an idle control in the same
+session rather than a remembered zero**, which is what this instrument already does: run
+both arms of V-B12 interleaved, not in blocks.
+
+**What is not settled.** The dense arm's rate moved by a factor of four *within* each
+session — up in run 1, down in run 2 — while the sparse arm held still. That second variable
+is unidentified, and it is why a single block-ordered sweep can land anywhere between 0 %
+and 8 %. Only two spacings ran, so §8.1's 1100 ms knee is neither confirmed nor moved.
+
 ---
 
 ## 9. Integration observations
@@ -2183,6 +2221,7 @@ that drifts is the one that gets followed.
 | Version | What changed |
 |---|---|
 | **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's**, on its own branch |
+| **v0.40** | **New §8.1.1** — two interleaved sweeps on 2026-09-21 separate spacing from the passage of time, and **correct §8.1's assumption that a 2000 ms gap loses nothing**: it measured 0.31 % over 640 frames. V-B12's two arms run interleaved rather than in blocks |
 | **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§10.9.2's `CONFIG` row follows D52 and D53**, as the simnode now does. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |
 | **v0.38** | **New §6.6.1** — BF-27's raw frame log, the one debug tool of §6.6 built so far. Records the deviation from §16.2's retention rule and the reason it is raised against the specification rather than settled locally |
 | **v0.37** | **New §8.1** — **B3b accepted** and **V-B12 moved to B4**; §7.1's milestone column follows. The saturated arm needs BF-23's runtime lever and BF-26's bench diagnostics, and neither exists on this firmware |
