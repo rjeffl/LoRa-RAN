@@ -235,6 +235,7 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
         on_command(e, hdr, payload, len, now_ms);
         return;
       }
+      if (answer_roll_only(e, hdr, payload, len)) return;
       break;
     case lran::MsgType::Config:
       if (e.role == Role::GateLink) {
@@ -272,6 +273,43 @@ bool Node::silenced(Identity& e, const char* what, const lran::Header& hdr) {
   ++e.answers_suppressed;
   sink_printf(log_, "fault %02x silent: %s from %02x seq %u not answered, %u left", e.id, what,
               hdr.src, static_cast<unsigned>(hdr.seq), static_cast<unsigned>(e.silent_left));
+  return true;
+}
+
+void Node::on_roll(Identity& e, const lran::Header& hdr, const lran::msg::Command& c) {
+  // spec 10.6 - the same guard as REBOOT, and the same answer to a wrong one.
+  if (c.arg != lran::kRollContextGuard) {
+    sink_printf(log_, "roll %02x <- %02x seq %u: arg 0x%02x, REJECTED_ARG", e.id, hdr.src,
+                static_cast<unsigned>(hdr.seq), static_cast<unsigned>(c.arg));
+    send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedArg, 0);
+    return;
+  }
+  // spec 10.6 node step 1 - a command still executing keeps its context. Emptying the cache
+  // now would drop its result, and the bridge's retry of that command would meet a fresh
+  // cache and run it a second time. The bridge retries the roll under the same seq.
+  if (e.gate.any_in_flight()) {
+    sink_printf(log_, "roll %02x <- %02x seq %u: a command is in flight, ACTUATOR_BUSY", e.id,
+                hdr.src, static_cast<unsigned>(hdr.seq));
+    send_ack(e, hdr.src, hdr.seq, lran::AckResult::ActuatorBusy, 0);
+    return;
+  }
+  const lran::CtxId old_ctx = e.ctx_id;
+  ids_->roll_context(e.id);
+  sink_printf(log_, "roll %02x <- %02x seq %u: ctx 0x%08lx -> 0x%08lx, ACCEPTED", e.id, hdr.src,
+              static_cast<unsigned>(hdr.seq), static_cast<unsigned long>(old_ctx),
+              static_cast<unsigned long>(e.ctx_id));
+  // spec 10.6 node step 3 - under the NEW ctx_id with status seq 1, the first frame of the
+  // new context. Through send_fresh_ack(), so the ack_suppress fault can lose it and the
+  // bridge's retry reaches spec 10.6 bridge step 4, REJECTED_CTX completing the roll.
+  send_fresh_ack(e, hdr.src, hdr.seq, lran::AckResult::Accepted, 0);
+}
+
+bool Node::answer_roll_only(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                            size_t len) {
+  lran::msg::Command c;
+  if (lran::msg::deserialize(payload, len, &c) != lran::Status::Ok) return false;
+  if (c.cmd != static_cast<uint8_t>(lran::Cmd::RollContext)) return false;
+  if (!silenced(e, "roll", hdr)) on_roll(e, hdr, c);
   return true;
 }
 

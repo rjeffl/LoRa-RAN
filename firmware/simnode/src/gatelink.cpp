@@ -285,6 +285,7 @@ const char* cmd_name(uint8_t cmd) {
     case lran::Cmd::ReleaseHold:    return "RELEASE_HOLD";
     case lran::Cmd::RequestStatus:  return "REQUEST_STATUS";
     case lran::Cmd::RequestConfig:  return "REQUEST_CONFIG";
+    case lran::Cmd::RollContext:    return "ROLL_CONTEXT";
     case lran::Cmd::SetDebugMode:   return "SET_DEBUG_MODE";
     case lran::Cmd::SetRelayDryRun: return "SET_RELAY_DRY_RUN";
     case lran::Cmd::SetBmsPolling:  return "SET_BMS_POLLING";
@@ -731,6 +732,10 @@ lran::AckResult Node::execute(Identity& e, const lran::msg::Command& c, AfterAck
       if (c.arg > 1) return lran::AckResult::RejectedArg;
       gl.bms_polling = c.arg == 1;
       return lran::AckResult::Accepted;
+    case lran::Cmd::RollContext:
+      // spec 9.4 - a roll skips steps 4-6, so on_command() answers it before the gate and
+      // it never reaches here. Refused rather than executed if that ever changes.
+      return lran::AckResult::RejectedUnknownCmd;
     case lran::Cmd::Reboot:
       if (c.arg != lran::kRebootGuard) return lran::AckResult::RejectedArg;
       *after = AfterAck::Reboot;
@@ -794,6 +799,13 @@ void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* paylo
                 e.id, static_cast<unsigned>(hdr.seq), static_cast<unsigned long>(e.ctx_id),
                 static_cast<unsigned>(e.gl.ctx_reject_left));
     send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedCtx, 0);
+    return;
+  }
+
+  // spec 9.4, 10.6 - a roll skips steps 4-6. The bridge sends it because its own seq
+  // cannot be trusted after a restart, so the gate must not judge that seq.
+  if (c.cmd == static_cast<uint8_t>(lran::Cmd::RollContext)) {
+    on_roll(e, hdr, c);
     return;
   }
 

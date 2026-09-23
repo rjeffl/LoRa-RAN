@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.44 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.33 §4 (BF-2 to BF-9), and §7's BF-34 for the context roll.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`). **`ROLL_CONTEXT` (spec §10.6, D58) is not built**, so a simnode answers it `REJECTED_UNKNOWN_CMD` until BF-34.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.46 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 §4 (BF-2 to BF-9), and §7's BF-34 for the context roll.
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **console commands, fault names, role names and schema IDs are exact tokens.**
@@ -48,6 +48,16 @@ instead of a second rejection, which is the one path the fault exists to produce
 (spec §10.3 step 3). **`set_displaced` completes its displacing set** since BF-21, so it
 moves `rx_reassembly_abandoned` alone; a capture from before that shows
 `rx_reassembly_timeout` as well.
+
+**`ROLL_CONTEXT` (BF-34, spec §10.6) is answered by every role, and it skips the gate.**
+Other commands stay `ROLE_GATELINK`'s alone. A bridge rolls every node it hears after it
+boots, and a role that stayed silent would draw a roll on every frame the bridge heard,
+inside whatever sweep was running. That was decided on 2026-09-23. **Keep three things:**
+the roll is answered after `ctx_reject` and before `CommandGate::check()`; it answers
+`ACTUATOR_BUSY` while `any_in_flight()` holds; and `roll_context()` changes the `ctx_id`,
+the gate and `tx_seq` only, where `new_context()` also clears what a reboot loses. The
+`ACCEPTED` ACK goes out under the new `ctx_id` through `send_fresh_ack()`, so
+`ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
 
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added

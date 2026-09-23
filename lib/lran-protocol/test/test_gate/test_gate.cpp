@@ -379,6 +379,50 @@ void test_each_verdict_moves_exactly_its_counter() {
 // The brief and the plan state 128 B of cache per peer. The entry is the part that
 // scales with capacity; the whole object is reported so the footprint can be recorded
 // from the target's own compiler.
+// spec 10.6 - the question a node asks before a ROLL_CONTEXT. True from check() to
+// record(), and false again once every executing command has a result.
+void test_any_in_flight_tracks_check_and_record() {
+  CommandGate g;
+  g.reset_context(0x11111111u);
+  TEST_ASSERT_FALSE(g.any_in_flight());
+  TEST_ASSERT_EQUAL(Verdict::Execute, g.check(1).verdict);
+  TEST_ASSERT_TRUE(g.any_in_flight());
+  TEST_ASSERT_EQUAL(Verdict::Execute, g.check(2).verdict);
+  TEST_ASSERT_TRUE(g.record(1, AckResult::Accepted, 0));
+  TEST_ASSERT_TRUE(g.any_in_flight());  // seq 2 still executing
+  TEST_ASSERT_TRUE(g.record(2, AckResult::Accepted, 0));
+  TEST_ASSERT_FALSE(g.any_in_flight());
+}
+
+// An in-flight entry pushed out of the cache is no longer in flight as far as a roll is
+// concerned: its retry already fails at step 5, so it has no result for a roll to lose.
+void test_any_in_flight_forgets_an_evicted_entry() {
+  CommandGate g;
+  g.reset_context(0x11111111u);
+  g.set_cache_depth(1);
+  TEST_ASSERT_EQUAL(Verdict::Execute, g.check(1).verdict);
+  TEST_ASSERT_EQUAL(Verdict::Execute, g.check(2).verdict);  // evicts seq 1, in flight
+  TEST_ASSERT_TRUE(g.record(2, AckResult::Accepted, 0));
+  TEST_ASSERT_FALSE(g.any_in_flight());
+}
+
+// spec 10.6 node step 2 - the roll empties the cache and the mark. A seq the old context
+// had cached executes again in the new one, which is what lets the restarted bridge's
+// seq 1 through.
+void test_roll_resets_cache_and_mark() {
+  CommandGate g;
+  g.reset_context(0x11111111u);
+  advance_to(g, 40);
+  TEST_ASSERT_EQUAL(Verdict::ReturnCached, g.check(40).verdict);
+  TEST_ASSERT_EQUAL(Verdict::Reject, g.check(1).verdict);
+
+  g.reset_context(0x22222222u);
+  TEST_ASSERT_EQUAL_HEX32(0x22222222u, g.ctx_id());
+  TEST_ASSERT_EQUAL_UINT16(0, g.high_water());
+  TEST_ASSERT_FALSE(g.any_in_flight());
+  TEST_ASSERT_EQUAL(Verdict::Execute, g.check(1).verdict);
+}
+
 void test_report_footprint() {
   char msg[96];
   snprintf(msg, sizeof(msg), "sizeof(CommandGate) = %u B, capacity %u",
@@ -410,6 +454,9 @@ int run_all() {
   RUN_TEST(test_seq_exhaustive_near_the_wrap);
   RUN_TEST(test_counters_optional);
   RUN_TEST(test_each_verdict_moves_exactly_its_counter);
+  RUN_TEST(test_any_in_flight_tracks_check_and_record);
+  RUN_TEST(test_any_in_flight_forgets_an_evicted_entry);
+  RUN_TEST(test_roll_resets_cache_and_mark);
   RUN_TEST(test_report_footprint);
   return UNITY_END();
 }

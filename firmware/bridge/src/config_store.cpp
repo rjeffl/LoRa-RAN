@@ -51,6 +51,18 @@ ConfigResult unknown_result(const char* name) {
 
 }  // namespace
 
+bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req) {
+  if (scope != ConfigScope::Node) return false;
+  if (req.op == lran::ConfigOp::GetAll || req.op == lran::ConfigOp::RestoreDefaults) {
+    return true;
+  }
+  for (size_t i = 0; i < req.count; ++i) {
+    const ParamDef* d = find_param(scope, req.entries[i].name);
+    if (d != nullptr && d->owner == Owner::Node && req.entries[i].value_readable) return true;
+  }
+  return false;
+}
+
 const ParamDef* find_param(ConfigScope scope, const char* name) {
   if (name == nullptr) return nullptr;
   if (scope == ConfigScope::Bridge) {

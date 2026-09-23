@@ -43,6 +43,16 @@ enum class ConfigScope : uint8_t {
 // owners, and the caller tells them apart by `owner` to decide which half applies it.
 const lran::config::ParamDef* find_param(ConfigScope scope, const char* name);
 
+// spec 10.6 bridge step 7 - whether a `config/set` on `scope` would send its node a
+// CONFIG: a GET_ALL or RESTORE_DEFAULTS on a node's topic, or a set naming at least one
+// readable node-held row. While the node's roll is pending such a set is refused whole,
+// before either half applies. A set naming only bridge parameters is not.
+//
+// It must agree with handle_config_set()'s own split, which queues a job exactly when
+// ConfigStore::apply() hands back a non-empty node half. test_config_store checks both
+// against the same requests.
+bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req);
+
 // One of the two documents' worth of rows, in table order.
 size_t scope_rows(ConfigScope scope, const lran::config::ParamDef** out, size_t cap);
 

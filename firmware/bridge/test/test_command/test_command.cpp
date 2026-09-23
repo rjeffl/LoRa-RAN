@@ -335,6 +335,15 @@ void test_the_capability_filter_matches_spec_8_1s_split() {
 //
 // This test is the one that would have been missing when B3b's bench run could not
 // command a simnode at all.
+// spec 10.6 - only the bridge's own boot sequence sends a roll. From Home Assistant it would
+// move a node to a context the bridge has not adopted.
+void test_no_node_type_may_be_sent_a_roll_from_home_assistant() {
+  const uint8_t roll = static_cast<uint8_t>(Cmd::RollContext);
+  TEST_ASSERT_FALSE(command_allowed(NodeType::GateLink, roll));
+  TEST_ASSERT_FALSE(command_allowed(NodeType::WellLink, roll));
+  TEST_ASSERT_FALSE(command_allowed(NodeType::Simnode, roll));
+}
+
 void test_a_simnode_is_allowed_every_command() {
   const uint8_t kEvery[] = {
       static_cast<uint8_t>(Cmd::Nop),           static_cast<uint8_t>(Cmd::Open),
@@ -470,6 +479,7 @@ int main() {
   RUN_TEST(test_an_ack_arriving_with_nothing_in_flight_is_ignored);
   RUN_TEST(test_the_capability_filter_matches_spec_8_1s_split);
   RUN_TEST(test_a_simnode_is_allowed_every_command);
+  RUN_TEST(test_no_node_type_may_be_sent_a_roll_from_home_assistant);
   RUN_TEST(test_the_timeout_and_retry_count_are_runtime_settable);
   RUN_TEST(test_the_window_survives_the_millis_wrap);
   RUN_TEST(test_the_command_frame_is_what_a_node_decodes);

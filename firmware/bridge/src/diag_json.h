@@ -27,6 +27,7 @@
 #include <cstdint>
 
 #include "command.h"
+#include "context_roll.h"
 #include "lora_stats.h"
 #include "lran/counters.h"
 #include "queues.h"
@@ -42,8 +43,10 @@ inline constexpr uint16_t kDiagPublishIntervalDefaultS = 60;
 // lran/bridge/diag/state - every spec 14.1 counter in kCounterRegistry order, then
 // `rx_dropped` (spec 14.1's sum) and `rx_frames`. `rx_unknown_src` is a registry row like
 // any other since BF-15a (spec 14 stage 9a); it was published beside them until then.
+// Then spec 14.1's two bridge counters, `ctx_rolls` and `ctx_roll_failed` (BF-34), which
+// the spec publishes with this registry although no node counts them.
 // Returns the length written, or 0 with out[0] = '\0' when `cap` is too small.
-size_t diag_rx_json(const lran::Counters& c, char* out, size_t cap);
+size_t diag_rx_json(const lran::Counters& c, const RollStats& roll, char* out, size_t cap);
 
 // What lran/bridge/diag/radio/state carries: the radio's own diagnostics and the queues'.
 struct RadioDiag {
@@ -69,6 +72,9 @@ size_t diag_node_json(const NodeState& s, uint32_t now_ms, char* out, size_t cap
 // reports the OUTCOME and a resync is invisible in it - spec 10.3's retry succeeds and
 // publishes `acked` exactly like a command that never resynced. `resyncs` is the
 // number that separates a healthy link from one whose node is rebooting under it.
-size_t diag_command_json(const CommandStats& s, char* out, size_t cap);
+//
+// The context roll's detail rides here too (BF-34). A roll is a COMMAND on the air, and a
+// command refused because its node's roll is pending is the command path's to report.
+size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out, size_t cap);
 
 }  // namespace bridge

@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.15
+**Version:** 0.16
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.13**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -516,8 +516,8 @@ class CommandGate {
   // spec 10.1, 10.3, 10.6 - a new context invalidates every cached entry and the mark.
   void reset_context(CtxId new_ctx);
 
-  // spec 10.6 - true while any entry awaits record(). Planned for BF-34: a node
-  // refuses ROLL_CONTEXT while this holds, because the roll would drop the result.
+  // spec 10.6 - true while any entry awaits record(). A node refuses ROLL_CONTEXT
+  // while this holds, because the roll would drop the result.
   bool any_in_flight() const;
 };
 
@@ -572,8 +572,11 @@ between the calls, not inside one.
 receives `ROLL_CONTEXT` asks `any_in_flight()` first and answers `ACTUATOR_BUSY` while it
 holds. Otherwise the node calls `reset_context()` with its new `ctx_id`, which clears the
 cache and the mark as a resync does. The dispatch decision stays the application's, as for
-every other command. **`any_in_flight()` and `Cmd::RollContext` (`0x12`) are not built
-yet**; **BF-34** adds them with the node and bridge halves.
+every other command. **BF-34** built `any_in_flight()`, `Cmd::RollContext` (`0x12`) and
+`kRollContextGuard` (`0xA5`). The guard has its own name, although its value is
+`kRebootGuard`'s, so changing one guard cannot move the other. **An evicted in-flight
+entry does not count as in flight.** Step 5 already refuses its retry, so a roll drops no
+result that a retry could still receive.
 
 ---
 
@@ -863,6 +866,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.16** — **§3.10's D58 half is built** by **BF-34**: `CommandGate::any_in_flight()`,
+  `Cmd::RollContext` and `kRollContextGuard`, with three `test_gate` cases. §3.10 records
+  that an evicted in-flight entry does not hold a roll back.
 
 - **v0.15** — **Protocol specification v0.12 → v0.13.** §4's table and store were built
   against v0.13's §7.4, §7.4.1 and §12.4, so they do not change. **D58** reaches §3.10: a
