@@ -2181,3 +2181,18 @@ to the roll. The retries of one roll reuse its `seq`, and a new roll takes the n
 
 **BF-34 is confirmed on air.** Impl Plan §6.2.2, the Firmware Tasks row and the bridge
 `CLAUDE.md` now say so.
+
+## 2026-09-23 — V-B12's saturated arm is deferred: its lever cannot saturate WiFi
+
+**`diag_interval_s` is not a WiFi load.** Impl Plan §8.1 names it as the saturated arm's
+lever, and BF-23 made it settable. Its floor is 10 s (`lran-config` table row `0x0002`). At
+that floor, `sched_diag()` publishes three small documents every 10 s. M22 and Bridge PRD
+§4.4 ask for a sustained MQTT or iperf flood. A run labelled `--arm saturated` on this lever
+would have closed V-B12 without testing R-4.4. Nothing ran on the bench.
+
+A bench-only UDP blaster on the bridge was chosen for planning. Loading WiFi that hard on
+the house network would slow every 2.4 GHz device on its channel, so the operator will set
+up the IoT network for the run instead. The
+[bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md) has the options and
+the decisions still open. §8.1's lever is not corrected yet; that edit rides with the
+blaster.
