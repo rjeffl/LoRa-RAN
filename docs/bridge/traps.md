@@ -221,3 +221,55 @@ when it was made**; do not re-stamp it. Changes from 2026-09-16 on are in the ha
   name**.
 - **The PHY parameters are stated rather than deferred, 2026-09-10.** A document citing
   Protocol Spec v0.9 or earlier reads §12.1 as "per D1" and `backoff_max_ms` as 500.
+
+## Bench credentials
+
+**The broker is a sandbox, and that changes what is safe.**
+
+**The broker at the address in `secrets.h` is a disposable sandbox Home Assistant install
+with its own Mosquitto.** Its credentials are **not** the production ones, so they may be
+put into the environment directly rather than prompted for. **That changes at the
+production cutover**, after which a password must not reach argv, a log or a committed
+file.
+
+**`simctl`, `per_measure`, `rxlog` and `sweep_interleave` read `LRAN_MQTT_HOST`,
+`LRAN_MQTT_USER` and `LRAN_MQTT_PASSWORD` from the environment and never take them as
+arguments.** Source them out of `secrets.h` with command substitution so nothing prints:
+
+```bash
+export LRAN_MQTT_HOST=$(sed -n 's/^#define MQTT_HOST[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+export LRAN_MQTT_USER=$(sed -n 's/^#define MQTT_USER[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
+```
+
+**The OTA password is read from `LRAN_OTA_PASSWORD`** in the shell that runs the upload.
+
+## Git, branches and merging
+
+**Two branches revising one document will collide on its version number, silently**, and
+git will auto-merge the version line because both sides typed the same text. **Before
+revising a shared document, read the other branch's copy** — `git show
+origin/<branch>:<path>` — and take the next version. This bit twice: the Decision Register
+on 2026-09-20, and the Bridge Implementation Plan on 2026-09-21, where one branch took
+v0.40 and the other therefore took v0.41. Put new reasoning in a **`.N` subsection** under
+the section that owns it, the §3.2.1 precedent, rather than the next free number.
+
+**Merging a stack: never pass `--delete-branch`.** Deleting a base branch **closes** the PR
+stacked on it rather than retargeting it. Merge each PR without it, retarget the next to
+`main` while it is still open, then delete branches by hand. **Check `gh pr view <n> --json
+baseRefName` after every stack merge.** Expect the child to conflict once retargeted, and
+**merge `main` in rather than rebasing** — a rebase rewrites the commits the next PR is
+built on.
+
+**Deleting a remote branch is the operator's command, not the agent's.** Do the local half
+— `git worktree remove`, then `git branch -d` — record the tip SHAs, and hand over one
+`git push origin --delete <names…>` line.
+
+**A push touching `.github/workflows/` needs workflow token scope.** It was refused once,
+on 2026-09-08, and accepted since. Try the push; if it is refused, the operator refreshes
+auth.
+
+**Permanent history is citable; moving state is not.** `4250e00` (six document defects),
+`ebdcf0d` (the `LoRaBridge` retirement), `8253085` (**P8**, D34's amendment, spec v0.11),
+`76e6d11` (M25's capture), `530a137` (D1 day 1's captures), `47b8c87` (D1 accepted, D33's
+condition 3 restated) and `8fba937` (`/lib/lran-config/`).

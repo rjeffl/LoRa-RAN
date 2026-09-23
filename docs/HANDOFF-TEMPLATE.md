@@ -33,6 +33,30 @@ It replaces the previous file wholesale.
 > the documents below, they win — check the log's last entry against the date above before
 > trusting anything here.
 
+## Start here
+
+<!--
+  THE SECTION A SESSION READS FIRST, AND OFTEN THE ONLY ONE. A session does one task group
+  and reads only what that task needs (root CLAUDE.md, Workflow). Give each queued task a
+  ready-to-paste opening line and the sections it needs - not "read the whole file".
+  Keep it under about twenty lines. Durable reference goes in traps.md, not here.
+-->
+
+**A session does one task group, and reads only what that task needs.** Open it with one
+of these lines, then read this section and the sections the table names:
+
+```text
+Continue from docs/TODO(handoff)/HANDOFF.md: TODO(handoff): the task.
+```
+
+| Task | Read |
+|---|---|
+| TODO(handoff): the task | TODO(handoff): the sections of this file and the documents it needs |
+
+**The cleanup the task produced is part of the task.** Close the session by committing,
+pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
+section and *The next job*.
+
 ## The next job, in one place
 
 <!--
@@ -155,8 +179,9 @@ TODO(handoff): what changed, from when, and what it does not invalidate.
 ## Traps that cost real time here
 
 <!--
-  The highest-value section in the range-test handoff, and the one to start rather than
-  defer. One line each, index style; the engineering log holds the full account.
+  One line each, index style, and only the traps the next job meets first. The full set
+  lives in docs/<node>/traps.md, which is kept current; the engineering log holds the
+  full account.
   Earn a place by having cost an hour. Prefer traps whose symptom points at the wrong
   cause - those are the expensive ones.
 -->

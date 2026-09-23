@@ -1,18 +1,39 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that ran BF-34 on the bench, on branch
-`b4-vb12-saturated`.** BF-34 is spec v0.13 §10.6's context roll after a bridge restart
-(**D58**, Bridge PRD **R-3.1h**). **It is confirmed on air.** After a bridge reflash, f1's
-first command executed and was acknowledged with no `DUPLICATE_CACHED`. The three branches
-that had been host-tested only, `REJECTED_CTX`, `ACTUATOR_BUSY` and `ctx_roll_failed`,
-passed on air too. The operator accepted BF-34, and this session merged it. This file
-replaces the previous one wholesale.
+**Written 2026-09-23 by the session that ran BF-34 on the bench.** BF-34, spec v0.13
+§10.6's context roll after a bridge restart (**D58**, Bridge PRD **R-3.1h**), is confirmed
+on air and merged. Impl Plan §6.2.2 records what it decided. This file replaces the
+previous one wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees
 > with the documents below, they win — check the log's last entry against the date above
 > before trusting anything here.
+
+## Start here
+
+**A session does one task group, and reads only what that task needs.** Open it with one
+of these lines, then read this section and the sections the table names — not the whole
+file:
+
+```text
+Continue from docs/bridge/HANDOFF.md: V-B12's saturated arm, on the bench.
+Continue from docs/bridge/HANDOFF.md: BF-26, the bench publication gate.
+Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
+```
+
+| Task | Read |
+|---|---|
+| **V-B12's saturated arm** (bench) | *The next job*; *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1** and **§8.1.1** |
+| **BF-26** (no board) | *The next job*; Impl Plan **§4.2a** and **§4.4.2**; Firmware Tasks' BF-26 row; spec **§16.6** |
+| **BF-24** (no board) | *The next job*; Impl Plan **§6.3**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row |
+
+**The cleanup the task produced is part of the task**: stale comments and document lines
+it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
+worktrees. **Close the session** by committing, pushing and opening the PR. Merge it once
+the operator accepts it. Then rewrite *Start here* and *The next job* for the next task.
+Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
@@ -39,29 +60,6 @@ boot**, so let every identity roll before a sweep's first arm.
   switch on needs `g_availability.mark_known_pending()` and a discovery republish.
 - **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
   `task_runtime.cpp` and `task_runtime.h`.
-
-### What BF-34 decided
-
-Impl Plan §6.2.2 has the full table. The two decided with the operator on 2026-09-23 depart
-from what was written:
-
-- **A bench row keeps the 2026-09-14 heard-first poll rule.** Spec §10.6 step 1's boot
-  `POLL` is the poll scheduler's for production rows only, and a bench row rolls when the
-  bridge first hears it.
-- **Every simnode role answers `ROLL_CONTEXT`**, where the BF-34 row named `ROLE_GATELINK`
-  alone. A silent role would draw a roll on every frame the bridge heard, inside a sweep.
-
-And the ones the session chose:
-
-- **The roll is its own state machine**, `context_roll.{h,cpp}`, and serializes with the
-  command path. It waits on `command_ack_timeout_ms` and `cmd_retries`.
-- **A failed roll stays pending** and runs again when the node is next heard. Nothing falls
-  back to commanding a node whose context did not move.
-- **A command is refused on `sched_task`** as `{"outcome":"context_roll_pending"}` on
-  `cmd/ack`. **A `config/set` is refused whole on `mqtt_task`**, before either half
-  applies, through `config_set_reaches_node()` and an atomic pending mask.
-- **`ctx_rolls` and `ctx_roll_failed` are spelled in `diag_json.cpp`**, not added to
-  `kCounterRegistry`, which builds a node's schema `0xF0`.
 
 ## Open, and not closable from here
 
@@ -101,7 +99,10 @@ And the ones the session chose:
   for the JSON against `generate.py`. Cite W4 and spec §13.2, and give it a branch of its
   own.
 
-## Read these, in this order
+## Reference documents
+
+**Read only the rows your task names in *Start here*.** Rows 2 and 3 are the ones most
+worth a targeted read: the log's latest entry for the task, and one section of the traps.
 
 | # | Document | Why |
 |---|---|---|
@@ -167,54 +168,8 @@ git branch -vv | grep ': gone]'                 # local branches whose remote wa
 ```
 
 **Run `git fetch` before trusting any of it.** Two machines push to this repository.
-
-**Two branches revising one document will collide on its version number, silently**, and
-git will auto-merge the version line because both sides typed the same text. **Before
-revising a shared document, read the other branch's copy** — `git show
-origin/<branch>:<path>` — and take the next version. This bit twice: the Decision Register
-on 2026-09-20, and the Bridge Implementation Plan on 2026-09-21, where one branch took
-v0.40 and the other therefore took v0.41. Put new reasoning in a **`.N` subsection** under
-the section that owns it, the §3.2.1 precedent, rather than the next free number.
-
-**Merging a stack: never pass `--delete-branch`.** Deleting a base branch **closes** the PR
-stacked on it rather than retargeting it. Merge each PR without it, retarget the next to
-`main` while it is still open, then delete branches by hand. **Check `gh pr view <n> --json
-baseRefName` after every stack merge.** Expect the child to conflict once retargeted, and
-**merge `main` in rather than rebasing** — a rebase rewrites the commits the next PR is
-built on.
-
-**Deleting a remote branch is the operator's command, not the agent's.** Do the local half
-— `git worktree remove`, then `git branch -d` — record the tip SHAs, and hand over one
-`git push origin --delete <names…>` line.
-
-**A push touching `.github/workflows/` needs workflow token scope.** It was refused once,
-on 2026-09-08, and accepted since. Try the push; if it is refused, the operator refreshes
-auth.
-
-**Permanent history is citable; moving state is not.** `4250e00` (six document defects),
-`ebdcf0d` (the `LoRaBridge` retirement), `8253085` (**P8**, D34's amendment, spec v0.11),
-`76e6d11` (M25's capture), `530a137` (D1 day 1's captures), `47b8c87` (D1 accepted, D33's
-condition 3 restated) and `8fba937` (`/lib/lran-config/`).
-
-## Bench credentials — the broker is a sandbox, and that changes what is safe
-
-**The broker at the address in `secrets.h` is a disposable sandbox Home Assistant install
-with its own Mosquitto.** Its credentials are **not** the production ones, so they may be
-put into the environment directly rather than prompted for. **That changes at the
-production cutover**, after which a password must not reach argv, a log or a committed
-file.
-
-**`simctl`, `per_measure`, `rxlog` and `sweep_interleave` read `LRAN_MQTT_HOST`,
-`LRAN_MQTT_USER` and `LRAN_MQTT_PASSWORD` from the environment and never take them as
-arguments.** Source them out of `secrets.h` with command substitution so nothing prints:
-
-```bash
-export LRAN_MQTT_HOST=$(sed -n 's/^#define MQTT_HOST[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
-export LRAN_MQTT_USER=$(sed -n 's/^#define MQTT_USER[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
-export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)".*/\1/p' secrets.h)
-```
-
-**The OTA password is read from `LRAN_OTA_PASSWORD`** in the shell that runs the upload.
+[`traps.md`](./traps.md#git-branches-and-merging) has the merge and push gotchas; read
+them before closing a session.
 
 ## Hardware state
 

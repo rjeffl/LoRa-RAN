@@ -64,6 +64,12 @@ grep -n "TODO(handoff)" docs/<node>/HANDOFF.md   # empty before commit
 grep -c "<!--" docs/<node>/HANDOFF.md            # 0 before commit
 ```
 
+**Keep a handoff short enough to read at the start of every session.** Its *Start here*
+section names what each queued task needs, so a session reads that and nothing more.
+Reference that outlives the next job — traps, bench credentials, git gotchas — goes in
+`docs/<node>/traps.md`, which is kept current. On 2026-09-23 the range-test handoff had
+grown to 709 lines for a directory that owed no work.
+
 **Commit the handoff on the session's own branch while that branch is still open.** On a
 branch of its own, a handoff needs its own PR and review, and it can describe work that
 reaches `main` only through another PR. #85 had to tell its reviewer to merge #83 first,
