@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.13 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.44
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.33 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.45
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -199,6 +199,22 @@ is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (
   blanks every row the set did not name, which the bench showed on 2026-09-21.
 - **NVS restores through `Store::apply()`**, so a value stored before a range changed is
   clamped on the way back in and a row that has since become `READ_ONLY` is refused.
+
+**`BF-34` — the context roll after a bridge restart, built and host-tested 2026-09-23;
+not yet on air.** `context_roll.{h,cpp}` decides and `sched_task` acts; Impl Plan §6.2.2
+and spec §10.6. **Four things to keep:**
+
+- **No node leaves the pending state except through a completed roll.** A failed roll
+  stays pending and runs again when the node is next heard. Falling back to commanding
+  the node is how a command gets acknowledged and never run.
+- **The roll claims its `COMMAND_ACK` before the command path sees it**, in
+  `cmd_on_ack()`. An ACK neither claims is counted by `CommandPath` alone.
+- **The roll and the command path serialize**, because the roll resets the node's `seq`
+  space. That is the same reason there is one command in flight.
+- **A `config/set` is refused on `mqtt_task`, before either half applies.**
+  `config_set_reaches_node()` must agree with `ConfigStore::apply()`'s split, and
+  `test_config_store` checks that. `mqtt_task` reads the pending bits from an atomic
+  that only `sched_task` writes.
 
 **Still absent: the publication policy** — BF-24. It arrives with its own `BF-*` task; do
 not add one early because it is convenient.

@@ -2050,3 +2050,58 @@ or to have the bridge force a new node context after its own boot.
 
 **The bench reproduces it in one step.** Send any authenticated frame to a `ROLE_GATELINK`
 simnode identity, reboot the bridge without rebooting the simnode, and send another.
+
+## 2026-09-23 — BF-34 built: every node's context rolls after a bridge boot, host-tested only
+
+**BF-34 builds spec v0.13 §10.6 on branch `b4-bf34-context-roll`.** It closes the gap the
+entry above found. Nothing is on air yet. The library suite passes 135 tests, the bridge
+suite 334 and the simnode suite 115. The `heltec`, `simnode-heltec` and `simnode-xiao-wio`
+targets all build.
+
+- **Library.** `Cmd::RollContext` (`0x12`), `kRollContextGuard` (`0xA5`) and
+  `CommandGate::any_in_flight()`. An evicted in-flight entry does not count as in flight.
+- **Simnode.** A roll skips the gate. It answers `ACTUATOR_BUSY` while a command is in
+  flight. Otherwise it takes a new `ctx_id` and resets the gate and `tx_seq`, and changes
+  nothing else.
+- **Bridge.** `context_roll.{h,cpp}`. Every node starts pending and is rolled when first
+  heard. Until its roll completes, a command is refused on `cmd/ack` and a node-held
+  `config/set` is refused whole on `config/ack`. `ctx_rolls` and `ctx_roll_failed` are on
+  `lran/bridge/diag/state`.
+
+**The operator decided two points during the build.** Both depart from the letter of what
+was written, and Impl Plan §6.2.2 records them:
+
+1. **A bench row keeps the 2026-09-14 heard-first poll rule.** Spec §10.6 step 1 asks for a
+   boot `POLL` to each registered node. The poll scheduler already sends one to every
+   production row. A bench row gets none, and rolls when the bridge first hears it.
+2. **Every simnode role answers `ROLL_CONTEXT`**, where the BF-34 row named
+   `ROLE_GATELINK` alone. A `ROLE_RANGE` or `ROLE_HEALTH` identity that ignored the roll
+   would draw another on every frame the bridge heard, which puts roll traffic inside a
+   sweep.
+
+**The first consequence to expect on the bench.** After a bridge reflash, a simnode
+identity refuses commands and `CONFIG` until the bridge hears it. `push f1` starts the
+roll. `traps.md` has the entry, which replaces the one telling the operator to reboot the
+simnode as well.
+
+**What the bench run must show**, using the one-step reproduction above:
+
+1. Flash both boards from a committed tree, and hold both serial ports open for the run.
+2. Send f1 a `get_all` and a command, so its cache holds seq 1 and 2.
+3. Reflash the bridge and leave the simnode running.
+4. Send f1 a command before it is heard. Expect `{"outcome":"context_roll_pending"}` on
+   `cmd/ack`, and `cmd_refused_roll_pending` 1.
+5. `push f1`. Expect `roll: f1 rolled to ctx …` on the bridge, and `roll f1 <- 00 seq 1:
+   ctx … -> …, ACCEPTED` on the simnode. `ctx_rolls` should read 1.
+6. Send the command again. Expect it executed and `acked`, and **no `DUPLICATE_CACHED`**,
+   which is the falsifier for the whole task.
+
+Three branches that are hard to reach on air are host-tested only. An `ack f1 suppress 1`
+before step 5 reaches spec §10.6 step 4, where `REJECTED_CTX` completes the roll. An
+`ack f1 delay` with a command in flight reaches the `ACTUATOR_BUSY` retry. A roll aimed
+at no board exhausts its retries and counts `ctx_roll_failed`.
+
+**One interaction for the next state-mirror work.** The open item that invalidates the
+state mirror when a node's `ctx_id` changes must not fire on a roll. A roll changes the
+`ctx_id` and keeps the node's configuration (spec §10.6 node step 2), so a readback there
+would cost a frame and tell the bridge nothing new.

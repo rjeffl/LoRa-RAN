@@ -152,10 +152,13 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
   plugged in.
 - **`restore_defaults` on `lran/bridge/config/set` leaves per-node rows alone.** Clear
   `poll_interval_s` on the node's own `config/set`.
-- **Rebooting the bridge without rebooting a simnode reuses command `seq` values**, until
-  **D58** is built. The first authenticated frame to that simnode draws
-  `DUPLICATE_CACHED` and is not applied. Reboot the simnode too, which a reopened serial
-  port does, or expect it.
+- **After a bridge boot, a bench identity refuses commands and `CONFIG` until the bridge
+  hears it** (BF-34, spec §10.6). Every node starts with its context roll pending, and a
+  bench row is polled only once heard, so nothing starts that roll by itself. A command
+  draws `{"outcome":"context_roll_pending"}` on `cmd/ack`, and a node-held set draws
+  `error: context_roll_pending` on `config/ack`. `push f1`, or any frame the identity
+  sends, starts the roll. `roll: f1 rolled to ctx …` on the bridge's serial log says it
+  finished. Before BF-34 the same reflash drew `DUPLICATE_CACHED` instead.
 
 ## Boot, OTA and V-B9
 

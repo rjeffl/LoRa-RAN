@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.44
+**Version:** 0.45
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -979,8 +979,7 @@ MQTT command topic
 restart answers a `seq` it has cached with `DUPLICATE_CACHED` and does not run the command.
 The bridge therefore polls every registered node at boot and sends `ROLL_CONTEXT` when each
 is first heard, and it refuses commands and `CONFIG` to that node until the roll completes.
-**BF-34** builds it; until then, a bridge reflash is followed by a reboot of every simnode
-(`traps.md`).
+**BF-34** built it on 2026-09-23, and §6.2.2 records the choices.
 
 **A retry that reaches the node while it is still executing gets no answer** (Protocol
 Spec §9.4, v0.11). The node counts it in `rx_dup_command` and stays silent, so the retry
@@ -1022,6 +1021,26 @@ link from a node rebooting underneath it.
 host-tested and the bench could not force it — the window between the node's rejection
 and the bridge's retry is under one second. A simnode `ctx_reject` fault would make it
 deterministic; raised for **BF-21**.
+
+#### 6.2.2 What BF-34 built, 2026-09-23
+
+**The roll is `context_roll.{h,cpp}`, built like the command path**: Arduino-free, doing no
+I/O, deciding while `sched_task` acts. It has 13 host tests in `test_context_roll`, and
+`test_command`, `test_diag` and `test_config_store` each gained a case. **It is not yet
+confirmed on air**; the engineering log's BF-34 entry says what the bench run must show.
+
+| Decision | Why |
+|---|---|
+| A state machine of its own, not a mode of `CommandPath` | The two read the same answers differently. `REJECTED_CTX` completes a roll and resyncs a command. `ACTUATOR_BUSY` retries a roll and ends a command. A roll publishes nothing on `cmd/ack`. One class holding both readings would branch on every answer |
+| The roll and the command path serialize | A roll resets the node's command `seq` space, which is the reason §6.2.1 gives for one command in flight. A roll does not start while a command is in flight, and a command is not admitted while a roll is |
+| Timed by `command_ack_timeout_ms` and `cmd_retries` | A roll is a `COMMAND` on the air. A lever of its own would be a new table row for a wait that is the same wait (root rule 8) |
+| `ACTUATOR_BUSY` is retried after the ACK window, and spends an attempt | The node sends nothing more after a BUSY, so an immediate retry finds it still busy. An attempt per BUSY means a node stuck busy ends in `ctx_roll_failed` rather than holding the command path off without limit |
+| A failed roll waits for the node's next frame, and the answer that failed it does not count | `app_task` reports a frame as heard before it reports the ACK inside it. Counting that ACK would restart the roll at once, and a node without `ROLL_CONTEXT` would then be rolled back to back instead of once per frame it sends |
+| The boot `POLL` is the poll scheduler's | It already polls every production row on its first ticks. **A bench row keeps the 2026-09-14 heard-first rule**, confirmed by the operator on 2026-09-23: it rolls when first heard (spec §10.6 step 2), and a simnode not on the bench costs no airtime. This departs from step 1's "each registered node" for bench rows only |
+| **Every simnode role answers a roll**, decided with the operator on 2026-09-23 | A `ROLE_RANGE` or `ROLE_HEALTH` identity that ignored it would fail every roll and draw another on each frame the bridge heard, which puts roll traffic inside a sweep. Other commands stay `ROLE_GATELINK`'s alone (§10.9.2) |
+| A command is refused on `sched_task`, when it leaves the queue | `sched_task` owns the pending state and already publishes `cmd/ack`. The payload is `{"outcome":"context_roll_pending"}` with no `seq`, because none was taken |
+| A `config/set` is refused on `mqtt_task`, before either half applies | Spec §10.6 refuses it **whole**, and the bridge half applies on `mqtt_task`. `config_set_reaches_node()` picks out the sets that would send a `CONFIG`, and its test checks it against `ConfigStore::apply()`'s split. `mqtt_task` reads the pending bits through one atomic that `sched_task` alone writes. A bit only clears after boot, so a clear bit can be trusted without the lock |
+| `ctx_rolls` and `ctx_roll_failed` are spelled in `diag_json.cpp`, not added to `kCounterRegistry` | The registry is what a node's schema `0xF0` is built from, and no node counts these. The roll's detail rides on `diag/cmd/state`: `roll_sent`, `roll_retries`, `roll_busy`, `roll_by_rejected_ctx` and `cmd_refused_roll_pending` |
 
 ### 6.3 Publication policy
 
@@ -2124,8 +2143,10 @@ by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
 actuation commands answer per spec §8.2, and an actuation command is counted in `actuations`.
 `SET_RELAY_DRY_RUN 1` turns later actuations into `DRY_RUN`. `REQUEST_STATUS` and
 `REQUEST_CONFIG` follow their ACK with a status or a readback. `REBOOT` with `0xA5` follows
-its ACK with a new context and a `BOOT` status. **`ROLL_CONTEXT` is not built** (spec §10.6,
-**BF-34**), so a simnode answers it `REJECTED_UNKNOWN_CMD` today.
+its ACK with a new context and a `BOOT` status. **`ROLL_CONTEXT` is answered by every role**
+since BF-34 (spec §10.6, §6.2.2). It skips the gate and answers `ACTUATOR_BUSY` while a
+command is in flight. Otherwise it takes a new `ctx_id` and resets the gate and the status
+`seq`, and nothing else. The `ACCEPTED` ACK goes out under the new `ctx_id`.
 
 The engineering log's BF-6 entry records three questions for spec v0.12: how a
 `DUPLICATE_CACHED` ACK carries the cached result, what answers a repeated `CONFIG`, and
@@ -2289,6 +2310,12 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.45** — **BF-34 is built**, and §6.2.2 records its choices. Two were decided with the
+  operator on 2026-09-23. A bench row keeps the heard-first poll rule and rolls when first
+  heard, so spec §10.6 step 1's boot `POLL` is the poll scheduler's for production rows
+  only. Every simnode role answers `ROLL_CONTEXT`. §6.2 and §10.9.2 no longer say the roll
+  is unbuilt.
+
 - **v0.44** — **Protocol specification v0.12 → v0.13.** **D58** reaches the command path:
   after a bridge restart, each node's commands wait on its context roll (spec §10.6, Bridge
   PRD R-3.1h). §6.2 says so and names **BF-34**, which builds it. §10.9.2 says a simnode
@@ -2315,6 +2342,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.45** | **§6.2.2**: BF-34 is built. A bench row rolls when first heard, and every simnode role answers a roll |
 | **v0.44** | Spec v0.13 citation. §6.2 gains D58's context roll and **BF-34**; §2.2's PHY paragraph follows D56 |
 | **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air, and it gains `config_ack_timeout_ms`. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed. **New §6.7.6**: `ConfigLock`, and why a lock rather than handing the resolution to `mqtt_task`. **§6.7.3** names the ACK timeout's row |
 | **v0.42** | **New §4.4.2**: BF-23's lever half. Each bridge row of the configuration table now reaches the code it configures, except `simnode_diag_enable`. Values travel on a lock-free board, are applied on the owning task, and are published after the NVS restore. Host-tested, not yet on air. **§8.1**'s falsifier records that its first check passed |

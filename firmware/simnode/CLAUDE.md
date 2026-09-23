@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.44 §10.
-**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.33 §4 (BF-2 to BF-9), and §7's BF-34 for the context roll.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`). **`ROLL_CONTEXT` (spec §10.6, D58) is not built**, so a simnode answers it `REJECTED_UNKNOWN_CMD` until BF-34.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.45 §10.
+**Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 §4 (BF-2 to BF-9), and §7's BF-34 for the context roll.
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **console commands, fault names, role names and schema IDs are exact tokens.**
