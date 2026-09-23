@@ -1148,6 +1148,7 @@ on one UART — is a node implementation matter and is specified in
 | `0x04` | `RELEASE_HOLD` | UNLOCK; auto-close then closes |
 | `0x10` | `REQUEST_STATUS` | — |
 | `0x11` | `REQUEST_CONFIG` | — (its `COMMAND_ACK` is followed by an unsolicited `CONFIG_ACK` readback, §7.4) |
+| `0x12` | `ROLL_CONTEXT` | `arg` = `0xA5` required as a confirmation guard. The node takes a new `ctx_id` (§10.6, **D58**) |
 | `0x20` | `SET_DEBUG_MODE` | `arg2` = bitmask of debug modes |
 | `0x21` | `SET_RELAY_DRY_RUN` | `arg` = `0` off, `1` on |
 | `0x22` | `SET_BMS_POLLING` | `arg` = `0` off, `1` on |
@@ -1483,6 +1484,12 @@ to back and the order is exactly v0.3's.
    `COMMAND_ACK(REJECTED_SEQ)`.
 6. Update `rx_high_water = seq`, dispatch.
 
+**`ROLL_CONTEXT` skips steps 4 to 6** (§10.6, **D58**). Steps 1–3 run unchanged, so the
+request must carry the node's current `ctx_id` and a valid MAC. The bridge sends it
+because its own `seq` cannot be trusted after a restart, so the node does not check that
+`seq` against the dedup cache or `rx_high_water`. The roll then resets both instead of
+updating them.
+
 Step 3 before step 5 is deliberate: `seq` is attacker-visible, so checking it before
 authenticating would let an unauthenticated party learn the high-water mark from
 timing or response differences.
@@ -1589,12 +1596,18 @@ context, invalidating every previously captured command addressed to it.
 The bridge's own frames carry the **destination node's** `ctx_id`, not one of its own.
 The bridge does not have a context; it is the party that tracks everyone else's.
 
+**A node also takes a new context when the bridge asks for one**, after the bridge's own
+restart (§10.6). A new `ctx_id` therefore no longer means the node rebooted. Anything that
+reports a node reboot reads `boot_count` or `uptime_s` from `STATUS` (§7.2.4, §7.5).
+
 ### 10.2 Two independent sequence spaces per node
 
 | Space | Owner | Purpose | On node reboot |
 |---|---|---|---|
 | Command `seq` | bridge | **Replay protection** — strictly increasing, security-relevant | Bridge resets to `1` on learning a new `ctx_id` |
 | Status `seq` | node | **Ordering and dedup only** — not security-relevant | Resets to `1` |
+
+**A context roll (§10.6) resets both spaces as a node reboot does.**
 
 The bridge MUST treat status `seq` as advisory. It is useful for discarding duplicates
 within a short window and for detecting loss in diagnostics. **It MUST NOT be used to
@@ -1625,6 +1638,9 @@ above remain the only two that carry replay meaning.
 Step 3 exists to prevent a resync loop from becoming a transmit storm, which on a shared
 multi-node channel is a problem for every other node as well as this one.
 
+**A `REJECTED_CTX` answering a `ROLL_CONTEXT` completes the roll** (§10.6). It does not
+count toward step 3's limit.
+
 ### 10.4 Command deduplication — required, because pulses are not idempotent
 
 Commands are ACKed and the bridge retries with backoff. On a node driving **physical
@@ -1640,7 +1656,8 @@ For a fragmented authenticated frame the key is the `(ctx_id, seq)` shared by th
 §9.4.
 
 The cache is RAM-only and is lost on reboot, which is correct: a reboot changes
-`ctx_id`, so no pre-reboot `seq` can match anyway. A receiver holding one `ctx_id` per
+`ctx_id`, so no pre-reboot `seq` can match anyway. A context roll (§10.6) empties it for
+the same reason. A receiver holding one `ctx_id` per
 peer therefore stores only `(seq, result, detail)` per entry, and clearing the cache on
 a context change (§10.3) falls out of the same fact.
 
@@ -1660,8 +1677,80 @@ the ACK but not the frame after it recovers the frame with a `POLL`: bit 0 for s
 ### 10.5 Wrap behavior
 
 `seq` wraps modulo 2^16. At one command per minute, wrap takes ~45 days of continuous
-commanding, and any node reboot resets both counters. Comparison MUST use
+commanding, and any node reboot or context roll (§10.6) resets both counters. Comparison MUST use
 serial-number arithmetic (RFC 1982 style), not a plain `>`.
+
+### 10.6 Context roll after a bridge restart
+
+**After its own boot, the bridge moves every node onto a new context with `ROLL_CONTEXT`**
+(**D58**). A bridge restart resets its command `seq`, and §10.1 gives the bridge no context
+of its own to change. A node that did not restart still holds its `rx_high_water` and
+dedup cache under the same `ctx_id`. Without a roll, the bridge's first commands after a
+restart meet that state:
+
+- a `seq` still in the node's dedup cache draws `DUPLICATE_CACHED`, and its `detail`
+  carries the result of a **different, earlier** command. The bridge would report the new
+  command as acknowledged, and it never runs;
+- a `seq` at or below `rx_high_water` but no longer cached draws `REJECTED_SEQ`. Each
+  later command fails the same way and spends one `seq`, until the bridge's `seq` passes
+  the node's high-water mark.
+
+**The bridge:**
+
+1. **At boot, sends a `POLL` to each registered node.** The answer carries the node's
+   `ctx_id`, which the roll must be sent under. Without the `POLL`, the bridge would wait
+   for the node's next frame, up to one poll interval.
+2. **On first hearing each node after boot, sends it `ROLL_CONTEXT`** with `arg` =
+   `0xA5`, under the `ctx_id` that frame carried. Its `seq` is the bridge's next command
+   `seq` for that node, which the node does not check (§9.4). A retry reuses that `seq`,
+   as every command retry does.
+3. **On `COMMAND_ACK(ACCEPTED)`, adopts the `ctx_id` from the ACK's header** and resets
+   its command `seq` for that node to `1`, as §10.3 step 2 does. The roll is complete.
+4. **On `COMMAND_ACK(REJECTED_CTX)`, does the same.** The node rolled and its ACK was lost,
+   so the retry carried the old `ctx_id`. This answer completes the roll and does not count
+   toward §10.3 step 3's limit.
+5. **On `COMMAND_ACK(ACTUATOR_BUSY)`, retries with the same `seq`.** The node was still
+   executing a command sent before the bridge restarted.
+6. **When the retries run out, or the node answers with any other result**, counts
+   `ctx_roll_failed` (§14.1) and keeps the roll pending. It sends the roll again the next
+   time it hears that node. A node that answers `REJECTED_UNKNOWN_CMD` has no
+   `ROLL_CONTEXT`. No such node is deployed, so the bridge treats that answer as a fault
+   and does not fall back to commanding the node without a roll.
+7. **Until the roll completes, sends that node no `COMMAND` and no `CONFIG`.** A command
+   request for the node is refused on `cmd/ack`, naming the pending roll as the reason. A
+   `config/set` that would send the node a `CONFIG` is rejected whole on `config/ack` with
+   `persist` = `not_applied` and `error` = `context_roll_pending` (§16.7.3). A set naming
+   only bridge parameters is unaffected. The bridge refuses rather than holds, because a
+   held `OPEN` could reach the gate long after it was pressed.
+
+**The node, on a `ROLL_CONTEXT` that passes §9.4 steps 1–3:**
+
+1. **If any dedup cache entry is in flight** (§10.4), answers
+   `COMMAND_ACK(ACTUATOR_BUSY)` and changes nothing. Emptying the cache at that moment would
+   drop the running command's result.
+2. **Otherwise, rolls.** It generates a new random non-zero `ctx_id` different from the
+   current one, empties its dedup cache, sets `rx_high_water` to `0` and resets its status
+   `seq` to `1`. It changes nothing else: configuration, actuator state and counters
+   survive the roll.
+3. **Answers `COMMAND_ACK(ACCEPTED)`**, with `ack_seq` set to the request's `seq` and the
+   **new** `ctx_id` in the header. That ACK is the first frame of the new context.
+
+An `arg` other than `0xA5` is answered `REJECTED_ARG`, as for `REBOOT`.
+
+**Why the replay exposure is bounded.** A captured `ROLL_CONTEXT` carries the `ctx_id` it
+was sent under. The roll changes that `ctx_id`, so once the node has acted on the request,
+a replayed copy fails at §9.4 step 2. An attacker could replay the request only by
+stopping the original from arriving, and the replay would then perform the roll the bridge
+had asked for. **The worst case is a lost command window, never an actuation.** The
+request is authenticated, so nobody without the node's key can start a roll.
+
+> **Added in v0.13 (D58).** Through v0.12, §10.2 reset the command `seq` only when the
+> bridge learned a new `ctx_id`, and §10.4 said the dedup cache is lost on reboot *"which is
+> correct: a reboot changes `ctx_id`"*. Both assumed that only a node restarts. The bridge
+> bench found the gap on 2026-09-23: after a reflash, the bridge's first `CONFIG` to a
+> surviving simnode drew `DUPLICATE_CACHED` and was not applied. Persisting the bridge's
+> `seq` was rejected because it fails when the bridge board is replaced or its NVS is
+> erased. The Decision Register §2.3 and §3.7 have the alternatives.
 
 ---
 
@@ -2246,6 +2335,15 @@ like, and a dedup hit is the retry mechanism working exactly as §10.4 requires.
 Summing them would make `rx_dropped` climb during correct operation, which is the one
 thing a health metric must not do.
 
+**Two counters record §10.6's context roll and are the bridge's own.** Neither counts a
+discard, so neither is in `rx_dropped`. The bridge publishes both with the rest of this
+registry under `lran/bridge/diag/state` (§16.2.1).
+
+| Counter | Raised at | Wire code | In `rx_dropped` |
+|---|---|---|:---:|
+| `ctx_rolls` | §10.6 — a node's roll completed | — | **no** |
+| `ctx_roll_failed` | §10.6 — a roll's retries ran out, or the node answered it with a result other than `ACCEPTED`, `REJECTED_CTX` or `ACTUATOR_BUSY` | — | **no** |
+
 > **Why a registry, and why now.** Before v0.5 the counter names were scattered across
 > §14's stage table, §11 and §7.5, and stages 6 through 11 named no counter at all
 > while the section's opening line required one. Two names — `rx_reassembly_timeout`
@@ -2589,7 +2687,7 @@ integration, checked on 2026-09-19.
 | `op` | string | `set`, `get_all` or `restore_defaults`, echoed |
 | `persist` | string | `persisted`, `applied_not_persisted`, `not_applied` (§8.11), or `unknown` |
 | `results` | object | Parameter name → `{"status": ..., "value": ...}` |
-| `error` | string | Present only when the `config/set` payload was rejected whole |
+| `error` | string | Present only when the `config/set` payload was rejected whole. `context_roll_pending` means the node's context roll has not completed (§10.6) |
 
 `status` is `ok`, `unknown_param`, `clamped`, `type_mismatch` or `read_only` (§8.12), or
 `unknown`. **`value` is the effective value, not the requested one**, and `null` where
@@ -2944,9 +3042,10 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ## 20. Changelog
 
 - **v0.13 (draft, 2026-09-19)** — **Runtime configuration from Home Assistant: the
-  `config/*` payloads are defined, and five passages v0.12 left stale are corrected.**
-  `ver` stays at `2`; **no frame layout, header field, enumeration value or authentication
-  scope changes, and no test vector regenerates.** New **§16.7** defines `config/set`,
+  `config/*` payloads are defined, and five passages v0.12 left stale are corrected.
+  D58 adds a context roll after a bridge restart.** `ver` stays at `2`; **no frame layout,
+  header field or authentication scope changes.** D58 adds one enumeration value, which
+  §13.2 allows without a bump, and the vectors regenerate for it. New **§16.7** defines `config/set`,
   `config/ack` and `config/state` (D43, D47, D48), including the new `unknown` outcome for a
   `CONFIG` that got no `CONFIG_ACK`. Schema `0x12` becomes **node config v1** and
   `param_id` one namespace allocated in blocks (§7.1, §7.4, D46). §6.4, §7.4, §8.1 and §9.2
@@ -2976,6 +3075,17 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   than a regeneration. §7.4.1 also settles what a repeated `GET_ALL` does — the node walks
   its table again rather than replaying a cached answer, because a read applies nothing —
   and §16.7.4 forbids publishing `config/state` from an answer that never completed.
+  **D58 adds a context roll after a bridge restart.** A bridge restart reset its command
+  `seq` while a surviving node kept its dedup cache and `rx_high_water`, so the bridge's
+  first commands could draw `DUPLICATE_CACHED` without running, or `REJECTED_SEQ`. New
+  **§10.6** has the bridge `POLL` each node at boot and send `ROLL_CONTEXT`, new `cmd`
+  `0x12` in §8.1. The node takes a new `ctx_id` and resets both sequence spaces. §9.4 skips
+  steps 4–6 for the roll, §10.1–§10.5 say a roll resets what a reboot resets, and §10.3's
+  resync limit does not count a `REJECTED_CTX` answering a roll. Until a node's roll
+  completes, the bridge refuses commands to it, and §16.7.3 names `config/ack`'s `error`
+  for that case, `context_roll_pending`. §14.1 gains two bridge counters, `ctx_rolls` and
+  `ctx_roll_failed`. **W4 gains three vectors**: a `ROLL_CONTEXT`, its ACK carrying the new
+  `ctx_id`, and a stale roll that fails §9.4 step 2. Every committed vector keeps its bytes.
   **The header stays at v0.12 until the citation sweep**, which
   the operator deferred until the revision is nearer complete.
 
