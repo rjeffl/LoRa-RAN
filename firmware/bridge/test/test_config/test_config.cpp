@@ -330,6 +330,24 @@ void test_otherwise_the_less_persisted_half_wins() {
       static_cast<uint8_t>(combine_persist(AckPersist::Persisted, AckPersist::Persisted)));
 }
 
+// A GET_ALL reports `persisted` and changed nothing; the bench found it counted as a
+// change, 2026-09-23.
+void test_a_read_is_never_a_change() {
+  TEST_ASSERT_FALSE(config_set_changed(ConfigOp::GetAll, AckPersist::Persisted));
+  TEST_ASSERT_FALSE(config_set_changed(ConfigOp::Get, AckPersist::Persisted));
+}
+
+void test_a_set_changes_only_what_it_applied() {
+  TEST_ASSERT_TRUE(config_set_changed(ConfigOp::Set, AckPersist::Persisted));
+  TEST_ASSERT_TRUE(config_set_changed(ConfigOp::Set, AckPersist::AppliedNotPersisted));
+  TEST_ASSERT_FALSE(config_set_changed(ConfigOp::Set, AckPersist::NotApplied));
+  TEST_ASSERT_FALSE(config_set_changed(ConfigOp::Set, AckPersist::Unknown));
+}
+
+void test_a_restore_is_always_a_change() {
+  TEST_ASSERT_TRUE(config_set_changed(ConfigOp::RestoreDefaults, AckPersist::NotApplied));
+}
+
 // ---------------------------------------------------------------------------
 // config/state - spec 16.7.4
 // ---------------------------------------------------------------------------
@@ -508,6 +526,9 @@ int main(int, char**) {
   RUN_TEST(test_an_unknown_outcome_carries_a_null_value);
   RUN_TEST(test_a_rejected_payload_carries_an_error_and_no_results);
   RUN_TEST(test_a_document_that_does_not_fit_reports_zero);
+  RUN_TEST(test_a_read_is_never_a_change);
+  RUN_TEST(test_a_set_changes_only_what_it_applied);
+  RUN_TEST(test_a_restore_is_always_a_change);
 
   RUN_TEST(test_unknown_wins_over_everything);
   RUN_TEST(test_otherwise_the_less_persisted_half_wins);

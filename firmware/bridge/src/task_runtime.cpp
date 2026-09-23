@@ -28,6 +28,7 @@
 #include "config_store.h"
 #include "diag_json.h"
 #include "discovery.h"
+#include "levers.h"
 #include "lora_link.h"
 #include "mqtt_pubsub.h"
 #include "mqtt_transport.h"
@@ -179,6 +180,23 @@ static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonPa
 
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
+
+// g_config is used from two tasks. mqtt_task writes the stores and reads the mirror;
+// sched_task writes the mirror when a node transaction resolves and reads it to publish.
+// Neither ConfigStore nor Store takes a lock, so without this one a set arriving while a
+// transaction resolves could read a half-written mirror or store.
+//
+// ITS OWN LOCK, HELD ACROSS g_config CALLS AND NOTHING ELSE. Never across a publish, a
+// queue send, a registry call or SchedLock, so it nests with no other lock. A holder can
+// wait on an NVS write inside apply(); sched_task ticks at 1 s and can afford that.
+// lora_task never takes it. config_begin() runs before the tasks and takes it neither.
+StaticSemaphore_t g_config_lock_buf;
+SemaphoreHandle_t g_config_lock = nullptr;
+
+// BF-23 - the store's lever values, carried to the tasks that apply them (levers.h).
+// Published by config_begin() before the tasks start, and by mqtt_task after every set
+// that changes a bridge-held value; read by sched_task and lora_task.
+LeverBoard g_levers;
 NvsPersist  g_cfg_node_persist[kNodeCount];
 
 ConfigSetRequest g_cfg_req;
@@ -206,6 +224,14 @@ class SchedLock {
   ~SchedLock() { xSemaphoreGive(g_sched_lock); }
   SchedLock(const SchedLock&)            = delete;
   SchedLock& operator=(const SchedLock&) = delete;
+};
+
+class ConfigLock {
+ public:
+  ConfigLock() { xSemaphoreTake(g_config_lock, portMAX_DELAY); }
+  ~ConfigLock() { xSemaphoreGive(g_config_lock); }
+  ConfigLock(const ConfigLock&)            = delete;
+  ConfigLock& operator=(const ConfigLock&) = delete;
 };
 
 // BF-18. A COMMAND_ACK arrived. Called from app_task; the deserialize happens outside
@@ -512,18 +538,21 @@ void publish_config_resolution(const ConfigStep& step) {
   // here on purpose: the last values published stay, rather than being replaced by a
   // document half of which is this answer and half of which is the previous one.
   if (!step.updates_state && !g_config_job.bridge_changed) return;
-  if (step.updates_state) {
-    // A readback describes the whole table and replaces the mirror; a SET's ACK describes
-    // only what it set and merges into it. config_store.h says what each one costs if
-    // they are confused.
-    if (step.op == lran::ConfigOp::GetAll || step.op == lran::ConfigOp::RestoreDefaults) {
-      g_config.note_readback(step.dst, step.results, step.result_count);
-    } else {
-      g_config.note_set_results(step.dst, step.results, step.result_count);
+  size_t rows = 0;
+  {
+    ConfigLock lock;
+    if (step.updates_state) {
+      // A readback describes the whole table and replaces the mirror; a SET's ACK
+      // describes only what it set and merges into it. config_store.h says what each one
+      // costs if they are confused.
+      if (step.op == lran::ConfigOp::GetAll || step.op == lran::ConfigOp::RestoreDefaults) {
+        g_config.note_readback(step.dst, step.results, step.result_count);
+      } else {
+        g_config.note_set_results(step.dst, step.results, step.result_count);
+      }
     }
+    rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state, kMaxScopeRows);
   }
-  const size_t rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state,
-                                    kMaxScopeRows);
   if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
       build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
                          sizeof(g_sched_cfg_doc)) > 0 &&
@@ -675,7 +704,8 @@ void sched_availability() {
 // A publication the queue refuses is not retried: the next one carries newer numbers.
 // ---------------------------------------------------------------------------
 
-// TODO(BF-23): set from Home Assistant.
+// `diag_interval_s`, applied by sched_levers() below (BF-23). An atomic because ui_task
+// may read it one day; today sched_task alone does.
 std::atomic<uint16_t> g_diag_interval_s{kDiagPublishIntervalDefaultS};
 std::atomic<bool>     g_diag_republish{false};
 bool                  g_diag_published = false;
@@ -737,6 +767,65 @@ void sched_diag(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
+// The runtime levers (BF-23, root rule 8). sched_task applies every lever it owns when the
+// board carries a new generation: on its first tick after boot, and on the tick after a
+// set that changed one. lora_task applies its own three in its loop, because
+// lora_configure() is called through lora_task, never across it (lora_link.h).
+//
+// STATIC, NOT LOCAL. sched_task has the deepest stack in this firmware (tasks.cpp), and
+// two Levers here are what a comparison of old against new costs.
+// ---------------------------------------------------------------------------
+
+uint32_t g_sched_levers_seen = 0;
+bool     g_sched_levers_have = false;
+Levers   g_sched_levers_applied;
+Levers   g_sched_levers_next;
+
+void sched_levers() {
+  if (!g_levers.take_if_changed(&g_sched_levers_seen, &g_sched_levers_next)) return;
+  const Levers& v = g_sched_levers_next;
+
+  {
+    SchedLock lock;
+    g_scheduler.set_reply_timeout_ms(v.poll_reply_timeout_ms);
+    g_command.set_ack_timeout_ms(v.command_ack_timeout_ms);
+    // A retry COUNT, and only that. A command in flight keeps the seq its first attempt
+    // took (root rule 2); a lower count ends its retries sooner, and nothing else moves.
+    g_command.set_retries(v.cmd_retries);
+    g_config_path.set_readback_timeout_ms(v.config_readback_timeout_ms);
+    g_config_path.set_ack_timeout_ms(v.config_ack_timeout_ms);
+  }
+  g_availability.set_threshold(v.missed_poll_threshold);
+  g_diag_interval_s = v.diag_interval_s;
+
+  // Only the nodes whose interval moved, so a set of some other lever does not retime a
+  // schedule it has nothing to do with. The registry call comes first and outside the
+  // scheduler's lock, which is never held across one (BF-17).
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    const uint16_t s = v.poll_interval_s[i];
+    if (g_sched_levers_have && g_sched_levers_applied.poll_interval_s[i] == s) continue;
+    (void)registry_set_poll_interval(kNodeTable[i].id, s);
+    SchedLock lock;
+    g_scheduler.retime(kNodeTable[i].id, s);
+  }
+
+  g_sched_levers_applied = v;
+  g_sched_levers_have    = true;
+
+  // The bench record that a set reached its consumer, not just the store.
+  Serial.printf("levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
+                "config ack %u ms, readback %u ms\n",
+                static_cast<unsigned>(g_sched_levers_seen),
+                static_cast<unsigned>(v.diag_interval_s),
+                static_cast<unsigned>(v.poll_reply_timeout_ms),
+                static_cast<unsigned>(v.missed_poll_threshold),
+                static_cast<unsigned>(v.command_ack_timeout_ms),
+                static_cast<unsigned>(v.cmd_retries),
+                static_cast<unsigned>(v.config_ack_timeout_ms),
+                static_cast<unsigned>(v.config_readback_timeout_ms));
+}
+
+// ---------------------------------------------------------------------------
 // Task bodies.
 // ---------------------------------------------------------------------------
 
@@ -746,7 +835,18 @@ void sched_diag(uint32_t now_ms) {
 // own interrupt (lora_link.h). BF-16.
 void lora_task(void*) {
   lora_start(kHeltecV3Radio, kPhy);
+  // BF-23 - this task's own three levers. The board is lock-free, so reading it here
+  // waits on nothing; a publish caught mid-copy is taken on the next pass.
+  uint32_t levers_seen = 0;
+  Levers   levers;
   for (;;) {
+    if (g_levers.take_if_changed(&levers_seen, &levers)) {
+      MediaAccessConfig access;
+      access.cad_retries    = levers.cad_retries;
+      access.backoff_max_ms = levers.backoff_max_ms;
+      lora_configure(access, levers.frag_reassembly_timeout_ms);
+      lora_configure_errors(levers.error_min_interval_ms);
+    }
     lora_service(millis());
     lora_wait(kLoraMaxWaitMs);
   }
@@ -757,6 +857,7 @@ void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
   for (;;) {
+    sched_levers();            // BF-23 - root rule 8
     sched_versions();          // BF-22 - R-3.1f, spec 13.1
     sched_polls(millis());     // BF-17 - Impl Plan 6.1, R-3.1d
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
@@ -875,7 +976,11 @@ void publish_config_state(bool is_bridge, lran::NodeId node) {
   }
 
   const ConfigScope scope = is_bridge ? ConfigScope::Bridge : ConfigScope::Node;
-  const size_t      n     = g_config.state(scope, node, g_cfg_state_rows, kMaxScopeRows);
+  size_t            n     = 0;
+  {
+    ConfigLock lock;
+    n = g_config.state(scope, node, g_cfg_state_rows, kMaxScopeRows);
+  }
   if (build_config_state(g_cfg_state_rows, n, g_cfg_doc, sizeof(g_cfg_doc)) == 0) {
     // Refused rather than truncated. A truncated retained document is the worst of the
     // three: it survives every restart until something overwrites it.
@@ -974,24 +1079,40 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   ConfigSetRequest node_half;
   bool             want_node = false;
 
-  switch (g_cfg_req.op) {
-    case lran::ConfigOp::RestoreDefaults:
-      n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
-      ++g_cfg_inbound.applied;
-      want_node = !is_bridge;  // the node clears its own overrides (D52)
-      break;
-    case lran::ConfigOp::GetAll:
-      n         = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
-      want_node = !is_bridge;  // the node's own values come from the node
-      break;
-    default:
-      n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
-                         &node_half);
-      if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
+  // One section from the store write to the lever read, so the levers published are the
+  // values this set left, not a mix with a resolution landing in between.
+  // LeverBoard::publish() is atomic stores only, so it is safe to call under the lock.
+  bool changed = false;
+  {
+    ConfigLock lock;
+    switch (g_cfg_req.op) {
+      case lran::ConfigOp::RestoreDefaults:
+        n = g_config.restore_defaults(scope, node, g_cfg_results, kMaxScopeRows, &persist);
         ++g_cfg_inbound.applied;
-      }
-      want_node = node_half.count > 0;
-      break;
+        want_node = !is_bridge;  // the node clears its own overrides (D52)
+        break;
+      case lran::ConfigOp::GetAll:
+        n         = g_config.read_all(scope, node, g_cfg_results, kMaxScopeRows, &persist);
+        want_node = !is_bridge;  // the node's own values come from the node
+        break;
+      default:
+        n = g_config.apply(scope, node, g_cfg_req, g_cfg_results, kMaxScopeRows, &persist,
+                           &node_half);
+        if (persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted) {
+          ++g_cfg_inbound.applied;
+        }
+        want_node = node_half.count > 0;
+        break;
+    }
+
+    // BF-23 - HERE, as soon as the store holds the value, and not beside the ack below. A
+    // set with a node half returns before that point once its job is queued, and a
+    // `poll_interval_s` riding with a node's own rows would reach the store and never its
+    // consumer. A GET_ALL changes nothing and publishes nothing.
+    changed = config_set_changed(g_cfg_req.op, persist);
+    if (changed) {
+      g_levers.publish(levers_from(g_config));
+    }
   }
 
   // SPEC 16.7.1 - ONE ack, published when EVERY half has an outcome. When a half is on
@@ -1002,8 +1123,7 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     job.dst                 = node;
     job.op                  = g_cfg_req.op;
     job.bridge_persist      = persist;
-    job.bridge_changed      = persist == AckPersist::Persisted ||
-                         persist == AckPersist::AppliedNotPersisted;
+    job.bridge_changed      = changed;
     job.bridge_result_count = static_cast<uint8_t>(n < kMaxConfigSetEntries ? n
                                                                             : kMaxConfigSetEntries);
     for (size_t i = 0; i < job.bridge_result_count; ++i) job.bridge_results[i] = g_cfg_results[i];
@@ -1038,9 +1158,6 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   // nothing and neither does a set every entry of which was refused, so neither
   // republishes: a retained document rewritten with its own contents is a new message to
   // every subscriber for no news.
-  const bool changed = g_cfg_req.op == lran::ConfigOp::RestoreDefaults ||
-                       persist == AckPersist::Persisted ||
-                       persist == AckPersist::AppliedNotPersisted;
   if (changed) {
     publish_config_state(is_bridge, node);
   }
@@ -1477,8 +1594,9 @@ TaskFunction_t body_for(TaskId id) {
 }  // namespace
 
 bool start_tasks() {
-  g_sched_lock = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
-  if (g_sched_lock == nullptr) {
+  g_sched_lock  = xSemaphoreCreateMutexStatic(&g_sched_lock_buf);
+  g_config_lock = xSemaphoreCreateMutexStatic(&g_config_lock_buf);
+  if (g_sched_lock == nullptr || g_config_lock == nullptr) {
     return false;
   }
   g_rx_queue = xQueueCreateStatic(kRxQueueDepth, sizeof(RxMessage), g_rx_storage,
@@ -1572,6 +1690,10 @@ size_t config_begin() {
     restored += nvs_restore(g_config, ConfigScope::Node, kNodeTable[i].id,
                             g_cfg_node_persist[i]);
   }
+  // BF-23 - AFTER the restore, so each task's first pass applies what NVS held. Published
+  // before a restore, the levers would run their defaults until the first set, and a
+  // reboot would quietly undo every saved value.
+  g_levers.publish(levers_from(g_config));
   return restored;
 }
 

@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.12 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.38
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.27 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.43
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.32 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -160,6 +160,20 @@ reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out
 - **`ha/discovery/` is generated, and CI checks it.** After any change to a discovery
   table, run `python3 tools/checks/ha_examples.py --write` and commit the diff — it is
   what Home Assistant will see differently.
+
+**`BF-23` — the runtime levers, built and host-tested 2026-09-23; not yet on air.**
+`levers.{h,cpp}` carries each bridge row's effective value from `ConfigStore` to the task
+that owns its consumer; Impl Plan §4.4.2. **Four things to keep:**
+
+- **Publish after the store changes, never before.** `config_begin()` publishes after the
+  NVS restore, and `handle_config_set()` publishes before a node half's job is queued. Move
+  either and a reboot, or a set with a node half, leaves a lever on its default.
+- **`LeverBoard` has one writer.** `setup()` before the tasks start, then `mqtt_task`.
+  A second writer can interleave two publishes under one generation.
+- **`lora_configure()` is called from `lora_task` only.** It writes state
+  `lora_service()` reads without a lock.
+- **A consumer's compile-time default must equal its row's default.** `test_levers` checks
+  it. Change one without the other and the bridge runs two values across a boot.
 
 **`BF-32` — the configuration path, built and confirmed on air 2026-09-21.**
 `config_json.{h,cpp}` reads spec §16.7.2's payload and writes `config/ack` and

@@ -119,7 +119,9 @@ struct NodeState {
   int16_t rssi_dbm = kRssiUnknown;
   int8_t  snr_db   = kSnrUnknown;
 
-  // TODO(BF-23): set from Home Assistant. The default until then.
+  // D47 - `poll_interval_s`, one per node. The default until sched_task applies the
+  // configuration store's value (BF-23), which it does on its first tick after boot and
+  // again on every set that changes it.
   uint16_t poll_interval_s = kPollIntervalDefaultS;
 };
 
@@ -169,6 +171,10 @@ class Registry final : public PeerKeys {
   // rather than only counted, so the node's diagnostics can name the skew (BF-22).
   // False when unregistered.
   bool note_unsupported_version(lran::NodeId id, uint8_t ver);
+
+  // BF-23 - the poll interval sched_task applies from the configuration store. False when
+  // unregistered.
+  bool set_poll_interval(lran::NodeId id, uint16_t interval_s);
 
   const NodeState* state(lran::NodeId id) const;  // nullptr when unregistered
 

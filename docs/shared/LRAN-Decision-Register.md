@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.14
+**Version:** 0.16
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-20
+**Last updated:** 2026-09-23
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D57** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D58** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -137,6 +137,110 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 
 ---
 
+### 2.3 D58 — the bridge's restart and the command `seq`, proposed 2026-09-23
+
+> **D58 closed on 2026-09-23. §3.7 records the answers and three additions to the
+> mechanism below**, and it wins where the two differ. This section is the proposal as the
+> operator read it, and it keeps its number because the bridge handoff and engineering log
+> cite it.
+
+**The problem, found on the bench.** After the bridge was reflashed on 2026-09-23, its first
+`CONFIG` to simnode identity f1 went out with `seq` 1. The simnode had not restarted and
+still held seq 1 in its dedup cache from before the reflash. It logged `dedup hit,
+DUPLICATE_CACHED, not applied`. The bridge engineering log's third entry for that day has
+the evidence and a one-step reproduction.
+
+**The specification does not cover the case.** §10.2 has the bridge reset its command `seq`
+to 1 when it learns a new `ctx_id`, and §10.1 gives the bridge no context of its own. Both
+assume that only a node restarts. §10.4 says so outright: the dedup cache is lost on reboot
+"which is correct: a reboot changes `ctx_id`". A bridge restart changes no `ctx_id`, so
+after one:
+
+- a command whose `seq` is still in the node's dedup cache draws `DUPLICATE_CACHED`, and
+  its `detail` carries the result of a **different, earlier** command. The bridge reports
+  that as acknowledged, and the command never runs;
+- a command whose `seq` is at or below `rx_high_water` but no longer cached draws
+  `REJECTED_SEQ`. Each later command fails the same way and spends one `seq`, until the
+  bridge's `seq` passes the node's high-water mark.
+
+For GateLink that follows every bridge reflash, OTA update or power cut.
+
+**The operator's direction.** *A bridge reboot should be considered a major event*, so the
+bridge forces every node onto a new context after its own boot, rather than persisting its
+command `seq` across the restart. A forced context also covers a replaced or wiped bridge
+board, which a persisted `seq` does not.
+
+#### What is proposed
+
+1. **A new node-local command, `ROLL_CONTEXT`**, proposed at `cmd` `0x12`, with `arg` =
+   `0xA5` as a confirmation guard, as `REBOOT` has. It is an ordinary authenticated
+   `COMMAND`, so §9.2 needs no change.
+2. **Verification runs §9.4 steps 1–3 unchanged**, so the request must carry the node's
+   *current* `ctx_id` and a valid MAC. **For `ROLL_CONTEXT` alone, steps 4 and 5 are
+   skipped**: the request exists because the bridge's `seq` cannot be trusted.
+3. **The node rolls.** It generates a new random non-zero `ctx_id` different from the
+   current one, empties its dedup cache, sets `rx_high_water` to 0 and resets its status
+   `seq`. It answers `COMMAND_ACK(ACCEPTED)` with `ack_seq` set to the request's `seq`, and
+   carries the **new** `ctx_id` in the header. It changes nothing else.
+4. **The bridge adopts the new context.** It takes the `ctx_id` from the ACK and resets its
+   command `seq` for that node to 1, as §10.3 step 2 does.
+5. **When the bridge sends it.** Once per node after each bridge boot, when the bridge first
+   hears that node, because that frame supplies the `ctx_id` the request must carry.
+6. **Until the roll completes, the bridge sends that node no `COMMAND` and no `CONFIG`.**
+   A request that arrives in that window is refused with a named reason, not queued (see
+   *Questions*).
+7. **A lost ACK converges.** If the node rolled and its ACK was lost, the bridge's retry,
+   with the same `seq` under root rule 2, carries the old `ctx_id` and draws
+   `REJECTED_CTX` with the new one. The bridge adopts it, which is the intended end state.
+   A `REJECTED_CTX` answering a `ROLL_CONTEXT` completes the roll, and it does not count
+   toward §10.3 step 3's limit of one resync.
+8. **A context change no longer means a node restart.** Anything that reports a node reboot
+   reads `boot_count` or `uptime_s` from `STATUS` (§7.2.4). A readback on every new
+   `ctx_id`, which the bridge handoff proposes for the stale `config/state` mirror, stays
+   correct, because the readback is harmless after a roll.
+
+#### Why the replay exposure is bounded
+
+A captured `ROLL_CONTEXT` carries the `ctx_id` it was sent under. The roll changes that
+`ctx_id`, so once the node has acted on the request, a replayed copy fails at step 2. An
+attacker could replay the request only by stopping the original from arriving, and the
+replay would then perform the roll the bridge had asked for. **The worst case is a lost
+command window, never an actuation.** The request is authenticated, so nobody without the
+node's key can start a roll.
+
+#### Alternatives rejected
+
+- **Persist the command `seq` in NVS.** It needs no wire change, and the bridge could write
+  once per block of reserved values to limit wear. It fails when the bridge board is
+  replaced or its NVS is erased, and it carries the old context across a restart that the
+  operator treats as a major event.
+- **Roll on any frame whose `ctx_id` is 0 or does not match.** Step 2 runs before the MAC
+  check, so anyone with a radio could force a roll at will. D41 already bars a receiver
+  from adopting a zero `ctx_id`.
+- **Start the bridge's `seq` at a random value.** Under §10.5's serial arithmetic, a random
+  start lands at or below the node's high-water mark about half the time.
+
+#### Cost
+
+- **A specification revision.** `cmd` §8.1 gains a value, and §9.4, §10.2, §10.3 and §10.4
+  gain the rules above, and §10.5, which says only a node reboot resets both counters, gains the roll. The citation sweep holds the header at v0.12, so this is best
+  carried in the same revision.
+- **W4 vectors.** Two new ones are proposed: a valid `ROLL_CONTEXT`, and a stale one that
+  must fail step 2. The existing vectors do not change.
+- **Code.** `/lib/lran-protocol/`'s receive path, simnode `ROLE_GATELINK`, and the bridge's
+  command path and scheduler. GateLink is unbuilt, so it takes the rule from the start
+  instead of a USB reflash at the gate.
+- **A §14.1 counter or diagnostic for rolls**, so a roll is visible without serial.
+
+#### Questions for the operator
+
+1. **A command during the roll window: refuse it or hold it?** Refusing is proposed. A held
+   `OPEN` could reach the gate a full poll interval after it was pressed, 60 s by default.
+2. **Does `ver` stay `2`?** Staying at 2 is proposed. The change adds a value and changes no
+   layout. A node without `ROLL_CONTEXT` answers `REJECTED_UNKNOWN_CMD`. No such node is
+   deployed, so the bridge treats that answer as a fault and does not fall back.
+3. **The name and value, `ROLL_CONTEXT` at `0x12`.** Names on the wire are permanent.
+
 ## 3. Resolved decisions
 
 | # | Decision | Outcome | Owner |
@@ -191,6 +295,7 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 | **D55** | What `len` means in a `CONFIG` entry | **The total number of value bytes, and a multiple of the `ptype`'s unit width** (1, 2 or 4). `len / width` is the number of units: 0 for a `GET`, 1 for a scalar, N for an array. **A string is `ptype` = `u8`** with `len` its length. An entry the receiver cannot take — a `len` that is not a multiple, a value too wide to store, an array where the parameter is a scalar — is rejected alone with `TYPE_MISMATCH` (**D51**) and never discards the frame, so a node built before a type existed still reads a set that uses it | Protocol Spec §7.4 (**BF-32**) |
 | **D56** | Whether the LoRa PHY parameters are runtime-configurable | **Yes, under new §12.4's commit-and-revert**, reversing §12.1's *"out of scope for v1"*. Frequency, SF, BW, CR and TX power become `/lib/lran-config/` parameters, held per node; the sync word, header mode and CRC stay contractual. One atomic `CONFIG`, last known-good persisted first, `phy_trial_s` (default 120) from apply, confirmation is a frame **received** on the new settings, and both ends revert on silence. **TX power stays clamped by D33** and BW by the envelope coupling; widening either is a decision, not a configuration change. A node that has not built the path answers `READ_ONLY`. The operator's reasoning, 2026-09-19: *"within reason configurability (aka ability to adapt on the fly) proves more successful in the long run and minimizes recompile changes"* | Protocol Spec §12.1, §12.4, §8.12; Protocol Library Plan §4 (**BF-33**) |
 | **D57** | How a node answers a `GET_ALL` too large for one frame | **Several `CONFIG_ACK` messages, every one but the last marked `MORE_FOLLOWS`** — bit 7 of `count`, whose top two bits are unreachable because 193 bytes of payload hold at most 32 results. Schema `0x12` keeps its layout and offsets. The node walks its table in ascending `param_id` across the answer, repeats `op` and `persist_status` on every message, and sends at most **4** messages. A solicited answer repeats the request's `seq`, so **the bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message with `MORE_FOLLOWS` clear. A repeated `GET_ALL` is answered by walking the table again rather than from the dedup cache, because a read applies nothing. The bridge never publishes `config/state` from an answer that did not complete; it abandons one on `config_readback_timeout_ms` and requests another | Protocol Spec §7.4.1, §11.4, §16.7.4; Protocol Library Plan §4 (**BF-32**) |
+| **D58** | How the bridge resumes commanding a node after its own restart | **The bridge forces each node onto a new context after its own boot, with `ROLL_CONTEXT`** (`cmd` `0x12`, `arg` `0xA5`). The node verifies it under §9.4 steps 1–3 only, takes a new `ctx_id`, and clears its dedup cache and `rx_high_water`. Until a node's roll completes, the bridge refuses commands to it with a named reason. `ver` stays `2`. §2.3 has the mechanism; §3.7 has the answers and three additions | Protocol Spec §8.1, §9.4, §10 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -725,6 +830,47 @@ milestone, with whatever else its implementation surfaces (operator, 2026-09-20)
   the GateLink PRD and the second in Library Plan §4, where it becomes a permanent Home
   Assistant `object_id`.
 
+### 3.7 D58 — a forced node context after a bridge restart, 2026-09-23
+
+**The operator accepted §2.3's proposal on 2026-09-23 and answered its three questions.**
+The bridge forces each node onto a new context after its own boot, so a command `seq` that
+restarted at 1 never meets a dedup cache or high-water mark from before the restart.
+
+1. **A command in the roll window is refused.** Until a node's roll completes, the bridge
+   refuses a `COMMAND` or `CONFIG` for that node and names the pending roll as the reason.
+   Holding it instead could deliver an `OPEN` to the gate a full poll interval after it was
+   pressed.
+2. **`ver` stays `2`.** §13.2 needs no bump for an added enumeration value. A node that
+   answers `ROLL_CONTEXT` with `REJECTED_UNKNOWN_CMD` is a fault, and the bridge does not
+   fall back.
+3. **The name is `ROLL_CONTEXT` and the value is `cmd` `0x12`**, in the node-local range,
+   with `arg` `0xA5` as its confirmation guard.
+
+**Review before acceptance found three gaps in §2.3, and the operator added all three to
+D58.**
+
+- **A roll that does not complete stays pending.** §2.3 covered a lost ACK but not a node
+  that never answers. If the bridge's retries of `ROLL_CONTEXT` run out, the bridge counts
+  the failure and sends the roll again the next time it hears that node. Commands to the
+  node stay refused until a roll completes.
+- **A node refuses a roll while a command is in flight.** A command sent before the bridge
+  restarted can still be executing when the roll arrives, inside §9.4's execution window.
+  Clearing the dedup cache at that moment would drop the command's result. The node answers
+  `ACTUATOR_BUSY` instead, and the bridge retries with the same `seq`. Because the roll
+  skips §9.4 steps 4 and 5, the retry is processed in full. If the retries run out first,
+  the pending-roll rule above applies.
+- **The bridge polls every registered node at boot.** Under §2.3, the bridge sent a roll
+  only after it next heard the node, which can take one poll interval, 60 s by default. A
+  `POLL` to each registered node at boot draws a frame carrying that node's `ctx_id`, so
+  the wait before commands work again is one poll exchange instead.
+
+**The specification revision carries D58 and the citation sweep together**, by the
+operator's direction on 2026-09-23. D58's rules go into the v0.13 content: §8.1 gains the
+value, and §9.4 and §10.2–§10.5 gain the rules above, with a §14.1 counter for rolls. The
+same revision moves the header from v0.12 to v0.13 and reconciles the 31 citation sites.
+It needs two new W4 vectors: a valid `ROLL_CONTEXT`, and a stale one that fails §9.4
+step 2. The revision goes on its own branch, and nothing is built until it merges.
+
 ---
 
 ## 4. Retired decisions
@@ -885,6 +1031,19 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.16** — **D58 resolved on 2026-09-23.** The operator accepted §2.3's `ROLL_CONTEXT`
+  and answered its three questions: a command in the roll window is refused, `ver` stays
+  `2`, and the name and value stand. Review added three rules, which the operator accepted:
+  a roll that does not complete stays pending, a node answers `ACTUATOR_BUSY` to a roll
+  while a command is in flight, and the bridge polls every registered node at boot. New
+  **§3.7** records them, and §2.3 gains a note pointing there.
+
+- **v0.15** — **D58 proposed, open**: how the bridge resumes commanding a node after its own
+  restart. The bench found on 2026-09-23 that a bridge restart reuses command `seq` values a
+  surviving node has seen. The operator chose the direction the same day, a forced new node
+  context. New **§2.3** carries the proposed mechanism and three questions awaiting the
+  operator's answer. §1's highest issued decision number moves to **D58**.
 
 - **v0.14** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of

@@ -360,6 +360,16 @@ AckPersist combine_persist(AckPersist a, AckPersist b) {
   return rank(a) <= rank(b) ? a : b;
 }
 
+bool config_set_changed(lran::ConfigOp op, AckPersist persist) {
+  switch (op) {
+    case lran::ConfigOp::RestoreDefaults: return true;
+    case lran::ConfigOp::Get:
+    case lran::ConfigOp::GetAll: return false;
+    default: break;
+  }
+  return persist == AckPersist::Persisted || persist == AckPersist::AppliedNotPersisted;
+}
+
 const char* config_op_name(lran::ConfigOp op) {
   switch (op) {
     case lran::ConfigOp::Set: return "set";

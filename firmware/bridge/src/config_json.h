@@ -106,6 +106,13 @@ const char* ack_persist_name(AckPersist p);
 // reports a value as saved when half of it was not.
 AckPersist combine_persist(AckPersist a, AckPersist b);
 
+// True when the bridge's half of a `config/set` changed a stored value, which is what
+// earns a lever publish and a `config/state` republish (spec 16.7.4). `persist` alone
+// cannot say so: a GET_ALL reports the store's persist status, `persisted` on a healthy
+// board, and changes nothing. Counting it republished an unchanged retained document on
+// the bench, 2026-09-23.
+bool config_set_changed(lran::ConfigOp op, AckPersist persist);
+
 const char* config_op_name(lran::ConfigOp op);
 
 struct ConfigResult {

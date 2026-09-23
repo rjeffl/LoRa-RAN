@@ -1891,3 +1891,162 @@ result in the one `config/ack` that answers it. At the longest name the parser a
 unknown one costs about 82 bytes against about 700 of room, so nine names would not fit —
 and a document that does not fit is dropped, leaving the operator with no answer at all
 rather than a partial one. It was 16 until the fit test said otherwise.
+
+## 2026-09-23 — BF-23's lever half: each bridge row reaches its consumer, host-tested only
+
+**What changed.** Each bridge row of BF-32's configuration table now reaches the code it
+configures, except `simnode_diag_enable`, which is BF-26's. Before this, Home Assistant
+could set a value, NVS could keep it, and `config/state` could report it, while the lever
+went on running its compile-time default. Impl Plan §4.4.2 has the design and the reasons
+behind it. No board was touched, so **none of it is confirmed on air.**
+
+### The handoff's list was the right one, and the marker was not
+
+A grep for `TODO(BF-23)` found four sites. The handoff's table named eight consumers, and
+all eight are wired. `missed_poll_threshold`, `command_ack_timeout_ms`, `cmd_retries` and
+`config_readback_timeout_ms` carried no marker at all. **A TODO marker is not an
+inventory.** The table is, and root rule 8 is the reason each row exists.
+
+### Two gaps the design had to close before any code
+
+- **A set with a node half returns early.** `handle_config_set()` queues the node half's
+  job and returns before the block that republishes `config/state`. A lever publish placed
+  beside that block would never run for a `poll_interval_s` set together with a node's own
+  rows. That set would reach the store and not the scheduler. The publish sits
+  immediately after the store write instead.
+- **A shorter poll interval waited out the longer one.** `PollScheduler::on_sent()` fixes a
+  node's next due time when its poll goes out. Dropping 3600 s to 60 s would have
+  produced no poll for up to an hour. `retime()` now counts the new interval from the last
+  poll.
+
+### One test caught a mistake in the test
+
+The first `retime()` test asserted no poll at 120 199 ms. GateLink had come due at 60 s on
+its new 30 s interval. The scheduler was right and the expectation was wrong. The test now
+moves GateLink out of the way first.
+
+### Found in passing, not fixed here
+
+**`g_config` is used from two tasks with no lock between them.** `mqtt_task` calls
+`apply()`, `restore_defaults()`, `read_all()` and `state()`. `sched_task` calls
+`note_readback()`, `note_set_results()` and `state()` when a node transaction resolves
+(`publish_config_resolution()`). Neither `ConfigStore` nor `Store` takes a lock. BF-32
+introduced this, not the lever half: `levers_from()` runs in `setup()` and then only on `mqtt_task`, which is
+the only task that writes the stores. It is recorded in the handoff for its own change.
+
+### What the bench owes
+
+- `levers: gen N` on serial at boot, carrying the values NVS restored rather than the
+  defaults.
+- A `diag_interval_s` set that changes the spacing of `lran/bridge/diag/state`. That is
+  also V-B12's saturated-arm lever (Impl Plan §8.1).
+- A `poll_interval_s` set on a simnode, with the next poll arriving on the new interval
+  counted from the last one.
+- `sched_task`'s high-water mark after all three. It logs one on every configuration
+  resolution.
+
+## 2026-09-23 — BF-23's lever half on air: all four bench checks pass
+
+**All four checks the lever-half entry above listed pass on the bridge board**, flashed over
+USB from `7edfe17`, a committed tree. One simnode was on the bench, the Heltec in the
+handheld case. The broker was down when the session started and came back about 12 minutes
+later. Every step below ran after that.
+
+| Check | What the bench showed |
+|---|---|
+| NVS restore at boot | Set `diag_interval_s` to 20 on the bridge and `poll_interval_s` to 60 on `simnode2`, then reset the board. Serial showed `Config: 2 stored value(s) restored`, then `levers: gen 2 - diag 20 s`. `lran/bridge/diag/state` resumed at 20 s spacing |
+| `diag_interval_s` moves `diag/state` | Set 60 → 20 s. Serial showed `levers: gen 4 - diag 20 s`. Publications went from 60 s spacing to 807, 827, 847 and 867 s on the host clock, 20 s apart to within 10 ms |
+| `poll_interval_s` counts from the last poll | f2 polled at 995.05 on a 20 s interval, and a set to 60 s arrived at about 1005. The next poll went out at 1055.05, exactly last + 60, not set + 60 |
+| `sched_task` high-water mark | **1976 bytes free** of 3072, on both a completed `get_all` (outcome 1, on f1) and one abandoned after an `unknown` (outcomes 2 then 4, on f2) |
+
+**The poll-interval set also shortened the interval.** The first set, 60 → 20 s, arrived
+just as the old 60 s poll fell due, so it could not tell "counted from the last poll" from
+"counted from the set". The 20 → 60 s set above does tell them apart. After the first set,
+f2 was polled at 906, 935 and 955. The 29 s gap was f2 waiting behind a poll to GateLink
+`0x01`, which is offline and held its 10 s reply window open from 925. That is the
+scheduler's one-poll-outstanding rule, not the lever.
+
+### My mistake: a `get_all` aimed at a `ROLE_HEALTH` identity
+
+The first `get_all` went to f2, a `ROLE_HEALTH` identity, and the simnode answers
+`CONFIG` only in `ROLE_GATELINK` (`node.cpp`). Its `stats f2` showed `unhandled 1`. The
+bridge behaved as spec §7.4 asks: `unknown` at 8 s, then a readback that was abandoned at
+15 s, **two `config/ack` publications by design**, the second carrying the readback's
+outcome. The repeat on f1, added as `ROLE_GATELINK` because the XIAO that normally holds
+f1 was unplugged, completed with outcome 1. **Use a `ROLE_GATELINK` identity for any
+configuration check on the node half.**
+
+### A defect the run found: `get_all` counts as a change
+
+`read_all()` reports the store's persist status, which is `persisted`, so
+`handle_config_set()` treats a `get_all` as a set that changed something:
+
+- it republished the lever board, which moved the generation 8 → 10 → 12 over two `get_all`
+  requests;
+- it set `bridge_changed` on the node job, so `sched_task` republished `simnode2`'s
+  retained `config/state` on the `unknown` and on the abandoned readback, with the same
+  contents, at 1089 and 1104.
+
+Both contradict the comments at those sites. A republished lever board is harmless, because
+`sched_levers()` retimes only a node whose interval moved. A retained document rewritten with
+its own contents is a new message to every subscriber, which spec §16.7.4's rule exists to
+prevent. Fixed on this branch, in its own commit.
+
+### Bench state left behind
+
+Both overrides are cleared, each with `restore_defaults`: on `lran/bridge/config/set`
+for `diag_interval_s`, and on `lran/simnode2/config/set` for the per-node row, which the
+bridge's own restore does not reach. The simnode holds f1 in `ROLE_GATELINK` in RAM only, and loses it
+on its next boot.
+
+### Still owed
+
+**V-B12's saturated arm** (Impl Plan §8.1): its lever is confirmed, and the arm has not
+run.
+
+## 2026-09-23 — The configuration lock, `config_ack_timeout_ms`, and a `seq` gap after a bridge restart
+
+**Three changes on `b4-bf23-levers` were flashed from `52727b8` and checked on the bridge
+board**, and the run found a gap in the specification.
+
+- **`get_all` is no longer a change.** `config_set_changed()` now decides whether a set
+  changed a stored value, from the op as well as the persist status. A `get_all` to f2
+  left the lever generation at 4, and neither the `unknown` nor the abandoned readback
+  republished `lran/simnode2/config/state`.
+- **`ConfigLock`** guards `g_config` between `mqtt_task` and `sched_task`, which is Impl
+  Plan §6.7.6. No deadlock or stall showed in the run. `sched_task`'s high-water mark
+  read 2324 and 2120 bytes free, against 1976 before, so the lock did not deepen its
+  stack. A race the lock closes does not show on a bench whether or not the lock is
+  there, so this run shows only that the lock does no harm.
+- **`config_ack_timeout_ms`** (`0x000C`) reaches `ConfigPath`. With the row at 3000, the
+  `unknown` for a `CONFIG` sent at 1836.47 published at 1839.43, 2.95 s later instead
+  of 8 s. The boot line now prints `config ack %u ms`.
+
+### A bridge restart reuses command `seq` values a node has already seen
+
+**After the reflash, the bridge's first `CONFIG` to f1 was answered from the node's dedup
+cache and not applied.** The simnode logged `config f1 <- 00 seq 1: dedup hit,
+DUPLICATE_CACHED, not applied`. The bridge had rebooted, so its command `seq` for f1
+started again at 1. The simnode had not rebooted, so f1 kept its `ctx_id`, its
+`rx_high_water` and its dedup cache, which still held seq 1 from the `get_all` sent before
+the reflash.
+
+A `get_all` recovers from that, by readback. It went `unknown` at 3 s and completed at
+outcome 3, `ReadbackOk`. **A command would not recover.** Spec §9.4 step 4 returns the
+cached result of a different, earlier command and does not execute it, so Home Assistant
+would see a gate command succeed while the gate did not move. `CommandPath::on_ack()`
+publishes a `DUPLICATE_CACHED` as acknowledged, with the cached `detail`. A `seq` at or
+below the high-water mark that is not cached draws `REJECTED_SEQ` at step 5. The bridge
+ends that command as a rejection and does not resync, so each later command fails in turn
+and spends one `seq`, until the bridge passes the node's high-water mark.
+
+**The specification does not cover this case.** §10.2 resets the bridge's command `seq`
+only when the bridge learns a new `ctx_id`, and §10.1 says the bridge has no context of
+its own. Nothing covers a bridge restart against a node whose context survived it. For
+GateLink that is every bridge reflash, OTA update or power cut. Not fixed here: the
+specification is binding, so this needs a decision. Candidates are to persist the command
+`seq` in NVS, to have the node reject a stale `seq` in a way that makes the bridge resync,
+or to have the bridge force a new node context after its own boot.
+
+**The bench reproduces it in one step.** Send any authenticated frame to a `ROLE_GATELINK`
+simnode identity, reboot the bridge without rebooting the simnode, and send another.

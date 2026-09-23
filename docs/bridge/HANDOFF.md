@@ -1,14 +1,16 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23, by a session that landed BF-32 and the 2026-09-21 handoff on `main`
-and wrote nothing else.** No firmware changed and no board was touched, so the bench and
-its findings are as the 2026-09-21 session left them. This file replaces the previous one
-wholesale.
+**Written 2026-09-23 by the session that confirmed BF-23's lever half on air, on branch
+`b4-bf23-levers`.** The same branch carries three more changes, each also checked on the
+bridge board: `get_all` no longer counts as a change, `ConfigLock` guards `g_config`, and
+the `CONFIG_ACK` wait is now the `config_ack_timeout_ms` row. This file replaces the
+previous one wholesale.
 
-**What is durable: BF-32 is on `main`, and BF-23's lever half is the next job.** The bench
-is live and every board runs its own firmware. The sandbox broker is up, and the
-configuration path works from Home Assistant to a node and back. No measurement is
-pending.
+**What is durable: BF-23 is done, and the run found a specification gap.** A bridge
+restart reuses command `seq` values that a node, which did not restart, has already seen.
+The engineering log's third 2026-09-23 entry has the evidence. **The operator chose the
+direction, a forced new node context, and accepted D58 the same day**, with three
+additions from review. Decision Register v0.16 §3.7 records the outcome.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,55 +20,54 @@ pending.
 
 ## The next job, in one place
 
-**BF-32 is built, so BF-23's lever half and BF-26 both reduce to reading its table.**
-Neither needs a board. Work on a new branch, per root `CLAUDE.md`'s
-branch-per-milestone rule.
+**First, D58's specification revision.** D58 is resolved: Decision Register §2.3 has the
+mechanism and **§3.7 the outcome**, which wins where they differ. Two steps remain, in
+order:
 
-### 1. BF-23's lever half — start here
+1. **Revise the spec on its own branch.** D58's rules go into §8.1, §9.4 and §10.2–§10.5,
+   with a §14.1 counter for rolls and two new W4 vectors. **The operator decided on
+   2026-09-23 that this revision also carries the citation sweep**: the header moves to
+   v0.13 and the 31 sites are reconciled, not just renumbered. Style passes stay off that
+   branch.
+2. **Build it after that branch merges**, in the library's receive path, simnode
+   `ROLE_GATELINK`, and the bridge's command path and scheduler. Then run the one-step
+   reproduction in the engineering log on the bench.
 
-**The values are held and the setters exist; nothing connects them.** `ConfigStore`
-holds every row's effective value, with an NVS-restored override or the default, behind
-`global_value()` and `node_value()`. Each consumer already has a setter or an atomic. No
-code outside the tests calls any of them, so every lever runs its compile-time default.
+**With the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed on
+air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
+run the arms in blocks.
 
-| Row (`lib/lran-config/.../table.h`) | Where it lands | `TODO(BF-23)`? |
-|---|---|---|
-| `diag_interval_s` | `g_diag_interval_s`, `task_runtime.cpp` | yes |
-| `poll_interval_s`, per node | `poll_interval_s` in the registry entry, `registry.h` | yes |
-| `poll_reply_timeout_ms` | `set_reply_timeout_ms()`, `scheduler.h` | yes |
-| `cad_retries`, `backoff_max_ms`, `frag_reassembly_timeout_ms` | `lora_configure()`, `lora_link.h` | yes |
-| `error_min_interval_ms` | `lora_configure_errors()`, `lora_link.h` | no — same comment block |
-| `missed_poll_threshold` | `AvailabilityWatchdog::set_threshold()`, `node_availability.h` | **no** |
-| `command_ack_timeout_ms`, `cmd_retries` | `set_ack_timeout_ms()`, `set_retries()`, `command.h` | **no** |
-| `config_readback_timeout_ms` | `set_readback_timeout_ms()`, `config_path.h` | **no** |
+**Without the bench: BF-26, then BF-24.** Neither needs a board.
 
-**Grepping for `TODO(BF-23)` finds four of the eight sites.** Root rule 8 covers all of
-them, so the table, not the marker, is the list.
-
-**What needs thought before code:**
-
-- **When a value is applied.** It has to be at boot, after NVS restores the store, and
-  again on every set that changes the row. A reboot that silently reverts to the
-  compile-time default is the failure to test for.
-- **Which task applies it.** `lora_configure()` must be called *through* `lora_task`,
-  never across it (its comment in `lora_link.h`, and
-  `tools/checks/lora_task_never_blocks.py`). The other consumers belong to `sched_task`,
-  and **`sched_task` is the deepest stack in this firmware**. Read its high-water mark
-  before adding to its tick.
-- **`cmd_retries` changes a retry count, never a `seq`** (root rule 2).
-- **BF-23's row in `LRAN-Bridge-Firmware-Tasks` §7 predates BF-32.** It still says the
-  lever waits on a library "which has no task". Update it in the same branch.
-
-**V-B12's saturated arm becomes runnable the moment this lands**, and Impl Plan §8.1.1 says
-how to run it: interleaved with its idle control, not in blocks. That run needs the bench.
-
-### 2. Then BF-26, then BF-24
-
-- **BF-26**, `simnode_diag_enable`. The row is in the table and gates nothing. It is the
-  one switch that lets a bench node's diagnostics and discovery reach Home Assistant
-  (spec §16.6). The `TODO(BF-26)` gates are in `task_runtime.cpp`.
+- **BF-26**, `simnode_diag_enable`. Its row is in the table, and nothing reads it yet.
+  **Consider carrying it on the lever board** (`levers.h`): `sched_task` reads it and
+  `mqtt_task` writes it. The `TODO(BF-26)` gates are in `task_runtime.cpp`. Turning the
+  switch on needs `g_availability.mark_known_pending()` and a discovery republish.
 - **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
   `task_runtime.cpp` and `task_runtime.h`.
+
+### What this branch decided
+
+- **Levers travel on a lock-free board with one writer** (Impl Plan §4.4.2). `sched_task`
+  and `lora_task` each take a consistent copy. `lora_task` waits on nothing.
+- **`g_config` has its own lock** (§6.7.6), held across `g_config` calls only and never
+  across another lock, a publish or a queue send. The operator chose it over handing the
+  resolution to `mqtt_task`.
+- **`config_ack_timeout_ms`** is row `0x000C`, 1000–60000 ms, default 8000 (Library Plan
+  v0.14).
+- **`config_set_changed()`** decides whether a set changed a stored value. A `get_all`
+  never does.
+
+### What this session established on the bench
+
+- **All four BF-23 checks pass**: an NVS restore at boot, a `diag_interval_s` set changing
+  `diag/state`'s spacing, a `poll_interval_s` set counting from the last poll, and
+  `sched_task` at 1976–2324 bytes free of 3072.
+- **Only a `ROLE_GATELINK` simnode identity answers `CONFIG`.** A `get_all` aimed at
+  `ROLE_HEALTH` goes `unknown`, then abandoned, and draws two `config/ack` messages by
+  design.
+- **`restore_defaults` on `lran/bridge/config/set` does not clear per-node rows.** Clear
+  those on the node's own topic.
 
 ### What the 2026-09-21 bench session established
 
@@ -97,6 +98,13 @@ name.
 
 ## Open, and not closable from here
 
+- **A bridge restart reuses command `seq` values a surviving node has seen: D58, resolved
+  and not built.**
+  A command after a bridge restart can draw `DUPLICATE_CACHED`, which the bridge reports as
+  success while the command never ran, or `REJECTED_SEQ`. For GateLink that follows every
+  bridge reflash, OTA update or power cut. D58 is resolved and waits on its specification
+  revision; see *The next job*. **Until it is built, no production node should be
+  commanded from this bridge.**
 - **The state mirror survives a node reboot and nothing invalidates it.** A simnode holds
   its overrides in RAM, so a reboot clears them while `config/state` goes on reporting the
   old values as current. A node with a store (GateLink, microSD, **D49**) keeps them, so
@@ -122,22 +130,22 @@ name.
 - **W15** (`CONFIG_ACK` has no override flag, so `config/state`'s `source` is inferred) and
   **W16** (nothing says when a node sends `CONFIG_CHANGE`) — both GateLink's.
 - **The citation sweep**, 31 sites, still the only thing holding the spec header at v0.12.
-  The operator's rule: once, when the configuration pass is finished. BF-32 is now done, so
-  **this is close to ready**. The whole-document style passes are owed with it.
+  The operator's rule is one sweep, and **it now rides on D58's spec revision** (operator,
+  2026-09-23). The whole-document style passes are owed too, on a branch of their own.
 
 ## Read these, in this order
 
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-21 entries** first — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **three 2026-09-23 entries** first: BF-23's lever half, its bench run, and the configuration lock with the `seq` gap. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.7** BF-32's configuration path; **§8.1** V-B12 and **§8.1.1** what the interleaved sweep found; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12 and **§8.1.1** what the interleaved sweep found; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
 | 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) | §9–§12, §14, §16; **§18.2, never §18.1 alone**. For configuration work: **§7.4**, **§7.4.1**, **§8.10–§8.12**, **§12.4**, **§16.7**. **Read the header block first** — the version is pinned at v0.12 on purpose and the block says why |
-| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
+| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.7** D58's outcome and **§2.3** its mechanism, **next to build**; **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
 | 10 | [`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) | why 917.4 MHz won. [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) is **superseded** |
 | 11 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
@@ -146,9 +154,9 @@ name.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D57**. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, BF-23's **discovery** half, **BF-32 entire**. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: BF-23's **lever half**, **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, which BF-23's lever unblocks. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. **The citation sweep**, 31 sites, and the style passes with it |
-| Queue | **BF-23's lever half**, then **BF-26**, then **BF-24**. None needs a board. **No measurement is queued** |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D57**. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **D58**, resolved and waiting on its spec revision. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. **The citation sweep**, 31 sites, and the style passes with it |
+| Queue | **D58's spec revision with the citation sweep**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -242,8 +250,9 @@ export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)"
 
 ## Hardware state
 
-**All three boards were reflashed from their own projects on 2026-09-21** and none is
-running `chan-capture` any more. **This table names the devices in this subproject's
+**The bridge board runs this branch, flashed from `52727b8` on 2026-09-23.** The two
+simnodes run their firmware from 2026-09-21, and none of the three boards is running
+`chan-capture`. The XIAO was unplugged for the 2026-09-23 run. **This table names the devices in this subproject's
 terms**; the range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
@@ -281,8 +290,11 @@ sum at compile time.
 - **A command takes 4–9 s from the MQTT publish to the node**, not ~1 s. A configuration
   set is slower still: it waits on the poll scheduler and the media access behind it.
 - **`sched_task` is the deepest task in this firmware since BF-32**, and it logs its
-  high-water mark on every configuration resolution. Read that number before adding
-  anything to its tick.
+  high-water mark on every configuration resolution: 1976–2324 bytes free of 3072 on
+  2026-09-23. Read that number before adding anything to its tick.
+- **Rebooting the bridge without rebooting a simnode reuses command `seq` values** the
+  simnode has seen. Reboot both, or expect `DUPLICATE_CACHED` on the first authenticated
+  frame after the bridge boots.
 - **Interleave the arms of any frame-counting sweep**, and give every one a control arm in
   the same session. `tools/simctl/sweep_interleave.py` does both.
 - **HA's entity registry remembers every `unique_id`**, and a retained discovery config

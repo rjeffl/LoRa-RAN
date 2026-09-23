@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.30
+**Version:** 0.32
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.39
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.43
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-23
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -249,7 +249,7 @@ reduce to *"this value reads the table"*.
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-23** | Discovery generation, per-node-type templates, republish on broker reconnect (§4.4, R-3.3b/c/d). **Built and host-tested 2026-09-17**, Impl Plan §4.4.1: one device per registered node plus the bridge, retained, on boot and on every reconnect through the same path. `ha/discovery/` is generated from `discovery.cpp` and checked in CI. **The reconnect path is not an explicit test but an explicit absence of a branch** — there is no "first time" flag to skip. **Bench nodes are gated out until BF-26** (spec §16.6). **NOT DONE: the runtime timing levers.** Every `TODO(BF-23)` on a timing constant is still there; the path from HA needs `lran/<node>/config/set`'s payload, which spec §16.2.1 leaves undefined, and `/lib/lran-config/`, which has no task. **Answered 2026-09-19**: spec v0.13 §16.7 defines the payload, and **BF-32** builds the library | **Sonnet** | Payload shape is specified and example payloads are committed to `/ha/`. The reconnect path is the one that gets skipped, so make it an explicit test rather than a hope |
+| **BF-23** | Discovery generation, per-node-type templates, republish on broker reconnect (§4.4, R-3.3b/c/d). **Built and host-tested 2026-09-17**, Impl Plan §4.4.1: one device per registered node plus the bridge, retained, on boot and on every reconnect through the same path. `ha/discovery/` is generated from `discovery.cpp` and checked in CI. **The reconnect path is not an explicit test but an explicit absence of a branch** — there is no "first time" flag to skip. **Bench nodes are gated out until BF-26** (spec §16.6). **The runtime timing levers are the lever half, built and host-tested 2026-09-23**, Impl Plan §4.4.2. Each bridge row of BF-32's table now reaches its consumer: at boot after the NVS restore, and after every set that changes one. `simnode_diag_enable` is BF-26's. **Confirmed on air 2026-09-23**: an NVS restore at boot, a `diag_interval_s` set, a `poll_interval_s` retime and `sched_task`'s stack, all on the bridge board. V-B12's saturated arm is now runnable | **Sonnet** | Payload shape is specified and example payloads are committed to `/ha/`. The reconnect path is the one that gets skipped, so make it an explicit test rather than a hope |
 | **BF-24** | **Publication policy** — `publish.cpp`, §6.3's whole table | **Opus** | **R-5.2b is the requirement most easily lost in implementation**, because republishing the cached value is the path of least resistance and produces a dashboard that looks healthy. A dead VE.Direct link showing plausible unchanged numbers indefinitely is worse than an obviously unavailable entity |
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**) | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
 | **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator). **Unblocked 2026-09-19 by BF-32**, which builds all three | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
@@ -297,6 +297,13 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.32** — **BF-23's lever half is confirmed on air.** The engineering log's second
+  2026-09-23 entry has the bench run.
+
+- **v0.31** — **BF-23's lever half is built and host-tested.** The row no longer says the
+  levers wait on a library with no task: BF-32 built that library, and Impl Plan §4.4.2
+  records how each row reaches its consumer. It is not yet confirmed on air.
 
 - **v0.30** — **BF-32's row gains the split readback** (spec §7.4.1, **D57**): a `GET_ALL`
   answer too large for one frame arrives as several `CONFIG_ACK` messages, and the row names
