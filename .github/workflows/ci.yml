@@ -74,7 +74,7 @@ jobs:
     steps:
       # Full history, because a push to main diffs against the previous tip, which
       # can be several commits back.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -125,9 +125,9 @@ jobs:
     name: Repository checks and host tools
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -255,14 +255,14 @@ jobs:
     if: needs.changes.outputs.native == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.platformio
@@ -359,9 +359,9 @@ jobs:
             envs: heltec xiao-wio
             secrets: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -370,7 +370,7 @@ jobs:
       # shares the one key: ~/.platformio holds the platform and toolchain, and
       # each project's libraries live in its own .pio/.
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.platformio
@@ -398,7 +398,7 @@ jobs:
       # pio-build-bridge-vb9-, and the bridge job restored the V-B9 job's objects.
       - name: Restore build cache
         if: github.event_name != 'schedule'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
           key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
@@ -426,7 +426,7 @@ jobs:
       # empty directory would become the newest entry and the next run would restore it.
       - name: Save build cache
         if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
           key: pio-build-${{ matrix.id }}-run-${{ github.run_id }}-${{ github.run_attempt }}
@@ -465,14 +465,14 @@ jobs:
     env:
       PLATFORMIO_BUILD_CACHE_DIR: ${{ github.workspace }}/.pio-build-cache
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Cache PlatformIO
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.platformio
@@ -488,7 +488,7 @@ jobs:
       # The firmware job's build cache, under a key of its own; see that job.
       - name: Restore build cache
         if: github.event_name != 'schedule'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
           key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
@@ -506,7 +506,7 @@ jobs:
 
       - name: Save build cache
         if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
           key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
