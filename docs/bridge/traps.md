@@ -146,6 +146,16 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
 - **The sandbox broker refuses anonymous clients** (`CONNACK 5`).
 - **HA's entity registry remembers every `unique_id`, and a retained discovery config
   survives a reflash.** Develop against the dev HA VM and dev broker until **B6**.
+- **A configuration check on a node's own rows needs a `ROLE_GATELINK` identity.** The
+  simnode answers `CONFIG` in no other role, and `stats <id>` counts the request as
+  `unhandled`. Add one with `id add f1 ROLE_GATELINK` when the XIAO that holds f1 is not
+  plugged in.
+- **`restore_defaults` on `lran/bridge/config/set` leaves per-node rows alone.** Clear
+  `poll_interval_s` on the node's own `config/set`.
+- **Rebooting the bridge without rebooting a simnode reuses command `seq` values**, until
+  **D58** is built. The first authenticated frame to that simnode draws
+  `DUPLICATE_CACHED` and is not applied. Reboot the simnode too, which a reopened serial
+  port does, or expect it.
 
 ## Boot, OTA and V-B9
 

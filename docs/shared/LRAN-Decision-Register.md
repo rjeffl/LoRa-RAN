@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.14
+**Version:** 0.15
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-20
+**Last updated:** 2026-09-23
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D57** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D58** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -53,6 +53,7 @@ than one section, or when it is blocking work.
 | **D19** | **WellLink power source** | WellLink PRD | Mains vs. battery/solar. Determines whether the reserved RX duty-cycling design (Protocol Spec §17.1) is needed, and whether battery telemetry is required in the WellLink schema | Before WellLink design |
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
 | **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor. **Amended 2026-09-06 — see §2.2. Still open, but the margin looks considerably better than this row's premise** | Phase 5 |
+| **D58** | **How the bridge resumes commanding a node after its own restart** | Protocol Spec §9.4, §10 | **Proposed 2026-09-23; see §2.3.** A bridge restart resets its command `seq`, and a node that did not restart still holds its `rx_high_water` and dedup cache under the same `ctx_id`. A command can then be answered `DUPLICATE_CACHED` without running, or refused `REJECTED_SEQ`. The operator chose the direction on 2026-09-23: **the bridge forces each node onto a new context after its own boot**. The mechanism in §2.3 awaits acceptance | Before GateLink firmware, and before the bridge commands a production node |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
 
 ### 2.1 D1 — what bounds it (2026-08-30)
@@ -136,6 +137,105 @@ left standing**; this entry supersedes its *outlook*, not its record. D28 closes
 **M23**, which is now a cavity-position and antenna question rather than a survival one.
 
 ---
+
+### 2.3 D58 — the bridge's restart and the command `seq`, proposed 2026-09-23
+
+**The problem, found on the bench.** After the bridge was reflashed on 2026-09-23, its first
+`CONFIG` to simnode identity f1 went out with `seq` 1. The simnode had not restarted and
+still held seq 1 in its dedup cache from before the reflash. It logged `dedup hit,
+DUPLICATE_CACHED, not applied`. The bridge engineering log's third entry for that day has
+the evidence and a one-step reproduction.
+
+**The specification does not cover the case.** §10.2 has the bridge reset its command `seq`
+to 1 when it learns a new `ctx_id`, and §10.1 gives the bridge no context of its own. Both
+assume that only a node restarts. §10.4 says so outright: the dedup cache is lost on reboot
+"which is correct: a reboot changes `ctx_id`". A bridge restart changes no `ctx_id`, so
+after one:
+
+- a command whose `seq` is still in the node's dedup cache draws `DUPLICATE_CACHED`, and
+  its `detail` carries the result of a **different, earlier** command. The bridge reports
+  that as acknowledged, and the command never runs;
+- a command whose `seq` is at or below `rx_high_water` but no longer cached draws
+  `REJECTED_SEQ`. Each later command fails the same way and spends one `seq`, until the
+  bridge's `seq` passes the node's high-water mark.
+
+For GateLink that follows every bridge reflash, OTA update or power cut.
+
+**The operator's direction.** *A bridge reboot should be considered a major event*, so the
+bridge forces every node onto a new context after its own boot, rather than persisting its
+command `seq` across the restart. A forced context also covers a replaced or wiped bridge
+board, which a persisted `seq` does not.
+
+#### What is proposed
+
+1. **A new node-local command, `ROLL_CONTEXT`**, proposed at `cmd` `0x12`, with `arg` =
+   `0xA5` as a confirmation guard, as `REBOOT` has. It is an ordinary authenticated
+   `COMMAND`, so §9.2 needs no change.
+2. **Verification runs §9.4 steps 1–3 unchanged**, so the request must carry the node's
+   *current* `ctx_id` and a valid MAC. **For `ROLL_CONTEXT` alone, steps 4 and 5 are
+   skipped**: the request exists because the bridge's `seq` cannot be trusted.
+3. **The node rolls.** It generates a new random non-zero `ctx_id` different from the
+   current one, empties its dedup cache, sets `rx_high_water` to 0 and resets its status
+   `seq`. It answers `COMMAND_ACK(ACCEPTED)` with `ack_seq` set to the request's `seq`, and
+   carries the **new** `ctx_id` in the header. It changes nothing else.
+4. **The bridge adopts the new context.** It takes the `ctx_id` from the ACK and resets its
+   command `seq` for that node to 1, as §10.3 step 2 does.
+5. **When the bridge sends it.** Once per node after each bridge boot, when the bridge first
+   hears that node, because that frame supplies the `ctx_id` the request must carry.
+6. **Until the roll completes, the bridge sends that node no `COMMAND` and no `CONFIG`.**
+   A request that arrives in that window is refused with a named reason, not queued (see
+   *Questions*).
+7. **A lost ACK converges.** If the node rolled and its ACK was lost, the bridge's retry,
+   with the same `seq` under root rule 2, carries the old `ctx_id` and draws
+   `REJECTED_CTX` with the new one. The bridge adopts it, which is the intended end state.
+   A `REJECTED_CTX` answering a `ROLL_CONTEXT` completes the roll, and it does not count
+   toward §10.3 step 3's limit of one resync.
+8. **A context change no longer means a node restart.** Anything that reports a node reboot
+   reads `boot_count` or `uptime_s` from `STATUS` (§7.2.4). A readback on every new
+   `ctx_id`, which the bridge handoff proposes for the stale `config/state` mirror, stays
+   correct, because the readback is harmless after a roll.
+
+#### Why the replay exposure is bounded
+
+A captured `ROLL_CONTEXT` carries the `ctx_id` it was sent under. The roll changes that
+`ctx_id`, so once the node has acted on the request, a replayed copy fails at step 2. An
+attacker could replay the request only by stopping the original from arriving, and the
+replay would then perform the roll the bridge had asked for. **The worst case is a lost
+command window, never an actuation.** The request is authenticated, so nobody without the
+node's key can start a roll.
+
+#### Alternatives rejected
+
+- **Persist the command `seq` in NVS.** It needs no wire change, and the bridge could write
+  once per block of reserved values to limit wear. It fails when the bridge board is
+  replaced or its NVS is erased, and it carries the old context across a restart that the
+  operator treats as a major event.
+- **Roll on any frame whose `ctx_id` is 0 or does not match.** Step 2 runs before the MAC
+  check, so anyone with a radio could force a roll at will. D41 already bars a receiver
+  from adopting a zero `ctx_id`.
+- **Start the bridge's `seq` at a random value.** Under §10.5's serial arithmetic, a random
+  start lands at or below the node's high-water mark about half the time.
+
+#### Cost
+
+- **A specification revision.** `cmd` §8.1 gains a value, and §9.4, §10.2, §10.3 and §10.4
+  gain the rules above, and §10.5, which says only a node reboot resets both counters, gains the roll. The citation sweep holds the header at v0.12, so this is best
+  carried in the same revision.
+- **W4 vectors.** Two new ones are proposed: a valid `ROLL_CONTEXT`, and a stale one that
+  must fail step 2. The existing vectors do not change.
+- **Code.** `/lib/lran-protocol/`'s receive path, simnode `ROLE_GATELINK`, and the bridge's
+  command path and scheduler. GateLink is unbuilt, so it takes the rule from the start
+  instead of a USB reflash at the gate.
+- **A §14.1 counter or diagnostic for rolls**, so a roll is visible without serial.
+
+#### Questions for the operator
+
+1. **A command during the roll window: refuse it or hold it?** Refusing is proposed. A held
+   `OPEN` could reach the gate a full poll interval after it was pressed, 60 s by default.
+2. **Does `ver` stay `2`?** Staying at 2 is proposed. The change adds a value and changes no
+   layout. A node without `ROLL_CONTEXT` answers `REJECTED_UNKNOWN_CMD`. No such node is
+   deployed, so the bridge treats that answer as a fault and does not fall back.
+3. **The name and value, `ROLL_CONTEXT` at `0x12`.** Names on the wire are permanent.
 
 ## 3. Resolved decisions
 
@@ -885,6 +985,12 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.15** — **D58 proposed, open**: how the bridge resumes commanding a node after its own
+  restart. The bench found on 2026-09-23 that a bridge restart reuses command `seq` values a
+  surviving node has seen. The operator chose the direction the same day, a forced new node
+  context. New **§2.3** carries the proposed mechanism and three questions awaiting the
+  operator's answer. §1's highest issued decision number moves to **D58**.
 
 - **v0.14** — **D17's row no longer says spec §5.3 reads `(LoRaBridge)`**; spec v0.10 changed it on 2026-09-10 and the row was not updated. **D43–D56 resolved: runtime configuration from Home Assistant.** The
   operator chose the general `config/set` route and accepted every recommendation of

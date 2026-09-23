@@ -8,7 +8,9 @@ previous one wholesale.
 
 **What is durable: BF-23 is done, and the run found a specification gap.** A bridge
 restart reuses command `seq` values that a node, which did not restart, has already seen.
-The engineering log's third 2026-09-23 entry has the evidence.
+The engineering log's third 2026-09-23 entry has the evidence. **The operator chose the
+direction, a forced new node context, and D58 is drafted** in Decision Register v0.15
+§2.3. It is open, waiting on three answers.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,8 +20,19 @@ The engineering log's third 2026-09-23 entry has the evidence.
 
 ## The next job, in one place
 
-**First, the operator decides the bridge-restart `seq` gap.** It is in the specification,
-not the firmware, so it needs a decision before code. See *Open* below.
+**First, D58.** Decision Register §2.3 proposes `ROLL_CONTEXT`, and it ends with three
+questions for the operator: whether a command in the roll window is refused or held,
+whether `ver` stays `2`, and the name and value. **Nothing is built until the operator
+accepts it.** Accepting it then needs three things, in order:
+
+1. Move D58 to §3's resolved table, with the answers.
+2. Revise the spec (§8.1, §9.4, §10.2–§10.5), with two new W4 vectors. **The citation sweep
+   holds the spec header at v0.12**, and the operator's rule is one sweep. So check first
+   whether this revision should be the one that carries it; that decision is the
+   operator's. Spec revisions go on their own branch.
+3. Build it in the library's receive path, simnode `ROLE_GATELINK`, and the bridge's command
+   path and scheduler. Then run the one-step reproduction in the engineering log on the
+   bench.
 
 **With the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed on
 air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
@@ -86,15 +99,12 @@ name.
 
 ## Open, and not closable from here
 
-- **A bridge restart reuses command `seq` values a surviving node has seen.** Spec §10.2
-  resets the command `seq` only when the bridge learns a new `ctx_id`, and a node that did
-  not restart keeps its `rx_high_water` and dedup cache. A command after a bridge restart
-  can draw `DUPLICATE_CACHED`, which the bridge reports as success while the command never
-  ran, or `REJECTED_SEQ`, which fails each command until the bridge's `seq` passes the
-  node's high-water mark. For GateLink that is every bridge reflash, OTA update or power
-  cut. **A spec decision, the operator's.** Candidates: persist the command `seq` in NVS;
-  have a stale `seq` trigger a resync; or have the bridge force a new node context after
-  its own boot. The engineering log has a one-step bench reproduction.
+- **A bridge restart reuses command `seq` values a surviving node has seen: D58, open.**
+  A command after a bridge restart can draw `DUPLICATE_CACHED`, which the bridge reports as
+  success while the command never ran, or `REJECTED_SEQ`. For GateLink that follows every
+  bridge reflash, OTA update or power cut. The direction is chosen and the mechanism is
+  drafted; see *The next job*. **Until it is built, no production node should be
+  commanded from this bridge.**
 - **The state mirror survives a node reboot and nothing invalidates it.** A simnode holds
   its overrides in RAM, so a reboot clears them while `config/state` goes on reporting the
   old values as current. A node with a store (GateLink, microSD, **D49**) keeps them, so
@@ -135,7 +145,7 @@ name.
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
 | 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) | §9–§12, §14, §16; **§18.2, never §18.1 alone**. For configuration work: **§7.4**, **§7.4.1**, **§8.10–§8.12**, **§12.4**, **§16.7**. **Read the header block first** — the version is pinned at v0.12 on purpose and the block says why |
-| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
+| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§2.3** D58, the bridge-restart context roll, **open and next**; **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
 | 10 | [`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) | why 917.4 MHz won. [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) is **superseded** |
 | 11 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
@@ -145,8 +155,8 @@ name.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D57**. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **The bridge-restart `seq` gap**, a spec decision. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. **The citation sweep**, 31 sites, and the style passes with it |
-| Queue | **The `seq` gap's decision**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **D58**, drafted and open. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. **The citation sweep**, 31 sites, and the style passes with it |
+| Queue | **D58's answers and acceptance**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
