@@ -1,13 +1,14 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.12 (`ver = 2`)
-**Vectors last regenerated against:** v0.6 — **and correctly so.** v0.7 through v0.12
-changed no frame layout, header field, enumeration value, schema or authentication
-scope, so §13.2's regeneration requirement has not been triggered since. `generate.py`
-re-run against v0.12 on 2026-09-16 reproduced the committed files byte for byte.
-**v0.12 adds a counter** (`rx_unknown_src`, §14 stage 9a) and the vectors are unaffected:
-§14.1 is enforced by the generator and the checker through the registry's names, and no
-vector carries a counter value.
+**Binding specification:** `LRAN-Protocol-Specification` v0.13 (`ver = 2`)
+**Vectors last regenerated against:** v0.13, on 2026-09-23. **D58 added an enumeration
+value**, `cmd` `0x12` `ROLL_CONTEXT`, which triggers §13.2's regeneration requirement, and
+three vectors cover it. Every vector committed before it kept its bytes; only each file's
+`spec` field changed. v0.7 through v0.12 changed no frame layout, header field,
+enumeration value, schema or authentication scope, so the vectors were not regenerated
+between v0.6 and v0.13. **v0.12 adds a counter** (`rx_unknown_src`, §14 stage 9a) and the
+vectors are unaffected: §14.1 is enforced by the generator and the checker through the
+registry's names, and no vector carries a counter value.
 **Consumed by:** `/lib/lran-protocol/test/test_vectors/` (C++, Unity, `native`)
 **Produced by:** `generate.py` (Python 3, this directory)
 
@@ -52,11 +53,14 @@ file exists rather than the format living only in the generator.
 ```bash
 python3 tools/vectors/generate.py            # rewrites the .json files in place
 python3 tools/vectors/check.py               # self-check: re-derives and compares
+python3 tools/vectors/embed.py               # copies them into the C++ suite's header
 pio test -d lib/lran-protocol -e native      # the C++ side consumes them
 ```
 
 A protocol change means: regenerate, **read the diff**, and confirm every changed byte
-is a change you intended. A vector file diff that nobody read is a rubber stamp.
+is a change you intended. **Skipping `embed.py` leaves the C++ suite testing the old
+set.** The D57 vectors went unembedded from 2026-09-20 to 2026-09-23, and one of them had
+found a codec defect in that time. A vector file diff that nobody read is a rubber stamp.
 
 ---
 

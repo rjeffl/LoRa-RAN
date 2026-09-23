@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.6",
+  "spec": "LRAN-Protocol-Specification v0.13",
   "wire_ver": 2,
   "group": "single",
   "generated_by": "tools/vectors/generate.py",
@@ -230,6 +230,34 @@
       }
     },
     {
+      "name": "command_roll_context",
+      "spec_ref": "§6.2, §8.1, §9.4, §10.6",
+      "origin": "derived",
+      "note": "ROLL_CONTEXT, sent under the node's current ctx_id. seq 1 is what a bridge holds after its own restart; §9.4 skips steps 4-6 for this command, so the node does not check it.",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND",
+        "src": 0,
+        "dst": 1,
+        "seq": 1,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "12a50000",
+      "key": "node:0x01",
+      "frame": "020100010100efcdab8901000000000012a500004cf0c67d3c87cee93c33",
+      "frame_len": 30,
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 2309737967,
+        "status": "Ok",
+        "payload": "12a50000",
+        "mac_present": true
+      }
+    },
+    {
       "name": "command_to_simnode0",
       "spec_ref": "§5.3, §9.1",
       "origin": "derived",
@@ -338,6 +366,34 @@
         "expect_ctx_id": 0,
         "status": "Ok",
         "payload": "090003000000",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "command_ack_roll_context_new_ctx",
+      "spec_ref": "§6.3, §10.6",
+      "origin": "derived",
+      "note": "ACCEPTED for a ROLL_CONTEXT: ack_seq is the request's seq, and the header carries the NEW ctx_id, which the bridge adopts. The first frame of the new context, so its status seq is 1.",
+      "header": {
+        "ver": 2,
+        "type": "COMMAND_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 1,
+        "ctx_id": 1012571761,
+        "frag": "0x01",
+        "schema": "0x00",
+        "hdr_flags": "0x00"
+      },
+      "payload": "010000000000",
+      "key": null,
+      "frame": "020201000100719e5a3c010000000000010000000000f013",
+      "frame_len": 24,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "010000000000",
         "mac_present": false
       }
     },

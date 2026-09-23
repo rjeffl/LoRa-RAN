@@ -3,8 +3,9 @@
 # Copyright (c) 2026 Robert J. Lee
 """LRAN protocol test-vector generator - open item W4, milestone P6.
 
-Derived from the prose of `LRAN-Protocol-Specification` v0.6 and from nothing
-else, except where a vector is marked `"origin": "adjudicated"` - see below. This file deliberately shares no code with /lib/lran-protocol/: the CRC-16,
+Derived from the prose of `LRAN-Protocol-Specification` and from nothing else:
+v0.6 for the original set, and the section each later vector cites. The exception is
+where a vector is marked `"origin": "adjudicated"` - see below. This file deliberately shares no code with /lib/lran-protocol/: the CRC-16,
 the header serializer, the payload builders and the fragmenter are all written
 here from the specification text. Only `hashlib` and `hmac` are borrowed, and
 those are independent implementations of published primitives (§9.1, README).
@@ -41,7 +42,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.6"
+SPEC = "LRAN-Protocol-Specification v0.13"
 WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
 
 DERIVED = "derived"
@@ -767,6 +768,9 @@ def build_kdf():
 # group: single  (§6, §7, §19)
 # ---------------------------------------------------------------------------
 GATE_CTX = CTX[NODE_GATELINK]
+# §10.6 - the context GateLink takes on a ROLL_CONTEXT. Random on a real node; fixed
+# here, non-zero and different from GATE_CTX, as §10.6 requires.
+GATE_CTX_ROLLED = 0x3C5A9E71
 
 STATUS_NOMINAL = dict(
     gate_state=0x03,          # §8.3 OPEN_COUNTDOWN
@@ -854,6 +858,11 @@ def build_single():
                     ctx_id=GATE_CTX, payload=p_command(0x7F, arg=0xA5),
                     mac_node=NODE_GATELINK, self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX,
                     note="REBOOT requires arg = 0xA5 as a confirmation guard."))
+    v.append(single("command_roll_context", "§6.2, §8.1, §9.4, §10.6",
+                    type_name="COMMAND", src=NODE_BRIDGE, dst=NODE_GATELINK, seq=1,
+                    ctx_id=GATE_CTX, payload=p_command(0x12, arg=0xA5),
+                    mac_node=NODE_GATELINK, self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX,
+                    note="ROLL_CONTEXT, sent under the node's current ctx_id. seq 1 is what a bridge holds after its own restart; §9.4 skips steps 4-6 for this command, so the node does not check it."))
     v.append(single("command_to_simnode0", "§5.3, §9.1",
                     type_name="COMMAND", src=NODE_BRIDGE, dst=NODE_SIMNODE0, seq=7,
                     ctx_id=CTX[NODE_SIMNODE0], payload=p_command(0x10),
@@ -874,6 +883,10 @@ def build_single():
                     type_name="COMMAND_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=3,
                     ctx_id=GATE_CTX, payload=p_command_ack(9, 0x03), self_id=NODE_BRIDGE,
                     note="Carries the node's OWN ctx_id in the header - that is what the bridge adopts (§10.3)."))
+    v.append(single("command_ack_roll_context_new_ctx", "§6.3, §10.6",
+                    type_name="COMMAND_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=1,
+                    ctx_id=GATE_CTX_ROLLED, payload=p_command_ack(1, 0x00), self_id=NODE_BRIDGE,
+                    note="ACCEPTED for a ROLL_CONTEXT: ack_seq is the request's seq, and the header carries the NEW ctx_id, which the bridge adopts. The first frame of the new context, so its status seq is 1."))
 
     # --- STATUS (§7.2, §7.5, §19) -----------------------------------------
     v.append(single("status_gatelink_0x10_nominal", "§7.2, §7.1, §19",
@@ -1293,6 +1306,13 @@ def build_negative():
                       self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX, status="RejectedCtx",
                       counter="rx_rejected_ctx", stage="9", origin=ADJUDICATED,
                       note="MAC is valid over this header, so only the ctx check can fail: the node replies COMMAND_ACK(REJECTED_CTX) carrying its own ctx_id."))
+    roll_stale = build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK, seq=9,
+                             ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x12, arg=0xA5),
+                             mac_node=NODE_GATELINK)
+    v.append(negative("roll_context_replayed_after_roll", "§9.4 step 2, §10.6, §14 stage 9",
+                      frame=roll_stale, self_id=NODE_GATELINK, expect_ctx_id=GATE_CTX_ROLLED,
+                      status="RejectedCtx", counter="rx_rejected_ctx", stage="9",
+                      note="A ROLL_CONTEXT captured under the old ctx_id, replayed after the node rolled to a new one. The MAC is valid, so only the ctx check can fail. This is what bounds a replayed roll (§10.6): once acted on, the request cannot be acted on again. Its seq differs from command_roll_context's only because no negative may reproduce a valid frame byte for byte."))
     forged = bytearray(build_frame(type_id=MSG_TYPE["COMMAND"], src=NODE_BRIDGE, dst=NODE_GATELINK,
                                    seq=6, ctx_id=GATE_CTX, frag=0x01, payload=p_command(0x01),
                                    mac_node=NODE_GATELINK))

@@ -47,16 +47,22 @@ SKIP_PATHS = (
     # would claim it had been reconciled with a revision it predates.
     pathlib.Path("docs/shared/LRAN-D1-PHY-Decision-Brief.md"),
     pathlib.Path("docs/shared/LRAN-P8-CommandGate-Brief.md"),
+    pathlib.Path("docs/shared/LRAN-Spec-v0.12-Brief.md"),
+    pathlib.Path("docs/shared/LRAN-D1-Frequency-Change-Brief.md"),
+    pathlib.Path("docs/shared/LRAN-Config-Set-Brief.md"),
+    # A measurement record reads one run against the specification of its day and
+    # decides nothing, so the same reasoning applies to it.
+    pathlib.Path("docs/shared/LRAN-D1-Parallel-Capture-Analysis.md"),
 )
 
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".
 CITATION_PATTERNS = (
-    # **Binding protocol:** [...](...) **v0.12**   /   `...` v0.12 (`ver = 2`)
+    # **Binding protocol:** [...](...) **v0.13**   /   `...` v0.13 (`ver = 2`)
     re.compile(r"Binding (?:protocol|specification|spec)\b[^\n]*?v(?P<ver>\d+\.\d+)", re.I),
-    # Root CLAUDE.md's document table: **Currently v0.12, `ver = 2`**
+    # Root CLAUDE.md's document table: **Currently v0.13, `ver = 2`**
     re.compile(r"Currently\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
-    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.12
+    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.13
     re.compile(r"LRAN-Protocol-Specification`?\*{0,2}\s+is\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
     # System PRD §12 document-set row.
     re.compile(

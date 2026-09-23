@@ -4,7 +4,7 @@
 specific to this target.
 
 **Primary document:** `docs/rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md`.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.12** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 **Record:** `docs/rangetest/engineering-log.md`.
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. It bites hardest here,
 because most of this target's writing is dated campaign record: engineering-log entries,
@@ -28,12 +28,13 @@ Two consequences, both easy to violate by accident:
 
 ## The one specification rule this binary deliberately breaks
 
-**§12.1 says "LoRa PHY parameters are not runtime-configurable."** This binary makes
-frequency, SF, CR, TX power and payload size runtime-settable, because that is what a
-sweep *is* (task guardrail 4).
+**Node firmware changes the PHY only through spec §12.4's commit-and-revert** (**D56**,
+v0.13, which withdrew §12.1's *"not runtime-configurable"*). This binary sets frequency,
+SF, CR, TX power and payload size directly, because that is what a sweep *is* (task
+guardrail 4).
 
-It is confined to `phy_params.{h,cpp}` and the `TestPoint` struct. **Nothing that reads a
-PHY parameter at runtime may migrate into node firmware** — on a fleet with no OTA, one
+It is confined to `phy_params.{h,cpp}` and the `TestPoint` struct. **Nothing that sets a
+PHY parameter directly may migrate into node firmware** — on a fleet with no OTA, one
 mismatched parameter is a walk to the gate with a laptop.
 
 ## No WiFi, no MQTT, no `secrets.h`, no Home Assistant

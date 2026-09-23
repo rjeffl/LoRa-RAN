@@ -1,11 +1,11 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.32
+**Version:** 0.33
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.43
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-23
@@ -69,9 +69,12 @@ Three consequences reach the code rather than the documents:
 - **`backoff_max_ms` defaults to 1500, not 500.** A maximum `PING` at SF9 runs 1107 ms, so
   the old window could not outlast the frame it backed off for. It is runtime-configurable
   from HA, which is what made SF9 affordable — the SF it protects is not.
-- **The PHY parameters are not runtime-configurable** (Protocol Spec §12.1). A node that
-  boots on the wrong channel is a walk to the gate with a laptop, so they belong in the
-  injected radio config with the pin map, not in the HA-visible config set.
+- **The PHY parameters change at runtime only through §12.4's commit-and-revert**
+  (Protocol Spec v0.13, **D56**). §12.1's *"not runtime-configurable"* was withdrawn in
+  v0.13. A node that boots on the wrong channel is a walk to the gate with a laptop, and
+  the revert window exists for that case. Until **BF-33** builds it, the six PHY rows are
+  `READ_ONLY`. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  config (§12.2).
 - **`cad_backoffs` is the instrument to watch after bring-up.** M20 measured 125 kHz every
   200 kHz, so 37.5 % of the band was never looked at, and §12.3's retry defaults were
   chosen against an empty channel.
@@ -255,6 +258,7 @@ reduce to *"this value reads the table"*.
 | **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator: it needs `/lib/lran-config/`, an MQTT receive path and a `lran/<node>/config/set` payload, and none exists or has a task. Until HA can set it, the bench toggle will be a serial `diag on\|off`, RAM only, off at boot (operator). **Unblocked 2026-09-19 by BF-32**, which builds all three | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
 | **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7), and the reassembly of a readback split across several `CONFIG_ACK` messages (spec §7.4.1, **D57**). **Added 2026-09-19. BUILT AND CONFIRMED ON AIR 2026-09-21**, Impl Plan §6.7: the library half, the bridge's stores over NVS, the `config/set` subscriber, the owner split, the node half's CONFIG and split readback, and `config/ack` and `config/state`. The bench found three defects the host tests could not — a simnode answering a solicited `CONFIG_ACK` under its status `seq`, a `sched_task` stack overflow, and a set's ACK blanking rows it did not name — all fixed; engineering log, 2026-09-21 | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/`. **The split readback has two traps of its own**: the bridge must accept more than one `CONFIG_ACK` for a single `seq`, and it must publish `config/state` only once the answer completes |
 | **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19.** Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
+| **BF-34** | **Context roll after a bridge restart** — spec §10.6 (**D58**, Bridge PRD **R-3.1h**). Bridge: a `POLL` to every registered node at boot, `ROLL_CONTEXT` when each node is first heard, a retry on `ACTUATOR_BUSY`, a failed roll kept pending, and no `COMMAND` or `CONFIG` until the roll completes. A refusal names the roll on `cmd/ack`, and on `config/ack` as `context_roll_pending`. The bridge counts `ctx_rolls` and `ctx_roll_failed`. Simnode `ROLE_GATELINK`: refuse a roll while a command is in flight; otherwise take a new `ctx_id` and reset both sequence spaces. **Added 2026-09-23.** Until it lands, a bridge reflash leaves a surviving node answering from its dedup cache (`traps.md`) | **Opus** | Root rule 2 from the other side: a `seq` the node already cached is a command that is acknowledged and never runs. The roll's own retry reuses its `seq`, and a failed roll stays pending rather than falling back to commanding a node whose context is stale |
 | **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. The other three tools are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
 ---
@@ -297,6 +301,12 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.33** — **Protocol specification v0.12 → v0.13, and new BF-34.** **BF-34** builds
+  spec §10.6's context roll after a bridge restart (**D58**, Bridge PRD R-3.1h). §1's PHY
+  bullet no longer says the PHY parameters are not runtime-configurable: spec v0.13
+  withdrew that under **D56**, and §12.4's commit-and-revert is BF-33's. BF-32 already
+  built against v0.13's §7.4.1 and §16.7, so its row does not change.
 
 - **v0.32** — **BF-23's lever half is confirmed on air.** The engineering log's second
   2026-09-23 entry has the bench run.

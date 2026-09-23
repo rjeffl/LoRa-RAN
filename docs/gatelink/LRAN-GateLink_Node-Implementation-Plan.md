@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.10
+**Version:** 0.11
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.5
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.9
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-23
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -639,6 +639,11 @@ must never be starved.**
   **Open:** whether the ACK waits for the pulse to complete or for the gate to confirm
   movement (`command_confirm_timeout_s`, 5 s). It sets how often the window is hit against
   the bridge's 3 s ACK timeout. **Decide it before M3.**
+- **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
+  **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
+  and changes nothing. Otherwise it takes a new random `ctx_id`, calls
+  `reset_context()`, resets its status `seq`, and ACKs under the new `ctx_id`. The
+  in-flight check runs on the task that owns the gate, for the reason `record()` does.
 
 ### 5.3 Module map
 
@@ -756,6 +761,10 @@ discovery payloads and `/docs/gatelink-config.md` are all **derived from it by c
 every node holds from `0x0100`–`0x01FF` (Protocol Spec §7.4, **D46**). Three hand-maintained
 copies drift, silently: HA offers a range the firmware clamps, or documentation describes
 a default that changed two revisions ago.
+
+**A full readback may span several `CONFIG_ACK` messages** (Protocol Spec §7.4.1, **D57**),
+and the six PHY rows change only through §12.4's commit-and-revert (**D56**), `READ_ONLY`
+until it is built.
 
 **microSD contents:**
 
@@ -898,7 +907,7 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 | **M0** | **Carrier board bring-up** | BOM in hand; **M4** settled | LDO holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. *Previously read "+22 dBm", which neither envelope permits.* **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio on the §3.3 pin map with the correct TCXO voltage and DIO2 RF-switch mode. Module confirmed to need no TXEN/RXEN. Ping/loopback to a Heltec succeeds on the bench. **Failure here is D30 trigger 1** |
 | **M1** | **Platform HAL** | Host in hand | Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through `/lib/lran-platform/`. **The same HAL compiles for the Heltec bridge target** |
 | **M2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `/docs/1050-config.md` written. **M1, M2, M3, M8 measurements captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
-| **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync and command dedup all verified. **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
+| **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
 | **M4** | **VE.Direct** | M0, **M4 measurement** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. §9.6 baseline log started |
 | **M5** | **Battery and BMS** | M1 | TDT client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (M7)**, settling the sign convention |
 | **M6** | **Inputs live, read-only** | M2, M3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
@@ -1142,6 +1151,13 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.11** — **Protocol specification v0.12 → v0.13.** §5.2 gains how GateLink handles
+  `ROLL_CONTEXT` (spec §10.6, **D58**, PRD R-3.5e), and M3 verifies it. §6.4 notes that a
+  readback may span several messages (**D57**) and that the PHY rows change only through
+  §12.4's commit-and-revert (**D56**). §6.4 was already reconciled with D44 and D46 in
+  v0.10. The header's requirements citation had fallen behind at PRD v0.5, and now reads
+  v0.9.
 
 - **v0.10** — **§6.4 follows D44 and D46.** The parameter table stays hand-written, and its
   outputs are derived by code rather than *generated*, which had implied a generator the

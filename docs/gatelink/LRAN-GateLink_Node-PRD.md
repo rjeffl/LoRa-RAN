@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.8
+**Version:** 0.9
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-23
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -395,6 +395,11 @@ here**. Node-specific obligations:
 - **R-3.5d.** GateLink SHALL deduplicate commands on `(ctx_id, seq)` and return the
   cached ACK rather than pulsing twice. **A relay pulse is not idempotent**; the bridge
   retrying an ACK it never received must not move the gate again.
+- **R-3.5e.** GateLink SHALL take a new context when the bridge sends `ROLL_CONTEXT`, and
+  SHALL refuse the roll with `ACTUATOR_BUSY` while a command is still executing (Protocol
+  Spec §10.6, **D58**). A bridge restart resets the bridge's command `seq`; without the
+  roll, GateLink would answer the bridge's next commands from its dedup cache and never
+  run them.
 
 ---
 
@@ -633,9 +638,13 @@ steel gate-controller enclosure  (outdoors, at the gate)
 #### 5.3.1 What is *not* runtime-configurable
 
 - **The HMAC key** and any other secret. Flash only, provisioned over USB.
-- **LoRa PHY parameters.** Changing these from HA means changing the link you are
-  changing them over; one mismatch and the node is unreachable until someone walks to
-  it with a laptop.
+- **LoRa PHY parameters, except through commit-and-revert.** Changing these from HA
+  means changing the link you are changing them over, and one mismatch leaves the node
+  unreachable until someone walks to it with a laptop. **D56** therefore allows a PHY
+  change only through Protocol Spec §12.4's commit-and-revert: the old settings are
+  persisted before the radio is retuned, confirmation is a frame received on the new
+  settings, and both ends revert on silence. Protocol Library Plan §4 declares the six
+  rows, `READ_ONLY` until that path is built.
 - **Node ID and schema versions**, which are contractual.
 
 ### 5.4 Debug and bench tooling requirements
@@ -953,6 +962,18 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.9** — **Protocol specification v0.12 → v0.13.** **§5.3.1 no longer lists the PHY
+  parameters as not runtime-configurable**: **D56** allows a change through spec §12.4's
+  commit-and-revert. This fixes finding 1 of `doc-findings.md`, which the operator
+  brought forward to this sweep on 2026-09-23. **New R-3.5e**: GateLink takes a new
+  context on `ROLL_CONTEXT` and refuses one while a command is executing (spec §10.6,
+  **D58**). What else reaches this node: the configuration payloads (§16.7, **D43–D49**),
+  a readback that may span several `CONFIG_ACK` messages (§7.4.1, **D57**), and two open
+  items that are GateLink's to answer, **W15** (`CONFIG_ACK` cannot say whether a value
+  is a default or an override, which R-5.3e needs) and **W16** (when a node sends
+  `CONFIG_CHANGE`, which R-3.5b's *configuration change* trigger needs). Finding 2, the
+  transmit power's two names, stays deferred to the GateLink milestone.
 
 - **v0.8** — **Protocol specification v0.11 → v0.12.** Two things reach this node.
   **`CONFIG` and `CONFIG_ACK` are single-frame in v1** (§11.4): §3.1's reassembly cap and

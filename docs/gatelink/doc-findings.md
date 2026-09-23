@@ -15,6 +15,21 @@ rather than a rewrite.
 
 ## Open
 
+### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
+
+**Found 2026-09-20**, in the W10 parameter count that found finding 1.
+
+The PRD calls the transmit power `tx_conducted_dbm`. Protocol Library Plan §4 declares it as
+`tx_power_dbm`, at `param_id` `0x0114`.
+
+**Root `CLAUDE.md` asks for one term per concept**, and this one is not only a term: a
+parameter's name in that table becomes its Home Assistant `object_id`, which is permanent
+once published (Protocol Spec §16.7).
+
+**Correct statement:** Protocol Library Plan §4. The PRD's name has no other consumer.
+
+## Fixed
+
 ### 1. PRD §5.3.1 lists the LoRa PHY parameters as not runtime-configurable
 
 **Found 2026-09-20**, while counting parameters for **W10** on branch `spec-v0.13`.
@@ -35,19 +50,6 @@ silence. Protocol Library Plan §4 declares all six rows for every node, `READ_O
 readback occupies, against 193 available. A reader who takes §5.3.1 at its word counts the
 readback 42 bytes light.
 
-### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
-
-**Found 2026-09-20**, in the same count.
-
-The PRD calls the transmit power `tx_conducted_dbm`. Protocol Library Plan §4 declares it as
-`tx_power_dbm`, at `param_id` `0x0114`.
-
-**Root `CLAUDE.md` asks for one term per concept**, and this one is not only a term: a
-parameter's name in that table becomes its Home Assistant `object_id`, which is permanent
-once published (Protocol Spec §16.7).
-
-**Correct statement:** Protocol Library Plan §4. The PRD's name has no other consumer.
-
-## Fixed
-
-None yet.
+**Fixed 2026-09-23** in GateLink PRD v0.9, on branch `spec-v0.13-d58`. The operator brought
+it forward to the protocol specification's v0.13 citation sweep, because the PRD could not
+cite v0.13 while contradicting D56.

@@ -1,16 +1,18 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-23 by the session that confirmed BF-23's lever half on air, on branch
-`b4-bf23-levers`.** The same branch carries three more changes, each also checked on the
-bridge board: `get_all` no longer counts as a change, `ConfigLock` guards `g_config`, and
-the `CONFIG_ACK` wait is now the `config_ack_timeout_ms` row. This file replaces the
-previous one wholesale.
+`b4-bf23-levers`, and updated the same day on `spec-v0.13-d58`, which stacks on it.** The
+first branch also carries three changes checked on the bridge board: `get_all` no longer
+counts as a change, `ConfigLock` guards `g_config`, and the `CONFIG_ACK` wait is now the
+`config_ack_timeout_ms` row. The second carries D58 into the specification, runs the v0.13
+citation sweep and fixes a codec defect. This file replaces the previous one wholesale.
 
 **What is durable: BF-23 is done, and the run found a specification gap.** A bridge
 restart reuses command `seq` values that a node, which did not restart, has already seen.
 The engineering log's third 2026-09-23 entry has the evidence. **The operator chose the
 direction, a forced new node context, and accepted D58 the same day**, with three
-additions from review. Decision Register v0.16 §3.7 records the outcome.
+additions from review. Decision Register v0.16 §3.7 records the outcome, and **Protocol
+Spec v0.13 §10.6** is the rule to build against.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,18 +22,38 @@ additions from review. Decision Register v0.16 §3.7 records the outcome.
 
 ## The next job, in one place
 
-**First, D58's specification revision.** D58 is resolved: Decision Register §2.3 has the
-mechanism and **§3.7 the outcome**, which wins where they differ. Two steps remain, in
-order:
+**First, ask the operator how BF-34 starts. Two PRs are open and both are drafts**:
+`b4-bf23-levers`, and `spec-v0.13-d58` stacked on it. Run the commands in *Git state* for
+their numbers and state. BF-34 builds against the second, and the operator has not yet
+chosen between two orders:
 
-1. **Revise the spec on its own branch.** D58's rules go into §8.1, §9.4 and §10.2–§10.5,
-   with a §14.1 counter for rolls and two new W4 vectors. **The operator decided on
-   2026-09-23 that this revision also carries the citation sweep**: the header moves to
-   v0.13 and the 31 sites are reconciled, not just renumbered. Style passes stay off that
-   branch.
-2. **Build it after that branch merges**, in the library's receive path, simnode
-   `ROLE_GATELINK`, and the bridge's command path and scheduler. Then run the one-step
-   reproduction in the engineering log on the bench.
+- **Merge both first, then branch BF-34 from `main`.** This gives the cleanest history,
+  but only if the operator accepts `b4-bf23-levers` now. It is B4 work, and a milestone
+  PR stays a draft until the operator accepts it.
+- **Branch BF-34 from `spec-v0.13-d58` now**, as a third stacked branch. **This was the
+  recommendation on 2026-09-23**, because D58 is resolved and §10.6 is written. The cost is
+  a stack three deep: a review change to §10.6 has to be carried into BF-34, and the
+  stack-merge rules in *Git state* apply twice.
+
+**Whichever order is chosen, get the codec fix onto `main` early.** `2ad132e` on
+`spec-v0.13-d58` masks `MORE_FOLLOWS` in `codec.cpp`'s `CONFIG_ACK` length check. Until it
+merges, `main` drops the first message of any `GET_ALL` answer split across two
+messages, at stage 8. No simnode answer spans two messages, so the bench has not hit it. If
+the stack is going to wait, offer to cherry-pick it onto its own PR against `main`.
+
+**Then BF-34: build D58.** Spec v0.13 §10.6 has the procedure, Bridge PRD R-3.1h the
+requirement, and Firmware Tasks §7's BF-34 row the scope:
+
+1. **Library**: `Cmd::RollContext` (`0x12`) and `CommandGate::any_in_flight()`, per
+   Library Plan §3.10. The three W4 vectors already pass against the codec.
+2. **Simnode `ROLE_GATELINK`**: refuse a roll with `ACTUATOR_BUSY` while a command is in
+   flight; otherwise take a new `ctx_id` and reset both sequence spaces.
+3. **Bridge**: a `POLL` to every registered node at boot, the roll when each is first
+   heard, and refusal of commands and `CONFIG` until the roll completes. The counters are
+   `ctx_rolls` and `ctx_roll_failed`, and `config/ack`'s error is `context_roll_pending`.
+4. **Bench**: run the one-step reproduction in the engineering log's third 2026-09-23
+   entry. A bridge reflash with the simnode left running must no longer draw
+   `DUPLICATE_CACHED`.
 
 **With the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed on
 air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
@@ -102,8 +124,8 @@ name.
   and not built.**
   A command after a bridge restart can draw `DUPLICATE_CACHED`, which the bridge reports as
   success while the command never ran, or `REJECTED_SEQ`. For GateLink that follows every
-  bridge reflash, OTA update or power cut. D58 is resolved and waits on its specification
-  revision; see *The next job*. **Until it is built, no production node should be
+  bridge reflash, OTA update or power cut. D58 is in spec v0.13 §10.6 and is **BF-34**;
+  see *The next job*. **Until it is built, no production node should be
   commanded from this bridge.**
 - **The state mirror survives a node reboot and nothing invalidates it.** A simnode holds
   its overrides in RAM, so a reboot clears them while `config/state` goes on reporting the
@@ -129,9 +151,18 @@ name.
   915.8–916.4 MHz cluster.
 - **W15** (`CONFIG_ACK` has no override flag, so `config/state`'s `source` is inferred) and
   **W16** (nothing says when a node sends `CONFIG_CHANGE`) — both GateLink's.
-- **The citation sweep**, 31 sites, still the only thing holding the spec header at v0.12.
-  The operator's rule is one sweep, and **it now rides on D58's spec revision** (operator,
-  2026-09-23). The whole-document style passes are owed too, on a branch of their own.
+- **The whole-document style passes** are owed, on a branch of their own. The citation
+  sweep they were to follow ran on `spec-v0.13-d58`.
+- **Nothing checks that `vectors_data.h` matches the W4 JSON.** D57's two vectors went
+  unembedded for three days and hid a codec defect (protocol-lib engineering log,
+  2026-09-23). **The 2026-09-23 session raised it as a desktop-app task chip, and a chip
+  does not outlive its session, so the task is recorded here.** Add a step to `ci.yml`'s
+  `checks` job that fails when `lib/lran-protocol/test/test_vectors/vectors_data.h`
+  differs from what `python3 tools/vectors/embed.py` produces from the committed JSON.
+  Prefer a `--check` mode that renders to memory and compares, over writing the file,
+  because `run_ci_local.py` runs the checks job on a developer's tree. The same check
+  would help for the JSON against `generate.py`. Cite W4 and spec §13.2, and give it a
+  branch of its own.
 
 ## Read these, in this order
 
@@ -144,8 +175,8 @@ name.
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
-| 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) | §9–§12, §14, §16; **§18.2, never §18.1 alone**. For configuration work: **§7.4**, **§7.4.1**, **§8.10–§8.12**, **§12.4**, **§16.7**. **Read the header block first** — the version is pinned at v0.12 on purpose and the block says why |
-| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.7** D58's outcome and **§2.3** its mechanism, **next to build**; **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
+| 8 | [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) | §9–§12, §14, §16; **§18.2, never §18.1 alone**. For configuration work: **§7.4**, **§7.4.1**, **§8.10–§8.12**, **§12.4**, **§16.7**. **§10.6** is D58's context roll, which BF-34 builds |
+| 9 | [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md) | **§3.7** D58's outcome and **§2.3** its reasoning; **§3.4.1** D1 closed at 917.4 MHz and D33's condition 3 restated; **§3.6** D43–D57, the configuration set; **§5.4** M20's channel evidence |
 | 10 | [`LRAN-D1-Parallel-Capture-Analysis`](../shared/LRAN-D1-Parallel-Capture-Analysis.md) | why 917.4 MHz won. [`LRAN-D1-Frequency-Change-Brief`](../shared/LRAN-D1-Frequency-Change-Brief.md) is **superseded** |
 | 11 | root [`CLAUDE.md`](../../CLAUDE.md) | the rules that bind everywhere |
 
@@ -154,9 +185,9 @@ name.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D57**. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **D58**, resolved and waiting on its spec revision. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. **The citation sweep**, 31 sites, and the style passes with it |
-| Queue | **D58's spec revision with the citation sweep**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **BF-34**, D58's context roll, specified in spec v0.13 §10.6 and unbuilt. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **BF-34** once `spec-v0.13-d58` merges, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite

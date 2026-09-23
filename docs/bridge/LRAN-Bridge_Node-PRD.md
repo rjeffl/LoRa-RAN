@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.12
+**Version:** 0.13
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-16
+**Last updated:** 2026-09-23
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -125,6 +125,11 @@ obligations:
   **distinct reason**, never silently ignored.
 - **R-3.1g.** The bridge SHALL retry an unacknowledged command with backoff, and SHALL
   stop after a bounded number of attempts rather than looping.
+- **R-3.1h.** After its own boot, the bridge SHALL move every node onto a new context with
+  `ROLL_CONTEXT`, and SHALL send a node no `COMMAND` and no `CONFIG` until that node's roll
+  completes (spec §10.6, **D58**). A restart resets the bridge's command `seq`, so without
+  the roll a node that did not restart answers from its dedup cache and never runs the
+  command.
 
 > **Retries interact with a hardware safety property.** A retried command reaching
 > GateLink is a **second relay pulse**, not an idempotent re-send. The protocol's
@@ -443,7 +448,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 | # | Must be proven | Why it is not optional |
 |---|---|---|
 | **V-B1** | **Range and RSSI at each node site on both bearings**, with a second radio, and a bridge location chosen from the result | Resolves **D1** and sites the antenna. **Both bearings measured (M6 closed 2026-09-09), D1 closed and the antenna chosen 2026-09-10** — §8.1. **Still outstanding: the bridge's position, recorded with its measured margins** |
-| **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
+| **V-B2** | Per-node registry behaviour: addressing, per-node key derivation, context resync, the context roll after a bridge restart (R-3.1h), sequence tracking — **against `simnode`, with more than one node present** | The multi-node design is where a protocol error would be most expensive to find late, and `simnode` is the only way to find it before WellLink exists |
 | **V-B3** | Availability watchdog marks a node offline after the threshold and online again on the next valid frame | This is the only thing that distinguishes "node is dead" from "node is quiet," and LWT does not do it |
 | **V-B4** | Discovery publishes one device per node with correct availability references, and **republishes correctly on broker reconnect** | The reconnect path is the one that gets skipped and the one that runs at 3 AM |
 | **V-B5** | Command round-trip end to end, including **retry behaviour with a deliberately dropped ACK**, confirming the node executes once | **BS-3.** A relay pulse is not idempotent |
@@ -490,15 +495,19 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 ## 9. Changelog
 
-- **v0.12** — **Citation refresh, Protocol specification v0.11 → v0.12.** No requirement
-  changes. What the bridge inherits: a new discard stage and counter (§14 stage 9a,
-  `rx_unknown_src`), the rule that a pre-authentication counter is the receiver's own
-  rather than a node's (§14.1), an `ERROR` policy for unauthenticated senders (§14.2),
-  and normative payloads for `lran/bridge/version` and `lran/<node>/diag/state`
-  (§16.2.1) — the two this node already publishes. Decision Register **D35–D42**.
+- **v0.13** — **Protocol specification v0.12 → v0.13, and new R-3.1h.** A bridge restart
+  reused command `seq` values that a surviving node had seen, and **D58** answers it: the
+  bridge moves every node onto a new context after its own boot (spec §10.6). R-3.1h
+  states that obligation, and V-B2 now verifies it. What else the bridge inherits: the
+  `config/set`, `config/ack` and `config/state` payloads (§16.7, **D43–D49**), the
+  unsolicited readback (§7.4, **D45**), a readback split across several `CONFIG_ACK`
+  messages (§7.4.1, **D57**), runtime PHY changes under §12.4's commit-and-revert
+  (**D56**), and two bridge counters, `ctx_rolls` and `ctx_roll_failed` (§14.1). No other
+  requirement changes.
 
 | Version | What changed |
 |---|---|
+| **v0.12** | Spec v0.12 citation; §14 stage 9a, §14.1's pre-authentication rule, §14.2 and §16.2.1 reach the bridge, with no requirement changes |
 | **v0.11** | Spec v0.11 citation; nothing reaches the bridge's requirements |
 | **v0.10** | **R-4.3a.1** — the bridge uses the range test's own 3.0 dBi stick; V-B1's remaining gap is the position |
 | **v0.9** | **D1 closed** — §8.1 states the PHY parameters; V-B1's remaining gap is the antenna |

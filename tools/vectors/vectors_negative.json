@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.6",
+  "spec": "LRAN-Protocol-Specification v0.13",
   "wire_ver": 2,
   "group": "negative",
   "generated_by": "tools/vectors/generate.py",
@@ -252,6 +252,20 @@
       "decode": {
         "self": 1,
         "expect_ctx_id": 2309737967,
+        "status": "RejectedCtx",
+        "counter": "rx_rejected_ctx",
+        "stage": "9"
+      }
+    },
+    {
+      "name": "roll_context_replayed_after_roll",
+      "spec_ref": "§9.4 step 2, §10.6, §14 stage 9, §14.1",
+      "origin": "derived",
+      "note": "A ROLL_CONTEXT captured under the old ctx_id, replayed after the node rolled to a new one. The MAC is valid, so only the ctx check can fail. This is what bounds a replayed roll (§10.6): once acted on, the request cannot be acted on again. Its seq differs from command_roll_context's only because no negative may reproduce a valid frame byte for byte.",
+      "frame": "020100010900efcdab8901000000000012a50000291fdbc68f506cf24008",
+      "decode": {
+        "self": 1,
+        "expect_ctx_id": 1012571761,
         "status": "RejectedCtx",
         "counter": "rx_rejected_ctx",
         "stage": "9"

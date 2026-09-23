@@ -5,6 +5,7 @@
 
 #include "lran/bytes.h"
 #include "lran/crc.h"
+#include "lran/schema/node_config_v1.h"
 #include "lran/wire.h"
 
 namespace lran {
@@ -76,8 +77,11 @@ Status check_variable_payload(MsgType type, const uint8_t* p, size_t len) {
     }
     case MsgType::ConfigAck: {  // spec 7.4 - [op][persist_status][count][ results... ]
       if (len < 3) return Status::BadLength;
+      // spec 7.4.1 - bit 7 of count is MORE_FOLLOWS, not part of the count. Unmasked,
+      // the first message of a split GET_ALL reads as 128+ results and fails here.
+      const uint8_t count = static_cast<uint8_t>(p[2] & ~schema::kConfigAckMoreFollows);
       size_t off = 3;
-      for (uint8_t i = 0; i < p[2]; ++i) {
+      for (uint8_t i = 0; i < count; ++i) {
         // result: [param_id:2][status][ptype][len][value:len]
         if (off + 5 > len) return Status::BadLength;
         const size_t vlen = p[off + 4];
