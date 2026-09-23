@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.45
+**Version:** 0.46
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1026,8 +1026,10 @@ deterministic; raised for **BF-21**.
 
 **The roll is `context_roll.{h,cpp}`, built like the command path**: Arduino-free, doing no
 I/O, deciding while `sched_task` acts. It has 13 host tests in `test_context_roll`, and
-`test_command`, `test_diag` and `test_config_store` each gained a case. **It is not yet
-confirmed on air**; the engineering log's BF-34 entry says what the bench run must show.
+`test_command`, `test_diag` and `test_config_store` each gained a case. **It was confirmed on
+air on 2026-09-23**: after a bridge reflash, the first command executed with no
+`DUPLICATE_CACHED`, and the `REJECTED_CTX`, `ACTUATOR_BUSY` and `ctx_roll_failed` branches
+passed. The engineering log's *BF-34 on air* entry has the trace.
 
 | Decision | Why |
 |---|---|
@@ -2310,6 +2312,9 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.46** — **BF-34 is confirmed on air**, and §6.2.2 says so. The bench run passed all
+  six steps and the three branches that were host-tested only.
+
 - **v0.45** — **BF-34 is built**, and §6.2.2 records its choices. Two were decided with the
   operator on 2026-09-23. A bench row keeps the heard-first poll rule and rolls when first
   heard, so spec §10.6 step 1's boot `POLL` is the poll scheduler's for production rows
@@ -2342,6 +2347,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.46** | **§6.2.2**: BF-34 is confirmed on air |
 | **v0.45** | **§6.2.2**: BF-34 is built. A bench row rolls when first heard, and every simnode role answers a roll |
 | **v0.44** | Spec v0.13 citation. §6.2 gains D58's context roll and **BF-34**; §2.2's PHY paragraph follows D56 |
 | **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air, and it gains `config_ack_timeout_ms`. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed. **New §6.7.6**: `ConfigLock`, and why a lock rather than handing the resolution to `mqtt_task`. **§6.7.3** names the ACK timeout's row |

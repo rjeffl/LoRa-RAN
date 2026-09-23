@@ -4,7 +4,7 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.13 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.45
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.46
 (build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
@@ -200,8 +200,8 @@ is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (
 - **NVS restores through `Store::apply()`**, so a value stored before a range changed is
   clamped on the way back in and a row that has since become `READ_ONLY` is refused.
 
-**`BF-34` — the context roll after a bridge restart, built and host-tested 2026-09-23;
-not yet on air.** `context_roll.{h,cpp}` decides and `sched_task` acts; Impl Plan §6.2.2
+**`BF-34` — the context roll after a bridge restart, built 2026-09-23 and
+confirmed on air the same day.** `context_roll.{h,cpp}` decides and `sched_task` acts; Impl Plan §6.2.2
 and spec §10.6. **Four things to keep:**
 
 - **No node leaves the pending state except through a completed roll.** A failed roll
