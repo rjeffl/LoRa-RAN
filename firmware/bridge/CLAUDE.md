@@ -161,6 +161,31 @@ reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out
   table, run `python3 tools/checks/ha_examples.py --write` and commit the diff — it is
   what Home Assistant will see differently.
 
+**`BF-32` — the configuration path, built and confirmed on air 2026-09-21.**
+`config_json.{h,cpp}` reads spec §16.7.2's payload and writes `config/ack` and
+`config/state`; `config_store.{h,cpp}` holds what the bridge owns; `config_path.{h,cpp}`
+is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (D49).
+**Five things to keep:**
+
+- **The topic decides which row a name means.** `cad_retries`, `backoff_max_ms` and
+  `frag_reassembly_timeout_ms` are in BOTH blocks of the table, because the bridge and
+  every node each have their own. A lookup that searched both would answer the bridge's
+  row for a set aimed at a node and the write would land on the wrong radio. `find_param`
+  takes a `ConfigScope`; a name the scope does not hold is `unknown_param`, never a
+  fall-through.
+- **A missing `CONFIG_ACK` is `unknown` and is resolved by READBACK, not retransmission**
+  (spec §7.4). This is the opposite of the command path's rule, and it is deliberate: a
+  configuration write is not idempotently repeatable, so repeating one cannot tell you
+  whether the first took effect.
+- **The bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message
+  whose `MORE_FOLLOWS` is clear (spec §7.4.1, **D57**). Closing on the first strands the
+  rest of the answer and reports a configuration it did not finish reading. **Nothing is
+  published from an incomplete answer.**
+- **A readback REPLACES the state mirror; a set's ACK MERGES into it.** Confusing them
+  blanks every row the set did not name, which the bench showed on 2026-09-21.
+- **NVS restores through `Store::apply()`**, so a value stored before a range changed is
+  clamped on the way back in and a row that has since become `READ_ONLY` is refused.
+
 **Still absent: the publication policy** — BF-24. It arrives with its own `BF-*` task; do
 not add one early because it is convenient.
 
@@ -248,9 +273,14 @@ log. Never commit, echo or log the real values.
 
 - **`backoff_max_ms` defaults to 1500**, not the 500 older material shows. A maximum
   `PING` at SF9 runs 1107 ms and a window shorter than the frame cannot outlast it.
-- **PHY parameters are not runtime-configurable** (§12.1). They belong in the injected
-  radio config beside the pin map, never in the HA-visible config set — a node that boots
-  on the wrong channel is a walk to the gate with a laptop.
+- **PHY parameters ARE runtime-configurable since spec v0.13** (**D56**, §12.4), and the
+  six rows are in `/lib/lran-config/`'s table — `READ_ONLY` until **BF-33** builds
+  §12.4's commit-and-revert, so Home Assistant can read the working point before it can
+  change it. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
+  HA-visible config set is correct for before v0.13**; the hazard it named is real and is
+  what the revert window exists for — a node that boots on the wrong channel is a walk to
+  the gate with a laptop.
 - **`cad_backoffs` counts a *busy* CAD and nothing else** (spec §12.3 — it is the
   channel's instrument, not the radio's). **Read `cad_free` and `rx_deaf_ms` beside it**
   (`rx_deaf.h`): a free CAD takes the radio out of receive and moves `cad_backoffs` not at

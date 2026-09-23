@@ -31,6 +31,12 @@ inline constexpr uint32_t kLoraMaxWaitMs = 10;
 // size. Boot stops rather than running a fleet with a missing task.
 bool start_tasks();
 
+// BF-32 - opens the configuration store and replays what NVS holds. Call before
+// start_tasks(), like registry_begin(): mqtt_task answers `config/set` from it. Returns
+// the number of stored values put back, and never fails the boot - a store that will not
+// open leaves every parameter at its default and every set APPLIED_NOT_PERSISTED.
+size_t config_begin();
+
 // Queue sends. EVERY ONE OF THESE IS NON-BLOCKING and returns false when the queue
 // was full, having counted the drop.
 //

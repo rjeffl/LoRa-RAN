@@ -102,4 +102,32 @@ size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, 
   return build_command_frame(dst, ctx, seq, ver, cmd, ectx, buf, cap);
 }
 
+size_t registry_build_config(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                             const lran::schema::NodeConfigV1& cfg, uint8_t* buf,
+                             size_t cap) {
+  const uint8_t* key = g_registry.key_for(dst);
+  if (key == nullptr) return 0;
+
+  uint8_t payload[lran::kMaxSchemaPayload];
+  size_t  plen = 0;
+  if (lran::schema::serialize(cfg, payload, sizeof(payload), &plen) != lran::Status::Ok) {
+    return 0;
+  }
+
+  lran::Header h;
+  h.ver    = ver;  // R-3.1e - the version last heard from this node (BF-22)
+  h.type   = lran::MsgType::Config;
+  h.src    = lran::kNodeBridge;
+  h.dst    = dst;
+  h.seq    = seq;
+  h.ctx_id = ctx;
+  h.schema = lran::kSchemaNodeConfigV1;
+
+  lran::EncodeCtx ectx;
+  ectx.mac      = &g_mac;
+  ectx.node_key = key;
+  size_t len    = 0;
+  return lran::encode(h, payload, plen, ectx, buf, cap, &len) == lran::Status::Ok ? len : 0;
+}
+
 }  // namespace bridge

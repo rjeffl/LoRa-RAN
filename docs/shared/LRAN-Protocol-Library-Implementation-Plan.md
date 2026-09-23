@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.12
+**Version:** 0.13
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -703,6 +703,28 @@ reversed, and those six rows are the whole margin above. The PRD also calls the 
 power `tx_conducted_dbm` where this table calls it `tx_power_dbm`, and this table's name
 becomes a permanent Home Assistant `object_id`.
 
+**Built on 2026-09-20, and four things differ from the sketch above.** Each is recorded
+here rather than left for a reader to find by diffing:
+
+- **`PType`, `ParamStatus`, `ConfigOp` and `PersistStatus` come from `/lib/lran-protocol/`**
+  rather than being declared again in `lran::config`. The sketch declared its own `PType`
+  before the codec existed. Two enumerations for one concept is the drift D44 exists to
+  stop, and the codec's is the one the wire already uses.
+- **A value is `int32_t` inside the library**, named `Value`, and packed to its `ptype` on
+  the wire. That covers every declared row; for `u32` it covers everything below 2^31,
+  which `freq_hz`'s 928 MHz ceiling sits well under. A `static_assert` says so, because a
+  `u32` parameter above that needs a wider representation before it can be declared.
+- **`find()` is a member of a `Table` assembled from blocks**, not a free function over one
+  array. A node's table is node-common plus its own; the bridge's is its own plus its
+  per-node rows. `Table::add_block` refuses a block that would break ascending order,
+  because spec §7.4.1's readback walk depends on it.
+- **Persistence is injected as a `Persist` interface.** The library names neither NVS nor
+  microSD, which is what keeps it building in `native` under root rule 7.
+
+**`kMaxTableParams` is 64**, and a `static_assert` ties it to spec §7.4.1's bound of 4
+messages: a table larger than 4 × 32 rows would carry rows no readback could ever reach,
+and no test would catch it because those rows would simply never appear in an answer.
+
 **Three things in the table are proposals for the operator to review before BF-32 codes
 them**, because each becomes permanent the moment HA sees it:
 
@@ -829,6 +851,12 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.13** — **§4 is built** as `/lib/lran-config/`, host-tested in `native` (BF-32's
+  library half). §4 records the four places the implementation differs from its own sketch:
+  the protocol's enumerations are reused rather than redeclared, a value is `int32_t`,
+  `find()` belongs to a `Table` assembled from blocks, and persistence is injected. The
+  store implements spec §7.4's three load-bearing properties and §7.4.1's readback walk.
 
 - **v0.12** — **§4 counts a readback against spec §7.4's budget, which closes W10**
   (**D57**). A `CONFIG_ACK` has 193 bytes for results; GateLink's 25 named rows take 171 of

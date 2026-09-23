@@ -17,6 +17,7 @@ constexpr const char* kQueueKeys[][2] = {
     {"q_tx_dropped", "q_tx_high_water"},
     {"q_log_dropped", "q_log_high_water"},
     {"q_command_dropped", "q_command_high_water"},
+    {"q_config_dropped", "q_config_high_water"},
 };
 static_assert(sizeof(kQueueKeys) / sizeof(kQueueKeys[0]) == kQueueCount,
               "a queue added to QueueId needs its diagnostic keys");

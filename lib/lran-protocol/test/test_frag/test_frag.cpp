@@ -644,7 +644,7 @@ void test_single_frame_retransmit_not_late() {
   Reassembler r(&c);
   const uint8_t p[] = {0x01, 0x00, 0x00};
 
-  Frame f = make_fragment(p, 3, 0, 1, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  Frame f = make_fragment(p, 3, 0, 1, MsgType::ConfigAck, kSchemaNodeConfigV1);
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(f, 100));
   TEST_ASSERT_TRUE(r.complete());
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(f, 110));  // the retransmit
@@ -693,8 +693,9 @@ void test_single_frame_does_not_abandon_live_set() {
 // bypasses the slot, not a discard.
 //
 // The case is not exotic. On the bridge this is a node's periodic STATUS or an
-// asynchronous EVENT arriving while that same node's fragmented CONFIG_ACK is still
-// in flight - recoverable by readback, but reliably recurring.
+// asynchronous EVENT arriving while that same node's fragmented set is still in flight.
+// The set is a PING: spec v0.12 made CONFIG_ACK single-frame (11.4, D38), and PING is the
+// only fragmentable type left.
 void test_single_frame_does_not_disturb_live_set() {
   Counters c;
   Reassembler r(&c);
@@ -702,7 +703,7 @@ void test_single_frame_does_not_disturb_live_set() {
   const uint8_t b[] = {0x20, 0x21};
 
   // A live multi-fragment set, one fragment short.
-  Frame f0 = make_fragment(a, 3, 0, 2, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  Frame f0 = make_fragment(a, 3, 0, 2);
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(f0, 100));
   TEST_ASSERT_TRUE(r.active());
   TEST_ASSERT_FALSE(r.complete());
@@ -720,11 +721,11 @@ void test_single_frame_does_not_disturb_live_set() {
   // ...and the set behind it is still live, still on its own key.
   TEST_ASSERT_TRUE(r.active());
   TEST_ASSERT_EQUAL_HEX16(0x4242, r.seq());
-  TEST_ASSERT_EQUAL(MsgType::ConfigAck, r.type());
+  TEST_ASSERT_EQUAL(MsgType::Ping, r.type());
 
   // The set completes normally and reassembles to the bytes it would have without
   // the interloper.
-  Frame f1 = make_fragment(b, 2, 1, 2, MsgType::ConfigAck, kSchemaGateLinkConfigV1);
+  Frame f1 = make_fragment(b, 2, 1, 2);
   TEST_ASSERT_EQUAL(Status::Ok, r.accept(f1, 120));
   TEST_ASSERT_TRUE(r.complete());
   TEST_ASSERT_FALSE(r.active());

@@ -33,12 +33,12 @@ using lran::schema::GateLinkStatusV1;
 
 // Resets copy from these rather than assigning a braced temporary. GCC 13.3 (CI's
 // ubuntu-24.04 native build) hits an internal compiler error gimplifying
-// `x = lran::schema::GateLinkConfigAckV1{};` - an aggregate whose array member carries
+// `x = lran::schema::NodeConfigAckV1{};` - an aggregate whose array member carries
 // a default member initializer. Clang and the Xtensa GCC compile it; the copy is the
 // same bytes either way.
 const GateLinkStatusV1                  kEmptyStatus{};
-const lran::schema::GateLinkConfigV1    kEmptyConfig{};
-const lran::schema::GateLinkConfigAckV1 kEmptyConfigAck{};
+const lran::schema::NodeConfigV1    kEmptyConfig{};
+const lran::schema::NodeConfigAckV1 kEmptyConfigAck{};
 
 struct ReasonName {
   const char*        name;
@@ -549,7 +549,8 @@ bool Node::send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLin
   return send(e, h, payload, n, 0);
 }
 
-bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::GateLinkConfigAckV1& ack) {
+bool Node::send_config_ack(Identity& e, lran::NodeId dst,
+                           const lran::schema::NodeConfigAckV1& ack, uint32_t reply_seq) {
   uint8_t payload[lran::kMaxSchemaPayload];
   size_t  n = 0;
   if (lran::schema::serialize(ack, payload, sizeof(payload), &n) != lran::Status::Ok) {
@@ -561,9 +562,15 @@ bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::Ga
   h.type   = lran::MsgType::ConfigAck;
   h.src    = e.id;
   h.dst    = dst;
-  h.seq    = e.tx_seq++;
+  // spec 7.4.1 - the request's `seq` when this answers one, the status space when it
+  // answers nothing. A solicited answer carrying a status seq cannot be correlated at
+  // all: the bridge is waiting on the seq it sent, and an answer under another number
+  // reads as an ACK for something else. Found on the bench on 2026-09-21, when the
+  // bridge's BF-32 path reported `unknown` for a CONFIG the simnode had already applied
+  // and answered.
+  h.seq    = reply_seq == kUseStatusSeq ? e.tx_seq++ : static_cast<lran::Seq>(reply_seq);
   h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaGateLinkConfigV1;
+  h.schema = lran::kSchemaNodeConfigV1;
   if (!send(e, h, payload, n, 0)) {
     ++answers_dropped_;
     sink_printf(log_, "config %02x: CONFIG_ACK not queued", e.id);
@@ -572,17 +579,15 @@ bool Node::send_config_ack(Identity& e, lran::NodeId dst, const lran::schema::Ga
   return true;
 }
 
-void Node::apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
-                        lran::schema::GateLinkConfigAckV1* out) {
+void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
+                        lran::schema::NodeConfigAckV1* out) {
   namespace sc = lran::schema;
-  *out                = kEmptyConfigAck;
-  out->op             = in.op;
-  // Honest (spec 7.4): the store is RAM, so nothing is ever persisted.
-  out->persist_status = lran::PersistStatus::AppliedNotPersisted;
+  *out    = kEmptyConfigAck;
+  out->op = in.op;
 
-  // Results are added while they fit one CONFIG_ACK. spec 3.1 caps a reassembled set at
-  // kMaxSchemaPayload, so fragmenting cannot carry more - which is what spec 7.4 appears to
-  // expect it to do. Raised for v0.12; here, the overflow is logged, never silent.
+  // Results are added while they fit one CONFIG_ACK (spec 11.4 - single-frame). A GET_ALL
+  // larger than that has no specified split yet (spec W10), so the overflow is logged,
+  // never silent.
   size_t used    = sc::kConfigAckHdrLen;
   size_t dropped = 0;
   auto   add     = [&](const sc::ConfigAckEntry& a) {
@@ -595,17 +600,39 @@ void Node::apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
     used += need;
   };
 
+  // spec 7.4, D53 - persist_status after a write says what was applied; after a read,
+  // whether the current overrides are persisted. The store is RAM, so an override is
+  // never persisted, and a node holding none reads PERSISTED.
+  auto current = [&e]() {
+    for (const StoredParam& p : e.gl.params) {
+      if (p.used) return lran::PersistStatus::AppliedNotPersisted;
+    }
+    return lran::PersistStatus::Persisted;
+  };
+  auto list_all = [&]() {
+    for (const StoredParam& p : e.gl.params) {
+      if (p.used) add(result_of(p, lran::ParamStatus::Ok));
+    }
+  };
+
   switch (in.op) {
-    case lran::ConfigOp::Set:
+    case lran::ConfigOp::Set: {
+      bool applied = false;
       for (uint8_t i = 0; i < in.count; ++i) {
         const sc::ConfigAckEntry a = set_param(e.gl, in.entries[i]);
+        applied = applied || a.status == lran::ParamStatus::Ok ||
+                  a.status == lran::ParamStatus::Clamped;
         if (a.status == lran::ParamStatus::UnknownParam) {
           sink_printf(log_, "config %02x: param 0x%04x refused - RAM store full (%u)", e.id,
                       static_cast<unsigned>(a.param_id), static_cast<unsigned>(kConfigStoreDepth));
         }
         add(a);
       }
+      // D53 - NOT_APPLIED only when nothing in the set took effect.
+      out->persist_status =
+          applied ? lran::PersistStatus::AppliedNotPersisted : lran::PersistStatus::NotApplied;
       break;
+    }
     case lran::ConfigOp::Get:
       for (uint8_t i = 0; i < in.count; ++i) {
         const StoredParam* p = find_param(e.gl, in.entries[i].param_id);
@@ -620,15 +647,19 @@ void Node::apply_config(Identity& e, const lran::schema::GateLinkConfigV1& in,
           add(a);
         }
       }
+      out->persist_status = current();
       break;
     case lran::ConfigOp::GetAll:
-      for (const StoredParam& p : e.gl.params) {
-        if (p.used) add(result_of(p, lran::ParamStatus::Ok));
-      }
+      list_all();
+      out->persist_status = current();
       break;
     case lran::ConfigOp::RestoreDefaults:
       // There are no defaults without /lib/lran-config/; restoring them empties the store.
+      // D52 - answered with the full effective configuration, as GET_ALL is. Here that is
+      // empty, and the node holds no override, so the restore is as durable as a reboot.
       for (StoredParam& p : e.gl.params) p = StoredParam{};
+      list_all();
+      out->persist_status = current();
       break;
     default:
       out->persist_status = lran::PersistStatus::NotApplied;
@@ -648,7 +679,9 @@ bool Node::send_config_readback(Identity& e, lran::NodeId dst) {
   cfg_rx_    = kEmptyConfig;
   cfg_rx_.op = lran::ConfigOp::GetAll;
   apply_config(e, cfg_rx_, &cfg_ack_);
-  return send_config_ack(e, dst, cfg_ack_);
+  // Unsolicited: it answers a POLL bit 1 or a REQUEST_CONFIG and correlates to no
+  // request at all (D45).
+  return send_config_ack(e, dst, cfg_ack_, kUseStatusSeq);
 }
 
 void Node::answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
@@ -843,7 +876,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
     cfg_ack_.persist_status = lran::PersistStatus::NotApplied;
     sink_printf(log_, "config %02x <- %02x seq %u: body did not parse, NOT_APPLIED", e.id, hdr.src,
                 static_cast<unsigned>(hdr.seq));
-    send_config_ack(e, hdr.src, cfg_ack_);
+    send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
     return;
   }
 
@@ -854,7 +887,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
               static_cast<unsigned>(hdr.seq), static_cast<unsigned>(cfg_rx_.op),
               static_cast<unsigned>(cfg_rx_.count), cfg_rx_.count == 1 ? "y" : "ies",
               static_cast<unsigned>(cfg_ack_.count));
-  send_config_ack(e, hdr.src, cfg_ack_);
+  send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
 }
 
 void Node::tick_gatelink(Identity& e, uint32_t now_ms) {

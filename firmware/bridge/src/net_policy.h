@@ -120,6 +120,34 @@ bool parse_cmd_topic(const char* topic, CmdTopic* out);
 bool parse_cmd_payload(const char* payload, size_t len, uint8_t* arg, uint16_t* arg2);
 
 // ---------------------------------------------------------------------------
+// The configuration topics - `lran/<node>/config/<leaf>` (spec 16.7). BF-32.
+//
+// `lran/bridge/config/set` carries the bridge's global parameters and a node's topic
+// carries both that node's own and the bridge's per-node rows for it (spec 16.7.1).
+// The bridge is therefore a legitimate target here, which it is not for `cmd` - so
+// this parser answers with a flag rather than an address, and a caller that treats
+// `bridge` as a node id would address 0x00, which is itself.
+// ---------------------------------------------------------------------------
+
+// One subscription covering every node and the bridge.
+inline constexpr const char* kTopicConfigFilter = "lran/+/config/set";
+
+inline constexpr const char* kTopicBridgeToken = "bridge";
+
+struct ConfigTopic {
+  bool    is_bridge = false;  // `lran/bridge/config/set` - global rows only
+  uint8_t node_id   = 0;      // valid when is_bridge is false
+};
+
+// Parses `lran/<node>/config/set`. False for any topic that is not exactly that shape
+// or names a token spec 16.1 does not define.
+bool parse_config_topic(const char* topic, ConfigTopic* out);
+
+// `lran/<node>/config/<leaf>`, where `leaf` is `set`, `ack` or `state`. Returns the
+// length written, or 0.
+size_t topic_config(const char* node, const char* leaf, char* out, size_t cap);
+
+// ---------------------------------------------------------------------------
 // The retain rule, enforced where every publication passes rather than trusted.
 //
 // Spec 16.3 is a HARD RULE: every topic under `lran/<node>/event/` is published with

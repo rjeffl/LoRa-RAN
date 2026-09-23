@@ -81,8 +81,8 @@ Protocol Spec §12.1 and §12.3 state them; **Decision Register §3.4 is the sta
 produced — `docs/<node>/HANDOFF.md` and the engineering logs. **Do not assume a path exists.**
 
 ```
-lib/        lran-protocol, lran-link, lran-sim               [built]
-            lran-config, vedirect, bms-ble                  [planned]
+lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
+            vedirect, bms-ble                               [planned]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/, checks/, simctl/, rangetest/, ha/               [built]

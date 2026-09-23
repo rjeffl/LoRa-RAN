@@ -1789,3 +1789,105 @@ the sweeps say nothing about where between 250 ms and 2000 ms the rate falls. Im
 
 **A loss rate measured at one metre is still not evidence about 87 m**, and it is optimistic
 in the wrong direction.
+
+---
+
+## 2026-09-21 — BF-32 on air, and the three defects the bench found that the host could not
+
+**The configuration path works end to end**: a `config/set` from Home Assistant applies
+the bridge's half, sends the node's half as a `CONFIG`, and publishes one `config/ack`
+carrying both. **Three defects stood between the host tests passing and that being true,
+and none of them was visible at a desk.**
+
+### What ran
+
+Bridge on the bench board, XIAO + Wio simnode as `0xF1` in `ROLE_GATELINK`, sandbox
+broker. Every figure below is from that session.
+
+| Published to `lran/simnode1/config/set` | What came back |
+|---|---|
+| `{"set":{"dedup_cache_depth":16}}` | `{"op":"set","persist":"applied_not_persisted","results":{"dedup_cache_depth":{"status":"ok","value":16}}}` |
+| `{"set":{"poll_interval_s":90,"backoff_max_ms":1200}}` | one ack carrying **both halves**, the bridge's row and the node's |
+| `{"op":"get_all"}` | the bridge's per-node row **and** the node's own values |
+
+`persist` reads `applied_not_persisted` because a simnode has no nonvolatile store, which
+is spec §8.11 being honest rather than a fault.
+
+**On the bridge's own topic**, measured the same afternoon: a set applies and persists, a
+value outside its range is **clamped and said so** (`cad_retries` 99 → 10), an unknown
+name is `unknown_param` with `not_applied`, a payload that is not JSON is refused whole
+with a reason, `restore_defaults` puts every row back, and **a reboot restored the stored
+values from NVS on both scopes** — `Config: 3 stored value(s) restored`.
+
+### Defect 1 — the simnode answered a CONFIG under the wrong `seq`
+
+**The bridge reported `unknown` for a set the simnode had already applied.** The frame log
+shows why:
+
+```
+FRAME #5 tx peer=0xf1 type=10 schema=18 seq=1     the CONFIG
+FRAME #6 rx peer=0xf1 type=11 schema=18 seq=3     the CONFIG_ACK
+```
+
+**`send_config_ack()` took its `seq` from the identity's status space for both the
+solicited and the unsolicited case.** Spec §7.4.1: *"A solicited answer repeats the
+request's `seq` on every message."* Correlation is by `seq` (§9.2), so an answer under
+another number correlates to nothing — the bridge was waiting on 1 and 3 arrived.
+
+**The specification is what settled it**, not the bridge's convenience: `send_config_ack`
+now takes a `reply_seq`, and `kUseStatusSeq` asks for the status space for the unsolicited
+readback that answers no request (**D45**). **A host test could not have found this.** Both
+sides were internally consistent and the simnode's own suite passes either way; it took two
+boards and a frame log.
+
+### Defect 2 — a stack overflow on the first set aimed at a node
+
+```
+Guru Meditation Error: Core 1 panic'ed (Unhandled debug exception).
+Debug exception reason: Stack canary watchpoint triggered (sched)
+```
+
+**A `ConfigJob` is about a kilobyte** — the CONFIG payload, the names and the bridge half's
+results — **and it was a local on `sched_task`'s 3072-byte stack.** It now receives
+straight into static storage, which is the real correction.
+
+**The size was wrong as well as the allocation, and the measurement is what says so.** With
+the job off the stack, `uxTaskGetStackHighWaterMark` on the deepest path reported **84 bytes
+free**. Raised to **5120**, which leaves about 2 KB. This node's `CLAUDE.md` asks for a size
+corrected from a measurement rather than doubled after a crash, so the figure is now logged
+on every configuration resolution.
+
+### Defect 3 — a set's ACK blanked the rows it did not name
+
+**After `{"set":{"poll_interval_s":90,"backoff_max_ms":1200}}`, the retained
+`config/state` showed `dedup_cache_depth: null`** — a value the previous set had put there
+and nothing had changed.
+
+The state mirror replaced wholesale. **That is right for a `GET_ALL` answer, which
+describes a node's entire table, and wrong for a `SET`'s ACK, which describes only the
+parameters it set.** Two named methods now: a readback replaces, a set's results merge.
+Spec §7.4.1 argues the replacing case explicitly — a parameter the node stopped reporting
+must not keep a value from an older answer and read as current — and the merging case is
+its mirror image.
+
+### Two size limits moved, each because a check fired
+
+**`kMaxPayloadLen` 768 → 1024, `MQTT_MAX_PACKET_SIZE` 1024 → 2048.** Two documents arrived
+near the old line in one afternoon:
+
+- **`test_diag`** refused the radio document once the config queue added a sixth pair of
+  queue counters, at every counter's `UINT32_MAX`.
+- **`test_config`** left about **twenty bytes** spare on the bridge's own `get_all` answer.
+  GateLink's counted 25 parameters (**W10**) would have crossed it.
+
+**The failure both would have produced is a DROPPED publication**, so the entity keeps a
+stale value and nothing says why. Both tests build the worst document their table can
+produce; each fired while the code was being written rather than at the broker.
+
+### One bound set from an answer rather than chosen
+
+**`kMaxConfigSetEntries` is 8, and it is not a round number.** Every name in a `set` gets a
+result in the one `config/ack` that answers it. At the longest name the parser accepts, an
+unknown one costs about 82 bytes against about 700 of room, so nine names would not fit —
+and a document that does not fit is dropped, leaving the operator with no answer at all
+rather than a partial one. It was 16 until the fit test said otherwise.

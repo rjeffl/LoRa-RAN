@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 
-#include "lran/schema/gatelink_config_v1.h"
+#include "lran/schema/node_config_v1.h"
 
 #include "lran/bytes.h"
 
@@ -66,13 +66,15 @@ int32_t entry_signed(const uint8_t* value, uint8_t len, PType t) {
   return static_cast<int32_t>(raw);
 }
 
-Status serialize(const GateLinkConfigV1& v, uint8_t* out, size_t cap, size_t* written) {
+Status serialize(const NodeConfigV1& v, uint8_t* out, size_t cap, size_t* written) {
   if (v.count > kMaxConfigEntries) return Status::BadLength;
   ByteWriter w(out, cap);
   w.u8(static_cast<uint8_t>(v.op));  // spec 7.4 off 0
   w.u8(v.count);                     // off 1
   for (uint8_t i = 0; i < v.count; ++i) {
     const ConfigEntry& e = v.entries[i];
+    // This build stores at most one 4-byte unit, so it cannot PRODUCE a wider value even
+    // though it reads past one (spec 7.4, D55). A caller asking for one is a bug here.
     if (e.len > kMaxParamValueLen) return Status::BadLength;
     w.u16(e.param_id);                     // entry off 0
     w.u8(static_cast<uint8_t>(e.ptype));   // entry off 2
@@ -85,7 +87,7 @@ Status serialize(const GateLinkConfigV1& v, uint8_t* out, size_t cap, size_t* wr
   return Status::Ok;
 }
 
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigV1* out) {
+Status deserialize(const uint8_t* in, size_t len, NodeConfigV1* out) {
   if (len < kConfigHdrLen) return Status::BadLength;
   ByteReader r(in, len);
   out->op    = static_cast<ConfigOp>(r.u8());
@@ -97,23 +99,30 @@ Status deserialize(const uint8_t* in, size_t len, GateLinkConfigV1* out) {
     e.ptype    = static_cast<PType>(r.u8());
     e.len      = r.u8();
     if (!r.ok()) return Status::BadLength;
-    // A declared length wider than any ptype cannot be stored and cannot be
-    // meaningful. Rejected here rather than truncated, so the caller never acts on
-    // a value it only partly read.
-    if (e.len > kMaxParamValueLen) return Status::BadLength;
     for (size_t j = 0; j < kMaxParamValueLen; ++j) e.value[j] = 0;
-    r.bytes(e.value, e.len);
+    if (e.len > kMaxParamValueLen) {
+      // spec 7.4 (D55, D51) - a value this build cannot store costs THE ENTRY, not the
+      // frame. `len` delimits it, so the bytes are skipped and the rest of the set still
+      // parses; the caller answers TYPE_MISMATCH for this param_id. That is what lets a
+      // node built before a wider type or an array parameter existed read a set that uses
+      // one. No value is stored, so the caller never acts on one it only partly read.
+      r.skip(e.len);
+    } else {
+      r.bytes(e.value, e.len);
+    }
   }
   return (r.ok() && r.read() == len) ? Status::Ok : Status::BadLength;
 }
 
-Status serialize(const GateLinkConfigAckV1& v, uint8_t* out, size_t cap,
+Status serialize(const NodeConfigAckV1& v, uint8_t* out, size_t cap,
                  size_t* written) {
   if (v.count > kMaxConfigAckEntries) return Status::BadLength;
   ByteWriter w(out, cap);
   w.u8(static_cast<uint8_t>(v.op));              // spec 7.4 off 0
   w.u8(static_cast<uint8_t>(v.persist_status));  // off 1
-  w.u8(v.count);                                 // off 2
+  // spec 7.4.1, D57 - bit 7 is MORE_FOLLOWS, bits 6:0 the result count. The count is
+  // already bounded at 32 above, so the marker never collides with a value.
+  w.u8(static_cast<uint8_t>(v.count | (v.more_follows ? kConfigAckMoreFollows : 0)));
   for (uint8_t i = 0; i < v.count; ++i) {
     const ConfigAckEntry& e = v.entries[i];
     if (e.len > kMaxParamValueLen) return Status::BadLength;
@@ -129,12 +138,14 @@ Status serialize(const GateLinkConfigAckV1& v, uint8_t* out, size_t cap,
   return Status::Ok;
 }
 
-Status deserialize(const uint8_t* in, size_t len, GateLinkConfigAckV1* out) {
+Status deserialize(const uint8_t* in, size_t len, NodeConfigAckV1* out) {
   if (len < kConfigAckHdrLen) return Status::BadLength;
   ByteReader r(in, len);
   out->op             = static_cast<ConfigOp>(r.u8());
   out->persist_status = static_cast<PersistStatus>(r.u8());
-  out->count          = r.u8();
+  const uint8_t count_byte = r.u8();  // spec 7.4.1, D57
+  out->more_follows        = (count_byte & kConfigAckMoreFollows) != 0;
+  out->count               = static_cast<uint8_t>(count_byte & ~kConfigAckMoreFollows);
   if (out->count > kMaxConfigAckEntries) return Status::BadLength;
   for (uint8_t i = 0; i < out->count; ++i) {
     ConfigAckEntry& e = out->entries[i];
@@ -143,9 +154,14 @@ Status deserialize(const uint8_t* in, size_t len, GateLinkConfigAckV1* out) {
     e.ptype    = static_cast<PType>(r.u8());
     e.len      = r.u8();
     if (!r.ok()) return Status::BadLength;
-    if (e.len > kMaxParamValueLen) return Status::BadLength;
     for (size_t j = 0; j < kMaxParamValueLen; ++j) e.value[j] = 0;
-    r.bytes(e.value, e.len);
+    // The same rule as the CONFIG side: a result this build cannot store costs the
+    // result, not the frame (spec 7.4, D55).
+    if (e.len > kMaxParamValueLen) {
+      r.skip(e.len);
+    } else {
+      r.bytes(e.value, e.len);
+    }
   }
   return (r.ok() && r.read() == len) ? Status::Ok : Status::BadLength;
 }

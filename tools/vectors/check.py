@@ -187,7 +187,13 @@ def _parse_config(payload, ack: bool):
     need = 3 if ack else 2
     if len(payload) < need:
         return False
-    count = payload[2] if ack else payload[1]
+    if ack:
+        # §7.4.1 - bit 7 of a CONFIG_ACK count is MORE_FOLLOWS, bits 6:0 the result
+        # count. A reader that takes the byte whole sees 128 or more results and calls a
+        # marked message a length fault.
+        count = payload[2] & 0x7F
+    else:
+        count = payload[1]
     off = need
     for _ in range(count):
         head = 5 if ack else 4

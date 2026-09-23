@@ -25,15 +25,24 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 768 bytes of payload against MQTT_MAX_PACKET_SIZE of 1024. The largest
+// SIZES. 1024 bytes of payload against MQTT_MAX_PACKET_SIZE of 2048. The largest
 // thing this firmware builds is a discovery config, and discovery does NOT pass
 // through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
 // from there, so the queue is sized for state and diagnostics rather than for the one
-// payload that dwarfs them. 32 slots x ~872 bytes is ~28 KB of static RAM, which is
+// payload that dwarfs them. 32 slots x ~1128 bytes is ~36 KB of static RAM, which is
 // the cost of never blocking a producer.
 //
-// 768, not 512, since BF-19: lran/bridge/diag/state carries all 21 spec 14.1 counters
-// by name, 681 bytes when every one reads UINT32_MAX. test_diag asserts it fits.
+// IT HAS MOVED TWICE AND EACH MOVE HAD A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
+// when lran/bridge/diag/state gained all 21 spec 14.1 counters by name - 681 bytes with
+// every one at UINT32_MAX. 768 to 1024 at BF-32, when two documents arrived close to
+// the old line at once: the radio document gained a sixth queue's pair of counters, and
+// spec 16.7's config/ack for a whole table left about twenty bytes spare on the bridge's
+// own block. Twenty bytes is not headroom - GateLink's counted 25 parameters (W10) would
+// have crossed it, and the failure is a DROPPED publication, so the entity keeps a stale
+// value and nothing says why.
+//
+// test_diag and test_config are the checks. Each builds the worst document its table can
+// produce and fails here rather than at the broker.
 //
 // A payload that does not fit is REFUSED AND COUNTED, never truncated. Truncated JSON
 // is worse than absent: Home Assistant logs a parse error against a topic that looks
@@ -41,7 +50,7 @@ namespace bridge {
 // ---------------------------------------------------------------------------
 
 inline constexpr size_t kMaxTopicLen   = 96;
-inline constexpr size_t kMaxPayloadLen = 768;
+inline constexpr size_t kMaxPayloadLen = 1024;
 
 struct PublishMessage {
   char   topic[kMaxTopicLen]     = {0};
@@ -58,19 +67,26 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos);
 
 // ---------------------------------------------------------------------------
-// The inbound direction - BF-18. `lran/<node>/cmd/<action>/set` is the only thing
-// subscribed today (spec 16.2); BF-26 adds `config/set` and B5 the HEX request.
+// The inbound direction - BF-18 and BF-32. `lran/<node>/cmd/<action>/set` and
+// `lran/<node>/config/set` are subscribed today (spec 16.2, 16.7.2); B5 adds the HEX
+// request.
 //
-// TINY ON PURPOSE. An inbound payload is a Home Assistant button or switch value -
-// `PRESS`, `ON`, a small decimal (net_policy.h). 64 bytes is far more than any of
-// them and far less than the 768 an outbound state message needs, and the asymmetry
-// is the point: nothing the bridge ACTS on should arrive in a large buffer.
+// STILL SMALL, AND NO LONGER TINY. It was 64 bytes while a command payload was the only
+// thing that arrived - `PRESS`, `ON`, a small decimal (net_policy.h) - and the asymmetry
+// against the outbound cap was the point: nothing the bridge ACTS on should arrive in a
+// large buffer. Spec 16.7.2's `config/set` is JSON and breaks that bargain, so the cap is
+// now what the largest ACCEPTABLE one needs: kMaxConfigSetEntries names at the longest
+// length config_json.h will read, each with a value, is about 450 bytes.
+//
+// IT IS NOT THE OUTBOUND CAP, and that is deliberate. A payload arriving larger than this
+// is refused whole rather than parsed, so the bound still limits what the bridge can be
+// asked to act on - it has moved, not gone.
 //
 // REFUSED, NOT TRUNCATED, like every other size limit here. A truncated topic
 // addresses something real and wrong, and a truncated payload is a different command.
 // ---------------------------------------------------------------------------
 
-inline constexpr size_t kMaxInboundPayloadLen = 64;
+inline constexpr size_t kMaxInboundPayloadLen = 512;
 
 struct InboundMessage {
   char   topic[kMaxTopicLen]            = {0};

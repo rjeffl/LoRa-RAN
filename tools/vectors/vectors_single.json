@@ -955,6 +955,62 @@
         "payload": "0101020101020202b004020100060101",
         "mac_present": false
       }
+    },
+    {
+      "name": "config_ack_get_all_more_follows",
+      "spec_ref": "§7.4.1",
+      "origin": "derived",
+      "note": "First message of a split GET_ALL answer: count byte reads 0x82, MORE_FOLLOWS set over a count of 2.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 703,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "03008200010001010801010002028813",
+      "key": null,
+      "frame": "020b0100bf02efcdab890112000000000300820001000101080101000202881306d0",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "03008200010001010801010002028813",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "config_ack_get_all_final",
+      "spec_ref": "§7.4.1",
+      "origin": "derived",
+      "note": "Last message of the same answer, same seq: count byte reads 0x02. A receiver closes the transaction here, not on the first message.",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 703,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0300020201000101051401000402fcff",
+      "key": null,
+      "frame": "020b0100bf02efcdab890112000000000300020201000101051401000402fcffa0ca",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0300020201000101051401000402fcff",
+        "mac_present": false
+      }
     }
   ]
 }
