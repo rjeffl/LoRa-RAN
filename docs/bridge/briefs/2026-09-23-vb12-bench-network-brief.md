@@ -1,7 +1,7 @@
 # V-B12 saturated arm — bench network brief
 
 **Document:** `LRAN-Bridge-VB12-Bench-Network-Brief`
-**Version:** 0.1
+**Version:** 0.2
 **Status:** **Reference for setting up the bench**, written 2026-09-23 when V-B12's
 saturated arm was deferred. [`HANDOFF.md`](../HANDOFF.md) says when the task resumes.
 Where this brief disagrees with Impl Plan §8.1 or the Bridge PRD, those documents win.
@@ -91,6 +91,13 @@ bridged to the main network, and that is why the sandbox broker is out of reach 
 
 ## Decisions to make first
 
+**All five were settled on 2026-09-23, and the bench engineering log's entry that day has
+the detail.** The Mac joins the IoT network alone, which has internet. The broker is
+another IoT host, at 192.168.4.52. The blaster is controlled over serial in a bench build,
+`v_b12_blaster`. The frame log survived a 19854 kbps load, so no rate cap below the link's
+ceiling is needed. Impl Plan §8.1.2 is the correction to §8.1. The list below is kept as
+it was asked.
+
 1. **The Mac's internet path.** Outbound internet on the IoT network, or a dual-homed Mac.
 2. **The broker host.** The Mac or another IoT host, and its fixed address.
 3. **The blaster's control.** The bridge has no console. The options discussed:
@@ -108,4 +115,5 @@ bridged to the main network, and that is why the sandbox broker is out of reach 
 
 | Version | Date | Change |
 |---|---|---|
+| 0.2 | 2026-09-23 | All five decisions are settled, and the section before them says how |
 | 0.1 | 2026-09-23 | First version. The saturated arm is deferred, and the operator prefers the IoT network option |
