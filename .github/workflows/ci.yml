@@ -5,14 +5,15 @@
 #   checks     seconds, no toolchain. Repository invariants and the host tools.
 #   native     the Unity suites on the host: libraries and every firmware.
 #   firmware   every firmware target, then the checks that read a built image.
+#              One job per project, plus one for the bridge's V-B9 images.
 #
 # They are independent and run in parallel; a firmware target breaking does not
 # hide a failing vector.
 #
 # `checks` runs on every change. `native` and `firmware` run only when a change can
 # reach what they build, and the `changes` job decides that from the diff. Most pull
-# requests here touch only docs/, and the firmware job alone is eleven minutes of
-# ESP32 builds that such a change cannot affect. `main` still stays buildable (root
+# requests here touch only docs/, and the firmware builds are eleven minutes of
+# ESP32 compilation that such a change cannot affect. `main` still stays buildable (root
 # CLAUDE.md): anything under lib/ or firmware/ runs both jobs, and so does any edit
 # to this workflow. What the diff cannot see is a cached toolchain or a pinned
 # package going bad under an unchanged tree, so a weekly scheduled run and a manual
@@ -308,11 +309,40 @@ jobs:
       - name: Channel-capture firmware
         run: pio test -d firmware/chan-capture -e native
 
+  # One job per firmware project, in parallel. Run serially the builds took eleven
+  # minutes; in parallel no job builds for more than about two and a half. Each job
+  # repeats the runner setup, which is the price of the wall-clock time.
+  # fail-fast is off so one project's failure does not cancel the others' results.
   firmware:
-    name: Firmware targets
+    name: Firmware - ${{ matrix.name }}
     needs: changes
     if: needs.changes.outputs.firmware == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Heltec WiFi LoRa 32 V3, then XIAO ESP32S3 + Wio-SX1262 Kit.
+          - name: Range test
+            dir: firmware/range-test
+            envs: heltec xiao
+            secrets: false
+          - name: Bridge Node
+            dir: firmware/bridge
+            envs: heltec
+            secrets: true
+          # The simnode reads LRAN_MASTER_KEY from the same secrets.h as the bridge, so
+          # it builds with the all-zero key and says so at boot. Both profiles.
+          - name: Simnode
+            dir: firmware/simnode
+            envs: simnode-heltec simnode-xiao-wio
+            secrets: true
+          # The listen-only receiver needs no secrets.h. Both boards, because brief §5
+          # runs them side by side.
+          - name: Channel capture
+            dir: firmware/chan-capture
+            envs: heltec xiao-wio
+            secrets: false
     steps:
       - uses: actions/checkout@v4
 
@@ -321,7 +351,9 @@ jobs:
           python-version: '3.12'
 
       # The espressif32 toolchain is large and pinned, so caching it is the
-      # difference between a two-minute job and a ten-minute one.
+      # difference between a two-minute job and a ten-minute one. Every project
+      # shares the one key: ~/.platformio holds the platform and toolchain, and
+      # each project's libraries live in its own .pio/.
       - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
@@ -336,34 +368,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install platformio
 
-      - name: Heltec WiFi LoRa 32 V3
-        run: pio run -d firmware/range-test -e heltec
-
-      - name: XIAO ESP32S3 + Wio-SX1262 Kit
-        run: pio run -d firmware/range-test -e xiao
-
       # See this file's header for why copying the template is the decision rather
       # than a workaround. The copy is made in the runner's checkout and goes nowhere:
       # secrets.h is gitignored, and its committed template holds only placeholders.
-      - name: Bridge - secrets.h from the committed template
+      - name: secrets.h from the committed template
+        if: matrix.secrets
         run: cp secrets.h.example secrets.h
 
-      - name: Bridge Node (Heltec WiFi LoRa 32 V3)
-        run: pio run -d firmware/bridge -e heltec
-
-      # The simnode reads LRAN_MASTER_KEY from the same secrets.h, copied from the template
-      # above, so it builds with the all-zero key and says so at boot. Both profiles.
-      - name: Simnode (Heltec V3, XIAO ESP32S3 + Wio-SX1262 Kit)
+      - name: Build ${{ matrix.envs }}
+        env:
+          DIR: ${{ matrix.dir }}
+          ENVS: ${{ matrix.envs }}
         run: |
-          pio run -d firmware/simnode -e simnode-heltec
-          pio run -d firmware/simnode -e simnode-xiao-wio
-
-      # The listen-only receiver needs no secrets.h. Both boards, because brief §5 runs
-      # them side by side.
-      - name: Channel capture (Heltec V3, XIAO ESP32S3 + Wio-SX1262 Kit)
-        run: |
-          pio run -d firmware/chan-capture -e heltec
-          pio run -d firmware/chan-capture -e xiao-wio
+          for env in $ENVS; do
+            pio run -d "$DIR" -e "$env"
+          done
 
       # BF-13. Two things only a build can show. The image must leave room in its OTA
       # slot (past 90 % is one release from USB-only updates). And rollback depends on
@@ -371,24 +390,55 @@ jobs:
       # a C++ definition links cleanly and overrides nothing, so the symbol table is
       # the one place that is visible without flashing a board.
       - name: Bridge OTA slot headroom and rollback override
+        if: matrix.dir == 'firmware/bridge'
         run: >
           python3 tools/checks/bridge_partitions.py
           --firmware firmware/bridge/.pio/build/heltec/firmware.bin
           --elf firmware/bridge/.pio/build/heltec/firmware.elf
 
-      # V-B9's two deliberately bad images. Built here so the test harness cannot rot
-      # between the runs that need it; never flashed by CI. Built only when the
-      # `changes` job says something they compile from changed, which saves about
-      # 2.5 minutes on a firmware change elsewhere.
-      - name: Bridge V-B9 bad images
-        if: needs.changes.outputs.bridge == 'true'
-        run: |
-          pio run -d firmware/bridge -e v_b9_no_network
-          pio run -d firmware/bridge -e v_b9_panic
-
       # Root rule 9. pa_config.cpp mirrors a file-static table inside RadioLib so
       # the applied PA configuration can be logged, because the SX1262 cannot read
       # it back. A RadioLib bump that changes that table is silent everywhere else.
-      # This runs here, not in `checks`, because it reads the installed library.
+      # This runs here, not in `checks`, because it reads the installed library, and
+      # in the range test's job because that is the project it reads it from.
       - name: PA table mirror vs. pinned RadioLib
+        if: matrix.dir == 'firmware/range-test'
         run: python3 tools/rangetest/check_pa_table.py
+
+  # V-B9's two deliberately bad images. Built so the test harness cannot rot between
+  # the runs that need it; never flashed by CI. A job of their own, because they are
+  # the longest build here (about 2.5 minutes) and need only a bridge-side change.
+  bridge-vb9:
+    name: Firmware - Bridge V-B9 bad images
+    needs: changes
+    if: needs.changes.outputs.bridge == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-firmware-${{ runner.os }}-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: pio-firmware-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install platformio
+
+      # The bridge's environments read secrets.h; see the firmware job.
+      - name: secrets.h from the committed template
+        run: cp secrets.h.example secrets.h
+
+      - name: V-B9 no-network and panic images
+        run: |
+          pio run -d firmware/bridge -e v_b9_no_network
+          pio run -d firmware/bridge -e v_b9_panic
