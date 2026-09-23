@@ -11,6 +11,7 @@
 # A script rather than a `!git describe` build flag for the bridge's reason - the shell
 # quoting differs between the macOS build machine, the Kubuntu field laptop and CI.
 
+import os
 import subprocess
 
 Import("env")  # noqa: F821 - provided by PlatformIO's SCons environment
@@ -24,4 +25,17 @@ try:
 except Exception:  # not a checkout, or no git on PATH
     git = "unknown"
 
-env.Append(CPPDEFINES=[("LRAN_CAPTURE_GIT", env.StringifyMacro(git))])
+# Only main.cpp prints it. Defined project-wide, a value that changes with every commit
+# would recompile the whole framework each time and defeat CI's build cache.
+GIT_USER = os.path.join(env.subst("$PROJECT_SRC_DIR"), "main.cpp")
+
+
+def stamp_git(env, node):
+    if node.srcnode().get_abspath() != GIT_USER:
+        return node
+    stamped = env.Clone()
+    stamped.Append(CPPDEFINES=[("LRAN_CAPTURE_GIT", env.StringifyMacro(git))])
+    return stamped.Object(node)
+
+
+env.AddBuildMiddleware(stamp_git)
