@@ -17,6 +17,14 @@ constexpr uint32_t kHalfRange = 0x80000000u;
 
 bool reached(uint32_t now_ms, uint32_t at_ms) { return now_ms - at_ms < kHalfRange; }
 
+// An interval of 0 would make the node due again at once and, with the window closing
+// every reply_timeout_ms, poll it continuously. The table's minimum of 10 s refuses 0
+// where the value is set (BF-23); this still holds it to 1 s, for a caller that bypassed
+// the table.
+uint32_t interval_ms(uint16_t interval_s) {
+  return static_cast<uint32_t>(interval_s == 0 ? 1 : interval_s) * 1000u;
+}
+
 }  // namespace
 
 PollScheduler::PollScheduler() {
@@ -74,15 +82,19 @@ PollStep PollScheduler::next(uint32_t now_ms, bool may_start) {
 void PollScheduler::on_sent(lran::NodeId node, uint16_t interval_s, uint32_t now_ms) {
   const int i = index_of(node);
   if (i < 0) return;
-  // An interval of 0 would make the node due again at once and, with the window closing
-  // every reply_timeout_ms, poll it continuously. Held to 1 s; refusing 0 is BF-23's job.
-  const uint32_t interval_ms = static_cast<uint32_t>(interval_s == 0 ? 1 : interval_s) * 1000u;
-  rows_[i].due_ms   = now_ms + interval_ms;
+  rows_[i].due_ms   = now_ms + interval_ms(interval_s);
   rows_[i].due_set  = true;
+  rows_[i].sent_ms  = now_ms;
   outstanding_      = true;
   outstanding_node_ = node;
   sent_ms_          = now_ms;
   ++stats_.sent;
+}
+
+void PollScheduler::retime(lran::NodeId node, uint16_t interval_s) {
+  const int i = index_of(node);
+  if (i < 0 || !rows_[i].due_set) return;
+  rows_[i].due_ms = rows_[i].sent_ms + interval_ms(interval_s);
 }
 
 uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {

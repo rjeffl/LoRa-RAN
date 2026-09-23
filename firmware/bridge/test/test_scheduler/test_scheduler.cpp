@@ -115,6 +115,35 @@ void test_a_push_does_not_move_the_schedule() {
   expect(s.next(60000, true), PollAction::Poll, kNodeGateLink);
 }
 
+// BF-23 - a changed interval counts from the last poll, so a shorter one takes effect
+// without waiting out the longer one, and a longer one pushes the next poll out.
+void test_a_changed_interval_counts_from_the_last_poll() {
+  PollScheduler s;
+  s.set_reply_timeout_ms(500);
+  poll_now(s, 0, 3600);
+  s.on_heard(kNodeGateLink, 100);
+  poll_now(s, 200, 60);
+  s.on_heard(kNodeWellLink, 300);
+
+  s.retime(kNodeGateLink, 30);
+  expect(s.next(29999, true), PollAction::None);
+  expect(s.next(30000, true), PollAction::Poll, kNodeGateLink);
+  s.on_sent(kNodeGateLink, 30, 30000);
+  s.on_heard(kNodeGateLink, 30100);
+  s.retime(kNodeGateLink, 3600);  // out of the way of the next check
+
+  s.retime(kNodeWellLink, 120);
+  expect(s.next(120199, true), PollAction::None);
+  expect(s.next(120200, true), PollAction::Poll, kNodeWellLink);
+}
+
+// A row never polled is due at once, and a retime leaves it so.
+void test_a_retime_before_the_first_poll_leaves_the_row_due() {
+  PollScheduler s;
+  s.retime(kNodeGateLink, 3600);
+  expect(s.next(0, true), PollAction::Poll, kNodeGateLink);
+}
+
 // Decided with the operator 2026-09-14: a bench row joins once heard, and is due at once.
 void test_a_bench_node_joins_the_schedule_once_heard() {
   PollScheduler s;
@@ -264,6 +293,8 @@ int main() {
   RUN_TEST(test_a_row_enrolled_late_in_uptime_is_polled);
   RUN_TEST(test_the_most_overdue_row_goes_first);
   RUN_TEST(test_a_zero_interval_is_held_to_one_second);
+  RUN_TEST(test_a_changed_interval_counts_from_the_last_poll);
+  RUN_TEST(test_a_retime_before_the_first_poll_leaves_the_row_due);
   RUN_TEST(test_poll_seqs_advance);
   RUN_TEST(test_the_poll_frame_is_what_a_node_decodes);
   RUN_TEST(test_missed_polls_count_and_any_frame_clears_them);

@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.41
+**Version:** 0.42
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-21
+**Last updated:** 2026-09-23
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -572,6 +572,49 @@ that deferred BF-26 on 2026-09-14.
 > **Closed on paper 2026-09-19.** Spec v0.13 §16.7 defines the `config/*` payloads
 > (D43–D54), Protocol Library Plan §4 lists the bridge's parameters, and **BF-32** owns the
 > build. Every `TODO(BF-23)` above becomes a read of that table once BF-32 lands.
+
+#### 4.4.2 BF-23's lever half, built 2026-09-23
+
+**Every bridge row in `/lib/lran-config/`'s table now reaches the code it configures**,
+except `simnode_diag_enable`, which gates publication and belongs to BF-26. Before this,
+`ConfigStore` held each row's effective value, and no code outside the tests read one, so
+every lever ran its compile-time default whatever Home Assistant set. Host-tested; **not
+yet on air**.
+
+`levers.{h,cpp}` carries the values. `levers_from()` reads a `ConfigStore` into a plain
+`Levers` struct, and `LeverBoard` carries that struct from the task that wrote the store
+to the tasks that own each consumer.
+
+| Row | Applied by | To |
+|---|---|---|
+| `diag_interval_s` | `sched_task` | `g_diag_interval_s` |
+| `missed_poll_threshold` | `sched_task` | `AvailabilityWatchdog::set_threshold()` |
+| `poll_reply_timeout_ms` | `sched_task` | `PollScheduler::set_reply_timeout_ms()` |
+| `command_ack_timeout_ms`, `cmd_retries` | `sched_task` | `CommandPath::set_ack_timeout_ms()`, `set_retries()` |
+| `config_readback_timeout_ms` | `sched_task` | `ConfigPath::set_readback_timeout_ms()` |
+| `poll_interval_s`, per node | `sched_task` | `NodeState::poll_interval_s` through `registry_set_poll_interval()`, and `PollScheduler::retime()` |
+| `cad_retries`, `backoff_max_ms`, `frag_reassembly_timeout_ms` | `lora_task` | `lora_configure()` |
+| `error_min_interval_ms` | `lora_task` | `lora_configure_errors()` |
+
+Five choices, and the reasoning for each.
+
+| Choice | Why |
+|---|---|
+| **A lock-free board rather than a read of the store** | `mqtt_task` writes `ConfigStore`. The consumers belong to `sched_task` and `lora_task`, and `lora_task` must never wait on a lock (`tools/checks/lora_task_never_blocks.py`). `mqtt_task` reads its own store and publishes the result as atomics under a generation counter. A reader that catches a publish mid-copy sees an odd or moved generation, takes nothing, and takes the new values on its next pass. It never applies a mix of two publishes. **One writer**: `setup()` before the tasks start, then `mqtt_task` alone |
+| **Published after the NVS restore, and after every set that changes a bridge-held value** | `config_begin()` publishes once the store holds what NVS restored, so each task's first pass applies the saved values. Published before the restore, a reboot would run the defaults until the next set, which is the silent revert this task had to rule out. After a set, `handle_config_set()` publishes as soon as the store holds the value, *before* a node half's job is queued. That function returns early once the job is queued, so a `poll_interval_s` riding with a node's own rows would otherwise reach the store and never its consumer |
+| **Applied on the owning task** | `lora_configure()` writes state `lora_service()` reads without a lock, so `lora_task` calls it itself when the board changes. The other consumers are `sched_task`'s. `sched_levers()` runs first on each tick, holds the scheduler's lock across its own calls only, and keeps its two `Levers` in static storage rather than on the stack. `sched_task` has the deepest stack in this firmware |
+| **A changed poll interval counts from the last poll** | `on_sent()` fixes a node's due time when its poll goes out. Without `retime()`, an operator who drops 3600 s to 60 s would see no poll for up to an hour. Only the nodes whose interval moved are retimed, so a set of another lever leaves the schedule alone |
+| **`cmd_retries` changes a count, never a `seq`** | Root rule 2. A command in flight keeps the `seq` its first attempt took. A lower count ends its retries sooner, and nothing else moves |
+
+**`test_levers` checks that every consumer's compile-time default equals its row's
+default.** A consumer's own constant is still what runs until `sched_task` or `lora_task`
+first takes the board. If the two differ, the bridge runs one value briefly and another
+after, and `config/state` shows only the second.
+
+**What the host suite cannot show.** It cannot show that the tasks apply what they take,
+or that a value survives a reboot. Both need the board. `sched_levers()` prints a
+`levers: gen N` line each time it applies a generation. That line, and the diagnostic
+publication's spacing after a `diag_interval_s` set, are the bench evidence to look for.
 
 ---
 
@@ -1390,6 +1433,10 @@ carry it; the dense case stays runnable because it is what made the question vis
 > needs its own task rather than a criterion. Checked by reading that `TODO(BF-23)` is
 > gone from `task_runtime.cpp` when BF-23 is accepted, and by `per_measure.py --arm
 > saturated` returning a valid window.
+>
+> **The first check passed on 2026-09-23**, when BF-23's lever half was built: no
+> `TODO(BF-23)` remains in `task_runtime.cpp`, and `diag_interval_s` reaches
+> `g_diag_interval_s` (§4.4.2). **The second check is still owed**, and it needs the bench.
 
 **§8.1.1 corrects two things above**, measured 2026-09-21: `--gap 2000` is not a zero-PER
 configuration, and the spacing effect this section assumes is real was in doubt when this
@@ -2220,6 +2267,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.42** | **New §4.4.2**: BF-23's lever half. Each bridge row of the configuration table now reaches the code it configures, except `simnode_diag_enable`. Values travel on a lock-free board, are applied on the owning task, and are published after the NVS restore. Host-tested, not yet on air. **§8.1**'s falsifier records that its first check passed |
 | **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's** |
 | **v0.40** | **New §8.1.1** — two interleaved sweeps on 2026-09-21 separate spacing from the passage of time, and **correct §8.1's assumption that a 2000 ms gap loses nothing**: it measured 0.31 % over 640 frames. V-B12's two arms run interleaved rather than in blocks |
 | **v0.39** | **Two stale statuses corrected**: §4.3.2's `ERROR` row said BF-19a was not on air, and §10.9 said the XIAO had never been flashed. **§10.9.2's `CONFIG` row follows D52 and D53**, as the simnode now does. **§4.4.1's timing-lever gap gains a closing note** — spec v0.13 §16.7 and **BF-32** answer it. **§10.5's `single_frame_interleave` explanation corrected.** Its example was a fragmented `CONFIG_ACK`, which spec v0.12 made impossible (D38); the defect it guards against is unchanged. Found by `LRAN-Config-Set-Brief` §2 |

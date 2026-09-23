@@ -1891,3 +1891,56 @@ result in the one `config/ack` that answers it. At the longest name the parser a
 unknown one costs about 82 bytes against about 700 of room, so nine names would not fit —
 and a document that does not fit is dropped, leaving the operator with no answer at all
 rather than a partial one. It was 16 until the fit test said otherwise.
+
+## 2026-09-23 — BF-23's lever half: each bridge row reaches its consumer, host-tested only
+
+**What changed.** Each bridge row of BF-32's configuration table now reaches the code it
+configures, except `simnode_diag_enable`, which is BF-26's. Before this, Home Assistant
+could set a value, NVS could keep it, and `config/state` could report it, while the lever
+went on running its compile-time default. Impl Plan §4.4.2 has the design and the reasons
+behind it. No board was touched, so **none of it is confirmed on air.**
+
+### The handoff's list was the right one, and the marker was not
+
+A grep for `TODO(BF-23)` found four sites. The handoff's table named eight consumers, and
+all eight are wired. `missed_poll_threshold`, `command_ack_timeout_ms`, `cmd_retries` and
+`config_readback_timeout_ms` carried no marker at all. **A TODO marker is not an
+inventory.** The table is, and root rule 8 is the reason each row exists.
+
+### Two gaps the design had to close before any code
+
+- **A set with a node half returns early.** `handle_config_set()` queues the node half's
+  job and returns before the block that republishes `config/state`. A lever publish placed
+  beside that block would never run for a `poll_interval_s` set together with a node's own
+  rows. That set would reach the store and not the scheduler. The publish sits
+  immediately after the store write instead.
+- **A shorter poll interval waited out the longer one.** `PollScheduler::on_sent()` fixes a
+  node's next due time when its poll goes out. Dropping 3600 s to 60 s would have
+  produced no poll for up to an hour. `retime()` now counts the new interval from the last
+  poll.
+
+### One test caught a mistake in the test
+
+The first `retime()` test asserted no poll at 120 199 ms. GateLink had come due at 60 s on
+its new 30 s interval. The scheduler was right and the expectation was wrong. The test now
+moves GateLink out of the way first.
+
+### Found in passing, not fixed here
+
+**`g_config` is used from two tasks with no lock between them.** `mqtt_task` calls
+`apply()`, `restore_defaults()`, `read_all()` and `state()`. `sched_task` calls
+`note_readback()`, `note_set_results()` and `state()` when a node transaction resolves
+(`publish_config_resolution()`). Neither `ConfigStore` nor `Store` takes a lock. BF-32
+introduced this, not the lever half: `levers_from()` runs in `setup()` and then only on `mqtt_task`, which is
+the only task that writes the stores. It is recorded in the handoff for its own change.
+
+### What the bench owes
+
+- `levers: gen N` on serial at boot, carrying the values NVS restored rather than the
+  defaults.
+- A `diag_interval_s` set that changes the spacing of `lran/bridge/diag/state`. That is
+  also V-B12's saturated-arm lever (Impl Plan §8.1).
+- A `poll_interval_s` set on a simnode, with the next poll arriving on the new interval
+  counted from the last one.
+- `sched_task`'s high-water mark after all three. It logs one on every configuration
+  resolution.

@@ -63,12 +63,12 @@ void lora_wait(uint32_t max_wait_ms);
 
 // Root rule 8 - spec 12.3's cad_retries and backoff_max_ms, and spec 11.2's
 // frag_reassembly_timeout_ms, are runtime-configurable. This is where they enter.
-// TODO(BF-23): called from the HA-visible configuration, through lora_task rather than
-// across it; until then only the defaults are ever in effect.
+// CALL IT FROM lora_task ONLY: it writes state lora_service() reads without a lock.
+// lora_task calls it when the lever board changes (levers.h, BF-23).
 void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms);
 
-// Spec 14.2's floor between two ERRORs to one peer (BF-19a). Root rule 8, same path and
-// same caveat as lora_configure(): only the default is ever in effect until BF-23.
+// Spec 14.2's floor between two ERRORs to one peer (BF-19a). Root rule 8, and the same
+// rule as lora_configure(): from lora_task only.
 void lora_configure_errors(uint32_t min_interval_ms);
 
 // BF-19a. ERRORs the rate limit withheld, for the diagnostic publication. Safe from any

@@ -39,7 +39,8 @@ namespace bridge {
 // finds the channel busy may back off cad_retries x backoff_max_ms = 5 x 1500 = 7500 ms
 // before it transmits regardless (spec 12.3), and its 0xFE answer is ~0.6 s at SF9 (spec
 // 15.1). A window shorter than that counts a node that obeyed media access as missing.
-// 10 s covers it with margin. Runtime-settable (root rule 8); TODO(BF-23): from Home Assistant.
+// 10 s covers it with margin. Runtime-settable (root rule 8): `poll_reply_timeout_ms`, applied
+// by sched_task from the lever board (levers.h, BF-23).
 inline constexpr uint32_t kPollReplyTimeoutDefaultMs = 10000;
 
 enum class PollAction : uint8_t {
@@ -84,6 +85,15 @@ class PollScheduler {
   static constexpr uint32_t kNotAnAnswer = UINT32_MAX;
   uint32_t on_heard(lran::NodeId node, uint32_t now_ms);
 
+  // `node`'s poll interval changed to `interval_s` (BF-23). Its next poll falls
+  // `interval_s` after its last one, as though the new interval had always applied.
+  //
+  // WITHOUT THIS A SHORTER INTERVAL WAITS OUT THE LONGER ONE. on_sent() fixed the due time
+  // when the last poll went, so an operator who drops 3600 s to 60 s would see no poll for
+  // up to an hour. A due time already past is polled on the next tick, like any other. A
+  // row never polled is due at once already, and stays so.
+  void retime(lran::NodeId node, uint16_t interval_s);
+
   // The seq for the next POLL. POLL is unauthenticated (spec 9.2), so it takes no command seq:
   // spending one would move nothing a node checks, but it would muddle the space BF-18 owns.
   lran::Seq take_poll_seq() { return poll_seq_++; }
@@ -103,6 +113,7 @@ class PollScheduler {
     // it reads as the future, and a row enrolled then would never come due.
     bool         due_set  = false;
     uint32_t     due_ms   = 0;
+    uint32_t     sent_ms  = 0;  // the last on_sent(); meaningful only once due_set
   };
 
   int index_of(lran::NodeId node) const;

@@ -116,6 +116,13 @@ bool Registry::note_unsupported_version(lran::NodeId id, uint8_t ver) {
   return true;
 }
 
+bool Registry::set_poll_interval(lran::NodeId id, uint16_t interval_s) {
+  const int i = index_of(id);
+  if (i < 0) return false;
+  entries_[i].state.poll_interval_s = interval_s;
+  return true;
+}
+
 bool Registry::note_poll_missed(lran::NodeId id) {
   const int i = index_of(id);
   if (i < 0) return false;

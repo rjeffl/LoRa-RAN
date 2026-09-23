@@ -51,6 +51,9 @@ bool registry_adopt_ctx(lran::NodeId id, lran::CtxId ctx);
 // R-3.1f - a frame from `id` was refused at spec 14 stage 4 carrying `ver` (BF-22).
 bool registry_note_unsupported_version(lran::NodeId id, uint8_t ver);
 
+// BF-23 - sched_task applies a node's `poll_interval_s` from the configuration store.
+bool registry_set_poll_interval(lran::NodeId id, uint16_t interval_s);
+
 // Builds an authenticated COMMAND to `dst` with that node's derived key (spec 9.2).
 // Returns the frame length, or 0 - for an unregistered node as well as an encode
 // failure, because a node with no key has no command that can reach it.

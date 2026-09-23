@@ -88,6 +88,11 @@ bool registry_note_unsupported_version(lran::NodeId id, uint8_t ver) {
   return g_registry.note_unsupported_version(id, ver);
 }
 
+bool registry_set_poll_interval(lran::NodeId id, uint16_t interval_s) {
+  Lock lock;
+  return g_registry.set_poll_interval(id, interval_s);
+}
+
 size_t registry_build_command(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
                               const lran::msg::Command& cmd, uint8_t* buf, size_t cap) {
   // key_for() is lock-free by construction (registry.h): keys are derived in
