@@ -1,12 +1,14 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-21, by the session that reflashed the bench, ran the interleaved spacing
-sweep twice, and built BF-32 end to end.** This file replaces the previous one wholesale.
+**Written 2026-09-23, by a session that landed BF-32 and the 2026-09-21 handoff on `main`
+and wrote nothing else.** No firmware changed and no board was touched, so the bench and
+its findings are as the 2026-09-21 session left them. This file replaces the previous one
+wholesale.
 
-**What is durable: the bench is live and every board runs its own firmware again.** The
-capture exercise is over, the three boards are back on bridge and simnode images, the
-sandbox broker is up, and the configuration path works from Home Assistant to a node and
-back. No measurement is pending.
+**What is durable: BF-32 is on `main`, and BF-23's lever half is the next job.** The bench
+is live and every board runs its own firmware. The sandbox broker is up, and the
+configuration path works from Home Assistant to a node and back. No measurement is
+pending.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -16,23 +18,57 @@ back. No measurement is pending.
 
 ## The next job, in one place
 
-**BF-32 is built, so BF-23's lever half and BF-26 both reduce to reading its table.** That
-is the next work and it needs no board.
+**BF-32 is built, so BF-23's lever half and BF-26 both reduce to reading its table.**
+Neither needs a board. Work on a new branch, per root `CLAUDE.md`'s
+branch-per-milestone rule.
 
-1. **BF-23's lever half.** Every `TODO(BF-23)` timing constant becomes one row that
-   already exists: `g_diag_interval_s`, `poll_interval_s`, `poll_reply_timeout_ms`,
-   `missed_poll_threshold`, `error_min_interval_ms` and the media-access config. The
-   bridge already holds the values — `ConfigStore::global_value()` and `node_value()` —
-   and nothing reads them yet.
-2. **BF-26**, `simnode_diag_enable`. The row is in the table and gates nothing. It is the
-   one switch that lets a bench node's diagnostics and discovery reach Home Assistant
-   (spec §16.6).
-3. **Then BF-24**, the decode and publication policy.
+### 1. BF-23's lever half — start here
 
-**V-B12's saturated arm becomes runnable the moment BF-23's lever lands**, and Impl Plan
-§8.1.1 says how to run it: interleaved with its idle control, not in blocks.
+**The values are held and the setters exist; nothing connects them.** `ConfigStore`
+holds every row's effective value, with an NVS-restored override or the default, behind
+`global_value()` and `node_value()`. Each consumer already has a setter or an atomic. No
+code outside the tests calls any of them, so every lever runs its compile-time default.
 
-### What this session established
+| Row (`lib/lran-config/.../table.h`) | Where it lands | `TODO(BF-23)`? |
+|---|---|---|
+| `diag_interval_s` | `g_diag_interval_s`, `task_runtime.cpp` | yes |
+| `poll_interval_s`, per node | `poll_interval_s` in the registry entry, `registry.h` | yes |
+| `poll_reply_timeout_ms` | `set_reply_timeout_ms()`, `scheduler.h` | yes |
+| `cad_retries`, `backoff_max_ms`, `frag_reassembly_timeout_ms` | `lora_configure()`, `lora_link.h` | yes |
+| `error_min_interval_ms` | `lora_configure_errors()`, `lora_link.h` | no — same comment block |
+| `missed_poll_threshold` | `AvailabilityWatchdog::set_threshold()`, `node_availability.h` | **no** |
+| `command_ack_timeout_ms`, `cmd_retries` | `set_ack_timeout_ms()`, `set_retries()`, `command.h` | **no** |
+| `config_readback_timeout_ms` | `set_readback_timeout_ms()`, `config_path.h` | **no** |
+
+**Grepping for `TODO(BF-23)` finds four of the eight sites.** Root rule 8 covers all of
+them, so the table, not the marker, is the list.
+
+**What needs thought before code:**
+
+- **When a value is applied.** It has to be at boot, after NVS restores the store, and
+  again on every set that changes the row. A reboot that silently reverts to the
+  compile-time default is the failure to test for.
+- **Which task applies it.** `lora_configure()` must be called *through* `lora_task`,
+  never across it (its comment in `lora_link.h`, and
+  `tools/checks/lora_task_never_blocks.py`). The other consumers belong to `sched_task`,
+  and **`sched_task` is the deepest stack in this firmware**. Read its high-water mark
+  before adding to its tick.
+- **`cmd_retries` changes a retry count, never a `seq`** (root rule 2).
+- **BF-23's row in `LRAN-Bridge-Firmware-Tasks` §7 predates BF-32.** It still says the
+  lever waits on a library "which has no task". Update it in the same branch.
+
+**V-B12's saturated arm becomes runnable the moment this lands**, and Impl Plan §8.1.1 says
+how to run it: interleaved with its idle control, not in blocks. That run needs the bench.
+
+### 2. Then BF-26, then BF-24
+
+- **BF-26**, `simnode_diag_enable`. The row is in the table and gates nothing. It is the
+  one switch that lets a bench node's diagnostics and discovery reach Home Assistant
+  (spec §16.6). The `TODO(BF-26)` gates are in `task_runtime.cpp`.
+- **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
+  `task_runtime.cpp` and `task_runtime.h`.
+
+### What the 2026-09-21 bench session established
 
 **The bench loss rate is a function of frame spacing, and a second variable rides on it.**
 Two interleaved sweeps, 1280 frames: **250 ms lost 3.91 %, 2000 ms lost 0.31 %**, and the
