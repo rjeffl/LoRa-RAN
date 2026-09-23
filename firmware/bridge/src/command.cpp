@@ -47,6 +47,12 @@ bool command_allowed(NodeType type, uint8_t cmd) {
     // (System PRD); a node that does not poll a BMS has nothing to switch off.
     case lran::Cmd::SetBmsPolling:
       return type == NodeType::GateLink || type == NodeType::Simnode;
+
+    // spec 10.6 - the bridge sends a roll on its own after it boots, and nothing else may.
+    // A roll requested from Home Assistant would move a node to a context the bridge has
+    // not adopted, and every command after it would draw REJECTED_CTX.
+    case lran::Cmd::RollContext:
+      return false;
   }
   // An unrecognized value is refused here rather than sent for the node to refuse.
   // Spec 8.1 is a closed table and a value outside it is a bridge-side defect or a

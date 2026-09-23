@@ -80,11 +80,17 @@ class CommandGate {
   // command that ran.
   bool record(Seq seq, AckResult result, uint8_t detail);
 
-  // spec 10.1, 10.3 - a new context invalidates every cached entry and the mark,
-  // because both are keyed within a context and a reboot changes it. The cache is
+  // spec 10.1, 10.3, 10.6 - a new context invalidates every cached entry and the mark,
+  // because both are keyed within a context, and a reboot or a roll changes it. The cache is
   // RAM-only and lost on reboot for the same reason (spec 10.4).
   void  reset_context(CtxId new_ctx);
   CtxId ctx_id() const { return ctx_id_; }
+
+  // spec 10.6 - true while any entry awaits record(). A node refuses ROLL_CONTEXT with
+  // ACTUATOR_BUSY while this holds, because reset_context() would drop the running
+  // command's result and its retry would then meet a fresh cache. An evicted in-flight
+  // entry no longer counts: its retry is refused at step 5 whatever the roll does.
+  bool any_in_flight() const { return in_flight_ != 0; }
 
   // spec 9.4 step 5's reference. Starts at 0 in each context: the bridge's command
   // seq starts at 1 (spec 10.2), which is newer than 0.

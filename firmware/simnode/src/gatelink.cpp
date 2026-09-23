@@ -285,6 +285,7 @@ const char* cmd_name(uint8_t cmd) {
     case lran::Cmd::ReleaseHold:    return "RELEASE_HOLD";
     case lran::Cmd::RequestStatus:  return "REQUEST_STATUS";
     case lran::Cmd::RequestConfig:  return "REQUEST_CONFIG";
+    case lran::Cmd::RollContext:    return "ROLL_CONTEXT";
     case lran::Cmd::SetDebugMode:   return "SET_DEBUG_MODE";
     case lran::Cmd::SetRelayDryRun: return "SET_RELAY_DRY_RUN";
     case lran::Cmd::SetBmsPolling:  return "SET_BMS_POLLING";
@@ -731,6 +732,10 @@ lran::AckResult Node::execute(Identity& e, const lran::msg::Command& c, AfterAck
       if (c.arg > 1) return lran::AckResult::RejectedArg;
       gl.bms_polling = c.arg == 1;
       return lran::AckResult::Accepted;
+    case lran::Cmd::RollContext:
+      // spec 9.4 - a roll skips steps 4-6, so on_command() answers it before the gate and
+      // it never reaches here. Refused rather than executed if that ever changes.
+      return lran::AckResult::RejectedUnknownCmd;
     case lran::Cmd::Reboot:
       if (c.arg != lran::kRebootGuard) return lran::AckResult::RejectedArg;
       *after = AfterAck::Reboot;

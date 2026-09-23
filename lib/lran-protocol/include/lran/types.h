@@ -190,6 +190,7 @@ enum class Cmd : uint8_t {
   ReleaseHold    = 0x04,
   RequestStatus  = 0x10,
   RequestConfig  = 0x11,
+  RollContext    = 0x12,  // spec 10.6, D58 - skips spec 9.4 steps 4-6
   SetDebugMode   = 0x20,
   SetRelayDryRun = 0x21,
   SetBmsPolling  = 0x22,
@@ -198,6 +199,10 @@ enum class Cmd : uint8_t {
 
 // spec 8.1 - REBOOT requires this in `arg` as a confirmation guard.
 inline constexpr uint8_t kRebootGuard = 0xA5;
+
+// spec 8.1, 10.6 - ROLL_CONTEXT requires the same value in `arg`. A separate name, so a
+// change to one guard cannot silently move the other.
+inline constexpr uint8_t kRollContextGuard = 0xA5;
 
 constexpr bool is_actuation_cmd(uint8_t cmd) { return cmd <= 0x0F; }
 
