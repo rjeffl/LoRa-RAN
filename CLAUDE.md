@@ -111,7 +111,11 @@ python3 tools/vectors/generate.py             # regenerate W4 vectors after a sp
 **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the catalogue**, in three
 parallel jobs: `checks` (invariants and host tools, seconds, no toolchain), `native` (the
 Unity suites) and `firmware` (every target, then the checks reading a built image or the
-installed RadioLib). Read it rather than a list here — it is executed, so it cannot go stale.
+installed RadioLib). `checks` runs on every change; `native` and `firmware` run only when
+the diff reaches `lib/`, `firmware/`, the workflow or the few other paths ci.yml's `changes`
+job lists, and a weekly scheduled run builds everything. **A build that starts reading a new
+path adds it to that list in the same commit**, or a change to that path skips the build.
+Read it rather than a list here — it is executed, so it cannot go stale.
 A firmware's own `CLAUDE.md` names the commands specific to it.
 
 **`main` stays buildable**, and **no secrets are needed or available in CI**: the bridge and
