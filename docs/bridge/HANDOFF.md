@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that ran BF-34 on the bench.** BF-34, spec v0.13
-§10.6's context roll after a bridge restart (**D58**, Bridge PRD **R-3.1h**), is confirmed
-on air and merged. Impl Plan §6.2.2 records what it decided. This file replaces the
-previous one wholesale.
+**Written 2026-09-23 by the session that opened V-B12's saturated arm and deferred it.**
+The documented lever cannot saturate WiFi, and the bench needs a network the operator can
+load. [`briefs/2026-09-23-vb12-bench-network-brief.md`](./briefs/2026-09-23-vb12-bench-network-brief.md)
+has both findings and the setup options. BF-34 is confirmed on air and merged, and Impl
+Plan §6.2.2 records what it decided.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,16 +19,24 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: V-B12's saturated arm, on the bench.
 Continue from docs/bridge/HANDOFF.md: BF-26, the bench publication gate.
 Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
+Continue from docs/bridge/HANDOFF.md: V-B12's saturated arm, on the bench. <setup>
 ```
+
+**V-B12's saturated arm is deferred until the operator has set up the bench network.**
+When resuming it, replace `<setup>` with the answers to the brief's *Decisions to make
+first*: the Mac's internet path, the broker host and its IoT address, whether the bridge's
+`secrets.h` already points at the IoT network, and the blaster's control and rate cap if
+they are decided. For example:
+`Setup: Mac dual-homed (wired main, WiFi IoT); Mosquitto on the Mac at 10.0.20.5; bridge
+not yet reflashed; blaster control undecided.`
 
 | Task | Read |
 |---|---|
-| **V-B12's saturated arm** (bench) | *The next job*; *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1** and **§8.1.1** |
 | **BF-26** (no board) | *The next job*; Impl Plan **§4.2a** and **§4.4.2**; Firmware Tasks' BF-26 row; spec **§16.6** |
 | **BF-24** (no board) | *The next job*; Impl Plan **§6.3**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row |
+| **V-B12's saturated arm** (bench, **deferred**) | *The next job*; the [bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md); *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1** and **§8.1.1** |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -43,16 +52,7 @@ and no poll reply was heard. The retry succeeded 2.7 s later. The cause is not s
 because the simnode logs neither a `POLL` nor its reply. The engineering log's *BF-34 on
 air* entry has the detail and two candidate changes. Neither is needed to close BF-34.
 
-**First, with the bench: V-B12's saturated arm, on `b4-vb12-saturated`.** The branch
-was cut from `main` after BF-34 merged, and it carries no code yet. The boards run
-`98b4b04`, which is in `main`'s history. Only documents changed after it, so the boards
-need no reflash unless this branch changes firmware. Check that with `git diff --stat
-98b4b04 HEAD -- firmware lib` before the first arm. Its lever, `diag_interval_s`, is confirmed
-on air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
-run the arms in blocks. **The roll adds one exchange per heard identity after each bridge
-boot**, so let every identity roll before a sweep's first arm.
-
-**Without the bench: BF-26, then BF-24.** Neither needs a board.
+**Next: BF-26, then BF-24.** Neither needs a board.
 
 - **BF-26**, `simnode_diag_enable`. Its row is in the table, and nothing reads it yet.
   **Consider carrying it on the lever board** (`levers.h`): `sched_task` reads it and
@@ -60,6 +60,24 @@ boot**, so let every identity roll before a sweep's first arm.
   switch on needs `g_availability.mark_known_pending()` and a discovery republish.
 - **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
   `task_runtime.cpp` and `task_runtime.h`.
+
+**Deferred: V-B12's saturated arm.** It waits on two things, and the
+[bench network brief](./briefs/2026-09-23-vb12-bench-network-brief.md) has both.
+
+- **A WiFi load.** `diag_interval_s` has a 10 s floor, so it adds three small documents
+  every 10 s, and that load is not the flood M22 asks for. A bench-only UDP blaster, rate
+  capped and counting what it sent, is the option chosen for planning. Its control and
+  build form are not decided. **Impl Plan §8.1 still names `diag_interval_s`**, and its
+  correction goes in the same commit as the blaster.
+- **A network to load.** The operator prefers to move the bridge, the Mac and a new broker
+  to the IoT network, whose 2.4 GHz radio carries only IoT traffic. The Mac must keep
+  internet access for the Claude app.
+
+The boards run `98b4b04`. Before the first arm, check with `git diff --stat 98b4b04 HEAD --
+firmware lib` whether a reflash is needed; the blaster and the IoT `secrets.h` both need
+one. Impl Plan §8.1.1 says how to run the arms: interleave them with the idle control, and
+never run them in blocks. **The roll adds one exchange per heard identity after each bridge
+boot**, so let every identity roll before a sweep's first arm.
 
 ## Open, and not closable from here
 
@@ -124,8 +142,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, deferred on its WiFi load and bench network. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **BF-26**, then **BF-24**, neither of which needs a board. **V-B12's saturated arm** once the bench network is set up |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
