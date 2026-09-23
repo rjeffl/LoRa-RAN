@@ -977,3 +977,39 @@ of the last suite run. No state stored on either Heltec was the only copy.
 - **The gate holds no lock.** A receiver calling `check()` and `record()` from different
   tasks must serialize them. Library plan §3.10 and GateLink Impl Plan §5.2 say so; no
   test can enforce it from inside the library.
+
+## 2026-09-23 — `MORE_FOLLOWS` unmasked at stage 8, and the vectors that sat unembedded
+
+**The codec rejected the first message of every split `GET_ALL` answer.** The frame-level
+length check, `check_variable_payload()` in `codec.cpp`, walked a `CONFIG_ACK`'s results
+using the raw `count` byte. Spec §7.4.1 (**D57**) makes bit 7 of that byte `MORE_FOLLOWS`.
+A count byte of `0x82` therefore read as 130 results, and the frame failed stage 8 as
+`BadLength`. A bridge would have counted every such message in `rx_bad_length` and never
+seen the answer complete. `a6db7a6` had masked the bit in the schema decoder, one layer
+down, and missed this check. Fixed in `2ad132e`.
+
+**The W4 vectors had caught it, and nothing ran them.** `a6db7a6` added
+`config_ack_get_all_more_follows` and `config_ack_get_all_final` to the JSON files on
+2026-09-20, but `embed.py` was not re-run, so `vectors_data.h` held 72 of the 74 vectors.
+The generator, `check.py` and the C++ suite all passed. The disagreement appeared only when
+D58's vectors were embedded on branch `spec-v0.13-d58`:
+
+```
+DISAGREE [single] config_ack_get_all_more_follows: encode: expected Ok, got BadLength
+DISAGREE [single] config_ack_get_all_more_follows: decode: expected Ok, got BadLength
+```
+
+The vector follows §7.4.1 and the codec did not, so the codec changed and the vector did
+not (root rule 12).
+
+**Why no test caught the codec directly.** The schema tests exercise
+`NodeConfigAckV1`'s own serializer and deserializer, which were correct. The frame-level
+check runs only through `encode()` and `decode_payload()`, and the only multi-message
+frames that reach those are the vectors. **The W4 README's regeneration steps did not name
+`embed.py`**, and now do. Nothing checks that `vectors_data.h` matches the JSON; a check
+for that is proposed separately.
+
+**Found in the same pass.** `generate.py` reports 65 distinct valid frames where
+`check.py` reports 66. The same gap exists at `94c51e7` (63 against 64), so it is a
+difference in how the two count, not a defect this branch introduced. It is not
+investigated here.
