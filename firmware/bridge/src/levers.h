@@ -45,6 +45,7 @@ struct Levers {
   uint32_t frag_reassembly_timeout_ms = 0;
   uint32_t error_min_interval_ms      = 0;
   uint32_t config_readback_timeout_ms = 0;
+  uint32_t config_ack_timeout_ms      = 0;
 
   // D47 - one value per node, in kNodeTable's order.
   uint16_t poll_interval_s[kNodeCount] = {};
@@ -87,6 +88,7 @@ class LeverBoard {
   std::atomic<uint32_t> frag_reassembly_timeout_ms_{0};
   std::atomic<uint32_t> error_min_interval_ms_{0};
   std::atomic<uint32_t> config_readback_timeout_ms_{0};
+  std::atomic<uint32_t> config_ack_timeout_ms_{0};
   std::atomic<uint16_t> poll_interval_s_[kNodeCount] = {};
 };
 

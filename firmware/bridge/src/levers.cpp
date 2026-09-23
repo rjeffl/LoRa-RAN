@@ -43,6 +43,7 @@ constexpr uint16_t kBackoffMaxMs          = bridge_row("backoff_max_ms");
 constexpr uint16_t kFragReassemblyTimeout = bridge_row("frag_reassembly_timeout_ms");
 constexpr uint16_t kErrorMinIntervalMs    = bridge_row("error_min_interval_ms");
 constexpr uint16_t kConfigReadbackTimeout = bridge_row("config_readback_timeout_ms");
+constexpr uint16_t kConfigAckTimeoutMs    = bridge_row("config_ack_timeout_ms");
 constexpr uint16_t kPollIntervalS         = bridge_row("poll_interval_s");
 
 static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
@@ -50,7 +51,7 @@ static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kCmdRetries != kNoRow && kCadRetries != kNoRow &&
                   kBackoffMaxMs != kNoRow && kFragReassemblyTimeout != kNoRow &&
                   kErrorMinIntervalMs != kNoRow && kConfigReadbackTimeout != kNoRow &&
-                  kPollIntervalS != kNoRow,
+                  kConfigAckTimeoutMs != kNoRow && kPollIntervalS != kNoRow,
               "every lever reads a row of kBridgeParams");
 
 // `cad_retries`, `backoff_max_ms` and `frag_reassembly_timeout_ms` are in the node block
@@ -74,6 +75,7 @@ Levers levers_from(const ConfigStore& store) {
   v.frag_reassembly_timeout_ms = static_cast<uint32_t>(store.global_value(kFragReassemblyTimeout));
   v.error_min_interval_ms      = static_cast<uint32_t>(store.global_value(kErrorMinIntervalMs));
   v.config_readback_timeout_ms = static_cast<uint32_t>(store.global_value(kConfigReadbackTimeout));
+  v.config_ack_timeout_ms      = static_cast<uint32_t>(store.global_value(kConfigAckTimeoutMs));
   for (size_t i = 0; i < kNodeCount; ++i) {
     v.poll_interval_s[i] =
         static_cast<uint16_t>(store.node_value(kNodeTable[i].id, kPollIntervalS));
@@ -96,6 +98,7 @@ void LeverBoard::publish(const Levers& v) {
   frag_reassembly_timeout_ms_.store(v.frag_reassembly_timeout_ms, r);
   error_min_interval_ms_.store(v.error_min_interval_ms, r);
   config_readback_timeout_ms_.store(v.config_readback_timeout_ms, r);
+  config_ack_timeout_ms_.store(v.config_ack_timeout_ms, r);
   for (size_t i = 0; i < kNodeCount; ++i) poll_interval_s_[i].store(v.poll_interval_s[i], r);
 
   gen_.fetch_add(1, std::memory_order_release);  // even: complete
@@ -117,6 +120,7 @@ bool LeverBoard::take_if_changed(uint32_t* seen, Levers* out) const {
   v.frag_reassembly_timeout_ms = frag_reassembly_timeout_ms_.load(r);
   v.error_min_interval_ms      = error_min_interval_ms_.load(r);
   v.config_readback_timeout_ms = config_readback_timeout_ms_.load(r);
+  v.config_ack_timeout_ms      = config_ack_timeout_ms_.load(r);
   for (size_t i = 0; i < kNodeCount; ++i) v.poll_interval_s[i] = poll_interval_s_[i].load(r);
 
   std::atomic_thread_fence(std::memory_order_acquire);

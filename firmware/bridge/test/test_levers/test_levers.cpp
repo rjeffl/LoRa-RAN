@@ -87,6 +87,7 @@ void test_the_table_defaults_are_the_consumers_defaults() {
   TEST_ASSERT_EQUAL_UINT32(kDefaultFragTimeoutMs, v.frag_reassembly_timeout_ms);
   TEST_ASSERT_EQUAL_UINT32(kErrorMinIntervalDefaultMs, v.error_min_interval_ms);
   TEST_ASSERT_EQUAL_UINT32(kConfigReadbackTimeoutDefaultMs, v.config_readback_timeout_ms);
+  TEST_ASSERT_EQUAL_UINT32(kConfigAckTimeoutDefaultMs, v.config_ack_timeout_ms);
   for (size_t i = 0; i < kNodeCount; ++i) {
     TEST_ASSERT_EQUAL_UINT16(kPollIntervalDefaultS, v.poll_interval_s[i]);
   }
@@ -105,6 +106,7 @@ void test_each_global_override_reaches_its_lever() {
   set(store, ConfigScope::Bridge, 0, "frag_reassembly_timeout_ms", 7000);
   set(store, ConfigScope::Bridge, 0, "error_min_interval_ms", 2500);
   set(store, ConfigScope::Bridge, 0, "config_readback_timeout_ms", 20000);
+  set(store, ConfigScope::Bridge, 0, "config_ack_timeout_ms", 12000);
 
   const Levers v = levers_from(store);
   TEST_ASSERT_EQUAL_UINT16(15, v.diag_interval_s);
@@ -117,6 +119,7 @@ void test_each_global_override_reaches_its_lever() {
   TEST_ASSERT_EQUAL_UINT32(7000, v.frag_reassembly_timeout_ms);
   TEST_ASSERT_EQUAL_UINT32(2500, v.error_min_interval_ms);
   TEST_ASSERT_EQUAL_UINT32(20000, v.config_readback_timeout_ms);
+  TEST_ASSERT_EQUAL_UINT32(12000, v.config_ack_timeout_ms);
 }
 
 // A value outside its row's range is clamped by the store, and the lever runs the clamped

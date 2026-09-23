@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.13
+**Version:** 0.14
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -620,6 +620,7 @@ inline constexpr ParamDef kBridgeParams[] = {
   {0x0009, "frag_reassembly_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  500, 30000,  5000, "ms", "Fragment set window, spec 11.2"},
   {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
   {0x000B, "config_readback_timeout_ms",  Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000, 15000, "ms", "Wait for a split readback to complete, spec 7.4.1 (D57)"},
+  {0x000C, "config_ack_timeout_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000,  8000, "ms", "CONFIG_ACK wait before the outcome is unknown, spec 7.4"},
   {0x0080, "poll_interval_s",            Owner::BridgePerNode, Access::ReadWrite, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
 };
 
@@ -851,6 +852,12 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.14** — **`config_ack_timeout_ms` is added** at `0x000C`: how long the bridge waits
+  for a `CONFIG_ACK` before it reports the outcome `unknown` (spec §7.4). The bridge had
+  fixed it at 8000 ms with a setter nothing called, which root rule 8 does not allow. The
+  default and name follow the bridge's `kConfigAckTimeoutDefaultMs` and
+  `config_readback_timeout_ms`.
 
 - **v0.13** — **§4 is built** as `/lib/lran-config/`, host-tested in `native` (BF-32's
   library half). §4 records the four places the implementation differs from its own sketch:

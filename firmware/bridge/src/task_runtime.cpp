@@ -793,6 +793,7 @@ void sched_levers() {
     // took (root rule 2); a lower count ends its retries sooner, and nothing else moves.
     g_command.set_retries(v.cmd_retries);
     g_config_path.set_readback_timeout_ms(v.config_readback_timeout_ms);
+    g_config_path.set_ack_timeout_ms(v.config_ack_timeout_ms);
   }
   g_availability.set_threshold(v.missed_poll_threshold);
   g_diag_interval_s = v.diag_interval_s;
@@ -813,13 +814,14 @@ void sched_levers() {
 
   // The bench record that a set reached its consumer, not just the store.
   Serial.printf("levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
-                "readback %u ms\n",
+                "config ack %u ms, readback %u ms\n",
                 static_cast<unsigned>(g_sched_levers_seen),
                 static_cast<unsigned>(v.diag_interval_s),
                 static_cast<unsigned>(v.poll_reply_timeout_ms),
                 static_cast<unsigned>(v.missed_poll_threshold),
                 static_cast<unsigned>(v.command_ack_timeout_ms),
                 static_cast<unsigned>(v.cmd_retries),
+                static_cast<unsigned>(v.config_ack_timeout_ms),
                 static_cast<unsigned>(v.config_readback_timeout_ms));
 }
 

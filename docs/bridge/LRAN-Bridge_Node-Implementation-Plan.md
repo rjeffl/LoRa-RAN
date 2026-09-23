@@ -592,6 +592,7 @@ to the tasks that own each consumer.
 | `poll_reply_timeout_ms` | `sched_task` | `PollScheduler::set_reply_timeout_ms()` |
 | `command_ack_timeout_ms`, `cmd_retries` | `sched_task` | `CommandPath::set_ack_timeout_ms()`, `set_retries()` |
 | `config_readback_timeout_ms` | `sched_task` | `ConfigPath::set_readback_timeout_ms()` |
+| `config_ack_timeout_ms` | `sched_task` | `ConfigPath::set_ack_timeout_ms()` |
 | `poll_interval_s`, per node | `sched_task` | `NodeState::poll_interval_s` through `registry_set_poll_interval()`, and `PollScheduler::retime()` |
 | `cad_retries`, `backoff_max_ms`, `frag_reassembly_timeout_ms` | `lora_task` | `lora_configure()` |
 | `error_min_interval_ms` | `lora_task` | `lora_configure_errors()` |
@@ -1246,7 +1247,9 @@ the bridge resolves it with a `POLL` carrying bit 1.
 
 **Home Assistant is told `unknown` first and told the truth when the node answers.** An
 operator watching a dashboard learns the bridge does not know inside the ACK timeout,
-rather than after a second round trip that may also fail.
+rather than after a second round trip that may also fail. **That timeout is
+`config_ack_timeout_ms`**, 8000 ms by default, added in Library Plan v0.14 because the
+bridge had fixed it at compile time.
 
 #### 6.7.4 The split readback, and what it costs to get wrong
 
@@ -1282,6 +1285,27 @@ detail; they are named here because each is a shape worth recognising again:
 > inside `kMaxConfigAckMessages` (§7.4.1) and staged inside the bridge's 64 rows. GateLink's
 > counted 25 parameters (**W10**) fit; a node that does not has outgrown the mechanism, and
 > `staging_overflow` in `lran/bridge/diag/*` is what says so rather than a truncated answer.
+
+#### 6.7.6 Two tasks share the store, under one lock
+
+**`g_config` is used from two tasks, and neither `ConfigStore` nor `Store` takes a lock.**
+`mqtt_task` writes the stores in `apply()` and `restore_defaults()`, reads them in
+`read_all()`, and reads the mirror in `state()`. `sched_task` writes the mirror in
+`note_readback()` and `note_set_results()` when a node transaction resolves, then reads it
+in `state()`. Found 2026-09-23, from BF-32. Without a lock, a set arriving while a
+transaction resolves can read a half-written mirror or store.
+
+**`ConfigLock` in `task_runtime.cpp` is held across `g_config` calls and nothing else.** It
+is never held across a publish, a queue send, a registry call or `SchedLock`, so it nests
+with no other lock. `mqtt_task` holds it from the store write through `levers_from()`, so
+the lever board carries the values that set left. A holder can wait on an NVS write inside
+`apply()`, which `sched_task`'s 1 s tick absorbs. `lora_task` never takes it, and
+`config_begin()` runs before the tasks and needs none.
+
+**Handing the resolution to `mqtt_task` was the alternative**, making it the only task that
+touches `g_config`, as it is the only writer of the lever board. It would also take stack
+off `sched_task`. It was not chosen: it needs a new queue item of about a kilobyte, and it
+moves the `config/ack` publish to another task, for a race that one short lock closes.
 
 ---
 
@@ -2269,7 +2293,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
-| **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed |
+| **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air, and it gains `config_ack_timeout_ms`. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed. **New §6.7.6**: `ConfigLock`, and why a lock rather than handing the resolution to `mqtt_task`. **§6.7.3** names the ACK timeout's row |
 | **v0.42** | **New §4.4.2**: BF-23's lever half. Each bridge row of the configuration table now reaches the code it configures, except `simnode_diag_enable`. Values travel on a lock-free board, are applied on the owning task, and are published after the NVS restore. Host-tested, not yet on air. **§8.1**'s falsifier records that its first check passed |
 | **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's** |
 | **v0.40** | **New §8.1.1** — two interleaved sweeps on 2026-09-21 separate spacing from the passage of time, and **correct §8.1's assumption that a 2000 ms gap loses nothing**: it measured 0.31 % over 640 frames. V-B12's two arms run interleaved rather than in blocks |

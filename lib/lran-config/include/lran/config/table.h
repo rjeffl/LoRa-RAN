@@ -77,6 +77,8 @@ inline constexpr ParamDef kBridgeParams[] = {
     {0x000B, "config_readback_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite,
      PType::U16, 1000, 60000, 15000, "ms",
      "Wait for a split readback to complete, spec 7.4.1 (D57)"},
+    {0x000C, "config_ack_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite, PType::U16,
+     1000, 60000, 8000, "ms", "CONFIG_ACK wait before the outcome is unknown, spec 7.4"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
 };
