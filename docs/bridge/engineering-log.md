@@ -2003,3 +2003,50 @@ on its next boot.
 
 **V-B12's saturated arm** (Impl Plan §8.1): its lever is confirmed, and the arm has not
 run.
+
+## 2026-09-23 — The configuration lock, `config_ack_timeout_ms`, and a `seq` gap after a bridge restart
+
+**Three changes on `b4-bf23-levers` were flashed from `52727b8` and checked on the bridge
+board**, and the run found a gap in the specification.
+
+- **`get_all` is no longer a change.** `config_set_changed()` now decides whether a set
+  changed a stored value, from the op as well as the persist status. A `get_all` to f2
+  left the lever generation at 4, and neither the `unknown` nor the abandoned readback
+  republished `lran/simnode2/config/state`.
+- **`ConfigLock`** guards `g_config` between `mqtt_task` and `sched_task`, which is Impl
+  Plan §6.7.6. No deadlock or stall showed in the run. `sched_task`'s high-water mark
+  read 2324 and 2120 bytes free, against 1976 before, so the lock did not deepen its
+  stack. A race the lock closes does not show on a bench whether or not the lock is
+  there, so this run shows only that the lock does no harm.
+- **`config_ack_timeout_ms`** (`0x000C`) reaches `ConfigPath`. With the row at 3000, the
+  `unknown` for a `CONFIG` sent at 1836.47 published at 1839.43, 2.95 s later instead
+  of 8 s. The boot line now prints `config ack %u ms`.
+
+### A bridge restart reuses command `seq` values a node has already seen
+
+**After the reflash, the bridge's first `CONFIG` to f1 was answered from the node's dedup
+cache and not applied.** The simnode logged `config f1 <- 00 seq 1: dedup hit,
+DUPLICATE_CACHED, not applied`. The bridge had rebooted, so its command `seq` for f1
+started again at 1. The simnode had not rebooted, so f1 kept its `ctx_id`, its
+`rx_high_water` and its dedup cache, which still held seq 1 from the `get_all` sent before
+the reflash.
+
+A `get_all` recovers from that, by readback. It went `unknown` at 3 s and completed at
+outcome 3, `ReadbackOk`. **A command would not recover.** Spec §9.4 step 4 returns the
+cached result of a different, earlier command and does not execute it, so Home Assistant
+would see a gate command succeed while the gate did not move. `CommandPath::on_ack()`
+publishes a `DUPLICATE_CACHED` as acknowledged, with the cached `detail`. A `seq` at or
+below the high-water mark that is not cached draws `REJECTED_SEQ` at step 5. The bridge
+ends that command as a rejection and does not resync, so each later command fails in turn
+and spends one `seq`, until the bridge passes the node's high-water mark.
+
+**The specification does not cover this case.** §10.2 resets the bridge's command `seq`
+only when the bridge learns a new `ctx_id`, and §10.1 says the bridge has no context of
+its own. Nothing covers a bridge restart against a node whose context survived it. For
+GateLink that is every bridge reflash, OTA update or power cut. Not fixed here: the
+specification is binding, so this needs a decision. Candidates are to persist the command
+`seq` in NVS, to have the node reject a stale `seq` in a way that makes the bridge resync,
+or to have the bridge force a new node context after its own boot.
+
+**The bench reproduces it in one step.** Send any authenticated frame to a `ROLE_GATELINK`
+simnode identity, reboot the bridge without rebooting the simnode, and send another.
