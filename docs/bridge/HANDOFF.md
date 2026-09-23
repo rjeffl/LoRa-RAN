@@ -1,12 +1,12 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-23 by the session that ran BF-34 on the bench, on branch
-`b4-bf34-context-roll`.** BF-34 is spec v0.13 §10.6's context roll after a bridge restart
+`b4-vb12-saturated`.** BF-34 is spec v0.13 §10.6's context roll after a bridge restart
 (**D58**, Bridge PRD **R-3.1h**). **It is confirmed on air.** After a bridge reflash, f1's
 first command executed and was acknowledged with no `DUPLICATE_CACHED`. The three branches
 that had been host-tested only, `REJECTED_CTX`, `ACTUATOR_BUSY` and `ctx_roll_failed`,
-passed on air too. The branch's PR is still a draft, waiting for the operator to accept
-it. This file replaces the previous one wholesale.
+passed on air too. The operator accepted BF-34, and this session merged it. This file
+replaces the previous one wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -16,16 +16,17 @@ it. This file replaces the previous one wholesale.
 
 ## The next job, in one place
 
-**First: the operator accepts BF-34's PR, or says what it lacks.** The PR stays a draft
-until the operator accepts it, so ask rather than merge.
-
 **One observation from the bench run is open.** In one of the six rolls, the bridge sent
 its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went unanswered
 and no poll reply was heard. The retry succeeded 2.7 s later. The cause is not shown,
 because the simnode logs neither a `POLL` nor its reply. The engineering log's *BF-34 on
 air* entry has the detail and two candidate changes. Neither is needed to close BF-34.
 
-**Next, with the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed
+**First, with the bench: V-B12's saturated arm, on `b4-vb12-saturated`.** The branch
+was cut from `main` after BF-34 merged, and it carries no code yet. The boards run
+`98b4b04`, which is in `main`'s history. Only documents changed after it, so the boards
+need no reflash unless this branch changes firmware. Check that with `git diff --stat
+98b4b04 HEAD -- firmware lib` before the first arm. Its lever, `diag_interval_s`, is confirmed
 on air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
 run the arms in blocks. **The roll adds one exchange per heard identity after each bridge
 boot**, so let every identity roll before a sweep's first arm.
@@ -39,7 +40,7 @@ boot**, so let every identity roll before a sweep's first arm.
 - **BF-24**, the decode and publication policy. Its `TODO(BF-24)` markers are in
   `task_runtime.cpp` and `task_runtime.h`.
 
-### What this branch decided
+### What BF-34 decided
 
 Impl Plan §6.2.2 has the full table. The two decided with the operator on 2026-09-23 depart
 from what was written:
@@ -121,9 +122,9 @@ And the ones the session chose:
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air**, PR awaiting acceptance. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **BF-34's PR acceptance**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
+| Queue | **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
