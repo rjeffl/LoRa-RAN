@@ -88,9 +88,10 @@ class Blaster(unittest.TestCase):
                          [(2000, 0), (2000, 4000), (2000, 4000), (2000, 0)])
 
     def test_the_totals_line_parses(self):
-        got = parse_blast("blast: off sent=1200 bytes=1766400 fail=3 ms=30000 kbps=471")
-        self.assertEqual(got, {"state": "off", "sent": 1200, "bytes": 1766400,
-                               "fail": 3, "ms": 30000, "kbps": 471})
+        got = parse_blast("blast: off sent=1200 bytes=1766400 fail=3 err=12 down=0"
+                          " ms=30000 kbps=471")
+        self.assertEqual(got, {"state": "off", "sent": 1200, "bytes": 1766400, "fail": 3,
+                               "err": 12, "down": 0, "ms": 30000, "kbps": 471})
 
     def test_the_start_line_is_not_a_totals_line(self):
         # `blast: on kbps=.. bytes=.. to host:9` carries no counts; taking it for the

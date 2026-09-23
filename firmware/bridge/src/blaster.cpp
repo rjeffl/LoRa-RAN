@@ -10,8 +10,9 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <WiFiUdp.h>
+#include <lwip/sockets.h>
 
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -40,8 +41,11 @@ constexpr uint32_t kMaxBankMs = 20;
 // Sends per poll, so one poll never holds loop() for long when the stack is keeping up.
 constexpr int kMaxSendsPerPoll = 64;
 
+// A raw lwIP socket, not WiFiUDP: WiFiUDP logs every refused send at error level, and at
+// a thousand refusals a second that log is itself a load on the serial port and the CPU.
 const char* g_host = nullptr;
-WiFiUDP g_udp;
+int g_sock = -1;
+sockaddr_in g_dest = {};
 IPAddress g_target;
 uint8_t g_payload[kMaxPayload];  // zeros; the content does not matter
 
@@ -54,6 +58,8 @@ uint32_t g_started_ms = 0;
 uint32_t g_stopped_ms = 0;  // so a status read after a stop still covers the run alone
 uint32_t g_sent = 0;
 uint32_t g_fail = 0;
+uint32_t g_down = 0;   // polls skipped because the link was down; nothing was sent
+int g_last_err = 0;   // errno of the most recent refused send
 uint64_t g_bytes = 0;
 
 char g_line[64];
@@ -63,9 +69,10 @@ void print_totals(const char* state) {
   const uint32_t end = g_kbps ? millis() : g_stopped_ms;
   const uint32_t ms = g_started_ms ? end - g_started_ms : 0;
   const uint32_t kbps = ms ? static_cast<uint32_t>(g_bytes * 8 / ms) : 0;
-  Serial.printf("blast: %s sent=%lu bytes=%llu fail=%lu ms=%lu kbps=%lu\n", state,
-                static_cast<unsigned long>(g_sent), static_cast<unsigned long long>(g_bytes),
-                static_cast<unsigned long>(g_fail), static_cast<unsigned long>(ms),
+  Serial.printf("blast: %s sent=%lu bytes=%llu fail=%lu err=%d down=%lu ms=%lu kbps=%lu\n",
+                state, static_cast<unsigned long>(g_sent),
+                static_cast<unsigned long long>(g_bytes), static_cast<unsigned long>(g_fail),
+                g_last_err, static_cast<unsigned long>(g_down), static_cast<unsigned long>(ms),
                 static_cast<unsigned long>(kbps));
 }
 
@@ -89,11 +96,23 @@ void start(uint32_t kbps, size_t bytes) {
     Serial.printf("blast: refused - cannot resolve %s\n", g_host);
     return;
   }
+  if (g_sock < 0) {
+    g_sock = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (g_sock < 0) {
+      Serial.printf("blast: refused - no socket, errno %d\n", errno);
+      return;
+    }
+  }
+  g_dest.sin_family = AF_INET;
+  g_dest.sin_port = htons(kDiscardPort);
+  g_dest.sin_addr.s_addr = static_cast<uint32_t>(g_target);
   // A rate change mid-run keeps the totals, so the summary still covers the whole run.
   if (g_kbps == 0) {
     g_started_ms = millis();
     g_sent = 0;
     g_fail = 0;
+    g_down = 0;
+    g_last_err = 0;
     g_bytes = 0;
   }
   g_kbps = kbps;
@@ -174,15 +193,23 @@ void pace() {
     credit = ceiling;
   }
 
+  // A link that is down is not a load. Counted apart from `fail`, so a run that lost its
+  // association reads as that and not as a stack out of buffers.
+  if (WiFi.status() != WL_CONNECTED) {
+    ++g_down;
+    g_credit = 0;
+    return;
+  }
+
   for (int i = 0; i < kMaxSendsPerPoll && credit >= g_bytes_per_packet; ++i) {
     credit -= g_bytes_per_packet;
-    const bool ok = g_udp.beginPacket(g_target, kDiscardPort) == 1 &&
-                    g_udp.write(g_payload, g_bytes_per_packet) == g_bytes_per_packet &&
-                    g_udp.endPacket() == 1;
-    if (!ok) {
-      // The stack is out of buffers or the link is down. Give the tick back rather
-      // than spin, and let the next poll try again.
+    const int n = lwip_sendto(g_sock, g_payload, g_bytes_per_packet, MSG_DONTWAIT,
+                              reinterpret_cast<const sockaddr*>(&g_dest), sizeof(g_dest));
+    if (n != static_cast<int>(g_bytes_per_packet)) {
+      // Usually ENOMEM: the stack is out of buffers. Give the tick back rather than
+      // spin, and let the next poll try again.
       ++g_fail;
+      g_last_err = errno;
       break;
     }
     ++g_sent;

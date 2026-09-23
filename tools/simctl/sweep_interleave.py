@@ -207,9 +207,10 @@ def run_burst(console, sub, node, count, gap_ms, settle_s, drain_s, out,
         if blast is None:
             print("  the blaster did not report its totals", file=out)
         else:
-            print("  blaster: %d packets, %d kbps achieved, %d refused by the stack"
-                  % (blast.get("sent", 0), blast.get("kbps", 0), blast.get("fail", 0)),
-                  file=out)
+            print("  blaster: %d packets, %d kbps achieved, %d refused by the stack,"
+                  " %d polls with the link down"
+                  % (blast.get("sent", 0), blast.get("kbps", 0), blast.get("fail", 0),
+                     blast.get("down", 0)), file=out)
 
     # The last frames of a burst are still in flight when TX_DONE stops moving, and a
     # record that arrives after i_after is read counts as a loss here and as excess
@@ -307,15 +308,16 @@ def report(capture, out):
 def format_blast(marks):
     """What the blaster achieved in each loaded burst. A low `kbps` beside a low PER is a
     load that never arrived, not a receiver that tolerated it."""
-    lines = ["", "Blaster, per loaded burst (asked / achieved kbps, packets, refused):"]
+    lines = ["", "Blaster, per loaded burst (asked / achieved kbps, packets, refused,"
+             " link-down polls):"]
     for n, m in enumerate(marks, start=1):
         blast = m.get("blast")
         if not blast:
             lines.append("  %2d  %6d / (no totals reported)" % (n, m["blast_kbps"]))
             continue
-        lines.append("  %2d  %6d / %6d  %7d  %5d"
+        lines.append("  %2d  %6d / %6d  %7d  %5d  %5d"
                      % (n, m["blast_kbps"], blast.get("kbps", 0), blast.get("sent", 0),
-                        blast.get("fail", 0)))
+                        blast.get("fail", 0), blast.get("down", 0)))
     return "\n".join(lines)
 
 
