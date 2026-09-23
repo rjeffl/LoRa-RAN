@@ -1,11 +1,12 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that built BF-34, on branch `b4-bf34-context-roll`.**
-BF-34 is spec v0.13 §10.6's context roll after a bridge restart (**D58**, Bridge PRD
-**R-3.1h**). The library, the simnode and the bridge halves are built and host-tested, and
-CI passes. **Nothing about it has run on air.** The same session merged the two PRs the
-previous handoff left open, `b4-bf23-levers` and then `spec-v0.13-d58`, so `MORE_FOLLOWS`'s
-codec fix is on `main`. This file replaces the previous one wholesale.
+**Written 2026-09-23 by the session that ran BF-34 on the bench, on branch
+`b4-bf34-context-roll`.** BF-34 is spec v0.13 §10.6's context roll after a bridge restart
+(**D58**, Bridge PRD **R-3.1h**). **It is confirmed on air.** After a bridge reflash, f1's
+first command executed and was acknowledged with no `DUPLICATE_CACHED`. The three branches
+that had been host-tested only, `REJECTED_CTX`, `ACTUATOR_BUSY` and `ctx_roll_failed`,
+passed on air too. The branch's PR is still a draft, waiting for the operator to accept
+it. This file replaces the previous one wholesale.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -15,27 +16,16 @@ codec fix is on `main`. This file replaces the previous one wholesale.
 
 ## The next job, in one place
 
-**First: BF-34 on the bench.** The engineering log's last 2026-09-23 entry, *BF-34 built*,
-lists six steps. **The falsifier is a `DUPLICATE_CACHED` answer to the first command after
-a bridge reflash**; it must not appear. Before starting:
+**First: the operator accepts BF-34's PR, or says what it lacks.** The PR stays a draft
+until the operator accepts it, so ask rather than merge.
 
-- **The XIAO that holds f1 was not plugged in** when this session ended. Either plug it in,
-  or run `id add f1 ROLE_GATELINK` on the Heltec simnode, which the operator had not yet
-  chosen between.
-- **Flash both boards from a committed tree** and hold both serial ports open for the
-  whole run. Opening a port reboots the board, which resets its context and hides the case
-  under test.
-- **After the bridge reflash, f1 refuses commands until the bridge hears it.** `push f1`
-  starts the roll. That refusal is step 4's expected result, not a fault.
-- Read `sched_task`'s high-water mark on the first configuration resolution. `sched_roll()`
-  is a new function on that task, and it measured 1976–2324 bytes free of 3072 before it.
+**One observation from the bench run is open.** In one of the six rolls, the bridge sent
+its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went unanswered
+and no poll reply was heard. The retry succeeded 2.7 s later. The cause is not shown,
+because the simnode logs neither a `POLL` nor its reply. The engineering log's *BF-34 on
+air* entry has the detail and two candidate changes. Neither is needed to close BF-34.
 
-**When the bench passes: mark BF-34 on air and take the branch's PR out of draft for the operator.**
-Update the BF-34 row in Firmware Tasks, §6.2.2 of the Impl Plan and the bridge
-`CLAUDE.md`'s paragraph, each of which says *not yet on air*. **A milestone PR stays a
-draft until the operator accepts it**, so ask rather than merge.
-
-**Then, with the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed
+**Next, with the bench: V-B12's saturated arm.** Its lever, `diag_interval_s`, is confirmed
 on air. Impl Plan §8.1.1 says how to run it: interleave it with its idle control, and never
 run the arms in blocks. **The roll adds one exchange per heard identity after each bridge
 boot**, so let every identity roll before a sweep's first arm.
@@ -71,13 +61,6 @@ And the ones the session chose:
   applies, through `config_set_reaches_node()` and an atomic pending mask.
 - **`ctx_rolls` and `ctx_roll_failed` are spelled in `diag_json.cpp`**, not added to
   `kCounterRegistry`, which builds a node's schema `0xF0`.
-
-### What is host-tested only, and will stay so without a fault
-
-Spec §10.6 step 4, where `REJECTED_CTX` completes a roll after a lost ACK, needs
-`ack f1 suppress 1` before `push f1`. The `ACTUATOR_BUSY` retry needs `ack f1 delay` with a
-command in flight. `ctx_roll_failed` needs a roll to an identity no board holds. All three
-are worth one pass on the bench and none is needed to close BF-34.
 
 ## Open, and not closable from here
 
@@ -122,7 +105,7 @@ are worth one pass on the bench and none is needed to close BF-34.
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **four 2026-09-23 entries** first, last one first: **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **five 2026-09-23 entries** first, last one first: **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12 and **§8.1.1** what the interleaved sweep found; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
@@ -138,9 +121,9 @@ are worth one pass on the bench and none is needed to close BF-34.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 built and host-tested**, not on air. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **BF-34 on air**. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **BF-34's bench run**, then **V-B12's saturated arm**, both on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air**, PR awaiting acceptance. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm, now runnable. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **BF-34's PR acceptance**, then **V-B12's saturated arm** on the bench. Without the bench, **BF-26** and then **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -234,22 +217,25 @@ export LRAN_MQTT_PASSWORD=$(sed -n 's/^#define MQTT_PASSWORD[[:space:]]*"\(.*\)"
 
 ## Hardware state
 
-**No board runs BF-34.** The bridge board was last flashed from `52727b8` on 2026-09-23,
-before the roll existed. The two simnodes run their firmware from 2026-09-21, and none of
-the three boards is running `chan-capture`. **The XIAO was unplugged** when this session
-ended; the two Heltecs were on USB. **This table names the devices in this subproject's
-terms**; the range-test handoff owns them in its own roles.
+**All three boards run `98b4b04`**, flashed from a clean tree on 2026-09-23 for BF-34's
+bench run. None of them is running `chan-capture`. All three were on USB when this session
+ended. The XIAO's port had moved to `/dev/cu.usbmodem2101`. **This table names the devices
+in this subproject's terms**; the range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
 | Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3`. Its port name moves across replug |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem1101`** — it was `2101` before a replug, and it is the only `usbmodem` port. Holds `f1` in `ROLE_GATELINK` and `f3` in `ROLE_FAULT` in NVS |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Holds `f1` in `ROLE_GATELINK` and `f3` in `ROLE_FAULT` in NVS |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17
 sessions, because the bridge board moved to its production position for the D1 capture and
 has not moved back. SNR held at +10 to +12 dB. **Absolute loss rates are not comparable
 across those sessions**; a comparison inside one sweep is.
+
+On 2026-09-23 the bridge heard f1, on the XIAO, at −27 to −26 dBm and +11 dB SNR. That
+day's figure is not comparable to the 2026-09-21 range until someone confirms which board
+the 2026-09-21 range came from.
 
 **A wrong board selection is silent.** It writes the wrong pin map into a normal-looking
 artifact. **Tell the two Heltecs apart by enclosure**: both CP2102 bridges report
