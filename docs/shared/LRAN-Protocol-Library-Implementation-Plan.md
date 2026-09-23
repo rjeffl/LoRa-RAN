@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.14
+**Version:** 0.15
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.12**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.13**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-19
+**Last updated:** 2026-09-23
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -513,8 +513,12 @@ class CommandGate {
   // nothing, if no in-flight entry for seq is held.
   bool record(Seq seq, AckResult result, uint8_t detail);
 
-  // spec 10.1, 10.3 - a new context invalidates every cached entry and the mark.
+  // spec 10.1, 10.3, 10.6 - a new context invalidates every cached entry and the mark.
   void reset_context(CtxId new_ctx);
+
+  // spec 10.6 - true while any entry awaits record(). Planned for BF-34: a node
+  // refuses ROLL_CONTEXT while this holds, because the roll would drop the result.
+  bool any_in_flight() const;
 };
 
 }  // namespace lran
@@ -563,6 +567,13 @@ or posting the result back to the receive task. The window the amendment closes 
 between the calls, not inside one.
 
 **`dedup_cache_depth`** joins `/lib/lran-config/` (§4) as a node parameter.
+
+**A context roll does not pass through `check()`** (spec §9.4, §10.6, **D58**). A node that
+receives `ROLL_CONTEXT` asks `any_in_flight()` first and answers `ACTUATOR_BUSY` while it
+holds. Otherwise the node calls `reset_context()` with its new `ctx_id`, which clears the
+cache and the mark as a resync does. The dispatch decision stays the application's, as for
+every other command. **`any_in_flight()` and `Cmd::RollContext` (`0x12`) are not built
+yet**; **BF-34** adds them with the node and bridge halves.
 
 ---
 
@@ -852,6 +863,13 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.15** — **Protocol specification v0.12 → v0.13.** §4's table and store were built
+  against v0.13's §7.4, §7.4.1 and §12.4, so they do not change. **D58** reaches §3.10: a
+  context roll bypasses `check()` and calls `reset_context()`, and a node refuses the roll
+  while `any_in_flight()` holds. Both `any_in_flight()` and `Cmd::RollContext` are planned
+  for **BF-34** and not built. §5's vectors gain three `ROLL_CONTEXT` cases and move to
+  v0.13 with every committed vector's bytes unchanged.
 
 - **v0.14** — **`config_ack_timeout_ms` is added** at `0x000C`: how long the bridge waits
   for a `CONFIG_ACK` before it reports the outcome `unknown` (spec §7.4). The bridge had

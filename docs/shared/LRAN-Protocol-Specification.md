@@ -1,31 +1,17 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.12 — **deliberately pinned; §20 carries a v0.13 draft.** See *The header is
-behind the content, on purpose* below
+**Version:** 0.13
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-20
+**Last updated:** 2026-09-23
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
 > topic. Where a node needs a new field, the change is made here and the version is
 > bumped (§13).
-
-> **The header is behind the content, on purpose.** §20's top entry is **v0.13 (draft)** and
-> the sections it names are written, but this header still reads **0.12** and every binding
-> citation in the repository still names v0.12. That is deliberate: bumping the header
-> obliges **31 citation sites** to move with it, and each one has to be *reconciled* with
-> v0.13's changes first, not just renumbered. `python3
-> tools/checks/spec_citation_version.py` lists them and is green at v0.12 today.
->
-> **The sweep runs once, when the configuration pass is finished** — the operator's rule,
-> and BF-32's bridge half is still open. **Until then, read §20's v0.13 entry as the current
-> statement of intent and the sections themselves as authoritative**, and do not cite
-> "v0.13" from another document. A node document citing v0.12 is correct right now, which is
-> the one case root `CLAUDE.md`'s version rule does not cover.
 
 ---
 
@@ -3041,7 +3027,7 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
-- **v0.13 (draft, 2026-09-19)** — **Runtime configuration from Home Assistant: the
+- **v0.13 (2026-09-23; drafted from 2026-09-19)** — **Runtime configuration from Home Assistant: the
   `config/*` payloads are defined, and five passages v0.12 left stale are corrected.
   D58 adds a context roll after a bridge restart.** `ver` stays at `2`; **no frame layout,
   header field or authentication scope changes.** D58 adds one enumeration value, which
@@ -3086,8 +3072,12 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   for that case, `context_roll_pending`. §14.1 gains two bridge counters, `ctx_rolls` and
   `ctx_roll_failed`. **W4 gains three vectors**: a `ROLL_CONTEXT`, its ACK carrying the new
   `ctx_id`, and a stale roll that fails §9.4 step 2. Every committed vector keeps its bytes.
-  **The header stays at v0.12 until the citation sweep**, which
-  the operator deferred until the revision is nearer complete.
+  **The header held at v0.12 while v0.13 was drafted**, because a bump obliges every
+  binding citation to move with it, and the operator ruled one sweep once the
+  configuration pass was finished. The sweep ran on 2026-09-23 with D58. Of 31 citation
+  sites, 27 moved, each document reconciled with v0.13 before its citation did. Three
+  superseded briefs and the D1 parallel-capture record keep v0.12 as dated records, and
+  `tools/checks/spec_citation_version.py` now skips them.
 
 - **v0.12** — **Nine questions raised during bridge B3a and simnode B0 are answered, and
   one datasheet premise is corrected.** `ver` stays at `2`; **no frame layout, header

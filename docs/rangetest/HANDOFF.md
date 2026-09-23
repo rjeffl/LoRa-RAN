@@ -195,7 +195,7 @@ nothing in this repository had ever verified. It passed on the Wio in §7's repe
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the two commands in *Git state* below |
-| Spec | **`LRAN-Protocol-Specification` is v0.12**, `ver = 2`. Nothing on the wire has changed — no frame layout, no schema, no vector regenerates. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
+| Spec | **`LRAN-Protocol-Specification` is v0.13**, `ver = 2`. Nothing this firmware puts on the wire has changed: v0.13 adds a `cmd` value and the configuration payloads, and the range test sends neither. **§18.2 is the authoritative Part 15 section**; §18.1 is annotated, not rewritten |
 | Done | **Pass 1 R1–R11**, **Pass 2 X1–X10**, **M20**, **M21**, **§6 requirement 7**, **§7.6 incl. §7**, **B1b's gate bearing** |
 | Firmware queue | **Empty.** No code is owed and no reflash is owed |
 

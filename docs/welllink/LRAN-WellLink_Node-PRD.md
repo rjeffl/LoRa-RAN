@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.8
+**Version:** 0.9
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
-**Last updated:** 2026-09-16
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Last updated:** 2026-09-23
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -228,6 +228,12 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.9** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.12 → v0.13**. What reaches this node when it is designed: the configuration
+  payloads and readback (§7.4, §7.4.1, §16.7, **D43–D57**), runtime PHY changes under
+  §12.4's commit-and-revert (**D56**), and the context roll after a bridge restart
+  (§10.6, **D58**), which binds every node that accepts a `COMMAND` or a `CONFIG`.
 
 - **v0.8** — **Protocol specification v0.11 → v0.12, and R-W7c gains a precondition.**
   §17.1's RX duty-cycling design assumed the SX126x would discard a frame addressed

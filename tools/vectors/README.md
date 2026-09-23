@@ -1,6 +1,6 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.12 (`ver = 2`)
+**Binding specification:** `LRAN-Protocol-Specification` v0.13 (`ver = 2`)
 **Vectors last regenerated against:** v0.13, on 2026-09-23. **D58 added an enumeration
 value**, `cmd` `0x12` `ROLL_CONTEXT`, which triggers §13.2's regeneration requirement, and
 three vectors cover it. Every vector committed before it kept its bytes; only each file's

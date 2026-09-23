@@ -1,7 +1,7 @@
 # LRAN range test firmware — pass 1 tasks (two Heltec V3 boards)
 
 **For:** Claude Code, working in a new `firmware/range-test/`
-**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
+**Binding specification:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Depends on:** `/lib/lran-protocol/` — **satisfied.** P1–P7 are complete against v0.6
 (107 host tests, 110 on target, 72 W4 vectors, zero divergence); W9 runs against it
@@ -43,9 +43,11 @@ Leverage wattcycle-reader code elements as needed for access to heltec OLED, etc
 3. **TX power is clamped at the D33 ceiling in code**, not by operator discipline. The
    sweep starts at the bottom of the SX1262's range and climbs only on failure. A
    working point chosen at an unusable power is a result you throw away.
-4. **This binary deliberately violates §12.1's "PHY parameters are not
-   runtime-configurable" rule.** That is the whole point of a sweep, and it is confined
-   here. Nothing that reads a PHY parameter at runtime may migrate into node firmware.
+4. **This binary changes PHY parameters at runtime without §12.4's commit-and-revert.**
+   That is the whole point of a sweep, and it is confined here. Until spec v0.13 the rule
+   it broke was §12.1's *"PHY parameters are not runtime-configurable"*; **D56** replaced
+   that with §12.4, under which node firmware changes the PHY only by commit-and-revert.
+   Nothing that sets a PHY parameter directly may migrate into node firmware.
 5. Pin RadioLib to an exact version (D32). Four firmwares will share this driver.
 6. Standing: no changes to `/lib/lran-protocol/`. If the range test needs something the
    library does not expose, report it rather than reaching in.

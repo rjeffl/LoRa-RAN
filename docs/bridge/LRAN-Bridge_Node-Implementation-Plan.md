@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.43
+**Version:** 0.44
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.6
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.12**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.5 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.13
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.14 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-23
 
@@ -150,9 +150,11 @@ now, not as protection.
 **917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted** with the fitted 3.0 dBi antenna,
 under §15.249 Envelope A. Protocol Spec §12.1 states them and Decision Register §3.4
 records why. Two consequences for this build: **`backoff_max_ms` defaults to 1500** rather
-than 500, because a maximum `PING` at SF9 runs 1107 ms (§12.3), and **the PHY parameters go
-in the injected radio config beside the pin map**, never in the HA-visible configuration set
-— a node that boots on the wrong channel is a walk to the gate with a laptop.
+than 500, because a maximum `PING` at SF9 runs 1107 ms (§12.3), and **the PHY parameters
+change at runtime only through spec §12.4's commit-and-revert** (**D56**, v0.13). A node
+that boots on the wrong channel is a walk to the gate with a laptop, and the revert window
+exists for that case. Until **BF-33** builds it, the six PHY rows are `READ_ONLY` and the
+working point comes from the injected radio config beside the pin map.
 
 **"Full power" is the D33 ceiling, not the driver's maximum.** RadioLib accepts −9 to
 +22 dBm and the range test firmware clamps into the permitted envelope
@@ -378,7 +380,7 @@ The central data structure. One entry per node, loaded from build configuration 
 | `node_type` | config | Selects the decoder and the discovery template set |
 | `key` | **derived** at load from `master_key` | Never stored as a separate provisioned secret |
 | `ctx_id` | learned | The node's boot context; `0` = unknown |
-| `cmd_seq` | maintained | Reset to `1` on learning a new `ctx_id` |
+| `cmd_seq` | maintained | Reset to `1` on learning a new `ctx_id`, including one a context roll produced (spec §10.6) |
 | `last_seen` | maintained | Drives availability |
 | `missed_polls` | maintained | Threshold default **3** |
 | `proto_ver` | learned | Published as a diagnostic |
@@ -952,6 +954,7 @@ scheduler. The engineering log's BF-20 entry argues each choice.
 ```
 MQTT command topic
   -> validate against the target node's capability set
+  -> refuse while the node's context roll is pending (spec 10.6, BF-34)
   -> registry: node key, ctx_id, next cmd_seq
   -> build authenticated frame, transmit
   -> await COMMAND_ACK within command_ack_timeout_ms (default 3000)
@@ -970,6 +973,14 @@ MQTT command topic
   command and is actually a second gate command.
 - **The context resync retries exactly once** before giving up. A resync loop on a shared
   channel is a transmit storm affecting every other node, not just this one.
+
+**After a bridge restart, each node's commands wait on its context roll** (Protocol Spec
+§10.6, **D58**, Bridge PRD **R-3.1h**). A restart resets `cmd_seq`, and a node that did not
+restart answers a `seq` it has cached with `DUPLICATE_CACHED` and does not run the command.
+The bridge therefore polls every registered node at boot and sends `ROLL_CONTEXT` when each
+is first heard, and it refuses commands and `CONFIG` to that node until the roll completes.
+**BF-34** builds it; until then, a bridge reflash is followed by a reboot of every simnode
+(`traps.md`).
 
 **A retry that reaches the node while it is still executing gets no answer** (Protocol
 Spec §9.4, v0.11). The node counts it in `rx_dup_command` and stays silent, so the retry
@@ -1191,7 +1202,8 @@ each of them prevents a confident wrong answer:
 - **W11.** A `PING` responder echoes the initiator's `seq` (§6.6), so a node's `PING`
   answers carry numbers from the bridge's sequence space. Streams are keyed on
   `(peer, type)`, which separates them.
-- **§10.3's resync** resets a node's sequence, and so does a reboot. A jump of tens of
+- **§10.3's resync** resets a node's sequence, and so do a reboot and a context roll
+  (spec §10.6). A jump of tens of
   thousands is a new sequence, not 40 000 losses.
 - **The ring's overwrites are reported apart from records lost in transit.** Added
   together they would blame the receive path for a dropped MQTT message.
@@ -2112,7 +2124,8 @@ by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
 actuation commands answer per spec §8.2, and an actuation command is counted in `actuations`.
 `SET_RELAY_DRY_RUN 1` turns later actuations into `DRY_RUN`. `REQUEST_STATUS` and
 `REQUEST_CONFIG` follow their ACK with a status or a readback. `REBOOT` with `0xA5` follows
-its ACK with a new context and a `BOOT` status.
+its ACK with a new context and a `BOOT` status. **`ROLL_CONTEXT` is not built** (spec §10.6,
+**BF-34**), so a simnode answers it `REJECTED_UNKNOWN_CMD` today.
 
 The engineering log's BF-6 entry records three questions for spec v0.12: how a
 `DUPLICATE_CACHED` ACK carries the cached result, what answers a repeated `CONFIG`, and
@@ -2276,6 +2289,15 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.44** — **Protocol specification v0.12 → v0.13.** **D58** reaches the command path:
+  after a bridge restart, each node's commands wait on its context roll (spec §10.6, Bridge
+  PRD R-3.1h). §6.2 says so and names **BF-34**, which builds it. §10.9.2 says a simnode
+  answers `ROLL_CONTEXT` `REJECTED_UNKNOWN_CMD` until then. §2.2's PHY paragraph follows
+  **D56**: the parameters change at runtime only through §12.4's commit-and-revert, which
+  is BF-33's. §6.7 was built against v0.13's §7.4.1 and §16.7 and does not change. The
+  header's requirements and shared-codec citations had fallen behind, at v0.6 and v0.5,
+  and now read v0.13 and v0.14.
+
 - **v0.33** — **Protocol specification v0.11 → v0.12, and B3a accepted.** Four things land
   on this node. **§4.2.1's specification gap is closed**: the ladder's refusal of an
   unknown source is now §14 stage 9a with the counter **`rx_unknown_src`**, inside
@@ -2293,6 +2315,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.44** | Spec v0.13 citation. §6.2 gains D58's context roll and **BF-34**; §2.2's PHY paragraph follows D56 |
 | **v0.43** | **§4.4.2**: BF-23's lever half is confirmed on air, and it gains `config_ack_timeout_ms`. **§8.1**'s falsifier records that a `diag_interval_s` set moved the diagnostics spacing. Its second check is still owed. **New §6.7.6**: `ConfigLock`, and why a lock rather than handing the resolution to `mqtt_task`. **§6.7.3** names the ACK timeout's row |
 | **v0.42** | **New §4.4.2**: BF-23's lever half. Each bridge row of the configuration table now reaches the code it configures, except `simnode_diag_enable`. Values travel on a lock-free board, are applied on the owning task, and are published after the NVS restore. Host-tested, not yet on air. **§8.1**'s falsifier records that its first check passed |
 | **v0.41** | **New §6.7** — BF-32's configuration path, built and confirmed on air 2026-09-21: §16.7.1's scoping, the one answer for two halves, §7.4's readback rather than retransmission, and §7.4.1's split answer. §6.7.5 records the three defects the bench found that the host tests could not. **v0.40 is the interleaved sweep's** |
