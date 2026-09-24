@@ -214,7 +214,8 @@ rewritten.
 
 ## How the project is developed
 
-LRAN is a personal project, developed with Claude Code against the maintained document set.
+LRAN is a personal project, and it isn't accepting outside contributions at this time. It's
+developed with Claude Code against the maintained document set.
 [`CLAUDE.md`](CLAUDE.md) at the repository root holds the working rules. It covers the
 branch-per-milestone workflow, the coding rules, and the requirement that every commit cite
 the requirement or decision it serves.
