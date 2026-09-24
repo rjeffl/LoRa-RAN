@@ -300,6 +300,7 @@ enum class EventType : uint8_t {
   MpptError            = 0x08,
   ChargeInhibited      = 0x09,
   Boot                 = 0x0A,
+  PhyReverted          = 0x0B,  // spec 12.4.2 step 8, D59
 };
 
 // spec 8.10

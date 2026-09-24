@@ -1,12 +1,12 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.53
+**Version:** 0.54
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.14 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-24
@@ -154,7 +154,10 @@ than 500, because a maximum `PING` at SF9 runs 1107 ms (§12.3), and **the PHY p
 change at runtime only through spec §12.4's commit-and-revert** (**D56**, v0.13). A node
 that boots on the wrong channel is a walk to the gate with a laptop, and the revert window
 exists for that case. Until **BF-33** builds it, the six PHY rows are `READ_ONLY` and the
-working point comes from the injected radio config beside the pin map.
+working point comes from the injected radio config beside the pin map. **Spec v0.14's D59
+makes the change a fleet operation**: Home Assistant sets the PHY on the bridge's topic
+alone, and no node commits until the bridge has heard every node on the new settings
+(spec §12.4.1).
 
 **"Full power" is the D33 ceiling, not the driver's maximum.** RadioLib accepts −9 to
 +22 dBm and the range test firmware clamps into the permitted envelope
@@ -1618,7 +1621,7 @@ can be compared with one taken on the Wio.
 | **B3a** | **Radio, registry, polling, availability and counters, with simnode** | B2 (**V-B9 re-run**), `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **The bridge polls simnode identities on air and each answers** (BF-17): four logical simnodes from one board heard and polled simultaneously, each with its own learned context, **with poll-to-answer times recorded against `poll_reply_timeout_ms`**. Availability marks offline after 3 missed polls and online on the next frame (**V-B3**), and a production node's retained `offline` is seen at the broker. **Every §14 counter the console can drive at the bridge increments as specified**, one hand-run fault at a time, read from `lran/bridge/diag/state` at the broker (BF-19), and `hdr_rsv` is accepted rather than discarded. Full-size (a 222 B frame, which the console's `ping` takes as `n` = 202) and fragmented `PING` both round-trip between simnodes (**W9**) |
 | **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **Accepted 2026-09-17**, on the tasks confirmed on air the day before. **V-B12 moved to B4** the same day, with the operator — §8.1 says what it needs and why B4 is where that exists |
 | **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1. **Met 2026-09-23**, §8.1.3. **Accepted 2026-09-24** with the operator, on §8.2's tally. **BF-33 moved to B4b** the same day |
-| **B4b** | **PHY commit-and-revert** | B3b; BF-32's configuration path | Spec §12.4 (**D56**) on the bench, bridge and simnode: one atomic `CONFIG` carries frequency, SF, BW, CR and TX power. **A revert survives a reboot in the middle of a trial.** **Only a frame received on the new settings confirms them**; a frame sent does not. Silence for `phy_trial_s` reverts both ends, and an `EVENT` follows once the link is back. **The fleet moves together.** TX power is clamped by D33 in the table. **Split from B4 on 2026-09-24** with the operator, §8.2 |
+| **B4b** | **PHY commit-and-revert** | B3b; BF-32's configuration path | Spec §12.4 (**D56**, **D59**) on the bench, bridge and simnode: one atomic `CONFIG` carries frequency, SF, BW, CR and TX power. **A revert survives a reboot in the middle of a trial.** **Only a frame received on the new settings confirms them**; a frame sent does not. Silence for `phy_trial_s` reverts both ends, and an `EVENT` follows once the link is back. **The fleet moves together.** TX power is clamped by D33 in the table. **Split from B4 on 2026-09-24** with the operator, §8.2 |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, **B4b**, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
@@ -2628,6 +2631,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.54** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY
+  change moves the fleet, and adds `PHY_REVERTED` to §8.9. §2.2's PHY paragraph and B4b's
+  row in §8 follow. §6.3.2 needs no change: `PHY_REVERTED` publishes on
+  `event/phy_reverted` under its §8.9 naming rule, and `publish.cpp` now names it.
 
 - **v0.53** — **New §8.2**: B4's acceptance tally, and **B4 accepted**. V-B4 passed on a
   broker restart. The operator met V-B11 on GateLink's dummy publish and the bench gate on

@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.11
+**Version:** 0.12
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.9
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-23
 
@@ -764,7 +764,10 @@ a default that changed two revisions ago.
 
 **A full readback may span several `CONFIG_ACK` messages** (Protocol Spec §7.4.1, **D57**),
 and the six PHY rows change only through §12.4's commit-and-revert (**D56**), `READ_ONLY`
-until it is built.
+until it is built. **Spec §12.4.2 (D59) is GateLink's half**: it answers on the old
+settings, retunes, and commits only on an authenticated frame received on the new ones. It
+refuses the group while the microSD is unusable, and it sends `EVENT` `PHY_REVERTED` after
+a revert.
 
 **microSD contents:**
 
@@ -1151,6 +1154,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.12** — **Protocol specification v0.13 → v0.14.** §6.4 names spec §12.4.2 (**D59**)
+  as GateLink's half of a PHY change, including the refusal without a usable microSD and
+  `EVENT` `PHY_REVERTED`.
 
 - **v0.11** — **Protocol specification v0.12 → v0.13.** §5.2 gains how GateLink handles
   `ROLL_CONTEXT` (spec §10.6, **D58**, PRD R-3.5e), and M3 verifies it. §6.4 notes that a

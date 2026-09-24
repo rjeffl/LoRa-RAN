@@ -1,11 +1,11 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.41
+**Version:** 0.42
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.53
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.54
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-24
@@ -72,7 +72,8 @@ Three consequences reach the code rather than the documents:
   from HA, which is what made SF9 affordable — the SF it protects is not.
 - **The PHY parameters change at runtime only through §12.4's commit-and-revert**
   (Protocol Spec v0.13, **D56**). §12.1's *"not runtime-configurable"* was withdrawn in
-  v0.13. A node that boots on the wrong channel is a walk to the gate with a laptop, and
+  v0.13. **v0.14's D59 makes the change a fleet operation**, set on the bridge's topic
+  alone (§12.4.1). A node that boots on the wrong channel is a walk to the gate with a laptop, and
   the revert window exists for that case. Until **BF-33** builds it, the six PHY rows are
   `READ_ONLY`. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2).
@@ -273,7 +274,7 @@ deploy with its half of §12.4, and this bridge half is what tests that half fir
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19**, and **moved from B4 to B4b on 2026-09-24**. Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
+| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**, **D59**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19**, and **moved from B4 to B4b on 2026-09-24**. Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
 
 ---
 
@@ -316,6 +317,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.42** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY change
+  moves the fleet. §1's PHY bullet and BF-33's row cite it; BF-33's scope follows
+  spec §12.4.1 and §12.4.2 as written. The Impl Plan citation moves from v0.53 to v0.54.
 
 - **v0.41** — **B4 is accepted**, on Impl Plan §8.2's tally. **New §8, B4b**, takes BF-33,
   and the sections after it renumber. **BF-35 added**: HA controls for the configuration

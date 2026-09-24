@@ -1,9 +1,12 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.13 (`ver = 2`)
-**Vectors last regenerated against:** v0.13, on 2026-09-23. **D58 added an enumeration
-value**, `cmd` `0x12` `ROLL_CONTEXT`, which triggers §13.2's regeneration requirement, and
-three vectors cover it. Every vector committed before it kept its bytes; only each file's
+**Binding specification:** `LRAN-Protocol-Specification` v0.14 (`ver = 2`)
+**Vectors last regenerated against:** v0.14, on 2026-09-24. **D59 added an enumeration
+value**, `event_type` `0x0B` `PHY_REVERTED`, and one vector, `event_phy_reverted`, covers
+it. Every vector committed before it kept its bytes; only each file's `spec` field changed.
+**v0.13's regeneration**, on 2026-09-23, was for D58's enumeration value, `cmd` `0x12`
+`ROLL_CONTEXT`, which triggers §13.2's regeneration requirement, and three vectors cover
+it. Every vector committed before it kept its bytes; only each file's
 `spec` field changed. v0.7 through v0.12 changed no frame layout, header field,
 enumeration value, schema or authentication scope, so the vectors were not regenerated
 between v0.6 and v0.13. **v0.12 adds a counter** (`rx_unknown_src`, §14 stage 9a) and the

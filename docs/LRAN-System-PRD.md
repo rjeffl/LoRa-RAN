@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.21
+**Version:** 0.22
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-23
@@ -697,24 +697,24 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.21 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.13** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D58** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.16 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.15 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.22 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.14** (`ver = 2`) |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D58** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.18 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.18 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-P8-CommandGate-Brief`](./shared/LRAN-P8-CommandGate-Brief.md) | **Superseded 2026-09-11 by Decision Register §3.2.1**, which amended D34 on this brief's recommendations. Kept as the reasoning: the `seq` high-water timing that would double-execute a retry, the in-flight window, cache sizing | v0.2 |
 | [`LRAN-Spec-v0.12-Brief`](./shared/LRAN-Spec-v0.12-Brief.md) | **Superseded 2026-09-16 by Decision Register §3.5**, which resolved **D35–D42** on this brief's recommendations. Kept as the reasoning, including the options not taken: the `ERROR` reflection vector and the config-fragmentation contradiction | v0.2 |
 | [`LRAN-Config-Set-Brief`](./shared/LRAN-Config-Set-Brief.md) | **Superseded 2026-09-19 by Decision Register §3.6**, which resolved **D43–D49** on this brief's recommendations. Kept as the reasoning, including the five passages v0.12 left stale and the readback option not taken | v0.2 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.13 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.44 |
-| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.33 |
-| [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-09-23 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.9 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.11 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.15 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.54 |
+| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.42 |
+| [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-09-24 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.10 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.12 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
-| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.9 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.10 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
 | [`LRAN-Range-Test-Firmware-Pass2-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md) | Range test pass 2 — the XIAO + Wio-SX1262 Kit board profile | rev 0.1 |
 | [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
@@ -744,6 +744,12 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.22** — **Protocol specification v0.13 → v0.14.** No architecture changes. D59
+  fills in how a PHY change moves the fleet under commit-and-revert: the change is set on
+  the bridge's topic alone, and no node commits until the bridge has heard every node on
+  the new settings. §12's version column had fallen behind again in six rows, and now
+  matches each document's header.
 
 - **v0.21** — **Protocol specification v0.12 → v0.13.** No architecture changes. The
   specification defines the configuration payloads (**D43–D57**), allows runtime PHY

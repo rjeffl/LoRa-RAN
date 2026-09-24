@@ -1,9 +1,9 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.17
+**Version:** 0.18
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.13**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.14**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
@@ -689,6 +689,15 @@ change that half-applies strands a node that has no OTA. **`tx_power_dbm`'s maxi
 D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
 either range is a decision, not a configuration change.
 
+**D59 gives the bridge a copy of the PHY group, and BF-33 adds it.** Spec v0.14 sets the
+six rows on `lran/bridge/config/set` alone, so the bridge's block gains six global rows
+under the node rows' names, as `cad_retries` already appears in both. The node rows stay
+where they are. The bridge answers a PHY row named on a node's topic `read_only` without
+sending a `CONFIG` (spec §16.7.1). **`Store` needs a second copy for the group**: it
+persists an override when it applies one, and spec §12.4 needs the trial values held in
+RAM until they are confirmed, with the last known-good values alone in the store. The
+rows, the names and the store change land with BF-33's code.
+
 **GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
 milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
 
@@ -874,6 +883,11 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.18** — **Protocol specification v0.13 → v0.14.** §4 records what **D59** asks of
+  the table and the store: six bridge rows for the PHY group, and a trial copy the store
+  does not persist. Both are BF-33's, and nothing in §4's code changes yet. §3's codec
+  gains `EventType::PhyReverted`, `0x0B`, and W4 gains its vector.
 
 - **v0.17** — **BF-24 adds three bridge rows** at `0x000D`–`0x000F`: `republish_interval_s`,
   `bms_stale_s` and `cell_mv_deadband`, chosen with the operator on 2026-09-23. Each is a

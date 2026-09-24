@@ -74,6 +74,7 @@ constexpr EventName kEvents[] = {
     {"MPPT_ERROR", lran::EventType::MpptError},
     {"CHARGE_INHIBITED", lran::EventType::ChargeInhibited},
     {"BOOT", lran::EventType::Boot},
+    {"PHY_REVERTED", lran::EventType::PhyReverted},
 };
 
 // ---------------------------------------------------------------------------

@@ -2610,3 +2610,45 @@ source.
 **Afterwards**, HA listed all 115 entities, and 109 read `unavailable`: GateLink's 53 and
 WellLink's 8, whose nodes are `offline`, and the 48 simnode entities. The bridge's 6 were
 available.
+
+## 2026-09-24 — B4b opened: spec §12.4 leaves the fleet open, and D59 is proposed
+
+**No code was written for BF-33.** The handoff asked for spec §12.4 to be read before the
+code, and the read found the mechanism undefined for more than one node. The operator
+directed a spec revision first. Spec v0.14's §12.4.1 to §12.4.4 and Decision Register §2.4
+(D59) hold the draft.
+
+**One gap would have reverted every node on a working link.** §12.4 step 4 confirms a
+change only with an authenticated frame, and §9.2 leaves `POLL` unauthenticated. A bridge
+that did nothing but poll on the new settings would see every node revert at
+`phy_trial_s`.
+
+**The first fix proposed in this session stranded a node, and it was caught while the text
+was being written.** The proposal had the bridge send each node a confirming `CONFIG` `GET`
+as soon as it retuned. A node commits on that frame, so a near node could commit while a
+far node never heard the new settings. The bridge would then revert, and the near node
+would be left on settings nobody used. The draft now splits the step. The bridge first
+hears every node on the new settings by `POLL`, which commits nothing, and only then
+commits itself and confirms each node. The same order closes a bridge restart mid-trial,
+because D58's roll is an authenticated frame sent on the settings the bridge committed.
+
+**One case stays open as W17.** A node heard in the first half that then misses every
+confirming `GET` reverts after the bridge has committed.
+
+**Found in passing**: spec §12.4 cited a §12.1a that has never existed, corrected in the
+draft. The simnode's `apply_config` still says a large `GET_ALL` has no specified split,
+which D57 overtook; that line is under the handoff's *Open*.
+
+## 2026-09-24 — D59 accepted, and the specification moves to v0.14
+
+**The operator accepted D59 as drafted**, and put W17 after GateLink's deployment. The
+specification's header moved to v0.14 the same day. The citation sweep moved 26 binding
+citations, each document reconciled with v0.14 first. The System PRD's version column had
+fallen behind in six rows unrelated to v0.14, and the sweep brought them level.
+
+**W4 gained one vector**, `event_phy_reverted`, for 78 in all. The 77 vectors committed
+before it kept their bytes, compared field by field against a copy taken before
+regeneration. The codec's `EventType` gained `PhyReverted`, and that forced two switches
+to name it: the bridge's `event_type_name()`, which `-Wswitch` would otherwise fail, and
+the simnode's console table. The native suites pass: 135 in `lran-protocol`, 17 in the
+bridge's `test_events` with one new case, and 115 in the simnode.
