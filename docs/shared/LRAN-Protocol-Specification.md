@@ -1,7 +1,7 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.13
+**Version:** 0.14
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
@@ -1281,7 +1281,7 @@ for real in HA history.
 | `0x08` | `MPPT_ERROR` | Normal |
 | `0x09` | `CHARGE_INHIBITED` | Low |
 | `0x0A` | `BOOT` | Low |
-| `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Drafted for v0.14 (D59)** |
+| `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Added in v0.14 (D59)** |
 
 FIRE has its own event type and its own MQTT topic rather than being folded in as
 another hold source. The keypad FIRE code is used only for testing and in a real fire
@@ -1319,7 +1319,7 @@ up**, and that requires HA to be able to route it independently.
 how §12.4's PHY parameters answer a `SET` until the commit-and-revert path is built
 (**D56**). A readable value that refuses a write is honest; a write that half-applies is
 not. **A node without a usable nonvolatile store also answers a PHY entry `READ_ONLY`**
-(§12.4.2 step 2, **D59**, drafted for v0.14).
+(§12.4.2 step 2, **D59**, v0.14).
 
 ### 8.13 `HEX_RSP` `status`
 
@@ -2156,7 +2156,7 @@ table.
 > **Corrected in v0.14.** v0.13 said *"a node that has not built §12.1a"*. No §12.1a has
 > ever existed, and the section meant is this one.
 
-> **Drafted for v0.14 (D59).** v0.13 stated the six steps above and left five questions
+> **Added in v0.14 (D59).** v0.13 stated the six steps above and left five questions
 > open: who starts a change, in what order the fleet moves, which frame confirms it, what
 > a partial answer does, and which `EVENT` reports a revert. §12.4.1 to §12.4.4 answer
 > those questions. Steps 1 to 6 are unchanged except for step 4's sentence on `POLL`.
@@ -2777,7 +2777,7 @@ half, sends the node's half as one or more `CONFIG` messages (§7.4), and publis
 `config/ack` when every half has an outcome. Bridge parameters never cross the air. A name
 the table does not hold for that topic is `unknown_param`.
 
-**The PHY group is set on the bridge's topic alone** (§12.4, **D59**, drafted for v0.14).
+**The PHY group is set on the bridge's topic alone** (§12.4, **D59**, v0.14).
 The bridge holds a global row for each of the six, and a set naming one of them moves the
 whole fleet. A PHY row named on `lran/<node>/config/set` is answered `read_only`, carrying
 the value the bridge last read back from that node, and sends no `CONFIG`. Home Assistant
@@ -2828,7 +2828,7 @@ readback with `POLL` bit 1 and, when it arrives, publishes `config/state` and a 
 `config/ack` for the same parameters, carrying their effective values.
 
 **`reverted` is the one per-entry status with no §8.12 counterpart**, and it belongs to the
-PHY group alone (§12.4, **D59**, drafted for v0.14). It reports a PHY change the bridge
+PHY group alone (§12.4, **D59**, v0.14). It reports a PHY change the bridge
 abandoned or reverted. `value` is then the setting the bridge returned to, and `persist`
 is `not_applied`, because the bridge's persisted settings did not change.
 
@@ -2864,7 +2864,7 @@ marking; **W15** tracks the gap.
 
 #### 16.7.5 A PHY change on MQTT
 
-> **Drafted for v0.14 (D59).** This subsection is new, and it is what §12.4 reports
+> **Added in v0.14 (D59).** This subsection is new, and it is what §12.4 reports
 > through.
 
 **A PHY change is answered once, on `lran/bridge/config/ack`, when it ends.** It ends when
@@ -3006,7 +3006,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 | W15 | **`CONFIG_ACK` carries no default-or-override flag** | §7.4, §16.7.4 | GateLink PRD R-5.3e requires each published value marked `default` or `override`. §7.4's result entry has no bit for it, so the bridge infers `source` by comparing with the table's default, and an override set equal to its default reads `default`. Closing it needs a result-entry field or a separate readback; either is a schema change. Opened in v0.13 |
 | W16 | **When a node sends `status_reason` `CONFIG_CHANGE`** | §8.7 | §8.7 defines the value, and no section says what triggers it. Every configuration change the bridge causes is already reported by a `CONFIG_ACK`, so the value is for a change the bridge did not cause — for example a node falling back to defaults when its microSD fails at boot — which is GateLink's to define. Owner: GateLink **M3**. Opened in v0.13 |
-| W17 | **A node that misses every confirming frame of a PHY change** | §12.4.4 | Under §12.4.1, a node that answered on the new settings and then missed every confirming `GET` reverts to its old settings after the bridge has committed the new ones. Nothing then brings it back without a visit. The bridge can tell it has happened, because that node's `GET` was never answered. Undecided: the remedy, for example a bridge that returns briefly to the settings it left to repeat the change for that node alone, and how the case is reported to Home Assistant. Owner: BF-33. Opened in v0.14 (D59) |
+| W17 | **A node that misses every confirming frame of a PHY change** | §12.4.4 | Under §12.4.1, a node that answered on the new settings and then missed every confirming `GET` reverts to its old settings after the bridge has committed the new ones. Nothing then brings it back without a visit. The bridge can tell it has happened, because that node's `GET` was never answered. Undecided: the remedy, for example a bridge that returns briefly to the settings it left to repeat the change for that node alone, and how the case is reported to Home Assistant. Owner: BF-33. **Closes after GateLink deploys**, by operator decision (D59). Opened in v0.14 |
 
 ### 18.1 W5, resolved — fixed channel at low power
 
@@ -3205,8 +3205,8 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
-- **v0.14 (drafted from 2026-09-24)** — **§12.4's PHY commit-and-revert gains the
-  mechanism v0.13 left open (D59).** `ver` stays at `2`; **no frame layout, header field,
+- **v0.14 (2026-09-24)** — **§12.4's PHY commit-and-revert gains the mechanism v0.13
+  left open (D59).** `ver` stays at `2`; **no frame layout, header field,
   schema or authentication scope changes.** One enumeration value is added, which §13.2
   allows without a bump. §12.4 now says who starts a change, how the fleet moves, which
   frame confirms it, and what a partial answer does. The PHY group is six rows, the five
@@ -3222,9 +3222,11 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   the case still unclosed. §8.9 gains **`PHY_REVERTED`**, `0x0B`. §16.7.3 gains the
   `reverted` status and two `error` values, and new **§16.7.5** defines the answer and
   `lran/bridge/event/phy_reverted`. **Corrected**: §12.4 cited a §12.1a that never existed.
-  **The header holds at v0.13 while v0.14 is drafted**, as v0.13's did at v0.12, because a
-  bump obliges the citation sweep; the sweep and the vector for `PHY_REVERTED` (W4, §13.2)
-  follow once the operator accepts D59.
+  **The header held at v0.13 while v0.14 was drafted**, as v0.13's did at v0.12. The
+  operator accepted D59 as drafted the same day, with W17 left until after GateLink
+  deploys. The citation sweep ran with the bump: 26 binding citations moved, each
+  document reconciled with v0.14 first. **W4 gains one vector**, `event_phy_reverted`,
+  for 78 in all, and every committed vector keeps its bytes (§13.2).
 
 - **v0.13 (2026-09-23; drafted from 2026-09-19)** — **Runtime configuration from Home Assistant: the
   `config/*` payloads are defined, and five passages v0.12 left stale are corrected.
