@@ -47,11 +47,15 @@ struct RadioPins {
   bool     dio2_as_rf_switch;
 };
 
-// spec 12.1 - the working point D1 fixed on 2026-09-10 (Decision Register 3.4).
+// spec 12.1 - the radio's working point. kPhy below is the one D1 fixed on 2026-09-10
+// (Decision Register 3.4).
 //
-// NOT RUNTIME-CONFIGURABLE, and deliberately beside the pin map rather than in any
-// operator-visible configuration: changing the PHY over the link changes the link the
-// change travels over, and a node left on the other side of that is a walk to the gate.
+// kPhy IS THE DEFAULT, NOT THE ONLY VALUE. Since spec v0.13 (D56) the PHY group is
+// runtime configuration, changed only through spec 12.4's commit-and-revert, because a
+// change travels over the link it changes and a node left on the other side of it is a
+// walk to the gate. The bridge builds a PhyConfig from its committed group at boot and at
+// each retune (BF-33, firmware/bridge/src/phy_change.h); the fields the group does not
+// carry - sync word, preamble, antenna gain - come from kPhy.
 struct PhyConfig {
   uint32_t freq_hz;
   uint16_t bw_khz10;  // tenths of a kHz: 1250 is 125.0 kHz

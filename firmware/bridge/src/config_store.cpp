@@ -58,7 +58,11 @@ bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req) {
   }
   for (size_t i = 0; i < req.count; ++i) {
     const ParamDef* d = find_param(scope, req.entries[i].name);
-    if (d != nullptr && d->owner == Owner::Node && req.entries[i].value_readable) return true;
+    // A node's PHY row is answered read_only here and never sent (spec 16.7.1).
+    if (d != nullptr && d->owner == Owner::Node && d->access != lran::config::Access::Phy &&
+        req.entries[i].value_readable) {
+      return true;
+    }
   }
   return false;
 }
@@ -133,7 +137,8 @@ void ConfigStore::begin(lran::config::Persist* global, lran::config::Persist* co
   (void)node_table_.add_block(&lran::config::kBridgeParams[kBridgePerNodeFirst],
                               kBridgePerNodeCount);
 
-  bridge_store_ = new (bridge_storage_) lran::config::Store(bridge_table_, global);
+  bridge_store_   = new (bridge_storage_) lran::config::Store(bridge_table_, global);
+  global_persist_ = global;
   for (size_t i = 0; i < kNodeCount; ++i) {
     lran::config::Persist* p = (per_node != nullptr && i < n) ? per_node[i] : nullptr;
     node_stores_[i] = new (node_storage_[i]) lran::config::Store(node_table_, p);
@@ -184,6 +189,24 @@ size_t ConfigStore::apply(ConfigScope scope, lran::NodeId node, const ConfigSetR
       r.status    = ResultStatus::TypeMismatch;
       r.has_value = false;
       results[n++] = r;
+      continue;
+    }
+
+    // spec 16.7.1 - a PHY row on a node's topic is answered read_only, carrying the value
+    // the bridge last read back from that node, and no CONFIG goes. Only the bridge's
+    // topic can move the fleet (spec 12.4).
+    if (d->owner == Owner::Node && d->access == lran::config::Access::Phy) {
+      ConfigResult r;
+      copy_name(r.name, sizeof(r.name), d->name);
+      r.status    = ResultStatus::ReadOnly;
+      r.has_value = mirror_value(node, d->id, &r.value);
+      results[n++] = r;
+      continue;
+    }
+
+    // The fleet machine's rows. The caller answered them from phy_request().
+    if (d->owner == Owner::BridgeGlobal && d->access == lran::config::Access::Phy &&
+        phy_trial_enabled_) {
       continue;
     }
 
@@ -300,20 +323,11 @@ size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry
     if (d.owner == Owner::Node) {
       // Spec 16.7.4 - the node's own value, from the last complete readback, or null when
       // none has arrived. Null is a different statement from "equal to the default".
-      e.has_value = false;
-      for (size_t k = 0; k < kNodeCount; ++k) {
-        if (kNodeTable[k].id != node) continue;
-        for (size_t m = 0; m < kMirrorRows; ++m) {
-          if (!mirror_[k][m].set || mirror_[k][m].id != d.id) continue;
-          e.has_value = true;
-          e.value     = mirror_[k][m].value;
-          // INFERRED, NOT REPORTED. CONFIG_ACK carries no override flag, so an override
-          // equal to its default reads `default` here. W15 tracks the gap; GateLink PRD
-          // R-5.3e is what would close it.
-          e.is_override = e.value != d.def;
-          break;
-        }
-      }
+      e.has_value = mirror_value(node, d.id, &e.value);
+      // INFERRED, NOT REPORTED. CONFIG_ACK carries no override flag, so an override equal
+      // to its default reads `default` here. W15 tracks the gap; GateLink PRD R-5.3e is
+      // what would close it.
+      if (e.has_value) e.is_override = e.value != d.def;
       out[n++] = e;
       continue;
     }
@@ -376,6 +390,84 @@ void ConfigStore::note_set_results(lran::NodeId node,
     slot->value = v;
     slot->set   = true;
   }
+}
+
+bool ConfigStore::mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out) const {
+  const size_t index = mirror_index(node);
+  if (index == kNodeCount) return false;
+  for (size_t m = 0; m < kMirrorRows; ++m) {
+    if (mirror_[index][m].set && mirror_[index][m].id == id) {
+      *out = mirror_[index][m].value;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool ConfigStore::restore(ConfigScope scope, lran::NodeId node, uint16_t id,
+                          lran::config::Value v) {
+  const ParamDef* d = find_param_by_id(scope, id);
+  if (d == nullptr || d->owner == Owner::Node) return false;
+  lran::config::Store* store = d->owner == Owner::BridgeGlobal ? bridge_store_ : store_for(node);
+  return store != nullptr && store->restore(id, v);
+}
+
+void ConfigStore::enable_phy_trial() {
+  if (bridge_store_ == nullptr) return;
+  bridge_store_->enable_phy_trial();
+  // spec 12.4.2 step 2, which binds the bridge for the same reason: a group committed to
+  // a store that cannot keep it comes back at boot as the defaults, while the fleet stays
+  // where it was sent. Without a usable store the rows go on answering READ_ONLY.
+  phy_trial_enabled_ = global_persist_ != nullptr && global_persist_->usable();
+}
+
+bool ConfigStore::phy_request(const ConfigSetRequest& req, PhyRequest* out) const {
+  *out        = PhyRequest{};
+  out->target = phy_group();
+  if (!phy_trial_enabled_) return false;
+  for (size_t i = 0; i < req.count; ++i) {
+    const ParamDef* d = find_param(ConfigScope::Bridge, req.entries[i].name);
+    if (d == nullptr || d->access != lran::config::Access::Phy || !req.entries[i].value_readable) {
+      continue;
+    }
+    const size_t k = phy_index_of(d->id);
+    if (k == kPhyGroupSize) continue;
+    const lran::config::Value asked = req.entries[i].value;
+    const lran::config::Value v     = asked < d->min ? d->min : asked > d->max ? d->max : asked;
+    out->any          = true;
+    out->named[k]     = true;
+    out->status[k]    = v == asked ? ResultStatus::Ok : ResultStatus::Clamped;
+    out->target.v[k]  = v;
+  }
+  return out->any;
+}
+
+PhyGroup ConfigStore::phy_group() const {
+  PhyGroup g;
+  for (size_t i = 0; i < kPhyGroupSize; ++i) g.v[i] = global_value(kBridgePhyIds[i]);
+  return g;
+}
+
+bool ConfigStore::begin_phy_trial(const PhyGroup& g) {
+  if (bridge_store_ == nullptr || !phy_trial_enabled_) return false;
+  bool ok = true;
+  for (size_t i = 0; i < kPhyGroupSize; ++i) {
+    const ParamDef* d = bridge_phy_row(i);
+    bool applied = false, persisted = false;
+    const lran::schema::ConfigAckEntry r =
+        bridge_store_->apply(entry_for(*d, g.v[i]), &applied, &persisted);
+    ok = ok && r.status == lran::ParamStatus::Ok;
+  }
+  if (!ok) bridge_store_->revert_phy_trial();
+  return ok;
+}
+
+bool ConfigStore::commit_phy_trial() {
+  return bridge_store_ != nullptr && bridge_store_->commit_phy_trial();
+}
+
+void ConfigStore::revert_phy_trial() {
+  if (bridge_store_ != nullptr) bridge_store_->revert_phy_trial();
 }
 
 lran::config::Value ConfigStore::global_value(uint16_t id) const {

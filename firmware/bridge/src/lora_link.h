@@ -50,7 +50,7 @@ using lran::link::render_chan_boot;
 using lran::link::render_chan_rollup;
 
 // Records the calling task as the one DIO1 wakes, then brings the radio up against the
-// injected pin map (spec 12.2) and the fixed PHY (spec 12.1). Call once, at the top of
+// injected pin map (spec 12.2) and the PHY the configuration store committed (spec 12.4). Call once, at the top of
 // lora_task. A failure is logged and retried from lora_service() every 10 s.
 void lora_start(const RadioPins& pins, const PhyConfig& phy);
 
@@ -66,6 +66,16 @@ void lora_wait(uint32_t max_wait_ms);
 // CALL IT FROM lora_task ONLY: it writes state lora_service() reads without a lock.
 // lora_task calls it when the lever board changes (levers.h, BF-23).
 void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms);
+
+// spec 12.4.1 step 5 - a retune, and the revert that may follow it. Safe from any task:
+// the settings are handed over under a spinlock, and lora_task applies them on its first
+// pass that finds the radio receiving, nothing of ours arriving and nothing waiting to
+// send. A frame already on the air therefore finishes on the settings it started on.
+// Returns a ticket that lora_phy_applied() reports on. A later request replaces an
+// earlier one that has not been applied, which is what a revert straight after a retune
+// needs.
+uint32_t lora_request_phy(const PhyConfig& phy);
+bool     lora_phy_applied(uint32_t ticket);
 
 // Spec 14.2's floor between two ERRORs to one peer (BF-19a). Root rule 8, and the same
 // rule as lora_configure(): from lora_task only.

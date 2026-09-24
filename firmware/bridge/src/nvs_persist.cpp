@@ -16,6 +16,9 @@ namespace {
 // a store and each would overwrite the other's values.
 inline constexpr size_t kNvsNameMax = 16;  // 15 plus the terminator
 
+// The PHY group's key. Not of the form `p%04x`, so no row id can collide with it.
+inline constexpr const char* kPhyBlobKey = "phy";
+
 }  // namespace
 
 size_t nvs_key_for(uint16_t param_id, char* out, size_t cap) {
@@ -63,8 +66,59 @@ bool NvsPersist::clear_all() {
   return prefs_.clear();
 }
 
+bool NvsPersist::read_blob(PhyBlob* out) const {
+  if (!open_ || !prefs_.isKey(kPhyBlobKey)) return false;
+  uint8_t      buf[kPhyBlobMax];
+  const size_t len = prefs_.getBytesLength(kPhyBlobKey);
+  if (len > sizeof(buf) || prefs_.getBytes(kPhyBlobKey, buf, len) != len) return false;
+  return phy_blob_decode(buf, len, out);
+}
+
+bool NvsPersist::write_blob(const PhyBlob& b) {
+  if (!open_) return false;
+  uint8_t      buf[kPhyBlobMax];
+  const size_t len = phy_blob_encode(b, buf, sizeof(buf));
+  return len > 0 && prefs_.putBytes(kPhyBlobKey, buf, len) == len;
+}
+
+bool NvsPersist::save_group(const uint16_t* ids, const lran::config::Value* values, size_t n) {
+  if (ids == nullptr || values == nullptr || n > kPhyGroupSize) return false;
+  PhyBlob b;
+  b.trial_open = false;
+  b.n          = n;
+  for (size_t i = 0; i < n; ++i) {
+    b.ids[i]    = ids[i];
+    b.values[i] = values[i];
+  }
+  return write_blob(b);
+}
+
+bool NvsPersist::mark_trial(bool open) {
+  PhyBlob b;
+  if (!read_blob(&b)) b = PhyBlob{};  // never committed: the marker alone, and no group
+  b.trial_open = open;
+  return write_blob(b);
+}
+
+bool NvsPersist::trial_marked() const {
+  PhyBlob b;
+  return read_blob(&b) && b.trial_open;
+}
+
 bool NvsPersist::load(uint16_t id, lran::config::Value* out) const {
   if (!open_ || out == nullptr) return false;
+  // A PHY row lives in the blob, never under its own key.
+  if (phy_index_of(id) != kPhyGroupSize) {
+    PhyBlob b;
+    if (!read_blob(&b)) return false;
+    for (size_t i = 0; i < b.n; ++i) {
+      if (b.ids[i] == id) {
+        *out = b.values[i];
+        return true;
+      }
+    }
+    return false;
+  }
   char key[kNvsNameMax];
   if (nvs_key_for(id, key, sizeof(key)) == 0) return false;
   if (!prefs_.isKey(key)) return false;
@@ -89,20 +143,7 @@ size_t nvs_restore(ConfigStore& store, ConfigScope scope, lran::NodeId node,
     lran::config::Value v = 0;
     if (!persist.load(d.id, &v)) continue;
 
-    // One parameter per call. A ConfigSetRequest holds kMaxConfigSetEntries and a scope
-    // may have more rows than that, and batching them would buy nothing at boot.
-    ConfigSetRequest req;
-    req.op    = lran::ConfigOp::Set;
-    req.count = 1;
-    std::snprintf(req.entries[0].name, sizeof(req.entries[0].name), "%s", d.name);
-    req.entries[0].value_readable = true;
-    req.entries[0].value          = v;
-
-    ConfigResult result;
-    if (store.apply(scope, node, req, &result, 1, nullptr, nullptr) == 1 &&
-        (result.status == ResultStatus::Ok || result.status == ResultStatus::Clamped)) {
-      ++restored;
-    }
+    if (store.restore(scope, node, d.id, v)) ++restored;
   }
   return restored;
 }

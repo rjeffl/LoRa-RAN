@@ -62,6 +62,12 @@ FrameLog g_frame_log;
 ChanMonitor g_chan;
 PhyConfig g_phy{};
 
+// spec 12.4.1 - a retune asked for by sched_task. Guarded by g_diag_mux, which already
+// protects the one other cross-task hand-off in this file.
+PhyConfig             g_phy_next{};
+uint32_t              g_phy_requested = 0;
+std::atomic<uint32_t> g_phy_applied{0};
+
 lran::Counters g_counters;
 LoraStats      g_stats;
 RxLadder       g_ladder(&g_counters);
@@ -648,9 +654,32 @@ void sample_channel(uint32_t now_ms) {
   g_chan.sample(static_cast<Dbm10>(std::lround(g_radio->getRSSI(false) * 10.0f)), now_ms);
 }
 
+// spec 12.4.1 step 5. radio_begin() reconfigures every setting from g_phy, so a retune
+// is the path the radio came up on, with its checks and its log line. A retune that fails
+// leaves the radio down and retried every 10 s on the new settings, and the fleet
+// machine's deadline then reverts them.
+void service_retune(uint32_t now_ms) {
+  const bool ours_arriving =
+      g_header_seen && elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
+  if (g_have_tx || ours_arriving || (g_mode != Mode::Receive && g_mode != Mode::Down)) return;
+
+  uint32_t ticket = 0;
+  portENTER_CRITICAL(&g_diag_mux);
+  if (g_phy_requested != g_phy_applied.load()) {
+    ticket = g_phy_requested;
+    g_phy  = g_phy_next;
+  }
+  portEXIT_CRITICAL(&g_diag_mux);
+  if (ticket == 0) return;
+
+  try_begin(now_ms);
+  g_phy_applied = ticket;
+}
+
 void lora_service(uint32_t now_ms) {
   if (g_radio == nullptr) return;
 
+  service_retune(now_ms);
   sample_channel(now_ms);
 
   switch (g_mode) {
@@ -706,6 +735,17 @@ void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms) {
   g_access.set_config(access);
   g_ladder.set_frag_timeout_ms(frag_timeout_ms);
 }
+
+uint32_t lora_request_phy(const PhyConfig& phy) {
+  portENTER_CRITICAL(&g_diag_mux);
+  g_phy_next      = phy;
+  g_phy_requested = g_phy_requested + 1 == 0 ? 1 : g_phy_requested + 1;
+  const uint32_t ticket = g_phy_requested;
+  portEXIT_CRITICAL(&g_diag_mux);
+  return ticket;
+}
+
+bool lora_phy_applied(uint32_t ticket) { return g_phy_applied.load() == ticket; }
 
 void lora_configure_errors(uint32_t min_interval_ms) {
   g_error_policy.configure(min_interval_ms);

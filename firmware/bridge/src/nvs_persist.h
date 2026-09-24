@@ -28,6 +28,7 @@
 #include "config_store.h"
 #include "lran/config/store.h"
 #include "lran/types.h"
+#include "phy_change.h"
 
 namespace bridge {
 
@@ -49,29 +50,37 @@ class NvsPersist final : public lran::config::Persist {
   bool usable() const override { return open_; }
   bool save(uint16_t id, lran::config::Value v) override;
   bool clear_all() override;
-  // TODO(BF-33): one NVS blob, so the group lands in a single commit. Until then this
-  // refuses, and it is unreachable: the bridge has not enabled the PHY trial, so its PHY
-  // rows answer READ_ONLY and nothing asks for a group write.
-  bool save_group(const uint16_t*, const lran::config::Value*, size_t) override {
-    return false;
-  }
+  // spec 12.4 - the PHY group as one blob under one key, so the group lands in one NVS
+  // commit (phy_change.h has the layout). Writing it also clears the trial marker below,
+  // in the same commit.
+  bool save_group(const uint16_t* ids, const lran::config::Value* values, size_t n) override;
+
+  // spec 12.4.1 - the bridge restarted during a trial if this reads true at boot. Set at
+  // step 5 and cleared by the commit or the revert, each by rewriting the blob with the
+  // group it already holds, so the marker never lands without the group beside it.
+  bool mark_trial(bool open);
+  bool trial_marked() const;
 
   // What this namespace holds for `id`. False when nothing is stored, which is the
   // ordinary case for a parameter never set.
   bool load(uint16_t id, lran::config::Value* out) const;
 
  private:
+  bool read_blob(PhyBlob* out) const;
+  bool write_blob(const PhyBlob& b);
+
   mutable Preferences prefs_;
   bool                open_ = false;
 };
 
 // Replays every stored value of a scope back through the store at boot.
 //
-// THROUGH Store::apply() RATHER THAN INTO THE OVERRIDES DIRECTLY, so a value stored
+// THROUGH Store::restore() RATHER THAN INTO THE OVERRIDES DIRECTLY, so a value stored
 // before a range changed is clamped on the way back in and a row that has since become
 // READ_ONLY is refused. A store written straight into memory would reinstate a value the
 // current firmware would refuse to accept from Home Assistant, which is the one way a
-// bridge ends up running a configuration nobody could have set.
+// bridge ends up running a configuration nobody could have set. Not through apply(),
+// which a PHY value would turn into a trial at every boot (BF-33).
 //
 // Returns how many values it put back.
 size_t nvs_restore(ConfigStore& store, ConfigScope scope, lran::NodeId node,

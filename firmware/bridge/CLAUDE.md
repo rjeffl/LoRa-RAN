@@ -215,7 +215,8 @@ is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (
   published from an incomplete answer.**
 - **A readback REPLACES the state mirror; a set's ACK MERGES into it.** Confusing them
   blanks every row the set did not name, which the bench showed on 2026-09-21.
-- **NVS restores through `Store::apply()`**, so a value stored before a range changed is
+- **NVS restores through `Store::restore()`**, not `apply()`, since BF-33: a stored PHY
+  value replayed through `apply()` would open a trial at every boot. A value stored before a range changed is
   clamped on the way back in and a row that has since become `READ_ONLY` is refused.
 
 **`BF-34` — the context roll after a bridge restart, built 2026-09-23 and
@@ -355,11 +356,12 @@ log. Never commit, echo or log the real values.
 - **`backoff_max_ms` defaults to 1500**, not the 500 older material shows. A maximum
   `PING` at SF9 runs 1107 ms and a window shorter than the frame cannot outlast it.
 - **PHY parameters ARE runtime-configurable since spec v0.13** (**D56**, §12.4), and the
-  six rows are in `/lib/lran-config/`'s table — `READ_ONLY` until **BF-33** builds
-  §12.4's commit-and-revert, so Home Assistant can read the working point before it can
-  change it. **Spec v0.14's D59 makes a change a fleet operation**, set on
-  `lran/bridge/config/set` alone, and no node commits until the bridge has heard every
-  node on the new settings (§12.4.1). The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  six rows are in `/lib/lran-config/`'s table. **Spec v0.14's D59 makes a change a fleet
+  operation**, set on `lran/bridge/config/set` alone, and no node commits until the bridge
+  has heard every node on the new settings (§12.4.1). **BF-33 slice 2 built the bridge's
+  half** in `phy_change.{h,cpp}`, host-tested and not yet on air; a PHY row on a node's
+  topic answers `read_only`. **While a change runs, `blocks_traffic()` holds every other
+  authenticated frame**, because any one of them confirms the node that receives it. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
   HA-visible config set is correct for before v0.13**; the hazard it named is real and is
   what the revert window exists for — a node that boots on the wrong channel is a walk to

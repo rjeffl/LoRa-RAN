@@ -321,6 +321,7 @@ const char* result_status_name(ResultStatus s) {
     case ResultStatus::TypeMismatch: return "type_mismatch";
     case ResultStatus::ReadOnly: return "read_only";
     case ResultStatus::Unknown: return "unknown";
+    case ResultStatus::Reverted: return "reverted";
   }
   return "unknown";
 }
