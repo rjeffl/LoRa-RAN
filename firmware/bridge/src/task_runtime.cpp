@@ -20,6 +20,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <ctime>
 
 #include "board_ui.h"
 #include "command.h"
@@ -37,6 +38,7 @@
 #include "node_availability.h"
 #include "nvs_persist.h"
 #include "ota.h"
+#include "publish.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
 #include "scheduler.h"
@@ -213,6 +215,66 @@ SemaphoreHandle_t g_config_lock = nullptr;
 // that changes a bridge-held value; read by sched_task and lora_task.
 LeverBoard g_levers;
 NvsPersist  g_cfg_node_persist[kNodeCount];
+
+// ---------------------------------------------------------------------------
+// BF-24 - the publication policy (publish.h), which app_task alone drives.
+//
+// STATIC, NOT LOCAL, for sched_task's reason: the policy holds a kilobyte document buffer
+// and a PublishMessage is larger again, and app_task's stack is 6144.
+// ---------------------------------------------------------------------------
+
+PublicationPolicy g_policy;
+PublishMessage    g_app_msg;
+
+// Set by mqtt_task on every connect, taken by app_task: the retained documents may be gone.
+std::atomic<bool> g_publish_forget{false};
+
+// app_task writes these after each STATUS and sched_task reads them for
+// lran/bridge/diag/publish/state. Seven independent counters, so a reader that catches one
+// updated and the next not yet sees two numbers a frame apart, which is harmless.
+struct PublishStatsBoard {
+  std::atomic<uint32_t> status_frames{0}, documents{0}, unchanged{0}, heartbeats{0},
+      bench_withheld{0}, queue_refused{0}, undecodable{0};
+
+  void store(const PublishStats& s) {
+    status_frames  = s.status_frames;
+    documents      = s.documents;
+    unchanged      = s.unchanged;
+    heartbeats     = s.heartbeats;
+    bench_withheld = s.bench_withheld;
+    queue_refused  = s.queue_refused;
+    undecodable    = s.undecodable;
+  }
+  PublishStats load() const {
+    PublishStats s;
+    s.status_frames  = status_frames;
+    s.documents      = documents;
+    s.unchanged      = unchanged;
+    s.heartbeats     = heartbeats;
+    s.bench_withheld = bench_withheld;
+    s.queue_refused  = queue_refused;
+    s.undecodable    = undecodable;
+    return s;
+  }
+};
+PublishStatsBoard g_publish_stats;
+
+// Every document goes through make_publish(), so spec 16.3's retain rule and spec 16.6's
+// bench topic rule are checked on this path as on every other, and the queue counts a drop.
+struct QueueSink final : PublishSink {
+  bool emit(const char* topic, const char* payload, bool retain) override {
+    return make_publish(&g_app_msg, topic, payload, retain, /*qos=*/0) &&
+           send_publish(g_app_msg);
+  }
+};
+
+// spec 7.2.9 - the wall clock at reception. time() is SNTP's (mqtt_task starts it); before
+// SNTP answers it is near 1970, which publish.cpp refuses as a clock. `rx_millis` is when
+// lora_task heard the frame, so the time the frame spent queued is taken off.
+UtcSeconds utc_at(uint32_t rx_millis) {
+  const time_t now = time(nullptr);
+  return static_cast<UtcSeconds>(now) - static_cast<UtcSeconds>((millis() - rx_millis) / 1000u);
+}
 
 ConfigSetRequest g_cfg_req;
 ConfigResult     g_cfg_results[kMaxScopeRows];
@@ -887,6 +949,12 @@ void sched_diag(uint32_t now_ms) {
     (void)sched_publish(topic, g_sched_json);
   }
 
+  // BF-24 - what the publication policy chose, beside the command path's accounting.
+  if (topic_diag("bridge", "publish", topic, sizeof(topic)) > 0 &&
+      publish_stats_json(g_publish_stats.load(), g_sched_json, sizeof(g_sched_json)) > 0) {
+    (void)sched_publish(topic, g_sched_json);
+  }
+
   for (size_t i = 0; i < registry_size(); ++i) {
     const NodeInfo& info = registry_info_at(i);
     // The nodes the scheduler polls, and spec 16.6's bench gate.
@@ -1531,6 +1599,9 @@ void on_mqtt_connected() {
   g_availability_republish = true;
   // Diagnostics are retained too (spec 16.2), so they are put back the same way (BF-19).
   g_diag_republish = true;
+  // BF-24 - and so are the decoded documents. app_task republishes each on its node's next
+  // frame; nothing is republished from a cache (R-5.2b).
+  g_publish_forget = true;
 }
 
 // Normal priority, core 0, alongside the WiFi stack it talks to.
@@ -1551,6 +1622,14 @@ void mqtt_task(void*) {
     // and each has its own backoff so a flapping AP does not also spend the broker's.
     wifi_service(now);
     g_mqtt_up = wifi_connected() && g_mqtt.connected();
+
+    // BF-24, spec 7.2.9 - SNTP, started once the first time WiFi is up. lwIP keeps it
+    // running and re-syncs by itself from then on; nothing here waits for an answer.
+    static bool sntp_started = false;
+    if (!sntp_started && wifi_connected()) {
+      configTime(0, 0, kNtpServer);
+      sntp_started = true;
+    }
 
     if (wifi_connected()) {
       if (g_mqtt.connected()) {
@@ -1582,10 +1661,19 @@ void mqtt_task(void*) {
 // Queue-driven: everything that turns a received frame into a publication.
 void app_task(void*) {
   RxMessage msg;
+  QueueSink sink;
+  uint32_t  levers_seen = 0;
+  Levers    levers;
   for (;;) {
     if (xQueueReceive(g_rx_queue, &msg, portMAX_DELAY) != pdTRUE) {
       continue;
     }
+    // BF-24 - the policy's three levers, from the board every other task reads.
+    if (g_levers.take_if_changed(&levers_seen, &levers)) {
+      g_policy.set_levers(PublishLevers{levers.republish_interval_s, levers.bms_stale_s,
+                                        levers.cell_mv_deadband});
+    }
+    if (g_publish_forget.exchange(false)) g_policy.forget_published();
     // A blocking receive is correct HERE and wrong in lora_task: app_task waiting
     // costs nothing, and it is the consumer rather than the producer.
     //
@@ -1610,8 +1698,18 @@ void app_task(void*) {
       config_on_ack(msg);
     }
     // Discard counters are lora_task's; sched_task publishes them (BF-19).
-    // TODO(BF-24): decode per schema (Impl Plan 5.3's decode/), then the publication
-    // policy, into the publish queue.
+    // BF-24 - a STATUS becomes its documents (Impl Plan 6.3). The registry refused an
+    // unknown source at the ladder, so find() answers for every message here.
+    // TODO(BF-25): an EVENT's non-retained publication, deduplicated on
+    // (src, ctx_id, event_id).
+    if (msg.hdr.type == lran::MsgType::Status) {
+      const NodeInfo* info = registry_find(msg.hdr.src);
+      if (info != nullptr) {
+        g_policy.on_status(*info, msg.hdr, msg.payload, msg.payload_len, msg.rx_millis,
+                           utc_at(msg.rx_millis), sink);
+        g_publish_stats.store(g_policy.stats());
+      }
+    }
   }
 }
 

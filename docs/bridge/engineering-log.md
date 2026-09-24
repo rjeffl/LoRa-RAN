@@ -2349,3 +2349,36 @@ configuration and command answers regardless of the flag. §4.2a.1 raises that a
 §16.6's *"exclusively"*. The flag was left **off, persisted**. The 48 simnode discovery
 configs stay retained, as §16.6 intends, so Home Assistant now carries four simnode devices
 whose entities read unavailable.
+
+---
+
+## 2026-09-23 — BF-24 built: the publication policy, host-tested, with no production frame to publish
+
+**BF-24 is built and host-tested; nothing has gone on air.** `publish.{h,cpp}` turns each
+`STATUS` into retained documents, and `app_task` queues them. Impl Plan §6.3.1 records the
+keys and the choices. `test_publish` has 21 cases, and the native suite passed 359 of 359.
+The `heltec` image builds at 51.1 % RAM.
+
+**Three decisions were the operator's**, taken at the start of the session:
+
+- Three bridge rows, not two. `republish_interval_s` (900 s), `bms_stale_s` (600 s) and
+  `cell_mv_deadband` (5 mV) are now `0x000D`–`0x000F`. Their names become permanent Home
+  Assistant object IDs.
+- SNTP in this task. Spec §7.2.9 has the bridge publish `last_traversal` as an absolute
+  time, and until today no task owned a wall clock.
+- GateLink's discovery entities in the same branch, so that the state is visible in HA.
+
+**No bench frame can exercise the documents.** A simnode is a bench node, and spec §16.6
+keeps its `STATUS` off every production topic whichever way the flag is set. The first
+real document therefore arrives with GateLink, or with BF-27's dummy publish.
+
+**Stale blocks needed a second availability topic, and no new topic.** R-5.2b asks for
+unavailable, and a `null` reading shows as unknown in HA. The `solar` and `battery`
+documents carry `available`. Their entities list that document in `avty` with
+`avty_mode: all`, beside the node's own availability. Home Assistant's discovery code
+expands `~` and the abbreviations inside `avty` entries. That was read from `discovery.py`
+on `home-assistant/core`'s `dev` branch on 2026-09-23, not tried against an HA instance.
+
+**`republish_interval_s` has left GateLink's count.** Library Plan §4 listed it among
+GateLink's unnamed rows. It is now the bridge's row, because spec §16.4 makes publication
+the bridge's. GateLink's implied rows fall from six to five, about 204 bytes of 193.

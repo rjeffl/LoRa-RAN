@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Relay dry run","uniq_id":"lran_gatelink_dry_run","stat_t":"~/node/state","val_tpl":"{{ value_json.dry_run }}","pl_on":"True","pl_off":"False","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","ent_cat":"diagnostic","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

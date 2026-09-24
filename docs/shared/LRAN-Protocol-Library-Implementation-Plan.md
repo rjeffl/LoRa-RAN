@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.16
+**Version:** 0.17
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.13**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -635,6 +635,9 @@ inline constexpr ParamDef kBridgeParams[] = {
   {0x000A, "error_min_interval_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,  100, 60000,  1000, "ms", "Floor between ERRORs to one peer, spec 14.2"},
   {0x000B, "config_readback_timeout_ms",  Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000, 15000, "ms", "Wait for a split readback to complete, spec 7.4.1 (D57)"},
   {0x000C, "config_ack_timeout_ms",      Owner::BridgeGlobal, Access::ReadWrite,  PType::U16, 1000, 60000,  8000, "ms", "CONFIG_ACK wait before the outcome is unknown, spec 7.4"},
+  {0x000D, "republish_interval_s",       Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,   60,  3600,   900, "s",  "Unchanged state republished at most this often, Impl Plan 6.3"},
+  {0x000E, "bms_stale_s",                Owner::BridgeGlobal, Access::ReadWrite,  PType::U16,   30,  3600,   600, "s",  "bms_age_s above this marks BMS entities unavailable, spec 16.4"},
+  {0x000F, "cell_mv_deadband",           Owner::BridgeGlobal, Access::ReadWrite,  PType::U8,     0,    50,     5, "mV", "Cell voltage change that republishes, spec 16.4; 0 = any"},
   {0x0080, "poll_interval_s",            Owner::BridgePerNode, Access::ReadWrite, PType::U16,   10,  3600,    60, "s",  "Poll period for this node, BG-4"},
 };
 
@@ -673,9 +676,10 @@ cheap to keep.
 
 **The bridge's list is an inventory of the firmware, not a design.** Each row is a value
 the bridge already has. Most carry a `TODO(BF-23)` or `TODO(BF-26)` marker; the rest sit
-behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. v0.9's sketch
-named `republish_interval_s` and `mppt_write_arm_timeout_s`; they are not here because
-nothing implements them yet. BF-24 and BF-29 add them when they build the behaviour.
+behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. BF-24 added
+`republish_interval_s`, `bms_stale_s` and `cell_mv_deadband` with the publication policy
+that reads them (Bridge Impl Plan §6.3). v0.9's sketch also named
+`mppt_write_arm_timeout_s`, and BF-29 adds it when it builds the HEX proxy.
 
 **The PHY rows are read-only until BF-33.** D56 brought spec §12.1's parameters into
 runtime configuration under §12.4's commit-and-revert, and declaring them now lets Home
@@ -706,6 +710,10 @@ The 15 named are `relay_pulse_ms`, `post_wake_settle_ms`, `command_confirm_timeo
 `charge_inhibit_confirm_s`, `display_timeout_s`, `unlock_settle_ms` and `cause_window_ms`.
 The unnamed six are the dry-run switch (R-5.4a), the buzzer, injection spacing (R-5.4b),
 VE.Direct staleness, `mppt_write_arm_timeout_s` and `republish_interval_s`.
+
+**`republish_interval_s` has since left GateLink's count.** It is the bridge's row at
+`0x000D`, because spec §16.4 makes publication policy the bridge's. The dated count in D57
+stands as it was made; GateLink's implied rows are now five, at about 204 bytes.
 
 **GateLink fits one frame today, with three `uint16` rows to spare**, and R-5.3a requires
 *every* interval, window, threshold and debounce to be configurable. Spec §7.4.1 is what a
@@ -866,6 +874,11 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.17** — **BF-24 adds three bridge rows** at `0x000D`–`0x000F`: `republish_interval_s`,
+  `bms_stale_s` and `cell_mv_deadband`, chosen with the operator on 2026-09-23. Each is a
+  value the publication policy reads (Bridge Impl Plan §6.3, spec §16.4). Moving
+  `republish_interval_s` into the bridge's block takes it out of GateLink's implied rows.
 
 - **v0.16** — **§3.10's D58 half is built** by **BF-34**: `CommandGate::any_in_flight()`,
   `Cmd::RollContext` and `kRollContextGuard`, with three `test_gate` cases. §3.10 records

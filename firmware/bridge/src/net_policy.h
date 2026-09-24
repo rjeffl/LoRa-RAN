@@ -71,6 +71,12 @@ size_t node_topic_name(uint8_t node_id, char* out, size_t cap);
 // (spec 16.1's optional item). BF-19. Returns the length written, or 0.
 size_t topic_diag(const char* node, const char* item, char* out, size_t cap);
 
+// BF-24, spec 7.2.9 - where the bridge's wall clock comes from. The bridge converts a
+// node's `last_traversal_age_s` into an absolute time, and it has no RTC. The public pool
+// rather than the LAN's gateway, because nothing in the documents says the gateway serves
+// time; a LAN that blocks it leaves `last_traversal` null, which is honest.
+inline constexpr const char* kNtpServer = "pool.ntp.org";
+
 inline constexpr const char* kPayloadOnline  = "online";
 inline constexpr const char* kPayloadOffline = "offline";
 
@@ -147,6 +153,11 @@ bool parse_config_topic(const char* topic, ConfigTopic* out);
 // length written, or 0.
 size_t topic_config(const char* node, const char* leaf, char* out, size_t cap);
 
+// `lran/<node>/<domain>/state` for one of BF-24's decoded documents (spec 16.2). `domain`
+// is spec 16.1's token - `gate`, `detect`, `battery`, `solar` or `node`. Returns the
+// length written, or 0.
+size_t topic_domain_state(const char* node, const char* domain, char* out, size_t cap);
+
 // ---------------------------------------------------------------------------
 // The retain rule, enforced where every publication passes rather than trusted.
 //
@@ -166,5 +177,13 @@ bool is_event_topic(const char* topic);
 // on an event topic means the caller believes something untrue, and clearing it
 // quietly leaves that belief in place.
 bool retain_is_permitted(const char* topic, bool retain);
+
+// Spec 16.6 axis 1, enforced the same way. A bench node's data goes to `diag/state` and
+// `availability` alone, and NEVER under `gate`, `detect`, `battery`, `solar` or `event`,
+// whichever way simnode_diag_enable is set. True for `lran/simnode<N>/<one of those>/...`.
+// BF-24 - publish.cpp already withholds a bench node's documents; this is the second
+// check, on the path every publication takes, because the thing it protects is the email
+// and SMS path spec 16.3 exists for.
+bool bench_topic_forbidden(const char* topic);
 
 }  // namespace bridge

@@ -167,6 +167,12 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
   sends, starts the roll. `roll: f1 rolled to ctx …` on the bridge's serial log says it
   finished. Before BF-34 the same reflash drew `DUPLICATE_CACHED` instead.
 
+- **No bench frame exercises BF-24's documents.** A simnode is a bench node, so its
+  `STATUS` is decoded and counted as `bench_withheld` on `lran/bridge/diag/publish/state`,
+  and never published. An empty `lran/+/gate/state` on the bench is correct, not a fault.
+- **`last_traversal` stays `null` until SNTP answers.** The bridge asks `pool.ntp.org`
+  once WiFi is up; a network that blocks it leaves the timestamp unknown.
+
 ## Boot, OTA and V-B9
 
 - **`AUTH_FAIL` (reason 202) on the bridge's first WiFi attempt at every boot** is expected

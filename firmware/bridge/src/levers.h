@@ -49,6 +49,11 @@ struct Levers {
   uint32_t config_ack_timeout_ms      = 0;
   bool     simnode_diag_enable        = false;  // spec 16.6
 
+  // BF-24 - the publication policy's three, read by app_task (publish.h).
+  uint16_t republish_interval_s = 0;
+  uint16_t bms_stale_s          = 0;
+  uint8_t  cell_mv_deadband     = 0;
+
   // D47 - one value per node, in kNodeTable's order.
   uint16_t poll_interval_s[kNodeCount] = {};
 };
@@ -92,6 +97,9 @@ class LeverBoard {
   std::atomic<uint32_t> config_readback_timeout_ms_{0};
   std::atomic<uint32_t> config_ack_timeout_ms_{0};
   std::atomic<bool>     simnode_diag_enable_{false};
+  std::atomic<uint16_t> republish_interval_s_{0};
+  std::atomic<uint16_t> bms_stale_s_{0};
+  std::atomic<uint8_t>  cell_mv_deadband_{0};
   std::atomic<uint16_t> poll_interval_s_[kNodeCount] = {};
 };
 

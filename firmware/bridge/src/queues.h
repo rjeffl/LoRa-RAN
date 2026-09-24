@@ -105,8 +105,9 @@ inline constexpr size_t kQueueCount = static_cast<size_t>(QueueId::kCount);
 // WHY NEWEST RATHER THAN OLDEST. Dropping the oldest is defensible for state, which
 // is idempotent and where newest wins - but it is wrong for events, which are not
 // interchangeable and drive email and SMS (PRD, Impl Plan 6.3). One policy that is
-// wrong for events beats two policies chosen per call site, and BF-24/BF-25 own the
-// per-class refinement with the publication policy in hand.
+// wrong for events beats two policies chosen per call site. BF-24 needed no refinement:
+// a state document the queue refuses is not recorded as published, so the node's next
+// frame queues a fresh one (publish.h). BF-25 owns the question for events.
 //
 // THE REAL ANSWER IS THAT THESE QUEUES DO NOT FILL. A depth reached is a defect
 // upstream, which is why every drop is counted and why high_water is reported.
