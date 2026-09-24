@@ -2806,3 +2806,33 @@ refusal follows the text: the bridge polls both nodes. **Whether a provisioned n
 has never been deployed counts toward the fleet is a spec and registry question.** The
 operator closed slice 3 host-only, and slice 4 cannot start without an answer.
 `simnode_diag_enable` was set to 1 for the check and back to 0 afterwards.
+
+## 2026-09-24 — D61: a node joins the PHY fleet once deployed or heard, and slice 4 is unblocked
+
+**The operator chose a registry mark over the other two candidates**, and D61 closed the
+same day as a bridge per-node lever, `deployed` (`0x0081`, default 0). Decision Register
+§2.5 has the proposal and §3.10 the answers. The specification's §16.5 and §16.6 are to
+say it at the next revision, with D60's two cases.
+
+**What changed on the bridge.** The poll scheduler and the availability watchdog no longer
+enrol a production row at construction. `sched_levers()` enrols a row the tick its
+`deployed` lever reads 1, through `PollScheduler::enrol()`. Every other row, production or
+bench, is enrolled on its first frame, as a bench row always was. The watchdog takes the
+lever in place of `NodeInfo::is_bench`. Both latch: clearing the lever takes effect at the
+next restart, so a node cannot leave §12.4.1's fleet mid-boot while a change might still
+move it.
+
+**Two choices a reviewer should check:**
+
+- **The lever applies to bench rows too.** D61 names no exception, and a bench identity with
+  `deployed` set is polled from boot. That is harmless and sometimes useful.
+- **`deployed` is a `bool`, not the `u8` §2.5 first drafted.** `simnode_diag_enable` set the
+  table's convention for a 0-or-1 row. The register's item 1 was corrected on the branch
+  before merge.
+
+**What it costs on a bench.** With every lever at 0 and no simnode transmitting, the fleet
+is empty and a PHY change is still refused `phy_fleet_incomplete`, as slice 2 chose. Make
+each simnode transmit once, or set its `deployed` lever.
+
+**Not run on a board.** The bridge's native suite is 409 cases, all passing, and `heltec`
+builds. Nothing was flashed.
