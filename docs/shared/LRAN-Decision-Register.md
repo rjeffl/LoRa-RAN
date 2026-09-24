@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.18
+**Version:** 0.19
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-24
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D59** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D60** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -355,6 +355,7 @@ happened, and no remedy is chosen yet.
 | **D57** | How a node answers a `GET_ALL` too large for one frame | **Several `CONFIG_ACK` messages, every one but the last marked `MORE_FOLLOWS`** — bit 7 of `count`, whose top two bits are unreachable because 193 bytes of payload hold at most 32 results. Schema `0x12` keeps its layout and offsets. The node walks its table in ascending `param_id` across the answer, repeats `op` and `persist_status` on every message, and sends at most **4** messages. A solicited answer repeats the request's `seq`, so **the bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message with `MORE_FOLLOWS` clear. A repeated `GET_ALL` is answered by walking the table again rather than from the dedup cache, because a read applies nothing. The bridge never publishes `config/state` from an answer that did not complete; it abandons one on `config_readback_timeout_ms` and requests another | Protocol Spec §7.4.1, §11.4, §16.7.4; Protocol Library Plan §4 (**BF-32**) |
 | **D58** | How the bridge resumes commanding a node after its own restart | **The bridge forces each node onto a new context after its own boot, with `ROLL_CONTEXT`** (`cmd` `0x12`, `arg` `0xA5`). The node verifies it under §9.4 steps 1–3 only, takes a new `ctx_id`, and clears its dedup cache and `rx_high_water`. Until a node's roll completes, the bridge refuses commands to it with a named reason. `ver` stays `2`. §2.3 has the mechanism; §3.7 has the answers and three additions | Protocol Spec §8.1, §9.4, §10 |
 | **D59** | How a PHY change moves the fleet | **The bridge moves the fleet in two phases**, under spec v0.14's §12.4.1 to §12.4.4. The PHY group, the five PHY parameters and `phy_trial_s`, is set on `lran/bridge/config/set` alone. The bridge sends the whole group to every node on the old settings and abandons on any missing or refused answer. It then retunes and hears every node on the new settings by `POLL`, and only then commits itself and confirms each node with an authenticated `CONFIG` `GET`. A node without a usable nonvolatile store refuses the group with `READ_ONLY`. `PHY_REVERTED` (`0x0B`) and `lran/bridge/event/phy_reverted` report a revert. **W17**, a node that misses every confirming frame, closes after GateLink deploys. Accepted as drafted, 2026-09-24, §3.8 | Protocol Spec §12.4, §8.9, §16.7; Protocol Library Plan §4 (**BF-33**) |
+| **D60** | Two PHY-group cases spec §12.4 leaves to other sections | **`RESTORE_DEFAULTS` keeps the committed PHY group**, in RAM and in the store, because resetting one node's PHY to D1's defaults takes it off the fleet's settings. **A PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`**, which is true of the trial values; §12.4.2 step 2's exclusion concerns a node with no usable store. Found building BF-33's library half; accepted by the operator 2026-09-24, §3.9. **The specification's text is owed at its next revision** | Protocol Spec §8.10, §8.11, §12.4.2; Protocol Library Plan §4 (**BF-33**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -944,6 +945,24 @@ questions.
 3. **W17 closes after GateLink deploys, not before.** GateLink deploys with §12.4 as
    written, and the case W17 describes stays open until then.
 
+### 3.9 D60 — two PHY-group cases, accepted 2026-09-24
+
+**Building BF-33's library half found two cases that spec v0.14 reaches only through other
+sections.** The operator accepted the library's behaviour for both on 2026-09-24.
+
+1. **`RESTORE_DEFAULTS` keeps the committed PHY group.** §8.10 and D52 have it clear every
+   override. Applied to the PHY group on one node, that retunes the node to D1's defaults
+   while the bridge and the rest of the fleet stay where they are, which is the stranded
+   node §12.4 exists to prevent. `Store::restore_defaults()` keeps the group and writes it
+   back to the store after clearing it.
+2. **A PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`.** The trial values are
+   applied and are not persisted until confirmation, so the status is true. §12.4.2 step 2
+   says `APPLIED_NOT_PERSISTED` does not extend to the PHY group, and that sentence is about
+   a node with no usable store. The bridge's step 4 checks only the values.
+
+The specification's §8.10 and §12.4.2 are to say both at the next revision. Until then,
+this subsection and Library Plan §4 are where they are written.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1102,6 +1121,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.19** — **D60 resolved on 2026-09-24**: `RESTORE_DEFAULTS` keeps the committed PHY
+  group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`. §3.9 has the
+  reasoning. The specification's text waits for its next revision.
 
 - **v0.18** — **D59 proposed and resolved on 2026-09-24**: how §12.4's PHY
   commit-and-revert moves a fleet. §2.4 has the gaps, the proposal and three questions, and

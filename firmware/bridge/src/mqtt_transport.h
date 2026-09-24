@@ -25,21 +25,23 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 1024 bytes of payload against MQTT_MAX_PACKET_SIZE of 2048. The largest
+// SIZES. 1536 bytes of payload against MQTT_MAX_PACKET_SIZE of 2048. The largest
 // thing this firmware builds is a discovery config, and discovery does NOT pass
 // through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
 // from there, so the queue is sized for state and diagnostics rather than for the one
-// payload that dwarfs them. 32 slots x ~1128 bytes is ~36 KB of static RAM, which is
+// payload that dwarfs them. 32 slots x ~1640 bytes is ~52 KB of static RAM, which is
 // the cost of never blocking a producer.
 //
-// IT HAS MOVED TWICE AND EACH MOVE HAD A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
+// IT HAS MOVED THREE TIMES AND EACH MOVE HAD A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
 // when lran/bridge/diag/state gained all 21 spec 14.1 counters by name - 681 bytes with
 // every one at UINT32_MAX. 768 to 1024 at BF-32, when two documents arrived close to
 // the old line at once: the radio document gained a sixth queue's pair of counters, and
 // spec 16.7's config/ack for a whole table left about twenty bytes spare on the bridge's
 // own block. Twenty bytes is not headroom - GateLink's counted 25 parameters (W10) would
 // have crossed it, and the failure is a DROPPED publication, so the entity keeps a stale
-// value and nothing says why.
+// value and nothing says why. 1024 to 1536 at BF-33, when D59 gave the bridge the six
+// PHY rows: test_config failed on the bridge's get_all answer, which an offline count put
+// at about 1.2 KB for 21 rows, and config/state close behind it.
 //
 // test_diag and test_config are the checks. Each builds the worst document its table can
 // produce and fails here rather than at the broker.
@@ -50,7 +52,7 @@ namespace bridge {
 // ---------------------------------------------------------------------------
 
 inline constexpr size_t kMaxTopicLen   = 96;
-inline constexpr size_t kMaxPayloadLen = 1024;
+inline constexpr size_t kMaxPayloadLen = 1536;
 
 struct PublishMessage {
   char   topic[kMaxTopicLen]     = {0};

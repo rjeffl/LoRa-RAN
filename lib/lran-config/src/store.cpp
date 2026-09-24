@@ -74,9 +74,38 @@ const Store::Override* Store::slot(uint16_t id) const {
   return nullptr;
 }
 
+const Store::Override* Store::trial_slot(uint16_t id) const {
+  for (size_t i = 0; i < ntrial_; ++i) {
+    if (trial_[i].id == id) return &trial_[i];
+  }
+  return nullptr;
+}
+
+bool Store::phy_writable() const {
+  return phy_trial_enabled_ && persist_ != nullptr && persist_->usable();
+}
+
+Store::Override* Store::set_override(uint16_t id, Value v) {
+  Override* o = slot(id);
+  if (o == nullptr) {
+    // Unreachable while the table itself is capped at kMaxTableParams, and a silent wrong
+    // answer if it ever stops being true, so the caller reports it.
+    if (noverrides_ >= kMaxTableParams) return nullptr;
+    o     = &overrides_[noverrides_++];
+    o->id = id;
+  }
+  o->value = v;
+  o->set   = true;
+  return o;
+}
+
 Value Store::effective(uint16_t id) const {
   const ParamDef* d = find(id);
   if (d == nullptr) return 0;
+  // spec 12.4 - during a trial the radio runs the trial values, so they are what a
+  // readback reports and what the caller retunes from.
+  const Override* t = trial_slot(id);
+  if (t != nullptr) return t->value;
   const Override* o = slot(id);
   return (o != nullptr && o->set) ? o->value : d->def;
 }
@@ -117,8 +146,9 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
 
   // D56 - a row the firmware publishes but cannot yet apply answers READ_ONLY, carrying
   // the value it does hold. A readable value that refuses a write is honest; a write that
-  // half-applies is not.
-  if (d->access == Access::ReadOnly) {
+  // half-applies is not. A PHY row is one of these until the trial is enabled and the
+  // store can hold a committed group (spec 12.4.2 step 2).
+  if (d->access == Access::ReadOnly || (d->access == Access::Phy && !phy_writable())) {
     schema::entry_pack(&out, in.param_id, ParamStatus::ReadOnly, d->type,
                        raw_bits(effective(in.param_id), d->type));
     return out;
@@ -127,20 +157,35 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
   const Value requested = schema::entry_signed(in.value, in.len, in.ptype);
   const Value eff       = clamp(requested, *d);
 
-  Override* o = slot(in.param_id);
-  if (o == nullptr) {
-    if (noverrides_ >= kMaxTableParams) {
-      // Unreachable while the table itself is capped at kMaxTableParams, and a silent
-      // wrong answer if it ever stops being true.
-      schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
-                         raw_bits(effective(in.param_id), d->type));
-      return out;
+  const ParamStatus status = eff == requested ? ParamStatus::Ok : ParamStatus::Clamped;
+
+  // spec 12.4 - a PHY value goes to the trial copy and nowhere else. The committed group
+  // stays in the store as it was, which is step 2's "old settings persisted first" at no
+  // cost: nothing in the store moves until commit_phy_trial(). Rows the set does not name
+  // keep their committed values (spec 12.4.2 step 1), because effective() falls back to
+  // them. `persisted` is false because this value is not.
+  if (d->access == Access::Phy) {
+    Override* t = nullptr;
+    for (size_t i = 0; i < ntrial_; ++i) {
+      if (trial_[i].id == in.param_id) t = &trial_[i];
     }
-    o = &overrides_[noverrides_++];
-    o->id = in.param_id;
+    if (t == nullptr) {
+      t     = &trial_[ntrial_++];  // bounded: kPhyGroupSize Phy rows, table.h asserts it
+      t->id = in.param_id;
+    }
+    t->value = eff;
+    t->set   = true;
+    if (applied != nullptr) *applied = true;
+    if (persisted != nullptr) *persisted = false;
+    schema::entry_pack(&out, in.param_id, status, d->type, raw_bits(eff, d->type));
+    return out;
   }
-  o->value = eff;
-  o->set   = true;
+
+  if (set_override(in.param_id, eff) == nullptr) {
+    schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
+                       raw_bits(effective(in.param_id), d->type));
+    return out;
+  }
 
   if (applied != nullptr) *applied = true;
   const bool saved = (persist_ != nullptr) && persist_->usable() &&
@@ -149,22 +194,72 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
 
   // spec 7.4 - the ACK carries the effective value, and a clamp is reported rather than
   // applied quietly.
-  schema::entry_pack(&out, in.param_id,
-                     eff == requested ? ParamStatus::Ok : ParamStatus::Clamped, d->type,
-                     raw_bits(eff, d->type));
+  schema::entry_pack(&out, in.param_id, status, d->type, raw_bits(eff, d->type));
   return out;
 }
 
+bool Store::restore(uint16_t id, Value v) {
+  const ParamDef* d = find(id);
+  if (d == nullptr || d->access == Access::ReadOnly) return false;
+  if (d->access == Access::Phy && !phy_writable()) return false;
+  return set_override(id, clamp(v, *d)) != nullptr;
+}
+
+bool Store::commit_phy_trial() {
+  if (ntrial_ == 0) return true;
+  if (!phy_writable()) return false;
+
+  // The whole group, not only the rows the trial named: the store then holds one
+  // consistent group whichever rows earlier commits happened to touch.
+  uint16_t ids[kPhyGroupSize]    = {};
+  Value    values[kPhyGroupSize] = {};
+  size_t   n                     = 0;
+  for (size_t i = 0; i < table_.size() && n < kPhyGroupSize; ++i) {
+    const ParamDef* d = table_.at(i);
+    if (d == nullptr || d->access != Access::Phy) continue;
+    ids[n]    = d->id;
+    values[n] = effective(d->id);
+    ++n;
+  }
+  if (!persist_->save_group(ids, values, n)) return false;
+
+  for (size_t i = 0; i < n; ++i) (void)set_override(ids[i], values[i]);
+  ntrial_ = 0;
+  return true;
+}
+
 bool Store::restore_defaults() {
+  // The committed PHY group survives, in RAM and in the store (see store.h).
+  Override kept[kPhyGroupSize] = {};
+  size_t   nkept               = 0;
+  for (size_t i = 0; i < noverrides_; ++i) {
+    const ParamDef* d = find(overrides_[i].id);
+    if (d != nullptr && d->access == Access::Phy && nkept < kPhyGroupSize) {
+      kept[nkept++] = overrides_[i];
+    }
+  }
+
   noverrides_ = 0;
   for (size_t i = 0; i < kMaxTableParams; ++i) overrides_[i] = Override{};
+  for (size_t i = 0; i < nkept; ++i) (void)set_override(kept[i].id, kept[i].value);
+
   if (persist_ == nullptr || !persist_->usable()) return false;
-  return persist_->clear_all();
+  if (!persist_->clear_all()) return false;
+  if (nkept == 0) return true;
+  uint16_t ids[kPhyGroupSize]    = {};
+  Value    values[kPhyGroupSize] = {};
+  for (size_t i = 0; i < nkept; ++i) {
+    ids[i]    = kept[i].id;
+    values[i] = kept[i].value;
+  }
+  return persist_->save_group(ids, values, nkept);
 }
 
 PersistStatus Store::read_persist_status() const {
   // D53 - after a read, this reports whether the node's current overrides are persisted,
   // and reads PERSISTED when there are none.
+  // A PHY trial is applied and deliberately not persisted until it is confirmed.
+  if (ntrial_ > 0) return PersistStatus::AppliedNotPersisted;
   if (noverrides_ == 0) return PersistStatus::Persisted;
   if (persist_ == nullptr || !persist_->usable()) {
     return PersistStatus::AppliedNotPersisted;

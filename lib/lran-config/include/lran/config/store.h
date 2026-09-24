@@ -33,6 +33,13 @@ class Persist {
   virtual bool usable() const                  = 0;
   virtual bool save(uint16_t id, Value v)      = 0;
   virtual bool clear_all()                     = 0;
+
+  // spec 12.4 - the PHY group written as one. A reboot between two save() calls would
+  // come back on a mixed group, a new frequency with the old SF, which nobody chose and
+  // no other radio in the fleet runs. An implementation writes all n or none and returns
+  // false in the second case. There is deliberately no default built from save(), because
+  // one would compile and be wrong.
+  virtual bool save_group(const uint16_t* ids, const Value* values, size_t n) = 0;
 };
 
 // Up to three blocks: node-common, this node's own, and the bridge's per-node rows where
@@ -74,8 +81,40 @@ class Store {
   schema::ConfigAckEntry apply(const schema::ConfigEntry& in, bool* applied,
                                bool* persisted);
 
-  // D52 - RESTORE_DEFAULTS clears every override and is answered as GET_ALL is.
+  // Puts back a value the nonvolatile store held, at boot. Clamped and refused as apply()
+  // would be, so a value stored before a range changed cannot come back unchecked, but it
+  // never writes the store and never opens a PHY trial: a PHY value in the store is a
+  // committed one (spec 12.4 step 2). False when the row is unknown or refuses writes.
+  bool restore(uint16_t id, Value v);
+
+  // D52 - RESTORE_DEFAULTS clears every override and is answered as GET_ALL is. It leaves
+  // the PHY group and any trial alone and writes the committed group back after clearing
+  // the store: a PHY row set to its default would take this node off the fleet's settings,
+  // and spec 12.4 lets no node-level operation do that.
   bool restore_defaults();
+
+  // ---- spec 12.4, the PHY group's trial copy (D59) ----
+  //
+  // A Store answers every Access::Phy row READ_ONLY until its owner calls this, because
+  // the table cannot know whether the firmware around it has built the retune, the window
+  // and the revert. It stays READ_ONLY whatever this says when the Persist is null or
+  // unusable (spec 12.4.2 step 2): a committed PHY value that a reboot forgets strands the
+  // node on its compiled defaults.
+  void enable_phy_trial() { phy_trial_enabled_ = true; }
+
+  // True while PHY values sit in the trial copy. apply() puts them there and nowhere else:
+  // effective() reports them, so the caller retunes from effective() once its CONFIG_ACK
+  // has gone out on the old settings (spec 12.4 step 3), and the store is not written.
+  bool phy_trial_pending() const { return ntrial_ > 0; }
+
+  // spec 12.4.2 step 5 - confirmation. Writes the whole group through save_group(), then
+  // makes the trial values the committed ones. False, with the trial left in place and the
+  // store as it was, when the write failed; the caller's window then reverts.
+  bool commit_phy_trial();
+
+  // spec 12.4.2 step 6 - the window expired. Drops the trial copy, so effective() is the
+  // committed group again and the caller retunes from it. Nothing is written.
+  void revert_phy_trial() { ntrial_ = 0; }
 
   // spec 8.11, D53 - after a read this reports whether the current overrides are
   // persisted, and reads PERSISTED when there are none.
@@ -98,10 +137,17 @@ class Store {
   Override*       slot(uint16_t id);
   const Override* slot(uint16_t id) const;
 
+  bool      phy_writable() const;
+  Override* set_override(uint16_t id, Value v);
+  const Override* trial_slot(uint16_t id) const;
+
   const Table& table_;
   Persist*     persist_ = nullptr;
   Override     overrides_[kMaxTableParams] = {};
   size_t       noverrides_                 = 0;
+  bool         phy_trial_enabled_          = false;
+  Override     trial_[kPhyGroupSize]       = {};
+  size_t       ntrial_                     = 0;
 };
 
 // The bytes one result costs on the wire, spec 7.4: param_id, status, ptype, len, value.

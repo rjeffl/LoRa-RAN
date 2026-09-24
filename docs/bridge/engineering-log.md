@@ -2652,3 +2652,38 @@ regeneration. The codec's `EventType` gained `PhyReverted`, and that forced two 
 to name it: the bridge's `event_type_name()`, which `-Wswitch` would otherwise fail, and
 the simnode's console table. The native suites pass: 135 in `lran-protocol`, 17 in the
 bridge's `test_events` with one new case, and 115 in the simnode.
+
+## 2026-09-24 — BF-33 split in four, and its library half built
+
+**BF-33 did not fit one session, so the operator split it.** The documents alone took about
+half of a 200k-token budget. The four slices are these: `lran-config`'s table and store;
+the bridge's §12.4.1 fleet machine with the retune in `lora_task`; the simnode's §12.4.2
+half; and the bench run B4b's row asks for. This session built the first slice. No firmware
+behaves differently yet, because no `Store` enables the trial. Library Plan §4 v0.19 records
+the API.
+
+**Adding the bridge's six PHY rows broke `test_config`.** With 21 global rows, the bridge's
+`get_all` answer counts to about 1216 bytes, and `lran/bridge/config/state` to about 1134,
+against a `kMaxPayloadLen` of 1024. Both figures come from an offline count at each row's
+longest value, not from a board. The operator chose to raise `kMaxPayloadLen` to 1536.
+`MQTT_MAX_PACKET_SIZE` was already 2048. The publish queue's 32 slots grow by about 16 KB,
+and the `heltec` build reads 195,032 bytes of RAM, 59.5 %. Two stack buffers were sized by
+`kMaxPayloadLen`, and both changed. `publish_cmd_ack()` runs on `sched_task` and now uses
+128 bytes. The version document built on each broker connect is now static, so `mqtt_task`
+does not hold two payloads on its stack at once. **Read both tasks' high-water marks at the
+next flash**, because nothing on a board has checked this change.
+
+**Two questions go to the specification.** Neither blocks the next slice.
+
+- **`RESTORE_DEFAULTS` keeps the committed PHY group.** The spec's §8.10 and D52 say it
+  clears every override. Applied to the PHY group, it would retune one node to D1's
+  defaults while the fleet stayed where it was, which §12.4 exists to prevent. The store
+  keeps the group, and the next revision should say so.
+- **A node's `CONFIG_ACK` for a PHY trial reads `APPLIED_NOT_PERSISTED`.** That is the
+  truth about the trial values, and §12.4.1 step 4 checks only the values. §12.4.2 step 2
+  says `APPLIED_NOT_PERSISTED` "does not extend to the PHY group", which was written about
+  a node with no store. The two readings should be reconciled in the text.
+
+The native suites pass: 25 in `lran-config` with nine new cases, 387 in the bridge and 115
+in the simnode. The `heltec` and `simnode-xiao-wio` targets build, and `run_ci_local.py`
+passes.

@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.18
+**Version:** 0.19
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.14**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -681,11 +681,12 @@ behind `lora_configure()`, `lora_configure_errors()` or `command.h`'s defaults. 
 that reads them (Bridge Impl Plan §6.3). v0.9's sketch also named
 `mppt_write_arm_timeout_s`, and BF-29 adds it when it builds the HEX proxy.
 
-**The PHY rows are read-only until BF-33.** D56 brought spec §12.1's parameters into
-runtime configuration under §12.4's commit-and-revert, and declaring them now lets Home
-Assistant read the working point from the first release that carries the table. A `SET`
-answers `READ_ONLY` (spec §8.12) until the trial-and-revert path exists, because a PHY
-change that half-applies strands a node that has no OTA. **`tx_power_dbm`'s maximum is
+**The PHY rows are read-only until their owner builds §12.4.** D56 brought spec §12.1's
+parameters into runtime configuration under §12.4's commit-and-revert, and declaring them
+lets Home Assistant read the working point from the first release that carries the table.
+A `SET` answers `READ_ONLY` (spec §8.12) until the trial-and-revert path exists, because a
+PHY change that half-applies strands a node that has no OTA. BF-33's library half made
+that a property of the `Store` rather than of the row, as described below. **`tx_power_dbm`'s maximum is
 D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
 either range is a decision, not a configuration change.
 
@@ -695,8 +696,36 @@ under the node rows' names, as `cad_retries` already appears in both. The node r
 where they are. The bridge answers a PHY row named on a node's topic `read_only` without
 sending a `CONFIG` (spec §16.7.1). **`Store` needs a second copy for the group**: it
 persists an override when it applies one, and spec §12.4 needs the trial values held in
-RAM until they are confirmed, with the last known-good values alone in the store. The
-rows, the names and the store change land with BF-33's code.
+RAM until they are confirmed, with the last known-good values alone in the store.
+BF-33's library half built both on 2026-09-24.
+
+**What BF-33's library half built, 2026-09-24.** The bridge and node code that drives it
+is later work, so no firmware behaves differently yet. Six things changed:
+
+- **`Access::Phy` replaces `Access::ReadOnly` on the six node rows**, and marks the
+  bridge's six. A `Store` answers a `Phy` row `READ_ONLY` until its owner calls
+  `enable_phy_trial()`, and goes on answering `READ_ONLY` whenever its `Persist` is null
+  or unusable (spec §12.4.2 step 2). The table cannot know which firmware has built the
+  retune and the window, so the store is told.
+- **The bridge's rows are `0x0010`–`0x0015`**, `Owner::BridgeGlobal`, with the node rows'
+  names, types, ranges and defaults. `phy_rows_agree()` is a `static_assert` that holds
+  them equal, because a narrower node range would clamp a value the bridge accepted, and
+  §12.4.1 step 4 abandons a change on any clamp.
+- **`apply()` puts a PHY value in a trial copy and writes nothing.** `effective()` reports
+  the trial value, so the caller retunes from it. The store still holds the committed
+  group, which satisfies §12.4's step 2 at no cost. `read_persist_status()` reads
+  `APPLIED_NOT_PERSISTED` while a trial is pending.
+- **`commit_phy_trial()` writes the whole group through a new `Persist::save_group()`**,
+  which an implementation makes all-or-nothing. A reboot between six `save()` calls would
+  come back on a mixed group. `save_group()` has no default built from `save()`, because
+  one would compile and be wrong. A failed write leaves the trial in place, and the
+  caller's window reverts it. `revert_phy_trial()` drops the trial copy.
+- **`restore()` is the boot path.** It clamps and refuses as `apply()` does, but it never
+  writes the store and never opens a trial, because a stored PHY value is a committed one.
+- **`restore_defaults()` keeps the committed PHY group**, in RAM and in the store, which it
+  writes back after `clear_all()`. A PHY row reset to its default by one node's
+  `RESTORE_DEFAULTS` would take that node off the fleet's settings. **D60** accepted
+  this on 2026-09-24, and spec §8.10 is to say it at the next revision.
 
 **GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
 milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
@@ -883,6 +912,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.19** — **BF-33's library half is built.** §4 records `Access::Phy`, the bridge's
+  PHY rows at `0x0010`–`0x0015`, the store's trial copy, `Persist::save_group()`,
+  `Store::restore()`, and a `RESTORE_DEFAULTS` that keeps the committed PHY group.
 
 - **v0.18** — **Protocol specification v0.13 → v0.14.** §4 records what **D59** asks of
   the table and the store: six bridge rows for the PHY group, and a trial copy the store

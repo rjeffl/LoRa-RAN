@@ -44,7 +44,7 @@ bool PubSubTransport::begin(const MqttConfig& cfg) {
   }
   client_.setServer(cfg_.host, cfg_.port);
 
-  // MQTT_MAX_PACKET_SIZE is 1024 from the build flags (D5, and the trap with its own
+  // MQTT_MAX_PACKET_SIZE is 2048 from the build flags (D5, and the trap with its own
   // line in this node's CLAUDE.md). setBufferSize asks the library to honour it at
   // runtime too; a false return means the allocation failed and discovery configs
   // would vanish with no error, which is worth refusing the whole begin() for.
