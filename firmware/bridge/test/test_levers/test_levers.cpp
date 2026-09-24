@@ -91,6 +91,7 @@ void test_the_table_defaults_are_the_consumers_defaults() {
   for (size_t i = 0; i < kNodeCount; ++i) {
     TEST_ASSERT_EQUAL_UINT16(kPollIntervalDefaultS, v.poll_interval_s[i]);
   }
+  TEST_ASSERT_FALSE(v.simnode_diag_enable);  // spec 16.6 - off unless someone sets it
 }
 
 void test_each_global_override_reaches_its_lever() {
@@ -107,6 +108,7 @@ void test_each_global_override_reaches_its_lever() {
   set(store, ConfigScope::Bridge, 0, "error_min_interval_ms", 2500);
   set(store, ConfigScope::Bridge, 0, "config_readback_timeout_ms", 20000);
   set(store, ConfigScope::Bridge, 0, "config_ack_timeout_ms", 12000);
+  set(store, ConfigScope::Bridge, 0, "simnode_diag_enable", 1);
 
   const Levers v = levers_from(store);
   TEST_ASSERT_EQUAL_UINT16(15, v.diag_interval_s);
@@ -120,6 +122,7 @@ void test_each_global_override_reaches_its_lever() {
   TEST_ASSERT_EQUAL_UINT32(2500, v.error_min_interval_ms);
   TEST_ASSERT_EQUAL_UINT32(20000, v.config_readback_timeout_ms);
   TEST_ASSERT_EQUAL_UINT32(12000, v.config_ack_timeout_ms);
+  TEST_ASSERT_TRUE(v.simnode_diag_enable);
 }
 
 // A value outside its row's range is clamped by the store, and the lever runs the clamped
@@ -198,9 +201,11 @@ void test_each_reader_takes_each_publish_once() {
 
   set(store, ConfigScope::Bridge, 0, "backoff_max_ms", 800);
   set(store, ConfigScope::Node, kNodeGateLink, "poll_interval_s", 300);
+  set(store, ConfigScope::Bridge, 0, "simnode_diag_enable", 1);
   board.publish(levers_from(store));
   TEST_ASSERT_TRUE(board.take_if_changed(&lora_seen, &out));
   TEST_ASSERT_EQUAL_UINT32(800, out.backoff_max_ms);
+  TEST_ASSERT_TRUE(out.simnode_diag_enable);
   TEST_ASSERT_EQUAL_UINT16(300, out.poll_interval_s[index_of(kNodeGateLink)]);
   TEST_ASSERT_TRUE(board.take_if_changed(&sched_seen, &out));
 }

@@ -227,6 +227,28 @@ void test_bench_availability_is_published_only_with_simnode_diag_enable() {
   TEST_ASSERT_TRUE(bench_publication_allowed(r.info(kSim0), true));
 }
 
+// spec 16.6 - with the flag clear a bench node publishes nothing, except one `offline` on
+// the tick that clears it, so the entities HA kept stop claiming a reading. A production
+// node, and a bench node with the flag set, publish their real state. Unknown publishes
+// nothing in any case.
+void test_a_bench_node_publishes_only_offline_and_only_as_the_flag_clears() {
+  Rig r;
+  TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Online, false, false));
+  TEST_ASSERT_EQUAL_STRING(
+      "offline", availability_publication(r.info(kSim0), Availability::Online, false, true));
+  TEST_ASSERT_EQUAL_STRING(
+      "online", availability_publication(r.info(kSim0), Availability::Online, true, false));
+  TEST_ASSERT_EQUAL_STRING(
+      "offline", availability_publication(r.info(kSim0), Availability::Offline, true, false));
+  TEST_ASSERT_EQUAL_STRING(
+      "online", availability_publication(r.info(kGate), Availability::Online, false, false));
+  TEST_ASSERT_EQUAL_STRING(
+      "online", availability_publication(r.info(kGate), Availability::Online, false, true));
+  TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Unknown, false, true));
+  TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Unknown, true, false));
+  TEST_ASSERT_NULL(availability_publication(r.info(kGate), Availability::Unknown, false, false));
+}
+
 // spec 16.1's tokens, and no topic for an address it does not name.
 void test_node_topic_names_are_the_spec_tokens() {
   char name[16];
@@ -264,6 +286,7 @@ int main() {
   RUN_TEST(test_a_bench_node_is_watched_only_once_heard);
   RUN_TEST(test_a_broker_connect_republishes_every_known_node);
   RUN_TEST(test_bench_availability_is_published_only_with_simnode_diag_enable);
+  RUN_TEST(test_a_bench_node_publishes_only_offline_and_only_as_the_flag_clears);
   RUN_TEST(test_node_topic_names_are_the_spec_tokens);
   return UNITY_END();
 }

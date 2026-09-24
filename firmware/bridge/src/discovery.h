@@ -118,7 +118,7 @@ struct DiscoveryItem {
 // exhausted. Skips a node whose publication is gated (spec 16.6) and a button whose
 // `cmd` the node type does not implement.
 //
-// `simnode_diag_enable` is BF-26's toggle, passed in rather than read, for the reason
+// `simnode_diag_enable` is BF-26's flag, passed in rather than read, for the reason
 // node_availability.h gives: the gate is on publication and nowhere else.
 bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_count,
                     bool simnode_diag_enable, DiscoveryItem* out);

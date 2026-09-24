@@ -88,4 +88,12 @@ inline bool bench_publication_allowed(const NodeInfo& info, bool simnode_diag_en
   return !info.is_bench || simnode_diag_enable;
 }
 
+// What row's retained availability topic should carry, or nullptr for nothing. Unknown
+// publishes nothing. A bench node with the flag clear publishes nothing either, except
+// `offline` on the tick that clears it (`clearing`). Its discovery entities stay in HA's
+// registry, and `offline` is how they say that nothing updates them. Spec 16.6 allows that
+// one publication and no other while the flag is clear.
+const char* availability_publication(const NodeInfo& info, Availability state,
+                                     bool simnode_diag_enable, bool clearing);
+
 }  // namespace bridge

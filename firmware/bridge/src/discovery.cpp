@@ -215,8 +215,7 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
 
     // Spec 16.6 - a bench node's publication is gated, and discovery is publication.
     // WITHOUT THIS, four simnode devices and their entities enter HA's registry, which
-    // remembers a unique_id forever, and every one of them reads `unknown` until BF-26
-    // builds the toggle that would make them update.
+    // remembers a unique_id forever, on a bridge that never publishes their state.
     if (!bench_publication_allowed(info, simnode_diag_enable)) {
       ++cur->node;
       cur->entity = 0;
@@ -312,7 +311,9 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   j.str("unit_of_meas", d.unit);
   j.str("dev_cla", d.device_class);
   j.str("stat_cla", d.state_class);
-  if (d.diagnostic) j.str("ent_cat", "diagnostic");
+  // Spec 16.6 axis 3 - every bench entity is diagnostic, its buttons included, so a
+  // simnode's Open never lands on a dashboard beside the gate's.
+  if (d.diagnostic || lran::is_bench_node(item.node_id)) j.str("ent_cat", "diagnostic");
 
   // The device block. `via_device` puts every node under the bridge in HA's device tree,
   // which is true of the topology and is also how a reader tells a silent node from a
