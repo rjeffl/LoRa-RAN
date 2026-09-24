@@ -1,10 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-24 by the session that opened B4b.** **B4b's build has not started.**
-Reading spec §12.4 before any code showed that it left the fleet mechanism open. The
-session wrote **spec v0.14's §12.4.1 to §12.4.4**, and the operator accepted **D59** as
-drafted the same day, with **W17** left until after GateLink deploys. The v0.14 citation
-sweep and W4's `PHY_REVERTED` vector are done. **BF-33 is next.**
+**Written 2026-09-24 by the session that built BF-33's library half.** BF-33 is split into
+four slices, by operator decision. Slice 1 is done: `lran-config`'s PHY rows and the store's
+trial copy, on branch `b4b-phy-commit`. **Slice 2, the bridge's fleet machine, is next.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,13 +17,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: B4b, BF-33's PHY commit-and-revert.
+Continue from docs/bridge/HANDOFF.md: B4b, BF-33 slice 2, the bridge's fleet machine.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **B4b, BF-33** (the bridge and a simnode) | *The next job*; B4b's row in Impl Plan **§8**; Firmware Tasks **§8**; spec **§12.1**, **§12.4** and **§16.7**; Decision Register **D56** and **D59**; Library Plan **§4**'s PHY rows |
+| **B4b, BF-33 slice 2** (host first, then the bridge board) | *The next job*; spec **§12.4.1**, **§12.4.3** and **§16.7.5**; Library Plan **§4**'s *What BF-33's library half built*; the engineering log's *BF-33 split in four* entry; `config_store.{h,cpp}`, `config_path.{h,cpp}` and `lora_link.cpp`'s configure path |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -36,21 +34,35 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**BF-33 builds spec §12.4 as v0.14 states it**, on the bridge and the simnode. B4b's
-row in §8 is the acceptance criterion. Four things carry the weight:
+**BF-33 is four slices**, split on 2026-09-24 because the documents alone took half a
+session:
 
-- the revert survives a reboot mid-trial;
-- only an authenticated frame received on the new settings confirms a node;
-- **no node commits until the bridge has heard every node on the new settings**
-  (§12.4.1 steps 6 and 7);
-- TX power stays clamped by D33 in the table.
+1. **`lran-config`** — **done**, commit `feat(config): BF-33's library half`. `Access::Phy`,
+   the bridge's rows at `0x0010`–`0x0015`, `Store`'s trial copy, `Persist::save_group()`,
+   `Store::restore()`. No `Store` enables the trial, so every PHY row still answers
+   `READ_ONLY`.
+2. **The bridge's fleet machine, spec §12.4.1 steps 1 to 8 and §16.7.5.** Next.
+3. **The simnode's half, spec §12.4.2.** The simnode keeps its own RAM store, not
+   `lran-config`'s `Store`, and §12.4.2 step 2 makes a node with no usable store answer
+   `READ_ONLY`. **Whether the simnode gets an NVS store for the PHY group is the first
+   question of this slice.** Without one, it cannot take a change at all.
+4. **The bench run** against B4b's row in Impl Plan §8: a reboot mid-trial, confirmation
+   by a received frame, the fleet moving together, and D33's clamp.
 
-Three pieces of the build are not in the code yet. The bridge needs six global PHY rows in
-`kBridgeParams`, and Library Plan §4 changes in the same commit. `Store::apply` persists
-an override at once, but the PHY group needs a committed copy and a trial copy. The simnode
-has no nonvolatile store and does not use `lran-config`'s `Store`. Library Plan §4 says
-what the bridge rows and the store's trial copy need. `EventType::PhyReverted` and the
-bridge's `phy_reverted` topic name are already in.
+**Slice 2 has these pieces, and none is in the code yet:**
+
+- `NvsPersist::save_group()` as one NVS blob, so the group lands in one commit. It returns
+  `false` today, marked `TODO(BF-33)`.
+- `nvs_restore()` calls `Store::apply()`. It must call `Store::restore()` instead, or a
+  stored PHY value would open a trial at boot.
+- The bridge enables the trial on its global store only.
+- A PHY row named on `lran/<node>/config/set` answers `read_only` and sends no `CONFIG`
+  (spec §16.7.1). Today it goes to the node half.
+- The step 2 refusals, the fan-out, the retune in `lora_task` (`lora_configure()` is
+  `lora_task`'s alone), the step 8 deadline, the confirming `GET`, and
+  `lran/bridge/event/phy_reverted`.
+- **Read `sched_task`'s and `mqtt_task`'s high-water marks at the first flash.**
+  `kMaxPayloadLen` rose to 1536 in slice 1, and no board has run it.
 
 **The sandbox HA is drivable by API.** The session holds an admin token for it outside the
 repository, and HA's `hassio.addon_restart` restarts the broker. The Supervisor REST proxy
@@ -58,6 +70,11 @@ refuses a long-lived token. **Opening the bridge's USB serial port resets it**, 
 before the run, not during.
 
 ## Open, and not closable from here
+
+- **Two §12.4 questions for the next spec revision**, in the engineering log's *BF-33 split
+  in four* entry. `RESTORE_DEFAULTS` now keeps the committed PHY group, although §8.10 and
+  D52 say it clears every override. A PHY trial's `CONFIG_ACK` reads
+  `APPLIED_NOT_PERSISTED`, which §12.4.2 step 2's wording seems to rule out.
 
 - **BF-34's heard-first `POLL` went to f1 210 ms before one roll in six**, and that roll's
   first attempt went unanswered. The engineering log's *BF-34 on air* entry has two
@@ -108,7 +125,7 @@ before the run, not during.
   reopen it is R-4.4b's PER at the gate, rising with the bridge's WiFi traffic, once
   GateLink is deployed.
 - **Two header citations of the Library Plan are stale, and no check covers them.**
-  Firmware Tasks says v0.12 and the Impl Plan says v0.14, against v0.16.
+  Firmware Tasks says v0.12 and the Impl Plan says v0.14, against v0.19.
   `spec_citation_version.py` reads only the protocol specification's citations. Read each
   document against the Library Plan's changes, then bump. Extending the check to every
   ``**<Role>:** [`LRAN-…`](…) vX.Y`` header line is the lasting fix, on a branch of its own.
@@ -171,8 +188,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4b** (**BF-33**) unstarted; spec v0.14 and D59 define it. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **B4b**, BF-33 |
+| Not done | **B4b** (**BF-33**): slice 1 of 4 built, slices 2 to 4 not started. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **B4b**, BF-33 slice 2 |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
