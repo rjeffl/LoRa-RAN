@@ -1145,8 +1145,9 @@ dummy publish showed these rules at the broker on 2026-09-23 (§6.6.2).
 It sits in `publish.cpp` beside BF-24's documents and shares their enumeration names and
 counters. `test_events` carries it on the host. No node on the bench sends an `EVENT`: a
 simnode is a bench node, and spec §16.6 keeps its events off every topic. BF-27's dummy
-publish sent events through it on air (§6.6.2). V-B8 as written, an HA restart and a
-discovery refresh with an event in history, has not been run.
+publish sent events through it on air (§6.6.2). **V-B8 passed in Home Assistant on
+2026-09-24**, with synthetic events and no replay across HA restarts and discovery
+refreshes (§6.6.2).
 
 **The topic is `lran/<node>/event/<name>`**, where `<name>` is spec §8.9's name in lower case:
 `fire_asserted`, `vehicle_while_held_open` and the rest. Each type gets a topic of its own,
@@ -1402,8 +1403,11 @@ that sends email or SMS filters on `synthetic`**.
 **Availability is not the dummy's to move.** GateLink is watched from boot, never answers,
 and goes `offline` after three missed polls, so Home Assistant shows its entities as
 unavailable. For a bench session, publish `online` retained to
-`lran/gatelink/availability` by hand. The watchdog does not overwrite it until the next
-broker connect, because it publishes a transition, not a state.
+`lran/gatelink/availability` by hand. The watchdog publishes a transition, not a state,
+so it overwrites that `online` twice: at its first `offline` transition, three missed polls
+after the bridge boots, and at every broker connect. Set it after the first, and again
+after each broker restart. Found on 2026-09-24: opening the serial port reset the bridge,
+and its first transition overwrote the hand-set value two minutes later.
 
 **On air, 2026-09-23**, against the sandbox broker, with `republish_interval_s` set to 60
 for the run and restored to 900 after. The engineering log has the capture.
@@ -1418,10 +1422,15 @@ for the run and restored to 900 after. The engineering log has the capture.
 | Events never retained | Three events published once each, the follow-up among them; a retained-only subscription afterwards found no `event` topic |
 | Heartbeat | An unchanged `STATUS` 65 s later republished all five documents; `heartbeats` rose by 4 |
 
-**What is not shown.** The rules were read at the broker, not in Home Assistant, and V-B8's
-HA restart and discovery refresh have not been run. **`node/state` republishes on every
-frame**, because `uptime_s` is in it and changes every poll. A real GateLink will do the
-same. Whether uptime belongs in the change hash is an open question (`HANDOFF.md`).
+**In Home Assistant, 2026-09-24**, on HA 2026.9.3 with the same image. The rules read the
+same in HA: the synthetic sensor was `on`, and 20 solar and battery entities went
+`unavailable` and stayed so through HA restarts. **V-B8 passed.** An automation on
+`lran/gatelink/event/#` logged each of three events once, through two HA restarts, an MQTT
+integration reload and a broker restart that republished discovery. The engineering log
+has the sequence.
+
+**What is not shown.** `node/state` republishes on every frame, because `uptime_s` is in
+it and changes every poll. A real GateLink will do the same. Whether uptime belongs in the change hash is an open question (`HANDOFF.md`).
 
 ### 6.7 The configuration path — BF-32, built 2026-09-21
 
@@ -1541,7 +1550,7 @@ moves the `config/ack` publish to another task, for a race that one short lock c
 | V-B5 command retry / dedup | Suppress an ACK deliberately | B3b |
 | V-B6 HEX three gates | Each gate tested independently | B5 |
 | V-B7 publication policy | Injected jitter, staleness flags, sentinels | B4 |
-| V-B8 events fire once | HA restart + discovery refresh with an event in history | B4 |
+| V-B8 events fire once | HA restart + discovery refresh with an event in history | B4. **Met 2026-09-24** on synthetic events, §6.6.2 |
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3b |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
