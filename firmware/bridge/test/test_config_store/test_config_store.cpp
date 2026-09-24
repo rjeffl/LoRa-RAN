@@ -47,7 +47,11 @@ class FakePersist final : public config::Persist {
     ++clears_;
     return true;
   }
-  bool save_group(const uint16_t*, const config::Value*, size_t) override { return false; }
+  int  group_saves_ = 0;
+  bool save_group(const uint16_t*, const config::Value*, size_t) override {
+    ++group_saves_;
+    return save_ok_;
+  }
 };
 
 ConfigSetRequest one(const char* name, int32_t value, bool readable = true) {
@@ -188,18 +192,114 @@ void test_a_value_the_parser_could_not_read_is_type_mismatch() {
   TEST_ASSERT_FALSE(results[0].has_value);
 }
 
-// D56 - the PHY rows are READ_ONLY until BF-33 builds spec 12.4's commit-and-revert. A
-// readable value that refuses a write is honest; a write that half-applies is not.
-void test_a_phy_row_refuses_the_write_and_reports_what_it_holds() {
+// spec 16.7.1 - a PHY row on a node's topic is answered read_only with the value last
+// read back from that node, and nothing is sent. Only the bridge's topic moves the fleet.
+void test_a_phy_row_on_a_node_topic_is_read_only_and_sends_nothing() {
   ConfigStore store;
   store.begin(nullptr, nullptr, 0);
 
-  ConfigResult results[8];
-  const size_t n = store.apply(ConfigScope::Node, lran::kNodeSim1,
-                               one("spreading_factor", 7), results, 8, nullptr, nullptr);
-  // spreading_factor is the NODE's row, so it goes to the node half rather than being
-  // answered here - the node is the one that refuses it. Nothing is answered locally.
-  TEST_ASSERT_EQUAL_UINT32(0, n);
+  ConfigResult     results[8];
+  ConfigSetRequest node_half;
+  size_t n = store.apply(ConfigScope::Node, lran::kNodeSim1, one("spreading_factor", 7),
+                         results, 8, nullptr, &node_half);
+  TEST_ASSERT_EQUAL_UINT32(1, n);
+  TEST_ASSERT_TRUE(results[0].status == ResultStatus::ReadOnly);
+  TEST_ASSERT_FALSE(results[0].has_value);  // never read back
+  TEST_ASSERT_EQUAL_UINT8(0, node_half.count);
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Node, one("spreading_factor", 7)));
+
+  schema::ConfigAckEntry e;
+  schema::entry_pack(&e, 0x0111, ParamStatus::Ok, PType::U8, 9);
+  store.note_readback(lran::kNodeSim1, &e, 1);
+  n = store.apply(ConfigScope::Node, lran::kNodeSim1, one("spreading_factor", 7), results, 8,
+                  nullptr, &node_half);
+  TEST_ASSERT_TRUE(results[0].has_value);
+  TEST_ASSERT_EQUAL_INT32(9, results[0].value);
+}
+
+// D56 - without a usable store the bridge's PHY rows stay READ_ONLY (spec 12.4.2 step 2
+// binds the bridge for the same reason), and phy_request() asks for nothing.
+void test_the_bridges_phy_rows_need_a_usable_store() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+  store.enable_phy_trial();
+  TEST_ASSERT_FALSE(store.phy_trial_enabled());
+
+  PhyRequest pr;
+  TEST_ASSERT_FALSE(store.phy_request(one("spreading_factor", 10), &pr));
+  ConfigResult results[4];
+  TEST_ASSERT_EQUAL_UINT32(1, store.apply(ConfigScope::Bridge, 0, one("spreading_factor", 10),
+                                          results, 4, nullptr, nullptr));
+  TEST_ASSERT_TRUE(results[0].status == ResultStatus::ReadOnly);
+}
+
+// spec 12.4.1 step 1 - clamped against the bridge's own row; unnamed rows keep their
+// current value; apply() leaves the rows to the fleet machine.
+void test_a_phy_request_clamps_and_carries_the_whole_group() {
+  FakePersist   p;
+  ConfigStore   store;
+  store.begin(&p, nullptr, 0);
+  store.enable_phy_trial();
+  TEST_ASSERT_TRUE(store.phy_trial_enabled());
+
+  ConfigSetRequest req = one("spreading_factor", 13);
+  req.count            = 2;
+  std::snprintf(req.entries[1].name, sizeof(req.entries[1].name), "diag_interval_s");
+  req.entries[1].value_readable = true;
+  req.entries[1].value          = 30;
+
+  PhyRequest pr;
+  TEST_ASSERT_TRUE(store.phy_request(req, &pr));
+  TEST_ASSERT_TRUE(pr.named[kPhySf]);
+  TEST_ASSERT_TRUE(pr.status[kPhySf] == ResultStatus::Clamped);
+  TEST_ASSERT_EQUAL_INT32(12, pr.target.v[kPhySf]);
+  TEST_ASSERT_FALSE(pr.named[kPhyFreq]);
+  TEST_ASSERT_EQUAL_INT32(917400000, pr.target.v[kPhyFreq]);
+
+  ConfigResult results[4];
+  const size_t n = store.apply(ConfigScope::Bridge, 0, req, results, 4, nullptr, nullptr);
+  TEST_ASSERT_EQUAL_UINT32(1, n);  // diag_interval_s alone
+  TEST_ASSERT_EQUAL_STRING("diag_interval_s", results[0].name);
+  TEST_ASSERT_EQUAL_INT32(9, store.phy_group().v[kPhySf]);  // nothing moved
+}
+
+// Steps 5, 7 and 8 - the trial copy, one group write on commit, nothing on revert.
+void test_the_trial_commits_through_one_group_write_and_reverts_without_one() {
+  FakePersist p;
+  ConfigStore store;
+  store.begin(&p, nullptr, 0);
+  store.enable_phy_trial();
+
+  PhyGroup g = store.phy_group();
+  g.v[kPhySf] = 10;
+  TEST_ASSERT_TRUE(store.begin_phy_trial(g));
+  TEST_ASSERT_EQUAL_INT32(10, store.phy_group().v[kPhySf]);
+  store.revert_phy_trial();
+  TEST_ASSERT_EQUAL_INT32(9, store.phy_group().v[kPhySf]);
+  TEST_ASSERT_EQUAL_INT32(0, p.group_saves_);
+
+  TEST_ASSERT_TRUE(store.begin_phy_trial(g));
+  TEST_ASSERT_TRUE(store.commit_phy_trial());
+  TEST_ASSERT_EQUAL_INT32(1, p.group_saves_);
+  TEST_ASSERT_EQUAL_INT32(0, p.saves_);
+  TEST_ASSERT_EQUAL_INT32(10, store.phy_group().v[kPhySf]);
+}
+
+// A stored PHY value is a committed one. Restored through apply(), it would open a trial
+// at every boot; restored through restore(), it writes nothing.
+void test_a_restored_phy_value_is_committed_and_writes_nothing() {
+  FakePersist p;
+  ConfigStore store;
+  store.begin(&p, nullptr, 0);
+  store.enable_phy_trial();
+  TEST_ASSERT_TRUE(store.restore(ConfigScope::Bridge, 0, 0x0011, 10));
+  TEST_ASSERT_EQUAL_INT32(10, store.phy_group().v[kPhySf]);
+  TEST_ASSERT_EQUAL_INT32(0, p.saves_ + p.group_saves_);
+
+  ConfigResult results[40];
+  AckPersist   persist = AckPersist::Unknown;
+  (void)store.read_all(ConfigScope::Bridge, 0, results, 40, &persist);
+  TEST_ASSERT_TRUE(persist == AckPersist::Persisted);  // no trial pending
 }
 
 // ---------------------------------------------------------------------------
@@ -541,7 +641,11 @@ int main(int, char**) {
   RUN_TEST(test_a_value_outside_the_range_is_clamped_and_said_so);
   RUN_TEST(test_an_unknown_name_is_answered_and_the_rest_still_applies);
   RUN_TEST(test_a_value_the_parser_could_not_read_is_type_mismatch);
-  RUN_TEST(test_a_phy_row_refuses_the_write_and_reports_what_it_holds);
+  RUN_TEST(test_a_phy_row_on_a_node_topic_is_read_only_and_sends_nothing);
+  RUN_TEST(test_the_bridges_phy_rows_need_a_usable_store);
+  RUN_TEST(test_a_phy_request_clamps_and_carries_the_whole_group);
+  RUN_TEST(test_the_trial_commits_through_one_group_write_and_reverts_without_one);
+  RUN_TEST(test_a_restored_phy_value_is_committed_and_writes_nothing);
 
   RUN_TEST(test_a_set_on_a_node_topic_splits_into_two_halves);
   RUN_TEST(test_the_roll_refusal_matches_the_node_half_apply_produces);

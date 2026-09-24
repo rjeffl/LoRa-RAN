@@ -29,6 +29,7 @@
 #include "lran/config/store.h"
 #include "lran/config/table.h"
 #include "lran/types.h"
+#include "phy_change.h"
 #include "registry.h"
 
 namespace bridge {
@@ -52,6 +53,17 @@ const lran::config::ParamDef* find_param(ConfigScope scope, const char* name);
 // ConfigStore::apply() hands back a non-empty node half. test_config_store checks both
 // against the same requests.
 bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req);
+
+// spec 12.4.1 steps 1 and 2 - what a set on the bridge's topic asks of the PHY group,
+// before anything applies. Each named row is clamped against the bridge's own row, so
+// every node is sent a value inside its range; an unnamed row keeps the bridge's current
+// value, so the change always carries the whole group.
+struct PhyRequest {
+  bool         any = false;
+  bool         named[kPhyGroupSize]  = {};
+  ResultStatus status[kPhyGroupSize] = {};  // Ok or Clamped
+  PhyGroup     target{};
+};
 
 // One of the two documents' worth of rows, in table order.
 size_t scope_rows(ConfigScope scope, const lran::config::ParamDef** out, size_t cap);
@@ -157,6 +169,30 @@ class ConfigStore {
                ConfigResult* results, size_t cap, AckPersist* persist,
                ConfigSetRequest* node_half);
 
+  // Puts back a value NVS held, at boot, through Store::restore(): clamped and refused as
+  // a set would be, but never written back and never a PHY trial. A stored PHY value is a
+  // committed one (spec 12.4 step 2); replayed through apply(), it would open a trial at
+  // every boot. False when the row is unknown to the scope or refuses the value.
+  bool restore(ConfigScope scope, lran::NodeId node, uint16_t id, lran::config::Value v);
+
+  // ---- spec 12.4, the bridge's copy of the PHY group (D59) ----
+  //
+  // The fleet machine (phy_change.h) owns a change, so apply() leaves the bridge's PHY
+  // rows alone once the trial is enabled: phy_request() reads them, and the machine moves
+  // the store at step 5 and step 7. Before enable_phy_trial() they answer READ_ONLY, as
+  // the library's Store does.
+  void enable_phy_trial();
+  bool phy_trial_enabled() const { return phy_trial_enabled_; }
+  bool phy_request(const ConfigSetRequest& req, PhyRequest* out) const;
+  PhyGroup phy_group() const;
+  // Step 5 - the target into the store's trial copy. Nothing is written to NVS.
+  bool begin_phy_trial(const PhyGroup& g);
+  // Step 7 - the trial becomes last known-good, through one save_group(). False when the
+  // write failed, with the trial left in place.
+  bool commit_phy_trial();
+  // Step 8, or an abandon after step 5 - effective() is the committed group again.
+  void revert_phy_trial();
+
   // D52 - RESTORE_DEFAULTS clears every override in the scope and is answered as
   // GET_ALL is. The node half is the caller's to send.
   size_t restore_defaults(ConfigScope scope, lran::NodeId node, ConfigResult* results,
@@ -197,6 +233,10 @@ class ConfigStore {
   // store rather than sharing one.
   lran::config::Store*       store_for(lran::NodeId node);
   const lran::config::Store* store_for(lran::NodeId node) const;
+  bool mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out) const;
+
+  bool                   phy_trial_enabled_ = false;
+  lran::config::Persist* global_persist_    = nullptr;
 
   lran::config::Table bridge_table_;
   lran::config::Table node_table_;  // Owner::BridgePerNode rows, the bridge's half

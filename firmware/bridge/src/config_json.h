@@ -84,6 +84,9 @@ enum class ResultStatus : uint8_t {
   TypeMismatch,
   ReadOnly,
   Unknown,
+  // spec 16.7.3 - a PHY change the bridge abandoned or reverted. The PHY group's alone,
+  // and like `unknown` it has no spec 8.12 counterpart.
+  Reverted,
 };
 
 ResultStatus result_status_of(lran::ParamStatus s);

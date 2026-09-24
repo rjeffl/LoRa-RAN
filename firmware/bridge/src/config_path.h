@@ -38,6 +38,7 @@
 #include "config_json.h"
 #include "lran/schema/node_config_v1.h"
 #include "lran/types.h"
+#include "phy_change.h"
 
 namespace bridge {
 
@@ -74,6 +75,14 @@ struct ConfigJob {
   uint8_t      bridge_result_count                  = 0;
   AckPersist   bridge_persist                       = AckPersist::NotApplied;
   bool         bridge_changed                       = false;
+
+  // BF-33 - a fleet PHY change from lran/bridge/config/set (spec 12.4.1). `dst` is unused;
+  // the fleet is every node sched_task polls when the change starts.
+  bool         phy = false;
+  PhyGroup     phy_from{};
+  PhyGroup     phy_to{};
+  bool         phy_named[kPhyGroupSize]  = {};
+  ResultStatus phy_status[kPhyGroupSize] = {};
 };
 
 enum class ConfigAction : uint8_t {

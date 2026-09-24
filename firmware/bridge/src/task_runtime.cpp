@@ -39,6 +39,7 @@
 #include "node_availability.h"
 #include "nvs_persist.h"
 #include "ota.h"
+#include "phy_change.h"
 #include "publish.h"
 #include "radio_config.h"
 #include "registry_runtime.h"
@@ -188,6 +189,23 @@ bool roll_pending_for(lran::NodeId node) { return (g_roll_pending.load() & node_
 // out a reference into the state machine.
 ConfigJob g_config_job;
 
+// BF-33, spec 12.4.1 - the fleet PHY change, under the SAME lock and for the same reasons
+// as the command path. Its job is held apart from g_config_job, because a readback job
+// may run through ConfigPath while this one waits out its cooldown.
+PhyChange g_phy_change;
+ConfigJob g_phy_job;
+bool      g_phy_job_waiting = false;  // dequeued, not yet started; sched_task alone
+uint32_t  g_phy_ticket      = 0;      // lora_request_phy()'s, for on_retuned()
+
+// spec 12.4.1 step 2's `phy_change_in_progress`, for mqtt_task. Set by mqtt_task when it
+// queues a change and cleared by sched_task once the machine is idle and nothing waits.
+std::atomic<bool> g_phy_busy{false};
+
+// spec 12.4.1 step 2's `phy_fleet_incomplete`, for mqtt_task: the nodes the scheduler
+// polls, and those of them not online. sched_availability() writes both every tick.
+std::atomic<uint32_t> g_fleet_watched{0};
+std::atomic<uint32_t> g_fleet_not_online{0};
+
 // The most rows one topic's document can carry: a scope's own rows, or the largest set
 // the parser accepts, whichever is larger.
 inline constexpr size_t kMaxScopeRows = 32;
@@ -198,6 +216,12 @@ static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonPa
 
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
+
+// spec 12.4.1 - the radio's settings at boot: the committed PHY group, which is D1's
+// envelope until a change has committed. config_begin() writes it before the tasks start.
+PhyConfig g_boot_phy = kPhy;
+// A trial was open when the bridge last stopped (spec 12.4.1). sched_task reports it once.
+bool g_phy_restart_pending = false;
 
 // g_config is used from two tasks. mqtt_task writes the stores and reads the mirror;
 // sched_task writes the mirror when a node transaction resolves and reads it to publish.
@@ -297,6 +321,7 @@ struct ConfigInboundStats {
   uint32_t applied     = 0;  // sets whose bridge half changed something
   uint32_t no_answer   = 0;  // the ack or the state document did not fit, or would not go
   uint32_t refused_roll_pending = 0;  // spec 10.6 bridge step 7, refused whole
+  uint32_t refused_phy          = 0;  // spec 12.4.1 step 2, refused whole
 };
 
 ConfigInboundStats g_cfg_inbound;
@@ -344,6 +369,8 @@ void config_on_ack(const RxMessage& msg) {
     return;
   }
   SchedLock lock;
+  // The PHY change claims its own answers first, as the roll does in cmd_on_ack().
+  if (g_phy_change.on_config_ack(msg.hdr.src, ack, msg.hdr.seq, msg.rx_millis)) return;
   g_config_path.on_config_ack(msg.hdr.src, ack, msg.hdr.seq, msg.rx_millis);
 }
 
@@ -358,6 +385,8 @@ void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
     // spec 10.6 bridge step 2 - a pending node is rolled when it is first heard. Its
     // ctx_id is already in the registry: app_task observed the frame before this.
     g_roll.on_heard(src);
+    // spec 12.4.1 step 6 - any frame counts as hearing the node on the new settings.
+    g_phy_change.on_heard(src, now_ms);
   }
   // B3a's poll-to-answer record (Impl Plan 6.1.1). Printed after the lock is released, so a
   // slow serial write never holds up sched_task.
@@ -510,7 +539,8 @@ void sched_commands(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    idle = !g_command.busy() && !g_roll.busy();
+    // BF-33 - no authenticated frame while a PHY change runs (phy_change.h).
+    idle = !g_command.busy() && !g_roll.busy() && !g_phy_change.blocks_traffic();
   }
   if (idle) {
     CommandRequest req;
@@ -595,7 +625,8 @@ void sched_roll(uint32_t now_ms) {
   bool         start = false;
   {
     SchedLock lock;
-    start = !g_roll.busy() && !g_command.busy() && g_roll.next_due(&node);
+    start = !g_roll.busy() && !g_command.busy() && !g_phy_change.blocks_traffic() &&
+            g_roll.next_due(&node);
   }
   if (start) {
     // spec 10.6 bridge step 2 - under the ctx_id the node's frame carried, with the next
@@ -769,9 +800,9 @@ void sched_config(uint32_t now_ms) {
     bool busy = false;
     {
       SchedLock lock;
-      busy = g_config_path.busy();
+      busy = g_config_path.busy() || g_phy_change.blocks_traffic();
     }
-    if (!busy) {
+    if (!busy && !g_phy_job_waiting) {
       // RECEIVED STRAIGHT INTO THE STATIC, NOT ONTO THE STACK. A ConfigJob is about a
       // kilobyte - the CONFIG payload, the names and the bridge half's results - and
       // sched_task's stack is 3072. A local here overflowed it and the board panicked
@@ -779,6 +810,12 @@ void sched_config(uint32_t now_ms) {
       // node, which is how this comment came to be written.
       if (g_config_queue != nullptr &&
           xQueueReceive(g_config_queue, &g_config_job, 0) == pdTRUE) {
+        if (g_config_job.phy) {
+          // sched_phy() starts it, once no command or roll is in flight.
+          g_phy_job         = g_config_job;
+          g_phy_job_waiting = true;
+          return;
+        }
         lran::Seq seq = 0;
         NodeState ns;
         if (registry_take_cmd_seq(g_config_job.dst, &seq) &&
@@ -842,6 +879,301 @@ void sched_config(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
+// BF-33 - the fleet PHY change on sched_task. Spec 12.4.1, 16.7.5; D59.
+//
+// ONE ANSWER, WHEN THE CHANGE ENDS (spec 16.7.5). The rows of the same set that are not
+// in the PHY group applied on mqtt_task and ride in the job, as a node half's do.
+// ---------------------------------------------------------------------------
+
+bool queue_config_job(const ConfigJob& job);  // with the MQTT path below
+
+uint32_t g_phy_event_id = 0;  // spec 16.7.5 - counts from 1 at each boot
+
+// lran/bridge/event/phy_reverted - never retained, QoS 1 (spec 16.3).
+bool publish_phy_reverted(const char* reason, lran::NodeId node) {
+  char name[16] = {0};
+  const bool has_node = node != 0 && node_topic_name(node, name, sizeof(name)) > 0;
+  char payload[128];
+  const int n = has_node
+                    ? std::snprintf(payload, sizeof(payload),
+                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":\"%s\"}",
+                                    static_cast<unsigned long>(g_phy_event_id + 1), reason, name)
+                    : std::snprintf(payload, sizeof(payload),
+                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":null}",
+                                    static_cast<unsigned long>(g_phy_event_id + 1), reason);
+  if (n <= 0 || static_cast<size_t>(n) >= sizeof(payload)) return false;
+  char topic[kMaxTopicLen];
+  if (topic_event(kTopicBridgeToken, "phy_reverted", topic, sizeof(topic)) == 0) return false;
+  if (!make_publish(&g_sched_msg, topic, payload, /*retain=*/false, /*qos=*/1) ||
+      !send_publish(g_sched_msg)) {
+    return false;
+  }
+  ++g_phy_event_id;
+  return true;
+}
+
+// lran/bridge/config/ack for the whole set, then lran/bridge/config/state when a value
+// changed. `committed` false is an abandon or a revert: the PHY entries read `reverted`
+// with the setting the bridge returned to (spec 16.7.3).
+void publish_phy_resolution(bool committed, bool persisted) {
+  size_t n = 0;
+  for (size_t i = 0; i < g_phy_job.bridge_result_count && n < kMaxScopeRows; ++i) {
+    g_sched_cfg_results[n++] = g_phy_job.bridge_results[i];
+  }
+  for (size_t k = 0; k < kPhyGroupSize && n < kMaxScopeRows; ++k) {
+    if (!g_phy_job.phy_named[k]) continue;
+    ConfigResult r;
+    std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
+    r.status    = committed ? g_phy_job.phy_status[k] : ResultStatus::Reverted;
+    r.has_value = true;
+    r.value     = committed ? g_phy_job.phy_to.v[k] : g_phy_job.phy_from.v[k];
+    g_sched_cfg_results[n++] = r;
+  }
+  const AckPersist phy_persist =
+      !committed ? AckPersist::NotApplied
+                 : persisted ? AckPersist::Persisted : AckPersist::AppliedNotPersisted;
+  const AckPersist persist = g_phy_job.bridge_result_count > 0
+                                 ? combine_persist(g_phy_job.bridge_persist, phy_persist)
+                                 : phy_persist;
+
+  char topic[kMaxTopicLen];
+  if (topic_config(kTopicBridgeToken, "ack", topic, sizeof(topic)) > 0 &&
+      build_config_ack(lran::ConfigOp::Set, persist, g_sched_cfg_results, n, nullptr,
+                       g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
+      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  } else {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+
+  if (!committed && !g_phy_job.bridge_changed) return;
+  size_t rows = 0;
+  {
+    ConfigLock lock;
+    rows = g_config.state(ConfigScope::Bridge, 0, g_sched_cfg_state, kMaxScopeRows);
+  }
+  if (topic_config(kTopicBridgeToken, "state", topic, sizeof(topic)) > 0 &&
+      build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
+      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  } else {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+// spec 16.7.5 - each node's config/state, from its answer to the confirming GET.
+void publish_phy_node_state(const PhyStep& st) {
+  char token[kMaxTopicLen];
+  char topic[kMaxTopicLen];
+  if (node_topic_name(st.dst, token, sizeof(token)) == 0) return;
+  size_t rows = 0;
+  {
+    ConfigLock lock;
+    g_config.note_set_results(st.dst, st.results, st.result_count);
+    rows = g_config.state(ConfigScope::Node, st.dst, g_sched_cfg_state, kMaxScopeRows);
+  }
+  if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
+      build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
+      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_msg);
+  } else {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+const char* phy_reason_token(PhyReason r) {
+  switch (r) {
+    case PhyReason::NotAccepted: return "not_accepted";
+    case PhyReason::NotHeard:    return "not_heard";
+    default:                     return nullptr;  // StoreFailed: see phy_change.h
+  }
+}
+
+// Starts a waiting change once no command or roll is in flight. The fleet is every node
+// the scheduler polls now, in registry order (step 3).
+void sched_phy_start(uint32_t now_ms) {
+  if (!g_phy_job_waiting) return;
+  lran::NodeId fleet[kMaxPhyFleet];
+  size_t       n       = 0;
+  const uint32_t watched = g_fleet_watched.load();
+  for (size_t i = 0; i < kNodeCount && n < kMaxPhyFleet; ++i) {
+    if ((watched & node_bit(kNodeTable[i].id)) != 0) fleet[n++] = kNodeTable[i].id;
+  }
+  bool started = false;
+  {
+    SchedLock lock;
+    if (g_command.busy() || g_roll.busy()) return;
+    started = g_phy_change.start(g_phy_job.phy_from, g_phy_job.phy_to, fleet, n, now_ms);
+  }
+  g_phy_job_waiting = false;
+  if (!started) {
+    // The fleet emptied or outgrew kMaxPhyFleet after mqtt_task checked it. Nothing moved.
+    Serial.printf("phy: change not started, fleet of %u\n", static_cast<unsigned>(n));
+    publish_phy_resolution(/*committed=*/false, false);
+    return;
+  }
+  Serial.printf("phy: change started across %u node(s)\n", static_cast<unsigned>(n));
+}
+
+// Builds and queues a CONFIG to `dst`. True when it went; `*seq` is the one it took.
+bool send_phy_config(lran::NodeId dst, const lran::schema::NodeConfigV1& cfg, lran::Seq* seq) {
+  NodeState ns;
+  if (!registry_state(dst, &ns) || !registry_take_cmd_seq(dst, seq)) return false;
+  TxMessage tx;
+  tx.dst = dst;
+  tx.len = registry_build_config(dst, ns.ctx_id, *seq, node_tx_ver(ns), cfg, tx.bytes,
+                                 sizeof(tx.bytes));
+  return tx.len != 0 && send_tx(tx);
+}
+
+// Static for sched_task's stack: a NodeConfigV1 is about 300 bytes.
+lran::schema::NodeConfigV1 g_phy_cfg;
+
+void sched_phy(uint32_t now_ms) {
+  // spec 12.4.1 - a trial the last boot left open is reported once, queued until the
+  // broker is reached.
+  if (g_phy_restart_pending && publish_phy_reverted("restart", 0)) {
+    g_phy_restart_pending = false;
+  }
+
+  sched_phy_start(now_ms);
+
+  if (g_phy_ticket != 0 && lora_phy_applied(g_phy_ticket)) {
+    g_phy_ticket = 0;
+    SchedLock lock;
+    g_phy_change.on_retuned(now_ms);
+  }
+
+  for (int guard = 0; guard < 8; ++guard) {
+    PhyStep st;
+    {
+      SchedLock lock;
+      st = g_phy_change.next(now_ms);
+    }
+    switch (st.action) {
+      case PhyAction::None:
+        break;
+
+      case PhyAction::SendSet:
+      case PhyAction::SendGet: {
+        if (st.action == PhyAction::SendSet) {
+          build_phy_set(st.group, &g_phy_cfg);
+        } else {
+          build_phy_get(&g_phy_cfg);
+        }
+        lran::Seq seq = 0;
+        if (!send_phy_config(st.dst, g_phy_cfg, &seq)) return;
+        SchedLock lock;
+        g_phy_change.on_sent(seq, now_ms);
+        return;  // one frame per tick, as the other paths send
+      }
+
+      case PhyAction::SendPoll: {
+        NodeState ns;
+        if (!registry_state(st.dst, &ns)) return;
+        lran::Seq poll_seq = 0;
+        {
+          SchedLock lock;
+          poll_seq = g_scheduler.take_poll_seq();
+        }
+        TxMessage tx;
+        tx.dst = st.dst;
+        tx.len = build_poll_frame(st.dst, ns.ctx_id, poll_seq, node_tx_ver(ns), tx.bytes,
+                                  sizeof(tx.bytes));
+        if (tx.len == 0 || !send_tx(tx)) return;
+        SchedLock lock;
+        g_phy_change.on_sent(0, now_ms);
+        return;
+      }
+
+      case PhyAction::Retune: {
+        // Step 5. The store's trial copy first, then the marker a restart would find, then
+        // the radio. A group the D33 check refuses is never requested, and the deadline
+        // reverts the change.
+        PhyConfig p;
+        if (!phy_config_from(st.group, kPhy, &p)) {
+          Serial.println(F("phy: target group breaks the EIRP ceiling - not retuning"));
+          continue;
+        }
+        {
+          ConfigLock lock;
+          (void)g_config.begin_phy_trial(st.group);
+          (void)g_cfg_global_persist.mark_trial(true);
+        }
+        g_phy_ticket = lora_request_phy(p);
+        Serial.println(F("phy: every node accepted - retuning"));
+        continue;
+      }
+
+      case PhyAction::Commit: {
+        bool ok = false;
+        {
+          ConfigLock lock;
+          ok = g_config.commit_phy_trial();
+        }
+        if (!ok) {
+          Serial.println(F("phy: commit FAILED, NVS refused the group - reverting"));
+          SchedLock lock;
+          g_phy_change.commit_failed();
+          continue;
+        }
+        Serial.println(F("phy: every node heard - committed"));
+        publish_phy_resolution(/*committed=*/true, /*persisted=*/true);
+        continue;
+      }
+
+      case PhyAction::NodeConfirmed:
+        publish_phy_node_state(st);
+        continue;
+
+      case PhyAction::Abandon: {
+        const char* reason = phy_reason_token(st.reason);
+        Serial.printf("phy: change abandoned (%s, node %02x)%s\n",
+                      reason != nullptr ? reason : "store_failed",
+                      static_cast<unsigned>(st.culprit), st.retuned ? ", retuning back" : "");
+        PhyConfig p;
+        if (st.retuned) {
+          ConfigLock lock;
+          g_config.revert_phy_trial();
+          (void)g_cfg_global_persist.mark_trial(false);
+        }
+        if (st.retuned && phy_config_from(st.group, kPhy, &p)) {
+          g_phy_ticket = 0;  // the retune's ticket is superseded
+          (void)lora_request_phy(p);
+        }
+        publish_phy_resolution(/*committed=*/false, false);
+        if (reason != nullptr) (void)publish_phy_reverted(reason, st.culprit);
+        continue;
+      }
+
+      case PhyAction::Readback: {
+        // spec 12.4.1 step 4's deferred readback, through the ordinary node path.
+        ConfigJob job;
+        job.dst          = st.dst;
+        job.op           = lran::ConfigOp::GetAll;
+        job.config.op    = lran::ConfigOp::GetAll;
+        job.config.count = 0;
+        (void)queue_config_job(job);
+        continue;
+      }
+    }
+    break;
+  }
+
+  bool busy = false;
+  {
+    SchedLock lock;
+    busy = g_phy_change.busy();
+  }
+  // Written only after the machine is idle AND nothing waits, so mqtt_task never sees a
+  // gap between a queued change and its start.
+  if (!busy && !g_phy_job_waiting && g_config_queue != nullptr &&
+      uxQueueMessagesWaiting(g_config_queue) == 0) {
+    g_phy_busy = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The availability watchdog (BF-20). sched_task owns it outright - it is written and read in
 // no other task - so it needs no lock. mqtt_task asks for a republish through an atomic, and
 // ui_task reads the counts through two more.
@@ -899,6 +1231,17 @@ void sched_availability() {
       g_bench_clearing[i] = false;
     }
   }
+
+  uint32_t watched = 0, not_online = 0;
+  for (size_t i = 0; i < registry_size(); ++i) {
+    if (!g_availability.watched(i)) continue;
+    watched |= node_bit(registry_info_at(i).id);
+    if (g_availability.state(i) != Availability::Online) {
+      not_online |= node_bit(registry_info_at(i).id);
+    }
+  }
+  g_fleet_watched    = watched;
+  g_fleet_not_online = not_online;
 
   g_nodes_online  = g_availability.online_count();
   g_nodes_watched = g_availability.watched_count();
@@ -1014,6 +1357,7 @@ void sched_levers() {
     g_roll.set_retries(v.cmd_retries);
     g_config_path.set_readback_timeout_ms(v.config_readback_timeout_ms);
     g_config_path.set_ack_timeout_ms(v.config_ack_timeout_ms);
+    g_phy_change.set_ack_timeout_ms(v.config_ack_timeout_ms);
   }
   g_availability.set_threshold(v.missed_poll_threshold);
   g_diag_interval_s = v.diag_interval_s;
@@ -1071,7 +1415,7 @@ void sched_levers() {
 // the zero-tick queue sends; its one wait is lora_wait(), bounded and on the radio's
 // own interrupt (lora_link.h). BF-16.
 void lora_task(void*) {
-  lora_start(kHeltecV3Radio, kPhy);
+  lora_start(kHeltecV3Radio, g_boot_phy);
   // BF-23 - this task's own three levers. The board is lock-free, so reading it here
   // waits on nothing; a publish caught mid-copy is taken on the next pass.
   uint32_t levers_seen = 0;
@@ -1100,6 +1444,7 @@ void sched_task(void*) {
     sched_roll(millis());      // BF-34 - spec 10.6, R-3.1h; before any command
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
     sched_config(millis());    // BF-32 - spec 7.4, 7.4.1, 16.7
+    sched_phy(millis());       // BF-33 - spec 12.4.1, 16.7.5
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5
     sched_diag(millis());      // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
@@ -1343,6 +1688,40 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     return;
   }
 
+  // spec 12.4.1 steps 1 and 2 - a set on the bridge's topic that would move the PHY
+  // group is checked whole before anything applies, the rows it does not name included.
+  PhyRequest phy_req;
+  bool       phy_named  = false;
+  bool       phy_change = false;
+  PhyGroup   phy_from;
+  if (is_bridge && g_cfg_req.op == lran::ConfigOp::Set) {
+    {
+      ConfigLock lock;
+      phy_named = g_config.phy_request(g_cfg_req, &phy_req);
+      phy_from  = g_config.phy_group();
+    }
+    phy_change = phy_named && phy_req.target != phy_from;
+    if (phy_change) {
+      const char*    refusal    = nullptr;
+      const uint32_t watched    = g_fleet_watched.load();
+      if (g_phy_busy.load()) {
+        refusal = "phy_change_in_progress";
+      } else if (watched == 0 || (g_fleet_not_online.load() & watched) != 0) {
+        // An empty fleet is refused too. The bridge moving alone would strand every node
+        // it has not yet heard, which is the case this refusal exists for.
+        refusal = "phy_fleet_incomplete";
+      } else if ((g_roll_pending.load() & watched) != 0) {
+        refusal = "context_roll_pending";
+      }
+      if (refusal != nullptr) {
+        ++g_cfg_inbound.refused_phy;
+        publish_config_ack(is_bridge, node, g_cfg_req.op, AckPersist::NotApplied, nullptr, 0,
+                           refusal);
+        return;
+      }
+    }
+  }
+
   AckPersist       persist = AckPersist::NotApplied;
   size_t           n       = 0;
   ConfigSetRequest node_half;
@@ -1384,6 +1763,55 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
       g_levers.publish(v);
       discovery_take_simnode_diag(v.simnode_diag_enable);
     }
+  }
+
+  // spec 16.7.5 - a PHY change is answered once, when it ends, and the rows applied above
+  // wait for it in the job as a node half's results do.
+  if (phy_change) {
+    ConfigJob job;
+    job.phy                 = true;
+    job.op                  = lran::ConfigOp::Set;
+    job.bridge_persist      = persist;
+    job.bridge_changed      = changed;
+    job.bridge_result_count = static_cast<uint8_t>(n < kMaxConfigSetEntries ? n
+                                                                            : kMaxConfigSetEntries);
+    for (size_t i = 0; i < job.bridge_result_count; ++i) job.bridge_results[i] = g_cfg_results[i];
+    job.phy_from = phy_from;
+    job.phy_to   = phy_req.target;
+    for (size_t k = 0; k < kPhyGroupSize; ++k) {
+      job.phy_named[k]  = phy_req.named[k];
+      job.phy_status[k] = phy_req.status[k];
+    }
+    g_phy_busy = true;  // before the send, so a second set cannot slip in between
+    if (queue_config_job(job)) return;
+    g_phy_busy = false;
+    ++g_cfg_inbound.no_answer;
+    // The queue refused it and nothing moved: the PHY entries read `reverted` (spec
+    // 16.7.3), carrying the settings still in force.
+    for (size_t k = 0; k < kPhyGroupSize && n < kMaxScopeRows; ++k) {
+      if (!phy_req.named[k]) continue;
+      ConfigResult r;
+      std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
+      r.status           = ResultStatus::Reverted;
+      r.has_value        = true;
+      r.value            = phy_from.v[k];
+      g_cfg_results[n++] = r;
+    }
+    persist = AckPersist::NotApplied;  // the less persisted half (spec 16.7.3)
+  } else if (phy_named) {
+    // spec 12.4.1 step 2 - equal to the current group: nothing applies, no trial, `ok`.
+    const bool other_rows = n > 0;
+    for (size_t k = 0; k < kPhyGroupSize && n < kMaxScopeRows; ++k) {
+      if (!phy_req.named[k]) continue;
+      ConfigResult r;
+      std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
+      r.status           = phy_req.status[k];
+      r.has_value        = true;
+      r.value            = phy_req.target.v[k];
+      g_cfg_results[n++] = r;
+    }
+    // The group in force is the committed one, so it reads as persisted.
+    if (!other_rows) persist = AckPersist::Persisted;
   }
 
   // SPEC 16.7.1 - ONE ack, published when EVERY half has an outcome. When a half is on
@@ -2061,12 +2489,24 @@ size_t config_begin() {
     per_node[i] = &g_cfg_node_persist[i];
   }
   g_config.begin(global_ok ? &g_cfg_global_persist : nullptr, per_node, kNodeCount);
+  // BF-33 - before the restore, so the stored PHY group is restored rather than refused.
+  g_config.enable_phy_trial();
 
   size_t restored = nvs_restore(g_config, ConfigScope::Bridge, 0, g_cfg_global_persist);
   for (size_t i = 0; i < kNodeCount; ++i) {
     restored += nvs_restore(g_config, ConfigScope::Node, kNodeTable[i].id,
                             g_cfg_node_persist[i]);
   }
+  // spec 12.4.1 - the radio comes up on the committed group. A trial open when the bridge
+  // stopped is over: the store never held its values, so only the marker needs clearing,
+  // and sched_task reports it once the broker is reached.
+  PhyConfig boot;
+  if (phy_config_from(g_config.phy_group(), kPhy, &boot)) g_boot_phy = boot;
+  if (global_ok && g_cfg_global_persist.trial_marked()) {
+    g_phy_restart_pending = true;
+    (void)g_cfg_global_persist.mark_trial(false);
+  }
+
   // BF-23 - AFTER the restore, so each task's first pass applies what NVS held. Published
   // before a restore, the levers would run their defaults until the first set, and a
   // reboot would quietly undo every saved value.
