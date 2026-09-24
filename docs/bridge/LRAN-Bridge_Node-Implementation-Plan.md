@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.48
+**Version:** 0.49
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -448,6 +448,31 @@ implements it as follows:
 > **The gate is on publication, not on reception.** Dropping bench frames at the radio
 > would mean the bench node exercises a different code path from a real node, which
 > defeats the purpose of having one. Decode everything; publish selectively.
+
+#### 4.2a.1 What BF-26 built, 2026-09-23
+
+**The flag is read from `/lib/lran-config/` and reaches three gates**: bench availability
+and bench diagnostics on `sched_task`, and bench discovery on `mqtt_task`. Before this, all
+three read a compile-time `false`. Host-tested, and **confirmed on air 2026-09-23**; the
+engineering log's *BF-26 on air* entry has the run.
+
+| Choice | Why |
+|---|---|
+| **The flag rides BF-23's lever board** | It is not timing, but it travels the same way: from `mqtt_task`'s store to `sched_task`, which owns the gates for availability and diagnostics. A second carrier would need a second generation counter to get right. `mqtt_task` owns discovery and reads the value it publishes |
+| **Switched on, everything goes out at once** | Every known node's availability, the bench nodes' diagnostics and the whole discovery set are published on the next pass, not a `diag_interval_s` or a broker reconnect later. The discovery set restarts from the top, which re-sends the production configs too. That costs about a second, once per switch, and keeps one path |
+| **Switched off, one `offline` per bench node, then nothing** | The table above has the bridge publish `offline` when the flag clears, and spec §16.6 publishes nothing else while it is clear. A bench node the bridge has not heard since boot gets nothing, because the bridge has no state for it to withdraw |
+| **Every bench entity is `entity_category: diagnostic`**, its buttons included | Spec §16.6's third axis. `command_allowed()` gives a simnode every command (§6.2), so without this a simnode's Open, Close and Hold buttons would reach a dashboard as ordinary controls |
+
+**The flag gates only the two topics §16.6 names, and it gates nothing else.** A simnode's
+`config/state`, `config/ack` and `cmd/ack` are published whichever way it is set, as they
+were before BF-26. Spec §16.6 says bench data is published *"exclusively"* under
+`diag/state` and `availability`. Whether the configuration and command answers count as
+bench data is a question for the specification, and the handoff carries it.
+
+**An `applied_not_persisted` answer leaves one gap.** If the flag is set but not persisted
+and the bridge reboots, it comes back with the flag clear. The `online` it published
+before the reboot then stays retained, because nothing clears it. A normal set answers
+`persisted`, as both sets did on the bench.
 
 ### 4.3 MQTT
 
@@ -2389,6 +2414,12 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.49** — **New §4.2a.1**: BF-26 built, and confirmed on air. `simnode_diag_enable`
+  reaches the gates for bench availability, diagnostics and discovery through BF-23's lever
+  board. Clearing it publishes one `offline` per bench node, and every bench entity is
+  diagnostic. §4.2a.1 also records that a simnode's `config/*` and `cmd/ack` go out
+  ungated.
+
 - **v0.48** — **V-B12 is met**, and new **§8.1.3** records it. Two interleaved sweeps lost
   0 of 482 idle frames and 2 of 480 with WiFi saturated, both in the idle arm's signature.
   M22 closes, and R-4.4's policy stands. §8.1's falsifier, §7's V-B12 row and B4's row
@@ -2433,6 +2464,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.49** | **New §4.2a.1**: BF-26's bench publication gate, built and confirmed on air |
 | **v0.48** | **§8.1.3**: V-B12 is met and M22 closes. WiFi saturated at 16 to 19.5 Mbps cost no measurable PER |
 | **v0.47** | **§8.1.2**: V-B12's saturated arm is loaded by a UDP blaster, not `diag_interval_s` |
 | **v0.46** | **§6.2.2**: BF-34 is confirmed on air |

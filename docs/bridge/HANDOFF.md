@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that measured V-B12.** **V-B12 is met and M22 is
-closed**: saturating the bridge's WiFi cost no measurable LoRa PER (Impl Plan §8.1.3). The
-bridge still runs the `v_b12_blaster` bench image, and **restoring the bench is the first
-job**. The engineering log's last entry has the bench detail.
+**Written 2026-09-23 by the session that built BF-26.** **The bench is restored** and
+**BF-26 is built and confirmed on air**: `simnode_diag_enable` now gates bench
+availability, diagnostics and discovery (Impl Plan §4.2a.1). **BF-24 is next.** The
+engineering log's last entry has the bench detail.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,16 +18,14 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: restore the bench after V-B12.
-Continue from docs/bridge/HANDOFF.md: BF-26, the bench publication gate.
 Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
+Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **Restore the bench** (bench, short) | *The next job*; *Hardware state*; [`traps.md`](./traps.md) §*Bench boards and serial ports* |
-| **BF-26** (no board) | *The next job*; Impl Plan **§4.2a** and **§4.4.2**; Firmware Tasks' BF-26 row; spec **§16.6** |
-| **BF-24** (no board) | *The next job*; Impl Plan **§6.3**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row |
+| **BF-24** (no board) | *The next job*; Impl Plan **§6.3** and **§4.2a.1**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row; spec **§16.6** |
+| **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -37,21 +35,12 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**First, restore the bench.** The bridge runs `v_b12_blaster`, a bench image that must not
-stay deployed, and its `secrets.h` points at the IoT network.
-
-1. The operator puts the house network's values back in `secrets.h`. Never echo or commit
-   them.
-2. Reflash `pio run -d firmware/bridge -e heltec -t upload` from a clean tree on `main`,
-   and confirm the banner's git field has no `-dirty`.
-3. Confirm the bridge reaches the house broker.
-
-**The IoT network's nearest access point is pinned to channel 6** for V-B12. Whether it
-stays pinned is the operator's call.
-
-**Then BF-26 and BF-24**, neither of which needs a board. They are as they were:
-`TODO(BF-26)` gates and `TODO(BF-24)` markers in `task_runtime.cpp`. Consider carrying
-`simnode_diag_enable` on the lever board.
+**BF-24, the publication policy**, which needs no board. `TODO(BF-24)` in
+`task_runtime.cpp`'s `lora_task` marks where a decoded frame goes. **Every node topic it
+adds must be gated for bench nodes the way §4.2a.1 gates `diag/state`.** Use
+`bench_publication_allowed()`, and remember that spec §16.6 lets a bench node reach
+nothing but `diag/state` and `availability`. The `gate`, `detect`, `battery`, `solar` and
+`event` topics must stay unreachable from `0xF0`–`0xFE` whichever way the flag is set.
 
 **One observation from BF-34's bench run is still open.** In one of six rolls, the bridge
 sent its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went
@@ -61,6 +50,17 @@ candidate changes. Neither is needed to close BF-34.
 
 ## Open, and not closable from here
 
+- **A simnode's `config/state`, `config/ack` and `cmd/ack` are published whatever
+  `simnode_diag_enable` says.** Spec §16.6 says bench data goes *"exclusively"* to
+  `diag/state` and `availability`, and §16.7 gives every node a `config/*` topic. Whether
+  the configuration and command answers are bench data is the specification's question.
+  Raise it rather than gating them locally, because gating them would make a bench set
+  unanswerable while the flag is clear. Impl Plan §4.2a.1.
+- **The IoT network's nearest access point is still pinned to channel 6** from V-B12.
+  Whether it stays pinned is the operator's call.
+- **A flag set `applied_not_persisted` leaves a stale `online` after a reboot.** The
+  bridge comes back with the flag clear, and nothing withdraws the `online` it published.
+  Rare, since a normal set persists. Impl Plan §4.2a.1.
 - **The state mirror survives a node reboot and nothing invalidates it.** A simnode holds
   its overrides in RAM, so a reboot clears them while `config/state` goes on reporting the
   old values as current. A node with a store (GateLink, microSD, **D49**) keeps them, so
@@ -114,7 +114,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **eight 2026-09-23 entries** first, last one first: **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **nine 2026-09-23 entries** first, last one first: **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
@@ -130,9 +130,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. The bench restore after V-B12. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **Restore the bench**. Then **BF-26** and **BF-24**, neither of which needs a board |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24**, **BF-25**. **BF-33** unstarted. **BF-27's other three tools**. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **BF-24**, which needs no board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -180,11 +180,14 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `v_b12_blaster` at `9bd01b3`**, flashed over USB on 2026-09-23 with
-`secrets.h` pointing at the IoT network (`McLeeIoT`, broker 192.168.4.52). **It is a bench
-image and must not stay deployed.** The two simnodes run `98b4b04`. All three were on USB
-when this session ended. **This table names the devices in this subproject's terms**; the
-range-test handoff owns them in its own roles.
+**The bridge runs the BF-26 branch's firmware**, flashed over USB on 2026-09-23 from a clean
+tree, and reaches the house broker at 192.168.2.52. Once the branch merges, its banner's git
+field names the branch commit, not the merge. **`simnode_diag_enable` is off and persisted
+in its NVS.** The broker retains 48 simnode discovery configs from the enabled run, so Home
+Assistant carries four simnode devices whose entities read unavailable. The XIAO runs
+`98b4b04`; the Heltec simnode was not touched. All three were on USB when this session
+ended. **This table names the devices in this subproject's terms**; the range-test handoff
+owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
