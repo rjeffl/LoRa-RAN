@@ -79,6 +79,12 @@ inline constexpr ParamDef kBridgeParams[] = {
      "Wait for a split readback to complete, spec 7.4.1 (D57)"},
     {0x000C, "config_ack_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite, PType::U16,
      1000, 60000, 8000, "ms", "CONFIG_ACK wait before the outcome is unknown, spec 7.4"},
+    {0x000D, "republish_interval_s", Owner::BridgeGlobal, Access::ReadWrite, PType::U16,
+     60, 3600, 900, "s", "Unchanged state republished at most this often, Impl Plan 6.3"},
+    {0x000E, "bms_stale_s", Owner::BridgeGlobal, Access::ReadWrite, PType::U16, 30, 3600,
+     600, "s", "bms_age_s above this marks BMS entities unavailable, spec 16.4"},
+    {0x000F, "cell_mv_deadband", Owner::BridgeGlobal, Access::ReadWrite, PType::U8, 0, 50,
+     5, "mV", "Cell voltage change that republishes, spec 16.4; 0 = any"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
 };
