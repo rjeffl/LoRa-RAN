@@ -724,8 +724,8 @@ is later work, so no firmware behaves differently yet. Six things changed:
   writes the store and never opens a trial, because a stored PHY value is a committed one.
 - **`restore_defaults()` keeps the committed PHY group**, in RAM and in the store, which it
   writes back after `clear_all()`. A PHY row reset to its default by one node's
-  `RESTORE_DEFAULTS` would take that node off the fleet's settings. Spec §8.10 and D52 do
-  not say this, and it is raised against the specification rather than settled here.
+  `RESTORE_DEFAULTS` would take that node off the fleet's settings. **D60** accepted
+  this on 2026-09-24, and spec §8.10 is to say it at the next revision.
 
 **GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
 milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).

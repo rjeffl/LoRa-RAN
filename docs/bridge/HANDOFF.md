@@ -71,10 +71,10 @@ before the run, not during.
 
 ## Open, and not closable from here
 
-- **Two §12.4 questions for the next spec revision**, in the engineering log's *BF-33 split
-  in four* entry. `RESTORE_DEFAULTS` now keeps the committed PHY group, although §8.10 and
-  D52 say it clears every override. A PHY trial's `CONFIG_ACK` reads
-  `APPLIED_NOT_PERSISTED`, which §12.4.2 step 2's wording seems to rule out.
+- **D60 is accepted and the specification's text is owed.** `RESTORE_DEFAULTS` keeps the
+  committed PHY group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`.
+  Spec §8.10 and §12.4.2 say neither yet. Write both at the next revision; Decision
+  Register §3.9 has the reasoning.
 
 - **BF-34's heard-first `POLL` went to f1 210 ms before one roll in six**, and that roll's
   first attempt went unanswered. The engineering log's *BF-34 on air* entry has two
