@@ -214,6 +214,7 @@ const char* event_type_name(uint8_t v) {
     case lran::EventType::MpptError:            return "mppt_error";
     case lran::EventType::ChargeInhibited:      return "charge_inhibited";
     case lran::EventType::Boot:                 return "boot";
+    case lran::EventType::PhyReverted:          return "phy_reverted";
   }
   return nullptr;
 }

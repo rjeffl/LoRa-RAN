@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.13",
+  "spec": "LRAN-Protocol-Specification v0.14",
   "wire_ver": 2,
   "group": "single",
   "generated_by": "tools/vectors/generate.py",
@@ -617,6 +617,34 @@
         "expect_ctx_id": 0,
         "status": "Ok",
         "payload": "02000300021200002b000000e4510100",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "event_phy_reverted",
+      "spec_ref": "§7.3, §8.9, §12.4.2",
+      "origin": "derived",
+      "note": "PHY_REVERTED, v0.14 (D59). detail 0x0001: the trial window expired; 0x0002 would be a reboot mid-trial.",
+      "header": {
+        "ver": 2,
+        "type": "EVENT",
+        "src": 1,
+        "dst": 0,
+        "seq": 203,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x11",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0b000000020001002c00000048520100",
+      "key": null,
+      "frame": "02050100cb00efcdab890111000000000b000000020001002c000000485201003d20",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0b000000020001002c00000048520100",
         "mac_present": false
       }
     },

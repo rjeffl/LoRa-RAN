@@ -42,7 +42,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.13"
+SPEC = "LRAN-Protocol-Specification v0.14"
 WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
 
 DERIVED = "derived"
@@ -947,6 +947,14 @@ def build_single():
                                          direction=0x00, gate_state=0x02, input_bits=0x12,
                                          detail=0, event_id=43, uptime_s=86500),
                     self_id=NODE_BRIDGE))
+    v.append(single("event_phy_reverted", "§7.3, §8.9, §12.4.2",
+                    type_name="EVENT", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=203,
+                    ctx_id=GATE_CTX, schema=0x11,
+                    payload=p_event_0x11(event_type=0x0B, event_flags=0x00, hold_source=0x00,
+                                         direction=0x00, gate_state=0x02, input_bits=0x00,
+                                         detail=0x0001, event_id=44, uptime_s=86600),
+                    self_id=NODE_BRIDGE,
+                    note="PHY_REVERTED, v0.14 (D59). detail 0x0001: the trial window expired; 0x0002 would be a reboot mid-trial."))
 
     # --- ERROR (§6.5, §19: 22 B) ------------------------------------------
     v.append(single("error_bad_length", "§6.5, §8.8, §19",

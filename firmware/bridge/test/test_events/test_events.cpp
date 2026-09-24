@@ -295,6 +295,19 @@ void test_bench_event_publishes_nothing() {
                                  false, 1));
 }
 
+// spec 16.7.5 - a node's PHY_REVERTED publishes on its own topic, named as 8.9 names it,
+// rather than falling through to `event/unknown`.
+void test_phy_reverted_has_its_own_topic() {
+  PublicationPolicy       p;
+  Recorder                r;
+  schema::GateLinkEventV1 e = vehicle(3);
+  e.event_type = static_cast<uint8_t>(lran::EventType::PhyReverted);
+  e.detail     = 0x0001;
+  send(p, gatelink(), e, r);
+  TEST_ASSERT_EQUAL(1, r.n);
+  TEST_ASSERT_EQUAL_STRING("lran/gatelink/event/phy_reverted", r.items[0].topic);
+}
+
 // A type spec 8.9 does not list is published, not dropped: a newer node's event may be an
 // alert. Its name is null and its raw value is kept, as BF-24 treats an unknown enum.
 void test_unknown_type_goes_to_event_unknown() {
@@ -370,6 +383,7 @@ int main(int, char**) {
   RUN_TEST(test_memory_is_per_node);
   RUN_TEST(test_bench_event_publishes_nothing);
   RUN_TEST(test_unknown_type_goes_to_event_unknown);
+  RUN_TEST(test_phy_reverted_has_its_own_topic);
   RUN_TEST(test_wrong_schema_or_length_is_undecodable);
   RUN_TEST(test_status_is_not_an_event);
   RUN_TEST(test_stats_carry_the_event_counts);
