@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.51
+**Version:** 0.52
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1135,17 +1135,18 @@ that every entity's key is in it.
 schema is the decoder, and `publish.cpp` renders from its struct. A second layer would have
 copied the struct field for field.
 
-**What is not done.** Events are **BF-25**. B4's criterion asks for §6.3 "demonstrated",
-and these rules are host-tested only: nothing on the bench sends a production schema,
-because a simnode is a bench node, and BF-27's dummy publish is not built.
+**What is not done.** Events are **BF-25**. B4's criterion asks for §6.3 "demonstrated".
+Nothing on the bench sends a production schema, because a simnode is a bench node. BF-27's
+dummy publish showed these rules at the broker on 2026-09-23 (§6.6.2).
 
 #### 6.3.2 What BF-25 built, 2026-09-23
 
 **`PublicationPolicy::on_event()` publishes each `EVENT` once, with retain clear, at QoS 1.**
 It sits in `publish.cpp` beside BF-24's documents and shares their enumeration names and
 counters. `test_events` carries it on the host. No node on the bench sends an `EVENT`: a
-simnode is a bench node, and spec §16.6 keeps its events off every topic. So V-B8 as written,
-an HA restart and a discovery refresh with an event in history, has not been run.
+simnode is a bench node, and spec §16.6 keeps its events off every topic. BF-27's dummy
+publish sent events through it on air (§6.6.2). V-B8 as written, an HA restart and a
+discovery refresh with an event in history, has not been run.
 
 **The topic is `lran/<node>/event/<name>`**, where `<name>` is spec §8.9's name in lower case:
 `fire_asserted`, `vehicle_while_held_open` and the rest. Each type gets a topic of its own,
@@ -1160,6 +1161,7 @@ keys, so these keys are frozen:
 | `follow_up` | `event_flags` bit 0 |
 | `hold_source`, `direction`, `gate_state` | §8's names, `null` when unlisted, as in §6.3.1 |
 | `input_bits`, `detail`, `uptime_s` | Passed through. `detail` is event-specific (§7.3) |
+| `synthetic` | `true` for BF-27's dummy publish, `false` for a frame from the radio. Spec §7.3 gives an `EVENT` no `status_reason`, so the mark is the caller's, not the frame's (§6.6.2). Added 2026-09-23 |
 
 | Choice | Why |
 |---|---|
@@ -1311,9 +1313,10 @@ the three banner lines — `Version:`, `Slot:`, `Image state:` — are what is r
 
 #### 6.6.1 What BF-27 built, 2026-09-17
 
-**The raw frame log only.** The other four tools in the table above are unbuilt, and none
-of them blocks anything: BF-27 was pulled forward for the receive path's 1 s knee, which
-needed the log and nothing else.
+**The raw frame log only.** The other four tools in the table above were unbuilt then,
+and none of them blocked anything: BF-27 was pulled forward for the receive path's 1 s
+knee, which needed the log and nothing else. The dummy publish followed on 2026-09-23
+(§6.6.2).
 
 | Decision | What was built | Why not the obvious alternative |
 |---|---|---|
@@ -1362,6 +1365,63 @@ losses the bridge's own radio could account for. The engineering log's 2026-09-1
 records the draft that got this wrong and what the bench printed.
 
 ---
+
+#### 6.6.2 What BF-27's dummy publish built, 2026-09-23
+
+**A serial console line becomes a `STATUS` or an `EVENT` that `app_task` hands to the real
+publication policy.** The documents, events and discovery that follow are the ones a
+node's frame would produce, with no node and no radio. `dummy.{h,cpp}` builds the frame
+from the library's schema struct and encodes it with the library's serializer, so
+`publish.cpp` decodes the codec's output rather than its own. `test_dummy` carries it on
+the host.
+
+```text
+dummy help
+dummy show
+dummy set <field>=<value> [<field>=<value> ...]    `na` sets the field's sentinel
+dummy status <node>
+dummy event <node> <type> [follow]                 spec §8.9's name in lower case, or its number
+```
+
+| Decision | What was built | Why not the obvious alternative |
+|---|---|---|
+| Which identity a dummy frame carries | The production node the console names, `gatelink` today. Chosen with the operator | A new `dummy` node needs a spec §5.3 address and a §16.1 token. A simnode identity is refused by §16.6 on every production topic. GateLink's own address exercises the topics and entities B6 will use |
+| How a dummy `STATUS` is marked | `status_reason` is `DEBUG_SYNTHETIC` whatever the console asks, and `dummy set status_reason` is refused | Spec §8.7 and R-5.2d. Every document then says `synthetic: true` through BF-24's existing rule |
+| How a dummy `EVENT` is marked | `on_event()` takes a `synthetic` flag, and the event payload gains a `synthetic` key (§6.3.2) | Spec §7.3 gives an `EVENT` no `status_reason`, so nothing on the wire can carry the mark. The caller knows, so the caller says |
+| How it is triggered | The USB serial console, read in `loop()`. Chosen with the operator | An MQTT trigger would let anything on the broker inject a gate event, and events drive email and SMS |
+| What a dummy frame touches | The policy alone. `RxMessage::dummy` makes `app_task` skip `registry_observe()`, `sched_on_heard()` and the ACK paths | No node sent it. It must not teach the registry a `ctx_id`, answer a poll or move availability (spec §16.5) |
+| What it refuses | A bench address; a node the bridge has heard this boot; a `set` with any bad pair, which applies none of them | A bench node's frames are withheld by §16.6 anyway. A heard node is real, and synthetic history mixed into its own is what R-5.2d exists to stop |
+| The template's clock | `uptime_s` and `last_traversal_age_s` advance by the time between frames | Held still, the traversal age computes to a new absolute time on every frame (spec §7.2.9), and `detect/state` republished each time. Found on the bench |
+
+**The console exists in the production image**, outside `v_b12_blaster`, which owns the
+serial port for its own commands. It needs a USB cable at the bridge. It refuses a node
+heard this boot, so it cannot mark a deployed GateLink's history. A dummy event on a
+GateLink that has not been heard still reaches `lran/gatelink/event/*`, so **an automation
+that sends email or SMS filters on `synthetic`**.
+
+**Availability is not the dummy's to move.** GateLink is watched from boot, never answers,
+and goes `offline` after three missed polls, so Home Assistant shows its entities as
+unavailable. For a bench session, publish `online` retained to
+`lran/gatelink/availability` by hand. The watchdog does not overwrite it until the next
+broker connect, because it publishes a transition, not a state.
+
+**On air, 2026-09-23**, against the sandbox broker, with `republish_interval_s` set to 60
+for the run and restored to 900 after. The engineering log has the capture.
+
+| §6.3 rule | Shown by |
+|---|---|
+| Publish on change | A second identical `STATUS` published nothing; `unchanged` counted it |
+| Jitter suppressed | `cell1_mv` 3310 → 3313 withheld; → 3320 published `battery/state` |
+| Sentinels are not numbers | `enclosure_temp_c10=na` and `load_ma=na` published `null` |
+| Staleness → unavailable | `mppt_flags=2` published `solar/state` with `available: false` and every reading `null`; `bms_age_s=900` did the same to `battery/state` |
+| Synthetic stays marked | Every document and every event carried `synthetic: true` |
+| Events never retained | Three events published once each, the follow-up among them; a retained-only subscription afterwards found no `event` topic |
+| Heartbeat | An unchanged `STATUS` 65 s later republished all five documents; `heartbeats` rose by 4 |
+
+**What is not shown.** The rules were read at the broker, not in Home Assistant, and V-B8's
+HA restart and discovery refresh have not been run. **`node/state` republishes on every
+frame**, because `uptime_s` is in it and changes every poll. A real GateLink will do the
+same. Whether uptime belongs in the change hash is an open question (`HANDOFF.md`).
 
 ### 6.7 The configuration path — BF-32, built 2026-09-21
 
@@ -1899,7 +1959,7 @@ serial, driven by hand or by `/tools/simctl/`.
 | `push <hex> [reason]` | Emit an unsolicited status with a given `status_reason` |
 | `event <hex> <type>` | Emit an event; repeat the same `event_id` to test bridge-side dedup |
 | `ack <hex> <mode>` | `normal` \| `suppress` \| `delay <ms>` \| `dup` — command-path tests |
-| `ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]` | Emit a `PING` of length `n`, optionally `PATTERN_FILL`, optionally forced-fragmented (**W9**; a bare `frag` is §6.6.2's 14-byte chunk). `to` sets the destination, `00` by default, so two simnodes can echo each other — added 2026-09-14 |
+| `ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]` | Emit a `PING` of length `n`, optionally `PATTERN_FILL`, optionally forced-fragmented (**W9**; a bare `frag` is spec §6.6.2's 14-byte chunk). `to` sets the destination, `00` by default, so two simnodes can echo each other — added 2026-09-14 |
 | `stats <hex>` | One identity's §14.1 counters, plus the radio's `cad_backoffs` — added 2026-09-14 |
 | `radio` | The driver's own counts: `TX_DONE`, TX errors and timeouts, forced transmissions, CAD errors. The only evidence on the board that a frame reached the air — added 2026-09-14 |
 | `fault <hex> <name> [count]` | Inject a fault from §10.5, once or `count` times |
@@ -2514,6 +2574,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.52** — **New §6.6.2**: BF-27's dummy publish built and run on air. A serial console
+  line becomes a `STATUS` or `EVENT` for the real publication policy, under GateLink's
+  address and marked synthetic. §6.3.2's event payload gains a `synthetic` key. §6.3.1,
+  §6.3.2 and §6.6.1 follow.
 
 - **v0.51** — **New §6.3.2**: BF-25 built and host-tested. An `EVENT` goes to
   `lran/<node>/event/<name>` once, with retain clear, deduplicated on spec §7.3's triple

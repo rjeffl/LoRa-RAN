@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.14 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.51
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.39 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.52
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.40 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -112,7 +112,7 @@ is addressed in. **Three things to keep:**
   and reaches `sched_task` as one atomic word, since **`lora_task` cannot call
   `registry_runtime`**.
 
-**`BF-27` — the raw frame log, built 2026-09-17; the rest of §6.6 is untouched.**
+**`BF-27` — the raw frame log, built 2026-09-17; the dummy publish, built 2026-09-23.**
 `frame_log.{h,cpp}` is the ring, `log_task` drains it to serial and to
 `lran/bridge/diag/rxlog/state`, and `tools/simctl/rxlog.py` reads it. Impl Plan §6.6.1
 records the choices. **Four things to keep:**
@@ -126,6 +126,20 @@ records the choices. **Four things to keep:**
   replays a finished burst as though it were arriving now.
 - **There is no runtime enable and adding one is not a small change.** It needs the
   HA-visible configuration path, whose route is an open operator decision.
+
+**The dummy publish** is `dummy.{h,cpp}`: a `dummy` line on the USB serial console, read in
+`loop()`, becomes a `STATUS` or `EVENT` for the real policy. Impl Plan §6.6.2 records the
+choices. **Three things to keep:**
+
+- **A dummy frame reaches the policy and nothing else.** `app_task` skips
+  `registry_observe()`, `sched_on_heard()` and the ACK paths for `RxMessage::dummy`. No
+  node sent it, so it must not teach a `ctx_id`, answer a poll or move availability.
+- **The mark cannot be cleared from the console.** `status_reason` is `DEBUG_SYNTHETIC`
+  in every dummy `STATUS`, and `app_task` passes `synthetic = true` to `on_event()`, whose
+  payload carries it. A radio frame's event passes `false`.
+- **A node heard this boot is refused**, in `console_line()`, because it is real. Nothing
+  refuses a node that has not been heard, so a dummy event on a deployed bridge reaches that
+  node's event topics, marked.
 
 **`M25` — the channel monitor, built 2026-09-17.** `chan_monitor.{h,cpp}` has lived in
 `lib/lran-link/` since 2026-09-19, shared with the listen-only `firmware/chan-capture/`. The
@@ -220,8 +234,8 @@ and spec §10.6. **Four things to keep:**
   `test_config_store` checks that. `mqtt_task` reads the pending bits from an atomic
   that only `sched_task` writes.
 
-**`BF-24` — the publication policy, built and host-tested 2026-09-23; no production frame
-on air yet.** `publish.{h,cpp}` renders a `STATUS` into documents and `app_task` queues
+**`BF-24` — the publication policy, built and host-tested 2026-09-23; dummy frames on air
+the same day, no production frame yet.** `publish.{h,cpp}` renders a `STATUS` into documents and `app_task` queues
 them; Impl Plan §6.3.1. **Four things to keep:**
 
 - **A document is rendered from the frame in hand or not at all.** Nothing keeps a cached
@@ -237,14 +251,16 @@ them; Impl Plan §6.3.1. **Four things to keep:**
   set, and `make_publish()` refuses a bench production topic as a second check
   (`bench_topic_forbidden()`).
 
-**`BF-25` — event republication, built and host-tested 2026-09-23; no event on air yet.**
+**`BF-25` — event republication, built and host-tested 2026-09-23; dummy events on air the same day.**
 `PublicationPolicy::on_event()` in `publish.cpp` publishes each `EVENT` once to
-`lran/<node>/event/<name>`; Impl Plan §6.3.2. **Three things to keep:**
+`lran/<node>/event/<name>`; Impl Plan §6.3.2. **Four things to keep:**
 
 - **The deduplication key includes `event_flags` bit 0.** Spec §7.3's triple alone
   withholds every follow-up, because a follow-up reuses its first edge's `event_id`.
 - **Nothing republishes an event.** `forget_published()` forgets documents, not events,
   and an event is remembered only once the sink has accepted it.
+- **Every event payload carries `synthetic`**, from `on_event()`'s own argument, because
+  spec §7.3 gives an `EVENT` no `status_reason` to carry the mark (BF-27).
 - **`msg.qos` is not honoured on the wire.** PubSubClient 2.8 publishes at QoS 0, so
   `drain_publish_queue()` holds a failed event and retries it first. espMqttClient is the
   fix.
@@ -287,7 +303,7 @@ exist for it and are never a production build.
 **`v_b12_blaster` is V-B12's bench image, and it is never deployed either.** It adds
 `blaster.{h,cpp}`, a UDP transmitter driven from the USB serial port, which loads WiFi for
 the saturated arm (Impl Plan §8.1.2). Outside that environment `blaster.cpp` compiles to
-nothing and `loop()` is unchanged.
+nothing, and `loop()` reads BF-27's console instead.
 
 ## Two network rules that are enforced, not remembered
 
@@ -398,7 +414,7 @@ log. Never commit, echo or log the real values.
 `lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` (with `json_writer`) ·
 `publish` (which renders from the library's schema structs, so `decode/` was not built,
 Impl Plan §6.3.1) · `hex_proxy` · `ui` ·
-`debug` (BF-27 built its frame-log half as `frame_log`).
+`debug` (BF-27 built its frame log as `frame_log` and its dummy publish as `dummy`).
 Task ownership is in Impl Plan §5.2/§5.3.
 
 `MqttTransport` is an interface; PubSubClient is the first implementation. Keep the seam —

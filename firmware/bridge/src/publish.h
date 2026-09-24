@@ -112,6 +112,10 @@ class PublishSink {
 // answered since boot).
 using UtcSeconds = int64_t;
 
+// Spec 8.9's name for an event_type, lower case, which is also its topic leaf. Null for a
+// value the table does not list. dummy.cpp reads a console's event name back through it.
+const char* event_type_name(uint8_t v);
+
 // ISO 8601, `2026-09-23T14:05:09Z`. Returns the length written, or 0 for a short `cap`.
 size_t format_utc(UtcSeconds t, char* out, size_t cap);
 
@@ -141,8 +145,13 @@ class PublicationPolicy {
   // withhold every follow-up and the classified direction would never reach HA. The first
   // edge and its follow-up are each published once. The specification's wording is raised
   // for its next revision (Impl Plan 6.3.2).
+  //
+  // `synthetic` IS THE CALLER'S KNOWLEDGE, NOT THE FRAME'S. Spec 7.3 gives an EVENT no
+  // status_reason, so nothing on the wire can say DEBUG_SYNTHETIC. A frame from the radio
+  // passes false; BF-27's dummy publish passes true, and the payload's `synthetic` key
+  // carries it into HA as R-5.2d asks. An automation that sends email or SMS filters on it.
   void on_event(const NodeInfo& info, const lran::Header& hdr, const uint8_t* payload,
-                size_t payload_len, PublishSink& sink);
+                size_t payload_len, bool synthetic, PublishSink& sink);
 
   // After a broker connect. The retained documents may be gone (spec 16.5 reasons the same
   // way about availability), so the next frame from each node publishes every document

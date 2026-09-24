@@ -131,25 +131,6 @@ const char* status_reason_name(uint8_t v) {
   return nullptr;
 }
 
-// Spec 8.9's names, lowercased as the others are. Each is also its event's topic leaf, so
-// HA can route FIRE_ASSERTED on a topic of its own (spec 8.9). Null for a value the table
-// does not list, which on_event() sends to `event/unknown`.
-const char* event_type_name(uint8_t v) {
-  switch (static_cast<lran::EventType>(v)) {
-    case lran::EventType::VehicleWhileHeldOpen: return "vehicle_while_held_open";
-    case lran::EventType::FireAsserted:         return "fire_asserted";
-    case lran::EventType::HardShutdown:         return "hard_shutdown";
-    case lran::EventType::VehicleDetected:      return "vehicle_detected";
-    case lran::EventType::GateStateChange:      return "gate_state_change";
-    case lran::EventType::HoldStateChange:      return "hold_state_change";
-    case lran::EventType::BmsAlarm:             return "bms_alarm";
-    case lran::EventType::MpptError:            return "mppt_error";
-    case lran::EventType::ChargeInhibited:      return "charge_inhibited";
-    case lran::EventType::Boot:                 return "boot";
-  }
-  return nullptr;
-}
-
 // spec 7.2.7 bits 7:6.
 const char* soc_source_name(uint8_t bms_flags) {
   switch (bms_flags >> 6) {
@@ -217,6 +198,25 @@ void civil_from_days(int64_t z, int64_t* y, unsigned* m, unsigned* d) {
 }
 
 }  // namespace
+
+// Spec 8.9's names, lowercased as the others are. Each is also its event's topic leaf, so
+// HA can route FIRE_ASSERTED on a topic of its own (spec 8.9). Null for a value the table
+// does not list, which on_event() sends to `event/unknown`.
+const char* event_type_name(uint8_t v) {
+  switch (static_cast<lran::EventType>(v)) {
+    case lran::EventType::VehicleWhileHeldOpen: return "vehicle_while_held_open";
+    case lran::EventType::FireAsserted:         return "fire_asserted";
+    case lran::EventType::HardShutdown:         return "hard_shutdown";
+    case lran::EventType::VehicleDetected:      return "vehicle_detected";
+    case lran::EventType::GateStateChange:      return "gate_state_change";
+    case lran::EventType::HoldStateChange:      return "hold_state_change";
+    case lran::EventType::BmsAlarm:             return "bms_alarm";
+    case lran::EventType::MpptError:            return "mppt_error";
+    case lran::EventType::ChargeInhibited:      return "charge_inhibited";
+    case lran::EventType::Boot:                 return "boot";
+  }
+  return nullptr;
+}
 
 const char* domain_path(Domain d) {
   switch (d) {
@@ -307,7 +307,7 @@ void PublicationPolicy::offer(size_t ni, Domain d, const char* node_token, size_
 
 void PublicationPolicy::on_event(const NodeInfo& info, const lran::Header& hdr,
                                  const uint8_t* payload, size_t payload_len,
-                                 PublishSink& sink) {
+                                 bool synthetic, PublishSink& sink) {
   if (hdr.type != lran::MsgType::Event) return;
   ++stats_.event_frames;
 
@@ -355,6 +355,7 @@ void PublicationPolicy::on_event(const NodeInfo& info, const lran::Header& hdr,
   j.u32("input_bits", e.input_bits);
   j.u32("detail", e.detail);  // spec 7.3 - event-specific, passed through
   j.u32("uptime_s", e.uptime_s);
+  j.boolean("synthetic", synthetic);  // R-5.2d - see on_event() in publish.h
   const size_t len = j.finish();
 
   char topic[kMaxTopicLen];

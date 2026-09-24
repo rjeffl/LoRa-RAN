@@ -206,6 +206,8 @@ void loop() {
   // Nothing runs here by design. The seven tasks own the work (Impl Plan 5.2), and
   // the Arduino loop task sits below all of them; code added here would run at a
   // priority chosen by Arduino rather than by the table.
+  //
+  // The exceptions are bench tools that want exactly that: to run when nothing else does.
 #if defined(LRAN_V_B12_BLASTER)
   // The one exception, and only in the V-B12 bench image. The blaster wants the lowest
   // priority there is: it is load for the tasks in the table, not a competitor to them.
@@ -213,6 +215,29 @@ void loop() {
   bridge::blaster_poll();
   vTaskDelay(1);
 #else
-  vTaskDelay(pdMS_TO_TICKS(1000));
+  // BF-27's serial console (dummy.h). Lines are read here and handed over whole; a line
+  // longer than the buffer is dropped with a note rather than acted on in part. 50 ms is
+  // quick enough for a person typing and costs nothing at this priority.
+  static char   line[160];
+  static size_t len      = 0;
+  static bool   overflow = false;
+  while (Serial.available() > 0) {
+    const int c = Serial.read();
+    if (c == '\r' || c == '\n') {
+      if (overflow) {
+        Serial.println(F("console: line too long, ignored"));
+      } else if (len > 0) {
+        line[len] = '\0';
+        bridge::console_line(line);
+      }
+      len      = 0;
+      overflow = false;
+    } else if (len + 1 < sizeof(line)) {
+      line[len++] = static_cast<char>(c);
+    } else {
+      overflow = true;
+    }
+  }
+  vTaskDelay(pdMS_TO_TICKS(50));
 #endif
 }

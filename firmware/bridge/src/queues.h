@@ -54,6 +54,12 @@ struct RxMessage {
   // millis() at reception of the completing frame. The bridge's own clock, used for
   // staleness; nothing on the wire carries a timestamp.
   uint32_t rx_millis = 0;
+
+  // BF-27's dummy publish made this message on the serial console; no radio heard it and
+  // no ladder passed it. app_task hands it to the publication policy alone: it must not
+  // teach the registry a ctx_id, answer a poll or move a node's availability, because no
+  // node sent it (dummy.h).
+  bool dummy = false;
 };
 
 // ---------------------------------------------------------------------------
