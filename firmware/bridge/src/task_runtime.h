@@ -75,6 +75,11 @@ MqttTransport& mqtt();
 // COMMAND_ACK either.
 bool lora_task_idle();
 
+// BF-27's dummy publish. One line from the USB serial console, without its line ending; a
+// `dummy` line is answered on the console and may queue a STATUS or EVENT for app_task
+// (dummy.h). Any other line is ignored. Called from loop(), the lowest priority there is.
+void console_line(const char* line);
+
 // The per-queue counters, for the diagnostic topics and the OLED page.
 const QueueAccounting& queue_accounting();
 

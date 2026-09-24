@@ -79,7 +79,8 @@ schema::GateLinkEventV1 vehicle(uint32_t id) {
 }
 
 void send(PublicationPolicy& p, const NodeInfo& info, const schema::GateLinkEventV1& e,
-          Recorder& r, CtxId ctx = kCtx, SchemaId schema = kSchemaGateLinkEventV1) {
+          Recorder& r, CtxId ctx = kCtx, SchemaId schema = kSchemaGateLinkEventV1,
+          bool synthetic = false) {
   uint8_t buf[schema::kGateLinkEventV1Len];
   size_t  n = 0;
   TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(e, buf, sizeof(buf), &n));
@@ -88,7 +89,7 @@ void send(PublicationPolicy& p, const NodeInfo& info, const schema::GateLinkEven
   h.src    = info.id;
   h.ctx_id = ctx;
   h.schema = schema;
-  p.on_event(info, h, buf, n, r);
+  p.on_event(info, h, buf, n, synthetic, r);
 }
 
 // The text after "key": up to the next comma or brace.
@@ -134,8 +135,22 @@ void test_event_publishes_once_not_retained_at_qos_1() {
   expect(doc, "input_bits", "5");
   expect(doc, "detail", "300");
   expect(doc, "uptime_s", "86400");
+  expect(doc, "synthetic", "false");
   TEST_ASSERT_EQUAL(1, p.stats().event_frames);
   TEST_ASSERT_EQUAL(1, p.stats().events);
+}
+
+// R-5.2d, BF-27. An EVENT has no status_reason, so the mark comes from the caller: the dummy
+// publish says so, and the payload carries it. Deduplication is unchanged by it.
+void test_synthetic_event_is_marked() {
+  PublicationPolicy p;
+  Recorder          r;
+  send(p, gatelink(), vehicle(7), r, kCtx, kSchemaGateLinkEventV1, /*synthetic=*/true);
+  send(p, gatelink(), vehicle(7), r, kCtx, kSchemaGateLinkEventV1, /*synthetic=*/true);
+  TEST_ASSERT_EQUAL(1, r.n);
+  expect(r.items[0].payload, "synthetic", "true");
+  TEST_ASSERT_FALSE(r.items[0].retain);
+  TEST_ASSERT_EQUAL(1, p.stats().event_repeats);
 }
 
 // Spec 8.9 - FIRE is the one signal allowed to wake someone, so it has a topic of its own.
@@ -309,7 +324,7 @@ void test_wrong_schema_or_length_is_undecodable() {
   h.type   = MsgType::Event;
   h.src    = kNodeGateLink;
   h.schema = kSchemaGateLinkEventV1;
-  p.on_event(gatelink(), h, buf, sizeof(buf) - 1, r);
+  p.on_event(gatelink(), h, buf, sizeof(buf) - 1, false, r);
   TEST_ASSERT_EQUAL(0, r.n);
   TEST_ASSERT_EQUAL(2, p.stats().undecodable);
 }
@@ -323,7 +338,7 @@ void test_status_is_not_an_event() {
   h.type   = MsgType::Status;
   h.src    = kNodeGateLink;
   h.schema = kSchemaGateLinkEventV1;
-  p.on_event(gatelink(), h, buf, sizeof(buf), r);
+  p.on_event(gatelink(), h, buf, sizeof(buf), false, r);
   TEST_ASSERT_EQUAL(0, r.n);
   TEST_ASSERT_EQUAL(0, p.stats().event_frames);
 }
@@ -358,5 +373,6 @@ int main(int, char**) {
   RUN_TEST(test_wrong_schema_or_length_is_undecodable);
   RUN_TEST(test_status_is_not_an_event);
   RUN_TEST(test_stats_carry_the_event_counts);
+  RUN_TEST(test_synthetic_event_is_marked);
   return UNITY_END();
 }

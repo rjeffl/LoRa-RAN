@@ -29,6 +29,7 @@
 #include "config_store.h"
 #include "context_roll.h"
 #include "diag_json.h"
+#include "dummy.h"
 #include "discovery.h"
 #include "levers.h"
 #include "lora_link.h"
@@ -1699,6 +1700,24 @@ void app_task(void*) {
                                         levers.cell_mv_deadband});
     }
     if (g_publish_forget.exchange(false)) g_policy.forget_published();
+    // BF-27. A dummy frame goes to the policy and nowhere else: no node sent it, so it must
+    // not teach the registry a ctx_id, answer a poll or move availability (queues.h). Its
+    // event is marked here because an EVENT has no status_reason to carry the mark (spec
+    // 7.3); its STATUS is marked by its own DEBUG_SYNTHETIC.
+    if (msg.dummy) {
+      const NodeInfo* info = registry_find(msg.hdr.src);
+      if (info != nullptr) {
+        if (msg.hdr.type == lran::MsgType::Event) {
+          g_policy.on_event(*info, msg.hdr, msg.payload, msg.payload_len,
+                            /*synthetic=*/true, sink);
+        } else {
+          g_policy.on_status(*info, msg.hdr, msg.payload, msg.payload_len, msg.rx_millis,
+                             utc_at(msg.rx_millis), sink);
+        }
+        g_publish_stats.store(g_policy.stats());
+      }
+      continue;
+    }
     // A blocking receive is correct HERE and wrong in lora_task: app_task waiting
     // costs nothing, and it is the consumer rather than the producer.
     //
@@ -1729,7 +1748,8 @@ void app_task(void*) {
     if (msg.hdr.type == lran::MsgType::Event) {
       const NodeInfo* info = registry_find(msg.hdr.src);
       if (info != nullptr) {
-        g_policy.on_event(*info, msg.hdr, msg.payload, msg.payload_len, sink);
+        g_policy.on_event(*info, msg.hdr, msg.payload, msg.payload_len,
+                          /*synthetic=*/false, sink);
         g_publish_stats.store(g_policy.stats());
       }
     }
@@ -1965,6 +1985,40 @@ bool send_rx(const RxMessage& msg) {
   g_accounting.record_sent(QueueId::Rx,
                            static_cast<size_t>(uxQueueMessagesWaiting(g_rx_queue)));
   return true;
+}
+
+// BF-27. The generator and its per-boot context live here, touched only by loop().
+namespace {
+DummyPublisher g_dummy;
+lran::CtxId    g_dummy_ctx = 0;
+RxMessage      g_dummy_msg;  // static: an RxMessage is ~240 bytes and loop()'s stack is small
+}  // namespace
+
+void console_line(const char* line) {
+  // A fresh context per boot, so spec 7.3's (ctx_id, event_id) does not repeat when the
+  // dummy's event_id restarts. Zero is the value a node has before it is heard (spec 10.1).
+  while (g_dummy_ctx == 0) g_dummy_ctx = esp_random();
+  static char        reply[1024];  // `dummy show` is ~800 bytes; static for loop()'s stack
+  const DummyOutcome o =
+      g_dummy.handle(line, g_dummy_ctx, millis(), &g_dummy_msg, reply,
+                     sizeof(reply));
+  if (o == DummyOutcome::NotMine) return;
+  if (o == DummyOutcome::Inject) {
+    // R-5.2d's other half. A node heard this boot is real, and synthetic history
+    // interleaved with its own is what the marking exists to prevent. A registry
+    // question, so it is asked here rather than in dummy.cpp (dummy.h).
+    NodeState st;
+    if (registry_state(g_dummy_msg.hdr.src, &st) && st.frames_heard > 0) {
+      Serial.printf("dummy: refused - node %02x has been heard this boot\n",
+                    static_cast<unsigned>(g_dummy_msg.hdr.src));
+      return;
+    }
+    if (!send_rx(g_dummy_msg)) {
+      Serial.println(F("dummy: refused - the RX queue is full (counted)"));
+      return;
+    }
+  }
+  Serial.println(reply);
 }
 
 bool send_tx(const TxMessage& msg) {
