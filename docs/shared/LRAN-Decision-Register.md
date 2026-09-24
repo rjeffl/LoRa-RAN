@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.19
+**Version:** 0.20
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-24
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D60** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D61** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -299,6 +299,61 @@ happened, and no remedy is chosen yet.
 3. **W17 before GateLink deploys, or after?** The case needs every confirming frame to one
    node lost inside its window, just after that node was heard.
 
+### 2.5 D61 — a provisioned node that is not deployed, proposed 2026-09-24
+
+> **D61 closed on 2026-09-24. §3.10 records the answers.** This section is the proposal as
+> the operator read it.
+
+**The problem, found on the bench after BF-33's slice 3.** No PHY change can start, on the
+bench or in production. The bridge polls and watches a production row from boot, so 0x01
+and 0x02 are in the fleet from the first tick. Neither is deployed, both go `offline`
+after three polls, and §12.4.1 step 2 answers every change `phy_fleet_incomplete`. The
+refusal follows the text, because the bridge polls both nodes. In production it lasts
+until WellLink is deployed, which is not planned soon. The bridge engineering log's BF-33
+slice 3 entry of 2026-09-24 has the bench evidence.
+
+**The operator chose on 2026-09-24 to mark a node deployed**, over counting only the nodes
+heard since boot or a bench-only build flag. Counting heard nodes departs from §12.4.1's
+"a node the bridge polls". A bench-only flag unblocks the bench and leaves production
+blocked.
+
+**The proposal:**
+
+1. **A bridge per-node row, `deployed`**, `0x0081`, `u8`, 0 or 1, set on
+   `lran/<node>/config/set` beside `poll_interval_s`. The bridge persists it like its other
+   rows.
+2. **The default is 0.** A bridge with no stored value treats every production node as not
+   deployed, so the operator sets the row once, when a node goes into the field.
+3. **A node that is not deployed is enrolled like a bench node** (§16.6): the bridge polls
+   and watches it once it has heard any frame from it this boot, and not before. A node
+   installed before its row is set therefore joins the polls, and the fleet, on its first
+   frame.
+4. **A deployed node is enrolled from boot**, which is the current behaviour for every
+   production row. A deployed node that has stopped answering still blocks a PHY change,
+   which is the case the refusal exists for.
+5. **Setting the row takes effect at once. Clearing it takes effect at the next restart.**
+   Enrolment is never undone within a boot, in the poll scheduler or the availability
+   watchdog.
+6. **§12.4.1 is unchanged.** Its fleet is still "a node the bridge polls", and a node that
+   is not deployed and has not been heard is not polled.
+
+**What it costs.** After a restart, a node that is not deployed and has gone silent drops
+out of the fleet. A PHY change can then strand it, which is the risk counting heard nodes
+carries. The row closes that risk for a node the operator has marked.
+
+**What it leaves alone.** A node that has not been heard publishes no availability, as a
+bench node does now, so a retained `offline` from an earlier boot stands on the broker.
+Frames from a node that is not deployed are processed as they are now.
+
+#### Questions for the operator
+
+1. **Accept items 1 to 6 as drafted?**
+2. **The permanent name `deployed`, and id `0x0081`.** A published name is also the HA
+   entity's `object_id` (§16.7).
+3. **Where the text lands.** The specification's §16.5 and §16.6 could carry it at the
+   next revision, together with D60's two cases, and this register until then. The
+   alternative is spec v0.15 now, with the citation sweep.
+
 ## 3. Resolved decisions
 
 | # | Decision | Outcome | Owner |
@@ -356,6 +411,7 @@ happened, and no remedy is chosen yet.
 | **D58** | How the bridge resumes commanding a node after its own restart | **The bridge forces each node onto a new context after its own boot, with `ROLL_CONTEXT`** (`cmd` `0x12`, `arg` `0xA5`). The node verifies it under §9.4 steps 1–3 only, takes a new `ctx_id`, and clears its dedup cache and `rx_high_water`. Until a node's roll completes, the bridge refuses commands to it with a named reason. `ver` stays `2`. §2.3 has the mechanism; §3.7 has the answers and three additions | Protocol Spec §8.1, §9.4, §10 |
 | **D59** | How a PHY change moves the fleet | **The bridge moves the fleet in two phases**, under spec v0.14's §12.4.1 to §12.4.4. The PHY group, the five PHY parameters and `phy_trial_s`, is set on `lran/bridge/config/set` alone. The bridge sends the whole group to every node on the old settings and abandons on any missing or refused answer. It then retunes and hears every node on the new settings by `POLL`, and only then commits itself and confirms each node with an authenticated `CONFIG` `GET`. A node without a usable nonvolatile store refuses the group with `READ_ONLY`. `PHY_REVERTED` (`0x0B`) and `lran/bridge/event/phy_reverted` report a revert. **W17**, a node that misses every confirming frame, closes after GateLink deploys. Accepted as drafted, 2026-09-24, §3.8 | Protocol Spec §12.4, §8.9, §16.7; Protocol Library Plan §4 (**BF-33**) |
 | **D60** | Two PHY-group cases spec §12.4 leaves to other sections | **`RESTORE_DEFAULTS` keeps the committed PHY group**, in RAM and in the store, because resetting one node's PHY to D1's defaults takes it off the fleet's settings. **A PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`**, which is true of the trial values; §12.4.2 step 2's exclusion concerns a node with no usable store. Found building BF-33's library half; accepted by the operator 2026-09-24, §3.9. **The specification's text is owed at its next revision** | Protocol Spec §8.10, §8.11, §12.4.2; Protocol Library Plan §4 (**BF-33**) |
+| **D61** | How a provisioned node that is not deployed counts toward the PHY fleet | **A bridge per-node row, `deployed`** (`0x0081`, 0 or 1, default 0). A node that is not deployed is polled and watched only once heard this boot, as a bench node is; a deployed node is enrolled from boot. Setting the row takes effect at once, clearing it at the next restart. §12.4.1's fleet stays "a node the bridge polls". Found when §12.4.1 step 2 refused every change on the bench because 0x01 and 0x02 are polled and offline; accepted by the operator 2026-09-24, §3.10. **The specification's text is owed at its next revision** | Protocol Spec §16.5, §16.6; Bridge Impl Plan (**BF-33**) |
 
 
 ### 3.1 Notes on D32 and D33
@@ -963,6 +1019,16 @@ sections.** The operator accepted the library's behaviour for both on 2026-09-24
 The specification's §8.10 and §12.4.2 are to say both at the next revision. Until then,
 this subsection and Library Plan §4 are where they are written.
 
+### 3.10 D61 — a node counts toward the fleet once deployed or heard, 2026-09-24
+
+**The operator accepted §2.5's proposal as drafted on 2026-09-24**, and answered its three
+questions.
+
+1. **Items 1 to 6 stand as drafted.**
+2. **The name stands**: `deployed`, id `0x0081`.
+3. **The specification's text waits for its next revision**, with D60's two cases. §16.5
+   and §16.6 are to say it. Until then, this register is where it is written.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1122,6 +1188,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 
 ## 6. Changelog
 
+- **v0.20** — **D61 proposed and resolved on 2026-09-24**: a bridge per-node row,
+  `deployed`, keeps a provisioned node that is not deployed out of the polls and the PHY
+  fleet until it is heard. §2.5 and §3.10 have the reasoning. The specification's text
+  waits for its next revision.
 - **v0.19** — **D60 resolved on 2026-09-24**: `RESTORE_DEFAULTS` keeps the committed PHY
   group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`. §3.9 has the
   reasoning. The specification's text waits for its next revision.
