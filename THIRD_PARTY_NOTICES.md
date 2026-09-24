@@ -31,7 +31,8 @@ pinned, the resolved version installed at the time of writing is given in bracke
 Copyright (c) 2018 Jan Gromeš
 
 SX1262 driver for every firmware in this repository (**D32**). Pinned exactly at
-**7.7.1** in `firmware/range-test/platformio.ini`, both environments.
+**7.7.1** in the `platformio.ini` of `firmware/bridge`, `firmware/simnode`,
+`firmware/range-test` (both environments) and `firmware/chan-capture`.
 `firmware/range-test/src/pa_config.cpp` mirrors a file-static table from this library
 rather than copying its code; `tools/rangetest/check_pa_table.py` checks the mirror
 against the pinned version.
@@ -41,8 +42,14 @@ against the pinned version.
 Copyright (c) 2016 by Daniel Eichhorn
 Copyright (c) 2016 by Fabrice Weinberg
 
-OLED display driver. Pinned at **4.6.2** in `firmware/range-test/platformio.ini`; pinned
-at **^4.4.0** [4.6.2] in `wattcycle-reader/platformio.ini`.
+OLED display driver. Pinned at **4.6.2** in `firmware/bridge`, `firmware/simnode` and
+`firmware/range-test`; pinned at **^4.4.0** [4.6.2] in `wattcycle-reader/platformio.ini`.
+
+### PubSubClient — MIT
+
+Copyright (c) 2008-2020 Nicholas O'Leary
+
+MQTT client for the bridge. Pinned at **2.8** in `firmware/bridge/platformio.ini`.
 
 ### Unity — MIT
 
@@ -107,9 +114,9 @@ distributed binary that links it.
 Copyright (c) Espressif Systems (Shanghai) Co., Ltd. and the Arduino-ESP32 contributors.
 
 The `arduino` framework for every ESP32 target here. Supplied by the `espressif32`
-platform: **6.13.0** pinned in `firmware/range-test/platformio.ini`, **^6.9.0** in
-`wattcycle-reader/platformio.ini` and `lib/lran-protocol/platformio.ini`'s `esp32s3`
-environment (unpinned there). The installed core package is
+platform: **6.13.0** pinned in every firmware under `firmware/` and in
+`lib/lran-protocol/platformio.ini`'s `esp32s3` test environment, and **^6.9.0** in
+`wattcycle-reader/platformio.ini`. The installed core package is
 `framework-arduinoespressif32 3.20017`.
 
 The core bundles ESP-IDF components under **Apache-2.0**, including **mbedTLS**
@@ -160,9 +167,10 @@ worth recording rather than silently reconciling, and one has been resolved:
    incomplete. **Left as a finding rather than corrected**, because the only build that
    resolves M5GFX today is the `/wattcycle-reader/` proof of concept; for GateLink, whose
    firmware does not exist, the row still describes the design as planned.
-3. **Some §11.1 rows have no build yet.** PubSubClient, ArduinoJson and the VE.Direct
-   parser are listed there and none is installed, because the bridge and GateLink
-   firmwares do not exist.
+3. **Some §11.1 rows have no build yet.** ArduinoJson and the VE.Direct parser are
+   listed there and neither is installed: the bridge builds without ArduinoJson, and
+   GateLink's firmware does not exist. PubSubClient, the third row this item named, is
+   now in the bridge build and in §1.
 
 **Resolved 2026-09-08 — the display row.** §11.1 named **U8g2** and nothing in the
 repository ever used it: both Heltec V3 implementations chose the ThingPulse SSD1306
@@ -186,7 +194,7 @@ Apache-2.0 is linked rather than inlined for length.
 
 ### MIT
 
-Applies to: RadioLib, the ThingPulse SSD1306 driver, Unity, M5StamPLC, M5Unified, M5GFX,
+Applies to: RadioLib, the ThingPulse SSD1306 driver, PubSubClient, Unity, M5StamPLC, M5Unified, M5GFX,
 and LRAN itself. Each component's own copyright line is in §1; the permission notice is
 identical to the one in this repository's `LICENSE`.
 
