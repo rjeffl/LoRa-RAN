@@ -33,6 +33,21 @@ int32_t get_i32(const uint8_t* p) {
   return static_cast<int32_t>(u);
 }
 
+// Empties a CONFIG in place. Not `*out = NodeConfigV1{}`: that temporary crashed GCC 13's
+// gimplifier on CI's Ubuntu 24.04 runner (internal compiler error in gimple_add_tmp_var,
+// 2026-09-24), though clang compiled it. The fields are cleared one by one instead.
+void clear_config(lran::schema::NodeConfigV1* out, lran::ConfigOp op) {
+  out->op    = op;
+  out->count = 0;
+  for (size_t i = 0; i < lran::schema::kMaxConfigEntries; ++i) {
+    lran::schema::ConfigEntry& e = out->entries[i];
+    e.param_id = 0;
+    e.ptype    = lran::PType::U8;
+    e.len      = 0;
+    for (size_t b = 0; b < lran::schema::kMaxParamValueLen; ++b) e.value[b] = 0;
+  }
+}
+
 }  // namespace
 
 bool PhyGroup::operator==(const PhyGroup& o) const {
@@ -75,8 +90,7 @@ bool phy_config_from(const PhyGroup& g, const lran::link::PhyConfig& base,
 }
 
 void build_phy_set(const PhyGroup& g, lran::schema::NodeConfigV1* out) {
-  *out    = lran::schema::NodeConfigV1{};
-  out->op = lran::ConfigOp::Set;
+  clear_config(out, lran::ConfigOp::Set);
   for (size_t i = 0; i < kPhyGroupSize; ++i) {
     const lran::config::ParamDef* d = bridge_phy_row(i);
     uint32_t                      raw = static_cast<uint32_t>(g.v[i]);
@@ -90,14 +104,12 @@ void build_phy_set(const PhyGroup& g, lran::schema::NodeConfigV1* out) {
 }
 
 void build_phy_get(lran::schema::NodeConfigV1* out) {
-  *out    = lran::schema::NodeConfigV1{};
-  out->op = lran::ConfigOp::Get;
+  clear_config(out, lran::ConfigOp::Get);
   for (size_t i = 0; i < kPhyGroupSize; ++i) {
-    lran::schema::ConfigEntry& e = out->entries[out->count++];
-    e.param_id = kNodePhyIds[i];
-    e.ptype    = bridge_phy_row(i)->type;
-    e.len      = 0;
+    out->entries[i].param_id = kNodePhyIds[i];
+    out->entries[i].ptype    = bridge_phy_row(i)->type;
   }
+  out->count = static_cast<uint8_t>(kPhyGroupSize);
 }
 
 size_t phy_blob_encode(const PhyBlob& b, uint8_t* out, size_t cap) {
