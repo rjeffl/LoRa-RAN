@@ -183,10 +183,10 @@ void test_the_availability_payloads_are_the_tokens_the_bridge_publishes() {
 // Spec 16.6 - a bench node is gated at publication, and discovery is publication.
 // ---------------------------------------------------------------------------
 
-void test_a_bench_node_produces_no_discovery_until_the_toggle_exists() {
+void test_a_bench_node_produces_no_discovery_while_the_flag_is_clear() {
   // HA's registry remembers a unique_id forever and a retained config survives a
-  // reflash, so four simnode devices whose entities can never update is a cost paid
-  // once and kept. BF-26 owns the toggle.
+  // reflash, so four simnode devices whose entities never update is a cost paid once and
+  // kept. The flag is simnode_diag_enable (BF-26).
   Fleet f;
   Walk  w;
   w.run(f, false);
@@ -206,6 +206,35 @@ void test_the_toggle_admits_them_without_any_other_change() {
     if (is_bench_node(on.items[i].node_id)) bench = true;
   }
   TEST_ASSERT_TRUE(bench);
+}
+
+// Spec 16.6 axes 1 and 3. Every bench entity is diagnostic, buttons included, under a
+// `lran_simnode<N>_` unique_id, and reads nothing but its node's diag/state. A bench button
+// left off the diagnostic category would put a simnode's Open on a dashboard.
+void test_every_bench_entity_is_diagnostic_and_reads_only_diag_state() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  size_t bench = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const NodeId id = w.items[i].node_id;
+    if (!is_bench_node(id)) continue;
+    ++bench;
+    const char* doc = w.configs[i];
+    char        v[96];
+    TEST_ASSERT_NOT_NULL_MESSAGE(value_of(doc, "ent_cat", v, sizeof(v)), doc);
+    TEST_ASSERT_EQUAL_STRING("diagnostic", v);
+
+    char prefix[24];
+    std::snprintf(prefix, sizeof(prefix), "lran_simnode%u_", static_cast<unsigned>(id - kNodeSim0));
+    TEST_ASSERT_NOT_NULL(value_of(doc, "uniq_id", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_INT_MESSAGE(0, std::strncmp(v, prefix, std::strlen(prefix)), v);
+
+    if (value_of(doc, "stat_t", v, sizeof(v)) != nullptr) {
+      TEST_ASSERT_EQUAL_STRING("~/diag/state", v);
+    }
+  }
+  TEST_ASSERT_GREATER_THAN(0, bench);
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +463,8 @@ int main() {
   RUN_TEST(test_the_discovery_topic_matches_the_unique_id);
   RUN_TEST(test_a_node_entity_points_at_its_own_availability_topic);
   RUN_TEST(test_the_availability_payloads_are_the_tokens_the_bridge_publishes);
-  RUN_TEST(test_a_bench_node_produces_no_discovery_until_the_toggle_exists);
+  RUN_TEST(test_a_bench_node_produces_no_discovery_while_the_flag_is_clear);
+  RUN_TEST(test_every_bench_entity_is_diagnostic_and_reads_only_diag_state);
   RUN_TEST(test_the_toggle_admits_them_without_any_other_change);
   RUN_TEST(test_a_button_exists_only_where_the_command_path_would_send_it);
   RUN_TEST(test_welllink_gets_no_gate_buttons);

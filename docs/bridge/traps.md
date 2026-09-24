@@ -135,10 +135,11 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
 - **`flood` sends one frame unless you give it a count.** `fault f1 flood 50 gap 0` is the
   row §10.5 describes; `fault f1 flood` is one frame and proves nothing.
 - **A simnode PING to `00` reports no echo.** The bridge does not answer PING yet.
-- **A bench node's `lran/<node>/diag/state` is not published at all**, so
-  `unsupported_ver`, `proto_ver` and the per-node link are invisible at the broker for
-  `f0`-`f3`. Spec §16.6 gates them on `simnode_diag_enable`, which **BF-26** has not built.
-  Read the bridge's serial instead.
+- **A bench node's `diag/state` and `availability` are published only while
+  `simnode_diag_enable` is set**, and it defaults off (spec §16.6). Set it with
+  `{"set":{"simnode_diag_enable":true}}` on `lran/bridge/config/set`. It persists to NVS,
+  so **clear it again when the session ends**, or the simnode entities stay live in Home
+  Assistant. A bench identity appears only once the bridge has heard it.
 - **A bench counter check must be read at the broker**, not from the console: the bridge
   has no console, `diag/state` publishes every 60 s, and a reflash resets every counter to
   zero.

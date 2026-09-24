@@ -18,6 +18,15 @@ const char* availability_payload(Availability a) {
   return nullptr;
 }
 
+const char* availability_publication(const NodeInfo& info, Availability state,
+                                     bool simnode_diag_enable, bool clearing) {
+  if (state == Availability::Unknown) return nullptr;
+  if (!bench_publication_allowed(info, simnode_diag_enable)) {
+    return clearing ? kPayloadOffline : nullptr;
+  }
+  return availability_payload(state);
+}
+
 void AvailabilityWatchdog::set_threshold(uint16_t polls) {
   threshold_ = polls == 0 ? 1 : polls;
 }

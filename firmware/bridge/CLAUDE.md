@@ -59,7 +59,9 @@ upload waits on.
 judges and `sched_task` publishes; Impl Plan §6.1.2. **Three things to keep:** the watchdog
 belongs to `sched_task` alone, so other tasks reach it only through atomics; it detects a
 frame from `NodeState::frames_heard`, never from `missed_polls == 0`; and **a bench node's
-availability is not published** until BF-26's `simnode_diag_enable` exists (spec §16.6).
+availability is published only while `simnode_diag_enable` is set** (spec §16.6, BF-26).
+Clearing the flag publishes one `offline` per bench node the bridge has heard, and nothing
+more.
 **Do not name a source file `availability.h`**: on macOS's case-insensitive filesystem it
 shadows the SDK's `<Availability.h>` and breaks every native build.
 
@@ -155,8 +157,10 @@ reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out
   reconnect take the same path, so the reconnect case cannot be the one that rots.
 - **A button's existence is `command_allowed()`'s answer**, never a table per node type.
   The moment a node type gets its own button list, **BG-2** is broken.
-- **A bench node produces no discovery** until BF-26 builds `simnode_diag_enable`. Spec
-  §16.6, through the same `bench_publication_allowed()` the availability watchdog uses.
+- **A bench node produces discovery only while `simnode_diag_enable` is set** (spec §16.6,
+  BF-26), through the same `bench_publication_allowed()` the availability watchdog uses.
+  Switching the flag on restarts the set. Every bench entity is `ent_cat: diagnostic`,
+  buttons included, and `test_discovery` checks it.
 - **`ha/discovery/` is generated, and CI checks it.** After any change to a discovery
   table, run `python3 tools/checks/ha_examples.py --write` and commit the diff — it is
   what Home Assistant will see differently.

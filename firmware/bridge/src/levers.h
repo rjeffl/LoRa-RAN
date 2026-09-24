@@ -32,8 +32,9 @@ namespace bridge {
 
 // Every row of the table that a bridge task applies, as its consumer takes it.
 //
-// `simnode_diag_enable` is absent on purpose. It is not timing, and gating on it is
-// BF-26's to build.
+// `simnode_diag_enable` is not timing, and it rides here anyway (BF-26). It travels the same
+// way, from mqtt_task's store to sched_task's gate, and a second carrier would be a second
+// generation counter to get right.
 struct Levers {
   uint16_t diag_interval_s            = 0;
   uint16_t missed_poll_threshold      = 0;
@@ -46,6 +47,7 @@ struct Levers {
   uint32_t error_min_interval_ms      = 0;
   uint32_t config_readback_timeout_ms = 0;
   uint32_t config_ack_timeout_ms      = 0;
+  bool     simnode_diag_enable        = false;  // spec 16.6
 
   // D47 - one value per node, in kNodeTable's order.
   uint16_t poll_interval_s[kNodeCount] = {};
@@ -89,6 +91,7 @@ class LeverBoard {
   std::atomic<uint32_t> error_min_interval_ms_{0};
   std::atomic<uint32_t> config_readback_timeout_ms_{0};
   std::atomic<uint32_t> config_ack_timeout_ms_{0};
+  std::atomic<bool>     simnode_diag_enable_{false};
   std::atomic<uint16_t> poll_interval_s_[kNodeCount] = {};
 };
 

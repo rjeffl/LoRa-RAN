@@ -780,10 +780,14 @@ std::atomic<bool>    g_availability_republish{false};
 std::atomic<uint8_t> g_nodes_online{kNodesUnknown};
 std::atomic<uint8_t> g_nodes_watched{kNodesUnknown};
 
-// spec 16.6 - bench publication is off by default. TODO(BF-26): simnode_diag_enable, settable
-// from lran/bridge/config/set, and a mark_known_pending() when it is switched on. Until then
-// a simnode's availability is judged and logged, and not published.
-constexpr bool kSimnodeDiagEnable = false;
+// spec 16.6 - bench publication, off by default. sched_levers() applies it from the board,
+// so sched_task alone reads it and it needs no lock. A bench node is judged and logged
+// whichever way it is set; the flag decides only what reaches its topics.
+bool g_simnode_diag_enable = false;
+
+// Set for every known bench row on the tick the flag clears, and cleared once that row's
+// `offline` is queued. A queue that refuses it leaves the row set for the next tick.
+bool g_bench_clearing[kNodeCount] = {};
 
 void sched_availability() {
   if (g_availability_republish.exchange(false)) g_availability.mark_known_pending();
@@ -805,17 +809,22 @@ void sched_availability() {
                     availability_payload(c.to), static_cast<unsigned>(ns.missed_polls),
                     static_cast<unsigned>(g_availability.threshold()));
     }
-    if (!g_availability.pending(i)) continue;
-    if (!bench_publication_allowed(info, kSimnodeDiagEnable)) {
+    if (!g_availability.pending(i) && !g_bench_clearing[i]) continue;
+    // Spec 16.6 - with the flag clear a bench node publishes nothing, except `offline` on
+    // the tick that clears it (sched_levers()).
+    const char* payload = availability_publication(info, g_availability.state(i),
+                                                   g_simnode_diag_enable, g_bench_clearing[i]);
+    if (payload == nullptr) {
       g_availability.clear_pending(i);
+      g_bench_clearing[i] = false;
       continue;
     }
 
     char topic[kMaxTopicLen];
     // R-3.4c - retained. A queue that refuses it leaves the row pending for the next tick.
-    if (topic_availability(name, topic, sizeof(topic)) > 0 &&
-        sched_publish(topic, availability_payload(g_availability.state(i)))) {
+    if (topic_availability(name, topic, sizeof(topic)) > 0 && sched_publish(topic, payload)) {
       g_availability.clear_pending(i);
+      g_bench_clearing[i] = false;
     }
   }
 
@@ -881,7 +890,7 @@ void sched_diag(uint32_t now_ms) {
   for (size_t i = 0; i < registry_size(); ++i) {
     const NodeInfo& info = registry_info_at(i);
     // The nodes the scheduler polls, and spec 16.6's bench gate.
-    if (!g_availability.watched(i) || !bench_publication_allowed(info, kSimnodeDiagEnable)) {
+    if (!g_availability.watched(i) || !bench_publication_allowed(info, g_simnode_diag_enable)) {
       continue;
     }
     char      name[16];
@@ -931,6 +940,22 @@ void sched_levers() {
   g_availability.set_threshold(v.missed_poll_threshold);
   g_diag_interval_s = v.diag_interval_s;
 
+  // BF-26, spec 16.6. Switched on, every known node's availability and the bench nodes'
+  // diagnostics go out on this tick rather than a diag_interval_s later. Switched off,
+  // each bench node HA has seen gets one `offline`. Discovery is mqtt_task's, and
+  // handle_config_set() restarts it.
+  if (g_sched_levers_have && v.simnode_diag_enable != g_simnode_diag_enable) {
+    if (v.simnode_diag_enable) {
+      g_availability.mark_known_pending();
+      g_diag_republish = true;
+    } else {
+      for (size_t i = 0; i < kNodeCount; ++i) {
+        g_bench_clearing[i] = registry_info_at(i).is_bench;
+      }
+    }
+  }
+  g_simnode_diag_enable = v.simnode_diag_enable;
+
   // Only the nodes whose interval moved, so a set of some other lever does not retime a
   // schedule it has nothing to do with. The registry call comes first and outside the
   // scheduler's lock, which is never held across one (BF-17).
@@ -947,7 +972,7 @@ void sched_levers() {
 
   // The bench record that a set reached its consumer, not just the store.
   Serial.printf("levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
-                "config ack %u ms, readback %u ms\n",
+                "config ack %u ms, readback %u ms, simnode diag %s\n",
                 static_cast<unsigned>(g_sched_levers_seen),
                 static_cast<unsigned>(v.diag_interval_s),
                 static_cast<unsigned>(v.poll_reply_timeout_ms),
@@ -955,7 +980,8 @@ void sched_levers() {
                 static_cast<unsigned>(v.command_ack_timeout_ms),
                 static_cast<unsigned>(v.cmd_retries),
                 static_cast<unsigned>(v.config_ack_timeout_ms),
-                static_cast<unsigned>(v.config_readback_timeout_ms));
+                static_cast<unsigned>(v.config_readback_timeout_ms),
+                v.simnode_diag_enable ? "on" : "off");
 }
 
 // ---------------------------------------------------------------------------
@@ -1192,6 +1218,9 @@ void fill_node_config(ConfigJob* job, const ConfigSetRequest& node_half) {
   }
 }
 
+// BF-26 - discovery follows simnode_diag_enable. Defined with the discovery drain below.
+void discovery_take_simnode_diag(bool on);
+
 // One `config/set`, from the topic it arrived on. Spec 16.7.2.
 void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   const bool         is_bridge = target.is_bridge;
@@ -1255,7 +1284,9 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
     // consumer. A GET_ALL changes nothing and publishes nothing.
     changed = config_set_changed(g_cfg_req.op, persist);
     if (changed) {
-      g_levers.publish(levers_from(g_config));
+      const Levers v = levers_from(g_config);
+      g_levers.publish(v);
+      discovery_take_simnode_diag(v.simnode_diag_enable);
     }
   }
 
@@ -1380,6 +1411,22 @@ void drain_config_state(size_t budget) {
 DiscoveryCursor g_discovery_cursor;
 bool            g_discovery_pending = false;
 
+// spec 16.6 - the flag as discovery last took it. mqtt_task alone writes and reads it,
+// after setup() has written it once.
+bool g_discovery_simnode_diag = false;
+
+// Switched on, the set restarts from the top so the bench nodes' configs go out now rather
+// than at the next broker connect. The rest of the set is published again with them, which
+// costs a second or so once per switch and keeps one path. Switched off, nothing is
+// withdrawn: the entities stay and sched_task marks them `offline` (spec 16.6).
+void discovery_take_simnode_diag(bool on) {
+  if (on && !g_discovery_simnode_diag) {
+    g_discovery_cursor  = DiscoveryCursor{};
+    g_discovery_pending = true;
+  }
+  g_discovery_simnode_diag = on;
+}
+
 // A PublishMessage is ~872 bytes and this is called from mqtt_task, which already
 // carries one on its stack. Static for the reason BF-19 gives for sched_task's.
 PublishMessage g_discovery_msg;
@@ -1409,10 +1456,9 @@ void drain_discovery(size_t budget) {
 
   for (size_t i = 0; i < budget; ++i) {
     DiscoveryItem item;
-    // TODO(BF-26): simnode_diag_enable. Bench nodes are gated out until it exists, so
-    // their entities do not enter HA's registry to sit at `unknown` (spec 16.6).
-    if (!discovery_next(&g_discovery_cursor, fleet, count, /*simnode_diag_enable=*/false,
-                        &item)) {
+    // Spec 16.6 - bench nodes only while the flag is set, so their entities do not enter
+    // HA's registry to sit at `unknown` on a bridge that never publishes them.
+    if (!discovery_next(&g_discovery_cursor, fleet, count, g_discovery_simnode_diag, &item)) {
       g_discovery_pending = false;
       return;
     }
@@ -1837,7 +1883,9 @@ size_t config_begin() {
   // BF-23 - AFTER the restore, so each task's first pass applies what NVS held. Published
   // before a restore, the levers would run their defaults until the first set, and a
   // reboot would quietly undo every saved value.
-  g_levers.publish(levers_from(g_config));
+  const Levers v = levers_from(g_config);
+  g_levers.publish(v);
+  discovery_take_simnode_diag(v.simnode_diag_enable);
   return restored;
 }
 

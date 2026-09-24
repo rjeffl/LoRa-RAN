@@ -2309,3 +2309,43 @@ The cause was not investigated. The channel was shared with the rest of the IoT 
 floor: the specification's link budget lists about −123 dBm at SF7, and SF9's is lower
 still. A noise-floor rise smaller than that margin costs nothing here and could still
 cost frames at 87 m.
+
+---
+
+## 2026-09-23 — BF-26 on air: the bench gate holds both ways, and a first cut published while off
+
+**The bench is restored.** The operator put the house network's values back in
+`secrets.h`. The bridge had still been running `v_b12_blaster` at `9bd01b3`, and the broker
+still held its retained `lran/bridge/availability offline`. The BF-26 branch was flashed
+from a clean tree over USB. The banner read `0e7ded5` with no `-dirty`, then `d9624c0` after the
+fix below, and the bridge came up `online` on the house broker at 192.168.2.52.
+
+**The run.** The bridge's and the XIAO's serial ports stayed open for the whole session,
+and `push f1` announced `f1`. Set and clear went to `lran/bridge/config/set`, and
+`mosquitto_sub` on `lran/#` and `homeassistant/#` recorded what reached the broker. The
+Heltec simnode was not touched.
+
+| Step | Bridge log | At the broker |
+|---|---|---|
+| Boot, flag default off, `f1` heard | `simnode diag off`; `availability: simnode1 online` | No simnode `availability`, `diag/state` or discovery config (fixed build) |
+| Set `true` | `levers: gen 4 … simnode diag on` | Ack `persisted`; `simnode1/availability online`; `simnode1/diag/state` at −22 dBm, +11 dB; 48 discovery configs for `simnode0`–`3`, every one `ent_cat: diagnostic` |
+| Reboot, flag persisted on | `Config: 1 stored value(s) restored`; `simnode diag on` | `simnode1` `online` and `diag/state` again once heard |
+| Set `false` | `levers: gen 4 … simnode diag off` | Ack `persisted`; one `simnode1/availability offline`; all 48 configs still retained; no simnode `diag/state` in the 75 s after, across a diagnostics cycle that published GateLink's |
+| Reboot, flag persisted off, `f1` heard | `simnode diag off`; `availability: simnode1 online` | Nothing on either simnode topic in 80 s, with the retained values cleared first |
+
+**The first build published `offline` while the flag was off.** It made a bench node read
+`offline` whenever its availability changed with the flag clear, on the reasoning that
+this would also cover a reboot that lost an unpersisted `true`. On air, the boot row above
+left `lran/simnode1/availability offline` retained before any set. Spec §16.6 says that
+with the flag clear, bench frames are *"not published"*, and it allows `offline` only as
+the flag clears. The fix publishes `offline` once, on the tick the flag clears, and never
+otherwise. The host tests passed both versions, because they tested the rule the code
+implemented, not the specification's.
+
+**What this leaves.** The `applied_not_persisted` reboot case is uncovered, as Impl Plan
+§4.2a.1 says. A simnode's `config/state` was retained at the broker for all four
+identities before the flag was ever set, so the bridge publishes a bench node's
+configuration and command answers regardless of the flag. §4.2a.1 raises that against
+§16.6's *"exclusively"*. The flag was left **off, persisted**. The 48 simnode discovery
+configs stay retained, as §16.6 intends, so Home Assistant now carries four simnode devices
+whose entities read unavailable.
