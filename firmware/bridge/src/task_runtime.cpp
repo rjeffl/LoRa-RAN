@@ -206,6 +206,10 @@ std::atomic<bool> g_phy_busy{false};
 std::atomic<uint32_t> g_fleet_watched{0};
 std::atomic<uint32_t> g_fleet_not_online{0};
 
+// D61's lever as sched_task applied it, latched: a node deployed once this boot stays polled
+// and watched, and so in the fleet, until the restart.
+bool g_sched_deployed[kNodeCount] = {};
+
 // The most rows one topic's document can carry: a scope's own rows, or the largest set
 // the parser accepts, whichever is larger.
 inline constexpr size_t kMaxScopeRows = 32;
@@ -1201,7 +1205,7 @@ void sched_availability() {
     NodeState       ns;
     if (!registry_state(info.id, &ns)) continue;
 
-    const AvailabilityChange c = g_availability.evaluate(i, info, ns);
+    const AvailabilityChange c = g_availability.evaluate(i, g_sched_deployed[i], ns);
     char                     name[16];
     if (node_topic_name(info.id, name, sizeof(name)) == 0) {
       g_availability.clear_pending(i);  // no spec 16.1 token, so no topic
@@ -1387,6 +1391,16 @@ void sched_levers() {
     (void)registry_set_poll_interval(kNodeTable[i].id, s);
     SchedLock lock;
     g_scheduler.retime(kNodeTable[i].id, s);
+  }
+
+  // D61 - a deployed node is polled and watched from this tick, silent or not. Clearing the
+  // lever removes nothing until the next restart, so a node cannot leave spec 12.4.1's
+  // fleet while it may still be on settings a change would move.
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (!v.deployed[i] || g_sched_deployed[i]) continue;
+    g_sched_deployed[i] = true;
+    SchedLock lock;
+    g_scheduler.enrol(kNodeTable[i].id);
   }
 
   g_sched_levers_applied = v;

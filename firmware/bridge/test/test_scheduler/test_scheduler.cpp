@@ -41,11 +41,43 @@ NodeId poll_now(PollScheduler& s, uint32_t now, uint16_t interval = kInterval) {
   return st.node;
 }
 
+// D61 - most cases here model a fleet in the field, both production rows deployed.
+void deploy_production(PollScheduler& s) {
+  s.enrol(kNodeGateLink);
+  s.enrol(kNodeWellLink);
+}
+
 }  // namespace
 
-// Production rows are polled from the first tick, in table order; bench rows are not.
+// D61 - with no `deployed` lever applied, no row is polled: a node not in the field costs
+// no airtime. A production row that speaks joins, as a bench row does.
+void test_no_row_is_polled_until_deployed_or_heard() {
+  PollScheduler s;
+  TEST_ASSERT_FALSE(s.enrolled(kNodeGateLink));
+  TEST_ASSERT_FALSE(s.enrolled(kNodeWellLink));
+  expect(s.next(0, true), PollAction::None);
+
+  s.on_heard(kNodeWellLink, 100);
+  TEST_ASSERT_TRUE(s.enrolled(kNodeWellLink));
+  TEST_ASSERT_FALSE(s.enrolled(kNodeGateLink));
+  TEST_ASSERT_EQUAL_HEX8(kNodeWellLink, poll_now(s, 200));
+}
+
+// D61 - enrol() is due at once, and a second enrol() leaves an enrolled row's schedule alone.
+void test_enrol_is_due_at_once_and_idempotent() {
+  PollScheduler s;
+  s.enrol(kNodeGateLink);
+  TEST_ASSERT_EQUAL_HEX8(kNodeGateLink, poll_now(s, 0));
+  s.on_heard(kNodeGateLink, 100);
+  s.enrol(kNodeGateLink);
+  expect(s.next(200, true), PollAction::None);  // not due for kInterval
+  s.enrol(0x7E);                                 // not a row: ignored
+}
+
+// Deployed rows are polled from the first tick, in table order; bench rows are not.
 void test_production_rows_are_polled_from_boot_and_bench_rows_are_not() {
   PollScheduler s;
+  deploy_production(s);
   TEST_ASSERT_TRUE(s.enrolled(kNodeGateLink));
   TEST_ASSERT_TRUE(s.enrolled(kNodeWellLink));
   TEST_ASSERT_FALSE(s.enrolled(kNodeSim0));
@@ -60,6 +92,7 @@ void test_production_rows_are_polled_from_boot_and_bench_rows_are_not() {
 // R-3.1d. Both production nodes are due at boot; the second waits for the first to resolve.
 void test_one_outstanding_poll_across_the_fleet() {
   PollScheduler s;
+  deploy_production(s);
   poll_now(s, 0);
   TEST_ASSERT_TRUE(s.outstanding());
   for (uint32_t t = 1000; t < kPollReplyTimeoutDefaultMs; t += 1000) {
@@ -76,6 +109,7 @@ void test_one_outstanding_poll_across_the_fleet() {
 // An unanswered poll is reported once, when its window closes, and frees the fleet.
 void test_a_silent_node_is_missed_when_the_window_closes() {
   PollScheduler s;
+  deploy_production(s);
   poll_now(s, 1000);
   expect(s.next(1000 + kPollReplyTimeoutDefaultMs - 1, true), PollAction::None);
   expect(s.next(1000 + kPollReplyTimeoutDefaultMs, true), PollAction::Missed, kNodeGateLink);
@@ -87,6 +121,7 @@ void test_a_silent_node_is_missed_when_the_window_closes() {
 // The next poll falls one interval after the send, not after the due time.
 void test_the_next_poll_is_one_interval_after_the_send() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(500);
   poll_now(s, 0);
   s.on_heard(kNodeGateLink, 100);
@@ -104,6 +139,7 @@ void test_the_next_poll_is_one_interval_after_the_send() {
 // Impl Plan 6.1 - a push resets missed_polls but does not move the schedule.
 void test_a_push_does_not_move_the_schedule() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(500);
   poll_now(s, 0);
   s.on_heard(kNodeGateLink, 100);
@@ -119,6 +155,7 @@ void test_a_push_does_not_move_the_schedule() {
 // without waiting out the longer one, and a longer one pushes the next poll out.
 void test_a_changed_interval_counts_from_the_last_poll() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(500);
   poll_now(s, 0, 3600);
   s.on_heard(kNodeGateLink, 100);
@@ -140,6 +177,7 @@ void test_a_changed_interval_counts_from_the_last_poll() {
 // A row never polled is due at once, and a retime leaves it so.
 void test_a_retime_before_the_first_poll_leaves_the_row_due() {
   PollScheduler s;
+  deploy_production(s);
   s.retime(kNodeGateLink, 3600);
   expect(s.next(0, true), PollAction::Poll, kNodeGateLink);
 }
@@ -147,6 +185,7 @@ void test_a_retime_before_the_first_poll_leaves_the_row_due() {
 // Decided with the operator 2026-09-14: a bench row joins once heard, and is due at once.
 void test_a_bench_node_joins_the_schedule_once_heard() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(500);
   poll_now(s, 0);
   s.on_heard(kNodeSim1, 50);  // a simnode push while GateLink's poll is outstanding
@@ -164,6 +203,7 @@ void test_a_bench_node_joins_the_schedule_once_heard() {
 // outstanding poll returns a time, measured from on_sent() and correct across the millis() wrap.
 void test_on_heard_returns_the_poll_to_answer_time_only_for_an_answer() {
   PollScheduler s;
+  deploy_production(s);
   const uint32_t t0 = UINT32_MAX - 200;
   poll_now(s, t0);
   TEST_ASSERT_EQUAL_UINT32(PollScheduler::kNotAnAnswer, s.on_heard(kNodeWellLink, t0 + 100));
@@ -175,6 +215,7 @@ void test_on_heard_returns_the_poll_to_answer_time_only_for_an_answer() {
 // An upload about to restart the bridge holds new polls, but a closing window is still counted.
 void test_an_ota_upload_holds_new_polls_but_still_counts_a_miss() {
   PollScheduler s;
+  deploy_production(s);
   poll_now(s, 0);
   expect(s.next(kPollReplyTimeoutDefaultMs, false), PollAction::Missed, kNodeGateLink);
   expect(s.next(kPollReplyTimeoutDefaultMs, false), PollAction::None);
@@ -184,6 +225,7 @@ void test_an_ota_upload_holds_new_polls_but_still_counts_a_miss() {
 // millis() wraps at ~49.7 days; neither the window nor the interval may break across it.
 void test_the_schedule_survives_the_millis_wrap() {
   PollScheduler  s;
+  deploy_production(s);
   const uint32_t t0 = UINT32_MAX - 2000;
   poll_now(s, t0);
   expect(s.next(t0 + 5000, true), PollAction::None);  // wrapped, 5 s elapsed
@@ -197,6 +239,7 @@ void test_the_schedule_survives_the_millis_wrap() {
 // A bench node first heard after ~24.8 days of uptime must still come due.
 void test_a_row_enrolled_late_in_uptime_is_polled() {
   PollScheduler  s;
+  deploy_production(s);
   s.set_reply_timeout_ms(100);
   const uint32_t late = 0x90000000u;  // past half the millis() range
   poll_now(s, late);
@@ -210,6 +253,7 @@ void test_a_row_enrolled_late_in_uptime_is_polled() {
 // Across GateLink's interval, a longer-late row wins over a less-late one.
 void test_the_most_overdue_row_goes_first() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(100);
   poll_now(s, 0);                      // GateLink, next due 60 000
   s.on_heard(kNodeGateLink, 10);
@@ -221,6 +265,7 @@ void test_the_most_overdue_row_goes_first() {
 
 void test_a_zero_interval_is_held_to_one_second() {
   PollScheduler s;
+  deploy_production(s);
   s.set_reply_timeout_ms(100);
   poll_now(s, 0, 0);
   s.on_heard(kNodeGateLink, 10);
@@ -232,6 +277,7 @@ void test_a_zero_interval_is_held_to_one_second() {
 
 void test_poll_seqs_advance() {
   PollScheduler s;
+  deploy_production(s);
   TEST_ASSERT_EQUAL_UINT16(1, s.take_poll_seq());
   TEST_ASSERT_EQUAL_UINT16(2, s.take_poll_seq());
 }
@@ -281,6 +327,8 @@ void test_missed_polls_count_and_any_frame_clears_them() {
 
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(test_no_row_is_polled_until_deployed_or_heard);
+  RUN_TEST(test_enrol_is_due_at_once_and_idempotent);
   RUN_TEST(test_production_rows_are_polled_from_boot_and_bench_rows_are_not);
   RUN_TEST(test_one_outstanding_poll_across_the_fleet);
   RUN_TEST(test_a_silent_node_is_missed_when_the_window_closes);

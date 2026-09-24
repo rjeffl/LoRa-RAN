@@ -42,8 +42,14 @@ struct Rig {
   Rig() {
     refimpl::RefKdf kdf;
     reg.load(lran_test::kTestMasterKey, &kdf);
+    deploy_production();
   }
   const NodeInfo& info(size_t i) const { return reg.info_at(i); }
+  // D61's lever per row. Most cases model a fleet in the field: production deployed.
+  bool deployed[kNodeCount] = {};
+  void deploy_production() {
+    for (size_t i = 0; i < kNodeCount; ++i) deployed[i] = !info(i).is_bench;
+  }
   void frame(size_t i, uint32_t now = 1000) {
     Header h;
     h.type   = MsgType::Status;
@@ -56,7 +62,7 @@ struct Rig {
     for (int k = 0; k < n; ++k) reg.note_poll_missed(kNodeTable[i].id);
   }
   AvailabilityChange tick(size_t i) {
-    return wd.evaluate(i, info(i), *reg.state(kNodeTable[i].id));
+    return wd.evaluate(i, deployed[i], *reg.state(kNodeTable[i].id));
   }
 };
 
@@ -188,7 +194,31 @@ void test_the_threshold_is_settable_and_never_zero() {
   expect_state(q, kWell, Availability::Unknown);  // no poll missed, so still not judged
 }
 
-// Mirrors the scheduler: production nodes are watched from boot, a bench node once heard.
+// D61 - a production node not deployed is watched once heard, as a bench node is, and is
+// not in spec 12.4.1's fleet before then. Deploying it later watches it from that tick.
+void test_a_node_not_deployed_is_watched_only_once_heard() {
+  Rig r;
+  for (size_t i = 0; i < kNodeCount; ++i) r.deployed[i] = false;
+  r.miss(kWell, 5);
+  for (size_t i = 0; i < kNodeCount; ++i) r.tick(i);
+  TEST_ASSERT_EQUAL_UINT8(0, r.wd.watched_count());
+
+  r.frame(kGate);
+  r.tick(kGate);
+  TEST_ASSERT_TRUE(r.wd.watched(kGate));
+  TEST_ASSERT_FALSE(r.wd.watched(kWell));
+
+  r.deployed[kWell] = true;
+  r.tick(kWell);
+  TEST_ASSERT_TRUE(r.wd.watched(kWell));
+
+  // Clearing the lever does not unwatch: that waits for the restart.
+  r.deployed[kWell] = false;
+  r.tick(kWell);
+  TEST_ASSERT_TRUE(r.wd.watched(kWell));
+}
+
+// Mirrors the scheduler: deployed nodes are watched from boot, a bench node once heard.
 void test_a_bench_node_is_watched_only_once_heard() {
   Rig r;
   for (size_t i = 0; i < kNodeCount; ++i) r.tick(i);
@@ -283,6 +313,7 @@ int main() {
   RUN_TEST(test_a_frame_followed_by_a_miss_within_one_tick_still_counts);
   RUN_TEST(test_the_threshold_reached_after_a_frame_wins);
   RUN_TEST(test_the_threshold_is_settable_and_never_zero);
+  RUN_TEST(test_a_node_not_deployed_is_watched_only_once_heard);
   RUN_TEST(test_a_bench_node_is_watched_only_once_heard);
   RUN_TEST(test_a_broker_connect_republishes_every_known_node);
   RUN_TEST(test_bench_availability_is_published_only_with_simnode_diag_enable);

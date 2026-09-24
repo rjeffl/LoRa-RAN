@@ -14,8 +14,10 @@
 // since boot is Unknown and is NOT published: whatever the broker retained from before the
 // reboot stands until the node proves it either way.
 //
-// WHO IS WATCHED mirrors the poll scheduler: a production node from boot, a bench node once
-// the bridge has heard it. A simnode that is not on the bench is not reported offline.
+// WHO IS WATCHED mirrors the poll scheduler (D61): a deployed node from the tick its lever
+// is applied, any other node once the bridge has heard it. A simnode that is not on the
+// bench, or a node not yet in the field, is not reported offline and is not in spec
+// 12.4.1's fleet.
 
 #pragma once
 
@@ -50,7 +52,8 @@ class AvailabilityWatchdog {
   uint16_t threshold() const { return threshold_; }
 
   // Judges row i from a copy of its registry state. A change also marks the row pending.
-  AvailabilityChange evaluate(size_t i, const NodeInfo& info, const NodeState& s);
+  // `deployed` is the node's D61 lever; once watched, a row stays watched this boot.
+  AvailabilityChange evaluate(size_t i, bool deployed, const NodeState& s);
 
   Availability state(size_t i) const;
   bool         watched(size_t i) const;

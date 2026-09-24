@@ -18,13 +18,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: B4b, the PHY fleet decision.
+Continue from docs/bridge/HANDOFF.md: B4b slice 4, the bench run.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **B4b, the PHY fleet decision**, then slice 4 | *The next job*; the engineering log's three *BF-33* entries of 2026-09-24, last first; spec **§12.4.1** step 2 and **§16.5**; `firmware/bridge/src/node_availability.cpp`'s `watched`; `sched_phy_start()` and the refusal in `task_runtime.cpp` |
+| **B4b slice 4, the bench run** | *The next job*; the engineering log's *D61* entry and its three *BF-33* entries of 2026-09-24, last first; spec **§12.4.1** to **§12.4.3**; Impl Plan §8's B4b row |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -44,20 +44,15 @@ Anything out of scope goes in one line under *Open*, not into the session.
    blob per board, a retune once every member identity accepts, and every role but
    `ROLE_FAULT` answering the PHY group. A `get_all` on air returned the six rows.
 4. **The bench run** against B4b's row in Impl Plan §8: a reboot mid-trial, confirmation
-   by a received frame, the fleet moving together, and D33's clamp. **Blocked.**
+   by a received frame, the fleet moving together, and D33's clamp. **Unblocked by D61**,
+   built and host-tested on 2026-09-24 and not yet flashed.
 
-**Why slice 4 is blocked.** The fleet is every node the bridge watches, and
-`AvailabilityWatchdog` watches a production row from boot. 0x01 and 0x02 are therefore
-in the fleet and offline, and §12.4.1 step 2 answers every change `phy_fleet_incomplete`.
-In production that lasts until WellLink is deployed. **Settle first how a provisioned node
-that has never been deployed counts toward the fleet.** It is a spec and registry question,
-and the operator's. Three candidates were put on 2026-09-24:
-
-- a registry mark for a node not yet deployed, which leaves the fleet and the polls;
-- a fleet of nodes heard this boot, which departs from §12.4.1's "a node the bridge
-  polls";
-- a bench-only build flag that drops 0x01 and 0x02, which unblocks slice 4 and settles
-  nothing for production.
+**Why slice 4 was blocked, and what D61 changed.** The bridge polled and watched every
+production row from boot, so 0x01 and 0x02, provisioned and not in the field, made every
+change answer `phy_fleet_incomplete`. D61 adds a bridge per-node lever, `deployed`, default
+0. A row is polled and watched from boot only when it is set, and otherwise once heard.
+Flash the bridge with D61 first; its NVS has no `deployed` value, so both production rows
+leave the fleet.
 
 **For the run itself:** set `simnode_diag_enable` to 1. Then make each simnode transmit
 once, because the bridge watches a bench node only after hearing it: `push f1` works, and
@@ -75,7 +70,6 @@ toggle RTS to capture its banner.
 
 ## Open, and not closable from here
 
-- **A provisioned, undeployed node blocks every PHY change.** See *The next job*.
 - **Four spec questions from BF-33 slice 2**, in the engineering log's entry of that name:
   an empty fleet refused `phy_fleet_incomplete`; the bridge's own PHY rows `READ_ONLY`
   without a usable store; no §16.7.5 reason for a failed commit write; and §12.4 step 1's
@@ -85,10 +79,13 @@ toggle RTS to capture its banner.
   marker**, because `Store::restore_defaults()` clears the namespace and rewrites the
   committed group. A restart during that trial is then not reported. Rare.
 
-- **D60 is accepted and the specification's text is owed.** `RESTORE_DEFAULTS` keeps the
-  committed PHY group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`.
-  Spec §8.10 and §12.4.2 say neither yet. Write both at the next revision; Decision
-  Register §3.9 has the reasoning.
+- **D60 and D61 are accepted and the specification's text is owed.** `RESTORE_DEFAULTS`
+  keeps the committed PHY group, and a PHY trial's `CONFIG_ACK` carries
+  `APPLIED_NOT_PERSISTED` (§8.10, §12.4.2). A node is polled from boot only when its
+  `deployed` lever is set (§16.5, §16.6). Write all three at the next revision; Decision
+  Register §3.9 and §3.10 have the reasoning.
+- **Set `deployed` on GateLink when it goes into the field**, on
+  `lran/gatelink/config/set`. Until then the bridge polls it only once heard.
 
 - **BF-34's heard-first `POLL` went to f1 210 ms before one roll in six**, and that roll's
   first attempt went unanswered. The engineering log's *BF-34 on air* entry has two

@@ -110,6 +110,11 @@ inline constexpr ParamDef kBridgeParams[] = {
      "s", "Revert window after a PHY change, spec 12.4"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
+    // D61 - 1 polls and watches the node from boot, so it counts toward spec 12.4.1's fleet
+    // even when silent. 0 enrols it once heard, as a bench node is. Clearing it takes
+    // effect at the next restart, because enrolment is never undone within a boot.
+    {0x0081, "deployed", Owner::BridgePerNode, Access::ReadWrite, PType::Bool, 0, 1, 0,
+     nullptr, "Polled from boot, D61"},
 };
 
 // 0x0100-0x01FF - every node. dedup_cache_depth is D34's, and is runtime-settable because

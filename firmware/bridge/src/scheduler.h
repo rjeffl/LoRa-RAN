@@ -13,13 +13,15 @@
 // meanwhile, however overdue - the largest predictable collision source, removed for the
 // cost of a little latency at a 1-5 minute cadence.
 //
-// WHO IS POLLED (decided with the operator 2026-09-14). Production rows from the first tick,
-// so a GateLink that never answers still counts missed polls for BF-20. A bench row, f0-f3,
-// only once the bridge has heard any frame from it this boot: a simnode that is not on the
-// bench costs no airtime. Nothing removes a row once enrolled; going offline is BF-20's.
+// WHO IS POLLED (D61, 2026-09-24; bench rows decided with the operator 2026-09-14). A row
+// whose `deployed` lever is set, from the moment sched_task applies it, so a GateLink that
+// never answers still counts missed polls for BF-20. Any other row, bench or production,
+// only once the bridge has heard a frame from it this boot: a simnode not on the bench, or
+// a node not yet in the field, costs no airtime. Nothing removes a row once enrolled; going
+// offline is BF-20's, and clearing `deployed` waits for the next restart.
 //
 // A PUSH DOES NOT MOVE THE SCHEDULE (Impl Plan 6.1). on_heard() answers an outstanding poll
-// and enrols a bench row, and leaves every due time alone.
+// and enrols the row, and leaves every due time alone.
 //
 // Not thread-safe. task_runtime.cpp holds one instance behind a mutex.
 
@@ -94,6 +96,9 @@ class PollScheduler {
   // row never polled is due at once already, and stays so.
   void retime(lran::NodeId node, uint16_t interval_s);
 
+  // D61 - a deployed row. Enrols it, due at once; a row already enrolled keeps its schedule.
+  void enrol(lran::NodeId node);
+
   // The seq for the next POLL. POLL is unauthenticated (spec 9.2), so it takes no command seq:
   // spending one would move nothing a node checks, but it would muddle the space BF-18 owns.
   lran::Seq take_poll_seq() { return poll_seq_++; }
@@ -106,7 +111,6 @@ class PollScheduler {
  private:
   struct Row {
     lran::NodeId id       = 0;
-    bool         bench    = false;
     bool         enrolled = false;
     // False until the first poll is sent: the row is due at once, and is served before any
     // row merely late. A time of 0 would do only while millis() is small - past ~24.8 days

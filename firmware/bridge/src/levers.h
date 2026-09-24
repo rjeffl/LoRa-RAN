@@ -56,6 +56,7 @@ struct Levers {
 
   // D47 - one value per node, in kNodeTable's order.
   uint16_t poll_interval_s[kNodeCount] = {};
+  bool     deployed[kNodeCount]        = {};  // D61
 };
 
 // The effective value of every lever: an override where one is set, the table's default
@@ -101,6 +102,7 @@ class LeverBoard {
   std::atomic<uint16_t> bms_stale_s_{0};
   std::atomic<uint8_t>  cell_mv_deadband_{0};
   std::atomic<uint16_t> poll_interval_s_[kNodeCount] = {};
+  std::atomic<bool>     deployed_[kNodeCount]        = {};
 };
 
 }  // namespace bridge
