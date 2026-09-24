@@ -18,7 +18,9 @@
 #include "lran/link/radio_config.h"
 #include "mbedtls_mac.h"
 #include "node.h"
+#include "nvs_blob.h"
 #include "oled_page.h"
+#include "phy_trial.h"
 #include "profiles.h"
 #include "radio.h"
 #include "ui.h"
@@ -40,16 +42,66 @@ class SerialSink final : public simnode::Sink {
   void line(const char* text) override { Serial.println(text); }
 };
 
+// spec 12.4.2 - the board's PHY group, held in NVS. Declared here because the `phy` command
+// below reads it.
+simnode::NvsBlob    g_phy_blob;
+simnode::PhyPersist g_phy_persist(&g_phy_blob);
+simnode::PhyTrial   g_phy(&g_phy_persist);
+
+// `phy [reset]` - the group, the trial and the store. `reset` puts D1's group back and
+// erases the blob, so a board left on a group the bridge does not share recovers here.
+bool phy_command(char** argv, int argc, simnode::Sink* out) {
+  if (argc == 2 && std::strcmp(argv[1], "reset") == 0) {
+    if (!g_phy.reset_to_defaults()) {
+      simnode::sink_printf(out, "ERR phy: no usable store");
+      return true;
+    }
+    simnode::sink_printf(out, "OK phy reset - D1's group, store erased, retuning");
+    return true;
+  }
+  if (argc != 1) {
+    simnode::sink_printf(out, "ERR usage: phy [reset]");
+    return true;
+  }
+  const simnode::PhyGroup    g = g_phy.group();
+  const simnode::PhyGroup    c = g_phy.committed();
+  const simnode::PhyTrialStats& s = g_phy.stats();
+  simnode::sink_printf(out, "OK phy %s, store %s, window %lu ms, accepted 0x%02x", 
+                       simnode::phy_state_name(g_phy.state()),
+                       g_phy.writable() ? "nvs" : "NONE (PHY rows READ_ONLY)",
+                       static_cast<unsigned long>(g_phy.window_left_ms(millis())),
+                       static_cast<unsigned>(g_phy.accepted_mask()));
+  simnode::sink_printf(out, "  effective %ld Hz SF%ld BW %ld CR 4/%ld %ld dBm trial %ld s",
+                       static_cast<long>(g.v[0]), static_cast<long>(g.v[1]),
+                       static_cast<long>(g.v[2]), static_cast<long>(g.v[3]),
+                       static_cast<long>(g.v[4]), static_cast<long>(g.v[5]));
+  simnode::sink_printf(out, "  committed %ld Hz SF%ld BW %ld CR 4/%ld %ld dBm trial %ld s",
+                       static_cast<long>(c.v[0]), static_cast<long>(c.v[1]),
+                       static_cast<long>(c.v[2]), static_cast<long>(c.v[3]),
+                       static_cast<long>(c.v[4]), static_cast<long>(c.v[5]));
+  simnode::sink_printf(out, "  trials %lu committed %lu reverted %lu abandoned %lu commit_failed %lu",
+                       static_cast<unsigned long>(s.trials), static_cast<unsigned long>(s.committed),
+                       static_cast<unsigned long>(s.reverted), static_cast<unsigned long>(s.abandoned),
+                       static_cast<unsigned long>(s.commit_failed));
+  return true;
+}
+
 // `radio` - what the driver saw. `stats` counts frames an identity queued; this counts
-// TX_DONE, which is the only evidence on this board that a frame reached the air.
+// TX_DONE, which is the only evidence on this board that a frame reached the air. Also
+// dispatches `phy`, because the console takes one board hook.
 bool radio_command(char** argv, int argc, simnode::Sink* out) {
+  if (std::strcmp(argv[0], "phy") == 0) return phy_command(argv, argc, out);
   if (std::strcmp(argv[0], "radio") != 0) return false;
   if (argc != 1) {
     simnode::sink_printf(out, "ERR usage: radio");
     return true;
   }
   const simnode::RadioStats& r = simnode::radio_stats();
-  simnode::sink_printf(out, "OK radio %s", simnode::radio_ready() ? "up" : "DOWN");
+  const lran::link::PhyConfig& p = simnode::radio_phy();
+  simnode::sink_printf(out, "OK radio %s, %lu Hz SF%u CR 4/%u %d dBm",
+                       simnode::radio_ready() ? "up" : "DOWN", static_cast<unsigned long>(p.freq_hz),
+                       static_cast<unsigned>(p.sf), static_cast<unsigned>(p.cr_denom),
+                       static_cast<int>(p.conducted_dbm));
   simnode::sink_printf(out, "  tx_frames %lu tx_errors %lu tx_timeouts %lu tx_forced %lu",
                        static_cast<unsigned long>(r.tx_frames), static_cast<unsigned long>(r.tx_errors),
                        static_cast<unsigned long>(r.tx_timeouts),
@@ -110,6 +162,29 @@ void add_default(uint8_t id, simnode::Role role) {
   }
 }
 
+// spec 12.4.2 step 3 - hands an owed retune to the radio, and opens the window once the
+// radio reports it applied. radio.cpp waits for its outbox to drain first, so the
+// CONFIG_ACK that caused the retune goes out on the old settings.
+bool g_retune_requested = false;
+
+void phy_service(uint32_t now) {
+  if (g_phy.retune_due() && !g_retune_requested) {
+    lran::link::PhyConfig next = simnode::radio_phy();
+    if (!simnode::phy_config_from(g_phy.group(), simnode::radio_phy(), &next)) {
+      // Unreachable while the table caps tx_power_dbm at D33's ceiling. The radio keeps
+      // its settings; the window still opens, and silence reverts it.
+      g_sink.line("phy: group breaks D33's EIRP ceiling - radio NOT retuned");
+    }
+    simnode::radio_request_phy(next);
+    g_retune_requested = true;
+  }
+  if (g_retune_requested && simnode::radio_take_retuned()) {
+    g_retune_requested = false;
+    g_phy.on_retuned(now);
+    simnode::sink_printf(&g_sink, "phy: retuned, board %s", simnode::phy_state_name(g_phy.state()));
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -150,7 +225,19 @@ void setup() {
     Serial.println(F("OLED: no ACK - check Vext on a Heltec, the expansion board on a XIAO; continuing without it"));
   }
 
-  simnode::radio_start(simnode::kRadio, lran::link::kPhy, &g_sink);
+  // spec 12.4.2 step 7 - the radio boots on the committed group, which is D1's until a
+  // change commits. A trial the reboot ended is owed to the bridge as PHY_REVERTED.
+  if (!g_phy_blob.begin()) {
+    Serial.println(F("PHY: NVS refused - no store, every PHY row answers READ_ONLY"));
+  }
+  const simnode::RevertCause boot_revert = g_phy.begin();
+  g_node.set_phy(&g_phy);
+  if (boot_revert != simnode::RevertCause::None) g_node.on_phy_revert(boot_revert);
+  lran::link::PhyConfig boot_phy = lran::link::kPhy;
+  if (!simnode::phy_config_from(g_phy.group(), lran::link::kPhy, &boot_phy)) {
+    Serial.println(F("PHY: stored group breaks D33's EIRP ceiling - booting on kPhy"));
+  }
+  simnode::radio_start(simnode::kRadio, boot_phy, &g_sink);
   Serial.println(F("B0: identities, console, faults, OLED; all four roles. Type 'help'."));
 }
 
@@ -160,6 +247,7 @@ void loop() {
     g_console.feed(static_cast<char>(Serial.read()), now);
   }
   g_node.tick(now);
+  phy_service(now);
   g_faults.tick(now);
   simnode::radio_service(&g_node, &g_outbox, now);
   ui_service(now);

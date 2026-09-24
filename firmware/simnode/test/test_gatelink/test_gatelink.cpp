@@ -25,6 +25,7 @@
 
 using namespace simnode;
 using namespace lran;
+using lran::config::PhyBlob;
 
 void setUp() {}
 void tearDown() {}
@@ -114,12 +115,12 @@ void poll(Board& b, uint8_t flags) {
   bridge_send(b, MsgType::Poll, 9, p, 1, kSchemaNone);
 }
 
-void config(Board& b, Seq seq, const schema::NodeConfigV1& cfg) {
+void send_config(Board& b, Seq seq, const schema::NodeConfigV1& cfg, const Send& o = Send{}) {
   uint8_t p[kMaxSchemaPayload];
   size_t  n = 0;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                         static_cast<int>(schema::serialize(cfg, p, sizeof(p), &n)));
-  bridge_send(b, MsgType::Config, seq, p, n, kSchemaNodeConfigV1);
+  bridge_send(b, MsgType::Config, seq, p, n, kSchemaNodeConfigV1, o);
 }
 
 // One frame the bridge hears from the board, decoded as the bridge would.
@@ -207,10 +208,11 @@ void test_poll_config_readback_follows_the_status() {
   next_status(b);
   const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ConfigOp::GetAll), static_cast<uint8_t>(a.op));
-  // spec 7.4, D53 - a read reports the current overrides, and a fresh node holds none.
+  // spec 7.4, D53 - a read reports the current overrides, and a fresh node holds none. The
+  // PHY group is always there (BF-33).
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::Persisted),
                           static_cast<uint8_t>(a.persist_status));
-  TEST_ASSERT_EQUAL_UINT8(0, a.count);
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
 }
 
 void test_push_carries_the_given_reason_and_needs_the_role() {
@@ -608,7 +610,7 @@ void test_config_set_get_and_restore() {
   auto  set = cfg_of(ConfigOp::Set);
   add_entry(&set, 0x0101, PType::U16, 500);
   add_entry(&set, 0x0102, PType::U8, 7);
-  config(b, 1, set);
+  send_config(b, 1, set);
   schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(2, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
@@ -619,7 +621,7 @@ void test_config_set_get_and_restore() {
   auto get = cfg_of(ConfigOp::Get);
   add_entry(&get, 0x0101, PType::U16, 0);
   add_entry(&get, 0x0999, PType::U16, 0);
-  config(b, 2, get);
+  send_config(b, 2, get);
   a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok), static_cast<uint8_t>(a.entries[0].status));
   TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(a.entries[0].value, a.entries[0].len));
@@ -629,28 +631,30 @@ void test_config_set_get_and_restore() {
   // A held id set with another type keeps its value, and the ACK carries the value held.
   auto retype = cfg_of(ConfigOp::Set);
   add_entry(&retype, 0x0101, PType::U8, 9);
-  config(b, 3, retype);
+  send_config(b, 3, retype);
   a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::TypeMismatch),
                           static_cast<uint8_t>(a.entries[0].status));
   TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(a.entries[0].value, a.entries[0].len));
 
-  // D53 - a read while an override is held reports it unpersisted (the store is RAM).
-  config(b, 4, cfg_of(ConfigOp::GetAll));
+  // D53 - a read while an override is held reports it unpersisted (the store is RAM). The
+  // answer also carries the six PHY rows (BF-33).
+  send_config(b, 4, cfg_of(ConfigOp::GetAll));
   a = next_config_ack(b);
-  TEST_ASSERT_EQUAL_UINT8(2, a.count);
+  TEST_ASSERT_EQUAL_UINT8(2 + kPhyGroupSize, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
                           static_cast<uint8_t>(a.persist_status));
 
-  // D52 - RESTORE_DEFAULTS is answered with the full effective configuration: empty here.
-  config(b, 5, cfg_of(ConfigOp::RestoreDefaults));
+  // D52 - RESTORE_DEFAULTS is answered with the full effective configuration: the PHY
+  // group alone here, which it keeps (D60).
+  send_config(b, 5, cfg_of(ConfigOp::RestoreDefaults));
   a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ConfigOp::RestoreDefaults), static_cast<uint8_t>(a.op));
-  TEST_ASSERT_EQUAL_UINT8(0, a.count);
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::Persisted),
                           static_cast<uint8_t>(a.persist_status));
-  config(b, 6, cfg_of(ConfigOp::GetAll));
-  TEST_ASSERT_EQUAL_UINT8(0, next_config_ack(b).count);
+  send_config(b, 6, cfg_of(ConfigOp::GetAll));
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, next_config_ack(b).count);
 }
 
 // spec 8.11, D53 - NOT_APPLIED means nothing took effect: a SET whose every entry was refused.
@@ -659,7 +663,7 @@ void test_a_set_with_every_entry_rejected_is_not_applied() {
   auto  set = cfg_of(ConfigOp::Set);
   add_entry(&set, 0x0101, PType::U16, 500);
   set.entries[0].len = 4;  // disagrees with its ptype: TYPE_MISMATCH (spec 7.4, D51)
-  config(b, 1, set);
+  send_config(b, 1, set);
   const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(1, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::TypeMismatch),
@@ -674,9 +678,9 @@ void test_a_repeated_config_is_answered_from_the_cache() {
   Board b;
   auto  set = cfg_of(ConfigOp::Set);
   add_entry(&set, 0x0101, PType::U16, 500);
-  config(b, 1, set);
+  send_config(b, 1, set);
   next_config_ack(b);
-  config(b, 1, set);
+  send_config(b, 1, set);
   expect_ack(next_ack(b), 1, AckResult::DuplicateCached);
   TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.executions);
 }
@@ -686,7 +690,7 @@ void test_the_config_store_is_bounded() {
   auto  set = cfg_of(ConfigOp::Set);
   for (uint16_t i = 0; i < kConfigStoreDepth + 1; ++i) add_entry(&set, 0x0200 + i, PType::U8, i);
   b.log.expect("RAM store full");
-  config(b, 1, set);
+  send_config(b, 1, set);
   const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(kConfigStoreDepth + 1, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok),
@@ -697,17 +701,323 @@ void test_the_config_store_is_bounded() {
 }
 
 // Twenty-four u32 entries fit one CONFIG (spec 7.4's figure), but their results do not fit one
-// CONFIG_ACK, which is single-frame (spec 11.4). The ACK is cut and the cut is logged; how a
-// node splits one is spec W10's open question, not settled here.
+// CONFIG_ACK, which is single-frame (spec 11.4). The ACK is cut and the cut is logged. D57
+// closed W10 with spec 7.4.1's split, which the generic RAM store does not build.
 void test_a_config_ack_that_cannot_fit_is_cut_and_logged() {
   Board b;
   auto  set = cfg_of(ConfigOp::Set);
   for (uint16_t i = 0; i < 24; ++i) add_entry(&set, 0x0300 + i, PType::U32, 100000u + i);
   b.log.expect("did not fit");
-  config(b, 1, set);
+  send_config(b, 1, set);
   const schema::NodeConfigAckV1 a = next_config_ack(b);
   TEST_ASSERT_EQUAL_UINT8(21, a.count);
   TEST_ASSERT_TRUE(b.log.seen());
+}
+
+// ---------------------------------------------------------------------------
+// PHY - spec 12.4.2, BF-33 slice 3
+// ---------------------------------------------------------------------------
+
+namespace {
+
+class RamBlob final : public BlobStore {
+ public:
+  bool   usable() const override { return usable_; }
+  size_t read(uint8_t* out, size_t cap) const override {
+    if (len_ == 0 || len_ > cap) return 0;
+    std::memcpy(out, bytes_, len_);
+    return len_;
+  }
+  bool write(const uint8_t* bytes, size_t len) override {
+    if (!usable_ || len > sizeof(bytes_)) return false;
+    std::memcpy(bytes_, bytes, len);
+    len_ = len;
+    ++writes;
+    return true;
+  }
+  bool erase() override {
+    len_ = 0;
+    return true;
+  }
+  bool     usable_ = true;
+  uint32_t writes  = 0;
+
+ private:
+  uint8_t bytes_[64] = {0};
+  size_t  len_       = 0;
+};
+
+// A board with an NVS store. `blob` outlives a PhyTrial, so a reboot is a second PhyTrial
+// over the same bytes.
+struct PhyBoard : Board {
+  RamBlob    blob;
+  PhyPersist persist{&blob};
+  PhyTrial   phy{&persist};
+  PhyBoard() {
+    phy.begin();
+    node.set_phy(&phy);
+  }
+};
+
+constexpr uint16_t kFreq = 0x0110;
+constexpr int32_t  kNewFreq   = 917000000;
+constexpr int32_t  kNewTrialS = 60;
+
+// The whole group, as the bridge's build_phy_set() sends it.
+schema::NodeConfigV1 phy_set(int32_t freq = kNewFreq, int32_t tx_dbm = -4) {
+  auto c = cfg_of(ConfigOp::Set);
+  add_entry(&c, 0x0110, PType::U32, static_cast<uint32_t>(freq));
+  add_entry(&c, 0x0111, PType::U8, 9);
+  add_entry(&c, 0x0112, PType::U16, 125);
+  add_entry(&c, 0x0113, PType::U8, 5);
+  add_entry(&c, 0x0114, PType::I16, static_cast<uint32_t>(tx_dbm) & 0xFFFFu);
+  add_entry(&c, 0x0115, PType::U16, kNewTrialS);
+  return c;
+}
+
+schema::NodeConfigV1 phy_get() {
+  auto c = cfg_of(ConfigOp::Get);
+  for (uint16_t id = 0x0110; id <= 0x0115; ++id) add_entry(&c, id, PType::U8, 0);
+  for (uint8_t i = 0; i < c.count; ++i) c.entries[i].len = 0;  // spec 8.10 - a GET names ids
+  return c;
+}
+
+uint8_t status_of(const schema::NodeConfigAckV1& a, size_t i) {
+  return static_cast<uint8_t>(a.entries[i].status);
+}
+
+}  // namespace
+
+// spec 12.4.2 step 2 - no store, no change: READ_ONLY with the value held, nothing retunes.
+void test_phy_rows_are_read_only_without_a_store() {
+  Board b;
+  send_config(b, 1, phy_set());
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::ReadOnly), status_of(a, 0));
+  TEST_ASSERT_EQUAL_UINT32(917400000, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_FALSE(b.node.phy()->retune_due());
+}
+
+// Steps 3 to 5: accept on the old settings, retune, ignore POLL, commit on an authenticated
+// frame - and the blob then holds the group with the marker clear.
+void test_phy_change_is_accepted_retuned_and_confirmed() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
+  for (size_t i = 0; i < kPhyGroupSize; ++i) {
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok), status_of(a, i));
+  }
+  TEST_ASSERT_EQUAL_UINT32(kNewFreq, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::AppliedNotPersisted),
+                          static_cast<uint8_t>(a.persist_status));  // D60
+  TEST_ASSERT_TRUE(b.phy.retune_due());
+  TEST_ASSERT_EQUAL_INT32(kNewFreq, b.phy.group().v[0]);
+  TEST_ASSERT_EQUAL_INT32(917400000, b.phy.committed().v[0]);
+
+  b.phy.on_retuned(2000);
+  TEST_ASSERT_EQUAL_STRING("trial", phy_state_name(b.phy.state()));
+  TEST_ASSERT_EQUAL_UINT32(kNewTrialS * 1000u, b.phy.window_left_ms(2000));
+  PhyBlob blob;
+  TEST_ASSERT_TRUE(b.persist.read(&blob));
+  TEST_ASSERT_TRUE(blob.trial_open);
+
+  poll(b, 0);  // step 4 - POLL is answered and confirms nothing
+  next_status(b);
+  TEST_ASSERT_EQUAL_STRING("trial", phy_state_name(b.phy.state()));
+
+  send_config(b, 2, phy_get());  // step 5 - the bridge's confirming GET
+  a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_STRING("idle", phy_state_name(b.phy.state()));
+  TEST_ASSERT_EQUAL_UINT32(kNewFreq, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::Persisted),
+                          static_cast<uint8_t>(a.persist_status));
+  TEST_ASSERT_TRUE(b.persist.read(&blob));
+  TEST_ASSERT_FALSE(blob.trial_open);
+  TEST_ASSERT_EQUAL_size_t(kPhyGroupSize, blob.n);
+  TEST_ASSERT_EQUAL_INT32(kNewFreq, blob.values[0]);
+  TEST_ASSERT_EQUAL_INT32(kNewFreq, b.phy.committed().v[0]);
+  TEST_ASSERT_FALSE(b.phy.retune_due());
+}
+
+// Steps 6 and 8 - silence reverts, and the next frame from the bridge draws PHY_REVERTED
+// with detail 0x0001.
+void test_phy_window_expiry_reverts_and_reports() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+  b.node.tick(2000 + kNewTrialS * 1000u - 1);
+  TEST_ASSERT_EQUAL_STRING("trial", phy_state_name(b.phy.state()));
+  b.log.expect("REVERTED");
+  b.node.tick(2000 + kNewTrialS * 1000u);
+  TEST_ASSERT_TRUE(b.log.seen());
+  TEST_ASSERT_EQUAL_STRING("idle", phy_state_name(b.phy.state()));
+  TEST_ASSERT_TRUE(b.phy.retune_due());
+  TEST_ASSERT_EQUAL_INT32(917400000, b.phy.group().v[0]);
+  b.phy.on_retuned(2000 + kNewTrialS * 1000u);
+  TEST_ASSERT_EQUAL_STRING("idle", phy_state_name(b.phy.state()));  // a revert opens no window
+  PhyBlob blob;
+  TEST_ASSERT_TRUE(b.persist.read(&blob));
+  TEST_ASSERT_FALSE(blob.trial_open);
+
+  poll(b, 0);
+  Heard h;
+  TEST_ASSERT_TRUE(hear(b, &h));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Event), static_cast<uint8_t>(h.hdr.type));
+  schema::GateLinkEventV1 ev;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::deserialize(h.payload, h.len, &ev)));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EventType::PhyReverted), ev.event_type);
+  TEST_ASSERT_EQUAL_UINT16(0x0001, ev.detail);
+  next_status(b);  // the poll's own answer follows
+  poll(b, 0);
+  next_status(b);  // reported once
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());
+}
+
+// Step 7 - a reboot in the trial comes back on the committed group and reports 0x0002.
+void test_phy_reboot_during_trial_comes_back_committed() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+
+  PhyTrial rebooted(&b.persist);
+  TEST_ASSERT_EQUAL_UINT16(0x0002, static_cast<uint16_t>(rebooted.begin()));
+  TEST_ASSERT_EQUAL_INT32(917400000, rebooted.group().v[0]);
+  PhyTrial again(&b.persist);
+  TEST_ASSERT_EQUAL_UINT16(0x0000, static_cast<uint16_t>(again.begin()));  // marker cleared
+}
+
+// A committed group survives a reboot.
+void test_phy_committed_group_survives_a_reboot() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+  b.phy.on_authenticated();
+  PhyTrial rebooted(&b.persist);
+  TEST_ASSERT_EQUAL_UINT16(0x0000, static_cast<uint16_t>(rebooted.begin()));
+  TEST_ASSERT_EQUAL_INT32(kNewFreq, rebooted.group().v[0]);
+  TEST_ASSERT_EQUAL_INT32(kNewTrialS, rebooted.group().v[5]);
+}
+
+// Decided 2026-09-24 - one radio, so the board retunes once every member accepted. ROLE_HEALTH
+// is a member and answers the PHY group; a ROLE_FAULT identity is not a member.
+void test_phy_board_retunes_only_when_every_member_accepted() {
+  PhyBoard b;
+  b.ids.add(kNodeSim2, Role::Health);
+  b.ids.add(kNodeSim3, Role::Fault);
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  TEST_ASSERT_FALSE(b.phy.retune_due());
+  TEST_ASSERT_EQUAL_STRING("pending", phy_state_name(b.phy.state()));
+
+  Send o;
+  o.dst = kNodeSim2;
+  send_config(b, 1, phy_set(), o);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok), status_of(a, 0));
+  TEST_ASSERT_TRUE(b.phy.retune_due());
+}
+
+// ROLE_HEALTH answers the PHY group and nothing else.
+void test_role_health_answers_phy_rows_only() {
+  PhyBoard b;
+  b.ids.add(kNodeSim2, Role::Health);
+  Send o;
+  o.dst   = kNodeSim2;
+  auto set = cfg_of(ConfigOp::Set);
+  add_entry(&set, 0x0101, PType::U16, 500);
+  send_config(b, 1, set, o);
+  schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::UnknownParam), status_of(a, 0));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(PersistStatus::NotApplied),
+                          static_cast<uint8_t>(a.persist_status));
+  send_config(b, 2, cfg_of(ConfigOp::GetAll), o);
+  a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
+  TEST_ASSERT_EQUAL_UINT16(kFreq, a.entries[0].param_id);
+}
+
+// spec 12.4.1 step 4 - a clamp abandons the change at the bridge, so it does not count here.
+void test_phy_a_clamped_set_does_not_retune() {
+  PhyBoard b;
+  send_config(b, 1, phy_set(kNewFreq, -2));  // above D33's -4 dBm ceiling
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Clamped), status_of(a, 4));
+  TEST_ASSERT_FALSE(b.phy.retune_due());
+}
+
+// A second group during a trial is refused, and the trial stands.
+void test_phy_a_set_during_the_trial_is_read_only() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+  b.phy.on_authenticated();  // commit, then open a second trial
+  send_config(b, 2, phy_set(916000000));
+  next_config_ack(b);
+  b.phy.on_retuned(3000);
+  auto again = phy_set(915000000);
+  PhyTrial& t = b.phy;
+  const schema::ConfigAckEntry r = t.set(again.entries[0], nullptr);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::ReadOnly), static_cast<uint8_t>(r.status));
+  TEST_ASSERT_EQUAL_INT32(916000000, t.group().v[0]);
+}
+
+// spec 12.4.1 - the roll after a bridge restart confirms a node in its trial.
+void test_phy_a_roll_confirms_the_trial() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+  command(b, 2, Cmd::RollContext, kRollContextGuard);
+  TEST_ASSERT_EQUAL_STRING("idle", phy_state_name(b.phy.state()));
+  TEST_ASSERT_EQUAL_INT32(kNewFreq, b.phy.committed().v[0]);
+}
+
+// A group some members never accepted is dropped after phy_trial_s, with nothing to report:
+// the radio never moved.
+void test_phy_a_pending_group_is_abandoned() {
+  PhyBoard b;
+  b.ids.add(kNodeSim2, Role::Health);
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.node.tick(1000 + kNewTrialS * 1000u);
+  TEST_ASSERT_EQUAL_STRING("idle", phy_state_name(b.phy.state()));
+  TEST_ASSERT_FALSE(b.phy.retune_due());
+  TEST_ASSERT_EQUAL_UINT32(1, b.phy.stats().abandoned);
+  TEST_ASSERT_EQUAL_INT32(917400000, b.phy.group().v[0]);
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gl.phy_revert_detail);
+}
+
+// `phy reset` - back to D1's group, blob erased, a retune owed.
+void test_phy_reset_restores_the_defaults() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  next_config_ack(b);
+  b.phy.on_retuned(2000);
+  b.phy.on_authenticated();
+  TEST_ASSERT_TRUE(b.phy.reset_to_defaults());
+  TEST_ASSERT_EQUAL_INT32(917400000, b.phy.group().v[0]);
+  TEST_ASSERT_TRUE(b.phy.retune_due());
+  PhyBlob blob;
+  TEST_ASSERT_FALSE(b.persist.read(&blob));
+}
+
+// The group maps onto the radio's units, and the bridge's defaults are the boot PHY.
+void test_phy_group_maps_to_the_radio_config() {
+  PhyTrial              t(nullptr);
+  lran::link::PhyConfig p{};
+  TEST_ASSERT_TRUE(phy_config_from(t.group(), lran::link::kPhy, &p));
+  TEST_ASSERT_EQUAL_UINT32(lran::link::kPhy.freq_hz, p.freq_hz);
+  TEST_ASSERT_EQUAL_UINT16(lran::link::kPhy.bw_khz10, p.bw_khz10);
+  TEST_ASSERT_EQUAL_UINT8(lran::link::kPhy.sf, p.sf);
+  TEST_ASSERT_EQUAL_UINT8(lran::link::kPhy.cr_denom, p.cr_denom);
+  TEST_ASSERT_EQUAL_INT8(lran::link::kPhy.conducted_dbm, p.conducted_dbm);
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +1090,20 @@ int main() {
   RUN_TEST(test_a_retried_roll_after_a_lost_ack_is_rejected_ctx);
   RUN_TEST(test_role_health_answers_a_roll_and_nothing_else);
 
-  RUN_TEST(test_config_set_get_and_restore);
+  RUN_TEST(test_phy_rows_are_read_only_without_a_store);
+RUN_TEST(test_phy_change_is_accepted_retuned_and_confirmed);
+RUN_TEST(test_phy_window_expiry_reverts_and_reports);
+RUN_TEST(test_phy_reboot_during_trial_comes_back_committed);
+RUN_TEST(test_phy_committed_group_survives_a_reboot);
+RUN_TEST(test_phy_board_retunes_only_when_every_member_accepted);
+RUN_TEST(test_role_health_answers_phy_rows_only);
+RUN_TEST(test_phy_a_clamped_set_does_not_retune);
+RUN_TEST(test_phy_a_set_during_the_trial_is_read_only);
+RUN_TEST(test_phy_a_roll_confirms_the_trial);
+RUN_TEST(test_phy_a_pending_group_is_abandoned);
+RUN_TEST(test_phy_reset_restores_the_defaults);
+RUN_TEST(test_phy_group_maps_to_the_radio_config);
+RUN_TEST(test_config_set_get_and_restore);
   RUN_TEST(test_a_set_with_every_entry_rejected_is_not_applied);
   RUN_TEST(test_a_repeated_config_is_answered_from_the_cache);
   RUN_TEST(test_the_config_store_is_bounded);

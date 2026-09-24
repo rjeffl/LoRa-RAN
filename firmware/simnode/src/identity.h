@@ -115,6 +115,10 @@ struct GateLinkState {
   uint32_t ctx_rejects_forced = 0;  // ctx_reject fault, spec 10.3
 
   StoredParam params[kConfigStoreDepth];
+
+  // spec 12.4.2 step 8 - the PHY_REVERTED detail still owed to the bridge, 0 when none.
+  // Sent with the next frame from the bridge, then cleared.
+  uint16_t phy_revert_detail = 0;
 };
 
 // Plausible, not physical, values: a charged 4-cell LiFePO4 pack, a closed gate, sentinels

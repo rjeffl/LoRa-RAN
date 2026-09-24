@@ -2732,3 +2732,77 @@ until slice 3 builds §12.4.2, so a change today ends `not_accepted` at the firs
   so a second change cannot reach a node still counting down the first. A node that
   never answered step 4 is read back with `GET_ALL` at that point, which is step 4's
   deferred readback.
+
+## 2026-09-24 — BF-33 slice 3: the simnode takes a PHY change, and no change can start
+
+**The simnode's half of spec §12.4.2 is built and host-tested, and none of it has moved a
+radio.** `phy_trial.{h,cpp}` holds the board's PHY group in `lran-config`'s `Store`, which
+tells the radio when to retune and runs the trial window. `nvs_blob.cpp` keeps the group in
+NVS. The native suite has 128 cases, 13 of them new. Both simnode targets and the bridge
+were flashed. The bench then showed that **the bridge refuses every PHY change**, so
+nothing reached a simnode on air. The last section below explains why.
+
+**The simnode did not do what slice 2's entry says it did.** That entry says every simnode
+answers a PHY `SET` `READ_ONLY`. In fact only `ROLE_GATELINK` answered `CONFIG`, and its
+generic RAM store took a PHY id as an ordinary parameter. It answered `OK` and
+`APPLIED_NOT_PERSISTED` and never retuned. The bridge would have gone on to step 5 and
+retuned alone, then reverted when step 6 heard nobody.
+
+**The operator decided three questions before the build:**
+
+- **The simnode persists the PHY group in NVS**, one blob per board, in the bridge's
+  layout. `PhyBlob` moved from the bridge into `lran-config` (`phy_blob.h`), so both
+  firmwares write one format. `phy reset` erases the blob and retunes to D1's group, so a
+  stranded board recovers without a reflash. Nothing else on a simnode persists.
+- **A board retunes once every member identity has accepted the same group.** Up to four
+  identities share one SX1262, and the bridge sends each its own `SET` on the old settings.
+  A board that retuned after its first identity's ACK would not hear the next `SET`. A
+  member is any enabled identity whose role is not `ROLE_FAULT`. So an enabled identity the
+  bridge does not watch keeps the board on its old settings, and the change ends
+  `not_heard`. Any authenticated frame to any identity confirms the whole board.
+- **`ROLE_RANGE` and `ROLE_HEALTH` answer `CONFIG`** for the PHY group, and answer any other
+  row `UNKNOWN_PARAM`. `ROLE_FAULT` still answers nothing.
+
+**Choices a reviewer should check against the specification:**
+
+- **A `SET` naming PHY rows during a trial answers `READ_ONLY`.** §12.4.2 does not say what
+  a node does with a second group before the first is confirmed. The bridge never sends one
+  (`blocks_traffic()`), and stacking one trial on another would leave nothing coherent to
+  revert to.
+- **A group some members accepted, but the board never retuned to, is dropped after
+  `phy_trial_s`.** The radio never moved, so there is no `PHY_REVERTED` to send.
+- **Confirmation is a `CONFIG` or `COMMAND` whose gate verdict is `Execute`, or a roll.** A
+  roll skips the gate, and §12.4.1 counts the roll after a bridge restart as confirmation.
+  A `DUPLICATE_CACHED` answer does not confirm.
+- **`PHY_REVERTED` goes out with the next frame from the bridge, of any type**, before that
+  frame's own answer, and from every `ROLE_GATELINK` identity. The other roles have no
+  event schema and report nothing, as step 8 allows.
+- **§12.3's backoff window is not recomputed on a retune**, as on the bridge: `backoff_max_ms`
+  is a lever. This is the fourth spec question from slice 2's entry.
+- **A generic-store `GET_ALL` now carries six more rows**, so a `ROLE_GATELINK` identity holding
+  more than 16 `u32` overrides cuts its answer: the six rows cost 42 of 196 bytes. The cut is logged. §7.4.1's split is not
+  built here.
+
+**What slice 2 owed a board, read on this flash:**
+
+- **The bridge's radio comes up on 917.4 MHz** from `g_boot_phy`: `LoRa: radio up -
+  917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted`. `lora_task` has 6428 bytes
+  free.
+- **`sched_task` has 2312 bytes free**, of 5120, after a `get_all` to simnode1 completed.
+  No PHY change ran, so `sched_phy()`'s own depth is not in that figure.
+- **`mqtt_task`'s high-water mark is not read.** Nothing prints it.
+- **The refusal is right on the broker.** `{"set":{"freq_hz":917000000}}` on
+  `lran/bridge/config/set` answered `{"op":"set","persist":"not_applied","error":"phy_fleet_incomplete"}`.
+
+**The simnode's `CONFIG` path works on air.** A `get_all` on `lran/simnode1/config/set`
+drew six results from f1, `persisted`, and `config/state` filled in the PHY rows.
+
+**No PHY change can start, on this bench or in production, until every provisioned
+production node answers.** The fleet is every node the bridge watches.
+`AvailabilityWatchdog` watches a production row always and a bench row once heard. So
+0x01 and 0x02 are in the fleet from boot, both offline, and §12.4.1 step 2 refuses with
+`phy_fleet_incomplete`. That holds until WellLink is deployed, which is not planned soon. The
+refusal follows the text: the bridge polls both nodes. **Whether a provisioned node that
+has never been deployed counts toward the fleet is a spec and registry question.** The
+operator closed slice 3 host-only, and slice 4 cannot start without an answer.
+`simnode_diag_enable` was set to 1 for the check and back to 0 afterwards.

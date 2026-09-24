@@ -56,6 +56,10 @@ uint32_t g_tx_timeout_ms = 0;
 OutFrame g_tx;
 bool     g_have_tx = false;
 
+lran::link::PhyConfig g_phy_next{};
+bool                  g_phy_requested = false;
+bool                  g_phy_retuned   = false;
+
 uint8_t g_rx_buf[256];  // the SX1262 accepts 255 bytes; spec 14 stage 2a must see them
 
 uint32_t g_begin_failed_ms  = 0;
@@ -341,6 +345,17 @@ void radio_service(Node* node, Outbox* outbox, uint32_t now_ms) {
       break;
     case Mode::Receive:
       service_receive(node, now_ms);
+      // BF-33 - a retune waits for an idle radio: nothing of ours queued or moving, and no
+      // frame arriving. radio_begin() then reconfigures the chip, as the bridge's
+      // lora_task does.
+      if (g_mode == Mode::Receive && g_phy_requested && !g_have_tx && outbox->size() == 0 &&
+          !g_header_seen) {
+        g_phy           = g_phy_next;
+        g_phy_requested = false;
+        g_phy_retuned   = true;
+        try_begin(now_ms);
+        break;
+      }
       if (g_mode == Mode::Receive) service_tx(node, outbox, now_ms);
       break;
     case Mode::Cad:
@@ -351,6 +366,25 @@ void radio_service(Node* node, Outbox* outbox, uint32_t now_ms) {
       break;
   }
 }
+
+void radio_request_phy(const lran::link::PhyConfig& phy) {
+  g_phy_next      = phy;
+  g_phy_requested = true;
+  // A radio that is down takes the new settings at its next begin().
+  if (g_mode == Mode::Down) {
+    g_phy           = phy;
+    g_phy_requested = false;
+    g_phy_retuned   = true;
+  }
+}
+
+bool radio_take_retuned() {
+  const bool r  = g_phy_retuned;
+  g_phy_retuned = false;
+  return r;
+}
+
+const lran::link::PhyConfig& radio_phy() { return g_phy; }
 
 bool radio_ready() { return g_ready; }
 

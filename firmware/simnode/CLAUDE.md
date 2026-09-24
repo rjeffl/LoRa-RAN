@@ -59,6 +59,15 @@ the gate and `tx_seq` only, where `new_context()` also clears what a reboot lose
 `ACCEPTED` ACK goes out under the new `ctx_id` through `send_fresh_ack()`, so
 `ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
 
+**Spec §12.4.2's PHY change (BF-33 slice 3) is `phy_trial.{h,cpp}`, host-tested and not yet
+run on air.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS: **the only
+thing a simnode persists.** The board retunes once every enabled identity that is not
+`ROLE_FAULT` has accepted the same group, because the identities share one radio. **An enabled
+identity the bridge does not watch therefore holds the board on its old settings**; disable
+it before a PHY change. Any authenticated frame to any identity confirms the board, a roll
+included. `ROLE_RANGE` and `ROLE_HEALTH` answer `CONFIG` for the PHY group only. `phy` prints
+the group, the trial and the store; `phy reset` puts D1's group back and erases the blob.
+
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added
 here has no scenario there** — run it after touching `kFaultCatalogue`.
@@ -75,8 +84,9 @@ bridge. Change them there, and run both firmwares' tests.
 ### Traps found building it
 
 - **Two Heltecs boot with the same identities**, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`.
-  Nothing persists, so both answer to `f0` until one is reconfigured, and every reset
-  restores the defaults. Opening the serial port resets the board.
+  Identities do not persist, so both answer to `f0` until one is reconfigured, and every
+  reset restores the defaults. **A committed PHY group does persist** (BF-33): a board
+  that boots off 917.4 MHz is on a group it committed, and `phy reset` recovers it.
 - **`stats` counts frames an identity queued; `radio` counts `TX_DONE`.** Only `radio` shows
   a frame reached the air.
 - **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
@@ -103,7 +113,10 @@ bridge. Change them there, and run both firmwares' tests.
 - **A `DUPLICATE_CACHED` ACK carries the cached result in `detail`.** The encoding is the
   simnode's reading of spec §9.4, raised for v0.12; BF-18 must not treat it as settled.
 - **A `CONFIG_ACK` is cut at 196 bytes and the cut is logged.** 24 `u32` results do not fit,
-  and spec §3.1 lets no fragmented set exceed that either. The RAM store holds 21 entries.
+  and spec §3.1 lets no fragmented set exceed that either. The RAM store holds 21 entries,
+  and a `GET_ALL` adds the six PHY rows to them, 42 bytes.
+- **Opening a serial port from pyserial did not reset these boards or the bridge** on
+  2026-09-24. Toggle RTS to capture a boot banner.
 - **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
   `rx_dropped`, on every other identity on the board. That is what four boards would count.
 
@@ -221,6 +234,8 @@ flashed with only its own derived key.
 
 `ROLE_RANGE` (PING echo + `0xF0`) · `ROLE_HEALTH` (`0xF0` only) · `ROLE_GATELINK`
 (`0xFE` status, `0x11` events, ACKs, `0x12` config) · `ROLE_FAULT` (§10.5 catalogue).
+Every role answers a roll, and every role but `ROLE_FAULT` answers a `CONFIG` for the PHY
+group.
 
 `ROLE_RANGE` is deliberately impoverished: during a range test, every line of protocol
 logic in the way can produce a symptom indistinguishable from poor link margin.

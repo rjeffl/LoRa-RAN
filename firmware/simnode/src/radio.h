@@ -41,6 +41,16 @@ void radio_start(const lran::link::RadioPins& pins, const lran::link::PhyConfig&
 // media access.
 void radio_service(Node* node, Outbox* outbox, uint32_t now_ms);
 
+// spec 12.4.2 step 3 - retune to `phy` once the outbox is empty and no frame is moving,
+// so an answer already queued goes out on the settings it was asked on. A second request
+// before the first is applied replaces it.
+void radio_request_phy(const lran::link::PhyConfig& phy);
+
+// True once, on the pass after a requested retune was applied.
+bool radio_take_retuned();
+
+const lran::link::PhyConfig& radio_phy();
+
 bool              radio_ready();
 const RadioStats& radio_stats();
 

@@ -14,7 +14,9 @@
 // POLL with schema 0xF0; ROLE_HEALTH answers POLL with 0xF0. ROLE_GATELINK (BF-6, gatelink.cpp)
 // answers POLL with 0xFE, COMMAND with COMMAND_ACK through its CommandGate, CONFIG with
 // CONFIG_ACK, and sends 0x11 events on request. ROLE_FAULT answers nothing: every fault is
-// armed from the console on any identity (BF-8).
+// armed from the console on any identity (BF-8). Since BF-33, ROLE_RANGE and ROLE_HEALTH
+// also answer a CONFIG, for spec 12.4's PHY group and nothing else, because a fleet change
+// must move every node the bridge polls.
 //
 // THE SYNTHETIC MARKER ON 0xF0. Schema 0xF0 has no status_reason, so it cannot carry
 // DEBUG_SYNTHETIC. Every 0xF0 this firmware emits sets health_flags bit 0, "any debug mode
@@ -34,6 +36,7 @@
 #include "lran/messages.h"
 #include "lran/schema/node_config_v1.h"
 #include "lran/schema/gatelink_event_v1.h"
+#include "phy_trial.h"
 #include "sink.h"
 
 namespace simnode {
@@ -174,6 +177,19 @@ class Node {
   // A bench instrument, but root rule 8 still holds: no timing constant is fixed.
   void set_ping_timeout_ms(uint32_t ms) { ping_timeout_ms_ = ms; }
 
+  // spec 12.4.2 - the board's PHY group. Without one the node holds its own, with no
+  // store, and answers every PHY row READ_ONLY (step 2).
+  void      set_phy(PhyTrial* phy) { phy_ = phy != nullptr ? phy : &no_store_; }
+  PhyTrial* phy() { return phy_; }
+
+  // The identities that must accept a PHY group before the board retunes: every enabled
+  // one whose role answers CONFIG, which is every role but ROLE_FAULT (phy_trial.h).
+  uint8_t phy_members() const;
+
+  // spec 12.4.2 step 8 - a revert, from the window or a reboot. Every ROLE_GATELINK identity
+  // owes the bridge one PHY_REVERTED; the other roles have no event schema and report nothing.
+  void on_phy_revert(RevertCause cause);
+
   // Answers dropped because the outbox had no room. Local; the frames they answered were valid.
   uint32_t answers_dropped() const { return answers_dropped_; }
 
@@ -211,7 +227,7 @@ class Node {
   void            on_command(Identity& e, const lran::Header& hdr, const uint8_t* payload,
                              size_t len, uint32_t now_ms);
   void            on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                            size_t len);
+                            size_t len, uint32_t now_ms);
   void            answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
                                        size_t len, uint32_t now_ms);
   void            refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why);
@@ -236,7 +252,9 @@ class Node {
                                   uint32_t reply_seq);
   bool            send_config_readback(Identity& e, lran::NodeId dst);
   void            apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
-                               lran::schema::NodeConfigAckV1* out);
+                               lran::schema::NodeConfigAckV1* out, uint32_t now_ms);
+  size_t          slot_of(const Identity& e) const;
+  void            send_phy_reverted(Identity& e, lran::NodeId dst, uint32_t now_ms);
 
   IdentityTable* ids_;
   Outbox*        out_;
@@ -253,6 +271,9 @@ class Node {
   // the loop task's stack. Only one config is ever in progress, because the node is one loop.
   lran::schema::NodeConfigV1    cfg_rx_;
   lran::schema::NodeConfigAckV1 cfg_ack_;
+
+  PhyTrial  no_store_{nullptr};
+  PhyTrial* phy_ = &no_store_;
 };
 
 }  // namespace simnode
