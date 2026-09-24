@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "lran/config/phy_blob.h"
 #include "lran/config/table.h"
 #include "lran/link/radio_config.h"
 #include "lran/schema/node_config_v1.h"
@@ -71,35 +72,13 @@ void build_phy_set(const PhyGroup& g, lran::schema::NodeConfigV1* out);
 // spec 12.4.1 step 7 - one CONFIG GET naming the group. Each entry's len is 0 (spec 8.10).
 void build_phy_get(lran::schema::NodeConfigV1* out);
 
-// ---------------------------------------------------------------------------
-// The PHY group's NVS record.
-//
-// ONE BLOB, SO ONE NVS COMMIT. Six keys would be six commits, and a reboot between two of
-// them brings the bridge back on a group nobody chose (store.h's save_group()). The same
-// blob carries the trial marker for the same reason: the commit that writes the new group
-// also clears the marker, so a boot never sees one without the other.
-//
-// Serialized field by field, little-endian (root rule 1), though it never crosses the
-// air: the layout then outlives a compiler change, and a firmware update reads the
-// blob the previous image wrote.
-//
-//   u8 version (1) | u8 flags (bit 0: a trial was open) | u8 n | n x (u16 id, i32 value)
-// ---------------------------------------------------------------------------
-
-inline constexpr uint8_t kPhyBlobVersion = 1;
-inline constexpr size_t  kPhyBlobMax     = 3 + kPhyGroupSize * 6;
-
-struct PhyBlob {
-  bool                trial_open = false;
-  size_t              n          = 0;
-  uint16_t            ids[kPhyGroupSize]    = {};
-  lran::config::Value values[kPhyGroupSize] = {};
-};
-
-size_t phy_blob_encode(const PhyBlob& b, uint8_t* out, size_t cap);
-// False for a blob of another version or a malformed one, which the caller treats as no
-// stored group: the bridge then boots on the table's defaults, which is D1's envelope.
-bool phy_blob_decode(const uint8_t* in, size_t len, PhyBlob* out);
+// The PHY group's NVS record is lran-config's phy_blob.h, which the simnode shares. The
+// bridge's NvsPersist writes it under one key.
+using lran::config::kPhyBlobMax;
+using lran::config::kPhyBlobVersion;
+using lran::config::phy_blob_decode;
+using lran::config::phy_blob_encode;
+using lran::config::PhyBlob;
 
 // ---------------------------------------------------------------------------
 // The machine.

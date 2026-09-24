@@ -13,26 +13,6 @@ int64_t since(uint32_t now_ms, uint32_t then_ms) {
   return static_cast<int64_t>(static_cast<int32_t>(now_ms - then_ms));
 }
 
-void put_u16(uint8_t* p, uint16_t v) {
-  p[0] = static_cast<uint8_t>(v & 0xFFu);
-  p[1] = static_cast<uint8_t>(v >> 8);
-}
-
-void put_i32(uint8_t* p, int32_t v) {
-  const uint32_t u = static_cast<uint32_t>(v);
-  for (int i = 0; i < 4; ++i) p[i] = static_cast<uint8_t>(u >> (8 * i));
-}
-
-uint16_t get_u16(const uint8_t* p) {
-  return static_cast<uint16_t>(p[0] | (static_cast<uint16_t>(p[1]) << 8));
-}
-
-int32_t get_i32(const uint8_t* p) {
-  uint32_t u = 0;
-  for (int i = 0; i < 4; ++i) u |= static_cast<uint32_t>(p[i]) << (8 * i);
-  return static_cast<int32_t>(u);
-}
-
 // Empties a CONFIG in place. Not `*out = NodeConfigV1{}`: that temporary crashed GCC 13's
 // gimplifier on CI's Ubuntu 24.04 runner (internal compiler error in gimple_add_tmp_var,
 // 2026-09-24), though clang compiled it. The fields are cleared one by one instead.
@@ -110,36 +90,6 @@ void build_phy_get(lran::schema::NodeConfigV1* out) {
     out->entries[i].ptype    = bridge_phy_row(i)->type;
   }
   out->count = static_cast<uint8_t>(kPhyGroupSize);
-}
-
-size_t phy_blob_encode(const PhyBlob& b, uint8_t* out, size_t cap) {
-  if (out == nullptr || b.n > kPhyGroupSize) return 0;
-  const size_t len = 3 + b.n * 6;
-  if (cap < len) return 0;
-  out[0] = kPhyBlobVersion;
-  out[1] = b.trial_open ? 0x01 : 0x00;
-  out[2] = static_cast<uint8_t>(b.n);
-  for (size_t i = 0; i < b.n; ++i) {
-    put_u16(&out[3 + i * 6], b.ids[i]);
-    put_i32(&out[5 + i * 6], b.values[i]);
-  }
-  return len;
-}
-
-bool phy_blob_decode(const uint8_t* in, size_t len, PhyBlob* out) {
-  if (in == nullptr || out == nullptr || len < 3) return false;
-  if (in[0] != kPhyBlobVersion || in[2] > kPhyGroupSize) return false;
-  const size_t n = in[2];
-  if (len != 3 + n * 6) return false;
-  PhyBlob b;
-  b.trial_open = (in[1] & 0x01) != 0;
-  b.n          = n;
-  for (size_t i = 0; i < n; ++i) {
-    b.ids[i]    = get_u16(&in[3 + i * 6]);
-    b.values[i] = get_i32(&in[5 + i * 6]);
-  }
-  *out = b;
-  return true;
 }
 
 // ---------------------------------------------------------------------------

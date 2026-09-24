@@ -582,14 +582,14 @@ bool Node::send_config_ack(Identity& e, lran::NodeId dst,
 }
 
 void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
-                        lran::schema::NodeConfigAckV1* out) {
+                        lran::schema::NodeConfigAckV1* out, uint32_t now_ms) {
   namespace sc = lran::schema;
   *out    = kEmptyConfigAck;
   out->op = in.op;
 
-  // Results are added while they fit one CONFIG_ACK (spec 11.4 - single-frame). A GET_ALL
-  // larger than that has no specified split yet (spec W10), so the overflow is logged,
-  // never silent.
+  // Results are added while they fit one CONFIG_ACK (spec 11.4 - single-frame). The RAM
+  // store and the PHY group together can outgrow one; spec 7.4.1's split is not built
+  // here, so the overflow is logged, never silent.
   size_t used    = sc::kConfigAckHdrLen;
   size_t dropped = 0;
   auto   add     = [&](const sc::ConfigAckEntry& a) {
@@ -602,33 +602,76 @@ void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
     used += need;
   };
 
+  // BF-33 - every role but ROLE_FAULT holds the board's PHY group; only ROLE_GATELINK
+  // holds the generic RAM store as well. A row outside both is UNKNOWN_PARAM (spec 7.4).
+  const bool generic = e.role == Role::GateLink;
+  auto unknown = [](uint16_t id, lran::PType t) {
+    sc::ConfigAckEntry a;
+    a.param_id = id;
+    a.status   = lran::ParamStatus::UnknownParam;
+    a.ptype    = t;
+    a.len      = 0;
+    return a;
+  };
+
   // spec 7.4, D53 - persist_status after a write says what was applied; after a read,
-  // whether the current overrides are persisted. The store is RAM, so an override is
-  // never persisted, and a node holding none reads PERSISTED.
-  auto current = [&e]() {
-    for (const StoredParam& p : e.gl.params) {
-      if (p.used) return lran::PersistStatus::AppliedNotPersisted;
+  // whether the current overrides are persisted. The generic store is RAM, so its
+  // overrides never are; the PHY group reports its own, which a trial makes
+  // APPLIED_NOT_PERSISTED (D60).
+  auto current = [&]() {
+    if (generic) {
+      for (const StoredParam& p : e.gl.params) {
+        if (p.used) return lran::PersistStatus::AppliedNotPersisted;
+      }
     }
-    return lran::PersistStatus::Persisted;
+    return phy_->read_persist_status();
   };
   auto list_all = [&]() {
-    for (const StoredParam& p : e.gl.params) {
-      if (p.used) add(result_of(p, lran::ParamStatus::Ok));
+    if (generic) {
+      for (const StoredParam& p : e.gl.params) {
+        if (p.used) add(result_of(p, lran::ParamStatus::Ok));
+      }
+    }
+    for (const lran::config::ParamDef& d : lran::config::kNodeCommonParams) {
+      if (PhyTrial::is_phy(d.id)) add(phy_->get(d.id));
     }
   };
 
   switch (in.op) {
     case lran::ConfigOp::Set: {
-      bool applied = false;
+      bool applied   = false;
+      bool phy_named = false;
+      bool phy_ok    = true;
       for (uint8_t i = 0; i < in.count; ++i) {
-        const sc::ConfigAckEntry a = set_param(e.gl, in.entries[i]);
+        const sc::ConfigEntry& entry = in.entries[i];
+        sc::ConfigAckEntry     a;
+        if (PhyTrial::is_phy(entry.param_id)) {
+          bool took = false;
+          a         = phy_->set(entry, &took);
+          phy_named = true;
+          // spec 12.4.1 step 4 - the bridge abandons on a refusal or a clamp, so only an
+          // OK entry counts toward the board's retune.
+          phy_ok    = phy_ok && a.status == lran::ParamStatus::Ok;
+        } else if (generic) {
+          a = set_param(e.gl, entry);
+          if (a.status == lran::ParamStatus::UnknownParam) {
+            sink_printf(log_, "config %02x: param 0x%04x refused - RAM store full (%u)", e.id,
+                        static_cast<unsigned>(a.param_id),
+                        static_cast<unsigned>(kConfigStoreDepth));
+          }
+        } else {
+          a = unknown(entry.param_id, entry.ptype);
+        }
         applied = applied || a.status == lran::ParamStatus::Ok ||
                   a.status == lran::ParamStatus::Clamped;
-        if (a.status == lran::ParamStatus::UnknownParam) {
-          sink_printf(log_, "config %02x: param 0x%04x refused - RAM store full (%u)", e.id,
-                      static_cast<unsigned>(a.param_id), static_cast<unsigned>(kConfigStoreDepth));
-        }
         add(a);
+      }
+      if (phy_named) {
+        phy_->on_set(slot_of(e), phy_ok, phy_members(), now_ms);
+        sink_printf(log_, "phy %02x: SET %s, board %s, accepted 0x%02x of 0x%02x", e.id,
+                    phy_ok ? "accepted" : "NOT accepted", phy_state_name(phy_->state()),
+                    static_cast<unsigned>(phy_->accepted_mask()),
+                    static_cast<unsigned>(phy_members()));
       }
       // D53 - NOT_APPLIED only when nothing in the set took effect.
       out->persist_status =
@@ -637,17 +680,14 @@ void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
     }
     case lran::ConfigOp::Get:
       for (uint8_t i = 0; i < in.count; ++i) {
-        const StoredParam* p = find_param(e.gl, in.entries[i].param_id);
-        if (p != nullptr) {
-          add(result_of(*p, lran::ParamStatus::Ok));
-        } else {
-          sc::ConfigAckEntry a;
-          a.param_id = in.entries[i].param_id;
-          a.status   = lran::ParamStatus::UnknownParam;
-          a.ptype    = in.entries[i].ptype;
-          a.len      = 0;
-          add(a);
+        const uint16_t id = in.entries[i].param_id;
+        if (PhyTrial::is_phy(id)) {
+          add(phy_->get(id));
+          continue;
         }
+        const StoredParam* p = generic ? find_param(e.gl, id) : nullptr;
+        add(p != nullptr ? result_of(*p, lran::ParamStatus::Ok)
+                         : unknown(id, in.entries[i].ptype));
       }
       out->persist_status = current();
       break;
@@ -656,10 +696,12 @@ void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
       out->persist_status = current();
       break;
     case lran::ConfigOp::RestoreDefaults:
-      // There are no defaults without /lib/lran-config/; restoring them empties the store.
-      // D52 - answered with the full effective configuration, as GET_ALL is. Here that is
-      // empty, and the node holds no override, so the restore is as durable as a reboot.
-      for (StoredParam& p : e.gl.params) p = StoredParam{};
+      // The generic store has no defaults; restoring them empties it. The PHY group is
+      // kept, as lran-config's Store::restore_defaults() keeps it (D60). D52 - answered
+      // with the full effective configuration, as GET_ALL is.
+      if (generic) {
+        for (StoredParam& p : e.gl.params) p = StoredParam{};
+      }
       list_all();
       out->persist_status = current();
       break;
@@ -677,10 +719,50 @@ void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
   }
 }
 
+size_t Node::slot_of(const Identity& e) const {
+  for (size_t i = 0; i < kMaxIdentities; ++i) {
+    if (&ids_->slot(i) == &e) return i;
+  }
+  return kMaxIdentities;
+}
+
+uint8_t Node::phy_members() const {
+  uint8_t m = 0;
+  for (size_t i = 0; i < kMaxIdentities; ++i) {
+    const Identity& e = ids_->slot(i);
+    if (e.used && e.enabled && e.role != Role::Fault) m = static_cast<uint8_t>(m | (1u << i));
+  }
+  return m;
+}
+
+void Node::on_phy_revert(RevertCause cause) {
+  sink_printf(log_, "phy: REVERTED (%s) to the committed group",
+              cause == RevertCause::Reboot ? "reboot during trial" : "window expired");
+  for (size_t i = 0; i < kMaxIdentities; ++i) {
+    Identity& e = ids_->slot(i);
+    if (e.used && e.role == Role::GateLink) e.gl.phy_revert_detail = static_cast<uint16_t>(cause);
+  }
+}
+
+void Node::send_phy_reverted(Identity& e, lran::NodeId dst, uint32_t now_ms) {
+  lran::schema::GateLinkEventV1 ev = make_event(e, lran::EventType::PhyReverted, now_ms);
+  ev.detail                        = e.gl.phy_revert_detail;
+  e.gl.phy_revert_detail           = 0;
+  e.gl.last_event                  = ev;
+  e.gl.has_last_event              = true;
+  if (!send_event(e, dst, ev)) {
+    ++answers_dropped_;
+    sink_printf(log_, "phy %02x: PHY_REVERTED not queued", e.id);
+    return;
+  }
+  sink_printf(log_, "phy %02x: EVENT PHY_REVERTED detail 0x%04x, event_id %lu", e.id,
+              static_cast<unsigned>(ev.detail), static_cast<unsigned long>(ev.event_id));
+}
+
 bool Node::send_config_readback(Identity& e, lran::NodeId dst) {
   cfg_rx_    = kEmptyConfig;
   cfg_rx_.op = lran::ConfigOp::GetAll;
-  apply_config(e, cfg_rx_, &cfg_ack_);
+  apply_config(e, cfg_rx_, &cfg_ack_, 0);
   // Unsolicited: it answers a POLL bit 1 or a REQUEST_CONFIG and correlates to no
   // request at all (D45).
   return send_config_ack(e, dst, cfg_ack_, kUseStatusSeq);
@@ -813,6 +895,7 @@ void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* paylo
   const lran::GateResult g = e.gate.check(hdr.seq);  // spec 9.4 steps 4-6, D34
   switch (g.verdict) {
     case lran::Verdict::Execute: {
+      phy_->on_authenticated();  // spec 12.4.2 step 5, as in on_config()
       if (e.gl.pending.active) {
         // One execution at a time, as one relay board. The seq is consumed either way.
         e.gate.record(hdr.seq, lran::AckResult::ActuatorBusy, 0);
@@ -858,7 +941,8 @@ void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* paylo
   }
 }
 
-void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len) {
+void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
+                     uint32_t now_ms) {
   if (silenced(e, "config", hdr)) return;
 
   // spec 9.4 applies steps 4-6 to every authenticated type, so a CONFIG shares the command
@@ -866,6 +950,9 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
   const lran::GateResult g = e.gate.check(hdr.seq);
   switch (g.verdict) {
     case lran::Verdict::Execute:
+      // spec 12.4.2 step 5 - through stage 11, so this CONFIG confirms a PHY trial. First,
+      // so a confirming GET answers with the group committed.
+      phy_->on_authenticated();
       break;
     case lran::Verdict::ReturnCached:
       sink_printf(log_, "config %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED, not applied",
@@ -894,7 +981,7 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
   }
 
   ++e.gl.executions;
-  apply_config(e, cfg_rx_, &cfg_ack_);
+  apply_config(e, cfg_rx_, &cfg_ack_, now_ms);
   e.gate.record(hdr.seq, lran::AckResult::Accepted, 0);
   sink_printf(log_, "config %02x <- %02x seq %u: op %u, %u entr%s, %u result(s)", e.id, hdr.src,
               static_cast<unsigned>(hdr.seq), static_cast<unsigned>(cfg_rx_.op),

@@ -210,6 +210,12 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
                 static_cast<unsigned>(len), static_cast<unsigned>(fragments));
   }
 
+  // spec 12.4.2 step 8 - a revert is reported when the next frame from the bridge arrives,
+  // which is the evidence that the restored settings reach it.
+  if (hdr.src == lran::kNodeBridge && e.role == Role::GateLink && e.gl.phy_revert_detail != 0) {
+    send_phy_reverted(e, hdr.src, now_ms);
+  }
+
   switch (hdr.type) {
     case lran::MsgType::Error:
       // BF-19a - the bridge's spec 14.2 reply. The simnode acts on none of it; it is
@@ -238,8 +244,10 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
       if (answer_roll_only(e, hdr, payload, len)) return;
       break;
     case lran::MsgType::Config:
-      if (e.role == Role::GateLink) {
-        on_config(e, hdr, payload, len);
+      // BF-33 - every role but ROLE_FAULT answers a CONFIG, for the PHY group at least
+      // (apply_config()), because the bridge moves every node it polls (spec 12.4.1).
+      if (e.role != Role::Fault) {
+        on_config(e, hdr, payload, len, now_ms);
         return;
       }
       break;
@@ -293,6 +301,9 @@ void Node::on_roll(Identity& e, const lran::Header& hdr, const lran::msg::Comman
     send_ack(e, hdr.src, hdr.seq, lran::AckResult::ActuatorBusy, 0);
     return;
   }
+  // spec 12.4.1 - the roll after a bridge restart is an authenticated frame, and it
+  // confirms a node still in its trial. It skips the gate, so it passes stage 11 here.
+  phy_->on_authenticated();
   const lran::CtxId old_ctx = e.ctx_id;
   ids_->roll_context(e.id);
   sink_printf(log_, "roll %02x <- %02x seq %u: ctx 0x%08lx -> 0x%08lx, ACCEPTED", e.id, hdr.src,
@@ -435,6 +446,8 @@ bool Node::send(Identity& e, const lran::Header& hdr, const uint8_t* payload, si
 }
 
 void Node::tick(uint32_t now_ms) {
+  const RevertCause reverted = phy_->tick(now_ms);  // spec 12.4.2 step 6
+  if (reverted != RevertCause::None) on_phy_revert(reverted);
   for (size_t i = 0; i < kMaxIdentities; ++i) {
     Identity& e = ids_->slot(i);
     if (!e.used) continue;

@@ -126,6 +126,7 @@ void Console::cmd_help() {
       "  ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]   (dst defaults to 00)",
       "  stats <hex>",
       "  radio          (the driver's counters: frames actually on air)",
+      "  phy [reset]    (spec 12.4.2: the board's PHY group; reset erases it)",
       "  log <quiet|info|debug>",
       "  fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>] [seq <n>]",
       "  fault <hex> off   |  fault list",
