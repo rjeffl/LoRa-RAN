@@ -2687,3 +2687,48 @@ next flash**, because nothing on a board has checked this change.
 The native suites pass: 25 in `lran-config` with nine new cases, 387 in the bridge and 115
 in the simnode. The `heltec` and `simnode-xiao-wio` targets build, and `run_ci_local.py`
 passes.
+
+## 2026-09-24 — BF-33 slice 2: the bridge's fleet machine, host-built
+
+**The bridge's half of spec §12.4.1 is built and host-tested, and it has not run on a
+board.** `phy_change.{h,cpp}` is the state machine, with no Arduino dependency, like
+`config_path.h`. `sched_task` drives it, and `lora_task` applies the retune. The native
+suite is 406 cases, 19 of them new, and the `heltec` build reads 197,264 bytes of RAM,
+60.2 %. No change can complete on air yet. Every simnode answers a PHY `SET` `READ_ONLY`
+until slice 3 builds §12.4.2, so a change today ends `not_accepted` at the first node.
+
+**Four things the reading found, each of which shaped the code:**
+
+- **The boot restore went through `Store::apply()`**, which now opens a PHY trial. A
+  stored group would have come back as a trial at every boot. `nvs_restore()` now calls
+  `ConfigStore::restore()`, which calls `Store::restore()`.
+- **`ConfigPath` cannot carry the fan-out.** It runs one transaction and publishes a
+  per-node `config/ack` when that transaction resolves. §16.7.5 needs one answer on the
+  bridge's topic when the whole change ends. `PhyChange` claims its own `CONFIG_ACK`s
+  first in `config_on_ack()`, as the roll does in `cmd_on_ack()`.
+- **`lora_link` set the PHY once, in `lora_start()`.** `lora_request_phy()` hands new
+  settings to `lora_task` under `g_diag_mux`. `lora_task` applies them through
+  `radio_begin()` on the first pass that finds the radio receiving, nothing of ours
+  arriving and nothing queued to send.
+- **The table and `PhyConfig` count in different units.** Bandwidth is whole kHz in the
+  table and tenths in `PhyConfig`. `phy_config_from()` converts it and applies D33's EIRP
+  check again, and a host test holds the default group equal to `kPhy`.
+
+**Choices a reviewer should check against the specification:**
+
+- **Any authenticated frame confirms a node**, so from the first `CONFIG` to the last
+  confirming `GET` no command, roll or other `CONFIG` is admitted
+  (`PhyChange::blocks_traffic()`). Polls still go out.
+- **An empty fleet is refused `phy_fleet_incomplete`.** §12.4.1 step 2 names only an
+  offline node. A bridge that moved alone would strand every node it has not heard.
+- **The bridge's PHY rows stay `READ_ONLY` without a usable NVS store**, by the
+  reasoning of §12.4.2 step 2, which the specification states for nodes only.
+- **A failed commit write has no §16.7.5 reason.** The change reverts, `config/ack`
+  reads `reverted`, and no `phy_reverted` event is published.
+- **The trial marker lives in the PHY blob**, so the commit that writes the new group
+  clears it in the same NVS write. A boot that finds it set publishes
+  `phy_reverted` with `reason` `restart` once.
+- **After an abandon the machine stays busy until the last node's window has closed**,
+  so a second change cannot reach a node still counting down the first. A node that
+  never answered step 4 is read back with `GET_ALL` at that point, which is step 4's
+  deferred readback.

@@ -1,8 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-24 by the session that built BF-33's library half.** BF-33 is split into
-four slices, by operator decision. Slice 1 is done: `lran-config`'s PHY rows and the store's
-trial copy, on branch `b4b-phy-commit`. **Slice 2, the bridge's fleet machine, is next.**
+**Written 2026-09-24 by the session that built BF-33 slice 2, the bridge's fleet machine,
+on the host.** The machine is `phy_change.{h,cpp}`, and it has not run on a board. **Slice
+3, the simnode's half, is next.** Slice 2's first flash is folded into slice 3's bench
+work, because no change can complete on air until a node can accept one.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,13 +18,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: B4b, BF-33 slice 2, the bridge's fleet machine.
+Continue from docs/bridge/HANDOFF.md: B4b, BF-33 slice 3, the simnode's half.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **B4b, BF-33 slice 2** (host first, then the bridge board) | *The next job*; spec **§12.4.1**, **§12.4.3** and **§16.7.5**; Library Plan **§4**'s *What BF-33's library half built*; the engineering log's *BF-33 split in four* entry; `config_store.{h,cpp}`, `config_path.{h,cpp}` and `lora_link.cpp`'s configure path |
+| **B4b, BF-33 slice 3** (host first, then the bench) | *The next job*; spec **§12.4.2** and **§12.4.3**; the engineering log's two *BF-33* entries of 2026-09-24; `firmware/simnode/CLAUDE.md`; the simnode's `apply_config` in `gatelink.cpp`; `firmware/bridge/src/phy_change.h` for what the bridge sends and expects back |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -34,35 +35,29 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**BF-33 is four slices**, split on 2026-09-24 because the documents alone took half a
-session:
+**BF-33 is four slices**, split on 2026-09-24:
 
-1. **`lran-config`** — **done**, commit `feat(config): BF-33's library half`. `Access::Phy`,
-   the bridge's rows at `0x0010`–`0x0015`, `Store`'s trial copy, `Persist::save_group()`,
-   `Store::restore()`. No `Store` enables the trial, so every PHY row still answers
-   `READ_ONLY`.
-2. **The bridge's fleet machine, spec §12.4.1 steps 1 to 8 and §16.7.5.** Next.
-3. **The simnode's half, spec §12.4.2.** The simnode keeps its own RAM store, not
-   `lran-config`'s `Store`, and §12.4.2 step 2 makes a node with no usable store answer
-   `READ_ONLY`. **Whether the simnode gets an NVS store for the PHY group is the first
-   question of this slice.** Without one, it cannot take a change at all.
+1. **`lran-config`** — **done**. `Access::Phy`, the bridge's rows, `Store`'s trial copy.
+2. **The bridge's fleet machine, spec §12.4.1 and §16.7.5** — **built on the host, not on
+   air.** `PhyChange` runs steps 3 to 8. `handle_config_set()` makes step 2's refusals,
+   and `lora_task` applies the retune. `NvsPersist` writes the group as one blob that
+   carries the trial marker. A PHY row on a node's topic answers `read_only`.
+3. **The simnode's half, spec §12.4.2.** Next. The simnode keeps its own RAM store, and
+   §12.4.2 step 2 makes a node with no usable store answer `READ_ONLY`. **Whether the
+   simnode gets an NVS store for the PHY group is the first question of this slice**, and
+   it is the operator's. Without one, every change ends `not_accepted`.
 4. **The bench run** against B4b's row in Impl Plan §8: a reboot mid-trial, confirmation
    by a received frame, the fleet moving together, and D33's clamp.
 
-**Slice 2 has these pieces, and none is in the code yet:**
+**What slice 2 still owes a board**, to be done at slice 3's first flash:
 
-- `NvsPersist::save_group()` as one NVS blob, so the group lands in one commit. It returns
-  `false` today, marked `TODO(BF-33)`.
-- `nvs_restore()` calls `Store::apply()`. It must call `Store::restore()` instead, or a
-  stored PHY value would open a trial at boot.
-- The bridge enables the trial on its global store only.
-- A PHY row named on `lran/<node>/config/set` answers `read_only` and sends no `CONFIG`
-  (spec §16.7.1). Today it goes to the node half.
-- The step 2 refusals, the fan-out, the retune in `lora_task` (`lora_configure()` is
-  `lora_task`'s alone), the step 8 deadline, the confirming `GET`, and
-  `lran/bridge/event/phy_reverted`.
-- **Read `sched_task`'s and `mqtt_task`'s high-water marks at the first flash.**
-  `kMaxPayloadLen` rose to 1536 in slice 1, and no board has run it.
+- **Read `sched_task`'s and `mqtt_task`'s high-water marks.** `kMaxPayloadLen` rose to
+  1536 in slice 1, slice 2 added `sched_phy()` to `sched_task`, and no board has run
+  either. `publish_config_resolution()` prints the `sched_task` figure.
+- **Check that the radio still comes up on 917.4 MHz** after the boot path changed to
+  `g_boot_phy`, which is built from the committed group and not from `kPhy`.
+- **Check a refusal on the broker**: a set on `lran/bridge/config/set` with a simnode
+  offline should answer `phy_fleet_incomplete`.
 
 **The sandbox HA is drivable by API.** The session holds an admin token for it outside the
 repository, and HA's `hassio.addon_restart` restarts the broker. The Supervisor REST proxy
@@ -70,6 +65,15 @@ refuses a long-lived token. **Opening the bridge's USB serial port resets it**, 
 before the run, not during.
 
 ## Open, and not closable from here
+
+- **Four spec questions from BF-33 slice 2**, in the engineering log's entry of that name:
+  an empty fleet refused `phy_fleet_incomplete`; the bridge's own PHY rows `READ_ONLY`
+  without a usable store; no §16.7.5 reason for a failed commit write; and §12.4 step 1's
+  backoff "derived from the resulting airtime", which the bridge does not do, because
+  `backoff_max_ms` is a lever. Raise all four at the next revision.
+- **A `restore_defaults` on the bridge's topic during a PHY trial clears the restart
+  marker**, because `Store::restore_defaults()` clears the namespace and rewrites the
+  committed group. A restart during that trial is then not reported. Rare.
 
 - **D60 is accepted and the specification's text is owed.** `RESTORE_DEFAULTS` keeps the
   committed PHY group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`.
@@ -188,8 +192,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4b** (**BF-33**): slice 1 of 4 built, slices 2 to 4 not started. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **B4b**, BF-33 slice 2 |
+| Not done | **B4b** (**BF-33**): slice 1 built, slice 2 built on the host only, slices 3 and 4 not started. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **B4b**, BF-33 slice 3 |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
