@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Movement cause","uniq_id":"lran_gatelink_movement_cause","stat_t":"~/gate/state","val_tpl":"{{ value_json.movement_cause }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

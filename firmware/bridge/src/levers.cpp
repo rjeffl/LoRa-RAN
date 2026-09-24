@@ -46,6 +46,9 @@ constexpr uint16_t kConfigReadbackTimeout = bridge_row("config_readback_timeout_
 constexpr uint16_t kConfigAckTimeoutMs    = bridge_row("config_ack_timeout_ms");
 constexpr uint16_t kPollIntervalS         = bridge_row("poll_interval_s");
 constexpr uint16_t kSimnodeDiagEnable     = bridge_row("simnode_diag_enable");
+constexpr uint16_t kRepublishIntervalS    = bridge_row("republish_interval_s");
+constexpr uint16_t kBmsStaleS             = bridge_row("bms_stale_s");
+constexpr uint16_t kCellMvDeadband        = bridge_row("cell_mv_deadband");
 
 static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kPollReplyTimeoutMs != kNoRow && kCommandAckTimeoutMs != kNoRow &&
@@ -53,7 +56,8 @@ static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kBackoffMaxMs != kNoRow && kFragReassemblyTimeout != kNoRow &&
                   kErrorMinIntervalMs != kNoRow && kConfigReadbackTimeout != kNoRow &&
                   kConfigAckTimeoutMs != kNoRow && kPollIntervalS != kNoRow &&
-                  kSimnodeDiagEnable != kNoRow,
+                  kSimnodeDiagEnable != kNoRow && kRepublishIntervalS != kNoRow &&
+                  kBmsStaleS != kNoRow && kCellMvDeadband != kNoRow,
               "every lever reads a row of kBridgeParams");
 
 // `cad_retries`, `backoff_max_ms` and `frag_reassembly_timeout_ms` are in the node block
@@ -79,6 +83,9 @@ Levers levers_from(const ConfigStore& store) {
   v.config_readback_timeout_ms = static_cast<uint32_t>(store.global_value(kConfigReadbackTimeout));
   v.config_ack_timeout_ms      = static_cast<uint32_t>(store.global_value(kConfigAckTimeoutMs));
   v.simnode_diag_enable        = store.global_value(kSimnodeDiagEnable) != 0;
+  v.republish_interval_s       = static_cast<uint16_t>(store.global_value(kRepublishIntervalS));
+  v.bms_stale_s                = static_cast<uint16_t>(store.global_value(kBmsStaleS));
+  v.cell_mv_deadband           = static_cast<uint8_t>(store.global_value(kCellMvDeadband));
   for (size_t i = 0; i < kNodeCount; ++i) {
     v.poll_interval_s[i] =
         static_cast<uint16_t>(store.node_value(kNodeTable[i].id, kPollIntervalS));
@@ -103,6 +110,9 @@ void LeverBoard::publish(const Levers& v) {
   config_readback_timeout_ms_.store(v.config_readback_timeout_ms, r);
   config_ack_timeout_ms_.store(v.config_ack_timeout_ms, r);
   simnode_diag_enable_.store(v.simnode_diag_enable, r);
+  republish_interval_s_.store(v.republish_interval_s, r);
+  bms_stale_s_.store(v.bms_stale_s, r);
+  cell_mv_deadband_.store(v.cell_mv_deadband, r);
   for (size_t i = 0; i < kNodeCount; ++i) poll_interval_s_[i].store(v.poll_interval_s[i], r);
 
   gen_.fetch_add(1, std::memory_order_release);  // even: complete
@@ -126,6 +136,9 @@ bool LeverBoard::take_if_changed(uint32_t* seen, Levers* out) const {
   v.config_readback_timeout_ms = config_readback_timeout_ms_.load(r);
   v.config_ack_timeout_ms      = config_ack_timeout_ms_.load(r);
   v.simnode_diag_enable        = simnode_diag_enable_.load(r);
+  v.republish_interval_s       = republish_interval_s_.load(r);
+  v.bms_stale_s                = bms_stale_s_.load(r);
+  v.cell_mv_deadband           = cell_mv_deadband_.load(r);
   for (size_t i = 0; i < kNodeCount; ++i) v.poll_interval_s[i] = poll_interval_s_[i].load(r);
 
   std::atomic_thread_fence(std::memory_order_acquire);

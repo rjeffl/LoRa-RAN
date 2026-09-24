@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that built BF-26.** **The bench is restored** and
-**BF-26 is built and confirmed on air**: `simnode_diag_enable` now gates bench
-availability, diagnostics and discovery (Impl Plan §4.2a.1). **BF-24 is next.** The
-engineering log's last entry has the bench detail.
+**Written 2026-09-23 by the session that built BF-24.** **BF-24 is built and
+host-tested**: `publish.{h,cpp}` turns each `STATUS` into retained documents, with three new
+bridge rows, SNTP and GateLink's discovery entities (Impl Plan §6.3.1). No production frame
+has been published, because nothing on the bench sends one. **BF-25 is next.** The
+engineering log's last entry has the detail.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,13 +19,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
+Continue from docs/bridge/HANDOFF.md: BF-25, event republication.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **BF-24** (no board) | *The next job*; Impl Plan **§6.3** and **§4.2a.1**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row; spec **§16.6** |
+| **BF-25** (no board) | *The next job*; Impl Plan **§6.3** and **§6.3.1**; Bridge PRD **R-5.2e**; Firmware Tasks' BF-25 row; spec **§7.3** and **§16.3** |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -35,12 +36,12 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**BF-24, the publication policy**, which needs no board. `TODO(BF-24)` in
-`task_runtime.cpp`'s `lora_task` marks where a decoded frame goes. **Every node topic it
-adds must be gated for bench nodes the way §4.2a.1 gates `diag/state`.** Use
-`bench_publication_allowed()`, and remember that spec §16.6 lets a bench node reach
-nothing but `diag/state` and `availability`. The `gate`, `detect`, `battery`, `solar` and
-`event` topics must stay unreachable from `0xF0`–`0xFE` whichever way the flag is set.
+**BF-25, event republication**, which needs no board. `TODO(BF-25)` in `task_runtime.cpp`'s
+`app_task` marks where an `EVENT` goes. Spec §16.3 makes every `lran/<node>/event/` topic
+non-retained at QoS 1, and `make_publish()` already refuses a retained one. The work is the
+deduplication on `(src, ctx_id, event_id)`, and V-B8. **`bench_topic_forbidden()` refuses a
+bench node's event whichever way the flag is set**, so a simnode cannot exercise the path
+either. Plan the host tests to carry it.
 
 **One observation from BF-34's bench run is still open.** In one of six rolls, the bridge
 sent its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went
@@ -50,6 +51,12 @@ candidate changes. Neither is needed to close BF-34.
 
 ## Open, and not closable from here
 
+- **B4's §6.3 criterion says "demonstrated", and BF-24 is host-tested only.** Nothing on
+  the bench sends a production schema. BF-27's dummy publish, or GateLink at B6, would show
+  the documents in Home Assistant.
+- **Spec §16.2 names neither `lran/<node>/node/health/state` nor
+  `lran/bridge/diag/publish/state`.** Both use §16.1's optional item, as `diag/radio` does.
+  Raise them at the next revision.
 - **A simnode's `config/state`, `config/ack` and `cmd/ack` are published whatever
   `simnode_diag_enable` says.** Spec §16.6 says bench data goes *"exclusively"* to
   `diag/state` and `availability`, and §16.7 gives every node a `config/*` topic. Whether
@@ -114,9 +121,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **nine 2026-09-23 entries** first, last one first: **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **ten 2026-09-23 entries** first, last one first: **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |

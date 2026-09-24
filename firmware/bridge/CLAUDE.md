@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.13 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.47
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.36 (**the `BF-*` task order**).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.14 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.50
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.39 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -220,8 +220,22 @@ and spec §10.6. **Four things to keep:**
   `test_config_store` checks that. `mqtt_task` reads the pending bits from an atomic
   that only `sched_task` writes.
 
-**Still absent: the publication policy** — BF-24. It arrives with its own `BF-*` task; do
-not add one early because it is convenient.
+**`BF-24` — the publication policy, built and host-tested 2026-09-23; no production frame
+on air yet.** `publish.{h,cpp}` renders a `STATUS` into documents and `app_task` queues
+them; Impl Plan §6.3.1. **Four things to keep:**
+
+- **A document is rendered from the frame in hand or not at all.** Nothing keeps a cached
+  reading to republish, and R-5.2b depends on that staying true.
+- **A stale block publishes `available: false` and every reading `null`.** Its entities
+  list that document in `avty` with `avty_mode: all`, which is how HA shows them
+  unavailable while the node is online. `key_survives_staleness()` names the keys that
+  stay readable; an entity on one of them follows the node alone.
+- **Document keys are frozen like `unique_id`s.** `test_discovery` checks every state
+  entity's key against a document the policy rendered. Rename one on both sides or not at
+  all.
+- **A bench node's `STATUS` is never published**, whichever way `simnode_diag_enable` is
+  set, and `make_publish()` refuses a bench production topic as a second check
+  (`bench_topic_forbidden()`).
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
@@ -370,7 +384,8 @@ log. Never commit, echo or log the real values.
 
 `main` · `registry` · `scheduler` · `lora_link` (with `rx_ladder`, `radio_config`, and
 `lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` (with `json_writer`) ·
-`publish` · `hex_proxy` · `decode/{gatelink,health,synthetic,welllink}` · `ui` ·
+`publish` (which renders from the library's schema structs, so `decode/` was not built,
+Impl Plan §6.3.1) · `hex_proxy` · `ui` ·
 `debug` (BF-27 built its frame-log half as `frame_log`).
 Task ownership is in Impl Plan §5.2/§5.3.
 

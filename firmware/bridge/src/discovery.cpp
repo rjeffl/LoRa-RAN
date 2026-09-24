@@ -12,6 +12,7 @@
 #include "json_writer.h"
 #include "net_policy.h"
 #include "node_availability.h"
+#include "publish.h"
 
 namespace bridge {
 namespace {
@@ -125,10 +126,132 @@ constexpr EntityDesc kNodeCommandEntities[] = {
 constexpr size_t kNodeCommandEntityCount =
     sizeof(kNodeCommandEntities) / sizeof(kNodeCommandEntities[0]);
 
-// A node's whole set, in one order: its link first, then its buttons.
-const EntityDesc* node_entity(size_t index) {
+// ---------------------------------------------------------------------------
+// GateLink's state - schema 0x10's five documents (BF-24, publish.h).
+//
+// THE VALUE KEYS ARE publish.cpp's, and they are frozen with the object ids here. A key
+// renamed there is an entity here that reads an undefined name and shows unknown forever.
+// test_discovery checks every key below against a document the policy rendered.
+//
+// A BINARY SENSOR READS A JSON BOOLEAN AS `True` OR `False`, which is how Home Assistant's
+// template renders one, and a null as `None`, which it treats as unknown. So a null reading
+// stays unknown here as it does on a sensor, and never becomes off.
+//
+// WHICH ROWS EXIST IS A CHOICE, and the documents carry more than this. A key without an
+// entity is still on the topic. The rows below are the ones a person looks at, as R-3.5e
+// reasons about the MPPT's registers; `uptime_s` in particular has no entity, because it
+// changes on every poll and would fill HA's history with nothing.
+// ---------------------------------------------------------------------------
+
+constexpr EntityDesc kGateLinkStateEntities[] = {
+    {"gate_state", "Gate", "sensor", "gate/state", "state",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"held_open", "Held open", "binary_sensor", "gate/state", "held_open",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"hold_source", "Hold source", "sensor", "gate/state", "hold_source",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"movement_cause", "Movement cause", "sensor", "gate/state", "movement_cause",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"last_direction", "Last direction", "sensor", "gate/state", "last_direction",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"fire_input", "FIRE input", "binary_sensor", "gate/state", "in_fire",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"alarm_input", "ALARM input", "binary_sensor", "gate/state", "in_alarm",
+     nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
+
+    {"vehicle_while_held", "Vehicle while held open", "binary_sensor", "detect/state",
+     "vehicle_while_held", nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"last_vehicle", "Last vehicle", "sensor", "detect/state", "last_traversal",
+     nullptr, "timestamp", nullptr, nullptr, nullptr, 0, false},
+    {"safety_loop", "Safety loop", "binary_sensor", "detect/state", "safety",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"exit_wand", "Exit wand", "binary_sensor", "detect/state", "exit",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+
+    {"mppt_batt_voltage", "Battery voltage (MPPT)", "sensor", "solar/state", "batt_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, false},
+    {"mppt_batt_current", "Battery current (MPPT)", "sensor", "solar/state", "batt_ma",
+     "mA", "current", "measurement", nullptr, nullptr, 0, false},
+    {"pv_voltage", "PV voltage", "sensor", "solar/state", "pv_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, false},
+    {"pv_power", "PV power", "sensor", "solar/state", "pv_w",
+     "W", "power", "measurement", nullptr, nullptr, 0, false},
+    {"load_current", "Load current", "sensor", "solar/state", "load_ma",
+     "mA", "current", "measurement", nullptr, nullptr, 0, false},
+    {"yield_today", "Solar yield today", "sensor", "solar/state", "yield_today_kwh",
+     "kWh", "energy", "total_increasing", nullptr, nullptr, 0, false},
+    {"yield_total", "Solar yield total", "sensor", "solar/state", "yield_total_kwh",
+     "kWh", "energy", "total_increasing", nullptr, nullptr, 0, false},
+    {"mppt_charge_state", "MPPT charge state", "sensor", "solar/state", "charge_state",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    {"mppt_error", "MPPT error", "sensor", "solar/state", "error",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    {"mppt_temperature", "MPPT temperature", "sensor", "solar/state", "temp_c",
+     "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, true},
+
+    {"soc", "Battery", "sensor", "battery/state", "soc",
+     "%", "battery", "measurement", nullptr, nullptr, 0, false},
+    {"pack_voltage", "Pack voltage", "sensor", "battery/state", "pack_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, false},
+    {"pack_current", "Pack current", "sensor", "battery/state", "pack_ma",
+     "mA", "current", "measurement", nullptr, nullptr, 0, false},
+    {"cell1_voltage", "Cell 1 voltage", "sensor", "battery/state", "cell1_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    {"cell2_voltage", "Cell 2 voltage", "sensor", "battery/state", "cell2_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    {"cell3_voltage", "Cell 3 voltage", "sensor", "battery/state", "cell3_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    {"cell4_voltage", "Cell 4 voltage", "sensor", "battery/state", "cell4_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    {"bms_cycles", "Battery cycles", "sensor", "battery/state", "cycles",
+     nullptr, nullptr, "total_increasing", nullptr, nullptr, 0, true},
+    {"bms_protection", "Battery protection", "binary_sensor", "battery/state", "protection",
+     nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
+    {"bms_charge_inhibited", "Charging inhibited (BMS)", "binary_sensor", "battery/state",
+     "charge_inhibited", nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"bms_ble_rssi", "BMS link RSSI", "sensor", "battery/state", "ble_rssi_dbm",
+     "dBm", "signal_strength", "measurement", nullptr, nullptr, 0, true},
+    {"bms_age", "BMS reading age", "sensor", "battery/state", "age_s",
+     "s", "duration", "measurement", nullptr, nullptr, 0, true},
+
+    {"node_voltage", "Node supply voltage", "sensor", "node/state", "node_mv",
+     "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    {"node_current", "Node supply current", "sensor", "node/state", "node_ma",
+     "mA", "current", "measurement", nullptr, nullptr, 0, true},
+    {"enclosure_temperature", "Enclosure temperature", "sensor", "node/state",
+     "enclosure_temp_c", "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, true},
+    {"boot_count", "Boot count", "sensor", "node/state", "boot_count",
+     nullptr, nullptr, "total_increasing", nullptr, nullptr, 0, true},
+    {"config_persisted", "Configuration persisted", "binary_sensor", "node/state",
+     "config_persisted", nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    {"dry_run", "Relay dry run", "binary_sensor", "node/state", "dry_run",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    {"shutdown_latch", "Hard-shutdown latch", "binary_sensor", "node/state",
+     "shutdown_latch", nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
+    // R-5.2d - a synthetic frame is marked in every document, and this is where a person
+    // sees the mark without reading a topic.
+    {"synthetic", "Synthetic data", "binary_sensor", "node/state", "synthetic",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+};
+constexpr size_t kGateLinkStateEntityCount =
+    sizeof(kGateLinkStateEntities) / sizeof(kGateLinkStateEntities[0]);
+
+// A node type's state rows (BG-2): the template half of "a registry row, a decoder and a
+// template". WellLink's schema 0x20 is reserved and undefined (spec 7.1), and a bench node
+// publishes no state (spec 16.6), so both have none.
+size_t state_entity_count(NodeType type) {
+  return type == NodeType::GateLink ? kGateLinkStateEntityCount : 0;
+}
+const EntityDesc* state_entities(NodeType type) {
+  return type == NodeType::GateLink ? kGateLinkStateEntities : nullptr;
+}
+
+// A node's whole set, in one order: its link first, then its state, then its buttons.
+const EntityDesc* node_entity(NodeType type, size_t index) {
   if (index < kNodeLinkEntityCount) return &kNodeLinkEntities[index];
-  const size_t i = index - kNodeLinkEntityCount;
+  size_t i = index - kNodeLinkEntityCount;
+  if (i < state_entity_count(type)) return &state_entities(type)[i];
+  i -= state_entity_count(type);
   if (i < kNodeCommandEntityCount) return &kNodeCommandEntities[i];
   return nullptr;
 }
@@ -222,7 +345,7 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
       continue;
     }
 
-    const EntityDesc* d = node_entity(cur->entity);
+    const EntityDesc* d = node_entity(info.type, cur->entity);
     if (d == nullptr) {
       ++cur->node;
       cur->entity = 0;
@@ -300,13 +423,36 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
     j.str("payload_press", d.press_payload);
   }
 
+  if (std::strcmp(d.component, "binary_sensor") == 0) {
+    // A JSON boolean renders as `True` or `False`, and null as `None`, which HA reads as
+    // unknown. Matching the rendering keeps a null reading from becoming `off`.
+    j.str("pl_on", "True");
+    j.str("pl_off", "False");
+  }
+
   // R-3.3d - THAT NODE'S availability topic, never the bridge's LWT. For the bridge's own
   // entities the two are the same topic, and that is a coincidence of address rather than
   // a shortcut: the expression below is the node's topic in both cases.
-  std::snprintf(topic, sizeof(topic), "~/availability");
-  j.str("avty_t", topic);
-  j.str("pl_avail", kPayloadOnline);
-  j.str("pl_not_avail", kPayloadOffline);
+  //
+  // R-5.2b (BF-24). A reading from a block that can go stale also follows that block's
+  // `available`, so a stale VE.Direct or BMS link shows its entities as unavailable while
+  // the node is still online. HA takes an entity as available only when every topic in the
+  // list says so (`avty_mode` all). `avty_t` and `avty` cannot both be given. A list entry
+  // takes HA's default payloads, `online` and `offline`, which are spec 16.5's.
+  if (state_carries_availability(d.state_suffix) && !key_survives_staleness(d.value_key)) {
+    char list[192];
+    std::snprintf(list, sizeof(list),
+                  "[{\"t\":\"~/availability\"},{\"t\":\"~/%s\",\"val_tpl\":"
+                  "\"{{ 'online' if value_json.available else 'offline' }}\"}]",
+                  d.state_suffix);
+    j.raw("avty", list);
+    j.str("avty_mode", "all");
+  } else {
+    std::snprintf(topic, sizeof(topic), "~/availability");
+    j.str("avty_t", topic);
+    j.str("pl_avail", kPayloadOnline);
+    j.str("pl_not_avail", kPayloadOffline);
+  }
 
   j.str("unit_of_meas", d.unit);
   j.str("dev_cla", d.device_class);

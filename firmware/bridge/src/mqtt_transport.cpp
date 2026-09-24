@@ -31,6 +31,10 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
   if (!retain_is_permitted(topic, retain)) {
     return false;
   }
+  // spec 16.6 axis 1 - a bench node never reaches a production domain or an event.
+  if (bench_topic_forbidden(topic)) {
+    return false;
+  }
 
   std::memcpy(out->topic, topic, tlen + 1);
   std::memcpy(out->payload, payload, plen + 1);

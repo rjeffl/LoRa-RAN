@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Exit wand","uniq_id":"lran_gatelink_exit_wand","stat_t":"~/detect/state","val_tpl":"{{ value_json.exit }}","pl_on":"True","pl_off":"False","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

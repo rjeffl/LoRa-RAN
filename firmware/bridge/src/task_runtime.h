@@ -52,9 +52,8 @@ bool send_tx(const TxMessage& msg);
 bool take_tx(TxMessage* out);
 
 // Queue a publication for mqtt_task. Build the message with make_publish(), which
-// refuses an oversized payload and a retained event topic (spec 16.3).
-//
-// TODO(BF-24): the publication policy that decides what reaches this queue.
+// refuses an oversized payload, a retained event topic (spec 16.3) and a bench node's
+// production topic (spec 16.6). BF-24's policy (publish.h) decides what reaches it.
 bool send_publish(const PublishMessage& msg);
 
 // Start WiFi and the broker client. Called from setup() with the values from

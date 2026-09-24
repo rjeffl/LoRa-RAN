@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Hold source","uniq_id":"lran_gatelink_hold_source","stat_t":"~/gate/state","val_tpl":"{{ value_json.hold_source }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

@@ -75,6 +75,20 @@ size_t topic_diag(const char* node, const char* item, char* out, size_t cap) {
   return static_cast<size_t>(n);
 }
 
+size_t topic_domain_state(const char* node, const char* domain, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || domain == nullptr || domain[0] == '\0') {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = std::snprintf(out, cap, "lran/%s/%s/state", node, domain);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 size_t node_topic_name(uint8_t node_id, char* out, size_t cap) {
   // spec 5.3's addresses, spec 16.1's tokens. The bench token counts from 0xF0.
   static const char* const kBench[] = {"simnode0", "simnode1", "simnode2", "simnode3"};
@@ -309,6 +323,21 @@ bool retain_is_permitted(const char* topic, bool retain) {
     return true;
   }
   return !is_event_topic(topic);
+}
+
+bool bench_topic_forbidden(const char* topic) {
+  static const char kPrefix[] = "lran/simnode";
+  const size_t      plen      = sizeof(kPrefix) - 1;
+  if (topic == nullptr || std::strncmp(topic, kPrefix, plen) != 0) return false;
+  // The segment after the node token, matched whole, as is_event_topic() does.
+  const char* node_end = std::strchr(topic + plen, '/');
+  if (node_end == nullptr) return false;
+  static const char* const kForbidden[] = {"/gate/", "/detect/", "/battery/", "/solar/",
+                                           "/event/"};
+  for (const char* seg : kForbidden) {
+    if (std::strncmp(node_end, seg, std::strlen(seg)) == 0) return true;
+  }
+  return false;
 }
 
 }  // namespace bridge

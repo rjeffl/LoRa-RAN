@@ -27,6 +27,7 @@
 #include "lran/config.h"
 #include "lran/link/media_access.h"
 #include "node_availability.h"
+#include "publish.h"
 #include "registry.h"
 #include "scheduler.h"
 
@@ -92,6 +93,9 @@ void test_the_table_defaults_are_the_consumers_defaults() {
     TEST_ASSERT_EQUAL_UINT16(kPollIntervalDefaultS, v.poll_interval_s[i]);
   }
   TEST_ASSERT_FALSE(v.simnode_diag_enable);  // spec 16.6 - off unless someone sets it
+  TEST_ASSERT_EQUAL_UINT16(PublishLevers{}.republish_interval_s, v.republish_interval_s);
+  TEST_ASSERT_EQUAL_UINT16(PublishLevers{}.bms_stale_s, v.bms_stale_s);
+  TEST_ASSERT_EQUAL_UINT8(PublishLevers{}.cell_mv_deadband, v.cell_mv_deadband);
 }
 
 void test_each_global_override_reaches_its_lever() {
@@ -109,6 +113,9 @@ void test_each_global_override_reaches_its_lever() {
   set(store, ConfigScope::Bridge, 0, "config_readback_timeout_ms", 20000);
   set(store, ConfigScope::Bridge, 0, "config_ack_timeout_ms", 12000);
   set(store, ConfigScope::Bridge, 0, "simnode_diag_enable", 1);
+  set(store, ConfigScope::Bridge, 0, "republish_interval_s", 300);
+  set(store, ConfigScope::Bridge, 0, "bms_stale_s", 90);
+  set(store, ConfigScope::Bridge, 0, "cell_mv_deadband", 0);
 
   const Levers v = levers_from(store);
   TEST_ASSERT_EQUAL_UINT16(15, v.diag_interval_s);
@@ -123,6 +130,19 @@ void test_each_global_override_reaches_its_lever() {
   TEST_ASSERT_EQUAL_UINT32(20000, v.config_readback_timeout_ms);
   TEST_ASSERT_EQUAL_UINT32(12000, v.config_ack_timeout_ms);
   TEST_ASSERT_TRUE(v.simnode_diag_enable);
+  TEST_ASSERT_EQUAL_UINT16(300, v.republish_interval_s);
+  TEST_ASSERT_EQUAL_UINT16(90, v.bms_stale_s);
+  TEST_ASSERT_EQUAL_UINT8(0, v.cell_mv_deadband);
+
+  // And through the board, which carries them to app_task.
+  LeverBoard board;
+  board.publish(v);
+  uint32_t seen = 0;
+  Levers   out;
+  TEST_ASSERT_TRUE(board.take_if_changed(&seen, &out));
+  TEST_ASSERT_EQUAL_UINT16(300, out.republish_interval_s);
+  TEST_ASSERT_EQUAL_UINT16(90, out.bms_stale_s);
+  TEST_ASSERT_EQUAL_UINT8(0, out.cell_mv_deadband);
 }
 
 // A value outside its row's range is clamped by the store, and the lever runs the clamped

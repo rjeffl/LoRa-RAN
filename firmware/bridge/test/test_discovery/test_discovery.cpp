@@ -19,7 +19,9 @@
 #include "command.h"
 #include "discovery.h"
 #include "mqtt_transport.h"
+#include "lran/schema/gatelink_status_v1.h"
 #include "net_policy.h"
+#include "publish.h"
 #include "registry.h"
 
 using namespace bridge;
@@ -47,7 +49,7 @@ struct Fleet {
 
 // Every item the cursor yields, collected so a test can ask questions of the whole set.
 struct Walk {
-  static constexpr size_t kMax = 128;
+  static constexpr size_t kMax = 192;
   DiscoveryItem items[kMax];
   char          topics[kMax][128];
   char          configs[kMax][kMaxDiscoveryPayload];
@@ -157,9 +159,16 @@ void test_a_node_entity_points_at_its_own_availability_topic() {
   char base[80], avty[80];
   for (size_t i = 0; i < w.n; ++i) {
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
-    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "avty_t", avty, sizeof(avty)));
-    // Relative to the device's own base topic, so it resolves to that node's.
-    TEST_ASSERT_EQUAL_STRING("~/availability", avty);
+    if (value_of(w.configs[i], "avty_t", avty, sizeof(avty)) != nullptr) {
+      // Relative to the device's own base topic, so it resolves to that node's.
+      TEST_ASSERT_EQUAL_STRING("~/availability", avty);
+    } else {
+      // BF-24 - a reading from a block that can go stale: the node's topic is still first
+      // in the list, and every topic in it must say online (R-5.2b).
+      TEST_ASSERT_NOT_NULL_MESSAGE(
+          std::strstr(w.configs[i], "\"avty\":[{\"t\":\"~/availability\"}"), w.topics[i]);
+      TEST_ASSERT_NOT_NULL(std::strstr(w.configs[i], "\"avty_mode\":\"all\""));
+    }
     if (w.items[i].node_id == kNodeGateLink) {
       TEST_ASSERT_EQUAL_STRING("lran/gatelink", base);
     }
@@ -456,9 +465,83 @@ void test_the_bridge_s_own_entities_are_in_the_set() {
   TEST_ASSERT_GREATER_THAN(0, bridge_entities);
 }
 
+// ---------------------------------------------------------------------------
+// BF-24 - the state entities read keys the publication policy writes.
+// ---------------------------------------------------------------------------
+
+// Every state row's value key is in the document its topic carries, rendered by the policy
+// itself. A key renamed on one side and not the other is an entity that reads unknown
+// forever with nothing logged, which is the failure this file exists to catch at a desk.
+void test_every_state_entity_reads_a_key_the_policy_writes() {
+  struct Rec final : PublishSink {
+    char   topics[8][kMaxTopicLen];
+    char   docs[8][kMaxPayloadLen];
+    size_t n = 0;
+    bool emit(const char* t, const char* p, bool) override {
+      std::snprintf(topics[n], sizeof(topics[n]), "%s", t);
+      std::snprintf(docs[n], sizeof(docs[n]), "%s", p);
+      ++n;
+      return true;
+    }
+  } rec;
+  lran::schema::GateLinkStatusV1 s;
+  s.bms_flags  = 0x01;
+  s.bms_age_s  = 10;
+  s.cell_count = 4;
+  uint8_t buf[lran::schema::kGateLinkStatusV1Len];
+  size_t  len = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, lran::schema::serialize(s, buf, sizeof(buf), &len));
+  lran::Header h;
+  h.type   = MsgType::Status;
+  h.src    = kNodeGateLink;
+  h.schema = kSchemaGateLinkStatusV1;
+  PublicationPolicy p;
+  p.on_status(NodeInfo{kNodeGateLink, NodeType::GateLink, false}, h, buf, len, 1000,
+              1790164800, rec);
+  TEST_ASSERT_EQUAL(5, rec.n);
+
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  size_t checked = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const EntityDesc* d = w.items[i].desc;
+    if (w.items[i].node_id != kNodeGateLink || d->state_suffix == nullptr ||
+        std::strncmp(d->state_suffix, "diag/", 5) == 0) {
+      continue;
+    }
+    char topic[kMaxTopicLen], key[48];
+    std::snprintf(topic, sizeof(topic), "lran/gatelink/%s", d->state_suffix);
+    std::snprintf(key, sizeof(key), "\"%s\":", d->value_key);
+    const char* doc = nullptr;
+    for (size_t k = 0; k < rec.n; ++k) {
+      if (std::strcmp(rec.topics[k], topic) == 0) doc = rec.docs[k];
+    }
+    TEST_ASSERT_NOT_NULL_MESSAGE(doc, topic);
+    TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(doc, key), key);
+    ++checked;
+  }
+  TEST_ASSERT_TRUE(checked > 30);
+}
+
+// Spec 16.6 - a bench node gets no state entities, even with the flag set.
+void test_a_bench_node_has_no_state_entities() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  for (size_t i = 0; i < w.n; ++i) {
+    if (!is_bench_node(w.items[i].node_id)) continue;
+    const char* sfx = w.items[i].desc->state_suffix;
+    TEST_ASSERT_TRUE_MESSAGE(sfx == nullptr || std::strncmp(sfx, "diag/", 5) == 0,
+                             w.topics[i]);
+  }
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_unique_id_across_the_whole_fleet_is_distinct);
+  RUN_TEST(test_every_state_entity_reads_a_key_the_policy_writes);
+  RUN_TEST(test_a_bench_node_has_no_state_entities);
   RUN_TEST(test_a_unique_id_carries_its_node_prefix);
   RUN_TEST(test_the_discovery_topic_matches_the_unique_id);
   RUN_TEST(test_a_node_entity_points_at_its_own_availability_topic);

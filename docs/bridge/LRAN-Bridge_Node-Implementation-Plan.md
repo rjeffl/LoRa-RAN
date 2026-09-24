@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.49
+**Version:** 0.50
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1085,6 +1085,59 @@ Implemented in `publish.cpp`, applied uniformly across node types:
 > The heartbeat is the counterweight to publish-on-change: without it, a value that has
 > not changed in six hours is missing from a freshly restarted HA. Retained topics cover
 > most of this, but the interval makes it robust to a broker without persistence.
+
+#### 6.3.1 What BF-24 built, 2026-09-23
+
+**`publish.{h,cpp}` renders each `STATUS` into documents, and `app_task` queues them.** The
+policy is host-tested in `test_publish` against V-B7's four properties and the bench gate.
+No GateLink exists yet, so no document has been published from a real frame. The three
+values it reads are bridge rows `0x000D`–`0x000F` (Library Plan §4), and they reach
+`app_task` on BF-23's lever board.
+
+**Schema `0x10` becomes five retained documents**, one per spec §16.1 domain. Spec §16.2.1
+leaves their payloads to the bridge, so the keys below are this document's choice. Home
+Assistant's value templates read them, so a key published is a key frozen:
+
+| Topic | Keys |
+|---|---|
+| `lran/<node>/gate/state` | `state`, `held_open`, `hold_source`, `movement_cause`, `last_direction`, `in_open`, `in_moving`, `in_safety`, `in_exit`, `in_fire`, `in_alarm`, `input_bits`, `synthetic` |
+| `lran/<node>/detect/state` | `safety`, `exit`, `classifying`, `vehicle_while_held`, `suppressed`, `last_traversal`, `traversal_persisted`, `synthetic` |
+| `lran/<node>/solar/state` | `available`, `batt_mv`, `batt_ma`, `pv_mv`, `pv_w`, `load_ma`, `yield_today_kwh`, `yield_yesterday_kwh`, `pmax_today_w`, `yield_total_kwh`, `charge_state`, `error`, `tracker`, `load_on`, `charge_inhibited`, `temp_c`, `hex_pending`, `synthetic` |
+| `lran/<node>/battery/state` | `available`, `soc`, `soc_source`, `pack_mv`, `pack_ma`, `cell_count`, `cell1_mv`–`cell4_mv`, `cell1_temp_c`–`cell4_temp_c`, `cycles`, `capacity_ah`, `alarms`, `charge_fet`, `discharge_fet`, `charge_inhibited`, `protection`, `balancing`, `ble_rssi_dbm`, `age_s`, `synthetic` |
+| `lran/<node>/node/state` | `uptime_s`, `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `reason`, `synthetic` |
+| `lran/<node>/node/health/state` | Schema `0xF0`: `uptime_s`, `boot_count`, `rx_frames`, `tx_frames`, `rx_dropped`, `cad_backoffs`, `last_rssi_dbm`, `last_snr_db`, `proto_ver`, `debug` |
+
+| Choice | Why |
+|---|---|
+| **Enumerations are spec §8's names in lower case**; a value the table does not list is `null` | One term names one concept from HA to the wire, as the command tokens do. A newer node's value reads as unknown rather than as a guess, and `input_bits` keeps the raw evidence |
+| **Units are converted exactly**: 10 mV to mV, 10 Wh to kWh with two decimals, 0.1 °C and 0.1 Ah to one decimal | Integer arithmetic, so no float round trip reaches HA's history |
+| **R-5.2b: a stale block publishes `available: false` with every reading `null`** | `mppt_flags` bit 1 stales `solar`. `battery` is stale when `bms_flags` bit 0 is clear, `bms_age_s` is the sentinel, or it exceeds `bms_stale_s`. The entities list that document as a second availability topic with `avty_mode: all`, so HA shows them unavailable while the node is online. `ble_rssi_dbm`, `age_s` and `hex_pending` stay readable, because they say why |
+| **R-5.2a: publish on change compares whole documents**, by an FNV-1a hash | A document is queued when any value in it changes, or when `republish_interval_s` has passed since it was last queued. HA records an entity's state only when its own value changes, so the deadband is what keeps jitter out of history. The hash replaces a kilobyte per node and domain; a collision delays one change to the heartbeat, once in 2³² |
+| **Cell voltages move only by `cell_mv_deadband`**, measured from the value last published | Measured from the published value, a drift of 1 mV a poll still crosses the band. Measured from the last reading, it never would |
+| **A heartbeat needs a frame.** The interval is checked when a node's `STATUS` arrives | A silent node republishes nothing, which is R-5.2b from the other side. Its availability goes `offline` through BF-20 |
+| **`last_traversal` is an ISO 8601 UTC time, from SNTP** (spec §7.2.9) | `mqtt_task` starts SNTP against `pool.ntp.org` when WiFi first connects. Until it answers, the value is `null`. A move of 2 s or less is the age's rounding and is not republished |
+| **R-5.2d: `synthetic` is in every document**, true when `status_reason` is `DEBUG_SYNTHETIC` | Each document is a separate history in HA, so each carries the mark. One diagnostic binary sensor shows it |
+| **A bench node's `STATUS` is decoded, counted as `bench_withheld` and never published**, whichever way `simnode_diag_enable` is set | Spec §16.6 allows a bench node `diag/state` and `availability` alone. `make_publish()` also refuses `lran/simnode<N>/{gate,detect,battery,solar,event}/`, the second check on the path every publication takes |
+| **A broker connect makes every document due again** | The retained documents may be gone. Each is republished on its node's next frame, from that frame |
+
+**The counts go to `lran/bridge/diag/publish/state`**, published with the other bridge
+diagnostics: `status_frames`, `documents`, `unchanged`, `heartbeats`, `bench_withheld`,
+`queue_refused` and `undecodable`. None is a spec §14.1 discard, because every frame here
+has passed the ladder.
+
+**Discovery gains 41 GateLink entities** (`discovery.cpp`, `ha/discovery/`). A table per
+node type is BG-2's "template"; WellLink and the bench identities have none. A binary
+sensor matches HA's rendering of a JSON boolean, `True` or `False`, so a `null` reads as
+unknown rather than off. `test_discovery` renders a document with the policy and checks
+that every entity's key is in it.
+
+**§5.3's `decode/` directory was not created.** The library's `deserialize()` for each
+schema is the decoder, and `publish.cpp` renders from its struct. A second layer would have
+copied the struct field for field.
+
+**What is not done.** Events are **BF-25**. B4's criterion asks for §6.3 "demonstrated",
+and these rules are host-tested only: nothing on the bench sends a production schema,
+because a simnode is a bench node, and BF-27's dummy publish is not built.
 
 ### 6.4 HEX proxy and write arming
 
@@ -2413,6 +2466,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.50** — **New §6.3.1**: BF-24 built and host-tested. Schema `0x10` becomes five
+  retained documents and `0xF0` a sixth, with a stale block published as unavailable and
+  cell voltages behind a deadband. SNTP supplies `last_traversal`'s wall clock. Discovery
+  gains GateLink's state entities, and §6.3.1 records that §5.3's `decode/` was not built.
 
 - **v0.49** — **New §4.2a.1**: BF-26 built, and confirmed on air. `simnode_diag_enable`
   reaches the gates for bench availability, diagnostics and discovery through BF-23's lever

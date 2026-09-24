@@ -36,6 +36,26 @@ class JsonObject {
   void u32(const char* key, uint32_t v) { field(key, "%lu", static_cast<unsigned long>(v)); }
   void i32(const char* key, int32_t v) { field(key, "%ld", static_cast<long>(v)); }
   void null(const char* key) { field(key, "null"); }
+
+  // A fixed-point value written as a decimal: `scaled` is in units of 10^-decimals, so
+  // (-5, 1) writes -0.5. Added for BF-24, whose wire fields are 0.1 C and 10 Wh. Integer
+  // arithmetic, because a float round trip turns 0.3 into 0.30000000000000004 in a
+  // document Home Assistant keeps in its history.
+  void decimal(const char* key, int64_t scaled, unsigned decimals) {
+    int64_t div = 1;
+    for (unsigned i = 0; i < decimals; ++i) div *= 10;
+    const bool     neg = scaled < 0;
+    const uint64_t mag = neg ? static_cast<uint64_t>(-(scaled + 1)) + 1u
+                             : static_cast<uint64_t>(scaled);
+    const uint64_t whole = mag / static_cast<uint64_t>(div);
+    const uint64_t frac  = mag % static_cast<uint64_t>(div);
+    if (decimals == 0) {
+      field(key, "%s%llu", neg ? "-" : "", static_cast<unsigned long long>(whole));
+    } else {
+      field(key, "%s%llu.%0*llu", neg ? "-" : "", static_cast<unsigned long long>(whole),
+            static_cast<int>(decimals), static_cast<unsigned long long>(frac));
+    }
+  }
   void boolean(const char* key, bool v) { field(key, v ? "true" : "false"); }
 
   // A string value, quoted and escaped. A null pointer writes nothing at all - not
