@@ -2420,3 +2420,61 @@ dummy publish, would run it. While the broker is down, the publish queue fills w
 and refuses the newest message, so an event raised during a long outage is lost. That is
 §5.2.1's per-class question, and it is under *Open*.
 
+
+---
+
+## 2026-09-23 — BF-27's dummy publish: §6.3's rules on air, and two clocks that move
+
+**The dummy publish is built, and its frames went through the real policy to the sandbox
+broker.** A `dummy` line on the bridge's USB serial console becomes a `STATUS` or `EVENT`
+under GateLink's address. `app_task` hands it to `PublicationPolicy` and to nothing else.
+Impl Plan §6.6.2 records the choices. `test_dummy` has 10 cases, and the native suite
+passed 386 of 386. The `heltec` image builds at 52.3 % RAM.
+
+**The operator settled two questions before the code.** A dummy frame carries the
+production node's own address, so it exercises the topics B6 will use, and every document
+says `synthetic: true`. The console is the trigger, not an MQTT topic, because anything on
+the broker could otherwise raise a gate event. The operator also noted that the broker and
+Home Assistant here are a sandbox VM, so synthetic rows in GateLink's history there need
+no cleanup.
+
+**An `EVENT` could not carry the mark, so the event payload gained a key.** Spec §7.3 gives
+an `EVENT` no `status_reason`. `on_event()` now takes a `synthetic` argument, `app_task`
+passes `true` for a dummy frame and `false` for a radio frame, and every event payload
+carries it. No event had been published before today, so no automation reads the old key
+set.
+
+**The run.** `republish_interval_s` was set to 60 for it and restored to 900 afterwards.
+`lran/gatelink/availability` was set to `online` by hand, because the watchdog holds a node
+that never answers `offline`. Captured with `mosquitto_sub` on `lran/gatelink/#`:
+
+| Step | At the broker |
+|---|---|
+| First `STATUS` | Five documents, each `synthetic: true` |
+| The same `STATUS` again | Nothing; `unchanged` rose by 5 |
+| `cell1_mv` 3310 → 3313 | Nothing from `battery/state`: inside the 5 mV deadband |
+| `cell1_mv` → 3320 | `battery/state` republished |
+| `enclosure_temp_c10=na load_ma=na` | `enclosure_temp_c: null` and `load_ma: null` |
+| `mppt_flags=2` | `solar/state` with `available: false` and every reading `null` |
+| `bms_age_s=900` | The same for `battery/state` (over `bms_stale_s`, 600) |
+| Two `vehicle_while_held_open`, the second a follow-up, then `fire_asserted` | Three events, `event_id` 1, 1 and 2, each `synthetic: true` |
+| The same `STATUS`, 65 s later | All five documents again; `heartbeats` rose by 4 |
+
+A retained-only subscription afterwards listed the five documents and no `event` topic.
+`dummy set status_reason=0` and `dummy status simnode1` were refused.
+
+**`detect/state` republished on every dummy frame in the first run.** The template held
+`last_traversal_age_s` at 3600 while the bridge's clock moved. Spec §7.2.9 has the bridge
+publish the traversal as `utc_at_rx − age`, so every frame computed a new time, 3 to 6 s
+on. That was more than `kTraversalJitterS` allows. A real node's age grows with its clock.
+The dummy now advances `last_traversal_age_s` and `uptime_s` by the time between frames.
+On a second run, four frames 5 s apart published `detect/state` twice. The first of those
+had `last_traversal: null`, because SNTP had not answered in the 22 s since boot.
+
+**The same run shows `node/state` republishing on every frame, and a real GateLink will do
+the same.** `uptime_s` is in that document and changes between any two polls. So
+publish-on-change never withholds `node/state`, and HA records it once per poll. Whether
+uptime belongs in the change hash is a policy question, left under the handoff's *Open*.
+
+**What this leaves.** Every reading was taken at the broker. Nobody has looked at the
+entities in Home Assistant, and V-B8's HA restart and discovery refresh have not been run.

@@ -1,11 +1,11 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that built BF-25.** **BF-25 is built and
-host-tested**: `PublicationPolicy::on_event()` publishes each `EVENT` once, not retained
-(Impl Plan §6.3.2). BF-24 and BF-25 are both host-tested only, because nothing on the bench
-sends a production schema or an event. **BF-27's dummy publish is next**, because B4's
-criterion says the fleet is demonstrable with it. The engineering log's last entry has the
-detail.
+**Written 2026-09-23 by the session that built BF-27's dummy publish.** A `dummy` line on
+the bridge's serial console sends a `STATUS` or `EVENT` under GateLink's address, marked
+synthetic, through the real publication policy (Impl Plan §6.6.2). **§6.3's rules and
+unretained events are shown at the sandbox broker.** Nobody has looked at them in Home
+Assistant, and **V-B8 is next**: an HA restart and a discovery refresh with a dummy event in
+history. The engineering log's last entry has the run.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,13 +20,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: BF-27's dummy publish.
+Continue from docs/bridge/HANDOFF.md: V-B8 in Home Assistant.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **BF-27's dummy publish** (bridge board, HA) | *The next job*; Impl Plan **§6.6**, **§6.3.1** and **§6.3.2**; B4's row in Impl Plan §8; Firmware Tasks' BF-27 row; spec **§8.7** and **§16.6** |
+| **V-B8 in Home Assistant** (bridge board, HA, the operator) | *The next job*; Impl Plan **§6.6.2** and **§6.3.2**; V-B8 in the Bridge PRD; B4's row in Impl Plan §8; spec **§16.3** |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -37,15 +37,14 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**BF-27's dummy publish**, which needs the bridge board and Home Assistant. B4's criterion
-asks for §6.3's rules demonstrated and for events that do not replay on an HA restart or a
-discovery refresh (V-B8). Both are host-tested only, because a simnode is a bench node and
-spec §16.6 keeps its `STATUS` and `EVENT` off every production topic. Impl Plan §6.6 has the
-tool's row. **Settle first which identity a dummy frame carries**: BF-24 publishes only a
-production node's frames, and a dummy frame marked `DEBUG_SYNTHETIC` under GateLink's
-address would put synthetic data into GateLink's history (R-5.2d says it is marked, not that
-it is kept out). An `EVENT` carries no synthetic mark at all (spec §7.3), so the dummy event
-needs its own answer. That is a question for the operator before the code.
+**V-B8 in Home Assistant**, with the operator at the sandbox HA. Flash nothing: the bridge
+runs the dummy publish now. Set `lran/gatelink/availability` to `online` retained by hand,
+because the watchdog holds a node that never answers `offline` (Impl Plan §6.6.2). Send
+`dummy status gatelink` and look at GateLink's entities, including the unavailable
+`solar` and `battery` ones after `mppt_flags=2` and `bms_age_s=900`. Then send a
+`dummy event`, restart HA and refresh discovery. An automation or logbook entry that fires
+twice is a V-B8 failure. The broker half is done: no `event` topic is retained. Record the
+result in the log, and B4's §6.3 criterion with it.
 
 **One observation from BF-34's bench run is still open.** In one of six rolls, the bridge
 sent its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went
@@ -55,9 +54,15 @@ candidate changes. Neither is needed to close BF-34.
 
 ## Open, and not closable from here
 
-- **B4's §6.3 criterion says "demonstrated", and BF-24 and BF-25 are host-tested only.**
-  Nothing on the bench sends a production schema or an event. BF-27's dummy publish, or
-  GateLink at B6, would show them in Home Assistant. V-B8 has not been run.
+- **B4's §6.3 criterion says "demonstrated", and the rules have been shown at the broker
+  only.** BF-27's dummy publish ran them on air on 2026-09-23. Home Assistant's view and
+  V-B8 are *The next job*.
+- **`node/state` republishes on every frame**, because `uptime_s` is in it and changes
+  every poll; `node/health/state` is the same. Publish-on-change never withholds either.
+  Whether uptime belongs in the change hash is the operator's call. Impl Plan §6.6.2.
+- **A dummy event reaches a node's real event topics** whenever that node has not been
+  heard this boot, marked `synthetic: true`. Automations that send email or SMS must filter
+  on it before GateLink deploys.
 - **Spec §7.3's deduplication triple withholds every follow-up**, because a follow-up
   reuses its first edge's `event_id`. BF-25 adds the follow-up bit to the key, by operator
   decision. Reword §7.3 at the next revision. Impl Plan §6.3.2.
@@ -134,9 +139,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **eleven 2026-09-23 entries** first, last one first: **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **twelve 2026-09-23 entries** first, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
@@ -150,9 +155,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built and host-tested. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24** and **BF-25** demonstrated against HA. **BF-33** unstarted. **BF-27's other three tools**. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **BF-27's dummy publish**, on the bridge board |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24** and **BF-25** seen in HA, and **V-B8**. **BF-33** unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **V-B8 in Home Assistant**, with the operator |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
