@@ -32,6 +32,28 @@ class FakePersist : public Persist {
     ++clears_;
     return true;
   }
+
+  bool     group_ok_     = true;
+  int      group_saves_  = 0;
+  size_t   group_n_      = 0;
+  uint16_t group_ids_[8] = {};
+  Value    group_vals_[8] = {};
+  bool save_group(const uint16_t* ids, const Value* values, size_t n) override {
+    ++group_saves_;
+    if (!group_ok_) return false;
+    group_n_ = n;
+    for (size_t i = 0; i < n && i < 8; ++i) {
+      group_ids_[i]  = ids[i];
+      group_vals_[i] = values[i];
+    }
+    return true;
+  }
+  Value group_value(uint16_t id) const {
+    for (size_t i = 0; i < group_n_; ++i) {
+      if (group_ids_[i] == id) return group_vals_[i];
+    }
+    return INT32_MIN;
+  }
 };
 
 Table node_table() {
@@ -150,7 +172,7 @@ void test_an_array_where_a_scalar_is_declared_is_rejected_alone() {
 }
 
 // D56 - the PHY rows are declared so HA can read the working point, and answer READ_ONLY
-// until BF-33 builds spec 12.4's commit-and-revert.
+// in a Store whose owner has not enabled spec 12.4's trial.
 void test_a_phy_row_answers_read_only_and_still_reports_its_value() {
   Table t = node_table();
   Store s(t, nullptr);
@@ -160,6 +182,174 @@ void test_a_phy_row_answers_read_only_and_still_reports_its_value() {
   TEST_ASSERT_EQUAL(ParamStatus::ReadOnly, r.status);
   TEST_ASSERT_EQUAL_UINT32(9, schema::entry_raw(r.value, r.len));  // D1's SF9
   TEST_ASSERT_EQUAL_INT32(9, s.effective(0x0111));
+}
+
+// ---------------------------------------------------------------------------
+// spec 12.4, D59 - the PHY group's trial copy (BF-33)
+// ---------------------------------------------------------------------------
+
+constexpr uint16_t kSf  = 0x0111;
+constexpr uint16_t kTxp = 0x0114;
+
+// D59 - the bridge carries the group under the node rows' names, and table.h's
+// phy_rows_agree() holds the ranges equal. This is the runtime face of that assert.
+void test_the_bridge_holds_the_phy_group_with_the_node_ranges() {
+  Table t;
+  TEST_ASSERT_TRUE(t.add_block(kBridgeParams, kBridgeParamCount));
+  size_t phy = 0;
+  for (size_t i = 0; i < t.size(); ++i) {
+    if (t.at(i)->access == Access::Phy) {
+      TEST_ASSERT_EQUAL(Owner::BridgeGlobal, t.at(i)->owner);
+      ++phy;
+    }
+  }
+  TEST_ASSERT_EQUAL_UINT32(kPhyGroupSize, phy);
+  TEST_ASSERT_EQUAL_INT32(-4, t.find(0x0014)->max);  // tx_power_dbm, D33's ceiling
+}
+
+// spec 12.4.2 step 2 - enabling the trial is not enough without a store to commit into.
+void test_a_phy_row_stays_read_only_without_a_usable_store() {
+  Table t = node_table();
+  Store none(t, nullptr);
+  none.enable_phy_trial();
+  TEST_ASSERT_EQUAL(ParamStatus::ReadOnly,
+                    none.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr).status);
+
+  FakePersist p;
+  p.usable_ = false;
+  Store dead(t, &p);
+  dead.enable_phy_trial();
+  TEST_ASSERT_EQUAL(ParamStatus::ReadOnly,
+                    dead.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr).status);
+  TEST_ASSERT_FALSE(dead.phy_trial_pending());
+}
+
+// spec 12.4 steps 2 and 3 - the value takes effect and nothing is written: the store
+// still holds the last known-good group, which is what a reboot comes back on.
+void test_a_phy_set_goes_to_the_trial_copy_and_writes_nothing() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+
+  bool applied = false, persisted = true;
+  schema::ConfigAckEntry r = s.apply(set_entry(kSf, PType::U8, 10), &applied, &persisted);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, r.status);
+  TEST_ASSERT_TRUE(applied);
+  TEST_ASSERT_FALSE(persisted);
+  TEST_ASSERT_TRUE(s.phy_trial_pending());
+  TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
+  TEST_ASSERT_EQUAL_INT32(0, p.saves_);
+  TEST_ASSERT_EQUAL_INT32(0, p.group_saves_);
+  TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, s.read_persist_status());
+}
+
+// spec 12.4 - TX power is clamped by the table, not by whoever types into HA.
+void test_tx_power_above_d33_is_clamped_in_the_trial() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+
+  schema::ConfigAckEntry r =
+      s.apply(set_entry(kTxp, PType::I16, static_cast<uint16_t>(-2)), nullptr, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Clamped, r.status);
+  TEST_ASSERT_EQUAL_INT32(-4, s.effective(kTxp));
+}
+
+// spec 12.4.2 step 6 - a revert restores the committed group and writes nothing.
+void test_a_revert_drops_the_trial() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  (void)s.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr);
+
+  s.revert_phy_trial();
+  TEST_ASSERT_FALSE(s.phy_trial_pending());
+  TEST_ASSERT_EQUAL_INT32(9, s.effective(kSf));
+  TEST_ASSERT_FALSE(s.is_override(kSf));
+  TEST_ASSERT_EQUAL_INT32(0, p.group_saves_);
+}
+
+// spec 12.4.2 step 5 - a commit writes the whole group in one call, rows the set did not
+// name included, so the store never holds a mixed group.
+void test_a_commit_writes_the_whole_group_at_once() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  (void)s.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr);
+
+  TEST_ASSERT_TRUE(s.commit_phy_trial());
+  TEST_ASSERT_EQUAL_INT32(1, p.group_saves_);
+  TEST_ASSERT_EQUAL_UINT32(kPhyGroupSize, p.group_n_);
+  TEST_ASSERT_EQUAL_INT32(10, p.group_value(kSf));
+  TEST_ASSERT_EQUAL_INT32(917400000, p.group_value(0x0110));
+  TEST_ASSERT_EQUAL_INT32(0, p.saves_);
+  TEST_ASSERT_FALSE(s.phy_trial_pending());
+  TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
+  TEST_ASSERT_TRUE(s.is_override(kSf));
+
+  // The committed value is now what a later revert returns to.
+  (void)s.apply(set_entry(kSf, PType::U8, 11), nullptr, nullptr);
+  s.revert_phy_trial();
+  TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
+}
+
+// A commit the store refused leaves the trial in place and nothing committed, so the
+// caller's window reverts to settings that are really in the store.
+void test_a_failed_commit_keeps_the_trial_and_commits_nothing() {
+  Table       t = node_table();
+  FakePersist p;
+  p.group_ok_ = false;
+  Store s(t, &p);
+  s.enable_phy_trial();
+  (void)s.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr);
+
+  TEST_ASSERT_FALSE(s.commit_phy_trial());
+  TEST_ASSERT_TRUE(s.phy_trial_pending());
+  TEST_ASSERT_FALSE(s.is_override(kSf));
+  s.revert_phy_trial();
+  TEST_ASSERT_EQUAL_INT32(9, s.effective(kSf));
+}
+
+// A value put back from the store at boot is committed, so it opens no trial, and it is
+// refused where a write would be.
+void test_restore_puts_back_a_committed_phy_value_without_a_trial() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       closed(t, &p);
+  TEST_ASSERT_FALSE(closed.restore(kSf, 10));
+  TEST_ASSERT_EQUAL_INT32(9, closed.effective(kSf));
+
+  Store s(t, &p);
+  s.enable_phy_trial();
+  TEST_ASSERT_TRUE(s.restore(kSf, 10));
+  TEST_ASSERT_TRUE(s.restore(kTxp, 5));  // clamped on the way in
+  TEST_ASSERT_FALSE(s.phy_trial_pending());
+  TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
+  TEST_ASSERT_EQUAL_INT32(-4, s.effective(kTxp));
+  TEST_ASSERT_EQUAL_INT32(0, p.saves_);
+}
+
+// RESTORE_DEFAULTS is a node-level operation, and spec 12.4 lets none move the PHY. The
+// committed group survives in RAM and is written back after the store is cleared.
+void test_restore_defaults_keeps_the_committed_phy_group() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  (void)s.apply(set_entry(kSf, PType::U8, 10), nullptr, nullptr);
+  TEST_ASSERT_TRUE(s.commit_phy_trial());
+  (void)s.apply(set_entry(0x0100, PType::U8, 16), nullptr, nullptr);
+
+  TEST_ASSERT_TRUE(s.restore_defaults());
+  TEST_ASSERT_EQUAL_INT32(8, s.effective(0x0100));
+  TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
+  TEST_ASSERT_EQUAL_INT32(1, p.clears_);
+  TEST_ASSERT_EQUAL_INT32(2, p.group_saves_);
+  TEST_ASSERT_EQUAL_INT32(10, p.group_value(kSf));
 }
 
 // spec 7.4, R-5.3d - with no usable store the change is still applied and still ACKed,
@@ -320,6 +510,15 @@ int main(int, char**) {
   RUN_TEST(test_a_ptype_mismatch_costs_the_entry_and_reports_the_held_value);
   RUN_TEST(test_an_array_where_a_scalar_is_declared_is_rejected_alone);
   RUN_TEST(test_a_phy_row_answers_read_only_and_still_reports_its_value);
+  RUN_TEST(test_the_bridge_holds_the_phy_group_with_the_node_ranges);
+  RUN_TEST(test_a_phy_row_stays_read_only_without_a_usable_store);
+  RUN_TEST(test_a_phy_set_goes_to_the_trial_copy_and_writes_nothing);
+  RUN_TEST(test_tx_power_above_d33_is_clamped_in_the_trial);
+  RUN_TEST(test_a_revert_drops_the_trial);
+  RUN_TEST(test_a_commit_writes_the_whole_group_at_once);
+  RUN_TEST(test_a_failed_commit_keeps_the_trial_and_commits_nothing);
+  RUN_TEST(test_restore_puts_back_a_committed_phy_value_without_a_trial);
+  RUN_TEST(test_restore_defaults_keeps_the_committed_phy_group);
   RUN_TEST(test_an_unusable_store_still_applies_and_says_so);
   RUN_TEST(test_a_read_with_no_overrides_reports_persisted);
   RUN_TEST(test_restore_defaults_clears_every_override);

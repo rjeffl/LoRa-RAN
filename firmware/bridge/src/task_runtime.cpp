@@ -470,7 +470,9 @@ void publish_cmd_ack(const CmdStep& st) {
     case CmdOutcome::ResyncFailed: outcome = "resync_failed"; break;
     case CmdOutcome::Pending:      break;
   }
-  char payload[kMaxPayloadLen];
+  // Sized for this document alone, not kMaxPayloadLen: this runs on sched_task, the
+  // deepest task in the firmware. Five short fields; a longer one is refused below.
+  char payload[128];
   const int n = std::snprintf(
       payload, sizeof(payload),
       "{\"outcome\":\"%s\",\"seq\":%u,\"attempts\":%u,\"result\":%u,\"detail\":%u}",
@@ -1590,7 +1592,9 @@ void on_mqtt_connected() {
   // R-5.3e - the version, retained, on every connect. It carries the slot and the
   // image state as well, which is how V-B9 is read from Home Assistant rather than
   // from a serial cable: after a rollback, `slot` and `git` both change.
-  char version[kMaxPayloadLen];
+  // Static, and mqtt_task is its only user: beside `msg` it would put two payloads on
+  // this task's stack at once, 3 KB since kMaxPayloadLen rose to 1536 for BF-33.
+  static char version[kMaxPayloadLen];
   if (topic_bridge_version(topic, sizeof(topic)) > 0 &&
       ota_version_json(version, sizeof(version)) > 0 &&
       make_publish(&msg, topic, version, /*retain=*/true, /*qos=*/0)) {

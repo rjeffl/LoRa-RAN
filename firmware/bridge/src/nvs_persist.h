@@ -49,6 +49,12 @@ class NvsPersist final : public lran::config::Persist {
   bool usable() const override { return open_; }
   bool save(uint16_t id, lran::config::Value v) override;
   bool clear_all() override;
+  // TODO(BF-33): one NVS blob, so the group lands in a single commit. Until then this
+  // refuses, and it is unreachable: the bridge has not enabled the PHY trial, so its PHY
+  // rows answer READ_ONLY and nothing asks for a group write.
+  bool save_group(const uint16_t*, const lran::config::Value*, size_t) override {
+    return false;
+  }
 
   // What this namespace holds for `id`. False when nothing is stored, which is the
   // ordinary case for a parameter never set.

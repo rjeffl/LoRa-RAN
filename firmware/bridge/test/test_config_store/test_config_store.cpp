@@ -47,6 +47,7 @@ class FakePersist final : public config::Persist {
     ++clears_;
     return true;
   }
+  bool save_group(const uint16_t*, const config::Value*, size_t) override { return false; }
 };
 
 ConfigSetRequest one(const char* name, int32_t value, bool readable = true) {

@@ -25,7 +25,12 @@ namespace config {
 
 // D56 - a parameter the node publishes but cannot yet apply answers a SET with READ_ONLY
 // (spec 8.12, 12.4). Honest, and it costs one byte per row.
-enum class Access : uint8_t { ReadWrite, ReadOnly };
+//
+// Phy marks spec 12.4's PHY group. It is writable only through a Store whose owner has
+// built 12.4's commit-and-revert and says so with Store::enable_phy_trial(); every other
+// Store answers it READ_ONLY, exactly as a ReadOnly row. The table cannot know which
+// firmware has built the machinery, so the Store is told.
+enum class Access : uint8_t { ReadWrite, ReadOnly, Phy };
 
 // D47 - who holds the value, and so which topic sets it (spec 16.7.1).
 enum class Owner : uint8_t {
@@ -85,6 +90,24 @@ inline constexpr ParamDef kBridgeParams[] = {
      600, "s", "bms_age_s above this marks BMS entities unavailable, spec 16.4"},
     {0x000F, "cell_mv_deadband", Owner::BridgeGlobal, Access::ReadWrite, PType::U8, 0, 50,
      5, "mV", "Cell voltage change that republishes, spec 16.4; 0 = any"},
+
+    // D59 - the bridge's copy of the PHY group, the fleet's reference (spec 12.4). Set on
+    // lran/bridge/config/set alone, under the node rows' names, as cad_retries already
+    // is. Every field but the id and the owner must equal the node row of the same name,
+    // because the bridge clamps against these rows before it sends a node anything
+    // (spec 12.4.1 step 1); phy_rows_agree() below checks it.
+    {0x0010, "freq_hz", Owner::BridgeGlobal, Access::Phy, PType::U32, 902000000, 928000000,
+     917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
+    {0x0011, "spreading_factor", Owner::BridgeGlobal, Access::Phy, PType::U8, 7, 12, 9,
+     nullptr, "SF, spec 12.1 - fleet-wide"},
+    {0x0012, "bandwidth_khz", Owner::BridgeGlobal, Access::Phy, PType::U16, 125, 500, 125,
+     "kHz", "BW - 125 until an envelope decision, spec 18.2"},
+    {0x0013, "coding_rate_denominator", Owner::BridgeGlobal, Access::Phy, PType::U8, 5, 8,
+     5, nullptr, "CR 4/N, spec 12.1"},
+    {0x0014, "tx_power_dbm", Owner::BridgeGlobal, Access::Phy, PType::I16, -9, -4, -4,
+     "dBm", "Conducted; the maximum IS D33's ceiling, spec 18.2"},
+    {0x0015, "phy_trial_s", Owner::BridgeGlobal, Access::Phy, PType::U16, 30, 900, 120,
+     "s", "Revert window after a PHY change, spec 12.4"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
 };
@@ -104,19 +127,20 @@ inline constexpr ParamDef kNodeCommonParams[] = {
 
     // D56 - the PHY, spec 12.1's table. Every node holds a copy and so does the bridge,
     // because one SX1262 listens on one configuration: a change is a fleet operation.
-    // READ_ONLY until BF-33 builds spec 12.4's commit-and-revert, so HA can read the
-    // working point before it can change it. The defaults are D1's.
-    {0x0110, "freq_hz", Owner::Node, Access::ReadOnly, PType::U32, 902000000, 928000000,
+    // A node's Store answers these READ_ONLY until that node builds spec 12.4's
+    // commit-and-revert and enables the trial, so HA can read the working point before it
+    // can change it. The defaults are D1's.
+    {0x0110, "freq_hz", Owner::Node, Access::Phy, PType::U32, 902000000, 928000000,
      917400000, "Hz", "Channel, spec 12.1 - fleet-wide"},
-    {0x0111, "spreading_factor", Owner::Node, Access::ReadOnly, PType::U8, 7, 12, 9,
+    {0x0111, "spreading_factor", Owner::Node, Access::Phy, PType::U8, 7, 12, 9,
      nullptr, "SF, spec 12.1 - fleet-wide"},
-    {0x0112, "bandwidth_khz", Owner::Node, Access::ReadOnly, PType::U16, 125, 500, 125,
+    {0x0112, "bandwidth_khz", Owner::Node, Access::Phy, PType::U16, 125, 500, 125,
      "kHz", "BW - 125 until an envelope decision, spec 18.2"},
-    {0x0113, "coding_rate_denominator", Owner::Node, Access::ReadOnly, PType::U8, 5, 8, 5,
+    {0x0113, "coding_rate_denominator", Owner::Node, Access::Phy, PType::U8, 5, 8, 5,
      nullptr, "CR 4/N, spec 12.1"},
-    {0x0114, "tx_power_dbm", Owner::Node, Access::ReadOnly, PType::I16, -9, -4, -4, "dBm",
+    {0x0114, "tx_power_dbm", Owner::Node, Access::Phy, PType::I16, -9, -4, -4, "dBm",
      "Conducted; the maximum IS D33's ceiling, spec 18.2"},
-    {0x0115, "phy_trial_s", Owner::Node, Access::ReadOnly, PType::U16, 30, 900, 120, "s",
+    {0x0115, "phy_trial_s", Owner::Node, Access::Phy, PType::U16, 30, 900, 120, "s",
      "Revert window after a PHY change, spec 12.4"},
 };
 
@@ -171,6 +195,44 @@ static_assert(defaults_in_range(kBridgeParams, kBridgeParamCount),
               "a default outside its own range would be clamped on first read");
 static_assert(defaults_in_range(kNodeCommonParams, kNodeCommonParamCount),
               "a default outside its own range would be clamped on first read");
+
+// spec 12.4 - frequency, SF, BW, CR, TX power and phy_trial_s.
+inline constexpr size_t kPhyGroupSize = 6;
+
+// D59 - the bridge's PHY rows and the node's must agree in everything but id and owner.
+// A narrower node range would clamp a value the bridge had already accepted, and spec
+// 12.4.1 step 4 abandons the change on any clamp, so every set would fail; a wider one
+// would let the bridge send a value its own radio could not take.
+constexpr bool same_text(const char* a, const char* b) {
+  for (; *a != '\0' && *a == *b; ++a, ++b) {}
+  return *a == *b;
+}
+constexpr bool phy_rows_agree(const ParamDef* b, size_t nb, const ParamDef* n, size_t nn) {
+  size_t matched = 0;
+  for (size_t i = 0; i < nb; ++i) {
+    if (b[i].access != Access::Phy) continue;
+    bool found = false;
+    for (size_t j = 0; j < nn; ++j) {
+      if (n[j].access != Access::Phy || !same_text(b[i].name, n[j].name)) continue;
+      if (b[i].type != n[j].type || b[i].min != n[j].min || b[i].max != n[j].max ||
+          b[i].def != n[j].def) {
+        return false;
+      }
+      found = true;
+    }
+    if (!found) return false;
+    ++matched;
+  }
+  size_t node_phy = 0;
+  for (size_t j = 0; j < nn; ++j) {
+    if (n[j].access == Access::Phy) ++node_phy;
+  }
+  return matched == node_phy && matched == kPhyGroupSize;
+}
+
+static_assert(phy_rows_agree(kBridgeParams, kBridgeParamCount, kNodeCommonParams,
+                             kNodeCommonParamCount),
+              "D59 - the bridge's PHY rows must equal the node's, name for name");
 
 // The wire width of a ptype, in bytes. spec 7.4, D55 - `len` is a multiple of it.
 constexpr size_t ptype_width(PType t) {
