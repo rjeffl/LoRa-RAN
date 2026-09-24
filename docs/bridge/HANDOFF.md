@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-23 by the session that built V-B12's blaster.** The saturated arm now
-has a load: the `v_b12_blaster` image, driven over the bridge's serial port (Impl Plan
-§8.1.2). The bench is on the IoT network, and one calibration pair ran. **The sweep that
-answers V-B12 has not run.** The engineering log's last entry has the bench detail.
+**Written 2026-09-23 by the session that measured V-B12.** **V-B12 is met and M22 is
+closed**: saturating the bridge's WiFi cost no measurable LoRa PER (Impl Plan §8.1.3). The
+bridge still runs the `v_b12_blaster` bench image, and **restoring the bench is the first
+job**. The engineering log's last entry has the bench detail.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,20 +18,16 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
+Continue from docs/bridge/HANDOFF.md: restore the bench after V-B12.
 Continue from docs/bridge/HANDOFF.md: BF-26, the bench publication gate.
 Continue from docs/bridge/HANDOFF.md: BF-24, the publication policy.
-Continue from docs/bridge/HANDOFF.md: V-B12's saturated arm, on the bench. <setup>
 ```
-
-**The bench is set up for V-B12's saturated arm**, so its line needs no `<setup>` now:
-Mac on the IoT WiFi, broker at 192.168.4.52, bridge on `v_b12_blaster`. Replace `<setup>`
-with anything that has changed since.
 
 | Task | Read |
 |---|---|
+| **Restore the bench** (bench, short) | *The next job*; *Hardware state*; [`traps.md`](./traps.md) §*Bench boards and serial ports* |
 | **BF-26** (no board) | *The next job*; Impl Plan **§4.2a** and **§4.4.2**; Firmware Tasks' BF-26 row; spec **§16.6** |
 | **BF-24** (no board) | *The next job*; Impl Plan **§6.3**; Bridge PRD **R-5.2b**; Firmware Tasks' BF-24 row |
-| **V-B12's saturated arm** (bench, **ready**) | *The next job*; the engineering log's last entry; *Hardware state*; [`traps.md`](./traps.md) §*Measuring frame loss*, §*Bench boards and serial ports* and §*Bench credentials*; Impl Plan **§8.1.1** and **§8.1.2** |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -41,38 +37,27 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**One observation from the bench run is open.** In one of the six rolls, the bridge sent
-its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went unanswered
-and no poll reply was heard. The retry succeeded 2.7 s later. The cause is not shown,
-because the simnode logs neither a `POLL` nor its reply. The engineering log's *BF-34 on
-air* entry has the detail and two candidate changes. Neither is needed to close BF-34.
+**First, restore the bench.** The bridge runs `v_b12_blaster`, a bench image that must not
+stay deployed, and its `secrets.h` points at the IoT network.
 
-**Next: V-B12's saturated arm, while the bench is set up.** Then BF-26 and BF-24, neither
-of which needs a board.
+1. The operator puts the house network's values back in `secrets.h`. Never echo or commit
+   them.
+2. Reflash `pio run -d firmware/bridge -e heltec -t upload` from a clean tree on `main`,
+   and confirm the banner's git field has no `-dirty`.
+3. Confirm the bridge reaches the house broker.
 
-- **Run the sweep.** Export the three `LRAN_MQTT_*` variables as
-  [`traps.md`](./traps.md#bench-credentials) says, then:
-  `~/.platformio/penv/bin/python -u tools/simctl/sweep_interleave.py --port
-  /dev/cu.usbmodem2101 --quiet-port /dev/cu.usbserial-4 --bridge-port
-  /dev/cu.usbserial-0001 --gaps 2000 --blast-kbps 20000 --pairs 6 --json vb12.json`.
-  About 25 minutes. Six pairs of 40 frames give 240 per arm; §8.1.1's 2 losses in 640
-  at 2000 ms says the idle arm may need more pairs than that to lose anything. Run it
-  twice, as 2026-09-21 did.
-- **20000 kbps is the rate.** It is about the link's ceiling, and the ring did not
-  overwrite at it. Read the tool's blaster table on every run: a loaded burst far below
-  that rate had no load.
-- **Then close V-B12 in the documents** — Impl Plan §8.1.2 with the result, R-4.4's
-  policy confirmed or falsified, and M22 in the Decision Register.
-- **Then restore the bench.** Put the house network's values back in `secrets.h` and
-  reflash `-e heltec` from a clean tree.
-- **BF-26** and **BF-24** are as they were: `TODO(BF-26)` gates and `TODO(BF-24)` markers
-  in `task_runtime.cpp`. Consider carrying `simnode_diag_enable` on the lever board.
+**The IoT network's nearest access point is pinned to channel 6** for V-B12. Whether it
+stays pinned is the operator's call.
 
-**The boards run different images.** The bridge runs `v_b12_blaster` at `9bd01b3`. The
-simnodes run `98b4b04`, and nothing under `firmware/simnode` or `lib` has changed since.
-Impl Plan §8.1.1 says how to run the arms: interleave them with the idle control. **The
-roll adds one exchange per heard identity after each bridge boot**, and the sweep's
-bridge port reboots the bridge, which is why the tool waits 25 s after opening it.
+**Then BF-26 and BF-24**, neither of which needs a board. They are as they were:
+`TODO(BF-26)` gates and `TODO(BF-24)` markers in `task_runtime.cpp`. Consider carrying
+`simnode_diag_enable` on the lever board.
+
+**One observation from BF-34's bench run is still open.** In one of six rolls, the bridge
+sent its heard-first `POLL` to f1 210 ms before the roll. The first roll attempt went
+unanswered, and the retry succeeded 2.7 s later. The simnode logs neither a `POLL` nor its
+reply, so the cause is not shown. The engineering log's *BF-34 on air* entry has two
+candidate changes. Neither is needed to close BF-34.
 
 ## Open, and not closable from here
 
@@ -83,6 +68,15 @@ bridge port reboots the bridge, which is why the tool waits 25 s after opening i
   `ctx_id` changes**, which deserves its own thought. **It must not fire on a roll**, which
   changes the `ctx_id` and keeps the configuration (spec §10.6 node step 2). Not a
   regression: before BF-32 there was no mirror at all.
+- **M22 closed on a bench at one metre, where every frame arrived near −22 dBm.** It rules
+  out a gross coexistence failure, not desense near sensitivity. The check that would
+  reopen it is R-4.4b's PER at the gate, rising with the bridge's WiFi traffic, once
+  GateLink is deployed.
+- **Two header citations of the Library Plan are stale, and no check covers them.**
+  Firmware Tasks says v0.12 and the Impl Plan says v0.14, against v0.16.
+  `spec_citation_version.py` reads only the protocol specification's citations. Read each
+  document against the Library Plan's changes, then bump. Extending the check to every
+  ``**<Role>:** [`LRAN-…`](…) vX.Y`` header line is the lasting fix, on a branch of its own.
 - **The bridge loses frames at one metre and the cause is not known.** Spacing is a
   measured variable rather than a suspect; the mechanism is not. The three candidates
   inside the bridge stay ruled out from 2026-09-17, and M25 found nothing on the channel
@@ -120,9 +114,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **six 2026-09-23 entries** first, last one first: **V-B12's blaster**, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **eight 2026-09-23 entries** first, last one first: **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12 and **§8.1.1** what the interleaved sweep found; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §7 is B4, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
@@ -136,9 +130,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M21**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. **V-B12**'s saturated arm: the blaster is built, and the sweep has not run. **M22** open — spacing is now measured, the mechanism is not. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **V-B12's saturated arm**, whose bench is set up. Then **BF-26** and **BF-24**, neither of which needs a board |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B4**: **BF-24**, **BF-25**, **BF-26**. **BF-33** unstarted. **BF-27's other three tools**. The bench restore after V-B12. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **Restore the bench**. Then **BF-26** and **BF-24**, neither of which needs a board |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -205,7 +199,8 @@ across those sessions**; a comparison inside one sweep is.
 
 On 2026-09-23 the bridge heard f1, on the XIAO, at −27 to −26 dBm and +11 dB SNR. That
 day's figure is not comparable to the 2026-09-21 range until someone confirms which board
-the 2026-09-21 range came from.
+the 2026-09-21 range came from. During V-B12's sweeps the bridge heard f3, on the XIAO, at a median
+−22 dBm and +11 dB SNR.
 
 **A wrong board selection is silent.** It writes the wrong pin map into a normal-looking
 artifact. **Tell the two Heltecs apart by enclosure**: both CP2102 bridges report

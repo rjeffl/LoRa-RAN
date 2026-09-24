@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.36
+**Version:** 0.37
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.12
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.47
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.48
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -236,10 +236,10 @@ and a dev broker, not production, until B6 (§11.3).
 
 **V-B12 is the exception, and it is deliberate.** It arrived here on 2026-09-17 and it
 needs a board, so B4's "no node hardware" claim covers the discovery and publication work
-rather than every criterion in the milestone. **BF-23 carries the part that unblocks it**:
-`g_diag_interval_s` is settable from Home Assistant, which is the only way to make the
-bridge's WiFi transmit hard enough to test R-4.4. The idle arm is already measured — Impl
-Plan §8.1 and the engineering log.
+rather than every criterion in the milestone. **V-B12 is met, 2026-09-23.** A bench-only
+UDP blaster saturated the bridge's WiFi, not `g_diag_interval_s`, whose 10 s floor could
+not (Impl Plan §8.1.2). The loaded arm lost no more than the idle one, and Impl Plan §8.1.3
+has the numbers.
 
 **BF-33 may not belong in B4.** It is here because it consumes BF-32's table and nothing
 else is closer, but spec §12.4's commit-and-revert is radio work with a bench cost of its
@@ -301,6 +301,11 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.37** — **V-B12 is met**, and §7 says so; its paragraph no longer names
+  `g_diag_interval_s` as the saturated arm's lever. The Impl Plan citation moves from v0.47
+  to v0.48. **The PRD citation moves from v0.12 to v0.14.** It missed v0.13, whose one
+  change, R-3.1h's context roll, this list already builds as BF-34.
 
 - **v0.36** — The Impl Plan citation moves from v0.46 to v0.47, which adds §8.1.2: V-B12's
   saturated arm is loaded by a UDP blaster in the `v_b12_blaster` environment.

@@ -59,6 +59,12 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
 - **Bench cross-traffic moves the bridge's counters.** W9's pings are addressed to another
   node and the bridge still hears them: `rx_not_addressed` and `rx_dropped` both climbed by
   8. Difference a counter only across a window carrying nothing else.
+- **The blaster's load depends on the IoT network's channel, and that channel can move
+  between runs.** On 2026-09-23 the network moved from channel 6 to channel 1 after the
+  calibration pair, and loaded bursts fell from 19854 kbps to 473 kbps. Before a loaded
+  sweep, run a 10 s `blast 20000` and read the achieved rate, and check the channel with
+  `system_profiler SPAirPortDataType`. The operator pinned the nearest access point to
+  channel 6 for V-B12.
 - **An entry whose correct result is "nothing happens" needs a second reading.** A silent
   pass and a frame that never arrived look identical at the broker. Check `rx_frames`
   moved.

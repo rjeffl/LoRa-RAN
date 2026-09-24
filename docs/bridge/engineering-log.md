@@ -2255,3 +2255,57 @@ inside it, like both of 2026-09-21's losses at 2000 ms.
 
 **One lost frame is not a result**, and the tool says so: eight is its line. The sweep
 that answers V-B12 is still to run.
+
+## 2026-09-23 — V-B12 measured: saturating WiFi cost the bridge no measurable PER
+
+**V-B12 is met, and M22 closes.** Two interleaved sweeps ran with the blaster at 20000
+kbps, and the loaded arm lost no more than the idle arm's known signature explains. Impl
+Plan §8.1.3 records what this changes. This entry records the bench.
+
+### The first attempt had no load
+
+The first run 1 was stopped after three bursts. Its two loaded bursts achieved 1996 kbps
+with 70428 sends refused, then 473 kbps with 81644 refused. The frame log published no
+records for the second one. The calibration pair earlier the same day had achieved 19854
+kbps with 476 refused.
+
+**The IoT network had moved from channel 6 to channel 1.** The Mac reported channel 1,
+−41 dBm signal and −86 dBm noise, and it was sending at MCS 0, 14 Mbps. A signal that
+strong at the lowest rate points to a busy channel. A 10 s blast after the run stopped
+reached 11349 kbps, so the link was variable rather than dead.
+
+The operator pinned the nearest access point to channel 6. The Mac then reported channel
+6 at −66 dBm and MCS 5. Two 10 s blasts reached 6140 kbps and then 18737 kbps, the first
+probably while the access point settled. The sweep ran after that.
+
+### The two sweeps
+
+`sweep_interleave.py --gaps 2000 --blast-kbps 20000 --pairs 6`, flooding `f3` from the
+XIAO with the Heltec simnode quieted. The bridge ran `v_b12_blaster` at `9bd01b3`, and the
+simnodes ran `98b4b04`. The frames are in
+[`data/sweep-vb12-2026-09-23-run1.json`](./data/sweep-vb12-2026-09-23-run1.json) and
+[`-run2.json`](./data/sweep-vb12-2026-09-23-run2.json).
+
+| Run | Idle, lost of sent | Loaded, lost of sent | Loaded bursts achieved | Refused per loaded burst |
+|---|---|---|---|---|
+| 1 | 0 of 241 | 0 of 240 | 19191 to 19521 kbps | 2999 to 4477 |
+| 2 | 0 of 241 | 2 of 240 | 16346 to 17849 kbps | 15692 to 25810 |
+| Pooled | **0 of 482** | **2 of 480, 0.42 %** | | |
+
+**Both losses fell in run 2's sixth burst, one of its loaded ones.** Each followed a
+4000 ms gap with a bridge transmission inside it, and `rx_deaf_ms` was 234 ms across the
+window. Both of 2026-09-21's idle losses at 2000 ms had the same signature. The tool
+declines to order the arms on two losses.
+
+**RSSI and SNR did not move with the load.** Both arms had a median of −22 dBm and +11 dB
+in both runs. Run 1's range ran to −35 dBm in both arms alike, and run 2's stayed within
+−23 to −21 dBm. The ring did not overwrite in any burst, and no poll found the link down.
+
+**Run 2 carried less load than run 1**, with five to six times the refusals. Every burst
+still achieved more than 80 % of the rate asked, so each one counts under §8.1.2's test.
+The cause was not investigated. The channel was shared with the rest of the IoT network.
+
+**What the bench cannot show.** Every frame arrived about 100 dB above the sensitivity
+floor: the specification's link budget lists about −123 dBm at SF7, and SF9's is lower
+still. A noise-floor rise smaller than that margin costs nothing here and could still
+cost frames at 87 m.
