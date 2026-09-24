@@ -6,7 +6,7 @@
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -1281,6 +1281,7 @@ for real in HA history.
 | `0x08` | `MPPT_ERROR` | Normal |
 | `0x09` | `CHARGE_INHIBITED` | Low |
 | `0x0A` | `BOOT` | Low |
+| `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Drafted for v0.14 (D59)** |
 
 FIRE has its own event type and its own MQTT topic rather than being folded in as
 another hold source. The keypad FIRE code is used only for testing and in a real fire
@@ -1317,7 +1318,8 @@ up**, and that requires HA to be able to route it independently.
 **`READ_ONLY` also covers a parameter the node publishes but cannot yet apply**, which is
 how §12.4's PHY parameters answer a `SET` until the commit-and-revert path is built
 (**D56**). A readable value that refuses a write is honest; a write that half-applies is
-not.
+not. **A node without a usable nonvolatile store also answers a PHY entry `READ_ONLY`**
+(§12.4.2 step 2, **D59**, drafted for v0.14).
 
 ### 8.13 `HEX_RSP` `status`
 
@@ -2102,10 +2104,15 @@ records.
 **Every PHY parameter in §12.1's table is a `/lib/lran-config/` parameter** — frequency,
 SF, BW, CR and TX power — except the sync word, the header mode and the CRC setting, which
 are contractual and stay fixed. Each node holds its own copy and the bridge holds one.
+**The bridge's copy is the fleet's reference.** It is a set of global rows, so Home
+Assistant reads and sets the fleet's PHY on `lran/bridge/config/set` (§16.7.1).
+`phy_trial_s` travels with them, and this section calls the six rows the **PHY group**.
 
 **A PHY change is a fleet operation, not a per-node one.** §12.1 requires one frequency,
 SF, BW and sync word across the fleet, because one SX1262 cannot listen on several. A set
-that moves one node without the rest moves it off the air.
+that moves one node without the rest moves it off the air. **A node's own topic therefore
+cannot change the PHY:** a PHY row named on `lran/<node>/config/set` answers `read_only`
+and sends nothing (§16.7.1).
 
 **The scheme, and every part of it is load-bearing:**
 
@@ -2120,13 +2127,17 @@ that moves one node without the rest moves it off the air.
    the bridge learns the change was accepted even if the new settings fail.
 4. **Confirmation is a frame received on the new settings.** Any authenticated frame from
    the bridge counts. Nothing else does — an ACK the node sent proves its transmitter, not
-   the link.
+   the link. **`POLL` does not count**, because §9.2 leaves it unauthenticated, so the
+   bridge sends a frame for the purpose (§12.4.1 step 7).
 5. **Silence reverts, at both ends.** A node that hears nothing before `phy_trial_s`
    expires restores the persisted settings. The bridge runs its own trial window for its
    own radio and reverts the same way, so a node that never received the set and a bridge
    whose fleet went quiet both return to the last working configuration without a visit.
 6. **`EVENT` on revert.** A revert is reported once the link is back, so a failed change is
    visible in Home Assistant rather than inferred from a node that went quiet and came back.
+
+§12.4.1 to §12.4.3 say how each end carries these six out (**D59**). §12.4.4 names the one
+case they do not close.
 
 **TX power is clamped by the firmware, not by the operator.** §18.2's ceiling is an EIRP
 limit under §15.249, so the parameter's range in `/lib/lran-config/` stops at the D33
@@ -2138,9 +2149,133 @@ section one decision (§18.2), so BW stays at 125 kHz until an envelope decision
 otherwise, whatever the parameter table's range permits.
 
 **Until the machinery exists, the parameters are declared and read-only.** A node that has
-not built §12.1a answers a `SET` on any of them with `READ_ONLY` (§8.12) and applies
+not built this section answers a `SET` on any of them with `READ_ONLY` (§8.12) and applies
 nothing. Home Assistant can read the effective PHY from the first release that carries the
 table.
+
+> **Corrected in v0.14.** v0.13 said *"a node that has not built §12.1a"*. No §12.1a has
+> ever existed, and the section meant is this one.
+
+> **Drafted for v0.14 (D59).** v0.13 stated the six steps above and left five questions
+> open: who starts a change, in what order the fleet moves, which frame confirms it, what
+> a partial answer does, and which `EVENT` reports a revert. §12.4.1 to §12.4.4 answer
+> those questions. Steps 1 to 6 are unchanged except for step 4's sentence on `POLL`.
+
+#### 12.4.1 The bridge moves the fleet
+
+**The bridge changes its own radio last, and only after every node has accepted the
+change.** Until it retunes, nothing is lost. A node that has already retuned hears nothing
+on its new settings and reverts under step 5 of the scheme, so abandoning a change needs no
+frame.
+
+1. **A change starts on the bridge's topic.** A `config/set` on `lran/bridge/config/set`
+   that names any row of the PHY group starts one. Rows the set does not name keep the
+   bridge's current values, so every `CONFIG` below carries the whole group. The bridge
+   clamps each value against its own rows first, so every node is sent a value inside
+   its range.
+2. **A change the fleet cannot complete is refused whole, before anything applies.** The
+   bridge answers `config/ack` with an `error` (§16.7.3) and applies nothing:
+   - `phy_change_in_progress` — a change is already in its trial;
+   - `phy_fleet_incomplete` — a node the bridge polls is `offline` (§16.5), and it would
+     be left on settings nobody else uses;
+   - `context_roll_pending` — a node's roll has not completed (§10.6).
+
+   A set whose values equal the bridge's current ones applies nothing, opens no trial, and
+   is answered `ok`.
+3. **The bridge sends every node it polls one `CONFIG` `SET`** carrying the whole PHY
+   group, one node at a time, on the current settings.
+4. **Every node must accept every value.** The change continues only if each node answers
+   with a `CONFIG_ACK` whose PHY entries carry exactly the values the bridge sent. The
+   bridge **abandons** the change when a node's `CONFIG_ACK` does not arrive, which is
+   §7.4's `unknown` outcome, or when a node refuses or clamps any entry. The bridge then
+   sends no further `CONFIG` and keeps its own settings. It defers §7.4's readback for
+   that node until `phy_trial_s` has passed, because a node that did retune cannot hear it
+   sooner.
+5. **The bridge retunes and opens its own window.** Once every node has accepted, the
+   bridge retunes to the new settings. Its own last known-good settings stay persisted,
+   as step 2 of the scheme requires.
+6. **The bridge hears every node on the new settings before any node commits.** It polls
+   each node on the new settings, and a node's answer is the bridge's evidence that the
+   link works both ways. `POLL` is unauthenticated (§9.2), so no node counts it as
+   confirmation, and nothing is committed anywhere during this step.
+7. **The bridge commits, then confirms each node.** When it has heard every node on the
+   new settings, the bridge persists them as its last known-good. It then sends each
+   node a `CONFIG` `GET` naming the PHY group, in the order of step 3. `CONFIG` is
+   authenticated, so the node's acceptance of it is the node's confirmation under step 4
+   of the scheme. A `GET` applies nothing, so the bridge may send it again when no
+   answer arrives.
+8. **The bridge reverts when step 6 is not finished in time.** Its deadline is
+   `phy_trial_s` after the first node's `CONFIG_ACK` in step 4, less one
+   `config_ack_timeout_ms` for each node it polls, which leaves step 7 time for one `GET`
+   to every node. A bridge still missing a node at the deadline reverts to its last
+   known-good settings and sends no authenticated frame on the new ones, so every node
+   reverts under step 5 of the scheme. A fan-out still unfinished at the deadline is
+   abandoned under step 4.
+
+**The order of steps 6 and 7 is what keeps the fleet together.** No node commits until
+the bridge has heard every node on the new settings and committed itself. So a change that
+works for a near node and fails for a far one reverts everywhere, instead of committing the
+near node on settings the bridge then abandons.
+
+**A bridge that restarts during a trial comes back on its last known-good settings**, as a
+node does. Before step 7, those are the old settings, no node has committed, and every node
+reverts on silence. From step 7 on, they are the new settings, and the roll that follows a
+bridge restart (§10.6) is an authenticated frame, which confirms every node still in its
+trial. The bridge reports a revert under §16.7.5 once it reaches the broker.
+
+#### 12.4.2 A node takes the change
+
+1. **A node treats a row of the PHY group that the set does not name as unchanged.** The
+   bridge always sends the whole group (§12.4.1 step 1), so this rule matters only for a
+   sender that does not.
+2. **A node without a usable nonvolatile store answers every PHY entry `READ_ONLY` and
+   applies none of them.** The committed settings of a node like that would not survive a
+   reboot, which would return it to its compiled defaults while the bridge stays on the
+   settings it last committed. That is the stranded node this section exists to prevent,
+   so §8.11's `APPLIED_NOT_PERSISTED` does not extend to the PHY group.
+3. **The node answers on its old settings, then retunes**, under step 3 of the scheme. Its
+   window opens when it retunes, using the `phy_trial_s` the `CONFIG` carried.
+4. **The node answers `POLL` on the new settings as it would on any other.** An answer
+   commits nothing at either end until §12.4.1 step 7.
+5. **Any authenticated frame the node accepts from the bridge confirms the change.** A
+   frame is accepted when it passes §14 through stage 11. On confirmation, the node
+   persists the new settings as its last known-good.
+6. **A node whose window expires restores its last known-good settings**, and recomputes
+   §12.3's backoff window from them.
+7. **A node that reboots during a trial comes back on its last known-good settings**, and
+   the trial is over.
+8. **A node that reverted sends one `EVENT` `PHY_REVERTED` (§8.9)** when it next receives
+   a frame from the bridge on its restored settings. `detail` is `0x0001` when the window
+   expired and `0x0002` when a reboot ended the trial. A node with no event schema of its
+   own reports nothing, and the bridge's own record (§16.7.5) is what reaches Home
+   Assistant.
+
+#### 12.4.3 Timing
+
+**The fan-out and step 6 share the first node's window.** That node's window opens when
+it answers in step 4 of §12.4.1, so everything the bridge does afterwards runs against it.
+The fan-out costs up to one `config_ack_timeout_ms` per node, and step 8's margin reserves
+one more per node for step 7. With the defaults of 8 s and 120 s, a fleet of six nodes
+leaves step 6 at least 24 s, and a two-node fleet leaves it at least 88 s. A fleet large
+enough to exhaust the window needs a longer `phy_trial_s`.
+
+**The bridge's evidence in step 6 is unauthenticated.** A frame transmitted on the new
+settings under a node's address during the window would count as that node. That spoof
+cannot move any node. The worst it does is commit the bridge to settings a real node never
+reached, which is the outcome §12.4.4 describes. §9.5 treats spoofed status as a nuisance, and this
+section inherits that position rather than changing it.
+
+#### 12.4.4 The case this does not close — W17
+
+**A node that answered in step 6 can still miss every confirming frame in step 7.** Its
+window then expires, and it reverts to its old settings while the bridge and the rest of
+the fleet have committed the new ones. Repeating the `GET` makes this rare, because the
+node has just shown that it hears the bridge, but repetition cannot remove it. The bridge
+knows when it has happened: that node's `GET` was never answered.
+
+A remedy has not been decided, and **W17** tracks it, along with how the bridge reports the
+case. The change did commit, so §16.7.5's `phy_reverted` event does not describe it. One candidate is a bridge that
+returns briefly to the settings it left, to repeat the change for that node alone.
 
 ---
 
@@ -2635,11 +2770,18 @@ Each parameter in the table declares its owner (**D47**):
 | bridge, global | `lran/bridge/config/set` | the bridge | `simnode_diag_enable` |
 | bridge, per node | `lran/<node>/config/set` | the bridge, for that node | `poll_interval_s` |
 | node | `lran/<node>/config/set` | the node, from a `CONFIG` the bridge sends | `dedup_cache_depth` |
+| fleet PHY | `lran/bridge/config/set` | the bridge and every node, under §12.4 | `freq_hz` |
 
 **A set on a node's topic may name parameters of both kinds.** The bridge applies its own
 half, sends the node's half as one or more `CONFIG` messages (§7.4), and publishes **one**
 `config/ack` when every half has an outcome. Bridge parameters never cross the air. A name
 the table does not hold for that topic is `unknown_param`.
+
+**The PHY group is set on the bridge's topic alone** (§12.4, **D59**, drafted for v0.14).
+The bridge holds a global row for each of the six, and a set naming one of them moves the
+whole fleet. A PHY row named on `lran/<node>/config/set` is answered `read_only`, carrying
+the value the bridge last read back from that node, and sends no `CONFIG`. Home Assistant
+reads each node's PHY rows from that node's `config/state`, as before.
 
 #### 16.7.2 `config/set` — HA → bridge, not retained
 
@@ -2673,17 +2815,22 @@ integration, checked on 2026-09-19.
 | `op` | string | `set`, `get_all` or `restore_defaults`, echoed |
 | `persist` | string | `persisted`, `applied_not_persisted`, `not_applied` (§8.11), or `unknown` |
 | `results` | object | Parameter name → `{"status": ..., "value": ...}` |
-| `error` | string | Present only when the `config/set` payload was rejected whole. `context_roll_pending` means the node's context roll has not completed (§10.6) |
+| `error` | string | Present only when the `config/set` payload was rejected whole. `context_roll_pending` means the node's context roll has not completed (§10.6). `phy_change_in_progress` and `phy_fleet_incomplete` refuse a PHY change (§12.4.1 step 2) |
 
-`status` is `ok`, `unknown_param`, `clamped`, `type_mismatch` or `read_only` (§8.12), or
-`unknown`. **`value` is the effective value, not the requested one**, and `null` where
-nothing was applied or the outcome is not known.
+`status` is `ok`, `unknown_param`, `clamped`, `type_mismatch` or `read_only` (§8.12),
+`unknown`, or `reverted`. **`value` is the effective value, not the requested one**, and
+`null` where nothing was applied or the outcome is not known.
 
 **`unknown` is the one outcome with no §8.11 counterpart.** It reports a `CONFIG` that got
 no `CONFIG_ACK` inside its ACK timeout, which §7.4 requires be treated as neither success
 nor failure. That half's entries carry `status` = `unknown`. The bridge then requests a
 readback with `POLL` bit 1 and, when it arrives, publishes `config/state` and a second
 `config/ack` for the same parameters, carrying their effective values.
+
+**`reverted` is the one per-entry status with no §8.12 counterpart**, and it belongs to the
+PHY group alone (§12.4, **D59**, drafted for v0.14). It reports a PHY change the bridge
+abandoned or reverted. `value` is then the setting the bridge returned to, and `persist`
+is `not_applied`, because the bridge's persisted settings did not change.
 
 **When a set had two halves, `persist` is `unknown` if either half's outcome is unknown.**
 Otherwise it is the less persisted of the two, in the order `not_applied`,
@@ -2714,6 +2861,36 @@ carrying half of one readback and half of an older one cannot be read back apart
 override flag, so the bridge compares the effective value with the table's default, and an
 override equal to its default reads `default`. GateLink PRD R-5.3e asks for the node's own
 marking; **W15** tracks the gap.
+
+#### 16.7.5 A PHY change on MQTT
+
+> **Drafted for v0.14 (D59).** This subsection is new, and it is what §12.4 reports
+> through.
+
+**A PHY change is answered once, on `lran/bridge/config/ack`, when it ends.** It ends when
+the bridge commits under §12.4.1 step 7, or when it abandons or reverts the change. With
+the defaults, that can be up to `phy_trial_s` after the `config/set`, which is 120 s.
+Entries of the PHY group carry `ok` or `clamped` on a commit and `reverted` otherwise
+(§16.7.3). Entries of the same set that are not in the PHY group apply at once, as any
+global row does, and wait for this one answer, as §16.7.1 requires of a set with two
+halves.
+
+**A committed change is republished everywhere it shows.** The bridge republishes
+`lran/bridge/config/state`, and each node's `config/state` from that node's answer to the
+confirming `GET`.
+
+**A change that did not commit is also reported as an event**, on
+`lran/bridge/event/phy_reverted`, under §16.3's rule: never retained, QoS 1. Its payload is
+a JSON object:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `event_id` | number | Counts from 1 at each bridge boot, so Home Assistant can recognise a repeat as §16.3 requires |
+| `reason` | string | `not_accepted` — a node did not accept every value (§12.4.1 step 4); `not_heard` — a node was not heard on the new settings before the deadline (step 8); `restart` — the bridge restarted during a trial (§12.4.1) |
+| `node` | string or `null` | The first node that caused the outcome, by its §16.1 name; `null` for `restart` |
+
+**A node's own revert publishes on `lran/<node>/event/phy_reverted`**, from its
+`PHY_REVERTED` `EVENT` (§12.4.2 step 8), as every other §8.9 event does.
 
 ---
 
@@ -2829,6 +3006,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
 | W15 | **`CONFIG_ACK` carries no default-or-override flag** | §7.4, §16.7.4 | GateLink PRD R-5.3e requires each published value marked `default` or `override`. §7.4's result entry has no bit for it, so the bridge infers `source` by comparing with the table's default, and an override set equal to its default reads `default`. Closing it needs a result-entry field or a separate readback; either is a schema change. Opened in v0.13 |
 | W16 | **When a node sends `status_reason` `CONFIG_CHANGE`** | §8.7 | §8.7 defines the value, and no section says what triggers it. Every configuration change the bridge causes is already reported by a `CONFIG_ACK`, so the value is for a change the bridge did not cause — for example a node falling back to defaults when its microSD fails at boot — which is GateLink's to define. Owner: GateLink **M3**. Opened in v0.13 |
+| W17 | **A node that misses every confirming frame of a PHY change** | §12.4.4 | Under §12.4.1, a node that answered on the new settings and then missed every confirming `GET` reverts to its old settings after the bridge has committed the new ones. Nothing then brings it back without a visit. The bridge can tell it has happened, because that node's `GET` was never answered. Undecided: the remedy, for example a bridge that returns briefly to the settings it left to repeat the change for that node alone, and how the case is reported to Home Assistant. Owner: BF-33. Opened in v0.14 (D59) |
 
 ### 18.1 W5, resolved — fixed channel at low power
 
@@ -3026,6 +3204,27 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.14 (drafted from 2026-09-24)** — **§12.4's PHY commit-and-revert gains the
+  mechanism v0.13 left open (D59).** `ver` stays at `2`; **no frame layout, header field,
+  schema or authentication scope changes.** One enumeration value is added, which §13.2
+  allows without a bump. §12.4 now says who starts a change, how the fleet moves, which
+  frame confirms it, and what a partial answer does. The PHY group is six rows, the five
+  PHY parameters and `phy_trial_s`, and **it is set on `lran/bridge/config/set` alone**; the
+  bridge holds a global row for each (§12.4, §16.7.1). New **§12.4.1**: the bridge refuses a
+  change the fleet cannot complete, sends every node the whole group on the old settings,
+  abandons on any missing or refused answer, then retunes, **hears every node on the new
+  settings by `POLL` before anything commits**, commits itself, and only then confirms
+  each node with an authenticated `CONFIG` `GET`. That order means a change that works for
+  a near node and fails for a far one reverts everywhere. New **§12.4.2** gives a node's
+  half, including that **a node without a usable nonvolatile store answers every PHY entry
+  `READ_ONLY`**. New **§12.4.3** bounds the timing, and new **§12.4.4** opens **W17** for
+  the case still unclosed. §8.9 gains **`PHY_REVERTED`**, `0x0B`. §16.7.3 gains the
+  `reverted` status and two `error` values, and new **§16.7.5** defines the answer and
+  `lran/bridge/event/phy_reverted`. **Corrected**: §12.4 cited a §12.1a that never existed.
+  **The header holds at v0.13 while v0.14 is drafted**, as v0.13's did at v0.12, because a
+  bump obliges the citation sweep; the sweep and the vector for `PHY_REVERTED` (W4, §13.2)
+  follow once the operator accepts D59.
 
 - **v0.13 (2026-09-23; drafted from 2026-09-19)** — **Runtime configuration from Home Assistant: the
   `config/*` payloads are defined, and five passages v0.12 left stale are corrected.

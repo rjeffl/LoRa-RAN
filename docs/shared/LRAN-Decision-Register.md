@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.17
+**Version:** 0.18
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D58** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D59** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -54,6 +54,7 @@ than one section, or when it is blocking work.
 | **D25** | **VE.Direct TX translator** | GateLink Impl Plan | BSS138 retained by default but may fail against a weak symmetric 5 V driver. Settled by **one measurement**: 10 kΩ from the MPPT TX pin to GND with the port streaming, observe the low excursions. Fallback ADuM1201 or 74LVC1G17. **The BSS138 stays on the RX direction either way** | Before carrier build |
 | **D28** | **BLE link margin from the StamPLC mounting position** | GateLink Impl Plan | The Stamp-S3A's 2.4 GHz antenna is internal to the DIN case with no external option, and the pack's own transmitter is weak (~−80 dBm from inches away, confirmed independently with a phone — this is the battery, not the test hardware). Measure RSSI from the intended mounting position. Fallbacks: SmartShunt, or the D30 co-processor. **Amended 2026-09-06 — see §2.2. Still open, but the margin looks considerably better than this row's premise** | Phase 5 |
 | **D29** | **Enclosure thermal envelope** | GateLink Impl Plan | **Narrowed to the high end.** Cold exposure affects no functional dependency; summer solar gain in a closed box is cumulative and does. Instrument LM75 + MPPT + BMS, verify the existing screened vents, add shade, and fit a thermostatic fan **only if logged maxima justify it** | Phase 9 / ongoing |
+| **D59** | **How a PHY change moves the fleet** | Protocol Spec §12.4 | Protocol Spec v0.13's §12.4 states the commit-and-revert scheme and leaves open who starts a change, the order the fleet moves in, which frame confirms it, what a partial answer does, and which `EVENT` reports a revert. **Proposed 2026-09-24, see §2.4**, and drafted into spec v0.14 | Before BF-33 (bridge B4b) |
 
 ### 2.1 D1 — what bounds it (2026-08-30)
 
@@ -240,6 +241,60 @@ node's key can start a roll.
    layout. A node without `ROLL_CONTEXT` answers `REJECTED_UNKNOWN_CMD`. No such node is
    deployed, so the bridge treats that answer as a fault and does not fall back.
 3. **The name and value, `ROLL_CONTEXT` at `0x12`.** Names on the wire are permanent.
+
+### 2.4 D59 — a PHY change as a fleet operation, proposed 2026-09-24
+
+**The problem, found reading the specification before building BF-33.** D56 put the PHY
+under §12.4's commit-and-revert in spec v0.13. §12.4 states six steps that hold for one
+node and one bridge. It does not say how a fleet of several nodes moves, and one gap in it
+strands a node that works:
+
+- **Nothing confirms a change during ordinary operation.** §12.4 step 4 accepts only an
+  authenticated frame, and §9.2 leaves `POLL` unauthenticated. A bridge that polls on the
+  new settings never confirms anything, so every node reverts at `phy_trial_s` on a link
+  that works.
+- **A node that commits alone can be stranded.** If a near node confirms and a far node
+  does not, the bridge reverts. The near node has committed settings the bridge has left,
+  and it has no trial remaining.
+- **The bridge's copy of the PHY has no rows.** §12.4 says the bridge holds one, and
+  `/lib/lran-config/` declares the PHY rows for nodes only.
+- **Nothing names the topic that starts a change.** §16.7.1 sets node rows on each node's
+  own topic, and a PHY change made there moves one node off the air.
+- **Step 6's `EVENT` has no `event_type`** in §8.9, and the bridge's own revert has no
+  topic.
+
+**The proposal**, drafted into spec v0.14's §12.4.1 to §12.4.4, §8.9 and §16.7:
+
+1. **The PHY group is six rows**, the five PHY parameters and `phy_trial_s`. The bridge
+   holds a global row for each, and **the group is set on `lran/bridge/config/set`
+   alone**. A PHY row named on a node's topic answers `read_only`.
+2. **A change the fleet cannot complete is refused whole**: one already in progress, a
+   polled node `offline`, or a roll pending.
+3. **The bridge sends every node the whole group on the old settings**, and abandons the
+   change on any missing or refused answer. Abandoning needs no frame, because a node that
+   retuned reverts on silence.
+4. **The bridge retunes, then hears every node on the new settings by `POLL`.** Nothing
+   commits at either end during this step.
+5. **The bridge commits itself, then confirms each node** with a `CONFIG` `GET`, which is
+   authenticated and applies nothing. A change that fails for any node therefore reverts
+   everywhere. A bridge restart after its commit comes back on the new settings, and
+   D58's roll confirms every node still in its trial.
+6. **A node without a usable nonvolatile store refuses the PHY group** with `READ_ONLY`.
+7. **`PHY_REVERTED`**, `0x0B` in §8.9, reports a node's revert. The bridge reports its own on
+   `lran/bridge/event/phy_reverted`, and `config/ack` gains a `reverted` status.
+
+**What stays open is W17.** A node that answered in step 4 and then missed every
+confirming `GET` reverts after the bridge has committed. The bridge can see this has
+happened, and no remedy is chosen yet.
+
+#### Questions for the operator
+
+1. **Accept items 1 to 7 as drafted?** Accepting closes D59 and lets the header move to
+   v0.14, with the citation sweep.
+2. **The permanent names.** `PHY_REVERTED` on the wire, `phy_reverted` as a topic, and
+   the bridge's six global rows, which take the node rows' names.
+3. **W17 before GateLink deploys, or after?** The case needs every confirming frame to one
+   node lost inside its window, just after that node was heard.
 
 ## 3. Resolved decisions
 
@@ -1031,6 +1086,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.18** — **D59 proposed on 2026-09-24**: how §12.4's PHY commit-and-revert moves a
+  fleet. §2.4 has the gaps, the proposal and three questions, and spec v0.14's draft
+  carries the text. **W17** opens with it.
 
 - **v0.17** — **M22 done on 2026-09-23.** Saturating the bridge's WiFi cost no measurable
   LoRa PER, so the Bridge PRD's R-4.4 policy of no mutual exclusion stands and R-4.4c's
