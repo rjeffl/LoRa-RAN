@@ -42,8 +42,8 @@
 1790188911.92 [bridge] Slot: app0
 1790188911.92 [bridge] Image state: not_pending
 1790188911.92 [bridge] CHAN-BOOT,98b4b04,917400000,9,1250,1000,-1100,10
-1790188911.92 [bridge] WiFi SSID: McLeeNet
-1790188911.92 [bridge] MQTT broker: 192.168.2.52:1883
+1790188911.92 [bridge] WiFi SSID: <redacted-ssid>
+1790188911.92 [bridge] MQTT broker: <sandbox-broker-ip>:1883
 1790188911.92 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 1790188911.92 [bridge] Config: 0 stored value(s) restored
 1790188911.92 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 30[   517][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
@@ -178,8 +178,8 @@
 1790189015.65 [bridge] Slot: app0
 1790189015.65 [bridge] Image state: not_pending
 1790189015.65 [bridge] CHAN-BOOT,98b4b04,917400000,9,1250,1000,-1100,10
-1790189015.65 [bridge] WiFi SSID: McLeeNet
-1790189015.65 [bridge] MQTT broker: 192.168.2.52:1883
+1790189015.65 [bridge] WiFi SSID: <redacted-ssid>
+1790189015.65 [bridge] MQTT broker: <sandbox-broker-ip>:1883
 1790189015.65 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 1790189015.65 [bridge] Config: 0 stored value(s) restored
 1790189015.65 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 300[   518][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
@@ -372,8 +372,8 @@
 1790189239.80 [bridge] Slot: app0
 1790189239.80 [bridge] Image state: not_pending
 1790189239.80 [bridge] CHAN-BOOT,98b4b04,917400000,9,1250,1000,-1100,10
-1790189239.80 [bridge] WiFi SSID: McLeeNet
-1790189239.80 [bridge] MQTT broker: 192.168.2.52:1883
+1790189239.80 [bridge] WiFi SSID: <redacted-ssid>
+1790189239.80 [bridge] MQTT broker: <sandbox-broker-ip>:1883
 1790189239.80 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 1790189239.80 [bridge] Config: 0 stored value(s) restored
 1790189239.80 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 300[   517][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
@@ -481,8 +481,8 @@
 1790189293.89 [bridge] Slot: app0
 1790189293.89 [bridge] Image state: not_pending
 1790189293.89 [bridge] CHAN-BOOT,98b4b04,917400000,9,1250,1000,-1100,10
-1790189293.89 [bridge] WiFi SSID: McLeeNet
-1790189293.89 [bridge] MQTT broker: 192.168.2.52:1883
+1790189293.89 [bridge] WiFi SSID: <redacted-ssid>
+1790189293.89 [bridge] MQTT broker: <sandbox-broker-ip>:1883
 1790189293.89 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 1790189293.89 [bridge] Config: 0 stored value(s) restored
 1790189293.89 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 300[   517][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
@@ -596,8 +596,8 @@
 1790189353.22 [bridge] Slot: app0
 1790189353.22 [bridge] Image state: not_pending
 1790189353.22 [bridge] CHAN-BOOT,98b4b04,917400000,9,1250,1000,-1100,10
-1790189353.22 [bridge] WiFi SSID: McLeeNet
-1790189353.22 [bridge] MQTT broker: 192.168.2.52:1883
+1790189353.22 [bridge] WiFi SSID: <redacted-ssid>
+1790189353.22 [bridge] MQTT broker: <sandbox-broker-ip>:1883
 1790189353.22 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 1790189353.22 [bridge] Config: 0 stored value(s) restored
 1790189353.22 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 [   518][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 203 - ASSOC_FAIL

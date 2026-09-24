@@ -16,8 +16,8 @@
 2026-09-18T15:14:04Z,Slot: app0
 2026-09-18T15:14:04Z,Image state: not_pending
 2026-09-18T15:14:04Z,CHAN-BOOT,5e752e9,917200000,9,1250,1000,-1100,10
-2026-09-18T15:14:04Z,WiFi SSID: McLeeNet
-2026-09-18T15:14:04Z,MQTT broker: 192.168.2.52:1883
+2026-09-18T15:14:04Z,WiFi SSID: <redacted-ssid>
+2026-09-18T15:14:04Z,MQTT broker: <sandbox-broker-ip>:1883
 2026-09-18T15:14:04Z,Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
 2026-09-18T15:14:04Z,Tasks started: 7
 2026-09-18T15:14:04Z,BF-15: WiFi, MQTT, OTA, the radio link and the registry. No discovery yet.
