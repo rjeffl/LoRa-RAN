@@ -2536,3 +2536,33 @@ says. §6.6.2 now says both.
 **What this leaves.** V-B8 ran with synthetic events on a bridge at its desk. The transport
 is still PubSubClient at QoS 0; the handoff's *Open* keeps that item. B4's §6.3 criterion
 has now been shown in HA as well as at the broker.
+
+---
+
+## 2026-09-24 — B4's acceptance tally: the discovery set read at the broker and in HA
+
+**Every retained discovery config names its own node's availability, and HA holds one
+device per node.** That read is the only new evidence behind Impl Plan §8.2's tally. The
+rest comes from the 2026-09-23 and 2026-09-24 entries above. No board was touched, and the
+bridge was still running BF-27's image.
+
+**The read.** A paho subscriber held `homeassistant/#` and `lran/+/availability` at the
+sandbox broker for 4 s and kept retained messages only. HA's `/api/template` counted MQTT
+entities per device.
+
+| Device | Configs at the broker | Entities in HA |
+|---|---|---|
+| LoRa Bridge | 6 | 6 |
+| GateLink | 53 | 53 |
+| WellLink | 8 | 8 |
+| Simnode 0 to 3 | 12 each | 12 each |
+
+All 115 configs list `lran/<node>/availability` for the node their `~` names. Of
+GateLink's, 33 list only that, 10 add `battery/state` and 10 add `solar/state`, each of
+those 20 with `avty_mode: all`. Retained availability read `online` for the bridge and
+`offline` for GateLink and WellLink, and no simnode had one.
+
+**The read cannot show V-B4's republish.** Mosquitto persists retained messages across a
+restart, so a config present after one says nothing about the bridge. A subscriber held
+through the restart would tell them apart: the broker's copies reach it with the retain
+flag set, and the bridge's republished ones with it clear.

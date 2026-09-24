@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.40
+**Version:** 0.41
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.52
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.53
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-24
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -241,6 +241,9 @@ UDP blaster saturated the bridge's WiFi, not `g_diag_interval_s`, whose 10 s flo
 not (Impl Plan §8.1.2). The loaded arm lost no more than the idle one, and Impl Plan §8.1.3
 has the numbers.
 
+**B4 was tallied on 2026-09-24**, in Impl Plan §8.2. Five of its eight criteria are met,
+and the other three are questions for the operator.
+
 **BF-33 may not belong in B4.** It is here because it consumes BF-32's table and nothing
 else is closer, but spec §12.4's commit-and-revert is radio work with a bench cost of its
 own. Moving it to its own milestone is the operator's call.
@@ -301,6 +304,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 10. Changelog
+
+- **v0.41** — **B4 is tallied** in Impl Plan §8.2, and §7 says where. BF-26's row loses a
+  stale fragment that split it into an extra column. The Impl Plan citation moves from
+  v0.52 to v0.53.
 
 - **v0.40** — **BF-27's dummy publish is built and run on air**; its row says what is done.
   Impl Plan §6.6.2 records the choices and the run.
