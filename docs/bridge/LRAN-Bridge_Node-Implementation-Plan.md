@@ -1,11 +1,11 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.47
+**Version:** 0.48
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.13
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.14 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -744,9 +744,9 @@ shape of an Arduino sketch.
 
 **`lora` is pinned to core 1 and `mqtt` to core 0**, where the WiFi and lwIP stacks
 already run. This is the structural half of the asymmetry PRD §4.4 records at the
-radio level. **If M22 shows LoRa PER degrading with WiFi saturated, this pinning is
-one of the two levers** — the other being antenna separation — and neither rescues a
-design that publishes inline.
+radio level. **M22 found no PER cost from saturated WiFi on the bench** (§8.1.3). If PER
+at the gate degrades with WiFi load, this pinning is one of the two levers, and antenna
+separation is the other. Neither rescues a design that publishes inline.
 
 **Queue depths: RX 8, publish 32, TX 4, log 16.** The publish queue is the deep one
 because a single status frame fans out into a dozen entities and because it is what
@@ -1359,7 +1359,7 @@ moves the `config/ack` publish to another task, for a race that one short lock c
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3b |
 | V-B11 fleet with no node hardware | Dummy publish + simulators | B4 |
-| V-B12 LoRa PER, WiFi idle vs. saturated | Sustained MQTT or iperf flood against a known `PING` sequence (**M22**) | **B4** — moved from B3b 2026-09-17, §8.1 |
+| V-B12 LoRa PER, WiFi idle vs. saturated | A UDP blaster loading the bridge's WiFi, against a known frame sequence (**M22**, §8.1.2) | **B4** — moved from B3b 2026-09-17, §8.1. **Met 2026-09-23**, §8.1.3 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3a by hand; B3b scripted |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
 | §5.8 `UNKNOWN_HDR_EXT` | `fault crit_ext`; and `fault hdr_rsv` must be **accepted** | B3a |
@@ -1422,7 +1422,7 @@ can be compared with one taken on the Wio.
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
 | **B3a** | **Radio, registry, polling, availability and counters, with simnode** | B2 (**V-B9 re-run**), `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **The bridge polls simnode identities on air and each answers** (BF-17): four logical simnodes from one board heard and polled simultaneously, each with its own learned context, **with poll-to-answer times recorded against `poll_reply_timeout_ms`**. Availability marks offline after 3 missed polls and online on the next frame (**V-B3**), and a production node's retained `offline` is seen at the broker. **Every §14 counter the console can drive at the bridge increments as specified**, one hand-run fault at a time, read from `lran/bridge/diag/state` at the broker (BF-19), and `hdr_rsv` is accepted rather than discarded. Full-size (a 222 B frame, which the console's `ping` takes as `n` = 202) and fragmented `PING` both round-trip between simnodes (**W9**) |
 | **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **Accepted 2026-09-17**, on the tasks confirmed on air the day before. **V-B12 moved to B4** the same day, with the operator — §8.1 says what it needs and why B4 is where that exists |
-| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1 |
+| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1. **Met 2026-09-23**, §8.1.3 |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
@@ -1494,8 +1494,9 @@ carry it; the dense case stays runnable because it is what made the question vis
 > **The first check passed on 2026-09-23**, when BF-23's lever half was built: no
 > `TODO(BF-23)` remains in `task_runtime.cpp`, and `diag_interval_s` reaches
 > `g_diag_interval_s` (§4.4.2). A set moved `lran/bridge/diag/state` from 60 s to 20 s spacing
-> on the bench the same day. **The second check is still owed**: `per_measure.py --arm
-> saturated` has not run.
+> on the bench the same day. **The second check never ran, because §8.1.2 replaced the
+> lever.** The blaster table in `sweep_interleave.py` took its place, and §8.1.3 records
+> the run.
 
 **§8.1.2 replaces the lever above.** `diag_interval_s` reaches its consumer, but its 10 s
 floor cannot load WiFi. The saturated arm's load is a bench-only UDP blaster instead.
@@ -1567,6 +1568,49 @@ rate at which no loaded burst overwrites the ring.
 > **What would falsify this lever.** A loaded burst whose achieved rate falls far below
 > the rate asked for had no load, whatever its PER. Checked on every run by the tool's
 > per-burst blaster table.
+
+### 8.1.3 V-B12 measured, 2026-09-23: saturating WiFi cost the bridge no measurable PER
+
+**V-B12 is met.** The bridge's WiFi carried 16 to 19.5 Mbps of UDP, and its LoRa PER did
+not measurably rise. Two interleaved sweeps ran at a 2000 ms gap, six pairs each, flooding
+`f3` from the XIAO with the Heltec simnode quieted. The engineering log's 2026-09-23 entry
+has the run detail. The frames are in `docs/bridge/data/sweep-vb12-2026-09-23-run1.json`
+and `-run2.json`.
+
+| Pooled over both sweeps | Idle | Saturated |
+|---|---|---|
+| Sent | 482 | 480 |
+| Lost | 0 | 2 |
+| PER | **0.00 %** | **0.42 %** |
+| RSSI, median and range | −22 dBm, −35 to −21 | −22 dBm, −35 to −21 |
+| SNR, median | +11 dB | +11 dB |
+
+**Both losses fell in one loaded burst, and both carry the idle arm's signature.** Each sat
+in a 4000 ms gap with a bridge transmission inside it, as both of §8.1.1's idle losses at
+2000 ms did. §8.1.1 measured 0.31 % over 640 idle frames at the same gap, so 0.42 % is not
+a difference. Two losses are also too few for the tool to order the arms; it draws that
+line at eight.
+
+**Every loaded burst carried its load**, by §8.1.2's falsifier. Run 1 achieved 19191 to
+19521 kbps and run 2 achieved 16346 to 17849 kbps, against 20000 asked. The frame log's
+ring never overwrote.
+
+**The first attempt showed the falsifier working.** The IoT network had moved from channel
+6 to channel 1 since the calibration pair. Two loaded bursts achieved 1996 and 473 kbps,
+each with more than 70000 sends refused, and the run was stopped after three bursts. Once
+the operator pinned the nearest access point to channel 6, the load held.
+
+**What this confirms.** R-4.4's policy stands: the bridge does not gate LoRa against WiFi,
+and a saturated WiFi transmitter cost it no frames that the idle arm would not also have
+lost. R-4.4c's fallback, antenna separation, is not called for. M22 closes.
+
+**What it cannot show.** Every frame arrived at about −22 dBm, far above the SF9
+sensitivity floor, with SNR steady at +11 dB in both arms. A rise in the noise floor
+smaller than that margin would cost nothing on this bench and could still cost frames at
+87 m. So the bench rules out a gross coexistence failure, not desense near sensitivity.
+
+> **What would reopen M22.** A node's PER at the gate that rises with the bridge's WiFi
+> traffic. R-4.4b's published PER and RSSI/SNR are the check, once GateLink is deployed.
 
 ---
 
@@ -2345,6 +2389,11 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.48** — **V-B12 is met**, and new **§8.1.3** records it. Two interleaved sweeps lost
+  0 of 482 idle frames and 2 of 480 with WiFi saturated, both in the idle arm's signature.
+  M22 closes, and R-4.4's policy stands. §8.1's falsifier, §7's V-B12 row and B4's row
+  say so. The PRD citation moves to v0.14.
+
 - **v0.47** — **New §8.1.2**: the saturated arm's load is a bench-only UDP blaster in the
   `v_b12_blaster` environment, driven over the bridge's serial port, because
   `diag_interval_s`'s 10 s floor cannot load WiFi. §8.1 points to it.
@@ -2384,6 +2433,7 @@ that drifts is the one that gets followed.
 
 | Version | What changed |
 |---|---|
+| **v0.48** | **§8.1.3**: V-B12 is met and M22 closes. WiFi saturated at 16 to 19.5 Mbps cost no measurable PER |
 | **v0.47** | **§8.1.2**: V-B12's saturated arm is loaded by a UDP blaster, not `diag_interval_s` |
 | **v0.46** | **§6.2.2**: BF-34 is confirmed on air |
 | **v0.45** | **§6.2.2**: BF-34 is built. A bench row rolls when first heard, and every simnode role answers a roll |

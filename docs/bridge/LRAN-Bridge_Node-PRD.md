@@ -1,7 +1,7 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.13
+**Version:** 0.14
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -302,6 +302,11 @@ regardless.
 > **What would falsify this.** **M22**: run a sustained MQTT or iperf flood while the
 > bridge receives a known `PING` sequence, and compare PER and RSSI against the WiFi-idle
 > baseline. Tracked in the Decision Register §5.3.
+>
+> **M22 ran on 2026-09-23, and the policy stands.** WiFi saturated at 16 to 19.5 Mbps cost
+> the bridge no measurable LoRa PER at one metre. That bench cannot see desense near
+> sensitivity, so R-4.4b's diagnostics at the gate are the remaining check. Bridge
+> Implementation Plan §8.1.3 has the numbers.
 
 ---
 
@@ -458,7 +463,7 @@ owning node's PRD. The bridge publishes them; it does not define them.
 | **V-B9** | OTA succeeds, and **a deliberately bad image rolls back** | An untested rollback is not a rollback |
 | **V-B10** | Version tolerance: a node announcing N−1 decodes correctly; a node announcing an unsupported version is marked unavailable with a distinct reason | This is what makes an incremental protocol rollout possible instead of a flag day |
 | **V-B11** | Full fleet operation with **no node hardware present**, using simulators and dummy publish | **R-5.4b/c.** If this cannot be done, HA integration is blocked behind a workbench |
-| **V-B12** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone |
+| **V-B12** | **LoRa PER with WiFi idle vs. saturated**, against a known `PING` sequence | **M22.** The evidence for R-4.4's deliberate lack of mutual exclusion. Without it the asymmetry rests on argument alone. **Met 2026-09-23**, Bridge Implementation Plan §8.1.3 |
 
 ### 8.1 V-B1 — what the measurements closed, and what they did not
 
@@ -495,6 +500,10 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 ## 9. Changelog
 
+- **v0.14** — **V-B12 is met, and R-4.4's policy stands.** M22 ran on 2026-09-23: 0 of
+  482 idle frames lost and 2 of 480 with WiFi saturated, both in the idle arm's signature.
+  §4.4's falsifier and §8's V-B12 row record the result. No requirement changes.
+
 - **v0.13** — **Protocol specification v0.12 → v0.13, and new R-3.1h.** A bridge restart
   reused command `seq` values that a surviving node had seen, and **D58** answers it: the
   bridge moves every node onto a new context after its own boot (spec §10.6). R-3.1h
@@ -507,6 +516,8 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 | Version | What changed |
 |---|---|
+| **v0.14** | **V-B12 met**: saturating WiFi cost no measurable LoRa PER, and R-4.4's policy stands |
+| **v0.13** | Spec v0.13 citation; **R-3.1h**, the context roll after a bridge boot (**D58**) |
 | **v0.12** | Spec v0.12 citation; §14 stage 9a, §14.1's pre-authentication rule, §14.2 and §16.2.1 reach the bridge, with no requirement changes |
 | **v0.11** | Spec v0.11 citation; nothing reaches the bridge's requirements |
 | **v0.10** | **R-4.3a.1** — the bridge uses the range test's own 3.0 dBi stick; V-B1's remaining gap is the position |

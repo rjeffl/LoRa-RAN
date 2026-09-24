@@ -53,9 +53,10 @@ enum Priority : uint8_t {
 // The WiFi and lwIP stacks run on core 0 (PRO_CPU) under Arduino-ESP32. lora_task
 // is pinned to core 1 so that a busy network stack cannot delay the one task that
 // must not be delayed - which is the same asymmetry Bridge PRD 4.4 records at the
-// radio level and M22 is the measurement for. If M22 shows LoRa PER degrading with
-// WiFi saturated, this pinning is one of the two levers (the other is antenna
-// separation, PRD 4.4); it is not the fix for a design that publishes inline.
+// radio level and M22 is the measurement for. M22 found no PER cost from saturated
+// WiFi on the bench (Impl Plan 8.1.3). If PER at the gate degrades with WiFi load,
+// this pinning is one of the two levers, and antenna separation (PRD 4.4) is the
+// other. Neither is the fix for a design that publishes inline.
 inline constexpr int kCore0    = 0;
 inline constexpr int kCore1    = 1;
 inline constexpr int kAnyCore  = -1;  // tskNO_AFFINITY at the call site
