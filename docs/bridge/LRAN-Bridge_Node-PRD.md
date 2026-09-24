@@ -1,11 +1,11 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.14
+**Version:** 0.15
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
 **Last updated:** 2026-09-23
 
@@ -500,6 +500,13 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 ## 9. Changelog
 
+- **v0.15** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY
+  change moves the fleet. What the bridge inherits: the PHY group is set on
+  `lran/bridge/config/set` alone, the bridge holds six global PHY rows, it hears every node
+  on the new settings before anyone commits, and it reports a revert on
+  `lran/bridge/event/phy_reverted` (§12.4.1, §16.7.5). No requirement changes; BF-33
+  builds it.
+
 - **v0.14** — **V-B12 is met, and R-4.4's policy stands.** M22 ran on 2026-09-23: 0 of
   482 idle frames lost and 2 of 480 with WiFi saturated, both in the idle arm's signature.
   §4.4's falsifier and §8's V-B12 row record the result. No requirement changes.
@@ -516,6 +523,7 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 | Version | What changed |
 |---|---|
+| **v0.15** | Spec v0.14 citation; D59's PHY fleet mechanism reaches the bridge, with no requirement changes |
 | **v0.14** | **V-B12 met**: saturating WiFi cost no measurable LoRa PER, and R-4.4's policy stands |
 | **v0.13** | Spec v0.13 citation; **R-3.1h**, the context roll after a bridge boot (**D58**) |
 | **v0.12** | Spec v0.12 citation; §14 stage 9a, §14.1's pre-authentication rule, §14.2 and §16.2.1 reach the bridge, with no requirement changes |

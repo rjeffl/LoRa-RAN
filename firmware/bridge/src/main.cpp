@@ -68,7 +68,7 @@ void setup() {
   // the specification's own header without CI saying so - the range test earned that
   // check by shipping "v0.7" in its banner long after the spec had moved.
   Serial.println(F("LRAN Bridge Node - node 0x00"));
-  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.13 (ver = 2)"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.14 (ver = 2)"));
 
   // D1, closed 2026-09-10 (Decision Register 3.4). Printed because a log with no
   // record of the channel is a log that cannot be compared with another one - the

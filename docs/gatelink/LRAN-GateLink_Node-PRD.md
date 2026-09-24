@@ -1,11 +1,11 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.9
+**Version:** 0.10
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
 **Last updated:** 2026-09-23
 
@@ -644,7 +644,11 @@ steel gate-controller enclosure  (outdoors, at the gate)
   change only through Protocol Spec §12.4's commit-and-revert: the old settings are
   persisted before the radio is retuned, confirmation is a frame received on the new
   settings, and both ends revert on silence. Protocol Library Plan §4 declares the six
-  rows, `READ_ONLY` until that path is built.
+  rows, `READ_ONLY` until that path is built. **D59** adds three points for this node
+  (spec §12.4.2). A PHY change arrives only as a fleet operation from the bridge's topic.
+  **Without a usable microSD, GateLink refuses the PHY group** with `READ_ONLY`, because a
+  committed change it cannot persist would be lost at the next reboot. A revert is
+  reported with `EVENT` `PHY_REVERTED`.
 - **Node ID and schema versions**, which are contractual.
 
 ### 5.4 Debug and bench tooling requirements
@@ -962,6 +966,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.10** — **Protocol specification v0.13 → v0.14.** §5.3.1 gains D59's three points
+  for GateLink: PHY changes arrive only as a fleet operation, a node without a usable
+  microSD refuses them, and a revert is reported with `EVENT` `PHY_REVERTED` (spec §8.9,
+  §12.4.2). Spec **W17** stays open until after GateLink deploys, by operator decision.
 
 - **v0.9** — **Protocol specification v0.12 → v0.13.** **§5.3.1 no longer lists the PHY
   parameters as not runtime-configurable**: **D56** allows a change through spec §12.4's

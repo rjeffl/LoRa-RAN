@@ -2638,3 +2638,17 @@ confirming `GET` reverts after the bridge has committed.
 **Found in passing**: spec §12.4 cited a §12.1a that has never existed, corrected in the
 draft. The simnode's `apply_config` still says a large `GET_ALL` has no specified split,
 which D57 overtook; that line is under the handoff's *Open*.
+
+## 2026-09-24 — D59 accepted, and the specification moves to v0.14
+
+**The operator accepted D59 as drafted**, and put W17 after GateLink's deployment. The
+specification's header moved to v0.14 the same day. The citation sweep moved 26 binding
+citations, each document reconciled with v0.14 first. The System PRD's version column had
+fallen behind in six rows unrelated to v0.14, and the sweep brought them level.
+
+**W4 gained one vector**, `event_phy_reverted`, for 78 in all. The 77 vectors committed
+before it kept their bytes, compared field by field against a copy taken before
+regeneration. The codec's `EventType` gained `PhyReverted`, and that forced two switches
+to name it: the bridge's `event_type_name()`, which `-Wswitch` would otherwise fail, and
+the simnode's console table. The native suites pass: 135 in `lran-protocol`, 17 in the
+bridge's `test_events` with one new case, and 115 in the simnode.

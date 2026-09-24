@@ -6,7 +6,7 @@ specific to the bridge.
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.14 (requirements,
 `R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.52
 (build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.40 (**the `BF-*` task order**).
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.14** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only. **The antenna is decided and is not a choice to revisit here:** the same 3.0 dBi
@@ -357,7 +357,9 @@ log. Never commit, echo or log the real values.
 - **PHY parameters ARE runtime-configurable since spec v0.13** (**D56**, §12.4), and the
   six rows are in `/lib/lran-config/`'s table — `READ_ONLY` until **BF-33** builds
   §12.4's commit-and-revert, so Home Assistant can read the working point before it can
-  change it. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  change it. **Spec v0.14's D59 makes a change a fleet operation**, set on
+  `lran/bridge/config/set` alone, and no node commits until the bridge has heard every
+  node on the new settings (§12.4.1). The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
   HA-visible config set is correct for before v0.13**; the hazard it named is real and is
   what the revert window exists for — a node that boots on the wrong channel is a walk to

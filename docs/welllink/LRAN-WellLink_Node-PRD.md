@@ -1,11 +1,11 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.9
+**Version:** 0.10
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.13**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Last updated:** 2026-09-23
 
 > **This document exists to hold ground, not to specify a node.** It records what is
@@ -228,6 +228,13 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.10** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.13 → v0.14**. What reaches this node when it is designed: a PHY change arrives from
+  the bridge as one `CONFIG` carrying the whole PHY group, and a node without a usable
+  nonvolatile store refuses it with `READ_ONLY` (§12.4.2). A node reports a revert with
+  `EVENT` `PHY_REVERTED`, and **this node has no event schema yet**, so it would report
+  nothing and the bridge's own record would reach Home Assistant instead.
 
 - **v0.9** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.12 → v0.13**. What reaches this node when it is designed: the configuration
