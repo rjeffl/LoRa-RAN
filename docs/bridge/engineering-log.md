@@ -2382,3 +2382,41 @@ on `home-assistant/core`'s `dev` branch on 2026-09-23, not tried against an HA i
 **`republish_interval_s` has left GateLink's count.** Library Plan §4 listed it among
 GateLink's unnamed rows. It is now the bridge's row, because spec §16.4 makes publication
 the bridge's. GateLink's implied rows fall from six to five, about 204 bytes of 193.
+
+---
+
+## 2026-09-23 — BF-25 built: events publish once, and two gaps in what the documents assumed
+
+**BF-25 is built and host-tested; nothing has gone on air.** `PublicationPolicy::on_event()`
+publishes each `EVENT` to `lran/<node>/event/<name>` with retain clear, once. Impl Plan
+§6.3.2 records the topic, the keys and the choices. `test_events` has 15 cases, and the
+native suite passed 375 of 375. The `heltec` image builds at 51.8 % RAM, up from 51.1 %.
+
+**Spec §7.3's deduplication rule would drop every follow-up.** It says the bridge suppresses
+an `(src, ctx_id, event_id)` triple it has already published. The paragraph after it has a
+follow-up carry its first edge's `event_id` with `event_flags` bit 0 set. Read together, the
+literal rule withholds every follow-up, so the direction a classification resolves never
+reaches HA. The operator chose to add the follow-up bit to the key. The first edge and its
+follow-up now publish once each, and a retransmission of either is withheld. The wording is
+under the handoff's *Open* for the next spec revision.
+
+**PubSubClient 2.8 cannot publish at QoS 1.** Its `publish()` takes no QoS argument, and
+every publication from this bridge has gone at QoS 0 since BF-12. `PublishMessage` carried
+a `qos` field that nothing read. Spec §16.3 requires QoS 1 for events. The operator chose to
+tag events QoS 1, have `make_publish()` refuse an event asked for at QoS 0, and record the
+transport's limit rather than change libraries in this branch. D5 names espMqttClient as
+the fallback.
+
+**A failed publish lost the message, and for an event nothing would replace it.** Impl Plan
+§4.3.1 accepted the loss for state, because the node's next frame republishes. An event is
+recorded as published when it is queued, so a retransmission would be withheld as a repeat.
+`drain_publish_queue()` now holds a failed event and tries it first on the next pass. The
+pass stops at the failure, so newer state cannot overtake it. This is target code and has no
+host test. It covers the failure the bridge can see, which is most of what QoS 1 would add.
+
+**What this leaves.** V-B8 has not been run: no bench node can send an `EVENT`, because spec
+§16.6 keeps a simnode's events off every topic. GateLink at B6, or an event mode in BF-27's
+dummy publish, would run it. While the broker is down, the publish queue fills with state
+and refuses the newest message, so an event raised during a long outage is lost. That is
+§5.2.1's per-class question, and it is under *Open*.
+

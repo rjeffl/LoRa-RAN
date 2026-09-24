@@ -477,7 +477,7 @@ void test_every_state_entity_reads_a_key_the_policy_writes() {
     char   topics[8][kMaxTopicLen];
     char   docs[8][kMaxPayloadLen];
     size_t n = 0;
-    bool emit(const char* t, const char* p, bool) override {
+    bool emit(const char* t, const char* p, bool, uint8_t) override {
       std::snprintf(topics[n], sizeof(topics[n]), "%s", t);
       std::snprintf(docs[n], sizeof(docs[n]), "%s", p);
       ++n;

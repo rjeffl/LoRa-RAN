@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// The publication policy. Task BF-24; see publish.h.
+// The publication policy. Tasks BF-24 and BF-25; see publish.h.
 
 #include "publish.h"
 
@@ -9,6 +9,7 @@
 #include <cstring>
 
 #include "json_writer.h"
+#include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/schema/node_health_v1.h"
 #include "net_policy.h"
@@ -130,6 +131,25 @@ const char* status_reason_name(uint8_t v) {
   return nullptr;
 }
 
+// Spec 8.9's names, lowercased as the others are. Each is also its event's topic leaf, so
+// HA can route FIRE_ASSERTED on a topic of its own (spec 8.9). Null for a value the table
+// does not list, which on_event() sends to `event/unknown`.
+const char* event_type_name(uint8_t v) {
+  switch (static_cast<lran::EventType>(v)) {
+    case lran::EventType::VehicleWhileHeldOpen: return "vehicle_while_held_open";
+    case lran::EventType::FireAsserted:         return "fire_asserted";
+    case lran::EventType::HardShutdown:         return "hard_shutdown";
+    case lran::EventType::VehicleDetected:      return "vehicle_detected";
+    case lran::EventType::GateStateChange:      return "gate_state_change";
+    case lran::EventType::HoldStateChange:      return "hold_state_change";
+    case lran::EventType::BmsAlarm:             return "bms_alarm";
+    case lran::EventType::MpptError:            return "mppt_error";
+    case lran::EventType::ChargeInhibited:      return "charge_inhibited";
+    case lran::EventType::Boot:                 return "boot";
+  }
+  return nullptr;
+}
+
 // spec 7.2.7 bits 7:6.
 const char* soc_source_name(uint8_t bms_flags) {
   switch (bms_flags >> 6) {
@@ -241,6 +261,9 @@ size_t publish_stats_json(const PublishStats& s, char* out, size_t cap) {
   j.u32("documents", s.documents);
   j.u32("unchanged", s.unchanged);
   j.u32("heartbeats", s.heartbeats);
+  j.u32("event_frames", s.event_frames);
+  j.u32("events", s.events);
+  j.u32("event_repeats", s.event_repeats);
   j.u32("bench_withheld", s.bench_withheld);
   j.u32("queue_refused", s.queue_refused);
   j.u32("undecodable", s.undecodable);
@@ -271,7 +294,7 @@ void PublicationPolicy::offer(size_t ni, Domain d, const char* node_token, size_
 
   char topic[kMaxTopicLen];
   if (topic_domain_state(node_token, domain_path(d), topic, sizeof(topic)) == 0) return;
-  if (!sink.emit(topic, doc_, true)) {
+  if (!sink.emit(topic, doc_, /*retain=*/true, /*qos=*/0)) {
     ++stats_.queue_refused;
     return;
   }
@@ -280,6 +303,78 @@ void PublicationPolicy::offer(size_t ni, Domain d, const char* node_token, size_
   slot.valid = true;
   slot.hash  = h;
   slot.at_ms = now_ms;
+}
+
+void PublicationPolicy::on_event(const NodeInfo& info, const lran::Header& hdr,
+                                 const uint8_t* payload, size_t payload_len,
+                                 PublishSink& sink) {
+  if (hdr.type != lran::MsgType::Event) return;
+  ++stats_.event_frames;
+
+  const size_t ni = node_index(info.id);
+  char         token[16];
+  if (ni >= kNodeCount || node_topic_name(info.id, token, sizeof(token)) == 0) {
+    ++stats_.undecodable;
+    return;
+  }
+  // 0x11 is the one event schema defined; 0x21 is reserved (spec 7.1).
+  lran::schema::GateLinkEventV1 e;
+  if (hdr.schema != lran::kSchemaGateLinkEventV1 ||
+      lran::schema::deserialize(payload, payload_len, &e) != lran::Status::Ok) {
+    ++stats_.undecodable;
+    return;
+  }
+  // Spec 16.6 axis 1, as for a STATUS. make_publish() refuses `lran/simnode<N>/event/` too.
+  if (info.is_bench) {
+    ++stats_.bench_withheld;
+    return;
+  }
+
+  // Root rule 5 - bits 7:1 of event_flags are reserved and ignored.
+  const bool follow_up = (e.event_flags & lran::schema::kEventFlagFollowUp) != 0;
+  for (const Seen& seen : seen_[ni]) {
+    if (seen.valid && seen.ctx_id == hdr.ctx_id && seen.event_id == e.event_id &&
+        seen.follow_up == follow_up) {
+      ++stats_.event_repeats;  // spec 7.3 - a retransmission after a CAD backoff
+      return;
+    }
+  }
+
+  // HA deduplicates on event_id within a ctx_id (spec 16.3), and event_id restarts with
+  // each boot, so the document carries both.
+  const char* name = event_type_name(e.event_type);
+  JsonObject  j(doc_, sizeof(doc_));
+  j.u32("event_id", e.event_id);
+  j.u32("ctx_id", hdr.ctx_id);
+  str_or_null(j, "event_type", name);
+  j.u32("event_code", e.event_type);  // the raw value, for a type this bridge cannot name
+  j.boolean("follow_up", follow_up);
+  str_or_null(j, "hold_source", hold_source_name(e.hold_source));
+  str_or_null(j, "direction", direction_name(e.direction));
+  str_or_null(j, "gate_state", gate_state_name(e.gate_state));
+  j.u32("input_bits", e.input_bits);
+  j.u32("detail", e.detail);  // spec 7.3 - event-specific, passed through
+  j.u32("uptime_s", e.uptime_s);
+  const size_t len = j.finish();
+
+  char topic[kMaxTopicLen];
+  if (len == 0 ||
+      topic_event(token, name != nullptr ? name : "unknown", topic, sizeof(topic)) == 0) {
+    ++stats_.undecodable;
+    return;
+  }
+  if (!sink.emit(topic, doc_, /*retain=*/false, /*qos=*/1)) {
+    // Not remembered, so a retransmission of this event can still get through.
+    ++stats_.queue_refused;
+    return;
+  }
+  ++stats_.events;
+  Seen& slot     = seen_[ni][seen_next_[ni]];
+  slot.valid     = true;
+  slot.follow_up = follow_up;
+  slot.ctx_id    = hdr.ctx_id;
+  slot.event_id  = e.event_id;
+  seen_next_[ni] = static_cast<uint8_t>((seen_next_[ni] + 1) % kEventMemory);
 }
 
 void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,

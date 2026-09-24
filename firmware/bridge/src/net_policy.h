@@ -158,6 +158,10 @@ size_t topic_config(const char* node, const char* leaf, char* out, size_t cap);
 // length written, or 0.
 size_t topic_domain_state(const char* node, const char* domain, char* out, size_t cap);
 
+// `lran/<node>/event/<name>` for one of BF-25's events (spec 16.2). `name` is spec 8.9's
+// name in lower case, or `unknown`. Returns the length written, or 0.
+size_t topic_event(const char* node, const char* name, char* out, size_t cap);
+
 // ---------------------------------------------------------------------------
 // The retain rule, enforced where every publication passes rather than trusted.
 //

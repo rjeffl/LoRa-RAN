@@ -46,13 +46,14 @@ struct Recorder final : PublishSink {
   size_t n       = 0;
   bool   refuse  = false;
 
-  bool emit(const char* topic, const char* payload, bool retain) override {
+  bool emit(const char* topic, const char* payload, bool retain, uint8_t qos) override {
     TEST_ASSERT_TRUE(retain);  // spec 16.2 - every <domain>/state is retained
+    TEST_ASSERT_EQUAL_UINT8(0, qos);
     if (refuse) return false;
     // The sink app_task uses goes through make_publish(), so the tests do too: a document
     // it would refuse must fail here rather than at the broker.
     PublishMessage m;
-    TEST_ASSERT_TRUE_MESSAGE(make_publish(&m, topic, payload, retain, 0), topic);
+    TEST_ASSERT_TRUE_MESSAGE(make_publish(&m, topic, payload, retain, qos), topic);
     TEST_ASSERT_TRUE(n < 16);
     std::snprintf(items[n].topic, sizeof(items[n].topic), "%s", topic);
     std::snprintf(items[n].payload, sizeof(items[n].payload), "%s", payload);

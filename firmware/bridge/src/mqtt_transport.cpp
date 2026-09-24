@@ -31,6 +31,11 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
   if (!retain_is_permitted(topic, retain)) {
     return false;
   }
+  // spec 16.3 - and at QoS 1. Refused rather than raised, for the reason the retain rule
+  // is: a caller asking for QoS 0 on an event believes something untrue about it.
+  if (is_event_topic(topic) && qos != 1) {
+    return false;
+  }
   // spec 16.6 axis 1 - a bench node never reaches a production domain or an event.
   if (bench_topic_forbidden(topic)) {
     return false;

@@ -396,7 +396,7 @@ espMqttClient is the designated fallback.
 
 Publish on change for jittery values; staleness and sentinels map to `unavailable`, never
 to a cached number; synthetic data stays marked; **events are never retained**, QoS 1,
-deduplicated on `(src, ctx_id, event_id)`. Held-open and FIRE events drive email and SMS —
+deduplicated on `(src, ctx_id, event_id)` and the follow-up bit (Impl Plan §6.3.2). Held-open and FIRE events drive email and SMS —
 a retained event replays on HA restart and produces a 2 AM notification about something
 that happened last week.
 

@@ -89,6 +89,20 @@ size_t topic_domain_state(const char* node, const char* domain, char* out, size_
   return static_cast<size_t>(n);
 }
 
+size_t topic_event(const char* node, const char* name, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || name == nullptr || name[0] == '\0') {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = std::snprintf(out, cap, "lran/%s/event/%s", node, name);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 size_t node_topic_name(uint8_t node_id, char* out, size_t cap) {
   // spec 5.3's addresses, spec 16.1's tokens. The bench token counts from 0xF0.
   static const char* const kBench[] = {"simnode0", "simnode1", "simnode2", "simnode3"};

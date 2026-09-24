@@ -107,6 +107,11 @@ bool PubSubTransport::publish(const PublishMessage& msg) {
   if (!retain_is_permitted(msg.topic, msg.retain)) {
     return false;
   }
+  // msg.qos IS NOT HONOURED. PubSubClient 2.8 publishes at QoS 0 only, so an event leaves
+  // at QoS 0 although spec 16.3 requires QoS 1 and make_publish() has checked the request.
+  // Over TCP to a LAN broker, QoS 0 loses a message only when the connection drops during
+  // the publish. D5's designated fallback, espMqttClient, publishes at QoS 1; the move is
+  // recorded under the bridge handoff's Open (BF-25).
   return client_.publish(msg.topic, reinterpret_cast<const uint8_t*>(msg.payload),
                          msg.payload_len, msg.retain);
 }

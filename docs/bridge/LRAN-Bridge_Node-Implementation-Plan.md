@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.50
+**Version:** 0.51
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -520,8 +520,8 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
   flag silently leaves a caller believing something untrue.
 - **Nothing is truncated.** An oversized topic or payload is refused and counted.
 - **A failed publish loses that message**, counted, and leaves the rest queued.
-  Re-queueing would reorder it behind newer state for the same entity. **BF-25 owns
-  events**, where the answer differs.
+  Re-queueing would reorder it behind newer state for the same entity. **An event is held
+  and retried instead** (§6.3.2).
 
 #### 4.3.2 What BF-19 publishes, 2026-09-14
 
@@ -1079,7 +1079,7 @@ Implemented in `publish.cpp`, applied uniformly across node types:
 | **Staleness → unavailable** | On a node's staleness flag or an age exceeding threshold, publish `unavailable` to the affected entities. **Never republish the cached value** |
 | **Sentinels are not numbers** | `INT16_MIN` / `UINT16_MAX` map to `unavailable`, not to a reading |
 | **Synthetic stays marked** | A debug-synthetic status reason propagates into the published payload |
-| **Events never retained** | Retain flag clear, QoS 1, deduplicated on `(src, ctx_id, event_id)` |
+| **Events never retained** | Retain flag clear, QoS 1, deduplicated on `(src, ctx_id, event_id)` and the follow-up bit (§6.3.2) |
 | **Periodic heartbeat** | An unchanged value is republished at most every `republish_interval_s` (default 900), so an HA restart repopulates rather than showing blanks until the next change |
 
 > The heartbeat is the counterweight to publish-on-change: without it, a value that has
@@ -1138,6 +1138,54 @@ copied the struct field for field.
 **What is not done.** Events are **BF-25**. B4's criterion asks for §6.3 "demonstrated",
 and these rules are host-tested only: nothing on the bench sends a production schema,
 because a simnode is a bench node, and BF-27's dummy publish is not built.
+
+#### 6.3.2 What BF-25 built, 2026-09-23
+
+**`PublicationPolicy::on_event()` publishes each `EVENT` once, with retain clear, at QoS 1.**
+It sits in `publish.cpp` beside BF-24's documents and shares their enumeration names and
+counters. `test_events` carries it on the host. No node on the bench sends an `EVENT`: a
+simnode is a bench node, and spec §16.6 keeps its events off every topic. So V-B8 as written,
+an HA restart and a discovery refresh with an event in history, has not been run.
+
+**The topic is `lran/<node>/event/<name>`**, where `<name>` is spec §8.9's name in lower case:
+`fire_asserted`, `vehicle_while_held_open` and the rest. Each type gets a topic of its own,
+which is what §8.9 asks for FIRE. The payload is a JSON object, and HA automations read its
+keys, so these keys are frozen:
+
+| Key | Value |
+|---|---|
+| `event_id`, `ctx_id` | Spec §7.3's key. `event_id` restarts with each boot, so HA needs both to recognise a repeat |
+| `event_type` | §8.9's name, or `null` for a value the table does not list |
+| `event_code` | The raw `event_type`, so an unnamed type still says what it was |
+| `follow_up` | `event_flags` bit 0 |
+| `hold_source`, `direction`, `gate_state` | §8's names, `null` when unlisted, as in §6.3.1 |
+| `input_bits`, `detail`, `uptime_s` | Passed through. `detail` is event-specific (§7.3) |
+
+| Choice | Why |
+|---|---|
+| **The deduplication key is `(src, ctx_id, event_id, follow-up bit)`**, one more element than spec §7.3's triple. Chosen with the operator | §7.3 has a follow-up reuse its first edge's `event_id`, so the triple alone withholds every follow-up and the classified direction never reaches HA. The first edge and its follow-up are each published once. The wording goes to the next spec revision |
+| **The bridge remembers the last 16 events per node**, in a ring | A retransmission follows its original by one CAD backoff, at most `backoff_max_ms`. Nothing makes it arrive before the node's next event, so a high-water mark could withhold a first transmission that was lost |
+| **An unlisted `event_type` goes to `event/unknown`**, not dropped | A newer node's event may be an alert |
+| **A refused event is not remembered** | The node's retransmission of it, if one comes, then gets through. Counted as `queue_refused` |
+| **A broker connect forgets the documents, not the events** | None was retained. Forgetting them would let a late retransmission publish a second time |
+| **`make_publish()` refuses an event topic asked for at QoS 0**, as it refuses a retained one | The two halves of spec §16.3's rule are checked in the same place |
+| **A failed publish holds an event and retries it first** (`drain_publish_queue()`) | State is lost on a failed publish and the next frame replaces it. An event has no replacement, because the policy has already recorded it as published |
+| **A bench node's event is decoded, counted as `bench_withheld` and never published** | Spec §16.6, as for its `STATUS` |
+
+**PubSubClient 2.8 publishes at QoS 0, whatever the message asks.** Spec §16.3 requires QoS 1.
+The message carries `qos = 1` and `make_publish()` checks it, but the transport ignores it.
+Over TCP to a LAN broker, QoS 0 loses a message only when the connection drops during the
+publish, and the held-event retry above covers the failure the bridge can see. D5's
+designated fallback, espMqttClient, publishes at QoS 1. The move is a separate branch.
+
+**`lran/bridge/diag/publish/state` gains three counts**: `event_frames`, `events` and
+`event_repeats`. `bench_withheld`, `queue_refused` and `undecodable` now count both kinds of
+frame.
+
+**Discovery has no event entities.** An HA automation triggers on the MQTT topic itself, and
+spec §16.3 makes the event topic the automation trigger. A dashboard's view of an event is
+the retained binary sensor in `<domain>/state` that §16.3 describes, such as `detect`'s
+`vehicle_while_held`.
 
 ### 6.4 HEX proxy and write arming
 
@@ -2466,6 +2514,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.51** — **New §6.3.2**: BF-25 built and host-tested. An `EVENT` goes to
+  `lran/<node>/event/<name>` once, with retain clear, deduplicated on spec §7.3's triple
+  plus the follow-up bit. A failed publish holds an event for retry. §6.3.2 records that
+  PubSubClient publishes at QoS 0 only. §4.3.1 and §6.3's table follow.
 
 - **v0.50** — **New §6.3.1**: BF-24 built and host-tested. Schema `0x10` becomes five
   retained documents and `0xF0` a sixth, with a stale block published as unavailable and

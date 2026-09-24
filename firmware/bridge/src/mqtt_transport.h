@@ -61,8 +61,9 @@ struct PublishMessage {
 };
 
 // Fills `out` from C strings, refusing rather than truncating. False also when the
-// retain flag would violate spec 16.3 (`lran/<node>/event/` is never retained) -
-// see net_policy.h for why that check lives on the path rather than in a comment.
+// retain flag or the QoS would violate spec 16.3 (`lran/<node>/event/` is never retained,
+// and is QoS 1) - see net_policy.h for why that check lives on the path rather than in a
+// comment.
 bool make_publish(PublishMessage* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos);
 
