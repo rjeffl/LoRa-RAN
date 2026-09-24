@@ -4,7 +4,7 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.14 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.50
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.51
 (build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.39 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.13** (`ver = 2`).
 
@@ -237,6 +237,18 @@ them; Impl Plan §6.3.1. **Four things to keep:**
   set, and `make_publish()` refuses a bench production topic as a second check
   (`bench_topic_forbidden()`).
 
+**`BF-25` — event republication, built and host-tested 2026-09-23; no event on air yet.**
+`PublicationPolicy::on_event()` in `publish.cpp` publishes each `EVENT` once to
+`lran/<node>/event/<name>`; Impl Plan §6.3.2. **Three things to keep:**
+
+- **The deduplication key includes `event_flags` bit 0.** Spec §7.3's triple alone
+  withholds every follow-up, because a follow-up reuses its first edge's `event_id`.
+- **Nothing republishes an event.** `forget_published()` forgets documents, not events,
+  and an event is remembered only once the sink has accepted it.
+- **`msg.qos` is not honoured on the wire.** PubSubClient 2.8 publishes at QoS 0, so
+  `drain_publish_queue()` holds a failed event and retries it first. espMqttClient is the
+  fix.
+
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
 doubling it after a crash.
@@ -280,8 +292,8 @@ nothing and `loop()` is unchanged.
 ## Two network rules that are enforced, not remembered
 
 - **Event topics are never retained** (spec §16.3). `make_publish()` refuses a retained
-  publication on `lran/<node>/event/`, and the transport refuses it again before the
-  wire. **Refused, not silently corrected** — a caller that set the flag believes
+  publication on `lran/<node>/event/`, or one asked for at QoS 0, and the transport refuses
+  a retained one again before the wire. **Refused, not silently corrected** — a caller that set the flag believes
   something untrue. These events drive email and SMS; a retained one replays on every HA
   restart.
 - **Nothing is truncated.** An oversized topic or payload is refused and counted.
