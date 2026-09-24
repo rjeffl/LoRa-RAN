@@ -31,9 +31,10 @@ Task identifiers are **`BF-*`**, a new family alongside `R-*`, `BG-*`, `BS-*`, `
 5. [B2 — bridge board bring-up and OTA](#5-b2--bridge-board-bring-up-and-ota)
 6. [B3 — protocol and registry](#6-b3--protocol-and-registry)
 7. [B4 — MQTT, discovery and publication policy](#7-b4--mqtt-discovery-and-publication-policy)
-8. [B5–B7 — HEX proxy, integration, soak](#8-b5b7--hex-proxy-integration-soak)
-9. [Delegating a task safely](#9-delegating-a-task-safely)
-10. [Changelog](#10-changelog)
+8. [B4b — PHY commit-and-revert](#8-b4b--phy-commit-and-revert)
+9. [B5–B7 — HEX proxy, integration, soak](#9-b5b7--hex-proxy-integration-soak)
+10. [Delegating a task safely](#10-delegating-a-task-safely)
+11. [Changelog](#11-changelog)
 
 ---
 
@@ -241,12 +242,9 @@ UDP blaster saturated the bridge's WiFi, not `g_diag_interval_s`, whose 10 s flo
 not (Impl Plan §8.1.2). The loaded arm lost no more than the idle one, and Impl Plan §8.1.3
 has the numbers.
 
-**B4 was tallied on 2026-09-24**, in Impl Plan §8.2. Six of its eight criteria are met,
-V-B4 among them. The other two wait on operator decisions.
-
-**BF-33 may not belong in B4.** It is here because it consumes BF-32's table and nothing
-else is closer, but spec §12.4's commit-and-revert is radio work with a bench cost of its
-own. Moving it to its own milestone is the operator's call.
+**B4 was accepted on 2026-09-24**, on Impl Plan §8.2's tally. BF-27's bridge-side
+simulators and packet loopback are unbuilt, and they did not gate it. **BF-33 moved to B4b**
+(§8) the same day, with the operator.
 
 **BF-32 is the configuration path that BF-23's lever half and BF-26 both wait on.** It
 was added on 2026-09-19, when the operator chose the general `config/set` route (**D43**)
@@ -260,13 +258,26 @@ reduce to *"this value reads the table"*.
 | **BF-25** | Event republication — non-retained, dedup on `(src, ctx_id, event_id)` (§6.3, **V-B8**). **Built and host-tested 2026-09-23**, Impl Plan §6.3.2: one topic per spec §8.9 type, the follow-up bit added to the key with the operator, a ring of 16 events per node, and a failed publish that holds an event for retry. **V-B8 passed in HA on 2026-09-24** on synthetic events from BF-27's dummy publish (Impl Plan §6.6.2). PubSubClient still publishes at QoS 0 only | **Opus** | These drive email and SMS. A retained event replays on every HA restart and discovery refresh, and the failure is a phone buzzing at 3 AM about a gate that opened last week |
 | **BF-26** | Bench publication gate — `simnode_diag_enable` (§4.2a). **Deferred 2026-09-14** with the operator, and **unblocked 2026-09-19 by BF-32**, which built `/lib/lran-config/`, the MQTT receive path and the `config/set` payload. **Built and confirmed on air 2026-09-23**, Impl Plan §4.2a.1. The flag rides BF-23's lever board to the gates for bench availability and diagnostics, and `mqtt_task` restarts discovery when it is switched on. Clearing it publishes one `offline` per bench node the bridge has heard, and every bench entity is diagnostic. The serial `diag on\|off` fallback was never needed | **Sonnet** | The table in §4.2a is the implementation. One rule carries the weight and is stated: **gate on publication, never on reception** |
 | **BF-32** | **`/lib/lran-config/` and the `config/*` path** — the table (Library Plan §4, D44, D46, D47), NVS persistence (D49), the `config/set` subscriber, the split between bridge-held and node-held halves, and `config/ack` and `config/state` publication (spec §16.7), and the reassembly of a readback split across several `CONFIG_ACK` messages (spec §7.4.1, **D57**). **Added 2026-09-19. BUILT AND CONFIRMED ON AIR 2026-09-21**, Impl Plan §6.7: the library half, the bridge's stores over NVS, the `config/set` subscriber, the owner split, the node half's CONFIG and split readback, and `config/ack` and `config/state`. The bench found three defects the host tests could not — a simnode answering a solicited `CONFIG_ACK` under its status `seq`, a `sched_task` stack overflow, and a set's ACK blanking rows it did not name — all fixed; engineering log, 2026-09-21 | **Opus** | Every name in the table becomes a permanent HA `object_id`, so the operator reviews Library Plan §4's names and ranges before this codes them. **The `unknown` outcome is the path that gets skipped**: a `CONFIG` with no `CONFIG_ACK` must publish `unknown`, request a readback and publish again, never report failure or retry the write (spec §7.4). The library half is host-tested in `native`, like `/lib/lran-link/`. **The split readback has two traps of its own**: the bridge must accept more than one `CONFIG_ACK` for a single `seq`, and it must publish `config/state` only once the answer completes |
-| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19.** Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
 | **BF-34** | **Context roll after a bridge restart** — spec §10.6 (**D58**, Bridge PRD **R-3.1h**). Bridge: a `POLL` to every registered node at boot, `ROLL_CONTEXT` when each node is first heard, a retry on `ACTUATOR_BUSY`, a failed roll kept pending, and no `COMMAND` or `CONFIG` until the roll completes. A refusal names the roll on `cmd/ack`, and on `config/ack` as `context_roll_pending`. The bridge counts `ctx_rolls` and `ctx_roll_failed`. Simnode `ROLE_GATELINK`: refuse a roll while a command is in flight; otherwise take a new `ctx_id` and reset both sequence spaces. **Added 2026-09-23. Built and host-tested 2026-09-23, and confirmed on air the same day** — `context_roll.{h,cpp}`, Impl Plan §6.2.2. Two points were decided with the operator the same day: a bench row rolls when first heard rather than after a boot `POLL`, and every simnode role answers a roll | **Opus** | Root rule 2 from the other side: a `seq` the node already cached is a command that is acknowledged and never runs. The roll's own retry reuses its `seq`, and a failed roll stays pending rather than falling back to commanding a node whose context is stale |
 | **BF-27** | Debug tooling — dummy publish, bridge-side simulators, raw frame log (§6.6). **The raw frame log is built, 2026-09-17** (Impl Plan §6.6.1), pulled ahead of the rest for the receive path's 1 s knee. **The dummy publish is built and run on air, 2026-09-23** (Impl Plan §6.6.2): a serial console line under GateLink's address, marked synthetic, through the real policy. The bridge-side simulators and packet loopback are untouched and block nothing | **Sonnet** | Specified per tool. One constraint to respect: the bridge-side simulator and `simnode` **must not share a generator**. The log deviates from §16.2's retention rule and the deviation is **raised against the specification**, not settled in the firmware |
 
 ---
 
-## 8. B5–B7 — HEX proxy, integration, soak
+## 8. B4b — PHY commit-and-revert
+
+**B4b was split from B4 on 2026-09-24**, with the operator. Spec §12.4's commit-and-revert
+is radio work with a bench cost of its own, and B4's criteria name none of it. It depends on
+B3b and on BF-32's configuration path, and it precedes B6: GateLink has no OTA, so it must
+deploy with its half of §12.4, and this bridge half is what tests that half first. Impl Plan
+§8 has the criteria.
+
+| # | Task | Model | Why |
+|---|---|---|---|
+| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19**, and **moved from B4 to B4b on 2026-09-24**. Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
+
+---
+
+## 9. B5–B7 — HEX proxy, integration, soak
 
 | # | Task | Model | Why |
 |---|---|---|---|
@@ -274,10 +285,11 @@ reduce to *"this value reads the table"*.
 | **BF-29** | **Write authorization** — arm, auto-expiry, refusal while disarmed, the three gates (§3.5b, **BS-2**) | **Opus** | *"The failure mode is battery damage, and it is invisible until it is not."* Three gates are only three gates if each is independently enforced and independently tested (**V-B6**) |
 | **BF-30** | Register semantics for charge-parameter readback as diagnostic sensors (R-3.5d) | **Opus** | Getting a register wrong under LiFePO4 is a battery-damage path, and this is the most change-prone part of the interface. Do **not** model 100+ registers as entities (R-3.5e) |
 | **BF-31** | **B6** GateLink integration, **B7** soak | **Opus** | Cross-node triage against real hardware. The work is mostly the operator's; the model's job is reading a symptom across the bridge, the node, the RF path and HA at once |
+| **BF-35** | **HA controls for the configuration table** — `number`, `switch` and `select` discovery generated from `/lib/lran-config/`'s table (**D44**), for the bridge's rows and each node's. Bridge PRD §6.2 lists a per-node poll interval `number`, and `simnode_diag_enable` would become a bridge `switch`. **Added 2026-09-24** with the operator, out of B4's tally (Impl Plan §8.2). Nothing is built, and no milestone gates on it yet | **Sonnet** | D44 makes the table the one source, so a control written by hand drifts from the range the bridge enforces. Every name becomes a permanent HA `object_id`, as BF-32's did. The PHY rows answer `READ_ONLY` until BF-33, so a control for them must not offer a write |
 
 ---
 
-## 9. Delegating a task safely
+## 10. Delegating a task safely
 
 A subagent starts cold. It has none of this conversation and none of the reasoning above,
 so a task handed over needs to carry its own context.
@@ -303,9 +315,11 @@ only against the bridge, a cached value republished as current.
 
 ---
 
-## 10. Changelog
+## 11. Changelog
 
-- **v0.41** — **B4 is tallied** in Impl Plan §8.2, and §7 says where. BF-26's row loses a
+- **v0.41** — **B4 is accepted**, on Impl Plan §8.2's tally. **New §8, B4b**, takes BF-33,
+  and the sections after it renumber. **BF-35 added**: HA controls for the configuration
+  table, which B4's tally found unbuilt and unowned. BF-26's row loses a
   stale fragment that split it into an extra column. The Impl Plan citation moves from
   v0.52 to v0.53.
 
