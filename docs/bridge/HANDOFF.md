@@ -1,10 +1,11 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-24 by the session that tallied B4.** **B4 is accepted**, on Impl Plan
-**§8.2**'s tally. V-B4 passed on a broker restart that session. The operator met V-B11 on
-GateLink's dummy publish and the bench gate on `config/set`. BF-33 moved to a milestone of
-its own, **B4b**, which precedes B6. **B4b is next.** The engineering log's last two
-entries have the session's runs.
+**Written 2026-09-24 by the session that opened B4b.** **B4b's build has not started.**
+Reading spec §12.4 before any code showed that it leaves the fleet mechanism open. One gap
+alone would revert every node on a link that works. The session drafted **spec v0.14's
+§12.4.1 to §12.4.4** and proposed **D59** (Decision Register §2.4), with the
+operator's direction. **The operator's acceptance of D59
+is next**, then BF-33.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,13 +20,15 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
+Continue from docs/bridge/HANDOFF.md: close D59 and move the spec to v0.14.
 Continue from docs/bridge/HANDOFF.md: B4b, BF-33's PHY commit-and-revert.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **B4b, BF-33** (the bridge and a simnode) | *The next job*; B4b's row in Impl Plan **§8**; Firmware Tasks **§8**; spec **§12.1** and **§12.4**; Decision Register **D56**; Library Plan **§4**'s PHY rows |
+| **Close D59** (no board) | Decision Register **§2.4** and its three questions; spec **§12.4** and **§20**'s v0.14 entry; the spec-bump sweep precedent in §20's v0.13 entry; `tools/checks/spec_citation_version.py` |
+| **B4b, BF-33** (the bridge and a simnode), **after D59 closes** | *The next job*; B4b's row in Impl Plan **§8**; Firmware Tasks **§8**; spec **§12.1**, **§12.4** and **§16.7**; Decision Register **D56** and **D59**; Library Plan **§4**'s PHY rows |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -36,13 +39,25 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**B4b, BF-33's PHY commit-and-revert.** Build spec §12.4 on the bridge and the simnode:
-one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power, last known-good persisted
-before the radio retunes, and a revert at both ends on silence. B4b's row in §8 is the
-acceptance criterion. Three things carry the weight: the revert survives a reboot mid-trial,
-only a frame *received* on the new settings confirms them, and the fleet moves together.
-TX power stays clamped by D33 in the table. **Read the specification before the code**,
-and raise anything §12.4 leaves open rather than settling it in firmware.
+**Close D59, then build B4b.** D59 closes when the operator answers Decision Register
+§2.4's three questions. Closing it moves the spec header to v0.14 and runs the citation
+sweep, as v0.13's did (spec §20). It also adds a W4 vector for `PHY_REVERTED`, which
+§13.2 requires. Put D59 in §3's resolved table, and record there any answer that differs
+from §2.4.
+
+**BF-33 then builds spec §12.4 as v0.14 states it**, on the bridge and the simnode. B4b's
+row in §8 is the acceptance criterion. Four things carry the weight:
+
+- the revert survives a reboot mid-trial;
+- only an authenticated frame received on the new settings confirms a node;
+- **no node commits until the bridge has heard every node on the new settings**
+  (§12.4.1 steps 6 and 7);
+- TX power stays clamped by D33 in the table.
+
+Three pieces of the build are not in the code yet. The bridge needs six global PHY rows in
+`kBridgeParams`, and Library Plan §4 changes in the same commit. `Store::apply` persists
+an override at once, but the PHY group needs a committed copy and a trial copy. The simnode
+has no nonvolatile store and does not use `lran-config`'s `Store`.
 
 **The sandbox HA is drivable by API.** The session holds an admin token for it outside the
 repository, and HA's `hassio.addon_restart` restarts the broker. The Supervisor REST proxy
@@ -123,6 +138,12 @@ before the run, not during.
 - **W15** (`CONFIG_ACK` has no override flag, so `config/state`'s `source` is inferred) and
   **W16** (nothing says when a node sends `CONFIG_CHANGE`) — both GateLink's.
 - **The whole-document style passes** are owed, on a branch of their own.
+- **W17**, a node that misses every confirming frame of a PHY change (spec §12.4.4), has no
+  remedy. Decision Register §2.4 question 3 asks whether it must close before GateLink
+  deploys.
+- **A stale comment in `firmware/simnode/src/gatelink.cpp`'s `apply_config`** says a
+  `GET_ALL` too large for one frame *"has no specified split yet (spec W10)"*. D57 closed
+  W10 in v0.13.
 - **Nothing checks that `vectors_data.h` matches the W4 JSON.** D57's two vectors went
   unembedded for three days and hid a codec defect (protocol-lib engineering log,
   2026-09-23). Add a step to `ci.yml`'s `checks` job that fails when
@@ -158,8 +179,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4b** (**BF-33**) unstarted. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **B4b**, BF-33 |
+| Not done | **B4b** (**BF-33**) unstarted; its spec text is drafted as v0.14, pending D59. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **D59**'s close and the v0.14 bump, then **B4b**, BF-33 |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
