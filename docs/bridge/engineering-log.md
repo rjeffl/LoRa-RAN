@@ -2566,3 +2566,47 @@ those 20 with `avty_mode: all`. Retained availability read `online` for the brid
 restart, so a config present after one says nothing about the bridge. A subscriber held
 through the restart would tell them apart: the broker's copies reach it with the retain
 flag set, and the bridge's republished ones with it clear.
+
+---
+
+## 2026-09-24 — V-B4 passes: a broker restart brought every production config back from the bridge
+
+**V-B4 passes.** After a Mosquitto restart, the bridge republished all 67 of its production
+discovery configs within 5 s of the broker coming back, and the broker's persisted copies
+arrived beside them. The bridge ran BF-27's image with no reflash, and nobody opened its
+serial port.
+
+**The instrument told the two sources apart by the retain flag.** A paho subscriber on
+`homeassistant/#` and `lran/+/availability` reconnected at 1 s intervals and resubscribed on
+every connect. The broker delivers its stored copies to a new subscription with the retain
+flag set, and forwards a live publish to an existing subscription with it clear. The
+subscriber had to resubscribe before the bridge reconnected, or the bridge's configs would
+have arrived as stored copies. It did, by 3 s.
+
+**The run**, in seconds from the subscriber's first connect. The restart went through HA's
+`hassio.addon_restart` at 10:27:06.
+
+| Time (s) | Event |
+|---|---|
+| 5.0 | Restart requested |
+| 5.1 | The subscriber disconnected |
+| 9.2 | The subscriber resubscribed, and 115 configs and three availability topics arrived with retain set |
+| 12.3 | The bridge's `lran/bridge/availability online` arrived with retain clear |
+| 12.3 to 13.6 | GateLink's 53 configs, retain clear, then both nodes' `offline` |
+| 13.6 to 13.8 | WellLink's 8 configs, retain clear |
+| 13.8 to 13.9 | The bridge's 6 configs, retain clear |
+
+**The 48 simnode configs arrived with retain set only**, which is the negative control.
+`simnode_diag_enable` is off, persisted, since BF-26's run, and the bridge publishes no bench
+discovery while it is off (Impl Plan §4.2a). So the flag separates the configs the bridge
+sent from the ones the broker kept.
+
+**One more message arrived with retain clear, at 20.4 s**, on a topic under
+`homeassistant/` that held no config. The script did not record its name. It is not in the
+retained set afterwards, which still holds 115 configs. Home Assistant's MQTT integration
+publishes `online` to `homeassistant/status` when it reconnects, and that is the likely
+source.
+
+**Afterwards**, HA listed all 115 entities, and 109 read `unavailable`: GateLink's 53 and
+WellLink's 8, whose nodes are `offline`, and the 48 simnode entities. The bridge's 6 were
+available.

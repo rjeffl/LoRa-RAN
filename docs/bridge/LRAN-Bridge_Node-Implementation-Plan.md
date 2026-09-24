@@ -1546,7 +1546,7 @@ moves the `config/ack` publish to another task, for a race that one short lock c
 | V-B1 range, both bearings | Two Heltec boards, field walk | B1 |
 | V-B2 multi-node registry | `simnode` ×2 on the bench | B3a; keys by command in B3b |
 | V-B3 availability watchdog | Power down a simnode mid-poll | B3a |
-| V-B4 discovery incl. reconnect | Restart the broker with entities live | B4. **Republication not yet observed**; the device set and availability references were read on 2026-09-24, §8.2 |
+| V-B4 discovery incl. reconnect | Restart the broker with entities live | B4. **Met 2026-09-24**: all 67 production configs republished within 5 s of the broker's return, §8.2 |
 | V-B5 command retry / dedup | Suppress an ACK deliberately | B3b |
 | V-B6 HEX three gates | Each gate tested independently | B5 |
 | V-B7 publication policy | Injected jitter, staleness flags, sentinels | B4. **Met 2026-09-23** at the broker and 2026-09-24 in HA, on BF-27's dummy publish, §6.6.2 |
@@ -1617,7 +1617,7 @@ can be compared with one taken on the Wio.
 | **B2** | **Board bring-up and OTA** | Board in hand | WiFi connects and reconnects; MQTT connects with LWT registered; A/B partitioning configured; OTA succeeds over WiFi; **a deliberately bad image rolls back**. Version published. OLED shows a status page |
 | **B3a** | **Radio, registry, polling, availability and counters, with simnode** | B2 (**V-B9 re-run**), `/lib/lran-protocol/`, **B0** | Frames round-trip against the committed test vectors. **The bridge polls simnode identities on air and each answers** (BF-17): four logical simnodes from one board heard and polled simultaneously, each with its own learned context, **with poll-to-answer times recorded against `poll_reply_timeout_ms`**. Availability marks offline after 3 missed polls and online on the next frame (**V-B3**), and a production node's retained `offline` is seen at the broker. **Every §14 counter the console can drive at the bridge increments as specified**, one hand-run fault at a time, read from `lran/bridge/diag/state` at the broker (BF-19), and `hdr_rsv` is accepted rather than discarded. Full-size (a 222 B frame, which the console's `ping` takes as `n` = 202) and fragmented `PING` both round-trip between simnodes (**W9**) |
 | **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **Accepted 2026-09-17**, on the tasks confirmed on air the day before. **V-B12 moved to B4** the same day, with the operator — §8.1 says what it needs and why B4 is where that exists |
-| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1. **Met 2026-09-23**, §8.1.3. **Tallied 2026-09-24**, §8.2: V-B4's republication is not shown, and V-B11 is partly met |
+| **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1. **Met 2026-09-23**, §8.1.3. **Tallied 2026-09-24**, §8.2: V-B4 is met, V-B11 is partly met, and the bench gate was set from the broker rather than HA |
 | **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
 | **B6** | **GateLink integration** | B5, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
@@ -1809,36 +1809,33 @@ smaller than that margin would cost nothing on this bench and could still cost f
 
 ### 8.2 B4's acceptance tally, 2026-09-24
 
-**Five of B4's eight criteria are met.** V-B4's republication is not shown, V-B11 is partly
-met, and the bench gate was confirmed by a route §7.1 does not name. The tally ran no new
-test. It read the retained discovery set at the broker and Home Assistant's device list,
-and the engineering log's *B4's acceptance tally* entry has that read. The rest of the
-evidence is in the 2026-09-23 and 2026-09-24 entries.
+**Six of B4's eight criteria are met.** V-B11 is partly met, and the bench gate was
+confirmed by a route §7.1 does not name. Two runs on 2026-09-24 supplied new evidence. The
+first read the retained discovery set at the broker and Home Assistant's device list. The
+second ran V-B4 with a broker restart. The engineering log's *B4's acceptance tally* and
+*V-B4 passes* entries have them. The rest of the evidence is in the 2026-09-23 and
+2026-09-24 entries.
 
 | Criterion | Verdict | Evidence |
 |---|---|---|
 | Discovery publishes one device per node | **Met** | 115 retained configs at the broker, and the same seven devices in HA: the bridge (6 entities), GateLink (53), WellLink (8), and `simnode0`–`3` (12 each) |
 | Correct availability references | **Met** | Every config lists its own node's `availability` topic. The 20 solar and battery entities also list their block's document, with `avty_mode: all`, and went `unavailable` in HA when that document said so (§6.6.2) |
-| Republishes on broker restart (**V-B4**) | **Not shown** | `on_mqtt_connected()` resets `g_discovery_cursor` on every connect, and on 2026-09-24 the bridge reconnected after a broker restart. Nobody watched the configs arrive. Mosquitto persists retained messages, so its own copies would hide a bridge that sent none |
+| Republishes on broker restart (**V-B4**) | **Met** | A subscriber held through a Mosquitto restart received all 67 production configs from the bridge with the retain flag clear, 3 to 5 s after the broker came back, beside the broker's own stored copies. The 48 simnode configs came back as stored copies only, because `simnode_diag_enable` is off |
 | All §6.3 rules (**V-B7**) | **Met** | BF-27's dummy publish, §6.6.2. A 3 mV cell step was withheld inside the deadband, `na` went out as `null`, a stale block as unavailable, every document carried `synthetic: true`, and the heartbeat resent all five documents after `republish_interval_s` |
 | Events non-retained, no replay (**V-B8**) | **Met** | §6.6.2, on synthetic events, through two HA restarts, an integration reload and a broker restart |
 | The whole fleet from dummy publish and simulators (**V-B11**) | **Partly met** | GateLink's documents and events came from the dummy publish, and the four simnode identities from the bench gate. WellLink has no schema to publish. BF-27's bridge-side simulators are not built |
 | **V-B12** | **Met** | §8.1.3 |
 | §16.6 bench gate, both states (§7.1) | **Met on air, not from HA** | Both states, and a reboot in each, on 2026-09-23 (§4.2a.1). The flag was set with `mosquitto_pub` to `lran/bridge/config/set`. §7.1 says *"toggled from HA"*, and no HA entity sets a bridge row |
 
-**Four questions are the operator's before B4 closes:**
+**Three questions are the operator's before B4 closes:**
 
-1. **Run V-B4's republish check.** It needs the bridge powered and a few minutes on the
-   sandbox. Hold a subscriber on `homeassistant/#` through a broker restart, resubscribed
-   before the bridge reconnects. A config the bridge republishes then arrives with the
-   retain flag clear, and one the broker kept arrives with it set.
-2. **Decide whether V-B11 is met on what exists.** GateLink's dummy publish and the bench
+1. **Decide whether V-B11 is met on what exists.** GateLink's dummy publish and the bench
    gate cover every node that has a schema. The alternative is to hold B4 for BF-27's
    bridge-side simulators.
-3. **Decide what §7.1's bench-gate row means by "from HA".** Either reword it to
+2. **Decide what §7.1's bench-gate row means by "from HA".** Either reword it to
    `config/set`, which HA reaches only through an `mqtt.publish` action, or toggle the flag
    once through that action and record it.
-4. **Decide where BF-33 belongs.** B4's row names no PHY criterion, so BF-33 does not gate
+3. **Decide where BF-33 belongs.** B4's row names no PHY criterion, so BF-33 does not gate
    this tally. Firmware Tasks §7 already asks whether it moves to a milestone of its own.
 
 ---
@@ -2618,9 +2615,9 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
-- **v0.53** — **New §8.2**: B4's acceptance tally. Five of eight criteria are met; V-B4's
-  republication is not shown, V-B11 is partly met, and the bench gate was set through
-  `config/set` rather than from HA. §7.1's V-B4, V-B7, V-B11 and bench-gate rows and B4's
+- **v0.53** — **New §8.2**: B4's acceptance tally. Six of eight criteria are met, V-B4
+  among them on a broker restart the same day. V-B11 is partly met, and the bench gate was
+  set through `config/set` rather than from HA. §7.1's V-B4, V-B7, V-B11 and bench-gate rows and B4's
   row in §8 follow.
 
 - **v0.52** — **New §6.6.2**: BF-27's dummy publish built and run on air. A serial console

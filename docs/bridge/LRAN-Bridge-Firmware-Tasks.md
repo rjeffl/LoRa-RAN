@@ -241,8 +241,8 @@ UDP blaster saturated the bridge's WiFi, not `g_diag_interval_s`, whose 10 s flo
 not (Impl Plan §8.1.2). The loaded arm lost no more than the idle one, and Impl Plan §8.1.3
 has the numbers.
 
-**B4 was tallied on 2026-09-24**, in Impl Plan §8.2. Five of its eight criteria are met,
-and the other three are questions for the operator.
+**B4 was tallied on 2026-09-24**, in Impl Plan §8.2. Six of its eight criteria are met,
+V-B4 among them. The other two wait on operator decisions.
 
 **BF-33 may not belong in B4.** It is here because it consumes BF-32's table and nothing
 else is closer, but spec §12.4's commit-and-revert is radio work with a bench cost of its
