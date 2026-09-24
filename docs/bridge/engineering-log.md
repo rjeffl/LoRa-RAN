@@ -2478,3 +2478,61 @@ uptime belongs in the change hash is a policy question, left under the handoff's
 
 **What this leaves.** Every reading was taken at the broker. Nobody has looked at the
 entities in Home Assistant, and V-B8's HA restart and discovery refresh have not been run.
+
+
+---
+
+## 2026-09-24 — V-B8 in Home Assistant: each event fired once through two restarts and two refreshes
+
+**V-B8 passes on the sandbox.** Three synthetic events each fired a Home Assistant
+automation once. None fired again across two HA restarts, a reload of the MQTT integration
+and a broker restart that made the bridge republish discovery. The bridge ran the image
+from BF-27's run, `bee046b-dirty`, with no reflash. HA was 2026.9.3, driven through its REST
+API with a long-lived token.
+
+**The instrument was an automation triggered on `lran/gatelink/event/#`**, in `queued` mode,
+writing one logbook row per message with the topic, `event_id`, `ctx_id`, `follow_up` and
+`synthetic`. A second row for one event would be the V-B8 failure. The automation was
+deleted after the run.
+
+| Step | HA automation fires, total |
+|---|---|
+| `dummy event gatelink vehicle_while_held_open` | 1 |
+| HA restart (`homeassistant.restart`) | 1 |
+| MQTT integration reload (`config_entries` reload) | 1 |
+| Mosquitto add-on restart; the bridge reconnected and republished its discovery set | 1 |
+| The same event as a follow-up, then `fire_asserted` | 3, one row each |
+| A second HA restart | 3 |
+
+The last two rows are the positive control: the automation still fired after the refreshes,
+so the absence of a replay is not a dead subscription. A retained-only subscription to
+`lran/#` afterwards found no `event` topic.
+
+**The broker restart republished discovery.** `on_mqtt_connected()` resets
+`g_discovery_cursor` on every connect (`task_runtime.cpp`). The bridge does not subscribe
+to `homeassistant/status`. HA's own restart needed nothing from it, because every
+discovery config is retained.
+
+**§6.3's rules read the same in HA as at the broker.** A dummy `STATUS` populated all
+GateLink entities, and `binary_sensor.gatelink_synthetic_data` read `on`. After
+`mppt_flags=2` and `bms_age_s=900`, 20 solar and battery entities went `unavailable`. They
+stayed that way through both HA restarts, because the `available: false` documents are
+retained. `bms_reading_age` stayed available and read 900, as did `bms_link_rssi`, which is
+the reading that says why the rest are stale. Temperatures show in °F: this HA uses the
+imperial unit system and converts the declared °C.
+
+**The hand-set `online` was overwritten, and Impl Plan §6.6.2 said it would not be.**
+Opening the serial port reset the bridge at 10:04, so the watchdog started over.
+`lran/gatelink/availability` was set to `online` by hand at 10:04:38. At 10:06:16, after three missed polls,
+the watchdog published its first `offline` transition over it, and HA showed all 53
+GateLink entities as `unavailable` when read after the first restart. §6.6.2's rule holds only once
+that first transition has happened. Set `online` more than three poll intervals after the
+bridge boots, or set it again. The broker restart overwrote it a second time, as §6.6.2
+says. §6.6.2 now says both.
+
+**Opening the USB serial port resets the bridge**, even with DTR and RTS held low before
+`open()` on macOS. One process held the port for the whole run, fed through a FIFO.
+
+**What this leaves.** V-B8 ran with synthetic events on a bridge at its desk. The transport
+is still PubSubClient at QoS 0; the handoff's *Open* keeps that item. B4's §6.3 criterion
+has now been shown in HA as well as at the broker.
