@@ -91,6 +91,7 @@ void test_the_table_defaults_are_the_consumers_defaults() {
   TEST_ASSERT_EQUAL_UINT32(kConfigAckTimeoutDefaultMs, v.config_ack_timeout_ms);
   for (size_t i = 0; i < kNodeCount; ++i) {
     TEST_ASSERT_EQUAL_UINT16(kPollIntervalDefaultS, v.poll_interval_s[i]);
+    TEST_ASSERT_FALSE(v.deployed[i]);  // D61 - no node is in the field until the operator says
   }
   TEST_ASSERT_FALSE(v.simnode_diag_enable);  // spec 16.6 - off unless someone sets it
   TEST_ASSERT_EQUAL_UINT16(PublishLevers{}.republish_interval_s, v.republish_interval_s);
@@ -221,12 +222,15 @@ void test_each_reader_takes_each_publish_once() {
 
   set(store, ConfigScope::Bridge, 0, "backoff_max_ms", 800);
   set(store, ConfigScope::Node, kNodeGateLink, "poll_interval_s", 300);
+  set(store, ConfigScope::Node, kNodeGateLink, "deployed", 1);
   set(store, ConfigScope::Bridge, 0, "simnode_diag_enable", 1);
   board.publish(levers_from(store));
   TEST_ASSERT_TRUE(board.take_if_changed(&lora_seen, &out));
   TEST_ASSERT_EQUAL_UINT32(800, out.backoff_max_ms);
   TEST_ASSERT_TRUE(out.simnode_diag_enable);
   TEST_ASSERT_EQUAL_UINT16(300, out.poll_interval_s[index_of(kNodeGateLink)]);
+  TEST_ASSERT_TRUE(out.deployed[index_of(kNodeGateLink)]);
+  TEST_ASSERT_FALSE(out.deployed[index_of(kNodeWellLink)]);
   TEST_ASSERT_TRUE(board.take_if_changed(&sched_seen, &out));
 }
 

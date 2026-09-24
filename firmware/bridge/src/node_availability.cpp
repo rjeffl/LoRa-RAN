@@ -31,7 +31,7 @@ void AvailabilityWatchdog::set_threshold(uint16_t polls) {
   threshold_ = polls == 0 ? 1 : polls;
 }
 
-AvailabilityChange AvailabilityWatchdog::evaluate(size_t i, const NodeInfo& info,
+AvailabilityChange AvailabilityWatchdog::evaluate(size_t i, bool deployed,
                                                   const NodeState& s) {
   AvailabilityChange out;
   if (i >= kNodeCount) return out;
@@ -44,7 +44,7 @@ AvailabilityChange AvailabilityWatchdog::evaluate(size_t i, const NodeInfo& info
     r.seen_any  = true;
     r.frames_at = s.frames_heard;
   }
-  r.watched = r.watched || !info.is_bench || s.heard;
+  r.watched = r.watched || deployed || s.heard;
 
   Availability next = r.state;
   if (frame) next = Availability::Online;

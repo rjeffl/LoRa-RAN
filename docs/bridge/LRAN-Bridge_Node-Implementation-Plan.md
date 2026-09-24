@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.54
+**Version:** 0.55
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -954,7 +954,7 @@ entry argues each choice.
 | Parameter or rule | Value |
 |---|---|
 | `poll_reply_timeout_ms` | **10 000**, runtime-settable. A poll is outstanding until a frame from that node arrives or this window closes. Derived from spec §12.3's worst-case node backoff (7.5 s) plus an SF9 answer; this section is its first home |
-| Who is polled | Production rows from boot. **A bench row, `0xF0`–`0xF3`, once any frame from it has been heard** this boot (decided with the operator) |
+| Who is polled | **A row whose `deployed` lever is set (D61), from the tick `sched_task` applies it.** Any other row, bench or production, **once any frame from it has been heard** this boot (bench rows decided with the operator 2026-09-14). `deployed` defaults to 0, and clearing it takes effect at the next restart |
 | Next due | One `poll_interval_s` after the send. A zero interval is held to 1 s |
 | Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
 | `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
@@ -971,7 +971,7 @@ scheduler. The engineering log's BF-20 entry argues each choice.
 | `offline` | `missed_polls` at or above the threshold |
 | `online` | Any valid frame since the previous tick: the registry's new `frames_heard` count moved |
 | Unknown | Neither, since boot. **Not published**: the broker's retained value stands until the node settles it |
-| Watched | The rows §6.1.1 polls: production from boot, bench once heard |
+| Watched | The rows §6.1.1 polls: a deployed row from the tick its lever is applied, any other once heard. **The watched rows are spec §12.4.1's fleet**, so a node not deployed and not heard cannot refuse a PHY change (D61) |
 | Publication | `lran/<node>/availability`, retained, QoS 0, through the publish queue. A refused publication is retried on the next tick; every judged node is published again after each broker connect |
 | Bench rows | Judged and printed on the serial console. **Published only with `simnode_diag_enable`** (spec §16.6), which BF-26 builds; until then, never |
 | Status page | `nodes <online>/<watched>` |
@@ -1066,7 +1066,7 @@ passed. The engineering log's *BF-34 on air* entry has the trace.
 | Timed by `command_ack_timeout_ms` and `cmd_retries` | A roll is a `COMMAND` on the air. A lever of its own would be a new table row for a wait that is the same wait (root rule 8) |
 | `ACTUATOR_BUSY` is retried after the ACK window, and spends an attempt | The node sends nothing more after a BUSY, so an immediate retry finds it still busy. An attempt per BUSY means a node stuck busy ends in `ctx_roll_failed` rather than holding the command path off without limit |
 | A failed roll waits for the node's next frame, and the answer that failed it does not count | `app_task` reports a frame as heard before it reports the ACK inside it. Counting that ACK would restart the roll at once, and a node without `ROLL_CONTEXT` would then be rolled back to back instead of once per frame it sends |
-| The boot `POLL` is the poll scheduler's | It already polls every production row on its first ticks. **A bench row keeps the 2026-09-14 heard-first rule**, confirmed by the operator on 2026-09-23: it rolls when first heard (spec §10.6 step 2), and a simnode not on the bench costs no airtime. This departs from step 1's "each registered node" for bench rows only |
+| The boot `POLL` is the poll scheduler's | It polls every deployed row on its first ticks (D61). **A row not deployed, bench or production, keeps the 2026-09-14 heard-first rule**, confirmed by the operator on 2026-09-23: it rolls when first heard (spec §10.6 step 2), and a simnode not on the bench costs no airtime. This departs from step 1's "each registered node" for rows not deployed |
 | **Every simnode role answers a roll**, decided with the operator on 2026-09-23 | A `ROLE_RANGE` or `ROLE_HEALTH` identity that ignored it would fail every roll and draw another on each frame the bridge heard, which puts roll traffic inside a sweep. Other commands stay `ROLE_GATELINK`'s alone (§10.9.2) |
 | A command is refused on `sched_task`, when it leaves the queue | `sched_task` owns the pending state and already publishes `cmd/ack`. The payload is `{"outcome":"context_roll_pending"}` with no `seq`, because none was taken |
 | A `config/set` is refused on `mqtt_task`, before either half applies | Spec §10.6 refuses it **whole**, and the bridge half applies on `mqtt_task`. `config_set_reaches_node()` picks out the sets that would send a `CONFIG`, and its test checks it against `ConfigStore::apply()`'s split. `mqtt_task` reads the pending bits through one atomic that `sched_task` alone writes. A bit only clears after boot, so a clear bit can be trusted without the lock |
@@ -1403,14 +1403,12 @@ heard this boot, so it cannot mark a deployed GateLink's history. A dummy event 
 GateLink that has not been heard still reaches `lran/gatelink/event/*`, so **an automation
 that sends email or SMS filters on `synthetic`**.
 
-**Availability is not the dummy's to move.** GateLink is watched from boot, never answers,
-and goes `offline` after three missed polls, so Home Assistant shows its entities as
-unavailable. For a bench session, publish `online` retained to
-`lran/gatelink/availability` by hand. The watchdog publishes a transition, not a state,
-so it overwrites that `online` twice: at its first `offline` transition, three missed polls
-after the bridge boots, and at every broker connect. Set it after the first, and again
-after each broker restart. Found on 2026-09-24: opening the serial port reset the bridge,
-and its first transition overwrote the hand-set value two minutes later.
+**Availability is not the dummy's to move.** On a bench bridge GateLink's `deployed` lever
+is 0 (D61), so the bridge neither polls nor watches it and publishes no availability for
+it. For a bench session, publish `online` retained to `lran/gatelink/availability` by hand,
+and it stands. With `deployed` set, GateLink is watched, never answers, and goes `offline`
+three missed polls after the bridge boots and again at every broker connect, overwriting a
+hand-set `online` each time. That was found on 2026-09-24, before D61.
 
 **On air, 2026-09-23**, against the sandbox broker, with `republish_interval_s` set to 60
 for the run and restored to 900 after. The engineering log has the capture.
@@ -2631,6 +2629,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.55** — **D61 is built.** A bridge per-node lever, `deployed`, decides whether a row
+  is polled and watched from boot. §6.1.1, §6.1.2 and §6.2.2 say so, and the dummy's
+  availability note in §6.6.2 no longer assumes GateLink is watched.
 
 - **v0.54** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY
   change moves the fleet, and adds `PHY_REVERTED` to §8.9. §2.2's PHY paragraph and B4b's

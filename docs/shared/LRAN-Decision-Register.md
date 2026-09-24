@@ -319,7 +319,7 @@ blocked.
 
 **The proposal:**
 
-1. **A bridge per-node row, `deployed`**, `0x0081`, `u8`, 0 or 1, set on
+1. **A bridge per-node row, `deployed`**, `0x0081`, a `bool` (0 or 1), set on
    `lran/<node>/config/set` beside `poll_interval_s`. The bridge persists it like its other
    rows.
 2. **The default is 0.** A bridge with no stored value treats every production node as not

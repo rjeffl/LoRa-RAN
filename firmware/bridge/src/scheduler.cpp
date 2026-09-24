@@ -29,9 +29,7 @@ uint32_t interval_ms(uint16_t interval_s) {
 
 PollScheduler::PollScheduler() {
   for (size_t i = 0; i < kNodeCount; ++i) {
-    rows_[i].id       = kNodeTable[i].id;
-    rows_[i].bench    = lran::is_bench_node(kNodeTable[i].id);
-    rows_[i].enrolled = !rows_[i].bench;
+    rows_[i].id = kNodeTable[i].id;
   }
 }
 
@@ -60,7 +58,7 @@ PollStep PollScheduler::next(uint32_t now_ms, bool may_start) {
   if (!may_start) return step;
 
   // The most overdue enrolled row; a row never polled counts as the most overdue of all. Ties
-  // go to table order, so production rows lead at boot.
+  // go to table order, so deployed production rows lead at boot.
   int      best      = -1;
   uint32_t best_late = 0;
   for (size_t i = 0; i < kNodeCount; ++i) {
@@ -97,6 +95,13 @@ void PollScheduler::retime(lran::NodeId node, uint16_t interval_s) {
   rows_[i].due_ms = rows_[i].sent_ms + interval_ms(interval_s);
 }
 
+void PollScheduler::enrol(lran::NodeId node) {
+  const int i = index_of(node);
+  if (i < 0 || rows_[i].enrolled) return;
+  rows_[i].enrolled = true;
+  rows_[i].due_set  = false;
+}
+
 uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
   const int i = index_of(node);
   if (i < 0) return kNotAnAnswer;
@@ -107,7 +112,7 @@ uint32_t PollScheduler::on_heard(lran::NodeId node, uint32_t now_ms) {
     answer_ms = now_ms - sent_ms_;  // unsigned, so correct across the millis() wrap
   }
   if (!rows_[i].enrolled) {
-    rows_[i].enrolled = true;  // a bench node that just spoke is polled at the next free slot
+    rows_[i].enrolled = true;  // a row that just spoke is polled at the next free slot
     rows_[i].due_set  = false;
   }
   return answer_ms;

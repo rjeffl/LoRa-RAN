@@ -45,6 +45,7 @@ constexpr uint16_t kErrorMinIntervalMs    = bridge_row("error_min_interval_ms");
 constexpr uint16_t kConfigReadbackTimeout = bridge_row("config_readback_timeout_ms");
 constexpr uint16_t kConfigAckTimeoutMs    = bridge_row("config_ack_timeout_ms");
 constexpr uint16_t kPollIntervalS         = bridge_row("poll_interval_s");
+constexpr uint16_t kDeployed              = bridge_row("deployed");
 constexpr uint16_t kSimnodeDiagEnable     = bridge_row("simnode_diag_enable");
 constexpr uint16_t kRepublishIntervalS    = bridge_row("republish_interval_s");
 constexpr uint16_t kBmsStaleS             = bridge_row("bms_stale_s");
@@ -55,7 +56,7 @@ static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kCmdRetries != kNoRow && kCadRetries != kNoRow &&
                   kBackoffMaxMs != kNoRow && kFragReassemblyTimeout != kNoRow &&
                   kErrorMinIntervalMs != kNoRow && kConfigReadbackTimeout != kNoRow &&
-                  kConfigAckTimeoutMs != kNoRow && kPollIntervalS != kNoRow &&
+                  kConfigAckTimeoutMs != kNoRow && kPollIntervalS != kNoRow && kDeployed != kNoRow &&
                   kSimnodeDiagEnable != kNoRow && kRepublishIntervalS != kNoRow &&
                   kBmsStaleS != kNoRow && kCellMvDeadband != kNoRow,
               "every lever reads a row of kBridgeParams");
@@ -89,6 +90,7 @@ Levers levers_from(const ConfigStore& store) {
   for (size_t i = 0; i < kNodeCount; ++i) {
     v.poll_interval_s[i] =
         static_cast<uint16_t>(store.node_value(kNodeTable[i].id, kPollIntervalS));
+    v.deployed[i] = store.node_value(kNodeTable[i].id, kDeployed) != 0;
   }
   return v;
 }
@@ -114,6 +116,7 @@ void LeverBoard::publish(const Levers& v) {
   bms_stale_s_.store(v.bms_stale_s, r);
   cell_mv_deadband_.store(v.cell_mv_deadband, r);
   for (size_t i = 0; i < kNodeCount; ++i) poll_interval_s_[i].store(v.poll_interval_s[i], r);
+  for (size_t i = 0; i < kNodeCount; ++i) deployed_[i].store(v.deployed[i], r);
 
   gen_.fetch_add(1, std::memory_order_release);  // even: complete
 }
@@ -140,6 +143,7 @@ bool LeverBoard::take_if_changed(uint32_t* seen, Levers* out) const {
   v.bms_stale_s                = bms_stale_s_.load(r);
   v.cell_mv_deadband           = cell_mv_deadband_.load(r);
   for (size_t i = 0; i < kNodeCount; ++i) v.poll_interval_s[i] = poll_interval_s_[i].load(r);
+  for (size_t i = 0; i < kNodeCount; ++i) v.deployed[i] = deployed_[i].load(r);
 
   std::atomic_thread_fence(std::memory_order_acquire);
   if (gen_.load(r) != before) return false;
