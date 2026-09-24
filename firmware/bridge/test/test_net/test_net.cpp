@@ -141,6 +141,15 @@ void test_a_retained_event_is_refused_rather_than_corrected() {
   TEST_ASSERT_EQUAL_UINT8(1, msg.qos);  // spec 16.3 requires QoS 1 for events
 }
 
+// Spec 16.3's other half. An event asked for at QoS 0 is refused on the same ground as a
+// retained one; a state topic takes either.
+void test_an_event_at_qos_0_is_refused() {
+  PublishMessage msg;
+  TEST_ASSERT_FALSE(make_publish(&msg, "lran/gatelink/event/fire_asserted",
+                                 "{\"event_id\":7}", false, 0));
+  TEST_ASSERT_TRUE(make_publish(&msg, "lran/gatelink/gate/state", "{}", true, 1));
+}
+
 // Refused, never truncated. Truncated JSON is worse than absent: HA logs a parse
 // error against a topic that looks alive and the entity keeps a stale value.
 void test_an_oversized_payload_is_refused() {
@@ -338,6 +347,7 @@ int main() {
   RUN_TEST(test_retain_is_refused_on_event_topics_only);
   RUN_TEST(test_a_normal_retained_state_message_is_accepted);
   RUN_TEST(test_a_retained_event_is_refused_rather_than_corrected);
+  RUN_TEST(test_an_event_at_qos_0_is_refused);
   RUN_TEST(test_an_oversized_payload_is_refused);
   RUN_TEST(test_an_oversized_topic_is_refused);
   RUN_TEST(test_null_arguments_are_refused);

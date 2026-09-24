@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// The publication policy. Task BF-24; Impl Plan 6.3; PRD R-5.2a-d; spec 7.2, 7.5, 16.4,
-// 16.6.
+// The publication policy. Tasks BF-24 and BF-25; Impl Plan 6.3; PRD R-5.2a-e; spec 7.2,
+// 7.3, 7.5, 16.3, 16.4, 16.6.
 //
-// ARDUINO-FREE, like diag_json.h. app_task hands a decoded STATUS here; everything that
+// ARDUINO-FREE, like diag_json.h. app_task hands a STATUS or an EVENT here; everything that
 // decides what Home Assistant sees - the documents, their keys, when one is republished,
 // when an entity is unavailable - is in this file and has host tests (V-B7).
 //
@@ -22,6 +22,12 @@
 // availability topics, so Home Assistant shows the entity as unavailable. The cached
 // reading is never republished as current. Nothing here keeps a cached reading to
 // republish: a document is rendered from the frame in hand or not at all.
+//
+// AN EVENT IS NOT A DOCUMENT (BF-25, R-5.2e, V-B8). It goes to `lran/<node>/event/<name>`
+// with retain clear at QoS 1, once. Events drive email and SMS, so a retained one replays
+// on every HA restart and discovery refresh, and a duplicate is a second message about one
+// gate opening. Nothing here republishes an event: not on a heartbeat, and not after a
+// broker connect.
 
 #pragma once
 
@@ -70,15 +76,19 @@ struct PublishLevers {
   uint8_t  cell_mv_deadband     = 5;
 };
 
-// Counted per STATUS the policy is handed. No frame reaches here without passing spec 14,
-// so none of these is a spec 14.1 discard; they say what the bridge chose to publish.
+// Counted per STATUS or EVENT the policy is handed. No frame reaches here without passing
+// spec 14, so none of these is a spec 14.1 discard; they say what the bridge chose to
+// publish. The last three count both kinds of frame.
 struct PublishStats {
   uint32_t status_frames  = 0;  // STATUS messages handed to on_status()
   uint32_t documents      = 0;  // documents queued
   uint32_t unchanged      = 0;  // rendered, identical to the last, withheld
   uint32_t heartbeats     = 0;  // identical, republished for republish_interval_s
+  uint32_t event_frames   = 0;  // EVENT messages handed to on_event()
+  uint32_t events         = 0;  // events queued
+  uint32_t event_repeats  = 0;  // an event already queued, withheld (spec 7.3)
   uint32_t bench_withheld = 0;  // decoded from a bench node, not published (spec 16.6)
-  uint32_t queue_refused  = 0;  // the sink refused a document; retried on the next frame
+  uint32_t queue_refused  = 0;  // the sink refused a document or an event
   uint32_t undecodable    = 0;  // a (type, schema) this bridge has no document for
 };
 
@@ -86,12 +96,13 @@ struct PublishStats {
 // length written, or 0.
 size_t publish_stats_json(const PublishStats& s, char* out, size_t cap);
 
-// Where a document goes. app_task's sink builds a PublishMessage and queues it; the tests'
-// sink records it. False means the document did not leave, and the policy does not
-// record it as published, so the next frame tries again.
+// Where a document or an event goes. app_task's sink builds a PublishMessage and queues it;
+// the tests' sink records it. False means it did not leave, and the policy does not record
+// it as published: the node's next frame tries a document again, and a retransmission of
+// the event gets through.
 class PublishSink {
  public:
-  virtual bool emit(const char* topic, const char* payload, bool retain) = 0;
+  virtual bool emit(const char* topic, const char* payload, bool retain, uint8_t qos) = 0;
 
  protected:
   ~PublishSink() = default;
@@ -110,7 +121,7 @@ class PublicationPolicy {
   const PublishLevers& levers() const { return levers_; }
 
   // One received message. Anything but a STATUS is ignored and not counted: commands,
-  // configuration and events have paths of their own. `utc_at_rx` is the wall clock at
+  // configuration and events have paths of their own, events on_event() below. `utc_at_rx` is the wall clock at
   // reception, or 0 when unknown.
   //
   // A bench node's STATUS is decoded and counted, and never published: spec 16.6 allows a
@@ -120,9 +131,23 @@ class PublicationPolicy {
                  size_t payload_len, uint32_t now_ms, UtcSeconds utc_at_rx,
                  PublishSink& sink);
 
+  // One received EVENT (spec 7.3), published to `lran/<node>/event/<name>` unless this
+  // (src, ctx_id, event_id, follow-up) has been published already. Anything but an EVENT
+  // is ignored and not counted. A bench node's event is decoded and counted, and never
+  // published, on the same spec 16.6 ground as its STATUS.
+  //
+  // THE FOLLOW-UP BIT IS PART OF THE KEY, and spec 7.3's text says the triple. The same
+  // section has a follow-up reuse its first edge's event_id, so the triple alone would
+  // withhold every follow-up and the classified direction would never reach HA. The first
+  // edge and its follow-up are each published once. The specification's wording is raised
+  // for its next revision (Impl Plan 6.3.2).
+  void on_event(const NodeInfo& info, const lran::Header& hdr, const uint8_t* payload,
+                size_t payload_len, PublishSink& sink);
+
   // After a broker connect. The retained documents may be gone (spec 16.5 reasons the same
   // way about availability), so the next frame from each node publishes every document
-  // whether or not it changed.
+  // whether or not it changed. Events are not forgotten: none was retained, and forgetting
+  // them would let a late retransmission publish a second time.
   void forget_published();
 
   const PublishStats& stats() const { return stats_; }
@@ -147,10 +172,25 @@ class PublicationPolicy {
   void offer(size_t node_index, Domain d, const char* node_token, size_t len,
              uint32_t now_ms, PublishSink& sink);
 
+  // The events published, per node, most recent kEventMemory of them. A retransmission
+  // follows its original by one CAD backoff, at most backoff_max_ms (1500 ms on Envelope A,
+  // spec 12.3); a node raising sixteen events inside that is not a node this sizing has to
+  // serve. A ring rather than a high-water mark, because nothing makes a retransmission
+  // arrive before the node's next event.
+  static constexpr size_t kEventMemory = 16;
+  struct Seen {
+    bool        valid     = false;
+    bool        follow_up = false;
+    lran::CtxId ctx_id    = 0;
+    uint32_t    event_id  = 0;
+  };
+
   PublishLevers levers_;
   PublishStats  stats_;
   Slot          slots_[kNodeCount][kDomainCount];
   Held          held_[kNodeCount];
+  Seen          seen_[kNodeCount][kEventMemory];
+  uint8_t       seen_next_[kNodeCount] = {0};
   char          doc_[kMaxPayloadLen] = {0};
 };
 

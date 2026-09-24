@@ -229,18 +229,22 @@ PublishMessage    g_app_msg;
 // Set by mqtt_task on every connect, taken by app_task: the retained documents may be gone.
 std::atomic<bool> g_publish_forget{false};
 
-// app_task writes these after each STATUS and sched_task reads them for
-// lran/bridge/diag/publish/state. Seven independent counters, so a reader that catches one
+// app_task writes these after each STATUS or EVENT and sched_task reads them for
+// lran/bridge/diag/publish/state. Ten independent counters, so a reader that catches one
 // updated and the next not yet sees two numbers a frame apart, which is harmless.
 struct PublishStatsBoard {
   std::atomic<uint32_t> status_frames{0}, documents{0}, unchanged{0}, heartbeats{0},
-      bench_withheld{0}, queue_refused{0}, undecodable{0};
+      event_frames{0}, events{0}, event_repeats{0}, bench_withheld{0}, queue_refused{0},
+      undecodable{0};
 
   void store(const PublishStats& s) {
     status_frames  = s.status_frames;
     documents      = s.documents;
     unchanged      = s.unchanged;
     heartbeats     = s.heartbeats;
+    event_frames   = s.event_frames;
+    events         = s.events;
+    event_repeats  = s.event_repeats;
     bench_withheld = s.bench_withheld;
     queue_refused  = s.queue_refused;
     undecodable    = s.undecodable;
@@ -251,6 +255,9 @@ struct PublishStatsBoard {
     s.documents      = documents;
     s.unchanged      = unchanged;
     s.heartbeats     = heartbeats;
+    s.event_frames   = event_frames;
+    s.events         = events;
+    s.event_repeats  = event_repeats;
     s.bench_withheld = bench_withheld;
     s.queue_refused  = queue_refused;
     s.undecodable    = undecodable;
@@ -262,8 +269,8 @@ PublishStatsBoard g_publish_stats;
 // Every document goes through make_publish(), so spec 16.3's retain rule and spec 16.6's
 // bench topic rule are checked on this path as on every other, and the queue counts a drop.
 struct QueueSink final : PublishSink {
-  bool emit(const char* topic, const char* payload, bool retain) override {
-    return make_publish(&g_app_msg, topic, payload, retain, /*qos=*/0) &&
+  bool emit(const char* topic, const char* payload, bool retain, uint8_t qos) override {
+    return make_publish(&g_app_msg, topic, payload, retain, qos) &&
            send_publish(g_app_msg);
   }
 };
@@ -1101,14 +1108,32 @@ void sched_task(void*) {
 // publish and leaves the rest queued: a broker that refused one message is about to
 // refuse the next, and draining into a dead socket turns a reconnect into a data loss.
 //
-// THE MESSAGE IS LOST ON A FAILED PUBLISH. It has already been dequeued, and
+// A STATE MESSAGE IS LOST ON A FAILED PUBLISH. It has already been dequeued, and
 // re-queueing it would reorder it behind newer state for the same entity. Counted,
-// not silent - see queues.h on root rule 4.
+// not silent - see queues.h on root rule 4. The node's next frame publishes it afresh.
+//
+// AN EVENT IS HELD AND TRIED FIRST ON THE NEXT PASS (BF-25). Nothing publishes it afresh:
+// the policy has already recorded it as published, so the node's retransmission, if one
+// comes, is withheld. Newer state cannot overtake it, because the pass stops at the
+// failure, and a second event cannot fail while one is held for the same reason. This is
+// what QoS 1 would give, and PubSubClient cannot (mqtt_pubsub.cpp).
+PublishMessage g_event_held;
+bool           g_event_is_held = false;
+
 void drain_publish_queue() {
+  if (g_event_is_held) {
+    if (!g_mqtt.publish(g_event_held)) return;
+    g_event_is_held = false;
+  }
   PublishMessage msg;
   while (xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
     if (!g_mqtt.publish(msg)) {
-      g_accounting.record_dropped(QueueId::Publish);
+      if (is_event_topic(msg.topic)) {
+        g_event_held    = msg;
+        g_event_is_held = true;
+      } else {
+        g_accounting.record_dropped(QueueId::Publish);
+      }
       return;
     }
   }
@@ -1700,8 +1725,14 @@ void app_task(void*) {
     // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // BF-24 - a STATUS becomes its documents (Impl Plan 6.3). The registry refused an
     // unknown source at the ladder, so find() answers for every message here.
-    // TODO(BF-25): an EVENT's non-retained publication, deduplicated on
-    // (src, ctx_id, event_id).
+    // BF-25 - an EVENT is published once, not retained (Impl Plan 6.3.2).
+    if (msg.hdr.type == lran::MsgType::Event) {
+      const NodeInfo* info = registry_find(msg.hdr.src);
+      if (info != nullptr) {
+        g_policy.on_event(*info, msg.hdr, msg.payload, msg.payload_len, sink);
+        g_publish_stats.store(g_policy.stats());
+      }
+    }
     if (msg.hdr.type == lran::MsgType::Status) {
       const NodeInfo* info = registry_find(msg.hdr.src);
       if (info != nullptr) {
