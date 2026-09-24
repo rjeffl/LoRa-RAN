@@ -201,7 +201,7 @@ them before closing a session.
 ## Hardware state
 
 **The bridge runs the BF-26 branch's firmware**, flashed over USB on 2026-09-23 from a clean
-tree, and reaches the house broker at 192.168.2.52. Once the branch merges, its banner's git
+tree, and reaches the house broker at <sandbox-broker-ip>. Once the branch merges, its banner's git
 field names the branch commit, not the merge. **`simnode_diag_enable` is off and persisted
 in its NVS.** The broker retains 48 simnode discovery configs from the enabled run, so Home
 Assistant carries four simnode devices whose entities read unavailable. The XIAO runs

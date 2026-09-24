@@ -52,8 +52,8 @@ The network affects three other things:
 
 | Option | Broker | Household impact | Cost |
 |---|---|---|---|
-| House network | Sandbox broker, 192.168.2.52, unchanged | Every 2.4 GHz device on that channel slows during the bursts | None beyond the blaster. Run it at a quiet hour |
-| IoT network, with a pinhole to the sandbox broker | 192.168.2.52 on TCP 1883, bridge IP only | None on the main network | A firewall rule, and a bridge reflash with the IoT credentials |
+| House network | Sandbox broker, <sandbox-broker-ip>, unchanged | Every 2.4 GHz device on that channel slows during the bursts | None beyond the blaster. Run it at a quiet hour |
+| IoT network, with a pinhole to the sandbox broker | <sandbox-broker-ip> on TCP 1883, bridge IP only | None on the main network | A firewall rule, and a bridge reflash with the IoT credentials |
 | **IoT network, with everything on it** (preferred) | A new Mosquitto on the IoT network | None on the main network | A broker to stand up, a bridge reflash, and the Mac's internet access to solve |
 
 **The operator prefers the third option.** The bridge, the Mac and the broker all move to
@@ -93,7 +93,7 @@ bridged to the main network, and that is why the sandbox broker is out of reach 
 
 **All five were settled on 2026-09-23, and the bench engineering log's entry that day has
 the detail.** The Mac joins the IoT network alone, which has internet. The broker is
-another IoT host, at 192.168.4.52. The blaster is controlled over serial in a bench build,
+another IoT host, at <iot-broker-ip>. The blaster is controlled over serial in a bench build,
 `v_b12_blaster`. The frame log survived a 19854 kbps load, so no rate cap below the link's
 ceiling is needed. Impl Plan §8.1.2 is the correction to §8.1. The list below is kept as
 it was asked.

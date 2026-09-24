@@ -2211,14 +2211,14 @@ prefers, with one change: the broker is not on the Mac.
 
 - The Mac is on the IoT network's 2.4 GHz WiFi (channel 6, WPA2) and keeps internet
   access through it. The brief's first option held.
-- The broker is another IoT host, at 192.168.4.52:1883. The credentials in `secrets.h`
+- The broker is another IoT host, at <iot-broker-ip>:1883. The credentials in `secrets.h`
   authenticate against it.
 - The bridge runs `v_b12_blaster`, flashed over USB from `9bd01b3`. Its `secrets.h` points
   at the IoT network. **Restore the house values and reflash `heltec` when V-B12 is done.**
 
-**The first flash could not join the network.** `secrets.h` named the SSID `McLeeNetIoT`,
-and the bridge logged `NO_AP_FOUND` on every attempt. The operator corrected it to
-`McLeeIoT`. After that the bridge logged one `AUTH_FAIL` and one `ASSOC_FAIL` in its first
+**The first flash could not join the network.** `secrets.h` misspelled the IoT network's SSID,
+and the bridge logged `NO_AP_FOUND` on every attempt. The operator corrected the name
+(redacted 2026-09-23 for the public repository). After that the bridge logged one `AUTH_FAIL` and one `ASSOC_FAIL` in its first
 two seconds, then associated and stayed up.
 
 ### What the blaster achieves
@@ -2318,7 +2318,7 @@ cost frames at 87 m.
 `secrets.h`. The bridge had still been running `v_b12_blaster` at `9bd01b3`, and the broker
 still held its retained `lran/bridge/availability offline`. The BF-26 branch was flashed
 from a clean tree over USB. The banner read `0e7ded5` with no `-dirty`, then `d9624c0` after the
-fix below, and the bridge came up `online` on the house broker at 192.168.2.52.
+fix below, and the bridge came up `online` on the house broker at <sandbox-broker-ip>.
 
 **The run.** The bridge's and the XIAO's serial ports stayed open for the whole session,
 and `push f1` announced `f1`. Set and clear went to `lran/bridge/config/set`, and

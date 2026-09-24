@@ -96,7 +96,7 @@ class Blaster(unittest.TestCase):
     def test_the_start_line_is_not_a_totals_line(self):
         # `blast: on kbps=.. bytes=.. to host:9` carries no counts; taking it for the
         # totals would record the asked-for rate as the achieved one.
-        self.assertIsNone(parse_blast("blast: on kbps=4000 bytes=1472 to 192.168.4.52:9"))
+        self.assertIsNone(parse_blast("blast: on kbps=4000 bytes=1472 to 192.0.2.52:9"))
 
     def test_other_bridge_output_is_ignored(self):
         self.assertIsNone(parse_blast("roll: f1 rolled to ctx 0x1234"))
