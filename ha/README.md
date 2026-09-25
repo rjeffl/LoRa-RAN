@@ -1,6 +1,6 @@
 # `ha/` — what Home Assistant sees
 
-**These files are generated from the firmware, not written by hand.** `ha/discovery/`
+**`ha/discovery/` is generated from the firmware, not written by hand.** It
 holds every MQTT discovery config `firmware/bridge` publishes, one file per topic, and
 `tools/checks/ha_examples.py` fails the build when they stop matching. Impl Plan §4.4
 asks for them "for reference and for bench testing without a running HA"; an example
@@ -57,3 +57,19 @@ as `lran/gatelink/diag/state`.
 - **A node entity's availability is that node's own topic, never the bridge's LWT**
   (**R-3.3d**). A node that has gone offline reads unavailable while the bridge is still
   connected and publishing, which is the case the bridge's LWT cannot describe.
+
+## `ha/automations/` — written by hand
+
+These are the examples an LRAN automation starts from. Nothing generates them, and
+`ha_examples.py` does not read them.
+
+**Every automation on an event topic ignores `synthetic: true`.** The bridge's dummy
+publish (**BF-27**) reaches a node's real event topics whenever that node has not been
+heard since the bridge booted (Impl Plan §6.6.2). Its events carry `synthetic: true`,
+and a radio frame's carry `false`. An automation without the condition sends a real
+email or SMS about a bench test.
+
+[`lran_event_notify.yaml`](automations/lran_event_notify.yaml) has the condition. Paste it
+into Home Assistant's automation editor in YAML mode. It raises a persistent notification;
+replace the action with the notifier you use. It is written for Home Assistant 2026.9,
+whose automations take `triggers`, `conditions` and `actions`.
