@@ -36,6 +36,7 @@
 #include <cstdint>
 
 #include "config_json.h"
+#include "lran/frame.h"
 #include "lran/schema/node_config_v1.h"
 #include "lran/types.h"
 #include "phy_change.h"
@@ -83,7 +84,18 @@ struct ConfigJob {
   PhyGroup     phy_to{};
   bool         phy_named[kPhyGroupSize]  = {};
   ResultStatus phy_status[kPhyGroupSize] = {};
+
+  // spec 8.7, D69 - the node reported CONFIG_CHANGE, and nobody asked for anything. The
+  // transaction starts at the readback (POLL bit 1), and its resolution republishes
+  // `config/state` and publishes no `config/ack`, because there is no set to answer.
+  bool readback_only = false;
 };
+
+// spec 8.7, D69 - true when a STATUS carries `status_reason` CONFIG_CHANGE. Schema 0xFE
+// mirrors 0x10's layout, so a bench node reports it the same way; any other schema, or
+// a payload that does not decode, is false.
+bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payload,
+                                  size_t len);
 
 enum class ConfigAction : uint8_t {
   None,
@@ -149,7 +161,8 @@ class ConfigPath {
   lran::NodeId in_flight_node() const { return job_.dst; }
 
   // False when one is already in flight. `ctx` and `seq` come from the registry, as a
-  // command's do: CONFIG is authenticated (spec 9.2) and carries the node's context.
+  // command's do: CONFIG is authenticated (spec 9.2) and carries the node's context. A
+  // `readback_only` job sends no CONFIG, so its `ctx` and `seq` are unused.
   bool submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq, uint32_t now_ms);
 
   // Call until it returns None. Emits Resolve exactly once per transaction.

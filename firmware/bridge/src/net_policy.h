@@ -71,6 +71,10 @@ size_t node_topic_name(uint8_t node_id, char* out, size_t cap);
 // (spec 16.1's optional item). BF-19. Returns the length written, or 0.
 size_t topic_diag(const char* node, const char* item, char* out, size_t cap);
 
+// `lran/<node>/diag/<item>/log` - a streaming diagnostic, never retained (spec 16.1, D66).
+// `item` is required. Returns the length written, or 0.
+size_t topic_diag_log(const char* node, const char* item, char* out, size_t cap);
+
 // BF-24, spec 7.2.9 - where the bridge's wall clock comes from. The bridge converts a
 // node's `last_traversal_age_s` into an absolute time, and it has no RTC. The public pool
 // rather than the LAN's gateway, because nothing in the documents says the gateway serves

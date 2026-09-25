@@ -75,6 +75,20 @@ size_t topic_diag(const char* node, const char* item, char* out, size_t cap) {
   return static_cast<size_t>(n);
 }
 
+size_t topic_diag_log(const char* node, const char* item, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || item == nullptr || item[0] == '\0') {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = std::snprintf(out, cap, "lran/%s/diag/%s/log", node, item);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 size_t topic_domain_state(const char* node, const char* domain, char* out, size_t cap) {
   if (out == nullptr || cap == 0) return 0;
   if (node == nullptr || node[0] == '\0' || domain == nullptr || domain[0] == '\0') {

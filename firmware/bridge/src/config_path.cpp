@@ -5,6 +5,8 @@
 
 #include "config_path.h"
 
+#include "lran/schema/gatelink_status_v1.h"
+
 namespace bridge {
 
 bool ConfigPath::submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq,
@@ -22,9 +24,22 @@ bool ConfigPath::submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq,
   messages_staged_   = 0;
   readback_first_ms_ = 0;
   window_opened_ms_  = now_ms;
-  phase_             = Phase::SendDue;
+  phase_             = job.readback_only ? Phase::ReadbackDue : Phase::SendDue;
+  if (job.readback_only) job_.op = lran::ConfigOp::GetAll;
   ++stats_.submitted;
   return true;
+}
+
+bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payload,
+                                  size_t len) {
+  if (hdr.type != lran::MsgType::Status) return false;
+  if (hdr.schema != lran::kSchemaGateLinkStatusV1 &&
+      hdr.schema != lran::kSchemaSimnodeStatusV1) {
+    return false;
+  }
+  lran::schema::GateLinkStatusV1 s;
+  if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
+  return s.status_reason == static_cast<uint8_t>(lran::StatusReason::ConfigChange);
 }
 
 ConfigStep ConfigPath::next(uint32_t now_ms) {

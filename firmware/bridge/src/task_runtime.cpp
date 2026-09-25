@@ -205,6 +205,9 @@ std::atomic<bool> g_phy_busy{false};
 
 // spec 12.4.1 step 2's `phy_fleet_incomplete`, for mqtt_task: the nodes the scheduler
 // polls, and those of them not online. sched_availability() writes both every tick.
+// spec 8.7, D69 - nodes whose STATUS reported CONFIG_CHANGE and whose readback has not
+// yet started. app_task sets a bit; sched_config() takes it when the path is free.
+std::atomic<uint32_t> g_config_change_pending{0};
 std::atomic<uint32_t> g_fleet_watched{0};
 std::atomic<uint32_t> g_fleet_not_online{0};
 
@@ -433,7 +436,8 @@ AirTurn air_turn_locked() {
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
-                      (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0);
+                      (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
+                      g_config_change_pending.load() != 0;  // D69
   return a;
 }
 
@@ -739,6 +743,28 @@ void publish_config_resolution(const ConfigStep& step) {
 
   char token[kMaxTopicLen];
   if (node_topic_name(step.dst, token, sizeof(token)) == 0) return;
+  char topic[kMaxTopicLen];
+
+  // spec 8.7, D69 - a readback the node's CONFIG_CHANGE asked for answers no set, so no
+  // config/ack goes. A complete one replaces the mirror and republishes config/state.
+  if (g_config_job.readback_only) {
+    if (!step.updates_state) return;
+    size_t rows = 0;
+    {
+      ConfigLock lock;
+      g_config.note_readback(step.dst, step.results, step.result_count);
+      rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state, kMaxScopeRows);
+    }
+    if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
+        build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
+                           sizeof(g_sched_cfg_doc)) > 0 &&
+        make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+      (void)send_publish(g_sched_msg);
+    } else {
+      g_accounting.record_dropped(QueueId::Publish);
+    }
+    return;
+  }
 
   // The bridge's half first, in the order Home Assistant asked for it.
   size_t n = 0;
@@ -779,7 +805,6 @@ void publish_config_resolution(const ConfigStep& step) {
                                  ? combine_persist(g_config_job.bridge_persist, step.persist)
                                  : step.persist;
 
-  char topic[kMaxTopicLen];
   if (topic_config(token, "ack", topic, sizeof(topic)) > 0 &&
       build_config_ack(step.op, persist, g_sched_cfg_results, n, nullptr, g_sched_cfg_doc,
                        sizeof(g_sched_cfg_doc)) > 0 &&
@@ -849,6 +874,20 @@ void sched_config(uint32_t now_ms) {
             registry_state(g_config_job.dst, &ns)) {
           SchedLock lock;
           (void)g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
+        }
+      } else if (const uint32_t pending = g_config_change_pending.load(); pending != 0) {
+        // spec 8.7, D69 - after Home Assistant's own jobs, one node's readback at a time.
+        // No command seq is taken: the readback is a POLL, and POLL takes a poll seq.
+        for (size_t i = 0; i < kNodeCount; ++i) {
+          const uint32_t bit = node_bit(kNodeTable[i].id);
+          if ((pending & bit) == 0) continue;
+          g_config_change_pending.fetch_and(~bit);
+          g_config_job               = ConfigJob{};
+          g_config_job.dst           = kNodeTable[i].id;
+          g_config_job.readback_only = true;
+          SchedLock lock;
+          (void)g_config_path.submit(g_config_job, 0, 0, now_ms);
+          break;
         }
       }
     }
@@ -2231,6 +2270,12 @@ void app_task(void*) {
                            utc_at(msg.rx_millis), sink);
         g_publish_stats.store(g_policy.stats());
       }
+      // spec 8.7, D69 - the node's configuration changed without a CONFIG_ACK saying so.
+      // A bench node's too: its config/state publishes whatever simnode_diag_enable says
+      // (D65). A dummy frame never reaches here, so it cannot ask for one.
+      if (status_reports_config_change(msg.hdr, msg.payload, msg.payload_len)) {
+        g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
+      }
     }
   }
 }
@@ -2313,13 +2358,10 @@ size_t drain_frame_log() {
   // the air, which is the one conclusion this whole instrument exists to get right.
   const uint32_t lost = lora_frame_log_lost();
 
-  // NOT RETAINED, and spec 16.2's table says a `/state` leaf is. THE DEVIATION IS
-  // DELIBERATE AND IS RAISED, not assumed: this topic carries a rolling window of
+  // NOT RETAINED, on spec 16.1's `log` leaf (D66). This topic carries a rolling window of
   // arrivals, and a retained one replays a burst that finished days ago as though it
-  // were arriving now - spec 16.3's own argument, reaching a topic 16.3 does not cover.
-  // Impl Plan 6.6.1 has it, and it is a spec finding rather than a local decision left
-  // in a comment.
-  if (topic_diag("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
+  // were arriving now - spec 16.3's argument, applied to a topic 16.3 does not cover.
+  if (topic_diag_log("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
   g_log_msg.retain = false;
   g_log_msg.qos    = 0;
 

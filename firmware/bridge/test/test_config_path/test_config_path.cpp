@@ -18,6 +18,7 @@
 #include <cstring>
 
 #include "config_path.h"
+#include "lran/schema/gatelink_status_v1.h"
 
 using namespace bridge;
 using namespace lran;
@@ -300,6 +301,54 @@ void test_persist_status_comes_from_the_answer() {
   TEST_ASSERT_TRUE(path.next(100).persist == AckPersist::AppliedNotPersisted);
 }
 
+// spec 8.7, D69 - a node's CONFIG_CHANGE starts at the readback: no CONFIG goes, and the
+// answer resolves as a GET_ALL that updates config/state.
+void test_a_readback_only_job_sends_no_config() {
+  ConfigPath path;
+  ConfigJob  job;
+  job.dst           = 0xF1;
+  job.readback_only = true;
+  TEST_ASSERT_TRUE(path.submit(job, 0, 0, 0));
+
+  const ConfigStep ask = path.next(0);
+  TEST_ASSERT_TRUE(ask.action == ConfigAction::RequestReadback);
+  path.on_sent(0);
+  path.on_config_ack(0xF1, ack_with(2, /*more=*/false), /*ack_seq=*/90, 200);
+
+  const ConfigStep done = path.next(200);
+  TEST_ASSERT_TRUE(done.action == ConfigAction::Resolve);
+  TEST_ASSERT_TRUE(done.op_outcome == ConfigOutcome::ReadbackOk);
+  TEST_ASSERT_TRUE(done.op == ConfigOp::GetAll);
+  TEST_ASSERT_TRUE(done.updates_state);
+  TEST_ASSERT_EQUAL_UINT32(0, path.stats().sent);
+  TEST_ASSERT_EQUAL_UINT32(1, path.stats().readbacks_requested);
+}
+
+// The detector reads status_reason from schema 0x10 and its bench mirror 0xFE, and from
+// nothing else.
+void test_config_change_is_read_from_a_status() {
+  schema::GateLinkStatusV1 st;
+  st.status_reason = static_cast<uint8_t>(StatusReason::ConfigChange);
+  uint8_t buf[kMaxSchemaPayload];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(st, buf, sizeof(buf), &n));
+
+  Header h;
+  h.type   = MsgType::Status;
+  h.schema = kSchemaGateLinkStatusV1;
+  TEST_ASSERT_TRUE(status_reports_config_change(h, buf, n));
+  h.schema = kSchemaSimnodeStatusV1;
+  TEST_ASSERT_TRUE(status_reports_config_change(h, buf, n));
+  h.schema = kSchemaNodeHealthV1;
+  TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n));
+  h.schema = kSchemaGateLinkStatusV1;
+  TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n - 1));
+
+  st.status_reason = static_cast<uint8_t>(StatusReason::PollResponse);
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(st, buf, sizeof(buf), &n));
+  TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -319,6 +368,8 @@ int main(int, char**) {
   RUN_TEST(test_an_abandoned_answer_carries_no_results);
   RUN_TEST(test_a_readback_that_never_starts_still_ends);
   RUN_TEST(test_persist_status_comes_from_the_answer);
+  RUN_TEST(test_a_readback_only_job_sends_no_config);
+  RUN_TEST(test_config_change_is_read_from_a_status);
 
   return UNITY_END();
 }
