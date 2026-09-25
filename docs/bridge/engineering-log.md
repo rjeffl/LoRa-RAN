@@ -2998,3 +2998,23 @@ it held before. The sandbox registry now has 45 new entities, all under `lran_br
 but `lran/bridge/config/set` still takes any `bandwidth_khz` from 125 to 500, 300 among them.
 The table has a range, and the SX1262 has discrete points. Recorded under the handoff's
 *Open*.
+
+## 2026-09-25 — `spec_citation_version.py` reads role header lines, and finds six stale citations
+
+**The check now reads every versioned `**<Role>:**` header line** that links an `LRAN-`
+document, and compares the version after the link with that document's own **Version:**
+header. Before this, it read citations of the protocol specification only. The number of
+citations it checks went from 26 to 32, and every one of the 26 is still checked.
+
+**The handoff expected two stale citations and the check found six.** Firmware Tasks
+cites the Bridge PRD at v0.14 (now v0.15), the Impl Plan at v0.54 (now v0.58) and the
+Library Plan at v0.12 (now v0.19). The Impl Plan cites the Bridge PRD at v0.14 (now v0.15)
+and the Library Plan at v0.14 (now v0.19). The GateLink Impl Plan cites the GateLink PRD at
+v0.9 (now v0.10). Each needs its document read against the intervening revisions before
+the number moves, so none was bumped here.
+
+**`KNOWN_STALE` holds the six, so `main` stays green.** An entry is keyed by citing file
+and cited document, and holds the version cited. The check fails on a stale citation not
+in the table, and on an entry whose citation has moved. The second failure is the one
+that stops the table from outliving the debt. Both failures were exercised by editing a
+citation and running the check.

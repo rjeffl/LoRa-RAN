@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every live "binding protocol" citation names the specification's current version.
+"""Every live versioned citation names the version its target document states.
 
 The specification reached v0.9 on 2026-09-06 and thirteen citations across the
 repository still said v0.8 two days later. Nothing caught it, and nothing could
@@ -13,11 +13,22 @@ the intervening revisions - say so rather than building against it." A document
 that is reconciled but still says v0.8 trains people to ignore that rule, which is
 worse than the drift itself.
 
-WHAT THIS CHECKS. Lines that assert what a target is built against - "Binding
-protocol:", "Binding specification:", "Binding spec:", the root CLAUDE.md's
-"Currently vX.Y", and the System PRD's document-set row. Each must name the
-version in the specification's own header, and each that also states a wire
-version must name the one in that header.
+WHAT THIS CHECKS. Two kinds of line.
+
+  - Role header lines, in any Markdown document: **<Role>:** [`LRAN-...`](path)
+    followed by a version. "Binding protocol:", "Shared codec:", "Build source:"
+    and "Requirements source:" are all this shape. The version must be the one in
+    the linked document's own **Version:** header. The protocol specification
+    was once the only target checked, and header citations of the Library Plan
+    and the Bridge Implementation Plan sat four revisions stale beside it.
+  - Other lines that assert which specification a target is built against: the
+    root CLAUDE.md's "Currently vX.Y", the System PRD's document-set row, and the
+    firmware's own "Binding protocol" comments. Each must name the version in the
+    specification's header.
+
+A citation of the specification that also states a wire version must name the one
+in the specification's header. A role header line with no version after its link
+cites no version, and nothing here checks it.
 
 WHAT IT DOES NOT CHECK. Prose that mentions a version in passing, changelog
 entries, engineering-log entries and anything under docs/archive/ - those are
@@ -54,6 +65,28 @@ SKIP_PATHS = (
     # decides nothing, so the same reasoning applies to it.
     pathlib.Path("docs/shared/LRAN-D1-Parallel-Capture-Analysis.md"),
 )
+
+# **<Role>:** [`LRAN-Doc`](../path/LRAN-Doc.md#anchor) **v0.14** (`ver = 2`) - the
+# version must follow the link directly, so a header whose link is followed by a
+# section number or a note cites no version.
+ROLE_HEADER = re.compile(
+    r"^\*\*[A-Z][^*:\n]*:\*\*\s*\[`?(?P<doc>LRAN-[\w.-]+)`?\]"
+    r"\((?P<href>[^)\s#]+)(?:#[^)\s]*)?\)\s*\*{0,2}v(?P<ver>\d+\.\d+)\b"
+)
+
+# Role header citations known to be stale when this list was written, keyed by
+# (citing file, cited document) to the version cited. Each needs its document read
+# against the target's intervening revisions before the number moves, which is a
+# task of its own, not a side effect of this check. An entry fails the check once
+# its citation changes, so the list cannot outlive the debt it records.
+KNOWN_STALE = {
+    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Bridge_Node-PRD"): "0.14",
+    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Bridge_Node-Implementation-Plan"): "0.54",
+    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Protocol-Library-Implementation-Plan"): "0.12",
+    ("docs/bridge/LRAN-Bridge_Node-Implementation-Plan.md", "LRAN-Bridge_Node-PRD"): "0.14",
+    ("docs/bridge/LRAN-Bridge_Node-Implementation-Plan.md", "LRAN-Protocol-Library-Implementation-Plan"): "0.14",
+    ("docs/gatelink/LRAN-GateLink_Node-Implementation-Plan.md", "LRAN-GateLink_Node-PRD"): "0.9",
+}
 
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".
@@ -92,6 +125,18 @@ def spec_versions() -> tuple[str, str]:
     return doc.group(1), wire.group(1)
 
 
+_doc_versions: dict[pathlib.Path, str | None] = {}
+
+
+def doc_version(path: pathlib.Path) -> str | None:
+    """Return the version in a document's **Version:** header, or None if it has none."""
+    if path not in _doc_versions:
+        head = "\n".join(path.read_text(errors="replace").splitlines()[:20])
+        found = re.search(r"^\*\*Version:\*\*\s*(\d+\.\d+)", head, re.M)
+        _doc_versions[path] = found.group(1) if found else None
+    return _doc_versions[path]
+
+
 def skipped(rel: pathlib.Path) -> bool:
     return any(rel == p or p in rel.parents for p in SKIP_PATHS)
 
@@ -100,6 +145,8 @@ def main() -> int:
     want_doc, want_wire = spec_versions()
     spec_rel = SPEC.relative_to(ROOT)
     stale: list[str] = []
+    known: list[str] = []
+    resolved: list[str] = []
     checked = 0
 
     for path in ROOT.rglob("*"):
@@ -122,6 +169,37 @@ def main() -> int:
                     in_changelog_at = 0
             if in_changelog_at:
                 continue
+            role = ROLE_HEADER.match(line) if path.suffix == ".md" else None
+            if role:
+                target = (path.parent / role.group("href")).resolve()
+                if not target.is_file():
+                    stale.append(f"{rel}:{n}: links {role.group('href')}, which does not exist")
+                    continue
+                cited, want = role.group("ver"), doc_version(target)
+                if want is None:
+                    stale.append(
+                        f"{rel}:{n}: cites {role.group('doc')} v{cited}, "
+                        "which has no **Version:** header"
+                    )
+                    continue
+                checked += 1
+                key = (rel.as_posix(), role.group("doc"))
+                if cited != want and KNOWN_STALE.get(key) == cited:
+                    known.append(f"{rel}:{n}: cites {role.group('doc')} v{cited}, it is v{want}")
+                    continue
+                if cited != want:
+                    stale.append(f"{rel}:{n}: cites {role.group('doc')} v{cited}, it is v{want}")
+                elif key in KNOWN_STALE:
+                    resolved.append(f"{rel}:{n}: {role.group('doc')} now cited at v{cited}")
+                if target == SPEC:
+                    wire = WIRE_PATTERN.search(line)
+                    if wire and wire.group("wire") != want_wire:
+                        stale.append(
+                            f"{rel}:{n}: cites ver = {wire.group('wire')}, "
+                            f"specification is ver = {want_wire}"
+                        )
+                continue
+
             match = next((m for p in CITATION_PATTERNS if (m := p.search(line))), None)
             if not match:
                 continue
@@ -135,8 +213,18 @@ def main() -> int:
                     f"{rel}:{n}: cites ver = {wire.group('wire')}, specification is ver = {want_wire}"
                 )
 
+    if known:
+        print(f"Known stale, listed in KNOWN_STALE ({len(known)}):")
+        for k in known:
+            print("  " + k)
+    if resolved:
+        print("FAIL: KNOWN_STALE lists citations that are no longer stale; remove them:")
+        for r in resolved:
+            print("  " + r)
+        return 1
+
     if stale:
-        print(f"FAIL: binding citations disagree with {spec_rel} (v{want_doc}, ver = {want_wire}):")
+        print(f"FAIL: citations disagree with the documents they cite (specification v{want_doc}, ver = {want_wire}):")
         for s in stale:
             print("  " + s)
         print(
@@ -146,7 +234,10 @@ def main() -> int:
         )
         return 1
 
-    print(f"OK - {checked} binding citations name v{want_doc} (ver = {want_wire})")
+    print(
+        f"OK - {checked} versioned citations checked, {len(known)} known stale; "
+        f"specification v{want_doc} (ver = {want_wire})"
+    )
     return 0
 
 

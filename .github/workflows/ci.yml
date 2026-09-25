@@ -145,7 +145,7 @@ jobs:
       # Fails when a "binding protocol" citation names a version the specification
       # has moved past. v0.9 changed nothing on the wire, so no test and no vector
       # caught that drift — only this does.
-      - name: Binding specification citations
+      - name: Versioned document citations
         run: python3 tools/checks/spec_citation_version.py
 
       # Spec §9.1 — key derivation must not depend on mbedtls_hkdf(). The header

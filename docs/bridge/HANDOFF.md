@@ -1,9 +1,11 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that built the `vectors_data.h` check.** CI's `checks`
-job now fails when the W4 JSON is not what `generate.py` produces, or `vectors_data.h` is
-not what `embed.py` produces from the JSON. The protocol-lib engineering log's 2026-09-25
-entry has the detail. BF-35, the session before, is in the bridge log's *BF-35* entry.
+**Written 2026-09-25 by the session that extended `spec_citation_version.py` to role header
+lines.** The check now reads every versioned ``**<Role>:** [`LRAN-…`](…) vX.Y`` line and
+compares it with the linked document's own **Version:** header. It found six stale
+citations, not two, and lists them in its `KNOWN_STALE` table so CI stays green while
+they wait for reconciliation. The `vectors_data.h` check, the session before, is in the
+protocol-lib engineering log's 2026-09-25 entry.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,8 +24,7 @@ file:
 
 | Task | Read |
 |---|---|
-| **Extend `spec_citation_version.py` to every role header line** | *Open*'s Library Plan citation item; `tools/checks/spec_citation_version.py` |
-| **Reconcile and bump the Firmware Tasks header to Impl Plan v0.56** | *Open*'s Firmware Tasks item; Impl Plan v0.55 and v0.56 change notes |
+| **Reconcile the six stale role header citations** | *Open*'s stale-citation item; `KNOWN_STALE` in `tools/checks/spec_citation_version.py`; each cited document's change notes since the version cited |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -42,7 +43,8 @@ permanent now. A new table row gains its entity at the next flash, with no edit 
 `discovery.cpp`.
 
 **The `vectors_data.h` check is built** and runs in CI's `checks` job (W4, spec §13.2).
-No task is queued after it.
+
+**`spec_citation_version.py` reads every role header line.** No task is queued after it.
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -69,8 +71,6 @@ refuses a long-lived token.
   `mqtt_task` publishes it. The `config/state` published after the reboot is correct. Rare.
 - **The bridge's `phy_reverted` `event_id` restarts at 1 after a reboot.** No rule covers
   the bridge's own events. An automation keyed on `event_id` alone would miss a repeat.
-- **The Firmware Tasks header cites the Impl Plan at v0.54**, against v0.56. Reconcile
-  v0.55's D61 lever and v0.56's B4b status, then bump.
 - **Four spec questions from BF-33 slice 2**, in the engineering log's entry of that name:
   an empty fleet refused `phy_fleet_incomplete`; the bridge's own PHY rows `READ_ONLY`
   without a usable store; no §16.7.5 reason for a failed commit write; and §12.4 step 1's
@@ -133,11 +133,14 @@ refuses a long-lived token.
   out a gross coexistence failure, not desense near sensitivity. The check that would
   reopen it is R-4.4b's PER at the gate, rising with the bridge's WiFi traffic, once
   GateLink is deployed.
-- **Two header citations of the Library Plan are stale, and no check covers them.**
-  Firmware Tasks says v0.12 and the Impl Plan says v0.14, against v0.19.
-  `spec_citation_version.py` reads only the protocol specification's citations. Read each
-  document against the Library Plan's changes, then bump. Extending the check to every
-  ``**<Role>:** [`LRAN-…`](…) vX.Y`` header line is the lasting fix, on a branch of its own.
+- **Six role header citations are stale**, and `spec_citation_version.py` lists each in
+  `KNOWN_STALE`. Firmware Tasks cites the Bridge PRD at v0.14 (now v0.15), the Impl Plan
+  at v0.54 (now v0.58) and the Library Plan at v0.12 (now v0.19); it is known to owe the
+  Impl Plan's v0.55 D61 lever and v0.56 B4b status. The Impl Plan cites the Bridge PRD at
+  v0.14 (now v0.15) and the Library Plan at v0.14 (now v0.19). The GateLink Impl Plan
+  cites the GateLink PRD at v0.9 (now v0.10). Read each document against the cited one's
+  changes, then bump the citation and delete its `KNOWN_STALE` entry. The check fails if
+  an entry outlives the debt.
 - **The bridge loses frames at one metre and the cause is not known.** Spacing is a
   measured variable rather than a suspect; the mechanism is not. The three candidates
   inside the bridge stay ruled out from 2026-09-17, and M25 found nothing on the channel
@@ -184,7 +187,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Start here* |
 
@@ -201,7 +204,7 @@ pio run  -d firmware/simnode -e simnode-xiao-wio
 python3 tools/checks/lora_task_never_blocks.py  # lora_task blocks on nothing
 python3 tools/checks/no_mbedtls_hkdf.py         # HKDF built from HMAC, spec 9.1
 python3 tools/checks/bridge_partitions.py       # A/B table
-python3 tools/checks/spec_citation_version.py   # binding citations vs. the spec header
+python3 tools/checks/spec_citation_version.py   # versioned citations vs. each target's header
 python3 tools/checks/ha_examples.py             # ha/discovery/ vs. the firmware
 python3 tools/checks/simctl_catalogue.py        # simctl's rows vs. fault.cpp
 python3 tools/simctl/test_sweep_analyze.py      # the interleaved sweep's arithmetic
