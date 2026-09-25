@@ -309,6 +309,7 @@ ResultStatus result_status_of(lran::ParamStatus s) {
     case lran::ParamStatus::Clamped: return ResultStatus::Clamped;
     case lran::ParamStatus::TypeMismatch: return ResultStatus::TypeMismatch;
     case lran::ParamStatus::ReadOnly: return ResultStatus::ReadOnly;
+    case lran::ParamStatus::InvalidValue: return ResultStatus::InvalidValue;
   }
   return ResultStatus::Unknown;
 }
@@ -320,6 +321,7 @@ const char* result_status_name(ResultStatus s) {
     case ResultStatus::Clamped: return "clamped";
     case ResultStatus::TypeMismatch: return "type_mismatch";
     case ResultStatus::ReadOnly: return "read_only";
+    case ResultStatus::InvalidValue: return "invalid_value";
     case ResultStatus::Unknown: return "unknown";
     case ResultStatus::Reverted: return "reverted";
   }

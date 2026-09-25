@@ -263,6 +263,28 @@ void test_a_phy_request_clamps_and_carries_the_whole_group() {
   TEST_ASSERT_EQUAL_INT32(9, store.phy_group().v[kPhySf]);  // nothing moved
 }
 
+// spec 12.4, D64 - a bandwidth off the list is refused alone: it reads invalid_value and
+// the target keeps the current 125, while the rest of the group may still change.
+void test_a_phy_request_refuses_a_bandwidth_off_the_list() {
+  FakePersist p;
+  ConfigStore store;
+  store.begin(&p, nullptr, 0);
+  store.enable_phy_trial();
+
+  ConfigSetRequest req = one("bandwidth_khz", 300);
+  req.count            = 2;
+  std::snprintf(req.entries[1].name, sizeof(req.entries[1].name), "spreading_factor");
+  req.entries[1].value_readable = true;
+  req.entries[1].value          = 10;
+
+  PhyRequest pr;
+  TEST_ASSERT_TRUE(store.phy_request(req, &pr));
+  TEST_ASSERT_TRUE(pr.status[kPhyBw] == ResultStatus::InvalidValue);
+  TEST_ASSERT_EQUAL_INT32(125, pr.target.v[kPhyBw]);
+  TEST_ASSERT_TRUE(pr.status[kPhySf] == ResultStatus::Ok);
+  TEST_ASSERT_EQUAL_INT32(10, pr.target.v[kPhySf]);
+}
+
 // Steps 5, 7 and 8 - the trial copy, one group write on commit, nothing on revert.
 void test_the_trial_commits_through_one_group_write_and_reverts_without_one() {
   FakePersist p;
@@ -533,10 +555,11 @@ void test_state_marks_an_override_as_one() {
 
 namespace {
 
-lran::schema::ConfigAckEntry ok_entry(uint16_t id, int32_t value) {
+lran::schema::ConfigAckEntry ok_entry(uint16_t id, int32_t value, bool is_override = true) {
   lran::schema::ConfigAckEntry e;
   lran::schema::entry_pack(&e, id, ParamStatus::Ok, PType::U8,
                            static_cast<uint32_t>(value) & 0xFFu);
+  e.is_override = is_override;
   return e;
 }
 
@@ -556,24 +579,27 @@ void test_a_readback_fills_the_nodes_own_rows() {
   TEST_ASSERT_NOT_NULL(dedup);
   TEST_ASSERT_TRUE(dedup->has_value);
   TEST_ASSERT_EQUAL_INT32(16, dedup->value);
-  // Inferred, not reported: 16 differs from the table's default of 8. W15 is the gap.
   TEST_ASSERT_TRUE(dedup->is_override);
 }
 
-void test_a_value_equal_to_its_default_reads_as_default() {
-  // Spec 16.7.4 - `source` for a node-held row is INFERRED, because CONFIG_ACK carries no
-  // override flag. An override equal to its default is indistinguishable here.
+// Spec 16.7.4, D68 - `source` is the node's OVERRIDE bit. An override equal to its default
+// reads `override`, and a value the node does not mark reads `default`, whatever it is.
+void test_source_is_the_nodes_override_bit() {
   ConfigStore store;
   store.begin(nullptr, nullptr, 0);
-  const lran::schema::ConfigAckEntry results[] = {ok_entry(0x0100, 8)};
-  store.note_readback(lran::kNodeSim1, results, 1);
+  const lran::schema::ConfigAckEntry results[] = {ok_entry(0x0100, 8, true),
+                                                  ok_entry(0x0102, 7, false)};
+  store.note_readback(lran::kNodeSim1, results, 2);
 
   ConfigStateEntry entries[config::kMaxTableParams];
   const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
                                config::kMaxTableParams);
   const ConfigStateEntry* dedup = state_named(entries, n, "dedup_cache_depth");
   TEST_ASSERT_TRUE(dedup->has_value);
-  TEST_ASSERT_FALSE(dedup->is_override);
+  TEST_ASSERT_TRUE(dedup->is_override);
+  const ConfigStateEntry* cad = state_named(entries, n, "cad_retries");
+  TEST_ASSERT_TRUE(cad->has_value);
+  TEST_ASSERT_FALSE(cad->is_override);
 }
 
 // THE BENCH FOUND THIS ONE. A set of one parameter must not blank every row the set did
@@ -644,6 +670,7 @@ int main(int, char**) {
   RUN_TEST(test_a_phy_row_on_a_node_topic_is_read_only_and_sends_nothing);
   RUN_TEST(test_the_bridges_phy_rows_need_a_usable_store);
   RUN_TEST(test_a_phy_request_clamps_and_carries_the_whole_group);
+  RUN_TEST(test_a_phy_request_refuses_a_bandwidth_off_the_list);
   RUN_TEST(test_the_trial_commits_through_one_group_write_and_reverts_without_one);
   RUN_TEST(test_a_restored_phy_value_is_committed_and_writes_nothing);
 
@@ -662,7 +689,7 @@ int main(int, char**) {
   RUN_TEST(test_state_marks_an_override_as_one);
 
   RUN_TEST(test_a_readback_fills_the_nodes_own_rows);
-  RUN_TEST(test_a_value_equal_to_its_default_reads_as_default);
+  RUN_TEST(test_source_is_the_nodes_override_bit);
   RUN_TEST(test_a_sets_ack_merges_and_does_not_blank_the_rest);
   RUN_TEST(test_a_readback_replaces_rather_than_merges);
   RUN_TEST(test_the_mirror_is_per_node);

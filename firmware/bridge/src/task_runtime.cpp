@@ -947,7 +947,9 @@ void publish_phy_resolution(bool committed, bool persisted) {
     if (!g_phy_job.phy_named[k]) continue;
     ConfigResult r;
     std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
-    r.status    = committed ? g_phy_job.phy_status[k] : ResultStatus::Reverted;
+    // An entry refused at step 1 never joined the change, so it keeps its own answer.
+    const bool refused = g_phy_job.phy_status[k] == ResultStatus::InvalidValue;
+    r.status    = committed || refused ? g_phy_job.phy_status[k] : ResultStatus::Reverted;
     r.has_value = true;
     r.value     = committed ? g_phy_job.phy_to.v[k] : g_phy_job.phy_from.v[k];
     g_sched_cfg_results[n++] = r;
@@ -1825,7 +1827,9 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
       if (!phy_req.named[k]) continue;
       ConfigResult r;
       std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
-      r.status           = ResultStatus::Reverted;
+      r.status           = phy_req.status[k] == ResultStatus::InvalidValue
+                               ? ResultStatus::InvalidValue
+                               : ResultStatus::Reverted;
       r.has_value        = true;
       r.value            = phy_from.v[k];
       g_cfg_results[n++] = r;

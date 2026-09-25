@@ -83,6 +83,7 @@ enum class ResultStatus : uint8_t {
   Clamped,
   TypeMismatch,
   ReadOnly,
+  InvalidValue,  // D64
   Unknown,
   // spec 16.7.3 - a PHY change the bridge abandoned or reverted. The PHY group's alone,
   // and like `unknown` it has no spec 8.12 counterpart.

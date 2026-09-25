@@ -199,7 +199,8 @@ size_t ConfigStore::apply(ConfigScope scope, lran::NodeId node, const ConfigSetR
       ConfigResult r;
       copy_name(r.name, sizeof(r.name), d->name);
       r.status    = ResultStatus::ReadOnly;
-      r.has_value = mirror_value(node, d->id, &r.value);
+      bool marked = false;
+      r.has_value = mirror_value(node, d->id, &r.value, &marked);
       results[n++] = r;
       continue;
     }
@@ -323,11 +324,9 @@ size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry
     if (d.owner == Owner::Node) {
       // Spec 16.7.4 - the node's own value, from the last complete readback, or null when
       // none has arrived. Null is a different statement from "equal to the default".
-      e.has_value = mirror_value(node, d.id, &e.value);
-      // INFERRED, NOT REPORTED. CONFIG_ACK carries no override flag, so an override equal
-      // to its default reads `default` here. W15 tracks the gap; GateLink PRD R-5.3e is
-      // what would close it.
-      if (e.has_value) e.is_override = e.value != d.def;
+      // Spec 16.7.4, D68 - `source` is the node's OVERRIDE bit, not a comparison with
+      // the default: an override set equal to its default is still an override.
+      e.has_value = mirror_value(node, d.id, &e.value, &e.is_override);
       out[n++] = e;
       continue;
     }
@@ -338,7 +337,9 @@ size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry
 
     e.has_value   = true;
     e.value       = store->effective(d.id);
-    e.is_override = store->is_override(d.id);
+    // The value is effective(), a PHY trial's during one, so the marking is the one that
+    // describes it (spec 7.4, D68).
+    e.is_override = store->marked_override(d.id);
     out[n++]      = e;
   }
   return n;
@@ -386,18 +387,21 @@ void ConfigStore::note_set_results(lran::NodeId node,
       if (slot == nullptr && !mirror_[index][k].set) slot = &mirror_[index][k];
     }
     if (slot == nullptr) continue;  // more rows than this bridge mirrors
-    slot->id    = e.param_id;
-    slot->value = v;
-    slot->set   = true;
+    slot->id          = e.param_id;
+    slot->value       = v;
+    slot->is_override = e.is_override;
+    slot->set         = true;
   }
 }
 
-bool ConfigStore::mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out) const {
+bool ConfigStore::mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out,
+                               bool* is_override) const {
   const size_t index = mirror_index(node);
   if (index == kNodeCount) return false;
   for (size_t m = 0; m < kMirrorRows; ++m) {
     if (mirror_[index][m].set && mirror_[index][m].id == id) {
-      *out = mirror_[index][m].value;
+      *out         = mirror_[index][m].value;
+      *is_override = mirror_[index][m].is_override;
       return true;
     }
   }
@@ -436,6 +440,12 @@ bool ConfigStore::phy_request(const ConfigSetRequest& req, PhyRequest* out) cons
     const lran::config::Value v     = asked < d->min ? d->min : asked > d->max ? d->max : asked;
     out->any          = true;
     out->named[k]     = true;
+    // spec 12.4, D64 - a value off the row's list applies nothing, so the target keeps
+    // the row's current value and the rest of the group may still change.
+    if (!lran::config::value_allowed(*d, v)) {
+      out->status[k] = ResultStatus::InvalidValue;
+      continue;
+    }
     out->status[k]    = v == asked ? ResultStatus::Ok : ResultStatus::Clamped;
     out->target.v[k]  = v;
   }
