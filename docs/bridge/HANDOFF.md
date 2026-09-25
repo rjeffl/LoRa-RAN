@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-24 by the session that fixed the poll clash.** A `POLL` and another frame
-no longer go out while either's answer is due. The bench showed the clash five times on the
-old image and not once on the new one, and five PHY changes started beside a `POLL` all
-committed. The engineering log's *poll clash fixed* entry has the evidence.
+**Written 2026-09-25 by the session that built BF-35.** Home Assistant now shows every
+configuration row as an entity, generated from `/lib/lran-config/`'s table, on the device
+whose topic sets it. The sandbox HA registered all 45, and three writes from HA came back
+through the bridge's `config/state`. The engineering log's *BF-35* entry has the run.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,13 +18,11 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: BF-35.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **BF-35** (no board to build; the bench to show it) | *The next job*; Firmware Tasks' BF-35 row; Impl Plan §4.4.1 and §4.4.2; `/lib/lran-config/include/lran/config/table.h`; `firmware/bridge/src/discovery.h` |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -39,12 +37,11 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 **The poll clash is fixed and shown on air** (`air_turn.h`, Impl Plan §6.1.1).
 
-**BF-35 is next: HA controls for the configuration table.** `number`, `switch` and `select`
-discovery comes from `/lib/lran-config/`'s table (D44), for the bridge's rows and each
-node's. Every control name becomes a permanent HA `object_id`, so settle the names with the
-operator before anything is published. The row's note that the PHY rows answer `READ_ONLY`
-until BF-33 is stale: BF-33 is built, and a PHY row is writable on
-`lran/bridge/config/set` alone. Read the row against that before building.
+**BF-35 is built and shown in the sandbox HA** (Impl Plan §4.4.3). The names are
+permanent now. A new table row gains its entity at the next flash, with no edit to
+`discovery.cpp`.
+
+**The `vectors_data.h` check is next**, and it needs no board.
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -63,7 +60,10 @@ refuses a long-lived token.
 - **A roll's ACK window may open when the frame is queued, not when it goes on air.** f1's
   roll was retried 527 ms after it went out, 52 ms after its ACK arrived. The *poll clash
   fixed* log entry has the arithmetic, and it is not shown. The command path may share it.
-- **BF-35's row still says the PHY rows answer `READ_ONLY` until BF-33.** BF-33 is built.
+- **`lran/bridge/config/set` takes any `bandwidth_khz` from 125 to 500**, 300 among them,
+  though the SX1262 has 125, 250 and 500 only. HA's `select` offers only those three, but
+  the topic accepts the rest. Whether the table should gain a list of legal points, or the
+  bridge should refuse a value between them, is the specification's question (§12.1).
 - **The `config/ack` for a committed PHY change is lost** when the bridge restarts before
   `mqtt_task` publishes it. The `config/state` published after the reboot is correct. Rare.
 - **The bridge's `phy_reverted` `event_id` restarts at 1 after a reboot.** No rule covers
@@ -87,8 +87,6 @@ refuses a long-lived token.
 - **Set `deployed` on GateLink when it goes into the field**, on
   `lran/gatelink/config/set`. Until then the bridge polls it only once heard.
 
-- **The bridge's boot banner still says "No discovery yet."** That BF-15 line has been
-  wrong since BF-23 built discovery. It is a one-line firmware fix, left for the next flash.
 - **`mppt_charge_state` and `mppt_error` show raw VE.Direct codes in HA**, such as `3`, not
   names. Whether discovery maps them to names is BF-24's question, and GateLink's data
   will need it.
@@ -115,7 +113,9 @@ refuses a long-lived token.
   `diag/state` and `availability`, and §16.7 gives every node a `config/*` topic. Whether
   the configuration and command answers are bench data is the specification's question.
   Raise it rather than gating them locally, because gating them would make a bench set
-  unanswerable while the flag is clear. Impl Plan §4.2a.1.
+  unanswerable while the flag is clear. Impl Plan §4.2a.1. **BF-35 gave bench nodes no
+  configuration entities** until the specification answers, because a registry row is not
+  taken back (Impl Plan §4.4.3).
 - **The IoT network's nearest access point is still pinned to channel 6** from V-B12.
   Whether it stays pinned is the operator's call.
 - **A flag set `applied_not_persisted` leaves a stale `online` after a reboot.** The
@@ -176,9 +176,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 BF-35 entry**, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §8 is B4b, where the work goes next |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
@@ -192,9 +192,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **BF-35** |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **The `vectors_data.h` check** |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite

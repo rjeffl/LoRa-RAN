@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.57
+**Version:** 0.58
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.14 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -646,6 +646,44 @@ after, and `config/state` shows only the second.
 or that a value survives a reboot. Both need the board. `sched_levers()` prints a
 `levers: gen N` line each time it applies a generation. That line, and the diagnostic
 publication's spacing after a `diag_interval_s` set, are the bench evidence to look for.
+
+#### 4.4.3 BF-35's controls, built 2026-09-25
+
+**Home Assistant now shows every configuration row as an entity on the device whose topic
+sets it.** The rows come from `/lib/lran-config/`'s table (D44), so a row added there gains
+its entity without an edit to `discovery.cpp`. A control offers the table's own range and
+cannot ask for a value the bridge would clamp. Host-tested, and **shown in the sandbox HA
+2026-09-25**. The engineering log's entry that day has the run.
+
+| Device | Rows | Entity |
+|---|---|---|
+| LoRa Bridge | The 15 global read-write rows | `number`, except `simnode_diag_enable`, a `switch` |
+| LoRa Bridge | The six PHY rows (D59) | `number`, except `bandwidth_khz`, a `select` offering 125, 250 and 500 |
+| Each node | `poll_interval_s`, `deployed` | `number`, `switch` |
+| Each node | The four node-common read-write rows | `number` |
+| Each node | The six PHY rows | Diagnostic `sensor` |
+
+Each entity writes `{"set": {<name>: <value>}}` to its device's `config/set` (spec §16.7.2)
+and reads `value_json.<name>.value` from its `config/state` (§16.7.4). A switch writes
+`true` and `false`, and it reads the 1 and 0 that `config/state` reports for a bool.
+
+The operator settled the four choices below on 2026-09-25, before anything was published.
+
+| Choice | Why |
+|---|---|
+| **The table name is the `object_id` and the entity name**, under the unique_id `lran_<node>_<name>` | Spec §16.7 says so. HA derives a new entity's id from the device and entity names, so the entity reads `number.gatelink_poll_interval_s`, the key a person would publish by hand. The name can be changed in HA; the unique_id cannot |
+| **The bridge's PHY rows are controls, in box mode** | The bridge's topic is the only place a PHY change can start (D59), and a failed change reverts under §12.4. Box mode means a slider cannot pass through a fleet-wide change on its way to a value. `bandwidth_khz` is a `select`, because the row's 125–500 range would take 300, which is not an SX1262 bandwidth |
+| **A node's PHY rows are diagnostic sensors** | Spec §16.7.1 answers a PHY row `read_only` on a node's topic, so a control there could only fail. The sensors show whether each node holds the fleet's settings after a change |
+| **`poll_interval_s` and `deployed` follow the bridge's availability** | The bridge applies them. `deployed` must be settable on a node that has never been heard (D61), which is exactly when that node reads offline. A node's own rows follow the node's availability, as R-3.3d requires |
+
+**Every control is `ent_cat: config`**, which keeps it off a default dashboard. **A bench
+node gets no table entities**, even with `simnode_diag_enable` set. Whether a simnode's
+`config/*` topics count as bench data is an open question for spec §16.6, and HA's registry
+never forgets a unique_id once published. A bench row is still settable on its topic.
+
+**`test_discovery` renders each control's command as HA would, and parses the result
+through `parse_config_set()`.** A template that drifted from the parser would publish, and
+the bridge would answer it `not_applied` on `config/ack`, a topic nobody watches.
 
 ---
 
@@ -2630,6 +2668,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.58** — **BF-35 is built.** New §4.4.3: Home Assistant controls for the configuration
+  table, generated from `/lib/lran-config/`, and the four naming and availability choices
+  the operator made before the first publish.
 
 - **v0.57** — **The poll clash is fixed.** §6.1.1 adds the rule that one exchange is on
   the air at a time. A scheduled `POLL` and any other frame no longer wait for their
