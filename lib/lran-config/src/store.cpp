@@ -115,6 +115,10 @@ bool Store::is_override(uint16_t id) const {
   return o != nullptr && o->set;
 }
 
+bool Store::marked_override(uint16_t id) const {
+  return trial_slot(id) != nullptr || is_override(id);
+}
+
 schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied,
                                     bool* persisted) {
   if (applied != nullptr) *applied = false;
@@ -141,6 +145,7 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
   if (in.ptype != d->type || in.len != width) {
     schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
                        raw_bits(effective(in.param_id), d->type));
+    out.is_override = marked_override(in.param_id);
     return out;
   }
 
@@ -151,11 +156,21 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
   if (d->access == Access::ReadOnly || (d->access == Access::Phy && !phy_writable())) {
     schema::entry_pack(&out, in.param_id, ParamStatus::ReadOnly, d->type,
                        raw_bits(effective(in.param_id), d->type));
+    out.is_override = marked_override(in.param_id);
     return out;
   }
 
   const Value requested = schema::entry_signed(in.value, in.len, in.ptype);
   const Value eff       = clamp(requested, *d);
+
+  // spec 8.12, D64 - inside the range and off the parameter's list. Nothing is applied,
+  // and the result carries the value the node holds, as READ_ONLY's does.
+  if (!value_allowed(*d, eff)) {
+    schema::entry_pack(&out, in.param_id, ParamStatus::InvalidValue, d->type,
+                       raw_bits(effective(in.param_id), d->type));
+    out.is_override = marked_override(in.param_id);
+    return out;
+  }
 
   const ParamStatus status = eff == requested ? ParamStatus::Ok : ParamStatus::Clamped;
 
@@ -178,12 +193,14 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
     if (applied != nullptr) *applied = true;
     if (persisted != nullptr) *persisted = false;
     schema::entry_pack(&out, in.param_id, status, d->type, raw_bits(eff, d->type));
+    out.is_override = true;
     return out;
   }
 
   if (set_override(in.param_id, eff) == nullptr) {
     schema::entry_pack(&out, in.param_id, ParamStatus::TypeMismatch, d->type,
                        raw_bits(effective(in.param_id), d->type));
+    out.is_override = marked_override(in.param_id);
     return out;
   }
 
@@ -193,8 +210,9 @@ schema::ConfigAckEntry Store::apply(const schema::ConfigEntry& in, bool* applied
   if (persisted != nullptr) *persisted = saved;
 
   // spec 7.4 - the ACK carries the effective value, and a clamp is reported rather than
-  // applied quietly.
+  // applied quietly. D68 - a value set equal to its default is still an override.
   schema::entry_pack(&out, in.param_id, status, d->type, raw_bits(eff, d->type));
+  out.is_override = true;
   return out;
 }
 
@@ -202,7 +220,9 @@ bool Store::restore(uint16_t id, Value v) {
   const ParamDef* d = find(id);
   if (d == nullptr || d->access == Access::ReadOnly) return false;
   if (d->access == Access::Phy && !phy_writable()) return false;
-  return set_override(id, clamp(v, *d)) != nullptr;
+  const Value eff = clamp(v, *d);
+  if (!value_allowed(*d, eff)) return false;  // D64, as apply() refuses it
+  return set_override(id, eff) != nullptr;
 }
 
 bool Store::commit_phy_trial() {
@@ -286,6 +306,7 @@ bool Store::next_readback_message(ReadbackCursor* cursor, ConfigOp op,
     if (out->count >= schema::kMaxConfigAckEntries) break;
     schema::entry_pack(&out->entries[out->count], d->id, ParamStatus::Ok, d->type,
                        raw_bits(effective(d->id), d->type));
+    out->entries[out->count].is_override = marked_override(d->id);  // D68
     ++out->count;
     used += cost;
     ++cursor->next;

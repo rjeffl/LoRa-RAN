@@ -441,6 +441,42 @@ void test_a_marked_count_is_masked_before_the_entry_bound() {
   TEST_ASSERT_EQUAL_HEX16(0x0100, b.entries[0].param_id);
 }
 
+// spec 7.4, 8.12, D68 - bit 7 of a result's status is OVERRIDE. It rides beside 8.12's
+// value, never in place of it, and moves no offset.
+void test_override_rides_in_status_bit_7() {
+  NodeConfigAckV1 ack;
+  ack.op    = ConfigOp::Get;
+  ack.count = 2;
+  TEST_ASSERT_TRUE(entry_pack(&ack.entries[0], 0x0101, ParamStatus::Clamped, PType::U16,
+                              1200));
+  ack.entries[0].is_override = true;
+  TEST_ASSERT_TRUE(entry_pack(&ack.entries[1], 0x0102, ParamStatus::Ok, PType::Bool, 1));
+
+  uint8_t buf[kMaxSchemaPayload] = {};
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, serialize(ack, buf, sizeof(buf), &n));
+  TEST_ASSERT_EQUAL_HEX8(0x82, buf[5]);           // CLAMPED | OVERRIDE
+  TEST_ASSERT_EQUAL_HEX8(0x00, buf[3 + 5 + 2 + 2]);  // second result: OK, default
+
+  NodeConfigAckV1 b;
+  b.entries[1].is_override = true;  // deserialize must clear it
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(buf, n, &b));
+  TEST_ASSERT_EQUAL(ParamStatus::Clamped, b.entries[0].status);
+  TEST_ASSERT_TRUE(b.entries[0].is_override);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, b.entries[1].status);
+  TEST_ASSERT_FALSE(b.entries[1].is_override);
+}
+
+// spec 8.12, D64 - INVALID_VALUE is 0x05, and entry_pack starts every result clear of
+// OVERRIDE so a reused entry cannot carry the last one's marking.
+void test_invalid_value_and_entry_pack_clears_override() {
+  ConfigAckEntry e;
+  e.is_override = true;
+  TEST_ASSERT_TRUE(entry_pack(&e, 0x0112, ParamStatus::InvalidValue, PType::U16, 125));
+  TEST_ASSERT_FALSE(e.is_override);
+  TEST_ASSERT_EQUAL_HEX8(0x05, static_cast<uint8_t>(e.status));
+}
+
 void test_config_signed_values_sign_extend() {
   ConfigEntry e;
   TEST_ASSERT_TRUE(entry_pack(&e, 0x0010, PType::I16, static_cast<uint32_t>(-40)));
@@ -524,6 +560,8 @@ int run_all() {
   RUN_TEST(test_config_signed_values_sign_extend);
   RUN_TEST(test_more_follows_rides_in_count_bit_7);
   RUN_TEST(test_a_single_message_answer_leaves_more_follows_clear);
+  RUN_TEST(test_override_rides_in_status_bit_7);
+  RUN_TEST(test_invalid_value_and_entry_pack_clears_override);
   RUN_TEST(test_a_marked_count_is_masked_before_the_entry_bound);
   RUN_TEST(test_an_over_wide_value_is_skipped_and_the_set_still_parses);
   RUN_TEST(test_an_over_wide_value_cannot_be_encoded);

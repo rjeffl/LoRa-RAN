@@ -74,7 +74,13 @@ class Store {
   Store(const Table& table, Persist* persist) : table_(table), persist_(persist) {}
 
   Value effective(uint16_t id) const;
+  // A committed override: the value a reboot comes back with. A PHY trial value is not
+  // one until commit_phy_trial().
   bool  is_override(uint16_t id) const;
+  // spec 7.4, D68 - what a result's OVERRIDE bit reports: a committed override, or a PHY
+  // trial value. The radio runs the trial value and effective() reports it, so the bit
+  // describes the same value the result carries.
+  bool  marked_override(uint16_t id) const;
 
   // spec 7.4 - one entry in, one result out. The result carries the effective value in
   // every case but an unknown key, which has none.

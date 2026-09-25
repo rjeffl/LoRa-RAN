@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.20
+**Version:** 0.21
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.15**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -689,8 +689,17 @@ PHY change that half-applies strands a node that has no OTA. BF-33's library hal
 that a property of the `Store` rather than of the row, as described below. **`tx_power_dbm`'s maximum is
 D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
 either range is a decision, not a configuration change. **Spec v0.15 limits `bandwidth_khz`
-to 125, 250 and 500** (**D64**), and any other value answers `INVALID_VALUE`. The table
-still holds a plain range, so that check is owed.
+to 125, 250 and 500** (**D64**), and any other value answers `INVALID_VALUE`. The range
+stays 125–500, and `kParamPoints` lists the three values by row name, so the bridge's row
+and the node's share one list. `Store::apply()` clamps first and then checks the list, so a
+value above 500 still clamps to 500, and `Store::restore()` refuses an unlisted value at
+boot. A `static_assert` requires each listed row's minimum, maximum and default to be on
+its list.
+
+**Each result carries `OVERRIDE`** (spec §7.4, **D68**). `apply()` sets it on every value it
+applies, including one equal to its default. A rejected entry reports the marking of the
+value it carries. `Store::marked_override()` is what the bit reads: a committed override or
+a PHY trial value. `is_override()` still counts committed overrides alone.
 
 **D59 gives the bridge a copy of the PHY group, and BF-33 adds it.** Spec v0.14 sets the
 six rows on `lran/bridge/config/set` alone, so the bridge's block gains six global rows
@@ -914,6 +923,12 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.21** — **The code spec v0.15 owed the library is built.** The codec reads a
+  `CONFIG_ACK` result's `status` as §8.12's value in bits 6:0 and `OVERRIDE` in bit 7
+  (`ConfigAckEntry::is_override`), and `ParamStatus` gains `InvalidValue`, `0x05`. W4 gains
+  `config_ack_override` and `config_ack_invalid_value`. §4 records the bandwidth list and
+  the store's `OVERRIDE` marking (**D64**, **D68**).
 
 - **v0.20** — **Protocol specification v0.14 → v0.15.** §4 records two owed changes:
   **D64**'s bandwidth points, answered with the new `INVALID_VALUE` (`0x05`), and **D60**

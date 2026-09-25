@@ -874,6 +874,36 @@ inline constexpr uint8_t s38_dec[16] = {
     0x04, 0x02, 0xfc, 0xff,
 };
 
+inline constexpr uint8_t s39_payload[16] = {
+    0x02, 0x00, 0x02, 0x01, 0x01, 0x80, 0x02, 0x02, 0xdc, 0x05, 0x02, 0x01,
+    0x00, 0x06, 0x01, 0x01,
+};
+
+inline constexpr uint8_t s39_frame[34] = {
+    0x02, 0x0b, 0x01, 0x00, 0xc0, 0x02, 0xef, 0xcd, 0xab, 0x89, 0x01, 0x12,
+    0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x01, 0x01, 0x80, 0x02, 0x02,
+    0xdc, 0x05, 0x02, 0x01, 0x00, 0x06, 0x01, 0x01, 0x78, 0x85,
+};
+
+inline constexpr uint8_t s39_dec[16] = {
+    0x02, 0x00, 0x02, 0x01, 0x01, 0x80, 0x02, 0x02, 0xdc, 0x05, 0x02, 0x01,
+    0x00, 0x06, 0x01, 0x01,
+};
+
+inline constexpr uint8_t s40_payload[10] = {
+    0x01, 0x02, 0x01, 0x12, 0x01, 0x05, 0x02, 0x02, 0x7d, 0x00,
+};
+
+inline constexpr uint8_t s40_frame[28] = {
+    0x02, 0x0b, 0x01, 0x00, 0xc1, 0x02, 0xef, 0xcd, 0xab, 0x89, 0x01, 0x12,
+    0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x01, 0x12, 0x01, 0x05, 0x02, 0x02,
+    0x7d, 0x00, 0x9a, 0x59,
+};
+
+inline constexpr uint8_t s40_dec[10] = {
+    0x01, 0x02, 0x01, 0x12, 0x01, 0x05, 0x02, 0x02, 0x7d, 0x00,
+};
+
 inline constexpr SingleVec kSingle[] = {
     {"poll_full_status", false, {2, "POLL", 0, 1, 4660u, 2309737967u, 1, 0, 0}, s0_payload, 1, -1, s0_frame, 19, 19, 1, 0u, "Ok", s0_dec, 1, false},
     {"poll_config_readback", false, {2, "POLL", 0, 1, 4661u, 2309737967u, 1, 0, 0}, s1_payload, 1, -1, s1_frame, 19, 19, 1, 0u, "Ok", s1_dec, 1, false},
@@ -914,6 +944,8 @@ inline constexpr SingleVec kSingle[] = {
     {"config_ack_clamped_not_persisted", false, {2, "CONFIG_ACK", 1, 0, 702u, 2309737967u, 1, 18, 0}, s36_payload, 16, -1, s36_frame, 34, 34, 0, 0u, "Ok", s36_dec, 16, false},
     {"config_ack_get_all_more_follows", false, {2, "CONFIG_ACK", 1, 0, 703u, 2309737967u, 1, 18, 0}, s37_payload, 16, -1, s37_frame, 34, 34, 0, 0u, "Ok", s37_dec, 16, false},
     {"config_ack_get_all_final", false, {2, "CONFIG_ACK", 1, 0, 703u, 2309737967u, 1, 18, 0}, s38_payload, 16, -1, s38_frame, 34, 34, 0, 0u, "Ok", s38_dec, 16, false},
+    {"config_ack_override", false, {2, "CONFIG_ACK", 1, 0, 704u, 2309737967u, 1, 18, 0}, s39_payload, 16, -1, s39_frame, 34, 34, 0, 0u, "Ok", s39_dec, 16, false},
+    {"config_ack_invalid_value", false, {2, "CONFIG_ACK", 1, 0, 705u, 2309737967u, 1, 18, 0}, s40_payload, 10, -1, s40_frame, 28, 28, 0, 0u, "Ok", s40_dec, 10, false},
 };
 
 inline constexpr uint8_t f0_payload[204] = {

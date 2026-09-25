@@ -48,6 +48,13 @@ inline constexpr uint8_t kConfigAckMoreFollows = 0x80;
 static_assert(kMaxConfigAckEntries < kConfigAckMoreFollows,
               "spec 7.4.1 - count bit 7 is MORE_FOLLOWS and must stay unreachable");
 
+// spec 7.4, 8.12, D68 - bit 7 of a result's `status` is OVERRIDE, and bits 6:0 are
+// 8.12's value. Schema 0x12 kept its ID because every end decoding it could still be
+// reflashed when the bit was taken. The enumeration must never reach the bit.
+inline constexpr uint8_t kConfigStatusOverride = 0x80;
+static_assert(static_cast<uint8_t>(ParamStatus::InvalidValue) < kConfigStatusOverride,
+              "a spec 8.12 value would collide with OVERRIDE");
+
 // spec 7.4.1, D57 - a node sends at most this many messages in one answer, so a bridge
 // staging one has a termination condition that does not depend on the node.
 inline constexpr uint8_t kMaxConfigAckMessages = 4;
@@ -66,7 +73,10 @@ struct ConfigEntry {
 // still applies.
 struct ConfigAckEntry {
   uint16_t    param_id = 0;
-  ParamStatus status   = ParamStatus::Ok;  // spec 8.12
+  ParamStatus status   = ParamStatus::Ok;  // spec 8.12, bits 6:0 on the wire
+  // spec 7.4, D68 - the node holds this value as an override, even one equal to its
+  // default. Bit 7 of the wire `status`.
+  bool        is_override = false;
   PType       ptype    = PType::U8;
   uint8_t     len      = 0;
   uint8_t     value[kMaxParamValueLen] = {0, 0, 0, 0};

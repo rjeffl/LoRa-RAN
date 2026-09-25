@@ -438,6 +438,7 @@ def p_status_0xf0(**f) -> bytes:
 
 # §7.4 - CONFIG / CONFIG_ACK, schema 0x12
 PTYPE_U8, PTYPE_U16, PTYPE_U32, PTYPE_I16, PTYPE_I32, PTYPE_BOOL = 0x01, 0x02, 0x03, 0x04, 0x05, 0x06
+CONFIG_STATUS_OVERRIDE = 0x80   # §7.4, D68 - bit 7 of a result's status
 _PTYPE_LEN = {PTYPE_U8: 1, PTYPE_U16: 2, PTYPE_U32: 4, PTYPE_I16: 2, PTYPE_I32: 4, PTYPE_BOOL: 1}
 
 
@@ -477,6 +478,8 @@ def p_config_ack(op: int, persist_status: int, results, more_follows: bool = Fal
     assert len(results) < 0x80, "§7.4.1 - count bit 7 is MORE_FOLLOWS, not a count bit"
     out = u8(op) + u8(persist_status) + u8(len(results) | (0x80 if more_follows else 0))
     for param_id, status, ptype, value in results:
+        # §8.12 - the enumeration lives in bits 6:0 and must not reach OVERRIDE
+        assert (status & 0x7F) <= 0x05, "§8.12 value 0x%02x is undefined" % (status & 0x7F)
         val = _encode_value(ptype, value)
         out += u16(param_id) + u8(status) + u8(ptype) + u8(len(val)) + val
     assert len(out) <= LRAN_MAX_SCHEMA_PAYLOAD
@@ -1060,6 +1063,23 @@ def build_single():
                     ctx_id=GATE_CTX, schema=0x12, payload=ack_part2, self_id=NODE_BRIDGE,
                     note="Last message of the same answer, same seq: count byte reads 0x02. "
                          "A receiver closes the transaction here, not on the first message."))
+
+    # §7.4, §8.12, D68 - bit 7 of a result's status is OVERRIDE, bits 6:0 §8.12's value.
+    # The pair differs from every earlier CONFIG_ACK vector in the status byte alone, so
+    # a codec that reads the byte whole fails both.
+    ack_override = p_config_ack(0x02, 0x00, [(0x0101, 0x00 | CONFIG_STATUS_OVERRIDE, PTYPE_U16, 1500),
+                                             (0x0102, 0x00, PTYPE_BOOL, 1)])
+    v.append(single("config_ack_override", "§7.4, §8.12",
+                    type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=704,
+                    ctx_id=GATE_CTX, schema=0x12, payload=ack_override, self_id=NODE_BRIDGE,
+                    note="GET answer: the first status byte reads 0x80, OK with OVERRIDE set; "
+                         "the second reads 0x00, the table's default (D68)."))
+    ack_invalid = p_config_ack(0x01, 0x02, [(0x0112, 0x05, PTYPE_U16, 125)])
+    v.append(single("config_ack_invalid_value", "§8.11, §8.12, §12.4",
+                    type_name="CONFIG_ACK", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=705,
+                    ctx_id=GATE_CTX, schema=0x12, payload=ack_invalid, self_id=NODE_BRIDGE,
+                    note="SET bandwidth_khz = 300 refused: INVALID_VALUE (0x05) with the "
+                         "effective 125, persist_status NOT_APPLIED because nothing applied (D64)."))
     return v
 
 

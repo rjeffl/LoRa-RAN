@@ -335,6 +335,37 @@ void test_vectors_single_frames() {
                  "mac_present");
       expect_u32(0, c.total_dropped(), "single", v.name,
                  "counters moved on a clean frame");
+
+      // spec 7.4, D68 - a CONFIG_ACK's schema codec must carry every bit the vector
+      // does. A decoder that dropped bit 7 rewrites the byte, and one that read
+      // `status` whole round-trips it but fails the two named checks below.
+      if (f.hdr.type == MsgType::ConfigAck) {
+        schema::NodeConfigAckV1 ack;
+        uint8_t                 back[kMaxSchemaPayload];
+        size_t                  back_len = 0;
+        const Status            sd = schema::deserialize(f.payload, f.payload_len, &ack);
+        if (sd == Status::Ok && std::strcmp(v.name, "config_ack_override") == 0) {
+          expect_u32(static_cast<uint32_t>(ParamStatus::Ok),
+                     static_cast<uint32_t>(ack.entries[0].status), "single", v.name,
+                     "status bits 6:0 under OVERRIDE");
+          expect_true(ack.entries[0].is_override, "single", v.name, "OVERRIDE set");
+          expect_true(!ack.entries[1].is_override, "single", v.name, "OVERRIDE clear");
+        }
+        if (sd == Status::Ok && std::strcmp(v.name, "config_ack_invalid_value") == 0) {
+          expect_u32(static_cast<uint32_t>(ParamStatus::InvalidValue),
+                     static_cast<uint32_t>(ack.entries[0].status), "single", v.name,
+                     "INVALID_VALUE");
+        }
+        if (expect_status(Status::Ok, sd, "single", v.name, "CONFIG_ACK schema decode") &&
+            expect_status(Status::Ok, schema::serialize(ack, back, sizeof(back), &back_len),
+                          "single", v.name, "CONFIG_ACK schema encode") &&
+            expect_u32(static_cast<uint32_t>(f.payload_len),
+                       static_cast<uint32_t>(back_len), "single", v.name,
+                       "CONFIG_ACK schema round-trip length")) {
+          expect_bytes(f.payload, back, back_len, "single", v.name,
+                       "CONFIG_ACK schema round trip");
+        }
+      }
     }
   }
   TEST_ASSERT_EQUAL_INT_MESSAGE(before, g_disagreements,
