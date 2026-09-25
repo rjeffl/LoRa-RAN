@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.14
+**Version:** 0.15
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
@@ -491,6 +491,13 @@ Rules:
 
 Use / port **`osh-labs/VE.Direct_mppt_arduino`** (MIT) for both the text parser and the
 HEX protocol definitions, register map and encode/decode helpers.
+
+**That library is the reference of record for VE.Direct, not Victron's PDFs.** It has
+already decoded both protocols, and it is proven in the field. Take frame layout, register
+IDs, scaling and units from its `src/` and `VeDirect_Arduino_Spec.md`. Open Victron's
+"VE.Direct Protocol" or "BlueSolar HEX protocol" documents only where the library is
+silent, and record that gap in the engineering log. Reading the PDFs from scratch repeats
+work already paid for, and yields an interpretation no field unit has run.
 
 #### 4.2.5 If a SmartShunt is added
 
@@ -1155,6 +1162,9 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.15** — **§4.2.4 names `osh-labs/VE.Direct_mppt_arduino` the reference of record for
+  VE.Direct**, over Victron's PDFs, which serve only where the library is silent. The
+  library already decodes both protocols and is proven in the field.
 - **v0.14** — **Protocol specification v0.14 → v0.15.** Nothing in the body changes. What
   reaches the build when it starts: each `CONFIG_ACK` result sets `OVERRIDE` for an
   override (spec §7.4, **D68**), `RESTORE_DEFAULTS` keeps the committed PHY group (§8.10,

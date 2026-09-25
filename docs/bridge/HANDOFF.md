@@ -22,6 +22,11 @@ file:
    commit messages and the headers `hex_proxy.h` and `charge_readback.h`. Add a BF-28–30
    paragraph to `firmware/bridge/CLAUDE.md`. Mark BF-28–30 and BF-36 built in Tasks §9.
    Add an engineering-log entry covering the four spec readings below.
+   **Cross-check the HEX code against `osh-labs/VE.Direct_mppt_arduino`**, the reference
+   of record (GateLink Impl Plan §4.2.4). B5 built from Victron's HEX PDF instead. Compare
+   `lib/vedirect/` framing and checksum, `charge_readback`'s register IDs and scaling, and
+   `sim_mppt`'s register table with the library's `src/VeDirectHexProtocol.*` and
+   `src/VeDirectRegisters.h`. Fix any drift, and re-cite the headers.
 2. **Raise for spec v0.16**, one line each in the log: (a) a write-class `HEX_REQ` answers
    `HEX_RSP(REJECTED_UNAUTHENTICATED)` on a bad MAC, `COMMAND_ACK` on context, dedup or
    `seq`; (b) `HEX_RSP` repeats the request's `seq`; (c) §16.2 marks `write_enable/set`
@@ -67,8 +72,8 @@ Each group is one session unless its line says otherwise.
 `sched_config()` does not wait for `g_command.busy()`, so a command and a `CONFIG` can
 be in flight together while sharing one seq space. **BF-36, then BF-28 and BF-29, then BF-30.** BF-36 gives `ROLE_GATELINK` a `HEX_REQ`
 responder with canned VE.Direct HEX answers. With it, **V-B6**'s three gates and the audit
-trail are testable at a desk. BF-30's register semantics can be written from Victron's
-HEX documentation. A canned answer proves the plumbing only, so the real MPPT confirms the
+trail are testable at a desk. BF-30's register semantics come from
+`osh-labs/VE.Direct_mppt_arduino`, the reference of record (GateLink Impl Plan §4.2.4). A canned answer proves the plumbing only, so the real MPPT confirms the
 charge-parameter readback at B6.
 
 ### 2. Bridge defects the bench can reach
