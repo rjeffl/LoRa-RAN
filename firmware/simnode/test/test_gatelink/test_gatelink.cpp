@@ -903,9 +903,13 @@ void test_phy_window_expiry_reverts_and_reports() {
                         static_cast<int>(schema::deserialize(h.payload, h.len, &ev)));
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EventType::PhyReverted), ev.event_type);
   TEST_ASSERT_EQUAL_UINT16(0x0001, ev.detail);
-  next_status(b);  // the poll's own answer follows
+  // spec 8.7, D69 - the poll's own answer follows, carrying CONFIG_CHANGE: the revert
+  // changed the effective configuration and no CONFIG_ACK reported it.
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::ConfigChange),
+                          next_status(b).status_reason);
   poll(b, 0);
-  next_status(b);  // reported once
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::PollResponse),
+                          next_status(b).status_reason);  // both reported once
   TEST_ASSERT_EQUAL_size_t(0, b.out.size());
 }
 

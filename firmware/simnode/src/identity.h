@@ -119,6 +119,10 @@ struct GateLinkState {
   // spec 12.4.2 step 8 - the PHY_REVERTED detail still owed to the bridge, 0 when none.
   // Sent with the next frame from the bridge, then cleared.
   uint16_t phy_revert_detail = 0;
+
+  // spec 8.7, D69 - a revert changed the effective configuration and no CONFIG_ACK said
+  // so. Carried by the next STATUS with no other reason to carry, then cleared.
+  bool config_change_owed = false;
 };
 
 // Plausible, not physical, values: a charged 4-cell LiFePO4 pack, a closed gate, sentinels
