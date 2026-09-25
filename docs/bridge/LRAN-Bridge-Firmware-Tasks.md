@@ -1,12 +1,12 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.46
+**Version:** 0.47
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.15
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.59
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.19
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.60
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.20
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -326,6 +326,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.47** — **Protocol specification v0.14 → v0.15.** No task row changes. The code
+  D62–D69 need has no task rows yet; the bridge handoff lists it. The citations of the
+  Bridge PRD, Impl Plan and Library Plan move to v0.16, v0.60 and v0.20.
 
 - **v0.46** — **Three tasks added from the pre-GateLink survey.** **BF-36**, a simulated
   MPPT in the simnode, which B5 needs before it can run on the bench. **BF-37**, events at

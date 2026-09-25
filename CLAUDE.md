@@ -20,7 +20,7 @@ bind code:
 
 | Document | Path | Authority over |
 |---|---|---|
-| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.14, `ver = 2`** |
+| `LRAN-Protocol-Specification` | `docs/shared/` | **Every byte on the wire and every MQTT topic.** No other document may redefine a frame layout, enum value, schema ID or topic. **Currently v0.15, `ver = 2`** |
 | `LRAN-Decision-Register` | `docs/shared/` | **D1–D61** and measurement backlog **M1–M26**. The only place a decision's status is recorded |
 | `LRAN-Protocol-Library-Implementation-Plan` | `docs/shared/` | `/lib/lran-protocol/` API and tests |
 | `LRAN-Bridge_Node-`, `-GateLink_Node-`, `-WellLink_Node-PRD` / `-Implementation-Plan` | `docs/<node>/` | That node's requirements and build. The bridge plan also owns `lran-simnode` (§10) |

@@ -3,10 +3,10 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.14 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.52
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.40 (**the `BF-*` task order**).
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.14** (`ver = 2`).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.60
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.47 (**the `BF-*` task order**).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
 only. **The antenna is decided and is not a choice to revisit here:** the same 3.0 dBi
@@ -118,7 +118,8 @@ is addressed in. **Three things to keep:**
 **`BF-27` — the raw frame log, built 2026-09-17; the dummy publish, built 2026-09-23.**
 `frame_log.{h,cpp}` is the ring, `log_task` drains it to serial and to
 `lran/bridge/diag/rxlog/state`, and `tools/simctl/rxlog.py` reads it. Impl Plan §6.6.1
-records the choices. **Four things to keep:**
+records the choices. Spec v0.15 (**D66**) renames the topic `diag/rxlog/log`, and the rename
+is owed. **Four things to keep:**
 
 - **`log_task` is the only consumer**, because the ring is single-consumer. A second
   reader takes records the first never sees, and nothing will report that it happened.
@@ -262,8 +263,9 @@ them; Impl Plan §6.3.1. **Four things to keep:**
 `PublicationPolicy::on_event()` in `publish.cpp` publishes each `EVENT` once to
 `lran/<node>/event/<name>`; Impl Plan §6.3.2. **Four things to keep:**
 
-- **The deduplication key includes `event_flags` bit 0.** Spec §7.3's triple alone
-  withholds every follow-up, because a follow-up reuses its first edge's `event_id`.
+- **The deduplication key includes `event_flags` bit 0**, as spec §7.3 does since v0.15.
+  The v0.14 triple alone withheld every follow-up, because a follow-up reuses its first
+  edge's `event_id`.
 - **Nothing republishes an event.** `forget_published()` forgets documents, not events,
   and an event is remembered only once the sink has accepted it.
 - **Every event payload carries `synthetic`**, from `on_event()`'s own argument, because

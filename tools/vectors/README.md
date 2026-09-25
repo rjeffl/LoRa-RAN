@@ -1,8 +1,12 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.14 (`ver = 2`)
-**Vectors last regenerated against:** v0.14, on 2026-09-24. **D59 added an enumeration
-value**, `event_type` `0x0B` `PHY_REVERTED`, and one vector, `event_phy_reverted`, covers
+**Binding specification:** `LRAN-Protocol-Specification` v0.15 (`ver = 2`)
+**Vectors last regenerated against:** v0.15, on 2026-09-25. Every vector kept its bytes;
+only each file's `spec` field changed. **D68 makes bit 7 of a `CONFIG_ACK` result's
+`status` `OVERRIDE`, and D64 adds `INVALID_VALUE` (`0x05`)**. No vector exercises either
+yet: both are owed with the `lran-protocol` change that decodes them.
+**v0.14's regeneration**, on 2026-09-24, was for D59's enumeration
+value, `event_type` `0x0B` `PHY_REVERTED`, and one vector, `event_phy_reverted`, covers
 it. Every vector committed before it kept its bytes; only each file's `spec` field changed.
 **v0.13's regeneration**, on 2026-09-23, was for D58's enumeration value, `cmd` `0x12`
 `ROLL_CONTEXT`, which triggers §13.2's regeneration requirement, and three vectors cover

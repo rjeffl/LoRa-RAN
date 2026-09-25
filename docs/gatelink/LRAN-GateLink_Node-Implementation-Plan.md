@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.13
+**Version:** 0.14
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.10
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.11
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -1154,6 +1154,12 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.14** — **Protocol specification v0.14 → v0.15.** Nothing in the body changes. What
+  reaches the build when it starts: each `CONFIG_ACK` result sets `OVERRIDE` for an
+  override (spec §7.4, **D68**), `RESTORE_DEFAULTS` keeps the committed PHY group (§8.10,
+  **D60**), and a configuration change no `CONFIG_ACK` reported is sent as `CONFIG_CHANGE`
+  (§8.7, **D69**). The PRD citation moves from v0.10 to v0.11.
 
 - **v0.13** — **Header citation reconciled**: the PRD moves from v0.9 to v0.10. Nothing in
   the body changes. The PRD's v0.10 adds D59's three points to §5.3.1, and §6.4 took all

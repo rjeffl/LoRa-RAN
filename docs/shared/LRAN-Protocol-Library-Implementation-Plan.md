@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.19
+**Version:** 0.20
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.14**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.15**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -688,7 +688,9 @@ A `SET` answers `READ_ONLY` (spec §8.12) until the trial-and-revert path exists
 PHY change that half-applies strands a node that has no OTA. BF-33's library half made
 that a property of the `Store` rather than of the row, as described below. **`tx_power_dbm`'s maximum is
 D33's ceiling**, and **`bandwidth_khz` stays at 125** until an envelope decision; widening
-either range is a decision, not a configuration change.
+either range is a decision, not a configuration change. **Spec v0.15 limits `bandwidth_khz`
+to 125, 250 and 500** (**D64**), and any other value answers `INVALID_VALUE`. The table
+still holds a plain range, so that check is owed.
 
 **D59 gives the bridge a copy of the PHY group, and BF-33 adds it.** Spec v0.14 sets the
 six rows on `lran/bridge/config/set` alone, so the bridge's block gains six global rows
@@ -725,7 +727,7 @@ is later work, so no firmware behaves differently yet. Six things changed:
 - **`restore_defaults()` keeps the committed PHY group**, in RAM and in the store, which it
   writes back after `clear_all()`. A PHY row reset to its default by one node's
   `RESTORE_DEFAULTS` would take that node off the fleet's settings. **D60** accepted
-  this on 2026-09-24, and spec §8.10 is to say it at the next revision.
+  this on 2026-09-24, and spec v0.15's §8.10 says it.
 
 **GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
 milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
@@ -912,6 +914,12 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.20** — **Protocol specification v0.14 → v0.15.** §4 records two owed changes:
+  **D64**'s bandwidth points, answered with the new `INVALID_VALUE` (`0x05`), and **D60**
+  now written in spec §8.10. **D68** also reaches `/lib/lran-protocol/`: bit 7 of a result's
+  `status` is `OVERRIDE`, so `ParamStatus` is read from bits 6:0, and two W4 vectors are
+  owed with that change.
 
 - **v0.19** — **BF-33's library half is built.** §4 records `Access::Phy`, the bridge's
   PHY rows at `0x0010`–`0x0015`, the store's trial copy, `Persist::save_group()`,

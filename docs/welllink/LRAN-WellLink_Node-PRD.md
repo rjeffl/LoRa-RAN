@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.10
+**Version:** 0.11
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
-**Last updated:** 2026-09-23
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Last updated:** 2026-09-25
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -228,6 +228,11 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.11** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.14 → v0.15**. What reaches this node when it is designed: every `CONFIG_ACK` result
+  marks an override in bit 7 of its `status` (§7.4), and a configuration change no
+  `CONFIG_ACK` reported is sent as `CONFIG_CHANGE` (§8.7).
 
 - **v0.10** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.13 → v0.14**. What reaches this node when it is designed: a PHY change arrives from

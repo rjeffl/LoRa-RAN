@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.14",
+  "spec": "LRAN-Protocol-Specification v0.15",
   "wire_ver": 2,
   "group": "kdf",
   "generated_by": "tools/vectors/generate.py",
