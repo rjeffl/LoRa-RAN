@@ -68,6 +68,14 @@ it before a PHY change. Any authenticated frame to any identity confirms the boa
 included. `ROLE_RANGE` and `ROLE_HEALTH` answer `CONFIG` for the PHY group only. `phy` prints
 the group, the trial and the store; `phy reset` puts D1's group back and erases the blob.
 
+**`ROLE_GATELINK` answers `HEX_REQ` from a simulated MPPT (BF-36, 2026-09-25)**:
+`sim_mppt.{h,cpp}`, driven by `mppt <hex> list | set <reg> <value> | timeout [count] |
+hex_timeout <ms> | reset`; Impl Plan §10.9.3. **Keep three things:** the node inspects the
+colon and the command nibble and nothing else, because the registers are the MPPT's (spec
+§7.6); a write-class request goes through `CommandGate` before the MPPT sees it, or a
+captured Set replays; and `HEX_RSP` repeats the request's `seq`. The HEX frame codec is
+`lib/vedirect/`, which the bridge shares.
+
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added
 here has no scenario there** — run it after touching `kFaultCatalogue`.
@@ -233,7 +241,7 @@ flashed with only its own derived key.
 ## Roles
 
 `ROLE_RANGE` (PING echo + `0xF0`) · `ROLE_HEALTH` (`0xF0` only) · `ROLE_GATELINK`
-(`0xFE` status, `0x11` events, ACKs, `0x12` config) · `ROLE_FAULT` (§10.5 catalogue).
+(`0xFE` status, `0x11` events, ACKs, `0x12` config, `HEX_RSP`) · `ROLE_FAULT` (§10.5 catalogue).
 Every role answers a roll, and every role but `ROLE_FAULT` answers a `CONFIG` for the PHY
 group.
 

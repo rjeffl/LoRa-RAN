@@ -243,6 +243,12 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
       }
       if (answer_roll_only(e, hdr, payload, len)) return;
       break;
+    case lran::MsgType::HexReq:
+      if (e.role == Role::GateLink) {
+        on_hex_req(e, hdr, payload, len, now_ms);
+        return;
+      }
+      break;
     case lran::MsgType::Config:
       // BF-33 - every role but ROLE_FAULT answers a CONFIG, for the PHY group at least
       // (apply_config()), because the bridge moves every node it polls (spec 12.4.1).

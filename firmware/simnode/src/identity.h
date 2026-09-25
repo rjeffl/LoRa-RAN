@@ -27,6 +27,7 @@
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/types.h"
+#include "sim_mppt.h"
 
 namespace simnode {
 
@@ -123,6 +124,23 @@ struct GateLinkState {
   // spec 8.7, D69 - a revert changed the effective configuration and no CONFIG_ACK said
   // so. Carried by the next STATUS with no other reason to carry, then cleared.
   bool config_change_owed = false;
+
+  // BF-36 - the MPPT on the far side of the UART, and the node's one HEX transaction.
+  SimMppt  mppt;
+  // GateLink Impl Plan's hex_timeout_ms, default 1000: how long the node waits for the MPPT
+  // before answering TIMEOUT (spec 8.13). Root rule 8, so the console sets it.
+  uint32_t hex_timeout_ms   = 1000;
+  // `mppt <hex> timeout [count]` - requests still to leave unanswered by the MPPT. Bounded
+  // and self-disarming, as every fault here is (simnode rule 3).
+  uint16_t hex_timeout_left = 0;
+  // A TIMEOUT still owed. While it is, the node is mid-transaction and answers BUSY.
+  struct HexPending {
+    bool         active = false;
+    uint32_t     due_ms = 0;
+    lran::NodeId peer   = 0;
+    lran::Seq    seq    = 0;
+  } hex_pending;
+  uint32_t hex_requests = 0;  // local: HEX_REQs this identity forwarded or refused
 };
 
 // Plausible, not physical, values: a charged 4-cell LiFePO4 pack, a closed gate, sentinels

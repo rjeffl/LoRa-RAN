@@ -2076,7 +2076,7 @@ logical identity at runtime (§10.4), not a separate binary.
 |---|---|---|---|
 | `ROLE_RANGE` | `PING` echo, `0xF0` on poll | Range test and link characterization. Minimal, so a failure is unambiguously RF | **B1** |
 | `ROLE_HEALTH` | `0xF0` on poll | The generic node — what WellLink looks like before it has a schema. Registry, availability and scheduling filler for multi-node tests | **B3** |
-| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config, and `CONFIG_CHANGE` in the poll answer after a PHY revert (spec §8.7, **D69**) | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics and the whole decode path with no gate present | **B3**, **B4** |
+| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config, `CONFIG_CHANGE` in the poll answer after a PHY revert (spec §8.7, **D69**), and `HEX_RSP` from a simulated MPPT (§10.9.3, **BF-36**) | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics, the HEX proxy's three gates and the whole decode path with no gate present | **B3**, **B4**, **B5** |
 | `ROLE_FAULT` | Deliberately malformed frames (§10.5) | The **only** test vehicle for the §14 discard ladder and its counters | **B3** |
 
 > **`ROLE_RANGE` is deliberately impoverished.** During **B1** the question is what the
@@ -2128,6 +2128,7 @@ serial, driven by hand or by `/tools/simctl/`.
 | `radio` | The driver's own counts: `TX_DONE`, TX errors and timeouts, forced transmissions, CAD errors. The only evidence on the board that a frame reached the air — added 2026-09-14 |
 | `fault <hex> <name> [count]` | Inject a fault from §10.5, once or `count` times |
 | `field <hex> <name> <value>` | Override a generated telemetry field — sentinels, out-of-range, stale flags |
+| `mppt <hex> <mode>` | The simulated MPPT behind a `ROLE_GATELINK` identity: `list` \| `set <reg> <value>` \| `timeout [count]` \| `hex_timeout <ms>` \| `reset` — HEX proxy tests (§10.9.3), added 2026-09-25 |
 | `log <level>` | Serial verbosity |
 
 `/tools/simctl/` scripts these into repeatable scenarios so a regression run is one
@@ -2580,6 +2581,42 @@ command is in flight. Otherwise it takes a new `ctx_id` and resets the gate and 
 The engineering log's BF-6 entry records three questions for spec v0.12: how a
 `DUPLICATE_CACHED` ACK carries the cached result, what answers a repeated `CONFIG`, and
 §7.4's reliance on fragmentation that §3.1's cap on a reassembled set rules out.
+
+
+#### 10.9.3 The simulated MPPT (BF-36), 2026-09-25
+
+**`ROLE_GATELINK` answers `HEX_REQ` from a simulated MPPT**, so B5 can run at a desk.
+§10.2 had it answer none, which left B5 waiting on GateLink although §8 lets it run
+against a simulator. `sim_mppt.{h,cpp}` is the MPPT and `gatelink.cpp`'s `on_hex_req()`
+is the node around it. The HEX frame codec is `lib/vedirect/`, shared with the bridge's
+readback (BF-30).
+
+**The node stays transport only (spec §7.6); the MPPT holds the registers.** The node
+inspects the command nibble and the leading colon, and nothing else. The MPPT holds twelve
+registers from Victron's battery-settings table, set to a LiFePO4 profile as GateLink PRD
+R-6.1b asks. A Set accepted while armed can therefore be read back changed, which is the
+only evidence V-B6 has that a write reached anything. The values are plausible, not
+GateLink's pack specification.
+
+**Four answers follow a reading of the specification decided with the operator on
+2026-09-25**, and raised for spec v0.16 because the text does not settle them:
+
+| Case | Answer | Why |
+|---|---|---|
+| Write-class, MAC absent or wrong | `HEX_RSP(REJECTED_UNAUTHENTICATED)` | Spec §8.13 names it for this case; §9.4 step 3 names `COMMAND_ACK(REJECTED_MAC)` |
+| Write-class, wrong `ctx_id` | `COMMAND_ACK(REJECTED_CTX)` | That ACK carries the node's own `ctx_id`, which the bridge's resync needs (spec §10.3) |
+| Write-class, replayed or stale `seq` | `COMMAND_ACK(DUPLICATE_CACHED)` or `(REJECTED_SEQ)`, not forwarded | §9.4 applies steps 4–6 to every authenticated type. `on_config()` answers the same way |
+| Any answer | `HEX_RSP` repeats the request's `seq` | Correlation is by `seq` (spec §9.2), as a solicited `CONFIG_ACK` does (§7.4.1) |
+
+**Two statuses come from the node, the rest from the MPPT.** A string with no colon or no
+hex command digit is `MALFORMED_REQUEST` and never reaches the MPPT. A shaped string with a
+bad checksum does reach it, and the MPPT answers Victron's frame error, `:4AAAAFD`, under
+`OK`. A second request while the node waits on the MPPT is `BUSY`. A Restart, which
+Victron's MPPT never answers, and the `timeout` fault are both `TIMEOUT` after
+`hex_timeout_ms` (default 1000), with `mppt_flags` bit 2 set in any `STATUS` meanwhile.
+
+**A node reboot clears the transaction and keeps the registers**, because a GateLink reboot
+does not touch the MPPT.
 
 ---
 

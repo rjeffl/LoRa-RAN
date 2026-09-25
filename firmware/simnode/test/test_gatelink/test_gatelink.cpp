@@ -20,6 +20,8 @@
 #include "identity.h"
 #include "lran/lran.h"
 #include "node.h"
+#include "sim_mppt.h"
+#include "vedirect/hex.h"
 #include "refimpl_mac.h"
 #include "test_key.h"
 
@@ -1098,6 +1100,199 @@ void test_events_new_again_follow_up_and_a_new_context() {
   TEST_ASSERT_EQUAL_UINT32(1, next_event().event_id);
 }
 
+// ---- BF-36: HEX_REQ against the simulated MPPT (spec 6.7, 7.6, 8.13, 9.4) ----
+
+void hex_req(Board& b, Seq seq, const char* hex, const Send& o = Send{}) {
+  const msg::HexReq r{0, static_cast<uint8_t>(std::strlen(hex)),
+                      reinterpret_cast<const uint8_t*>(hex)};
+  uint8_t p[kMaxPayloadPlain];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(msg::serialize(r, p, sizeof(p), &n)));
+  bridge_send(b, MsgType::HexReq, seq, p, n, kSchemaNone, o);
+}
+
+struct HexHeard {
+  Header hdr;
+  uint8_t status = 0xFF;
+  char    hex[kMaxPayloadPlain] = {0};
+};
+
+HexHeard next_hex_rsp(Board& b) {
+  Heard h;
+  TEST_ASSERT_TRUE_MESSAGE(hear(b, &h), "no frame queued");
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::HexRsp), static_cast<uint8_t>(h.hdr.type));
+  msg::HexRsp r;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(msg::deserialize(h.payload, h.len, &r)));
+  HexHeard out;
+  out.hdr    = h.hdr;
+  out.status = r.status;
+  if (r.n > 0) std::memcpy(out.hex, r.hex, r.n);
+  return out;
+}
+
+void test_hex_read_is_answered_from_the_mppt_under_the_request_seq() {
+  Board b;
+  hex_req(b, 41, ":7F0ED0071");  // Victron's own example: Get battery maximum current
+  const HexHeard r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok), r.status);
+  TEST_ASSERT_EQUAL_STRING(":7F0ED009600DB", r.hex);  // 15.0 A, as Victron's example
+  TEST_ASSERT_EQUAL_UINT16(41, r.hdr.seq);
+  // A read is unauthenticated and outside both seq spaces (spec 10.2): the gate never saw it.
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());
+}
+
+void test_hex_write_with_a_valid_mac_changes_the_register() {
+  Board b;
+  hex_req(b, 1, ":8F0ED0064000C");  // Victron's example: Set 10.0 A
+  HexHeard r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok), r.status);
+  TEST_ASSERT_EQUAL_STRING(":8F0ED0064000C", r.hex);
+  TEST_ASSERT_EQUAL_UINT32(100, b.f1().gl.mppt.find(0xEDF0)->value);
+  TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.mppt.writes());
+  TEST_ASSERT_EQUAL_UINT16(1, b.f1().gate.high_water());
+
+  hex_req(b, 50, ":7F0ED0071");  // the read-back V-B6 depends on
+  r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_STRING(":7F0ED0064000D", r.hex);
+}
+
+void test_hex_write_with_a_bad_mac_is_rejected_unauthenticated_and_not_forwarded() {
+  Board b;
+  Send  o;
+  o.bad_key = true;
+  hex_req(b, 1, ":8F0ED0064000C", o);
+  const HexHeard r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::RejectedUnauthenticated), r.status);
+  TEST_ASSERT_EQUAL_UINT16(1, r.hdr.seq);
+  TEST_ASSERT_EQUAL_UINT32(150, b.f1().gl.mppt.find(0xEDF0)->value);
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.mppt.requests());
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());
+}
+
+void test_hex_write_in_a_stale_context_is_rejected_ctx() {
+  Board b;
+  Send  o;
+  o.ctx = b.f1().ctx_id ^ 0x5A5A;
+  hex_req(b, 1, ":8F0ED0064000C", o);
+  Header          h;
+  const msg::CommandAck a = next_ack(b, &h);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::RejectedCtx), a.result);
+  TEST_ASSERT_EQUAL_UINT32(b.f1().ctx_id, h.ctx_id);  // what the bridge resyncs to
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.mppt.requests());
+}
+
+// A captured Set replayed later must not reach the MPPT a second time.
+void test_hex_write_replayed_is_answered_from_the_gate_and_not_forwarded() {
+  Board b;
+  hex_req(b, 3, ":8F0ED0064000C");
+  (void)next_hex_rsp(b);
+  hex_req(b, 3, ":8F0ED0064000C");
+  msg::CommandAck a = next_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::DuplicateCached), a.result);
+  hex_req(b, 2, ":8F0ED0064000C");
+  a = next_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::RejectedSeq), a.result);
+  TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.mppt.requests());
+}
+
+void test_hex_timeout_fault_answers_timeout_after_the_wait_and_busy_meanwhile() {
+  Board b;
+  b.f1().gl.hex_timeout_left = 1;
+  hex_req(b, 7, ":7F0ED0071");
+  Heard h;
+  TEST_ASSERT_FALSE(hear(b, &h));  // nothing yet: the node is waiting on the MPPT
+
+  hex_req(b, 8, ":7F0ED0071");  // spec 8.13 BUSY
+  HexHeard r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Busy), r.status);
+  TEST_ASSERT_EQUAL_UINT16(8, r.hdr.seq);
+
+  b.node.tick(1000 + 999);
+  TEST_ASSERT_FALSE(hear(b, &h));
+  b.node.tick(1000 + 1000);
+  r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Timeout), r.status);
+  TEST_ASSERT_EQUAL_UINT16(7, r.hdr.seq);
+
+  hex_req(b, 9, ":7F0ED0071", Send{kNodeSim1, 0, false, 3000});  // the fault self-disarmed
+  r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok), r.status);
+}
+
+// Victron: Restart "no response is sent", so the node reports TIMEOUT (spec 8.13).
+void test_hex_restart_is_authenticated_and_times_out() {
+  Board b;
+  hex_req(b, 1, ":64F");
+  Heard h;
+  TEST_ASSERT_FALSE(hear(b, &h));
+  TEST_ASSERT_EQUAL_UINT16(1, b.f1().gate.high_water());
+  b.node.tick(1000 + 1000);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Timeout), next_hex_rsp(b).status);
+}
+
+void test_hex_malformed_and_bad_checksum_are_told_apart() {
+  Board b;
+  hex_req(b, 1, "7F0ED0071");  // no colon: the node's own refusal
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::MalformedRequest), next_hex_rsp(b).status);
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.mppt.requests());
+
+  hex_req(b, 2, ":7F0ED0072");  // shaped, wrong check byte: the MPPT's frame error
+  const HexHeard r = next_hex_rsp(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok), r.status);
+  TEST_ASSERT_EQUAL_STRING(":4AAAAFD", r.hex);
+}
+
+void test_sim_mppt_refuses_what_victron_says_it_refuses() {
+  SimMppt m;
+  char    out[vedirect::kMaxChars + 1] = {0};
+  size_t  n = 0;
+  char    req[vedirect::kMaxChars];
+
+  // Read-only register: flags 0x02, current value reported.
+  size_t q = vedirect::encode_set(0x0201, 3, 1, req, sizeof(req));
+  m.answer(req, q, out, sizeof(out), &n);
+  vedirect::Frame f;
+  vedirect::RegReply rr;
+  TEST_ASSERT_EQUAL(vedirect::Parse::Ok, vedirect::decode(out, n, &f));
+  TEST_ASSERT_TRUE(vedirect::reg_reply(f, &rr));
+  TEST_ASSERT_EQUAL_HEX8(vedirect::kFlagNotSupported, rr.flags);
+  TEST_ASSERT_EQUAL_UINT32(5, rr.value);
+
+  // Note 5: absorption voltage needs a user-defined battery type.
+  TEST_ASSERT_TRUE(m.set(0xEDF1, 1));
+  q = vedirect::encode_set(0xEDF7, 1460, 2, req, sizeof(req));
+  m.answer(req, q, out, sizeof(out), &n);
+  TEST_ASSERT_EQUAL(vedirect::Parse::Ok, vedirect::decode(out, n, &f));
+  TEST_ASSERT_TRUE(vedirect::reg_reply(f, &rr));
+  TEST_ASSERT_EQUAL_HEX8(vedirect::kFlagParameterError, rr.flags);
+  TEST_ASSERT_EQUAL_UINT32(1420, m.find(0xEDF7)->value);
+
+  // Unknown register.
+  q = vedirect::encode_get(0x1234, req, sizeof(req));
+  m.answer(req, q, out, sizeof(out), &n);
+  TEST_ASSERT_EQUAL(vedirect::Parse::Ok, vedirect::decode(out, n, &f));
+  TEST_ASSERT_TRUE(vedirect::reg_reply(f, &rr));
+  TEST_ASSERT_EQUAL_HEX8(vedirect::kFlagUnknownId, rr.flags);
+  TEST_ASSERT_EQUAL_UINT8(0, rr.width);
+
+  // Victron 1.3's unsupported command, answered exactly as the document shows.
+  m.answer(":253", 4, out, sizeof(out), &n);
+  out[n] = '\0';
+  TEST_ASSERT_EQUAL_STRING(":3020050", out);
+}
+
+void test_hex_to_a_role_without_an_mppt_is_unhandled() {
+  Board b;
+  b.ids.add(kNodeSim2, Role::Health);
+  const uint32_t before = b.ids.find(kNodeSim2)->unhandled;
+  hex_req(b, 1, ":7F0ED0071", Send{kNodeSim2});
+  Heard h;
+  TEST_ASSERT_FALSE(hear(b, &h));
+  TEST_ASSERT_EQUAL_UINT32(before + 1, b.ids.find(kNodeSim2)->unhandled);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_poll_is_answered_with_schema_0xfe_and_poll_response);
@@ -1148,5 +1343,15 @@ RUN_TEST(test_config_set_get_and_restore);
   RUN_TEST(test_a_config_ack_that_cannot_fit_is_cut_and_logged);
 
   RUN_TEST(test_events_new_again_follow_up_and_a_new_context);
+  RUN_TEST(test_hex_read_is_answered_from_the_mppt_under_the_request_seq);
+  RUN_TEST(test_hex_write_with_a_valid_mac_changes_the_register);
+  RUN_TEST(test_hex_write_with_a_bad_mac_is_rejected_unauthenticated_and_not_forwarded);
+  RUN_TEST(test_hex_write_in_a_stale_context_is_rejected_ctx);
+  RUN_TEST(test_hex_write_replayed_is_answered_from_the_gate_and_not_forwarded);
+  RUN_TEST(test_hex_timeout_fault_answers_timeout_after_the_wait_and_busy_meanwhile);
+  RUN_TEST(test_hex_restart_is_authenticated_and_times_out);
+  RUN_TEST(test_hex_malformed_and_bad_checksum_are_told_apart);
+  RUN_TEST(test_sim_mppt_refuses_what_victron_says_it_refuses);
+  RUN_TEST(test_hex_to_a_role_without_an_mppt_is_unhandled);
   return UNITY_END();
 }
