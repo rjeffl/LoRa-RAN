@@ -617,6 +617,7 @@ void test_config_set_get_and_restore() {
                           static_cast<uint8_t>(a.persist_status));  // RAM: honest (spec 7.4)
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::Ok), static_cast<uint8_t>(a.entries[0].status));
   TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_TRUE(a.entries[0].is_override);  // spec 7.4, D68 - across the wire
 
   auto get = cfg_of(ConfigOp::Get);
   add_entry(&get, 0x0101, PType::U16, 0);
@@ -627,6 +628,8 @@ void test_config_set_get_and_restore() {
   TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(a.entries[0].value, a.entries[0].len));
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::UnknownParam),
                           static_cast<uint8_t>(a.entries[1].status));
+  TEST_ASSERT_TRUE(a.entries[0].is_override);
+  TEST_ASSERT_FALSE(a.entries[1].is_override);
 
   // A held id set with another type keeps its value, and the ACK carries the value held.
   auto retype = cfg_of(ConfigOp::Set);
@@ -796,7 +799,36 @@ void test_phy_rows_are_read_only_without_a_store() {
   TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, a.count);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::ReadOnly), status_of(a, 0));
   TEST_ASSERT_EQUAL_UINT32(917400000, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_FALSE(a.entries[0].is_override);  // D1's default, never set
   TEST_ASSERT_FALSE(b.node.phy()->retune_due());
+}
+
+// spec 7.4, D68 - a trial value is what the board runs, so its result is marked OVERRIDE,
+// and a GET after the commit still reads it so.
+void test_phy_results_carry_override() {
+  PhyBoard b;
+  send_config(b, 1, phy_set());
+  schema::NodeConfigAckV1 a = next_config_ack(b);
+  for (size_t i = 0; i < kPhyGroupSize; ++i) TEST_ASSERT_TRUE(a.entries[i].is_override);
+  b.phy.on_retuned(2000);
+  b.phy.on_authenticated();
+  send_config(b, 2, phy_get());
+  a = next_config_ack(b);
+  TEST_ASSERT_TRUE(a.entries[0].is_override);
+}
+
+// spec 8.12, D64 - 300 kHz is inside the range and no SX1262 bandwidth. It answers
+// INVALID_VALUE, carries 125, and the group does not count toward a retune.
+void test_phy_an_invalid_bandwidth_does_not_retune() {
+  PhyBoard b;
+  auto set = phy_set();
+  set.entries[2].value[0] = 300 & 0xFF;
+  set.entries[2].value[1] = 300 >> 8;
+  send_config(b, 1, set);
+  const schema::NodeConfigAckV1 a = next_config_ack(b);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(ParamStatus::InvalidValue), status_of(a, 2));
+  TEST_ASSERT_EQUAL_UINT32(125, schema::entry_raw(a.entries[2].value, a.entries[2].len));
+  TEST_ASSERT_FALSE(b.phy.retune_due());
 }
 
 // Steps 3 to 5: accept on the old settings, retune, ignore POLL, commit on an authenticated
@@ -1103,6 +1135,8 @@ RUN_TEST(test_phy_a_roll_confirms_the_trial);
 RUN_TEST(test_phy_a_pending_group_is_abandoned);
 RUN_TEST(test_phy_reset_restores_the_defaults);
 RUN_TEST(test_phy_group_maps_to_the_radio_config);
+RUN_TEST(test_phy_results_carry_override);
+RUN_TEST(test_phy_an_invalid_bandwidth_does_not_retune);
 RUN_TEST(test_config_set_get_and_restore);
   RUN_TEST(test_a_set_with_every_entry_rejected_is_not_applied);
   RUN_TEST(test_a_repeated_config_is_answered_from_the_cache);
