@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.59
+**Version:** 0.60
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.15
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.19 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.20 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -468,9 +468,8 @@ engineering log's *BF-26 on air* entry has the run.
 
 **The flag gates only the two topics §16.6 names, and it gates nothing else.** A simnode's
 `config/state`, `config/ack` and `cmd/ack` are published whichever way it is set, as they
-were before BF-26. Spec §16.6 says bench data is published *"exclusively"* under
-`diag/state` and `availability`. Whether the configuration and command answers count as
-bench data is a question for the specification, and the handoff carries it.
+were before BF-26. Spec v0.15 settles that this is right: §16.6 publishes a bench node's
+answers whatever the flag says (**D65**), because each answers a request an operator made.
 
 **An `applied_not_persisted` answer leaves one gap.** If the flag is set but not persisted
 and the bridge reboots, it comes back with the flag clear. The `online` it published
@@ -677,9 +676,10 @@ The operator settled the four choices below on 2026-09-25, before anything was p
 | **`poll_interval_s` and `deployed` follow the bridge's availability** | The bridge applies them. `deployed` must be settable on a node that has never been heard (D61), which is exactly when that node reads offline. A node's own rows follow the node's availability, as R-3.3d requires |
 
 **Every control is `ent_cat: config`**, which keeps it off a default dashboard. **A bench
-node gets no table entities**, even with `simnode_diag_enable` set. Whether a simnode's
-`config/*` topics count as bench data is an open question for spec §16.6, and HA's registry
-never forgets a unique_id once published. A bench row is still settable on its topic.
+node gets no table entities**, even with `simnode_diag_enable` set. Spec v0.15's §16.6 publishes a
+bench node's `config/*` answers whatever the flag says (**D65**), so the specification no
+longer stands in the way of bench controls. They are not built, and HA's registry never
+forgets a unique_id once published. A bench row is still settable on its topic.
 
 **`test_discovery` renders each control's command as HA would, and parses the result
 through `parse_config_set()`.** A template that drifted from the parser would publish, and
@@ -1208,7 +1208,7 @@ keys, so these keys are frozen:
 
 | Choice | Why |
 |---|---|
-| **The deduplication key is `(src, ctx_id, event_id, follow-up bit)`**, one more element than spec §7.3's triple. Chosen with the operator | §7.3 has a follow-up reuse its first edge's `event_id`, so the triple alone withholds every follow-up and the classified direction never reaches HA. The first edge and its follow-up are each published once. The wording goes to the next spec revision |
+| **The deduplication key is `(src, ctx_id, event_id, follow-up bit)`**, spec §7.3's key since v0.15. Chosen with the operator | §7.3 has a follow-up reuse its first edge's `event_id`, so the v0.14 triple alone withheld every follow-up and the classified direction never reached HA. The first edge and its follow-up are each published once |
 | **The bridge remembers the last 16 events per node**, in a ring | A retransmission follows its original by one CAD backoff, at most `backoff_max_ms`. Nothing makes it arrive before the node's next event, so a high-water mark could withhold a first transmission that was lost |
 | **An unlisted `event_type` goes to `event/unknown`**, not dropped | A newer node's event may be an alert |
 | **A refused event is not remembered** | The node's retransmission of it, if one comes, then gets through. Counted as `queue_refused` |
@@ -1387,6 +1387,10 @@ deviation is deliberate. This topic carries a rolling window of arrivals, and a 
 one replays a finished burst as though it were arriving now — §16.3's argument, reaching a
 topic §16.3 does not cover. **Raise it against the specification rather than treating this
 paragraph as permission:** §16.2's table predates any streaming diagnostic.
+
+> **Settled in spec v0.15 (D66).** §16.1 gains a `log` leaf, never retained, and the topic
+> becomes `lran/bridge/diag/rxlog/log`. The rename, with `tools/simctl/rxlog.py`, is owed;
+> the bridge handoff carries it.
 
 **`tools/simctl/rxlog.py` reads the topic and `rxlog_analyze.py` does the arithmetic**,
 split the way `per_measure.py` and `per_window.py` are. Three guards earn their place, and
@@ -2668,6 +2672,12 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.60** — **Protocol specification v0.14 → v0.15.** §4.2a and §4.4.3 no longer carry
+  §16.6's open question, because **D65** publishes a bench node's answers whatever
+  `simnode_diag_enable` says. §6.3.2's deduplication key is now spec §7.3's own. §6.6.1
+  records **D66**'s `log` leaf, and the rename it owes. The Bridge PRD citation moves from
+  v0.15 to v0.16 and the Library Plan's from v0.19 to v0.20.
 
 - **v0.59** — **Header citations reconciled**: the Bridge PRD moves from v0.14 to v0.15 and
   the Library Plan from v0.14 to v0.19. Nothing in the body changes. The PRD's v0.15 is

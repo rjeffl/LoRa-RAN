@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.14
+**Version:** 0.15
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -3304,8 +3304,8 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   on **`(boot, event_id)`** (D67). §16.6 publishes a bench node's answers whatever
   `simnode_diag_enable` says (D65). **Corrected**: §7.3's deduplication key carries the
   follow-up bit, without which it withheld every follow-up. **The operator accepted the
-  draft the same day. The header holds at v0.14 until the citation sweep**, so that the
-  bump and the 26 citations it moves merge together and `main` stays green. **The W4 vectors are unchanged**:
+  draft the same day.** The header moved to v0.15 with the citation sweep, in one merge,
+  so that `main` never cited a version the header did not carry. **The W4 vectors are unchanged**:
   no committed vector sets `OVERRIDE` or carries `INVALID_VALUE`, and vectors for both
   are owed with the library change that decodes them.
 

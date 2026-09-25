@@ -3068,3 +3068,28 @@ session on 2026-09-13, in this log's earlier file. Two more are listed rather th
 `firmware/bridge/CLAUDE.md` cites three documents at old versions in prose that
 `spec_citation_version.py` does not read, and System PRD §12 gives the register's range as
 D1–D58.
+
+## 2026-09-25 — Spec v0.15 accepted, and the citations moved with the header
+
+**The operator accepted spec v0.15 on 2026-09-25**, with D62–D69 as the register records
+them. Bumping the header alone failed `spec_citation_version.py` at 26 citations, so the
+bump waited for the sweep and merged with it. Each citing document was read against v0.15
+before its citation moved.
+
+**Two documents disagreed with v0.15, not only with its number.**
+
+- **GateLink PRD R-5.3e** said a restore-defaults *"SHALL clear all overrides"*. D60 keeps
+  the committed PHY group, so the requirement now says so, and names D68's `OVERRIDE` bit
+  as the marking it asks for.
+- **Bridge Impl Plan §4.2a, §4.4.3, §6.3.2 and §6.6.1** each carried a question for the
+  specification. v0.15 answers all four, so each now records the answer, and §6.6.1 the
+  rename D66 owes.
+
+**The two stale citations the pre-GateLink survey entry listed are fixed**: `firmware/bridge/CLAUDE.md`
+now cites the Bridge PRD, Impl Plan and Firmware Tasks at their current versions, and
+System PRD §12 gives the register's range as D1–D69.
+
+**The W4 vectors were regenerated, and every vector kept its bytes.** Only each file's
+`spec` field changed. No vector exercises D68's `OVERRIDE` bit or D64's `INVALID_VALUE`
+yet; both come with the `lran-protocol` change, which the handoff lists with the rest of
+the code v0.15 owes.

@@ -66,7 +66,7 @@ SKIP_PATHS = (
     pathlib.Path("docs/shared/LRAN-D1-Parallel-Capture-Analysis.md"),
 )
 
-# **<Role>:** [`LRAN-Doc`](../path/LRAN-Doc.md#anchor) **v0.14** (`ver = 2`) - the
+# **<Role>:** [`LRAN-Doc`](../path/LRAN-Doc.md#anchor) **v0.15** (`ver = 2`) - the
 # version must follow the link directly, so a header whose link is followed by a
 # section number or a note cites no version.
 ROLE_HEADER = re.compile(
@@ -85,11 +85,11 @@ KNOWN_STALE: dict[tuple[str, str], str] = {}
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".
 CITATION_PATTERNS = (
-    # **Binding protocol:** [...](...) **v0.14**   /   `...` v0.13 (`ver = 2`)
+    # **Binding protocol:** [...](...) **v0.15**   /   `...` v0.13 (`ver = 2`)
     re.compile(r"Binding (?:protocol|specification|spec)\b[^\n]*?v(?P<ver>\d+\.\d+)", re.I),
-    # Root CLAUDE.md's document table: **Currently v0.14, `ver = 2`**
+    # Root CLAUDE.md's document table: **Currently v0.15, `ver = 2`**
     re.compile(r"Currently\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
-    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.14
+    # System PRD §12 and HANDOFF: `LRAN-Protocol-Specification` is v0.15
     re.compile(r"LRAN-Protocol-Specification`?\*{0,2}\s+is\s+\*{0,2}v(?P<ver>\d+\.\d+)", re.I),
     # System PRD §12 document-set row.
     re.compile(

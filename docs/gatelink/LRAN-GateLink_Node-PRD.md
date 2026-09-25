@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.10
+**Version:** 0.11
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-25
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -628,7 +628,9 @@ steel gate-controller enclosure  (outdoors, at the gate)
 
 - **R-5.3e.** GateLink SHALL publish its **full effective configuration** on boot, on
   change, and on request, with each value marked `default` or `override`. A
-  restore-defaults command SHALL clear all overrides.
+  restore-defaults command SHALL clear every override except the committed PHY group
+  (spec §8.10, **D60**). The marking is the node's own, carried by each `CONFIG_ACK`
+  result's `OVERRIDE` bit (spec §7.4, **D68**).
 - **R-5.3f.** Unknown keys SHALL be rejected individually with a reason, never silently
   ignored; the remainder of the set still applies. Out-of-range values SHALL be
   **clamped to the documented range with the clamp reported**, not applied quietly.
@@ -966,6 +968,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.11** — **Protocol specification v0.14 → v0.15.** R-5.3e takes two changes: a
+  restore-defaults keeps the committed PHY group (**D60**), and each value's marking comes
+  from the `OVERRIDE` bit (**D68**, closing W15). Spec §8.7 now says when GateLink sends
+  `CONFIG_CHANGE` (**D69**, closing W16), which was GateLink M3's to decide.
 
 - **v0.10** — **Protocol specification v0.13 → v0.14.** §5.3.1 gains D59's three points
   for GateLink: PHY changes arrive only as a fleet operation, a node without a usable

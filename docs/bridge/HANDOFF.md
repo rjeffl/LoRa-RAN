@@ -52,25 +52,22 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise.
 
-### 1. Specification v0.15
+### 1. The code specification v0.15 owes
 
-**Accepted and merged on 2026-09-25.** The operator decided every open item that day, as
-**D62–D69**. Decision Register §3.11 has the reasoning, and spec §20's v0.15 entry lists
-what each section gained. **The header holds at v0.14.** Bumping it alone fails CI's
-`Versioned document citations` check at 26 citations, so two steps remain:
+**Accepted on 2026-09-25, and the header and every citation moved to v0.15 the same
+day.** The operator decided every open item as **D62–D69**. Decision Register §3.11 has
+the reasoning, and spec §20's v0.15 entry lists what each section gained. **What remains
+is code.** Each line is one change, and none has a task row yet:
 
-1. **Bump the header and run the citation sweep on one branch**, and merge them together.
-   Reconcile each citing document with v0.15 before moving its citation.
-2. **Build what the decisions owe.** Each line is one change, and none has a task row yet:
-   - **`lran-protocol`**: bits 6:0 and bit 7 of a result's `status`, plus two W4 vectors,
-     one with `OVERRIDE` set and one with `INVALID_VALUE` (D68, D64; spec §13.2).
-   - **`lran-config`**: `bandwidth_khz` takes 125, 250 or 500, and anything else answers
-     `INVALID_VALUE` (D64).
-   - **The bridge**: `config/state`'s `source` from the `OVERRIDE` bit (D68); a
-     `commit_failed` `phy_reverted` (D63); a boot count, and `boot` on its own events
-     (D67); `diag/rxlog/state` renamed `diag/rxlog/log`, with `tools/simctl/rxlog.py` and
-     Impl Plan §6.6.1 (D66); a readback on `CONFIG_CHANGE` (D69).
-   - **The simnode**: `OVERRIDE` in its `CONFIG_ACK` results (D68).
+- **`lran-protocol`**: bits 6:0 and bit 7 of a result's `status`, plus two W4 vectors,
+  one with `OVERRIDE` set and one with `INVALID_VALUE` (D68, D64; spec §13.2).
+- **`lran-config`**: `bandwidth_khz` takes 125, 250 or 500, and anything else answers
+  `INVALID_VALUE` (D64).
+- **The bridge**: `config/state`'s `source` from the `OVERRIDE` bit (D68); a
+  `commit_failed` `phy_reverted` (D63); a boot count, and `boot` on its own events
+  (D67); `diag/rxlog/state` renamed `diag/rxlog/log`, with `tools/simctl/rxlog.py` and
+  Impl Plan §6.6.1 (D66); a readback on `CONFIG_CHANGE` (D69).
+- **The simnode**: `OVERRIDE` in its `CONFIG_ACK` results (D68).
 
 ### 2. Event delivery, before events drive email and SMS
 
@@ -213,7 +210,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B5**, with **BF-36**–**BF-38** added 2026-09-25 and **BF-28**–**BF-30**. **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **Spec v0.15**. **M26**. The whole-document style passes |
+| Not done | **B5**, with **BF-36**–**BF-38** added 2026-09-25 and **BF-28**–**BF-30**. **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **The code spec v0.15 owes** (group 1). **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 
 ```bash

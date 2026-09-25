@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.15
+**Version:** 0.16
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-25
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -500,6 +500,13 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 ## 9. Changelog
 
+- **v0.16** — **Protocol specification v0.14 → v0.15.** What the bridge inherits: a
+  `config/state` `source` read from each result's `OVERRIDE` bit (D68), a readback when a
+  node reports `CONFIG_CHANGE` (D69), `boot` on its own events (D67), a `commit_failed`
+  revert (D63), the `diag/rxlog/log` topic (D66), and a bench node's answers published
+  whatever `simnode_diag_enable` says (D65). No requirement changes. The bridge handoff
+  lists the code each one needs.
+
 - **v0.15** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY
   change moves the fleet. What the bridge inherits: the PHY group is set on
   `lran/bridge/config/set` alone, the bridge holds six global PHY rows, it hears every node
@@ -523,6 +530,7 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 
 | Version | What changed |
 |---|---|
+| **v0.16** | Spec v0.15 citation; D62–D69 reach the bridge, with no requirement changes |
 | **v0.15** | Spec v0.14 citation; D59's PHY fleet mechanism reaches the bridge, with no requirement changes |
 | **v0.14** | **V-B12 met**: saturating WiFi cost no measurable LoRa PER, and R-4.4's policy stands |
 | **v0.13** | Spec v0.13 citation; **R-3.1h**, the context roll after a bridge boot (**D58**) |
