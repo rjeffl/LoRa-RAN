@@ -3036,3 +3036,35 @@ the cited document's changelog since the version it cited. `KNOWN_STALE` is now 
 **Four of the six were number-only drift.** A document took a revision's content and
 never moved the header number. The check catches the number and cannot tell which kind of
 drift it has found, so each one still needs reading.
+
+## 2026-09-25 — The pre-GateLink survey: B5 has no simulator, and two event gaps had no task
+
+**The survey sorted the handoff's open list by one question: can the bridge board, the two
+simnodes and the sandbox HA close it before GateLink exists?** Most items can. The handoff
+now keeps them in *Work before GateLink*, and keeps the rest in *Waits on GateLink or the
+operator*.
+
+**B5 cannot run on the bench yet.** Impl Plan §2.1 lists every milestone from B2 to B5 as
+reachable on two boards, and §8 lets B5 use *"a real MPPT reachable via GateLink or a
+simulator"*. The simnode has no such simulator. §10.2's `ROLE_GATELINK` answers `POLL`,
+`COMMAND` and `CONFIG`, and nothing in `firmware/simnode/` handles `HEX_REQ`. Firmware
+Tasks v0.46 adds **BF-36** for the responder. §10.2 is corrected in BF-36's commit, when
+the claim becomes true, not here.
+
+**Two event-delivery gaps had no task row.** The QoS 0 transport (Impl Plan §6.3.2) and
+the queue that refuses a new event while the broker is down (§5.2.1) were open in the
+handoff since BF-25. §5.2.1 gave the per-class refinement to BF-24 and BF-25, and neither
+built it. They are now **BF-37** and **BF-38**. Both matter before GateLink deploys,
+because its events drive email and SMS.
+
+**The specification's owed text is in one list for the first time.** Items waiting on the
+next revision were spread across the handoff, the Decision Register (§3.9, §3.10) and the
+Library Plan (§4). The handoff's *Specification v0.15* table collects ten, and marks which
+need only text and which need an operator decision first.
+
+**Two stale lines surfaced and were fixed.** Firmware Tasks' BF-13 row said V-B9 had not
+run, and BF-14's said the status page had not been seen. Both happened at B2's bench
+session on 2026-09-13, in this log's earlier file. Two more are listed rather than fixed:
+`firmware/bridge/CLAUDE.md` cites three documents at old versions in prose that
+`spec_citation_version.py` does not read, and System PRD §12 gives the register's range as
+D1–D58.
