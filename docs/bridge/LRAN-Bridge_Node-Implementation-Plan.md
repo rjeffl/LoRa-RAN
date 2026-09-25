@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.58
+**Version:** 0.59
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.15
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.14 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.19 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -2668,6 +2668,12 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.59** — **Header citations reconciled**: the Bridge PRD moves from v0.14 to v0.15 and
+  the Library Plan from v0.14 to v0.19. Nothing in the body changes. The PRD's v0.15 is
+  D59, which this plan took in v0.54. The Library Plan's v0.15–v0.19 record library work
+  that BF-34, BF-24 and BF-33 built, and §6.2.2, §6.3.1 and B4b's row already describe
+  it.
 
 - **v0.58** — **BF-35 is built.** New §4.4.3: Home Assistant controls for the configuration
   table, generated from `/lib/lran-config/`, and the four naming and availability choices

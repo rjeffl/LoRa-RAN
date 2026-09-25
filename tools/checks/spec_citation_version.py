@@ -74,19 +74,13 @@ ROLE_HEADER = re.compile(
     r"\((?P<href>[^)\s#]+)(?:#[^)\s]*)?\)\s*\*{0,2}v(?P<ver>\d+\.\d+)\b"
 )
 
-# Role header citations known to be stale when this list was written, keyed by
-# (citing file, cited document) to the version cited. Each needs its document read
-# against the target's intervening revisions before the number moves, which is a
-# task of its own, not a side effect of this check. An entry fails the check once
-# its citation changes, so the list cannot outlive the debt it records.
-KNOWN_STALE = {
-    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Bridge_Node-PRD"): "0.14",
-    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Bridge_Node-Implementation-Plan"): "0.54",
-    ("docs/bridge/LRAN-Bridge-Firmware-Tasks.md", "LRAN-Protocol-Library-Implementation-Plan"): "0.12",
-    ("docs/bridge/LRAN-Bridge_Node-Implementation-Plan.md", "LRAN-Bridge_Node-PRD"): "0.14",
-    ("docs/bridge/LRAN-Bridge_Node-Implementation-Plan.md", "LRAN-Protocol-Library-Implementation-Plan"): "0.14",
-    ("docs/gatelink/LRAN-GateLink_Node-Implementation-Plan.md", "LRAN-GateLink_Node-PRD"): "0.9",
-}
+# Role header citations known to be stale, keyed by (citing file, cited document) to
+# the version cited. An entry lets a stale citation wait for its reconciliation, which
+# is a task of its own: the document is read against the target's intervening
+# revisions before the number moves. An entry fails the check once its citation
+# changes, so the table cannot outlive the debt it records. Empty since the first six
+# were reconciled on 2026-09-25.
+KNOWN_STALE: dict[tuple[str, str], str] = {}
 
 # A citation asserts what something is built against. Each pattern captures the
 # version it names in group "ver".

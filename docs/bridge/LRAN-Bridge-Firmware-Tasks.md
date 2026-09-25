@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.44
+**Version:** 0.45
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.54
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.15
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.59
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.12
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.19
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -272,9 +272,15 @@ B3b and on BF-32's configuration path, and it precedes B6: GateLink has no OTA, 
 deploy with its half of §12.4, and this bridge half is what tests that half first. Impl Plan
 §8 has the criteria.
 
+**B4b was met on the bench and accepted on 2026-09-24.** Its bench runs produced two
+changes that no task row owns. **D61** added the bridge's per-node `deployed` lever, which
+decides whether a row is polled and watched from boot (Impl Plan §6.1.1, §6.1.2, §6.2.2).
+The **poll-clash fix** puts one exchange on the air at a time, so a scheduled `POLL` and
+any other frame no longer wait for their answers together (Impl Plan §6.1.1).
+
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**, **D59**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19**, and **moved from B4 to B4b on 2026-09-24**. Until it lands, the PHY rows answer `READ_ONLY` (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
+| **BF-33** | **PHY commit-and-revert** — spec §12.4 (**D56**, **D59**): one atomic `CONFIG` carrying frequency, SF, BW, CR and TX power; last known-good persisted before the radio is retuned; `phy_trial_s` from apply; confirmation is a frame **received** on the new settings; revert at both ends on silence, and an `EVENT` once the link is back. Bridge and simnode. **Added 2026-09-19**, and **moved from B4 to B4b on 2026-09-24**. **Built, and met on the bench 2026-09-24**; its library half is the bridge's six PHY rows and the store's trial copy (Library Plan §4) | **Opus** | **The failure mode is a node nobody can reach**, ~87 m away with no OTA. Three things carry the weight: the revert survives a reboot mid-trial, the confirmation is a frame *received* rather than one sent, and the fleet moves together because one SX1262 listens on one configuration (§12.1). TX power is clamped by D33 in the table, not by whoever types into Home Assistant |
 
 ---
 
@@ -317,6 +323,13 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.45** — **Header citations reconciled**: the Bridge PRD moves from v0.14 to v0.15,
+  the Impl Plan from v0.54 to v0.59 and the Library Plan from v0.12 to v0.19. §8 records
+  B4b's acceptance, D61's `deployed` lever and the poll-clash fix (Impl Plan v0.55–v0.57).
+  BF-33's row no longer says the PHY rows answer `READ_ONLY` until it lands; Library Plan
+  v0.19 built its library half. The Bridge PRD's v0.15 and the Library Plan's other
+  revisions change nothing here.
 
 - **v0.44** — **BF-35 is built** and shown in the sandbox HA. Its row no longer says the
   PHY rows answer `READ_ONLY` until BF-33, which was out of date once BF-33 was built.
