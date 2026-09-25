@@ -1,9 +1,8 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that built group 1, event delivery.** BF-37 moved the
-bridge to espMqttClient, and events reach the broker at QoS 1. BF-38 gave events a queue of
-their own. The synthetic filter is in `ha/automations/`. The bridge log's 2026-09-25 *events
-at QoS 1* entry has the bench results, and Impl Plan §4.3.3 the choices.
+**Written 2026-09-25 by the session that started group 1, B5, on branch `b5-hex-proxy`.**
+BF-36, BF-28, BF-29 and BF-30 are built and host-tested; nothing has been on air. The
+session stopped on context size, before the documents were finished.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,8 +16,22 @@ at QoS 1* entry has the bench results, and Impl Plan §4.3.3 the choices.
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**No task is queued.** The operator picks the next one from *Work before GateLink*. The
-groups are in the suggested order: the first is B5, and the rest do not change GateLink.
+**Queued: finish B5 on `b5-hex-proxy`.** The code is committed. What is left, in order:
+
+1. **Documents.** Write Impl Plan §6.4's "what BF-28–BF-30 built" subsection from the two
+   commit messages and the headers `hex_proxy.h` and `charge_readback.h`. Add a BF-28–30
+   paragraph to `firmware/bridge/CLAUDE.md`. Mark BF-28–30 and BF-36 built in Tasks §9.
+   Add an engineering-log entry covering the four spec readings below.
+2. **Raise for spec v0.16**, one line each in the log: (a) a write-class `HEX_REQ` answers
+   `HEX_RSP(REJECTED_UNAUTHENTICATED)` on a bad MAC, `COMMAND_ACK` on context, dedup or
+   `seq`; (b) `HEX_RSP` repeats the request's `seq`; (c) §16.2 marks `write_enable/set`
+   retained, and the bridge ignores and clears a retained one; (d) `vedirect/charge/state`
+   is not in §16.2, and a bench node's `vedirect/*` answers are not in §16.6's list.
+3. **V-B6 on the bench**, against f1 `ROLE_GATELINK`. Publish to
+   `lran/simnode1/vedirect/hex/request` and `.../write_enable/set` by hand. The bench has
+   no discovery entities for these (spec §16.6). The simnode console's `mppt` command
+   covers `TIMEOUT` and the register values.
+4. **PR** out of draft once the operator accepts it.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -50,7 +63,9 @@ Each group is one session unless its line says otherwise.
 
 ### 1. B5 — the HEX proxy, against a simulated MPPT
 
-**BF-36, then BF-28 and BF-29, then BF-30.** BF-36 gives `ROLE_GATELINK` a `HEX_REQ`
+**In progress on `b5-hex-proxy`; see *Start here*.** Out of scope, found there:
+`sched_config()` does not wait for `g_command.busy()`, so a command and a `CONFIG` can
+be in flight together while sharing one seq space. **BF-36, then BF-28 and BF-29, then BF-30.** BF-36 gives `ROLE_GATELINK` a `HEX_REQ`
 responder with canned VE.Direct HEX answers. With it, **V-B6**'s three gates and the audit
 trail are testable at a desk. BF-30's register semantics can be written from Victron's
 HEX documentation. A canned answer proves the plumbing only, so the real MPPT confirms the
