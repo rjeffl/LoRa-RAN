@@ -49,11 +49,14 @@ counted `rx_unknown_src` in the codec's own `Counters` and summed into `rx_dropp
 and exists nowhere now.
 
 **`BF-17` — the poll scheduler, built and host-tested; no poll on air yet.**
-`scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Three things to
+`scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Four things to
 keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a registry call or
 a queue send**, so it never nests with the registry's; a bench row is polled only after it
-has been heard; and `lora_task_idle()` is false while a poll is outstanding, which an OTA
-upload waits on.
+has been heard; `lora_task_idle()` is false while a poll is outstanding, which an OTA
+upload waits on; and **one exchange is on the air at a time** (`air_turn.h`): an outstanding
+poll holds every other exchange, and any other exchange holds the next scheduled poll. A
+second frame 211 ms after a `POLL` lost both frames on 2026-09-24. **A new path that
+transmits asks `exchange_may_start()` before it starts**, and is added to `AirTurn`.
 
 **`BF-20` — the availability watchdog, built and host-tested.** `node_availability.{h,cpp}`
 judges and `sched_task` publishes; Impl Plan §6.1.2. **Three things to keep:** the watchdog
@@ -361,9 +364,9 @@ log. Never commit, echo or log the real values.
   has heard every node on the new settings (§12.4.1). **BF-33 slice 2 built the bridge's
   half** in `phy_change.{h,cpp}`, and it ran on the bench on 2026-09-24. A PHY row on a node's
   topic answers `read_only`. **While a change runs, `blocks_traffic()` holds every other
-  authenticated frame**, because any one of them confirms the node that receives it. **It does not hold polls**, so
-  a `POLL` and a `CONFIG` to one node can share a tick and both be lost; the handoff's *Open*
-  has the fix. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  authenticated frame**, because any one of them confirms the node that receives it. It
+  holds scheduled polls as well, through `air_turn.h`; the change sends its own step-6
+  polls. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
   HA-visible config set is correct for before v0.13**; the hazard it named is real and is
   what the revert window exists for — a node that boots on the wrong channel is a walk to
