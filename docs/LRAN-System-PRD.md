@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.22
+**Version:** 0.23
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-25
 
 ---
 
@@ -697,7 +697,7 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.22 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.23 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.14** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D58** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.18 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.18 |
@@ -723,7 +723,8 @@ assumed now.
 > protocol version older than the specification's own means its body has not been
 > reconciled with the intervening revisions — which was true of every node document
 > until v0.2 of this one. **`python3 tools/checks/spec_citation_version.py` enforces the
-> protocol citation**; nothing enforces this table's own version column, which is why it
+> protocol citation, and every versioned `**<Role>:**` header line** that links another
+> `LRAN-` document. Nothing enforces this table's own version column, which is why it
 > was wrong in **eight rows** on 2026-09-16 — one of them by fourteen revisions. Read a
 > document's own header before trusting the number here.
 
@@ -744,6 +745,11 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.23** — **§12's note on version checks corrected.** No architecture changes.
+  `spec_citation_version.py` now checks every versioned `**<Role>:**` header line against
+  the linked document's own header, not only citations of the protocol specification.
+  The table's version column is still checked by nothing.
 
 - **v0.22** — **Protocol specification v0.13 → v0.14.** No architecture changes. D59
   fills in how a PHY change moves the fleet under commit-and-revert: the change is set on
