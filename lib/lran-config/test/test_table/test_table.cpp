@@ -499,6 +499,85 @@ void test_the_signed_phy_row_survives_a_readback() {
   TEST_FAIL_MESSAGE("tx_power_dbm was not in the readback");
 }
 
+// spec 8.12, 12.4, D64 - bandwidth takes 125, 250 or 500. 300 is inside the range and is
+// no SX1262 bandwidth, so it answers INVALID_VALUE, applies nothing, and carries the held
+// value. Above the range still clamps, to 500, which is on the list.
+void test_a_bandwidth_off_the_list_is_invalid_and_applies_nothing() {
+  const uint16_t kBw = 0x0112;
+  Table          t   = node_table();
+  FakePersist    p;
+  Store          s(t, &p);
+  s.enable_phy_trial();
+
+  bool applied = true;
+  schema::ConfigAckEntry r = s.apply(set_entry(kBw, PType::U16, 300), &applied, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::InvalidValue, r.status);
+  TEST_ASSERT_EQUAL_UINT32(125, schema::entry_raw(r.value, r.len));
+  TEST_ASSERT_FALSE(r.is_override);
+  TEST_ASSERT_FALSE(applied);
+  TEST_ASSERT_FALSE(s.phy_trial_pending());
+
+  r = s.apply(set_entry(kBw, PType::U16, 250), &applied, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, r.status);
+  TEST_ASSERT_TRUE(applied);
+  s.revert_phy_trial();
+
+  r = s.apply(set_entry(kBw, PType::U16, 600), &applied, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Clamped, r.status);
+  TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(r.value, r.len));
+}
+
+// A value stored before D64 comes back checked, as apply() would check it.
+void test_restore_refuses_a_bandwidth_off_the_list() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  TEST_ASSERT_FALSE(s.restore(0x0112, 300));
+  TEST_ASSERT_EQUAL_INT32(125, s.effective(0x0112));
+  TEST_ASSERT_TRUE(s.restore(0x0112, 250));
+}
+
+// spec 7.4, D68 - OVERRIDE marks a value the node holds as an override, even one equal to
+// its default, and a readback carries it per result.
+void test_override_is_marked_on_the_set_and_on_the_readback() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+
+  schema::ConfigAckEntry r = s.apply(set_entry(0x0100, PType::U8, 8), nullptr, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, r.status);
+  TEST_ASSERT_TRUE(r.is_override);  // 8 is dedup_cache_depth's default
+
+  ReadbackCursor          c;
+  schema::NodeConfigAckV1 ack;
+  TEST_ASSERT_TRUE(s.next_readback_message(&c, ConfigOp::GetAll, &ack));
+  TEST_ASSERT_EQUAL_HEX16(0x0100, ack.entries[0].param_id);
+  TEST_ASSERT_TRUE(ack.entries[0].is_override);
+  TEST_ASSERT_EQUAL_HEX16(0x0101, ack.entries[1].param_id);
+  TEST_ASSERT_FALSE(ack.entries[1].is_override);
+
+  // A rejected entry reports the marking of the value it carries.
+  r = s.apply(set_entry(0x0100, PType::U16, 8), nullptr, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::TypeMismatch, r.status);
+  TEST_ASSERT_TRUE(r.is_override);
+}
+
+// A PHY trial value is what the radio runs and what the result carries, so the bit marks
+// it, though is_override() does not count it until the commit.
+void test_a_trial_value_is_marked_override() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  schema::ConfigAckEntry r = s.apply(set_entry(0x0111, PType::U8, 10), nullptr, nullptr);
+  TEST_ASSERT_TRUE(r.is_override);
+  TEST_ASSERT_TRUE(s.marked_override(0x0111));
+  TEST_ASSERT_FALSE(s.is_override(0x0111));
+  s.revert_phy_trial();
+  TEST_ASSERT_FALSE(s.marked_override(0x0111));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_a_block_is_walked_in_ascending_id_order);
@@ -526,5 +605,9 @@ int main(int, char**) {
   RUN_TEST(test_a_readback_larger_than_one_frame_splits_and_marks_every_message_but_the_last);
   RUN_TEST(test_a_readback_carries_effective_values);
   RUN_TEST(test_the_signed_phy_row_survives_a_readback);
+  RUN_TEST(test_a_bandwidth_off_the_list_is_invalid_and_applies_nothing);
+  RUN_TEST(test_restore_refuses_a_bandwidth_off_the_list);
+  RUN_TEST(test_override_is_marked_on_the_set_and_on_the_readback);
+  RUN_TEST(test_a_trial_value_is_marked_override);
   return UNITY_END();
 }

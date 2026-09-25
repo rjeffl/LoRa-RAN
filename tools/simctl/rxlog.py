@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Robert J. Lee
 #
-# BF-27 - watches `lran/bridge/diag/rxlog/state` and says which frames went missing.
+# BF-27 - watches `lran/bridge/diag/rxlog/log` and says which frames went missing.
 # Impl Plan 6.6. The arithmetic is rxlog_analyze.py, which does no I/O; this is the half
 # that needs a broker.
 #
@@ -32,7 +32,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rxlog_analyze import K_FRAMES, analyze, merge, verdict
 
-RXLOG_TOPIC = "lran/bridge/diag/rxlog/state"
+RXLOG_TOPIC = "lran/bridge/diag/rxlog/log"
 
 
 class RxLogSubscriber:

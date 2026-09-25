@@ -297,12 +297,10 @@ const ParamDef* node_param(size_t index) {
                                                  : nullptr;
 }
 
-// The SX1262's LoRa bandwidths that are whole kilohertz, which is every one the table's
-// kHz unit can carry (spec 12.1). A select offers those inside the row's own range.
-constexpr int32_t kLoraBandwidthsKhz[] = {125, 250, 500};
-
+// spec 12.4, D64 - a row whose legal values are the table's listed points. A select
+// offers exactly the values the store accepts, from the same list.
 bool is_select(const ParamDef& p) {
-  return p.owner != Owner::Node && std::strcmp(p.name, "bandwidth_khz") == 0;
+  return p.owner != Owner::Node && lran::config::points_for(p) != nullptr;
 }
 
 // True when this row belongs to this node type. A link entity always does; a button does
@@ -418,7 +416,9 @@ size_t param_config_json(lran::NodeId node_id, const ParamDef& p, char* out, siz
       char ops[64];
       size_t n = 0;
       ops[n++] = '[';
-      for (int32_t bw : kLoraBandwidthsKhz) {
+      const lran::config::ParamPoints& pts = *lran::config::points_for(p);
+      for (size_t k = 0; k < pts.n; ++k) {
+        const lran::config::Value bw = pts.points[k];
         if (bw < p.min || bw > p.max) continue;
         const int w = std::snprintf(ops + n, sizeof(ops) - n, "%s\"%ld\"",
                                     n > 1 ? "," : "", static_cast<long>(bw));

@@ -161,6 +161,7 @@ lran::schema::ConfigAckEntry PhyTrial::get(uint16_t id) const {
   }
   lran::schema::entry_pack(&out, id, lran::ParamStatus::Ok, d->type,
                            raw_bits(store_.effective(id), d->type));
+  out.is_override = store_.marked_override(id);  // spec 7.4, D68
   return out;
 }
 
@@ -173,6 +174,7 @@ lran::schema::ConfigAckEntry PhyTrial::set(const lran::schema::ConfigEntry& in,
     lran::schema::ConfigAckEntry out;
     lran::schema::entry_pack(&out, in.param_id, lran::ParamStatus::ReadOnly, d->type,
                              raw_bits(store_.effective(in.param_id), d->type));
+    out.is_override = store_.marked_override(in.param_id);
     return out;
   }
   bool persisted = false;

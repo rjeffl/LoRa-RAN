@@ -185,7 +185,7 @@ class FrameLog {
 // firmware. A truncated log line is read as a frame that arrived differently.
 size_t render_line(const FrameLogEntry& e, char* out, size_t cap);
 
-// A batch as one JSON object for `lran/bridge/diag/rxlog/state`:
+// A batch as one JSON object for `lran/bridge/diag/rxlog/log`:
 //
 //   {"lost":0,"f":[{"i":12,"ms":123456,"deaf":659,"d":"rx","peer":240,"type":3,
 //                   "schema":1,"frag":1,"seq":77,"rssi":-42,"snr":9,"st":0,"rx":0}]}

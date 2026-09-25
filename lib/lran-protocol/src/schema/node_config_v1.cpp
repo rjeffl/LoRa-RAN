@@ -43,6 +43,7 @@ bool entry_pack(ConfigAckEntry* e, uint16_t param_id, ParamStatus s, PType t,
   if (n == 0 || n > kMaxParamValueLen) return false;
   e->param_id = param_id;
   e->status   = s;
+  e->is_override = false;
   e->ptype    = t;
   e->len      = static_cast<uint8_t>(n);
   for (size_t i = 0; i < kMaxParamValueLen; ++i) e->value[i] = 0;
@@ -127,7 +128,9 @@ Status serialize(const NodeConfigAckV1& v, uint8_t* out, size_t cap,
     const ConfigAckEntry& e = v.entries[i];
     if (e.len > kMaxParamValueLen) return Status::BadLength;
     w.u16(e.param_id);                     // entry off 0
-    w.u8(static_cast<uint8_t>(e.status));  // entry off 2
+    // entry off 2 - spec 7.4, D68: 8.12's value in bits 6:0, OVERRIDE in bit 7
+    w.u8(static_cast<uint8_t>((static_cast<uint8_t>(e.status) & ~kConfigStatusOverride) |
+                              (e.is_override ? kConfigStatusOverride : 0)));
     w.u8(static_cast<uint8_t>(e.ptype));   // entry off 3
     w.u8(e.len);                           // entry off 4
     w.bytes(e.value, e.len);               // entry off 5
@@ -150,7 +153,9 @@ Status deserialize(const uint8_t* in, size_t len, NodeConfigAckV1* out) {
   for (uint8_t i = 0; i < out->count; ++i) {
     ConfigAckEntry& e = out->entries[i];
     e.param_id = r.u16();
-    e.status   = static_cast<ParamStatus>(r.u8());
+    const uint8_t status_byte = r.u8();  // spec 7.4, D68
+    e.status      = static_cast<ParamStatus>(status_byte & ~kConfigStatusOverride);
+    e.is_override = (status_byte & kConfigStatusOverride) != 0;
     e.ptype    = static_cast<PType>(r.u8());
     e.len      = r.u8();
     if (!r.ok()) return Status::BadLength;

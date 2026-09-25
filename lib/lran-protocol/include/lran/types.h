@@ -325,6 +325,7 @@ enum class ParamStatus : uint8_t {
   Clamped      = 0x02,
   TypeMismatch = 0x03,
   ReadOnly     = 0x04,
+  InvalidValue = 0x05,  // D64 - inside the range, not an allowed point
 };
 
 // spec 8.13

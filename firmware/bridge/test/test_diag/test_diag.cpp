@@ -226,6 +226,16 @@ void test_diag_topics_follow_spec_16_1() {
   TEST_ASSERT_EQUAL_STRING("", t);
 }
 
+// spec 16.1, D66 - a streaming diagnostic's leaf is `log`, and it needs an item.
+void test_the_rxlog_topic_takes_the_log_leaf() {
+  char t[kMaxTopicLen];
+  TEST_ASSERT_GREATER_THAN(0, topic_diag_log("bridge", "rxlog", t, sizeof(t)));
+  TEST_ASSERT_EQUAL_STRING("lran/bridge/diag/rxlog/log", t);
+  TEST_ASSERT_EQUAL_UINT(0, topic_diag_log("bridge", nullptr, t, sizeof(t)));
+  TEST_ASSERT_EQUAL_UINT(0, topic_diag_log("bridge", "rxlog", t, 10));
+  TEST_ASSERT_EQUAL_STRING("", t);
+}
+
 // BF-18. The keys are what Home Assistant charts, so they are asserted rather than
 // trusted, like every other counter name this file guards.
 void test_the_command_diagnostics_carry_every_stat() {
@@ -279,5 +289,6 @@ int main() {
   RUN_TEST(test_a_heard_node_publishes_its_link);
   RUN_TEST(test_last_seen_survives_the_millis_wrap);
   RUN_TEST(test_diag_topics_follow_spec_16_1);
+  RUN_TEST(test_the_rxlog_topic_takes_the_log_leaf);
   return UNITY_END();
 }

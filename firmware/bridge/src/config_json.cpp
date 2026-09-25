@@ -309,6 +309,7 @@ ResultStatus result_status_of(lran::ParamStatus s) {
     case lran::ParamStatus::Clamped: return ResultStatus::Clamped;
     case lran::ParamStatus::TypeMismatch: return ResultStatus::TypeMismatch;
     case lran::ParamStatus::ReadOnly: return ResultStatus::ReadOnly;
+    case lran::ParamStatus::InvalidValue: return ResultStatus::InvalidValue;
   }
   return ResultStatus::Unknown;
 }
@@ -320,6 +321,7 @@ const char* result_status_name(ResultStatus s) {
     case ResultStatus::Clamped: return "clamped";
     case ResultStatus::TypeMismatch: return "type_mismatch";
     case ResultStatus::ReadOnly: return "read_only";
+    case ResultStatus::InvalidValue: return "invalid_value";
     case ResultStatus::Unknown: return "unknown";
     case ResultStatus::Reverted: return "reverted";
   }
@@ -426,6 +428,16 @@ size_t build_config_state(const ConfigStateEntry* entries, size_t n, char* out, 
     doc.str("source", e.is_override ? "override" : "default");
     doc.end_object();
   }
+  return doc.finish();
+}
+
+size_t build_phy_reverted(uint32_t boot, uint32_t event_id, const char* reason,
+                          const char* node, char* out, size_t cap) {
+  JsonObject doc(out, cap);
+  if (boot == 0) doc.null("boot"); else doc.u32("boot", boot);
+  doc.u32("event_id", event_id);
+  doc.str("reason", reason);
+  if (node == nullptr) doc.null("node"); else doc.str("node", node);
   return doc.finish();
 }
 

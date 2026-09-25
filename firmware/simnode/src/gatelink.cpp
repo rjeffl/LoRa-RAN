@@ -165,11 +165,13 @@ constexpr uint8_t kNodeFlagBmsPolling = 0x08;
 constexpr uint8_t kNodeFlagDebug      = 0x10;
 constexpr uint8_t kNodeFlagAgeNotPersisted = 0x40;
 
-// spec 8.12 - one CONFIG_ACK result, from the RAM store.
+// spec 8.12 - one CONFIG_ACK result, from the RAM store. The store holds no defaults, so
+// every value in it is one a SET wrote, and spec 7.4 marks it OVERRIDE (D68).
 lran::schema::ConfigAckEntry result_of(const StoredParam& p, lran::ParamStatus status) {
   lran::schema::ConfigAckEntry a;
-  a.param_id = p.param_id;
-  a.status   = status;
+  a.param_id    = p.param_id;
+  a.status      = status;
+  a.is_override = true;
   a.ptype    = p.ptype;
   a.len      = p.len;
   std::memcpy(a.value, p.value, sizeof(a.value));

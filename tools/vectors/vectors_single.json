@@ -1095,6 +1095,62 @@
         "payload": "0300020201000101051401000402fcff",
         "mac_present": false
       }
+    },
+    {
+      "name": "config_ack_override",
+      "spec_ref": "§7.4, §8.12",
+      "origin": "derived",
+      "note": "GET answer: the first status byte reads 0x80, OK with OVERRIDE set; the second reads 0x00, the table's default (D68).",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 704,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "0200020101800202dc05020100060101",
+      "key": null,
+      "frame": "020b0100c002efcdab890112000000000200020101800202dc050201000601017885",
+      "frame_len": 34,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "0200020101800202dc05020100060101",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "config_ack_invalid_value",
+      "spec_ref": "§8.11, §8.12, §12.4",
+      "origin": "derived",
+      "note": "SET bandwidth_khz = 300 refused: INVALID_VALUE (0x05) with the effective 125, persist_status NOT_APPLIED because nothing applied (D64).",
+      "header": {
+        "ver": 2,
+        "type": "CONFIG_ACK",
+        "src": 1,
+        "dst": 0,
+        "seq": 705,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x12",
+        "hdr_flags": "0x00"
+      },
+      "payload": "01020112010502027d00",
+      "key": null,
+      "frame": "020b0100c102efcdab8901120000000001020112010502027d009a59",
+      "frame_len": 28,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "01020112010502027d00",
+        "mac_present": false
+      }
     }
   ]
 }

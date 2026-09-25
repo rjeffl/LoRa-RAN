@@ -24,6 +24,7 @@
 
 #include "air_turn.h"
 #include "board_ui.h"
+#include "boot_count.h"
 #include "command.h"
 #include "config_json.h"
 #include "config_path.h"
@@ -204,6 +205,9 @@ std::atomic<bool> g_phy_busy{false};
 
 // spec 12.4.1 step 2's `phy_fleet_incomplete`, for mqtt_task: the nodes the scheduler
 // polls, and those of them not online. sched_availability() writes both every tick.
+// spec 8.7, D69 - nodes whose STATUS reported CONFIG_CHANGE and whose readback has not
+// yet started. app_task sets a bit; sched_config() takes it when the path is free.
+std::atomic<uint32_t> g_config_change_pending{0};
 std::atomic<uint32_t> g_fleet_watched{0};
 std::atomic<uint32_t> g_fleet_not_online{0};
 
@@ -221,6 +225,9 @@ static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonPa
 
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
+// spec 16.3, D67 - this boot's number, which keys the bridge's own events. 0 when NVS
+// could not count it.
+uint32_t    g_boot_count = 0;
 
 // spec 12.4.1 - the radio's settings at boot: the committed PHY group, which is D1's
 // envelope until a change has committed. config_begin() writes it before the tasks start.
@@ -429,7 +436,8 @@ AirTurn air_turn_locked() {
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
-                      (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0);
+                      (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
+                      g_config_change_pending.load() != 0;  // D69
   return a;
 }
 
@@ -735,6 +743,28 @@ void publish_config_resolution(const ConfigStep& step) {
 
   char token[kMaxTopicLen];
   if (node_topic_name(step.dst, token, sizeof(token)) == 0) return;
+  char topic[kMaxTopicLen];
+
+  // spec 8.7, D69 - a readback the node's CONFIG_CHANGE asked for answers no set, so no
+  // config/ack goes. A complete one replaces the mirror and republishes config/state.
+  if (g_config_job.readback_only) {
+    if (!step.updates_state) return;
+    size_t rows = 0;
+    {
+      ConfigLock lock;
+      g_config.note_readback(step.dst, step.results, step.result_count);
+      rows = g_config.state(ConfigScope::Node, step.dst, g_sched_cfg_state, kMaxScopeRows);
+    }
+    if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
+        build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
+                           sizeof(g_sched_cfg_doc)) > 0 &&
+        make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+      (void)send_publish(g_sched_msg);
+    } else {
+      g_accounting.record_dropped(QueueId::Publish);
+    }
+    return;
+  }
 
   // The bridge's half first, in the order Home Assistant asked for it.
   size_t n = 0;
@@ -775,7 +805,6 @@ void publish_config_resolution(const ConfigStep& step) {
                                  ? combine_persist(g_config_job.bridge_persist, step.persist)
                                  : step.persist;
 
-  char topic[kMaxTopicLen];
   if (topic_config(token, "ack", topic, sizeof(topic)) > 0 &&
       build_config_ack(step.op, persist, g_sched_cfg_results, n, nullptr, g_sched_cfg_doc,
                        sizeof(g_sched_cfg_doc)) > 0 &&
@@ -846,6 +875,20 @@ void sched_config(uint32_t now_ms) {
           SchedLock lock;
           (void)g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
         }
+      } else if (const uint32_t pending = g_config_change_pending.load(); pending != 0) {
+        // spec 8.7, D69 - after Home Assistant's own jobs, one node's readback at a time.
+        // No command seq is taken: the readback is a POLL, and POLL takes a poll seq.
+        for (size_t i = 0; i < kNodeCount; ++i) {
+          const uint32_t bit = node_bit(kNodeTable[i].id);
+          if ((pending & bit) == 0) continue;
+          g_config_change_pending.fetch_and(~bit);
+          g_config_job               = ConfigJob{};
+          g_config_job.dst           = kNodeTable[i].id;
+          g_config_job.readback_only = true;
+          SchedLock lock;
+          (void)g_config_path.submit(g_config_job, 0, 0, now_ms);
+          break;
+        }
       }
     }
   }
@@ -912,19 +955,16 @@ bool queue_config_job(const ConfigJob& job);  // with the MQTT path below
 
 uint32_t g_phy_event_id = 0;  // spec 16.7.5 - counts from 1 at each boot
 
-// lran/bridge/event/phy_reverted - never retained, QoS 1 (spec 16.3).
+// lran/bridge/event/phy_reverted - never retained, QoS 1 (spec 16.3), keyed on
+// (boot, event_id) because event_id restarts at each boot (D67).
 bool publish_phy_reverted(const char* reason, lran::NodeId node) {
   char name[16] = {0};
   const bool has_node = node != 0 && node_topic_name(node, name, sizeof(name)) > 0;
   char payload[128];
-  const int n = has_node
-                    ? std::snprintf(payload, sizeof(payload),
-                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":\"%s\"}",
-                                    static_cast<unsigned long>(g_phy_event_id + 1), reason, name)
-                    : std::snprintf(payload, sizeof(payload),
-                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":null}",
-                                    static_cast<unsigned long>(g_phy_event_id + 1), reason);
-  if (n <= 0 || static_cast<size_t>(n) >= sizeof(payload)) return false;
+  if (build_phy_reverted(g_boot_count, g_phy_event_id + 1, reason, has_node ? name : nullptr,
+                         payload, sizeof(payload)) == 0) {
+    return false;
+  }
   char topic[kMaxTopicLen];
   if (topic_event(kTopicBridgeToken, "phy_reverted", topic, sizeof(topic)) == 0) return false;
   if (!make_publish(&g_sched_msg, topic, payload, /*retain=*/false, /*qos=*/1) ||
@@ -947,7 +987,9 @@ void publish_phy_resolution(bool committed, bool persisted) {
     if (!g_phy_job.phy_named[k]) continue;
     ConfigResult r;
     std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
-    r.status    = committed ? g_phy_job.phy_status[k] : ResultStatus::Reverted;
+    // An entry refused at step 1 never joined the change, so it keeps its own answer.
+    const bool refused = g_phy_job.phy_status[k] == ResultStatus::InvalidValue;
+    r.status    = committed || refused ? g_phy_job.phy_status[k] : ResultStatus::Reverted;
     r.has_value = true;
     r.value     = committed ? g_phy_job.phy_to.v[k] : g_phy_job.phy_from.v[k];
     g_sched_cfg_results[n++] = r;
@@ -1006,9 +1048,10 @@ void publish_phy_node_state(const PhyStep& st) {
 
 const char* phy_reason_token(PhyReason r) {
   switch (r) {
-    case PhyReason::NotAccepted: return "not_accepted";
-    case PhyReason::NotHeard:    return "not_heard";
-    default:                     return nullptr;  // StoreFailed: see phy_change.h
+    case PhyReason::NotAccepted:  return "not_accepted";
+    case PhyReason::NotHeard:     return "not_heard";
+    case PhyReason::CommitFailed: return "commit_failed";  // D63
+    default:                      return nullptr;
   }
 }
 
@@ -1152,7 +1195,7 @@ void sched_phy(uint32_t now_ms) {
       case PhyAction::Abandon: {
         const char* reason = phy_reason_token(st.reason);
         Serial.printf("phy: change abandoned (%s, node %02x)%s\n",
-                      reason != nullptr ? reason : "store_failed",
+                      reason != nullptr ? reason : "?",
                       static_cast<unsigned>(st.culprit), st.retuned ? ", retuning back" : "");
         PhyConfig p;
         if (st.retuned) {
@@ -1825,7 +1868,9 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
       if (!phy_req.named[k]) continue;
       ConfigResult r;
       std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
-      r.status           = ResultStatus::Reverted;
+      r.status           = phy_req.status[k] == ResultStatus::InvalidValue
+                               ? ResultStatus::InvalidValue
+                               : ResultStatus::Reverted;
       r.has_value        = true;
       r.value            = phy_from.v[k];
       g_cfg_results[n++] = r;
@@ -2225,6 +2270,12 @@ void app_task(void*) {
                            utc_at(msg.rx_millis), sink);
         g_publish_stats.store(g_policy.stats());
       }
+      // spec 8.7, D69 - the node's configuration changed without a CONFIG_ACK saying so.
+      // A bench node's too: its config/state publishes whatever simnode_diag_enable says
+      // (D65). A dummy frame never reaches here, so it cannot ask for one.
+      if (status_reports_config_change(msg.hdr, msg.payload, msg.payload_len)) {
+        g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
+      }
     }
   }
 }
@@ -2307,13 +2358,10 @@ size_t drain_frame_log() {
   // the air, which is the one conclusion this whole instrument exists to get right.
   const uint32_t lost = lora_frame_log_lost();
 
-  // NOT RETAINED, and spec 16.2's table says a `/state` leaf is. THE DEVIATION IS
-  // DELIBERATE AND IS RAISED, not assumed: this topic carries a rolling window of
+  // NOT RETAINED, on spec 16.1's `log` leaf (D66). This topic carries a rolling window of
   // arrivals, and a retained one replays a burst that finished days ago as though it
-  // were arriving now - spec 16.3's own argument, reaching a topic 16.3 does not cover.
-  // Impl Plan 6.6.1 has it, and it is a spec finding rather than a local decision left
-  // in a comment.
-  if (topic_diag("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
+  // were arriving now - spec 16.3's argument, applied to a topic 16.3 does not cover.
+  if (topic_diag_log("bridge", "rxlog", g_log_msg.topic, kMaxTopicLen) == 0) return n;
   g_log_msg.retain = false;
   g_log_msg.qos    = 0;
 
@@ -2515,6 +2563,8 @@ bool send_publish(const PublishMessage& msg) {
 // refuses to open still applies every set and answers APPLIED_NOT_PERSISTED, which is
 // spec 8.11's whole point.
 size_t config_begin() {
+  g_boot_count = boot_count_advance();
+  Serial.printf("boot: count %lu\n", static_cast<unsigned long>(g_boot_count));
   const bool global_ok = g_cfg_global_persist.begin(/*global=*/true, 0);
   lran::config::Persist* per_node[kNodeCount];
   for (size_t i = 0; i < kNodeCount; ++i) {

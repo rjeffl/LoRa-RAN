@@ -99,12 +99,11 @@ enum class PhyAction : uint8_t {
 // spec 16.7.5's `reason`, less `restart`, which only a boot can report.
 enum class PhyReason : uint8_t {
   None,
-  NotAccepted,  // step 4 - a node refused, clamped or did not answer
-  NotHeard,     // step 8 - a node was not heard on the new settings in time
-  // The bridge could not write its own last known-good (step 7). Spec 16.7.5 names no
-  // reason for this, so no phy_reverted event reports it; config/ack still says
-  // `reverted`, which 16.7.3 allows for any change the bridge reverted.
-  StoreFailed,
+  NotAccepted,   // step 4 - a node refused, clamped or did not answer
+  NotHeard,      // step 8 - a node was not heard on the new settings in time
+  // step 7 - the bridge could not write its own last known-good. A change that did not
+  // commit is reported as an event (spec 16.7.5), and a failed write did not (D63).
+  CommitFailed,
 };
 
 struct PhyStep {

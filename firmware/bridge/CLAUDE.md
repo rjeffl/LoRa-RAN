@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.60
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.47 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.61
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.48 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -117,9 +117,9 @@ is addressed in. **Three things to keep:**
 
 **`BF-27` — the raw frame log, built 2026-09-17; the dummy publish, built 2026-09-23.**
 `frame_log.{h,cpp}` is the ring, `log_task` drains it to serial and to
-`lran/bridge/diag/rxlog/state`, and `tools/simctl/rxlog.py` reads it. Impl Plan §6.6.1
-records the choices. Spec v0.15 (**D66**) renames the topic `diag/rxlog/log`, and the rename
-is owed. **Four things to keep:**
+`lran/bridge/diag/rxlog/log`, never retained (spec §16.1, **D66**), and
+`tools/simctl/rxlog.py` reads it. Impl Plan §6.6.1 records the choices. **Four things to
+keep:**
 
 - **`log_task` is the only consumer**, because the ring is single-consumer. A second
   reader takes records the first never sees, and nothing will report that it happened.

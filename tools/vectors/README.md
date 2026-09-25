@@ -3,8 +3,9 @@
 **Binding specification:** `LRAN-Protocol-Specification` v0.15 (`ver = 2`)
 **Vectors last regenerated against:** v0.15, on 2026-09-25. Every vector kept its bytes;
 only each file's `spec` field changed. **D68 makes bit 7 of a `CONFIG_ACK` result's
-`status` `OVERRIDE`, and D64 adds `INVALID_VALUE` (`0x05`)**. No vector exercises either
-yet: both are owed with the `lran-protocol` change that decodes them.
+`status` `OVERRIDE`, and D64 adds `INVALID_VALUE` (`0x05`)**. Two vectors added on
+2026-09-25 cover them: `config_ack_override` and `config_ack_invalid_value`. Every earlier
+vector kept its bytes.
 **v0.14's regeneration**, on 2026-09-24, was for D59's enumeration
 value, `event_type` `0x0B` `PHY_REVERTED`, and one vector, `event_phy_reverted`, covers
 it. Every vector committed before it kept its bytes; only each file's `spec` field changed.

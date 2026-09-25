@@ -129,9 +129,8 @@ const char* discovery_object_id(const DiscoveryItem& item);
 //   - `sensor` for a node's PHY row. Spec 16.7.1 answers it `read_only` on the node's
 //     topic, so a control there could only ever fail. The bridge's copy is the control.
 //   - `switch` for a `bool` row.
-//   - `select` for a row whose legal values are points rather than a range. Today that is
-//     `bandwidth_khz` alone: the table's 125-500 would take 300, which no SX1262
-//     bandwidth is.
+//   - `select` for a row whose legal values are points rather than a range: a row with
+//     an entry in lran-config's kParamPoints. Today that is `bandwidth_khz` alone (D64).
 //   - `number` for everything else.
 const char* param_component(const lran::config::ParamDef& p);
 

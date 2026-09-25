@@ -239,6 +239,55 @@ static_assert(phy_rows_agree(kBridgeParams, kBridgeParamCount, kNodeCommonParams
                              kNodeCommonParamCount),
               "D59 - the bridge's PHY rows must equal the node's, name for name");
 
+// spec 8.12, 12.4, D64 - a parameter that takes only listed values inside its range. A
+// value inside the range and off the list answers INVALID_VALUE and applies nothing; one
+// outside the range still clamps, to an endpoint the list must therefore hold. Keyed by
+// name, so the bridge's PHY rows and the node's share one list as phy_rows_agree() makes
+// them share everything else. bandwidth_khz's are the SX1262's LoRa bandwidths the
+// envelope can reach: RadioLib's setBandwidth() refuses 300 only at the retune, after
+// the value had been accepted and stored.
+struct ParamPoints {
+  const char* name;
+  Value       points[3];
+  size_t      n;
+};
+inline constexpr ParamPoints kParamPoints[] = {
+    {"bandwidth_khz", {125, 250, 500}, 3},
+};
+
+// Null when every value in the row's range is allowed.
+constexpr const ParamPoints* points_for(const ParamDef& d) {
+  for (const ParamPoints& p : kParamPoints) {
+    if (same_text(d.name, p.name)) return &p;
+  }
+  return nullptr;
+}
+
+constexpr bool value_allowed(const ParamDef& d, Value v) {
+  const ParamPoints* p = points_for(d);
+  if (p == nullptr) return true;
+  for (size_t i = 0; i < p->n; ++i) {
+    if (p->points[i] == v) return true;
+  }
+  return false;
+}
+
+// A default off the list would answer its own readback with a value no SET could
+// reproduce, and a clamp must land on a listed value.
+constexpr bool points_hold_ends(const ParamDef* p, size_t n) {
+  for (size_t i = 0; i < n; ++i) {
+    if (!value_allowed(p[i], p[i].min) || !value_allowed(p[i], p[i].max) ||
+        !value_allowed(p[i], p[i].def)) {
+      return false;
+    }
+  }
+  return true;
+}
+static_assert(points_hold_ends(kBridgeParams, kBridgeParamCount),
+              "D64 - a listed row's min, max and default must be on its list");
+static_assert(points_hold_ends(kNodeCommonParams, kNodeCommonParamCount),
+              "D64 - a listed row's min, max and default must be on its list");
+
 // The wire width of a ptype, in bytes. spec 7.4, D55 - `len` is a multiple of it.
 constexpr size_t ptype_width(PType t) {
   switch (t) {

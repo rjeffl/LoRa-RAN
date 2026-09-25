@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.60
+**Version:** 0.61
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.20 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.21 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -1389,8 +1389,8 @@ topic §16.3 does not cover. **Raise it against the specification rather than tr
 paragraph as permission:** §16.2's table predates any streaming diagnostic.
 
 > **Settled in spec v0.15 (D66).** §16.1 gains a `log` leaf, never retained, and the topic
-> becomes `lran/bridge/diag/rxlog/log`. The rename, with `tools/simctl/rxlog.py`, is owed;
-> the bridge handoff carries it.
+> becomes `lran/bridge/diag/rxlog/log`. The bridge and `tools/simctl/rxlog.py` moved to it
+> on 2026-09-25.
 
 **`tools/simctl/rxlog.py` reads the topic and `rxlog_analyze.py` does the arithmetic**,
 split the way `per_measure.py` and `per_window.py` are. Three guards earn their place, and
@@ -1508,6 +1508,27 @@ Publishing it early would give Home Assistant two answers to one set, the first 
 
 `persist` combines by §16.7.3's rule: `unknown` if either half is unknown, otherwise the
 less persisted of the two.
+
+#### 6.7.2a What spec v0.15 changed here, built 2026-09-25
+
+**`source` in `config/state` is the node's own marking** (**D68**). The readback mirror
+keeps each result's `OVERRIDE` bit beside its value, so an override equal to its default
+reads `override`. A bridge-held row reads `Store::marked_override()`, which also marks a
+PHY trial value, because `config/state` reports the trial value while it runs.
+
+**A node's `CONFIG_CHANGE` is answered with a readback** (**D69**, spec §8.7). `app_task`
+marks the node, and `sched_config()` starts a `readback_only` job once Home Assistant's
+queued jobs are done. The job begins at `POLL` bit 1 and sends no `CONFIG`. It republishes
+`config/state` and publishes no `config/ack`, because no set is being answered.
+
+**A bandwidth off the list is refused alone** (**D64**). On the bridge's topic, the entry
+reads `invalid_value` and the change target keeps the current bandwidth, so the other PHY
+rows of the same set may still change. The status survives an abandon or a revert, because
+that entry never joined the change.
+
+**The bridge's own events carry `boot`** (**D67**). `boot_count.cpp` keeps the count in its
+own NVS namespace, apart from `cfg`, because `restore_defaults` clears `cfg`. A failed
+commit write publishes `phy_reverted` with `reason` `commit_failed` (**D63**).
 
 #### 6.7.3 A lost `CONFIG_ACK` is recovered by readback
 
@@ -2672,6 +2693,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.61** — **The code spec v0.15 owed the bridge is built.** New §6.7.2a records D63's
+  `commit_failed`, D64's bandwidth refusal, D67's boot count, D68's `source` and D69's
+  readback. §6.6.1's rename note is closed. The Library Plan citation moves to v0.21, whose
+  bandwidth list and `OVERRIDE` marking §6.7.2a relies on.
 
 - **v0.60** — **Protocol specification v0.14 → v0.15.** §4.2a and §4.4.3 no longer carry
   §16.6's open question, because **D65** publishes a bench node's answers whatever

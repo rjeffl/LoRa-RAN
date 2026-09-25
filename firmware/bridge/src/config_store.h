@@ -61,7 +61,7 @@ bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req);
 struct PhyRequest {
   bool         any = false;
   bool         named[kPhyGroupSize]  = {};
-  ResultStatus status[kPhyGroupSize] = {};  // Ok or Clamped
+  ResultStatus status[kPhyGroupSize] = {};  // Ok, Clamped or InvalidValue (D64)
   PhyGroup     target{};
 };
 
@@ -233,7 +233,8 @@ class ConfigStore {
   // store rather than sharing one.
   lran::config::Store*       store_for(lran::NodeId node);
   const lran::config::Store* store_for(lran::NodeId node) const;
-  bool mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out) const;
+  bool mirror_value(lran::NodeId node, uint16_t id, lran::config::Value* out,
+                    bool* is_override) const;
 
   bool                   phy_trial_enabled_ = false;
   lran::config::Persist* global_persist_    = nullptr;
@@ -266,9 +267,10 @@ class ConfigStore {
   // rather than truncated.
   static constexpr size_t kMirrorRows = 32;
   struct Mirror {
-    uint16_t            id    = 0;
-    lran::config::Value value = 0;
-    bool                set   = false;
+    uint16_t            id          = 0;
+    lran::config::Value value       = 0;
+    bool                is_override = false;  // spec 7.4, D68 - the node's own marking
+    bool                set         = false;
   };
   Mirror mirror_[kNodeCount][kMirrorRows] = {};
 };
