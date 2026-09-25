@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.56
+**Version:** 0.57
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -959,6 +959,7 @@ entry argues each choice.
 | Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
 | `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
 | OTA | An upload in progress holds new polls; an outstanding poll keeps `lora_task_idle()` false (R-5.3d) |
+| One exchange on the air | **An outstanding poll holds every other exchange**: a command, a roll, a `CONFIG` and the start of a PHY change. **No scheduled poll starts** while one of those waits for its answer, while a PHY change blocks traffic, or while a command or configuration job waits in its queue. `air_turn.h` states the rule. The engineering log's *poll clash* entry, 2026-09-24, has the defect it closes |
 
 #### 6.1.2 What BF-20 built, 2026-09-14
 
@@ -2629,6 +2630,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.57** — **The poll clash is fixed.** §6.1.1 adds the rule that one exchange is on
+  the air at a time. A scheduled `POLL` and any other frame no longer wait for their
+  answers together.
 
 - **v0.56** — **B4b is met on the bench and accepted.** §8's row records both, and §2.2
   no longer says BF-33 is unbuilt.

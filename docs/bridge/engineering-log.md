@@ -2891,3 +2891,71 @@ between poll cycles.
   2 were followed by id 1. Spec §7.3's deduplication covers node events, not the bridge's
   topic, so this breaks no rule. An automation keyed on `event_id` alone would miss the
   repeat.
+
+## 2026-09-24 — The poll clash fixed: one exchange on the air at a time, and the bench shows the clash before and none after
+
+**On the bench, the old image sent five frames while a `POLL`'s answer was still due, and
+the fixed image sent none.** The fix is `air_turn.h` (`6a8b76d`). An outstanding scheduled
+`POLL` holds a command, a roll, a `CONFIG` and the start of a PHY change. In turn, no
+scheduled `POLL` starts while one of those waits for its answer, while a PHY change blocks
+traffic, or while a command or configuration job waits in its queue. The operator chose this
+over the narrower fix, which held other frames behind a poll but let polls run on. Under the
+narrower fix, a missed poll could hold a step-7 `GET` for 10 s, more than step 8's 8 s
+reserve for that node. A `POLL` could also still follow a `COMMAND` whose ACK was due. The
+full trace is [`data/poll-clash-bench-2026-09-24.log`](./data/poll-clash-bench-2026-09-24.log).
+
+**The bench.** The control arm ran on the image the bridge already held, `2066fc9`. The fix
+arm ran on `30c295f`, flashed from a clean tree; its firmware is `6a8b76d`'s. The fleet was
+f0 and f2 on the Heltec, and f1 on the XIAO. `poll_interval_s` was 10 on `simnode0` to
+`simnode2`, which put a `POLL` on the air about every 3 s. The harness published each fix-arm
+change 40–50 ms after the bridge's frame log showed a `POLL` going out. Each change then
+started only once that `POLL` was answered, 0.4–2.1 s later.
+
+**How a clash was counted.** The bridge's serial frame log (BF-27) records every frame it
+sends and receives, on its own millisecond clock. A `POLL` to a node counts as open from its
+`tx` record until the next `rx` from that node, or for 10 s. Every other `tx` inside that
+interval is a frame sent while an answer was due.
+
+| | Control, `2066fc9` | Fix, `30c295f` |
+|---|---|---|
+| `POLL`s sent | 95 | 77 |
+| Command, roll or `CONFIG` sent while a `POLL` was open | **5**: three rolls and two step-7 `GET`s, each 229 ms after a `POLL` to another node | **0** |
+| A scheduled `POLL` beside a step-6 `POLL` to one node | once, to f0, 229 ms apart | 0 |
+| Rolls after the boot | f0 took 1 attempt; f2 and f1 took 2, each retried 3003 ms later, after a timeout | f0 and f2 took 1 attempt; f1 took 2 (see below) |
+| PHY changes committed | 1 of 1 | **5 of 5**, each started beside a `POLL` |
+| `CONFIG` frames sent | 7 for one change: f2's `GET` went unanswered and was sent again 7.4 s later | 30 for five changes, six each, none sent again |
+| From the set to the commit | 14.3 s | 12.8–20.5 s |
+
+**Five `OPEN`s went to f1 under 10 s polling on the fixed image.** Each was acknowledged at
+the first attempt, 1.7–2.9 s after the publish on `lran/simnode1/cmd/open/set`, measured at the
+broker. None waited out a missed poll, because no poll was missed.
+
+**Two frames can still go out while an answer is due, and neither is this fix's to close:**
+
+- **A PHY change's step-6 `POLL`s go 229 ms apart to different nodes**, in two of the five
+  changes. They belong to the change itself, which `air_turn.h` leaves alone. Both changes
+  committed.
+- **f1's roll after the fix arm's reflash took two attempts with no `POLL` open.** The
+  bridge heard f1's `ACCEPTED` at 14815 ms and sent the retry 52 ms later, 527 ms after the
+  first attempt went on air. f1 answered it `REJECTED_CTX`, which completed the roll (spec
+  §10.6 step 4). A 3000 ms window ending at 14867 ms would have opened at about 11867 ms. That
+  fits a window opened when `sched_task` queued the frame, and a frame that then waited about
+  2.5 s for media access. The trace does not show when the frame was queued, so this is not
+  shown.
+
+**Opening the three ports reset all three boards**, `rst:0x1 (POWERON)` on both Heltecs and
+`USB_UART_CHIP_RESET` on the XIAO. The handoff said that pyserial reset none of them earlier
+the same day. The first attempt published its setup while the bridge was booting, so only
+`simnode2`'s set arrived and a one-node change ran. That attempt was stopped. The run above
+waited for the bridge's `availability` before its setup.
+
+**The control arm's return change was refused `phy_change_in_progress`**, because the
+harness sent it 15 s after the commit, while the step-7 `GET`s were still running. That is
+the harness's timing, not a defect. The fix arm's first change therefore went from 917.0 MHz
+back to 917.4 MHz.
+
+**The bench was left as it was found.** The fleet is committed on 917.4 MHz.
+`simnode_diag_enable` is 0. `deployed` is 0 and `poll_interval_s` is 60 on `simnode0` to
+`simnode2`, both as overrides. `lora_task` read 6344 bytes free at its lowest. No
+configuration resolution ran on a node's own topic, so `sched_task` printed no high-water
+figure.
