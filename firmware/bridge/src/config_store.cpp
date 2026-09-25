@@ -374,8 +374,12 @@ void ConfigStore::note_set_results(lran::NodeId node,
 
   for (size_t i = 0; i < n; ++i) {
     const lran::schema::ConfigAckEntry& e = results[i];
-    // spec 8.12 - a result that is not Ok reports no effective value to mirror.
-    if (e.status != lran::ParamStatus::Ok || e.len == 0) continue;
+    // spec 8.12 - OK, CLAMPED and INVALID_VALUE carry the effective value; the rest
+    // report none to mirror. Skipping CLAMPED left the value from before the set.
+    const bool effective = e.status == lran::ParamStatus::Ok ||
+                           e.status == lran::ParamStatus::Clamped ||
+                           e.status == lran::ParamStatus::InvalidValue;
+    if (!effective || e.len == 0) continue;
     const lran::config::Value v = lran::schema::entry_signed(e.value, e.len, e.ptype);
 
     Mirror* slot = nullptr;
@@ -423,6 +427,17 @@ void ConfigStore::enable_phy_trial() {
   // a store that cannot keep it comes back at boot as the defaults, while the fleet stays
   // where it was sent. Without a usable store the rows go on answering READ_ONLY.
   phy_trial_enabled_ = global_persist_ != nullptr && global_persist_->usable();
+}
+
+AckPersist phy_unchanged_persist(const PhyRequest& req, bool other_rows,
+                                 AckPersist rows_persist) {
+  if (other_rows) return rows_persist;
+  for (size_t k = 0; k < kPhyGroupSize; ++k) {
+    if (req.named[k] && req.status[k] != ResultStatus::InvalidValue) {
+      return AckPersist::Persisted;
+    }
+  }
+  return AckPersist::NotApplied;
 }
 
 bool ConfigStore::phy_request(const ConfigSetRequest& req, PhyRequest* out) const {

@@ -1888,8 +1888,7 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
       r.value            = phy_req.target.v[k];
       g_cfg_results[n++] = r;
     }
-    // The group in force is the committed one, so it reads as persisted.
-    if (!other_rows) persist = AckPersist::Persisted;
+    persist = phy_unchanged_persist(phy_req, other_rows, persist);
   }
 
   // SPEC 16.7.1 - ONE ack, published when EVERY half has an outcome. When a half is on

@@ -285,6 +285,31 @@ void test_a_phy_request_refuses_a_bandwidth_off_the_list() {
   TEST_ASSERT_EQUAL_INT32(10, pr.target.v[kPhySf]);
 }
 
+// spec 8.11 - a set whose every entry was refused applied nothing. The bench found the
+// bandwidth-300 set answered `persisted` on 2026-09-25, because the unchanged-group path
+// read every PHY-only set as answered from the committed group.
+void test_a_set_refusing_every_phy_row_reads_not_applied() {
+  FakePersist p;
+  ConfigStore store;
+  store.begin(&p, nullptr, 0);
+  store.enable_phy_trial();
+
+  PhyRequest pr;
+  TEST_ASSERT_TRUE(store.phy_request(one("bandwidth_khz", 300), &pr));
+  TEST_ASSERT_TRUE(phy_unchanged_persist(pr, false, AckPersist::NotApplied) ==
+                   AckPersist::NotApplied);
+
+  // A row equal to the group in force answers from the committed group.
+  TEST_ASSERT_TRUE(store.phy_request(one("spreading_factor", 9), &pr));
+  TEST_ASSERT_TRUE(phy_unchanged_persist(pr, false, AckPersist::NotApplied) ==
+                   AckPersist::Persisted);
+
+  // Other rows in the set keep the persist their own apply gave.
+  TEST_ASSERT_TRUE(store.phy_request(one("bandwidth_khz", 300), &pr));
+  TEST_ASSERT_TRUE(phy_unchanged_persist(pr, true, AckPersist::AppliedNotPersisted) ==
+                   AckPersist::AppliedNotPersisted);
+}
+
 // Steps 5, 7 and 8 - the trial copy, one group write on commit, nothing on revert.
 void test_the_trial_commits_through_one_group_write_and_reverts_without_one() {
   FakePersist p;
@@ -623,6 +648,29 @@ void test_a_sets_ack_merges_and_does_not_blank_the_rest() {
   TEST_ASSERT_EQUAL_INT32(7, state_named(entries, n, "cad_retries")->value);
 }
 
+// spec 8.12 - CLAMPED carries the effective value, so the mirror takes it. Found after
+// v0.15: a clamped set left `config/state` showing the value from before the set.
+void test_a_clamped_result_updates_the_mirror() {
+  ConfigStore store;
+  store.begin(nullptr, nullptr, 0);
+
+  const lran::schema::ConfigAckEntry first[] = {ok_entry(0x0100, 8)};
+  store.note_readback(lran::kNodeSim1, first, 1);
+
+  lran::schema::ConfigAckEntry clamped = ok_entry(0x0100, 32);
+  clamped.status                       = ParamStatus::Clamped;
+  lran::schema::ConfigAckEntry refused = ok_entry(0x0102, 7);
+  refused.status                       = ParamStatus::TypeMismatch;
+  const lran::schema::ConfigAckEntry second[] = {clamped, refused};
+  store.note_set_results(lran::kNodeSim1, second, 2);
+
+  ConfigStateEntry entries[config::kMaxTableParams];
+  const size_t n = store.state(ConfigScope::Node, lran::kNodeSim1, entries,
+                               config::kMaxTableParams);
+  TEST_ASSERT_EQUAL_INT32(32, state_named(entries, n, "dedup_cache_depth")->value);
+  TEST_ASSERT_FALSE(state_named(entries, n, "cad_retries")->has_value);
+}
+
 // A GET_ALL describes the whole table, so a row missing from it is a row the node no
 // longer has - not one to keep from an older answer.
 void test_a_readback_replaces_rather_than_merges() {
@@ -671,6 +719,7 @@ int main(int, char**) {
   RUN_TEST(test_the_bridges_phy_rows_need_a_usable_store);
   RUN_TEST(test_a_phy_request_clamps_and_carries_the_whole_group);
   RUN_TEST(test_a_phy_request_refuses_a_bandwidth_off_the_list);
+  RUN_TEST(test_a_set_refusing_every_phy_row_reads_not_applied);
   RUN_TEST(test_the_trial_commits_through_one_group_write_and_reverts_without_one);
   RUN_TEST(test_a_restored_phy_value_is_committed_and_writes_nothing);
 
@@ -691,6 +740,7 @@ int main(int, char**) {
   RUN_TEST(test_a_readback_fills_the_nodes_own_rows);
   RUN_TEST(test_source_is_the_nodes_override_bit);
   RUN_TEST(test_a_sets_ack_merges_and_does_not_blank_the_rest);
+  RUN_TEST(test_a_clamped_result_updates_the_mirror);
   RUN_TEST(test_a_readback_replaces_rather_than_merges);
   RUN_TEST(test_the_mirror_is_per_node);
 
