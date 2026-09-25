@@ -1,9 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that built BF-35.** Home Assistant now shows every
-configuration row as an entity, generated from `/lib/lran-config/`'s table, on the device
-whose topic sets it. The sandbox HA registered all 45, and three writes from HA came back
-through the bridge's `config/state`. The engineering log's *BF-35* entry has the run.
+**Written 2026-09-25 by the session that built the `vectors_data.h` check.** CI's `checks`
+job now fails when the W4 JSON is not what `generate.py` produces, or `vectors_data.h` is
+not what `embed.py` produces from the JSON. The protocol-lib engineering log's 2026-09-25
+entry has the detail. BF-35, the session before, is in the bridge log's *BF-35* entry.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,13 +17,13 @@ through the bridge's `config/state`. The engineering log's *BF-35* entry has the
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-```text
-Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
-```
+**No task is queued.** The operator picks the next one. Candidates that need no board, from
+*Open*:
 
 | Task | Read |
 |---|---|
-| **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
+| **Extend `spec_citation_version.py` to every role header line** | *Open*'s Library Plan citation item; `tools/checks/spec_citation_version.py` |
+| **Reconcile and bump the Firmware Tasks header to Impl Plan v0.56** | *Open*'s Firmware Tasks item; Impl Plan v0.55 and v0.56 change notes |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -41,7 +41,8 @@ Anything out of scope goes in one line under *Open*, not into the session.
 permanent now. A new table row gains its entity at the next flash, with no edit to
 `discovery.cpp`.
 
-**The `vectors_data.h` check is next**, and it needs no board.
+**The `vectors_data.h` check is built** and runs in CI's `checks` job (W4, spec §13.2).
+No task is queued after it.
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -158,15 +159,6 @@ refuses a long-lived token.
 - **The whole-document style passes** are owed, on a branch of their own.
 - **W17**, a node that misses every confirming frame of a PHY change (spec §12.4.4), has no
   remedy. It closes after GateLink deploys, by operator decision (D59).
-- **Nothing checks that `vectors_data.h` matches the W4 JSON.** D57's two vectors went
-  unembedded for three days and hid a codec defect (protocol-lib engineering log,
-  2026-09-23). Add a step to `ci.yml`'s `checks` job that fails when
-  `lib/lran-protocol/test/test_vectors/vectors_data.h` differs from what
-  `python3 tools/vectors/embed.py` produces from the committed JSON. Prefer a `--check`
-  mode that renders to memory and compares, over writing the file, because
-  `run_ci_local.py` runs the checks job on a developer's tree. The same check would help
-  for the JSON against `generate.py`. Cite W4 and spec §13.2, and give it a branch of its
-  own.
 
 ## Reference documents
 
@@ -192,9 +184,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **The `vectors_data.h` check** |
+| Queue | Empty; the operator picks from *Start here* |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
