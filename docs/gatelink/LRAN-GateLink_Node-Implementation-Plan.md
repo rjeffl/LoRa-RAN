@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.12
+**Version:** 0.13
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.9
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.10
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.14**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-23
+**Last updated:** 2026-09-25
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -1154,6 +1154,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.13** — **Header citation reconciled**: the PRD moves from v0.9 to v0.10. Nothing in
+  the body changes. The PRD's v0.10 adds D59's three points to §5.3.1, and §6.4 took all
+  three in this plan's v0.12. The PRD also records that **W17** stays open until after
+  GateLink deploys, which asks nothing of the build.
 
 - **v0.12** — **Protocol specification v0.13 → v0.14.** §6.4 names spec §12.4.2 (**D59**)
   as GateLink's half of a PHY change, including the refusal without a usable microSD and

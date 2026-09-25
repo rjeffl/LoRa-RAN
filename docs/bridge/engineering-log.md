@@ -3018,3 +3018,21 @@ and cited document, and holds the version cited. The check fails on a stale cita
 in the table, and on an entry whose citation has moved. The second failure is the one
 that stops the table from outliving the debt. Both failures were exercised by editing a
 citation and running the check.
+
+## 2026-09-25 — The six stale role header citations reconciled
+
+**Only Firmware Tasks needed changes to its body.** Each citing document was read against
+the cited document's changelog since the version it cited. `KNOWN_STALE` is now empty.
+
+| Citing document | Cited document, from → to | What the reading found |
+|---|---|---|
+| Firmware Tasks | Bridge PRD v0.14 → v0.15 | Nothing. v0.15 is D59 with no requirement change, and BF-33's row already cites D59 |
+| Firmware Tasks | Impl Plan v0.54 → v0.59 | §8 did not say B4b was accepted (v0.56), and nothing named D61's `deployed` lever (v0.55) or the poll-clash fix (v0.57). §8 now does. v0.58's BF-35 was already in its row |
+| Firmware Tasks | Library Plan v0.12 → v0.19 | BF-33's row still said the PHY rows answer `READ_ONLY` until it lands. Library Plan v0.19 built BF-33's library half, so the row now says it is built. v0.13–v0.18 were already in BF-32's, BF-34's and BF-24's rows |
+| Impl Plan | Bridge PRD v0.14 → v0.15 | Nothing. The plan took D59 in its own v0.54 |
+| Impl Plan | Library Plan v0.14 → v0.19 | Nothing. §6.2.2, §6.3.1 and B4b's row already describe what BF-34, BF-24 and BF-33 built |
+| GateLink Impl Plan | GateLink PRD v0.9 → v0.10 | Nothing. The same D59 sweep wrote both, and §6.4 has the PRD's three points. **W17** asks nothing of the build |
+
+**Four of the six were number-only drift.** A document took a revision's content and
+never moved the header number. The check catches the number and cannot tell which kind of
+drift it has found, so each one still needs reading.
