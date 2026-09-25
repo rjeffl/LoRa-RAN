@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <ctime>
 
+#include "air_turn.h"
 #include "board_ui.h"
 #include "command.h"
 #include "config_json.h"
@@ -417,6 +418,21 @@ void sched_versions() {
   }
 }
 
+// The poll clash (air_turn.h). Call with SchedLock held. The queue counts are read without
+// blocking, and g_phy_job_waiting is sched_task's alone.
+AirTurn air_turn_locked() {
+  AirTurn a;
+  a.poll_outstanding   = g_scheduler.outstanding();
+  a.command_busy       = g_command.busy();
+  a.roll_busy          = g_roll.busy();
+  a.config_busy        = g_config_path.busy();
+  a.phy_blocks_traffic = g_phy_change.blocks_traffic();
+  a.request_waiting    = g_phy_job_waiting ||
+                      (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
+                      (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0);
+  return a;
+}
+
 // One tick: close an expired reply window, then start at most one poll. A POLL the TX queue
 // refuses is counted by send_tx() and not reported to the scheduler, so the node stays due
 // and the next tick tries again.
@@ -426,7 +442,8 @@ void sched_polls(uint32_t now_ms) {
     lran::Seq seq = 0;
     {
       SchedLock lock;
-      st = g_scheduler.next(now_ms, !ota_in_progress());
+      // An exchange in flight or waiting holds new polls, and still lets a window close.
+      st = g_scheduler.next(now_ms, !ota_in_progress() && poll_may_start(air_turn_locked()));
       if (st.action == PollAction::Poll) seq = g_scheduler.take_poll_seq();
     }
     switch (st.action) {
@@ -544,7 +561,8 @@ void sched_commands(uint32_t now_ms) {
   {
     SchedLock lock;
     // BF-33 - no authenticated frame while a PHY change runs (phy_change.h).
-    idle = !g_command.busy() && !g_roll.busy() && !g_phy_change.blocks_traffic();
+    idle = !g_command.busy() && !g_roll.busy() && !g_phy_change.blocks_traffic() &&
+           exchange_may_start(air_turn_locked());
   }
   if (idle) {
     CommandRequest req;
@@ -630,7 +648,7 @@ void sched_roll(uint32_t now_ms) {
   {
     SchedLock lock;
     start = !g_roll.busy() && !g_command.busy() && !g_phy_change.blocks_traffic() &&
-            g_roll.next_due(&node);
+            exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
   }
   if (start) {
     // spec 10.6 bridge step 2 - under the ctx_id the node's frame carried, with the next
@@ -804,7 +822,8 @@ void sched_config(uint32_t now_ms) {
     bool busy = false;
     {
       SchedLock lock;
-      busy = g_config_path.busy() || g_phy_change.blocks_traffic();
+      busy = g_config_path.busy() || g_phy_change.blocks_traffic() ||
+             !exchange_may_start(air_turn_locked());
     }
     if (!busy && !g_phy_job_waiting) {
       // RECEIVED STRAIGHT INTO THE STATIC, NOT ONTO THE STACK. A ConfigJob is about a
@@ -815,7 +834,7 @@ void sched_config(uint32_t now_ms) {
       if (g_config_queue != nullptr &&
           xQueueReceive(g_config_queue, &g_config_job, 0) == pdTRUE) {
         if (g_config_job.phy) {
-          // sched_phy() starts it, once no command or roll is in flight.
+          // sched_phy() starts it, once no command, roll or scheduled poll is in flight.
           g_phy_job         = g_config_job;
           g_phy_job_waiting = true;
           return;
@@ -993,7 +1012,7 @@ const char* phy_reason_token(PhyReason r) {
   }
 }
 
-// Starts a waiting change once no command or roll is in flight. The fleet is every node
+// Starts a waiting change once no command, roll or scheduled poll is in flight. The fleet is every node
 // the scheduler polls now, in registry order (step 3).
 void sched_phy_start(uint32_t now_ms) {
   if (!g_phy_job_waiting) return;
@@ -1006,7 +1025,7 @@ void sched_phy_start(uint32_t now_ms) {
   bool started = false;
   {
     SchedLock lock;
-    if (g_command.busy() || g_roll.busy()) return;
+    if (g_command.busy() || g_roll.busy() || !exchange_may_start(air_turn_locked())) return;
     started = g_phy_change.start(g_phy_job.phy_from, g_phy_job.phy_to, fleet, n, now_ms);
   }
   g_phy_job_waiting = false;
