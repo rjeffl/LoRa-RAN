@@ -19,7 +19,7 @@ namespace {
 //
 // mqtt_task and app_task are the deep ones because ArduinoJson serializes a
 // discovery config on their stacks; a Discovery payload is the largest single thing
-// this firmware builds, which is also why MQTT_MAX_PACKET_SIZE is raised in the build flags (D5).
+// this firmware builds.
 constexpr TaskSpec kTable[kTaskCount] = {
     // Highest, and never blocks on the network. Owns RadioLib, the frame codec,
     // MAC verification and reassembly.

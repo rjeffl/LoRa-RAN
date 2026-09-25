@@ -121,6 +121,11 @@ inline constexpr size_t kRxQueueDepth = 8;
 // ride out a broker reconnect without stalling anything upstream of it.
 inline constexpr size_t kPublishQueueDepth = 32;
 
+// app_task -> mqtt_task, events alone (BF-38, queues.h). Eight, because an event is an
+// edge at the gate and not a stream: eight unpublished is a broker outage during a
+// busy few minutes, and it costs 13 KB of static RAM at ~1640 bytes a slot.
+inline constexpr size_t kEventQueueDepth = 8;
+
 // anything -> lora_task. The TX side: polls, commands, ACKs.
 //
 // Shallow on purpose. The bridge serializes polls fleet-wide (Impl Plan 6.1,

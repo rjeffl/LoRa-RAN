@@ -76,7 +76,7 @@ struct TxMessage {
 // The inbound command queue - BF-18. mqtt_task parses `lran/<node>/cmd/<action>/set`
 // and queues one of these; sched_task runs it against the command path.
 //
-// WHY A QUEUE AND NOT A DIRECT CALL. The parse happens inside PubSubClient's
+// WHY A QUEUE AND NOT A DIRECT CALL. The parse happens inside the MQTT transport's
 // callback, on mqtt_task, and the command path belongs to sched_task - which is
 // where every airtime decision already lives. A direct call would need the
 // scheduler's lock taken from inside a broker callback, and the rule that lock has
@@ -96,25 +96,30 @@ enum class QueueId : uint8_t {
   Log,      // anything  -> log_task
   Command,  // mqtt_task -> sched_task (BF-18)
   Config,   // mqtt_task -> sched_task (BF-32)
+  Event,    // app_task  -> mqtt_task, events alone (BF-38)
   kCount,
 };
 
 inline constexpr size_t kQueueCount = static_cast<size_t>(QueueId::kCount);
 
-// What a full queue does. Every queue here is DropNewest today.
+// What a full queue does. Every queue here is DropNewest.
 //
 // WHY DROP RATHER THAN BLOCK. Blocking on a full queue is how a slow consumer
 // reaches back and stops a producer, and the producer that must never be stopped is
 // lora_task (Impl Plan 5.2, PRD 1.3 property 2). A frame arriving while the broker
 // is reconnecting has to be received; it does not have to be published promptly.
 //
-// WHY NEWEST RATHER THAN OLDEST. Dropping the oldest is defensible for state, which
-// is idempotent and where newest wins - but it is wrong for events, which are not
-// interchangeable and drive email and SMS (PRD, Impl Plan 6.3). One policy that is
-// wrong for events beats two policies chosen per call site. BF-24 needed no refinement:
-// a state document the queue refuses is not recorded as published, so the node's next
-// frame queues a fresh one (publish.h). Nor did BF-25: an event the queue refuses is not
-// recorded as published, so a retransmission of it can still get through.
+// WHY NEWEST RATHER THAN OLDEST, FOR STATE. A state document the queue refuses is not
+// recorded as published, so the node's next frame queues a fresh one (publish.h). One
+// the queue accepted is recorded, so dropping it later as the oldest would lose that
+// change until the value moved again or republish_interval_s passed.
+//
+// EVENTS HAVE A QUEUE OF THEIR OWN (BF-38). They shared the publish queue until
+// 2026-09-25, and during a broker outage state filled all 32 slots and the next event
+// was refused. An event has no replacement and drives email and SMS, so no amount of
+// state may take its slot. mqtt_task drains the event queue first. A full event queue
+// still refuses the newest, and an event refused is not recorded as published, so the
+// node's retransmission of it, if one comes, gets through (Impl Plan 6.3.2).
 //
 // THE REAL ANSWER IS THAT THESE QUEUES DO NOT FILL. A depth reached is a defect
 // upstream, which is why every drop is counted and why high_water is reported.

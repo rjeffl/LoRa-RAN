@@ -13,7 +13,7 @@ primitive and no network call may appear:
   portMAX_DELAY            a queue wait with no bound
   delay(...)               the Arduino busy/blocking delay
   xQueueSend/xQueueReceive with a non-zero final argument
-  WiFi. / PubSubClient / mqtt_ / publish(   network work in the frame path
+  WiFi. / espMqttClient / PubSubClient / mqtt_ / publish(   network work in the frame path
 
 vTaskDelay IS permitted: bounding a poll loop is not the same as waiting on
 another task, and the LoRa path's own pacing has to live somewhere.
@@ -60,7 +60,7 @@ FORBIDDEN = (
      "delay() - the Arduino blocking delay; use vTaskDelay to pace a loop"),
     (re.compile(r"\bWiFi\s*\."),
      "WiFi in the frame path - reception must survive a network outage"),
-    (re.compile(r"\bPubSubClient\b|\bmqtt_[a-z_]*\s*\(|(?<![\w:.>])publish\s*\("),
+    (re.compile(r"\b(?:espMqttClient|PubSubClient)\b|\bmqtt_[a-z_]*\s*\(|(?<![\w:.>])publish\s*\("),
      "network publication inline - publication is queued, never inline"),
 )
 
