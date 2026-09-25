@@ -54,24 +54,23 @@ Each group is one session unless its line says otherwise.
 
 ### 1. Specification v0.15
 
-**One revision collects every item below**, on a branch of its own. The accepted items need
-only text. The rest need an operator decision first, so the session opens by putting those
-questions to the operator. The citation sweep that follows the version bump goes on a
-second branch; it touched about 27 citations last time. If any item changes the wire,
-regenerate the W4 vectors (spec §13.2).
+**Accepted and merged on 2026-09-25.** The operator decided every open item that day, as
+**D62–D69**. Decision Register §3.11 has the reasoning, and spec §20's v0.15 entry lists
+what each section gained. **The header holds at v0.14.** Bumping it alone fails CI's
+`Versioned document citations` check at 26 citations, so two steps remain:
 
-| Item | Where | Needs |
-|---|---|---|
-| **D60**: `RESTORE_DEFAULTS` keeps the committed PHY group, and a PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED` | §8.10, §12.4.2 | Text only. Decision Register §3.9, and Library Plan §4 cites the owed §8.10 text |
-| **D61**: a node is polled from boot only when its `deployed` lever is set | §16.5, §16.6 | Text only. Decision Register §3.10 |
-| **The deduplication triple withholds every follow-up**, because a follow-up reuses its first edge's `event_id`. BF-25 added the follow-up bit to the key, by operator decision | §7.3 | Text only. Impl Plan §6.3.2 |
-| **`lran/<node>/node/health/state` and `lran/bridge/diag/publish/state` are not named.** Both use §16.1's optional item, as `diag/radio` does | §16.2 | A decision: name them, or leave them optional |
-| **Four questions from BF-33 slice 2**: an empty fleet refused `phy_fleet_incomplete`; the bridge's own PHY rows `READ_ONLY` without a usable store; no §16.7.5 reason for a failed commit write; and step 1's backoff *"derived from the resulting airtime"*, which the bridge does not do because `backoff_max_ms` is a lever | §12.4, §16.7.5 | Four answers. The engineering log's *BF-33 slice 2* entry has each |
-| **`lran/bridge/config/set` takes any `bandwidth_khz` from 125 to 500**, 300 among them, though the SX1262 has 125, 250 and 500 only. HA's `select` offers only those three | §12.1 | A decision: a list of legal points in the table, or a bridge refusal between them |
-| **A simnode's `config/state`, `config/ack` and `cmd/ack` are published whatever `simnode_diag_enable` says.** §16.6 sends bench data *"exclusively"* to `diag/state` and `availability`, and §16.7 gives every node a `config/*` topic. Gating them locally would make a bench set unanswerable while the flag is clear | §16.6, §16.7 | A decision. **BF-35's bench-node controls wait on it**, because a registry row is not taken back (Impl Plan §4.2a.1, §4.4.3) |
-| **BF-27's raw frame log deviates from §16.2's retention rule** | §16.2 | A decision. Impl Plan §6.6.1 raised it |
-| **The bridge's `phy_reverted` `event_id` restarts at 1 after a reboot.** No rule covers the bridge's own events, so an automation keyed on `event_id` alone would miss a repeat | §7.3, §16.3 | A rule, then a firmware change in group 2 |
-| **W15** (`CONFIG_ACK` has no override flag, so `config/state`'s `source` is inferred) and **W16** (nothing says when a node sends `CONFIG_CHANGE`) | §7.4, §16.7.4; §8.7 | The operator's call whether they ride this revision. Both are GateLink's, and an answer before GateLink's firmware exists costs less than one after |
+1. **Bump the header and run the citation sweep on one branch**, and merge them together.
+   Reconcile each citing document with v0.15 before moving its citation.
+2. **Build what the decisions owe.** Each line is one change, and none has a task row yet:
+   - **`lran-protocol`**: bits 6:0 and bit 7 of a result's `status`, plus two W4 vectors,
+     one with `OVERRIDE` set and one with `INVALID_VALUE` (D68, D64; spec §13.2).
+   - **`lran-config`**: `bandwidth_khz` takes 125, 250 or 500, and anything else answers
+     `INVALID_VALUE` (D64).
+   - **The bridge**: `config/state`'s `source` from the `OVERRIDE` bit (D68); a
+     `commit_failed` `phy_reverted` (D63); a boot count, and `boot` on its own events
+     (D67); `diag/rxlog/state` renamed `diag/rxlog/log`, with `tools/simctl/rxlog.py` and
+     Impl Plan §6.6.1 (D66); a readback on `CONFIG_CHANGE` (D69).
+   - **The simnode**: `OVERRIDE` in its `CONFIG_ACK` results (D68).
 
 ### 2. Event delivery, before events drive email and SMS
 
