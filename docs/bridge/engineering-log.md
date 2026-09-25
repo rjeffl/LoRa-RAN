@@ -3093,3 +3093,31 @@ System PRD §12 gives the register's range as D1–D69.
 `spec` field changed. No vector exercises D68's `OVERRIDE` bit or D64's `INVALID_VALUE`
 yet; both come with the `lran-protocol` change, which the handoff lists with the rest of
 the code v0.15 owes.
+
+## 2026-09-25 — The code spec v0.15 owed, built on host
+
+**Every code line the handoff's group 1 listed is built, and none of it has run on air.**
+The libraries, the simnode and the bridge pass their native suites (137, 29, 130 and 428
+cases), and the `heltec` target builds. Library Plan v0.21 and Impl Plan v0.61 (§6.7.2a)
+say what changed.
+
+**A round trip does not witness the `OVERRIDE` bit.** A codec that read `status` whole
+would decode `0x80` as an unknown `ParamStatus` and write the same byte back, so
+`test_vectors`' new schema round trip passes it. The two new vectors are therefore also
+checked by name, field by field. The round trip catches the other defect: a codec that
+drops bit 7.
+
+**After the first committed PHY change, every PHY row reads `override`.**
+`commit_phy_trial()` writes the whole group, rows the set did not name included, so each
+becomes a held override. D68 says an override equal to its default is still an override,
+so the marking is honest. It will surprise an operator who changed only `spreading_factor`
+and then sees `freq_hz` marked. Recorded rather than changed: the fix belongs to the store's
+design, not to this marking.
+
+**Two gaps found while wiring D69, both out of scope:**
+
+- **No simnode sends `CONFIG_CHANGE` on its own.** Spec §8.7 has a node send it after a PHY
+  revert. The bridge path can be exercised today only by setting the reason by hand.
+- **The readback mirror skips a `CLAMPED` result**, though it carries the effective value
+  (spec §7.4). `note_set_results()` records `OK` alone, so a clamped set leaves
+  `config/state` showing the value from before the set. This predates v0.15.

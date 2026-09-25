@@ -1,12 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that sorted the open list by what GateLink gates.**
-Every open item is now in one of two places. *Work before GateLink* holds what the bridge
-board, the two simnodes and the sandbox HA can close. *Waits on GateLink or the operator*
-holds the rest. The survey found that B5 cannot run on the bench yet, because no simnode
-answers a `HEX_REQ`. Firmware Tasks v0.46 adds **BF-36** for that responder, and **BF-37**
-and **BF-38** for two event-delivery gaps that had no task row. The bridge log's
-2026-09-25 *pre-GateLink survey* entry has the reasoning.
+**Written 2026-09-25 by the session that built the code spec v0.15 owed.** Group 1 below
+is done on host: the libraries, the simnode and the bridge carry D63, D64 and D66–D69, and
+every native suite passes. None of it has run on air, so group 1 now holds the bench check
+and two gaps the work found. The bridge log's 2026-09-25 *code spec v0.15 owed* entry has
+the findings.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -52,22 +50,19 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise.
 
-### 1. The code specification v0.15 owes
+### 1. Spec v0.15's code, on air
 
-**Accepted on 2026-09-25, and the header and every citation moved to v0.15 the same
-day.** The operator decided every open item as **D62–D69**. Decision Register §3.11 has
-the reasoning, and spec §20's v0.15 entry lists what each section gained. **What remains
-is code.** Each line is one change, and none has a task row yet:
+**Built and host-tested on 2026-09-25**; Impl Plan §6.7.2a and Library Plan v0.21 say
+what changed. What remains is one bench session and two small fixes:
 
-- **`lran-protocol`**: bits 6:0 and bit 7 of a result's `status`, plus two W4 vectors,
-  one with `OVERRIDE` set and one with `INVALID_VALUE` (D68, D64; spec §13.2).
-- **`lran-config`**: `bandwidth_khz` takes 125, 250 or 500, and anything else answers
-  `INVALID_VALUE` (D64).
-- **The bridge**: `config/state`'s `source` from the `OVERRIDE` bit (D68); a
-  `commit_failed` `phy_reverted` (D63); a boot count, and `boot` on its own events
-  (D67); `diag/rxlog/state` renamed `diag/rxlog/log`, with `tools/simctl/rxlog.py` and
-  Impl Plan §6.6.1 (D66); a readback on `CONFIG_CHANGE` (D69).
-- **The simnode**: `OVERRIDE` in its `CONFIG_ACK` results (D68).
+- **Flash the bridge and both simnodes, and check each change at the broker**:
+  `config/state`'s `source` for an override set equal to its default, `invalid_value` for
+  a bandwidth of 300 on both topics, `boot` on `phy_reverted`, and `diag/rxlog/log` read by
+  `tools/simctl/rxlog.py`. The bridge's boot count starts at 1 on the first flash.
+- **No simnode sends `CONFIG_CHANGE` after its own PHY revert** (spec §8.7, D69). The
+  bridge's readback path can be driven only by setting the reason by hand until it does.
+- **The readback mirror skips a `CLAMPED` result**, so a clamped node set leaves the old
+  value in `config/state`. It predates v0.15; `ConfigStore::note_set_results()`.
 
 ### 2. Event delivery, before events drive email and SMS
 
@@ -151,11 +146,6 @@ the node is on a desk rather than at the gate.
   called the Davis "not periodic" on the day that confirmed its clock to half a second.
   Left unfixed by operator direction. Fix it before any future capture, because that
   verdict is what the documents cite when they attribute an occupant.
-- **`firmware/bridge/CLAUDE.md` cites the Bridge PRD v0.14, the Impl Plan v0.52 and
-  Firmware Tasks v0.40** in its opening prose. `spec_citation_version.py` reads role header
-  lines only, so it does not see them.
-- **System PRD §12 gives the Decision Register's range as D1–D58**; the register runs to
-  D61.
 
 ## Waits on GateLink or the operator
 
@@ -193,9 +183,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
-| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
+| 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.7.2a** spec v0.15's code; **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | **§9** is B5–B7, where the work goes next; **§7** has BF-37 and BF-38 |
 | 6 | [`firmware/bridge/CLAUDE.md`](../../firmware/bridge/CLAUDE.md) | what exists in the project, and what breaks silently |
 | 7 | [`firmware/simnode/CLAUDE.md`](../../firmware/simnode/CLAUDE.md) | what the simnode has and its traps |
