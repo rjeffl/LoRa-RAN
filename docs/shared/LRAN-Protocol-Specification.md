@@ -828,13 +828,19 @@ widening and the persistence together provide.
 `event_id` is the deduplication key on the non-retained MQTT path. A `COMMAND` is
 deduplicated by `(ctx_id, seq)`; an `EVENT` has no ACK and may be retransmitted after
 a CAD backoff, so HA needs a value it can use to recognise a repeat. The bridge SHALL
-suppress republication of an `(src, ctx_id, event_id)` triple it has already published.
+suppress republication of an `(src, ctx_id, event_id, follow_up)` key it has already
+published, where `follow_up` is `event_flags` bit 0.
 
 **Follow-up events.** When a detection fires before its direction is classified, the
 node emits the event immediately with `direction = UNDETERMINED`, then emits a second
 event with `event_flags` bit 0 set and the same `event_id` once classification
 completes. This preserves "alert on the first edge, no dead window" while still
 delivering direction when it becomes known.
+
+> **Corrected in v0.15.** v0.14 keyed deduplication on the triple `(src, ctx_id,
+> event_id)`. A follow-up reuses its first edge's `event_id`, so the triple withheld every
+> follow-up. The bridge has keyed on the follow-up bit as well since BF-25, by operator
+> decision (Bridge Impl Plan §6.3.2).
 
 ---
 
@@ -904,7 +910,18 @@ bits.
 | 0 | `uint8` | `op` — echoed |
 | 1 | `uint8` | `persist_status` — §8.11 |
 | 2 | `uint8` | `count` — bit 7 `MORE_FOLLOWS`, bits 6:0 the result count (§7.4.1) |
-| 3.. | result entries | `uint16 param_id`, `uint8 status` (§8.12), `uint8 ptype`, `uint8 len`, `uint8[len]` *effective* value |
+| 3.. | result entries | `uint16 param_id`, `uint8 status` (bits 6:0 §8.12, bit 7 `OVERRIDE`), `uint8 ptype`, `uint8 len`, `uint8[len]` *effective* value |
+
+**Bit 7 of a result's `status` is `OVERRIDE`** (**D68**, closing W15). The node sets it
+when the effective value is an override it holds, and clears it when the value is the
+table's default. An override set equal to its default is still an override. A receiver
+reads §8.12's value from bits 6:0 alone. Every §8.12 value is below `0x80`, so the
+enumeration cannot reach the bit, as 32 results cannot reach `count`'s top bits (§7.4.1).
+
+> **Changed in v0.15 (D68).** Through v0.14 the whole byte was §8.12's value. §13.2 routes
+> a resized field to a new schema ID. Schema `0x12` keeps its ID because no GateLink
+> existed and every end decoding `0x12` could be reflashed. A receiver built to v0.14
+> reads an overridden entry's `status` as an unknown value.
 
 **What `persist_status` reports depends on `op`** (**D53**). After a `SET` or
 `RESTORE_DEFAULTS` it reports what was applied: `PERSISTED`, `APPLIED_NOT_PERSISTED`, or
@@ -1251,6 +1268,15 @@ stricter policy to actuation without parsing semantics.
 **The bridge MUST propagate this marking to MQTT** so synthetic data is never mistaken
 for real in HA history.
 
+**A node sends `CONFIG_CHANGE` when its effective configuration changes and no
+`CONFIG_ACK` reported the change** (**D69**, closing W16). Every change the bridge causes
+is answered by a `CONFIG_ACK` (§7.4), so the value covers the rest: a PHY revert (§12.4.2
+step 6), and a node that finds its nonvolatile store unusable, at boot or later, and runs
+on defaults. The node reports it once, in the `status_reason` of its next `STATUS`. A
+`STATUS` with another reason to carry keeps that reason, and the node reports
+`CONFIG_CHANGE` in the next one that has none. The bridge answers with a readback, `POLL`
+bit 1 (§6.4), and republishes `config/state` from it (§16.7.4).
+
 ### 8.8 `err_code`
 
 | Value | Name |
@@ -1295,7 +1321,12 @@ up**, and that requires HA to be able to route it independently.
 | `0x01` | `SET` |
 | `0x02` | `GET` — the listed `param_id`s; each entry `len` = 0 (§7.4) |
 | `0x03` | `GET_ALL` — the full effective configuration; `count` = 0 |
-| `0x04` | `RESTORE_DEFAULTS` — clears all overrides; `count` = 0, answered with the full effective configuration (§7.4) |
+| `0x04` | `RESTORE_DEFAULTS` — clears every override except the committed PHY group; `count` = 0, answered with the full effective configuration (§7.4) |
+
+**`RESTORE_DEFAULTS` keeps the committed PHY group** (§12.4, **D60**, v0.15), in RAM and in
+the store. Resetting one node's PHY to D1's defaults while the bridge and the rest of the
+fleet stay where they are takes that node off the air, which is the stranded node §12.4
+exists to prevent. The PHY group changes on the bridge's topic alone (§16.7.1).
 
 ### 8.11 `persist_status`
 
@@ -1314,6 +1345,10 @@ up**, and that requires HA to be able to route it independently.
 | `0x02` | `CLAMPED` — applied at a range endpoint; the ACK carries the effective value |
 | `0x03` | `TYPE_MISMATCH` |
 | `0x04` | `READ_ONLY` |
+| `0x05` | `INVALID_VALUE` — inside the range, and not a value the parameter allows; nothing applied, and the ACK carries the effective value (**D64**, v0.15) |
+
+**These values occupy bits 6:0 of a result's `status`. Bit 7 is `OVERRIDE`** (§7.4,
+**D68**, v0.15), so no value here may reach `0x80`.
 
 **`READ_ONLY` also covers a parameter the node publishes but cannot yet apply**, which is
 how §12.4's PHY parameters answer a `SET` until the commit-and-revert path is built
@@ -2118,8 +2153,9 @@ and sends nothing (§16.7.1).
 
 1. **One atomic set.** SF, BW, CR, TX power and frequency travel in **one** `CONFIG`
    message, never across several (§11.4 gives no atomicity across messages). A node applies
-   them together and recomputes what depends on them — §12.3's backoff window is derived
-   from the resulting airtime, not carried separately.
+   them together. §12.3's backoff window is not recomputed: `backoff_max_ms` is a parameter
+   of its own, and the operator sets it alongside a PHY change that alters airtime
+   (**D63**, v0.15).
 2. **The old settings are persisted first.** Last known-good goes to the nonvolatile store
    before the radio is retuned, so a reboot mid-trial comes back on settings that work.
 3. **A trial window opens on apply.** `phy_trial_s` (default 120) starts when the node
@@ -2148,6 +2184,11 @@ is a D33 decision, not a configuration change.
 section one decision (§18.2), so BW stays at 125 kHz until an envelope decision says
 otherwise, whatever the parameter table's range permits.
 
+**Bandwidth takes three values: 125, 250 and 500 kHz** (**D64**, v0.15). They are the
+SX1262's points between 125 and 500. The parameter table lists them, and a set naming any
+other value answers `INVALID_VALUE` (§8.12) and applies nothing. The radio driver would
+otherwise refuse the value at the retune, after it had been accepted and stored.
+
 **Until the machinery exists, the parameters are declared and read-only.** A node that has
 not built this section answers a `SET` on any of them with `READ_ONLY` (§8.12) and applies
 nothing. Home Assistant can read the effective PHY from the first release that carries the
@@ -2155,6 +2196,9 @@ table.
 
 > **Corrected in v0.14.** v0.13 said *"a node that has not built §12.1a"*. No §12.1a has
 > ever existed, and the section meant is this one.
+
+> **Changed in v0.15 (D63).** Step 1 said the backoff window was derived from the
+> resulting airtime. Neither end derives it, because `backoff_max_ms` is a lever.
 
 > **Added in v0.14 (D59).** v0.13 stated the six steps above and left five questions
 > open: who starts a change, in what order the fleet moves, which frame confirms it, what
@@ -2172,12 +2216,14 @@ frame.
    that names any row of the PHY group starts one. Rows the set does not name keep the
    bridge's current values, so every `CONFIG` below carries the whole group. The bridge
    clamps each value against its own rows first, so every node is sent a value inside
-   its range.
+   its range. **A bridge without a usable nonvolatile store answers every PHY row
+   `read_only` and starts nothing**, by §12.4.2 step 2's reasoning (**D63**, v0.15).
 2. **A change the fleet cannot complete is refused whole, before anything applies.** The
    bridge answers `config/ack` with an `error` (§16.7.3) and applies nothing:
    - `phy_change_in_progress` — a change is already in its trial;
    - `phy_fleet_incomplete` — a node the bridge polls is `offline` (§16.5), and it would
-     be left on settings nobody else uses;
+     be left on settings nobody else uses; or the bridge polls no node at all, and would
+     move alone, stranding every node it has not heard (**D63**, v0.15);
    - `context_roll_pending` — a node's roll has not completed (§10.6).
 
    A set whose values equal the bridge's current ones applies nothing, opens no trial, and
@@ -2203,7 +2249,8 @@ frame.
    node a `CONFIG` `GET` naming the PHY group, in the order of step 3. `CONFIG` is
    authenticated, so the node's acceptance of it is the node's confirmation under step 4
    of the scheme. A `GET` applies nothing, so the bridge may send it again when no
-   answer arrives.
+   answer arrives. **A bridge whose commit write fails reverts** as at step 8, and sends
+   no `GET` (**D63**, v0.15).
 8. **The bridge reverts when step 6 is not finished in time.** Its deadline is
    `phy_trial_s` after the first node's `CONFIG_ACK` in step 4, less one
    `config_ack_timeout_ms` for each node it polls, which leaves step 7 time for one `GET`
@@ -2232,7 +2279,10 @@ trial. The bridge reports a revert under §16.7.5 once it reaches the broker.
    applies none of them.** The committed settings of a node like that would not survive a
    reboot, which would return it to its compiled defaults while the bridge stays on the
    settings it last committed. That is the stranded node this section exists to prevent,
-   so §8.11's `APPLIED_NOT_PERSISTED` does not extend to the PHY group.
+   so a node without a usable store may not answer a PHY entry `APPLIED_NOT_PERSISTED`.
+   **A node with a usable store answers a trial's `CONFIG_ACK` `APPLIED_NOT_PERSISTED`**
+   (**D60**, v0.15). The trial values are applied and are not persisted until
+   confirmation, so the status is true, and §12.4.1 step 4 checks only the values.
 3. **The node answers on its old settings, then retunes**, under step 3 of the scheme. Its
    window opens when it retunes, using the `phy_trial_s` the `CONFIG` carried.
 4. **The node answers `POLL` on the new settings as it would on any other.** An answer
@@ -2240,8 +2290,7 @@ trial. The bridge reports a revert under §16.7.5 once it reaches the broker.
 5. **Any authenticated frame the node accepts from the bridge confirms the change.** A
    frame is accepted when it passes §14 through stage 11. On confirmation, the node
    persists the new settings as its last known-good.
-6. **A node whose window expires restores its last known-good settings**, and recomputes
-   §12.3's backoff window from them.
+6. **A node whose window expires restores its last known-good settings.**
 7. **A node that reboots during a trial comes back on its last known-good settings**, and
    the trial is over.
 8. **A node that reverted sends one `EVENT` `PHY_REVERTED` (§8.9)** when it next receives
@@ -2601,7 +2650,11 @@ lran/<node>/<domain>[/<item>]/<leaf>
 |---|---|
 | `<node>` | `bridge`, `gatelink`, `welllink`, `simnode0`–`simnode3` (§16.6) |
 | `<domain>` | `gate`, `detect`, `battery`, `solar`, `vedirect`, `node`, `config`, `event`, `cmd`, `diag` |
-| `<leaf>` | `state`, `set`, `ack`, `audit`, `availability` |
+| `<leaf>` | `state`, `set`, `ack`, `audit`, `availability`, `log` |
+
+**`log` is the leaf of a streaming diagnostic, and it is never retained** (**D66**,
+v0.15). A retained rolling window replays a finished burst as though it were arriving now,
+so a stream cannot use `state`, which is always retained.
 
 Discovery configs are published under the HA discovery prefix (default
 `homeassistant/`) with `unique_id` prefixed per node (`lran_gatelink_*`) so IDs are
@@ -2616,7 +2669,7 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/cmd/<action>/set` | HA → bridge | No | Command request |
 | `lran/<node>/cmd/ack` | bridge → HA | No | `COMMAND_ACK` outcome |
 | `lran/<node>/config/set` | HA → bridge | No | Configuration change or request (§16.7.2) |
-| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` (§16.7.4, W15) |
+| `lran/<node>/config/state` | bridge → HA | **Yes** | Full effective configuration, each value marked `default` or `override` (§16.7.4) |
 | `lran/<node>/config/ack` | bridge → HA | No | Outcome of the last `config/set` (§16.7.3) |
 | `lran/<node>/event/<name>` | bridge → HA | **No — never** | §16.3 |
 | `lran/<node>/vedirect/hex/request` | HA → bridge | No | Raw HEX request string |
@@ -2624,6 +2677,9 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/vedirect/hex/audit` | bridge → HA | **Yes** | Every write attempt: payload, authorization outcome, MPPT response |
 | `lran/<node>/vedirect/write_enable/{state,set}` | both | **Yes** | Armed write-enable, default off, auto-expiry |
 | `lran/<node>/diag/state` | bridge → HA | **Yes** | RSSI/SNR, missed polls, counters, protocol version |
+| `lran/<node>/node/health/state` | bridge → HA | **Yes** | A node's schema `0xF0` health (§7.5), decoded (**D62**) |
+| `lran/bridge/diag/publish/state` | bridge → HA | **Yes** | The bridge's publication counts (**D62**) |
+| `lran/bridge/diag/rxlog/log` | bridge → HA | **No** | The bridge's raw frame log, a rolling window of receive outcomes (§16.1, **D66**) |
 | `lran/bridge/version` | bridge → HA | **Yes** | Bridge firmware version |
 
 #### 16.2.1 Payloads, where one is defined
@@ -2679,6 +2735,11 @@ Where an event also has dashboard value, the bridge publishes **both**: a retain
 non-retained event for automation. **The event topic is the automation trigger; the
 binary sensor is not.**
 
+**An event the bridge raises itself carries `boot`, the bridge's boot count, and
+`(boot, event_id)` is its key** (**D67**, v0.15). The bridge's own `event_id` restarts at 1
+at each boot, so `event_id` alone repeats. A node's event is deduplicated on §7.3's key,
+which carries `ctx_id` for the same purpose.
+
 ### 16.4 Publication policy is the bridge's, not the node's
 
 The node transmits everything it knows in each `STATUS`. The bridge decides what to
@@ -2706,6 +2767,15 @@ whether a node is alive.
   every entity belonging to that node in its discovery config.
 - The bridge's own LWT marks all nodes unavailable implicitly.
 
+**A node is polled from boot only when its `deployed` row is set** (**D61**, v0.15).
+`deployed` is a bridge per-node row, `0x0081`, 0 or 1, default 0, set on
+`lran/<node>/config/set`. The bridge polls and watches a node that is not deployed once it
+has heard a frame from that node this boot, and not before. A deployed node is enrolled
+from boot, so one that has stopped answering goes `offline` and blocks a PHY change
+(§12.4.1 step 2). Setting the row takes effect at once. Clearing it takes effect at the
+next restart, because enrolment is never undone within a boot. A node not yet heard this
+boot publishes no availability, so a retained `offline` from an earlier boot stands.
+
 ### 16.6 Bench nodes on a production bridge
 
 A production bridge build **does** accept and decode frames from the bench range
@@ -2726,6 +2796,12 @@ and **never** under `gate`, `detect`, `battery`, `solar` or `event`. A simnode c
 appear as a gate entity, cannot enter battery history, and — most importantly —
 **cannot fire a `lran/*/event/*` topic**, so no bench activity can reach the email and
 SMS path §16.3 exists to protect.
+
+**A bench node's answers publish whatever `simnode_diag_enable` says** (**D65**, v0.15):
+its `config/ack`, `config/state` and `cmd/ack`. Each answers a request an operator made on
+that node's own `config/set` or `cmd/<action>/set`, and none is data the node reported
+unasked. Gated by the flag, a bench `config/set` would go unanswered whenever the flag is
+clear.
 
 **2. Off by default, runtime-switchable.** Publication is gated on a bridge
 configuration flag:
@@ -2817,7 +2893,8 @@ integration, checked on 2026-09-19.
 | `results` | object | Parameter name → `{"status": ..., "value": ...}` |
 | `error` | string | Present only when the `config/set` payload was rejected whole. `context_roll_pending` means the node's context roll has not completed (§10.6). `phy_change_in_progress` and `phy_fleet_incomplete` refuse a PHY change (§12.4.1 step 2) |
 
-`status` is `ok`, `unknown_param`, `clamped`, `type_mismatch` or `read_only` (§8.12),
+`status` is `ok`, `unknown_param`, `clamped`, `type_mismatch`, `read_only` or
+`invalid_value` (§8.12),
 `unknown`, or `reverted`. **`value` is the effective value, not the requested one**, and
 `null` where nothing was applied or the outcome is not known.
 
@@ -2857,10 +2934,13 @@ arrives. When `config_readback_timeout_ms` expires first, the bridge abandons th
 and requests another, and this topic keeps the values it last published. A retained object
 carrying half of one readback and half of an older one cannot be read back apart.
 
-**`source` for a node-held parameter is inferred, not reported.** `CONFIG_ACK` carries no
-override flag, so the bridge compares the effective value with the table's default, and an
-override equal to its default reads `default`. GateLink PRD R-5.3e asks for the node's own
-marking; **W15** tracks the gap.
+**`source` for a node-held parameter is the node's own marking**: `override` when the
+result's `OVERRIDE` bit is set (§7.4, **D68**, v0.15), and `default` when it is clear, as
+GateLink PRD R-5.3e requires.
+
+> **Changed in v0.15 (D68).** Through v0.14 the bridge inferred `source` by comparing the
+> effective value with the table's default, so an override equal to its default read
+> `default`. W15 tracked the gap.
 
 #### 16.7.5 A PHY change on MQTT
 
@@ -2885,9 +2965,10 @@ a JSON object:
 
 | Key | Type | Meaning |
 |---|---|---|
-| `event_id` | number | Counts from 1 at each bridge boot, so Home Assistant can recognise a repeat as §16.3 requires |
-| `reason` | string | `not_accepted` — a node did not accept every value (§12.4.1 step 4); `not_heard` — a node was not heard on the new settings before the deadline (step 8); `restart` — the bridge restarted during a trial (§12.4.1) |
-| `node` | string or `null` | The first node that caused the outcome, by its §16.1 name; `null` for `restart` |
+| `boot` | number | The bridge's boot count. With `event_id`, it is the key Home Assistant deduplicates on (§16.3, **D67**, v0.15) |
+| `event_id` | number | Counts from 1 at each bridge boot |
+| `reason` | string | `not_accepted` — a node did not accept every value (§12.4.1 step 4); `not_heard` — a node was not heard on the new settings before the deadline (step 8); `restart` — the bridge restarted during a trial (§12.4.1); `commit_failed` — the bridge could not write the new settings to its store at step 7 (**D63**, v0.15) |
+| `node` | string or `null` | The first node that caused the outcome, by its §16.1 name; `null` for `restart` and `commit_failed` |
 
 **A node's own revert publishes on `lran/<node>/event/phy_reverted`**, from its
 `PHY_REVERTED` `EVENT` (§12.4.2 step 8), as every other §8.9 event does.
@@ -3004,8 +3085,8 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W12 | ~~A home for §9.4 steps 4–6~~ | — | **Closed by D34: split, not placed whole.** Steps 4, 5 and step 6's high-water update are validation against receiver state and become `CommandGate` in `/lib/lran-protocol/`, one per peer; **dispatch stays in the application**. This item's own premise — that the whole of steps 4–6 sits outside a framing library — is what kept it open: two of the three are the shape `Reassembler` already has, and their counters already live in `Counters` where `rx_dropped` sums them. The schedule moved too: per §9.2 every authenticated type is bridge → node, so steps 4–6 bind the **first firmware accepting a `COMMAND`** (simnode B0, GateLink M3), **not** the range test firmware. §9.4 records the one residual silence, the check/record window, as a receiver precondition. **v0.11:** the window is answered — a retry inside it is counted and not answered, and the high-water mark advances before dispatch (D34 amended 2026-09-11) |
 | W14 | **How a duty-cycled node avoids waking on the whole fleet's traffic** | §17.1 | §17.1 assumed the SX126x would discard a frame addressed elsewhere in silicon. **It cannot: LoRa has no hardware address filter** (§12.1, confirmed against the datasheet as **M24**). Every frame on the channel wakes a duty-cycled receiver and is judged in software at stage 5, so the power model that made §17.1 worth building is unquantified. Owed before WellLink is built on that profile, and **not owed at all if D19 makes WellLink mains-powered** |
 | W11 | **`PING` echo `seq` vs. status sequence space** | §6.6, §10.2 | A `PING` responder preserves the initiator's `seq` (§6.6), so a node's echo carries a value from the bridge's space. Harmless — §10.2 makes status `seq` advisory and non-rejecting — but it perturbs the bridge's loss and ordering diagnostics for that node. Decide whether the bridge excludes echoed `PING` frames from those statistics before the range test produces figures anyone trusts |
-| W15 | **`CONFIG_ACK` carries no default-or-override flag** | §7.4, §16.7.4 | GateLink PRD R-5.3e requires each published value marked `default` or `override`. §7.4's result entry has no bit for it, so the bridge infers `source` by comparing with the table's default, and an override set equal to its default reads `default`. Closing it needs a result-entry field or a separate readback; either is a schema change. Opened in v0.13 |
-| W16 | **When a node sends `status_reason` `CONFIG_CHANGE`** | §8.7 | §8.7 defines the value, and no section says what triggers it. Every configuration change the bridge causes is already reported by a `CONFIG_ACK`, so the value is for a change the bridge did not cause — for example a node falling back to defaults when its microSD fails at boot — which is GateLink's to define. Owner: GateLink **M3**. Opened in v0.13 |
+| W15 | ~~`CONFIG_ACK` carries no default-or-override flag~~ | — | **Closed in v0.15 by D68.** Bit 7 of each result entry's `status` is `OVERRIDE` (§7.4, §8.12), so `config/state`'s `source` is the node's own marking (§16.7.4), as GateLink PRD R-5.3e requires. Opened in v0.13 |
+| W16 | ~~When a node sends `status_reason` `CONFIG_CHANGE`~~ | — | **Closed in v0.15 by D69**, ahead of GateLink M3 by operator decision. A node sends it when its effective configuration changes and no `CONFIG_ACK` reported the change, and the bridge answers with a readback (§8.7). Opened in v0.13 |
 | W17 | **A node that misses every confirming frame of a PHY change** | §12.4.4 | Under §12.4.1, a node that answered on the new settings and then missed every confirming `GET` reverts to its old settings after the bridge has committed the new ones. Nothing then brings it back without a visit. The bridge can tell it has happened, because that node's `GET` was never answered. Undecided: the remedy, for example a bridge that returns briefly to the settings it left to repeat the change for that node alone, and how the case is reported to Home Assistant. Owner: BF-33. **Closes after GateLink deploys**, by operator decision (D59). Opened in v0.14 |
 
 ### 18.1 W5, resolved — fixed channel at low power
@@ -3204,6 +3285,28 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.15 (drafted 2026-09-25)** — **D60–D69: the text D60 and D61 were owed, eight
+  operator decisions, and one correction.** `ver` stays at `2`; **no frame layout, header
+  field or authentication scope changes.** Schema `0x12` keeps its ID and offsets, and one
+  byte in it changes meaning: **bit 7 of a `CONFIG_ACK` result's `status` becomes
+  `OVERRIDE`** (§7.4, §8.12, D68), which closes **W15**. §13.2 routes a resized field to a
+  new schema ID, and §7.4 records why `0x12` takes the exception. §8.12 gains
+  **`INVALID_VALUE`**, `0x05`, and bandwidth takes 125, 250 and 500 kHz only (§12.4, D64).
+  §8.7 says when a node sends **`CONFIG_CHANGE`**, which closes **W16** (D69). §8.10 and
+  §12.4.2 carry **D60**: `RESTORE_DEFAULTS` keeps the committed PHY group, and a trial's
+  `CONFIG_ACK` reads `APPLIED_NOT_PERSISTED`. §16.5 carries **D61**'s `deployed` row.
+  §12.4 and §12.4.1 take **D63**'s four answers from BF-33: an empty fleet is refused, a
+  bridge without a store starts no change, the backoff window is not derived from airtime,
+  and a failed commit write reverts with `reason` `commit_failed`. §16.1 gains the **`log`
+  leaf**, never retained (D66), and §16.2 names `node/health/state`,
+  `diag/publish/state` (D62) and `diag/rxlog/log`. §16.3 and §16.7.5 key a bridge event
+  on **`(boot, event_id)`** (D67). §16.6 publishes a bench node's answers whatever
+  `simnode_diag_enable` says (D65). **Corrected**: §7.3's deduplication key carries the
+  follow-up bit, without which it withheld every follow-up. **The header holds at v0.14
+  while v0.15 is drafted**, as v0.14's held at v0.13. **The W4 vectors are unchanged**:
+  no committed vector sets `OVERRIDE` or carries `INVALID_VALUE`, and vectors for both
+  are owed with the library change that decodes them.
 
 - **v0.14 (2026-09-24)** — **§12.4's PHY commit-and-revert gains the mechanism v0.13
   left open (D59).** `ver` stays at `2`; **no frame layout, header field,

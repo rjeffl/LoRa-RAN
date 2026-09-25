@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.20
+**Version:** 0.21
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-24
+**Last updated:** 2026-09-25
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -410,8 +410,16 @@ Frames from a node that is not deployed are processed as they are now.
 | **D57** | How a node answers a `GET_ALL` too large for one frame | **Several `CONFIG_ACK` messages, every one but the last marked `MORE_FOLLOWS`** — bit 7 of `count`, whose top two bits are unreachable because 193 bytes of payload hold at most 32 results. Schema `0x12` keeps its layout and offsets. The node walks its table in ascending `param_id` across the answer, repeats `op` and `persist_status` on every message, and sends at most **4** messages. A solicited answer repeats the request's `seq`, so **the bridge accepts more than one `CONFIG_ACK` per `seq`** and closes on the message with `MORE_FOLLOWS` clear. A repeated `GET_ALL` is answered by walking the table again rather than from the dedup cache, because a read applies nothing. The bridge never publishes `config/state` from an answer that did not complete; it abandons one on `config_readback_timeout_ms` and requests another | Protocol Spec §7.4.1, §11.4, §16.7.4; Protocol Library Plan §4 (**BF-32**) |
 | **D58** | How the bridge resumes commanding a node after its own restart | **The bridge forces each node onto a new context after its own boot, with `ROLL_CONTEXT`** (`cmd` `0x12`, `arg` `0xA5`). The node verifies it under §9.4 steps 1–3 only, takes a new `ctx_id`, and clears its dedup cache and `rx_high_water`. Until a node's roll completes, the bridge refuses commands to it with a named reason. `ver` stays `2`. §2.3 has the mechanism; §3.7 has the answers and three additions | Protocol Spec §8.1, §9.4, §10 |
 | **D59** | How a PHY change moves the fleet | **The bridge moves the fleet in two phases**, under spec v0.14's §12.4.1 to §12.4.4. The PHY group, the five PHY parameters and `phy_trial_s`, is set on `lran/bridge/config/set` alone. The bridge sends the whole group to every node on the old settings and abandons on any missing or refused answer. It then retunes and hears every node on the new settings by `POLL`, and only then commits itself and confirms each node with an authenticated `CONFIG` `GET`. A node without a usable nonvolatile store refuses the group with `READ_ONLY`. `PHY_REVERTED` (`0x0B`) and `lran/bridge/event/phy_reverted` report a revert. **W17**, a node that misses every confirming frame, closes after GateLink deploys. Accepted as drafted, 2026-09-24, §3.8 | Protocol Spec §12.4, §8.9, §16.7; Protocol Library Plan §4 (**BF-33**) |
-| **D60** | Two PHY-group cases spec §12.4 leaves to other sections | **`RESTORE_DEFAULTS` keeps the committed PHY group**, in RAM and in the store, because resetting one node's PHY to D1's defaults takes it off the fleet's settings. **A PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`**, which is true of the trial values; §12.4.2 step 2's exclusion concerns a node with no usable store. Found building BF-33's library half; accepted by the operator 2026-09-24, §3.9. **The specification's text is owed at its next revision** | Protocol Spec §8.10, §8.11, §12.4.2; Protocol Library Plan §4 (**BF-33**) |
-| **D61** | How a provisioned node that is not deployed counts toward the PHY fleet | **A bridge per-node row, `deployed`** (`0x0081`, 0 or 1, default 0). A node that is not deployed is polled and watched only once heard this boot, as a bench node is; a deployed node is enrolled from boot. Setting the row takes effect at once, clearing it at the next restart. §12.4.1's fleet stays "a node the bridge polls". Found when §12.4.1 step 2 refused every change on the bench because 0x01 and 0x02 are polled and offline; accepted by the operator 2026-09-24, §3.10. **The specification's text is owed at its next revision** | Protocol Spec §16.5, §16.6; Bridge Impl Plan (**BF-33**) |
+| **D60** | Two PHY-group cases spec §12.4 leaves to other sections | **`RESTORE_DEFAULTS` keeps the committed PHY group**, in RAM and in the store, because resetting one node's PHY to D1's defaults takes it off the fleet's settings. **A PHY trial's `CONFIG_ACK` carries `APPLIED_NOT_PERSISTED`**, which is true of the trial values; §12.4.2 step 2's exclusion concerns a node with no usable store. Found building BF-33's library half; accepted by the operator 2026-09-24, §3.9. Spec v0.15 carries the text (§3.11) | Protocol Spec §8.10, §8.11, §12.4.2; Protocol Library Plan §4 (**BF-33**) |
+| **D61** | How a provisioned node that is not deployed counts toward the PHY fleet | **A bridge per-node row, `deployed`** (`0x0081`, 0 or 1, default 0). A node that is not deployed is polled and watched only once heard this boot, as a bench node is; a deployed node is enrolled from boot. Setting the row takes effect at once, clearing it at the next restart. §12.4.1's fleet stays "a node the bridge polls". Found when §12.4.1 step 2 refused every change on the bench because 0x01 and 0x02 are polled and offline; accepted by the operator 2026-09-24, §3.10. Spec v0.15 carries the text (§3.11) | Protocol Spec §16.5, §16.6; Bridge Impl Plan (**BF-33**) |
+| **D62** | Whether §16.2 names two topics the bridge already publishes | **Yes, both.** `lran/<node>/node/health/state` carries a node's schema `0xF0` health, and `lran/bridge/diag/publish/state` carries the bridge's publication counts. Their payloads stay the bridge's under §16.4. Home Assistant entities already bind to both names. Operator, 2026-09-25, §3.11 | Protocol Spec §16.2 |
+| **D63** | Four PHY-change questions BF-33 slice 2 raised | **The specification adopts the bridge's answers to three and adds one rule.** An empty fleet is refused `phy_fleet_incomplete`. The bridge's own PHY rows answer `READ_ONLY` without a usable store. §12.4's step 1 no longer derives the backoff window from airtime, because `backoff_max_ms` is a lever. **New**: a commit write that fails reverts with `reason` `commit_failed` and publishes `phy_reverted`, which the bridge does not yet do. Operator, 2026-09-25, §3.11 | Protocol Spec §12.4, §12.4.1, §12.4.2, §16.7.5; Bridge Impl Plan (**BF-33**) |
+| **D64** | Which `bandwidth_khz` values a set may carry | **125, 250 and 500 only**, the SX1262's points in this range. The parameter table lists them, and any other value is refused with a new §8.12 status, `INVALID_VALUE` (`0x05`). Operator, 2026-09-25, §3.11 | Protocol Spec §12.1, §12.4; `/lib/lran-config/` |
+| **D65** | Whether `simnode_diag_enable` gates a bench node's answers | **No.** A bench node's `config/set`, `config/ack`, `config/state` and `cmd/ack` publish whatever the flag says, because each answers a request an operator made. `gate`, `detect`, `battery`, `solar` and `event` stay forbidden. Operator, 2026-09-25, §3.11 | Protocol Spec §16.6; Bridge Impl Plan (**BF-35**) |
+| **D66** | How a streaming diagnostic avoids §16.2's retained `/state` | **A new leaf, `log`, never retained.** BF-27's `lran/bridge/diag/rxlog/state` becomes `lran/bridge/diag/rxlog/log`, so every `/state` topic stays retained. Operator, 2026-09-25, §3.11 | Protocol Spec §16.1, §16.2; Bridge Impl Plan §6.6.1 (**BF-27**) |
+| **D67** | How Home Assistant recognises a repeat of a bridge event | **The bridge's events carry `boot`, the bridge's boot count, and `(boot, event_id)` is the key**, as `ctx_id` does in a node's key. The bridge keeps no boot count today. Operator, 2026-09-25, §3.11 | Protocol Spec §16.3, §16.7.5; Bridge Impl Plan |
+| **D68** | How `CONFIG_ACK` reports an override (**W15**) | **Bit 7 of each result entry's `status` is `OVERRIDE`**, and bits 6:0 carry §8.12's value, as `count`'s bit 7 carries `MORE_FOLLOWS` (D57). Schema `0x12` keeps its ID and every offset. §13.2 routes a resized field to a new schema ID, and the exception is taken because no GateLink exists and every end that decodes `0x12` today can be reflashed. Operator, 2026-09-25, §3.11 | Protocol Spec §7.4, §8.12, §16.7.4; GateLink PRD R-5.3e |
+| **D69** | When a node sends `status_reason` `CONFIG_CHANGE` (**W16**) | **When its effective configuration changes and no `CONFIG_ACK` reported the change.** The bridge answers it with a readback. Settled before GateLink M3 by operator decision, 2026-09-25, §3.11 | Protocol Spec §8.7; GateLink PRD |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1029,6 +1037,43 @@ questions.
 3. **The specification's text waits for its next revision**, with D60's two cases. §16.5
    and §16.6 are to say it. Until then, this register is where it is written.
 
+### 3.11 D62–D69 — the spec v0.15 set, 2026-09-25
+
+**The operator answered the seven questions the bridge handoff held for spec v0.15**, and
+the W15 design question that followed, on 2026-09-25. Each decision accepted the
+recommendation it was offered. Spec v0.15 carries the text of D62–D69, and of D60 and D61,
+whose §3.9 and §3.10 said it was owed.
+
+- **D62.** §16.1's optional `<item>` let both topics exist unnamed, as `diag/radio` does.
+  They are named because Home Assistant binds entities to them, and a rename would orphan
+  those entities, which is §16.2.1's reason for naming `diag/state`.
+- **D63.** The engineering log's 2026-09-24 *BF-33 slice 2* entry states the four
+  questions. Three adopt what the bridge built. The fourth, a failed commit write, is the
+  one change: §16.7.5 says a change that did not commit is reported as an event, and a
+  failed write did not commit.
+- **D64.** The operator chose a new §8.12 value over `CLAMPED` to the nearest point and
+  over `TYPE_MISMATCH`, which reports an encoding fault. A value of 300 would be accepted and stored, and RadioLib's `setBandwidth()`
+  would then refuse it at the retune with `RADIOLIB_ERR_INVALID_BANDWIDTH`. A list in the
+  table refuses it where every other range check happens.
+  §12.4 still holds bandwidth at 125 kHz until an envelope decision (D1's fourth bound).
+- **D65.** Gating the answers would leave a bench `config/set` unanswered whenever the flag
+  is clear, and a registry row is not taken back (Bridge Impl Plan §4.2a.1, §4.4.3).
+  §16.6's purpose is to keep bench data out of Home Assistant's history and away from
+  email and SMS. An answer to an operator's own request does neither.
+- **D66.** A retained rolling log replays a finished burst as though it were arriving now,
+  which is §16.3's argument applied to a topic §16.3 does not cover. A new leaf keeps
+  §16.2's rule exceptionless.
+- **D67.** A bridge event's `event_id` restarts at 1 after every boot, so `event_id` alone
+  repeats. Persisting the counter was the alternative. It costs a flash write per event,
+  and a boot key mirrors what a node's `ctx_id` already does.
+- **D68.** §8.12's values reach `0x04`, so bit 7 is unreachable by the enumeration, as
+  `count`'s top bits are by 32 results. The alternatives were schema `0x13`, with a byte
+  per result, and a second readback. Answering it before GateLink exists costs a reflash of
+  the bridge and the simnodes. Answering it after would cost a walk to the gate.
+- **D69.** Every change the bridge causes is already answered by a `CONFIG_ACK`. The
+  value is for the rest: an override lost when the store fails, or a PHY revert
+  (§12.4.2 step 6). The operator took W16 now rather than at GateLink M3, for D68's reason.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1187,6 +1232,12 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.21** — **D62–D69 resolved on 2026-09-25**, the spec v0.15 set: two topics named,
+  four PHY-change answers, bandwidth's legal points, bench answers published whatever
+  `simnode_diag_enable` says, a `log` leaf, a boot key for bridge events, **W15** closed by
+  a `status` bit and **W16** by a rule. §3.11 has the reasoning, and spec v0.15 carries the
+  text, with D60's and D61's.
 
 - **v0.20** — **D61 proposed and resolved on 2026-09-24**: a bridge per-node row,
   `deployed`, keeps a provisioned node that is not deployed out of the polls and the PHY
