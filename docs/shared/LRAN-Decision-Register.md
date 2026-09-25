@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.21
+**Version:** 0.22
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-25
@@ -360,7 +360,7 @@ Frames from a node that is not deployed are processed as they are now.
 |---|---|---|---|
 | **D3** | Detector and movement-cause coverage: bus vs. discrete I/O | **Discrete inputs.** The detectors are tapped directly; movement cause is derived locally from input timing | GateLink PRD |
 | **D4** | Poll scheduler location | **Bridge firmware**, per node, runtime-configurable from an HA `number` entity | Bridge PRD |
-| **D5** | MQTT client library | **`MqttTransport` abstraction, PubSubClient first.** `MQTT_MAX_PACKET_SIZE` ≥ 1024 — the default 256 is smaller than a Discovery config and fails confusingly | Bridge Impl Plan |
+| **D5** | MQTT client library | **`MqttTransport` abstraction, PubSubClient first.** `MQTT_MAX_PACKET_SIZE` ≥ 1024 — the default 256 is smaller than a Discovery config and fails confusingly. **The designated fallback, espMqttClient, was taken on 2026-09-25 (BF-37)**, because PubSubClient 2.8 publishes at QoS 0 only and spec §16.3 requires QoS 1 for events. Bridge Impl Plan §4.3.3 | Bridge Impl Plan |
 | **D6** | Gate-node display trigger | **Button toggle + automatic on in any debug mode**, with an inactivity timeout on the manual path only | GateLink PRD |
 | **D7** | BusT4 VCC handling | **Superseded** — the BusT4 port is not connected in v1. Its VCC pin carries 24 V and stays untouched | Research Archive |
 | **D8** | HA entity modeling | **`cover` (device_class `gate`) as the primary control surface, plus a "Hold gate open" `switch`.** Position reporting deferred | GateLink PRD |
@@ -1232,6 +1232,9 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.22** — **D5's fallback taken.** The bridge moved to espMqttClient on 2026-09-25
+  (BF-37). D5's outcome records it; the decision itself is unchanged.
 
 - **v0.21** — **D62–D69 resolved on 2026-09-25**, the spec v0.15 set: two topics named,
   four PHY-change answers, bandwidth's legal points, bench answers published whatever

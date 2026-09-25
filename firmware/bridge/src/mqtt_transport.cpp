@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// PublishMessage construction. Task BF-12.
+// PublishMessage construction, and inbound reassembly. Tasks BF-12 and BF-37.
 //
 // Arduino-free on purpose: this is where a publication is accepted or refused, and
 // both the size rule and spec 16.3's retain rule are testable at a desk.
@@ -72,6 +72,49 @@ bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload
   }
   out->payload[payload_len] = '\0';  // the parsers take a length, but a log does not
   out->payload_len          = payload_len;
+  return true;
+}
+
+bool InboundAssembler::add(const char* topic, const uint8_t* piece, size_t len,
+                           size_t index, size_t total, InboundMessage* out) {
+  if (index == 0) {
+    // A publication left part-assembled is one the connection dropped mid-delivery.
+    if (active_) ++refused_;
+    active_   = false;
+    skipping_ = false;
+    // make_inbound() with no payload checks the topic, and the total is checked here,
+    // before any piece is copied: refused whole, never truncated.
+    if (total >= kMaxInboundPayloadLen || !make_inbound(&msg_, topic, nullptr, 0)) {
+      ++refused_;
+      skipping_ = true;
+      return false;
+    }
+    expected_ = total;
+    active_   = true;
+  } else if (skipping_) {
+    return false;
+  } else if (!active_ || index != msg_.payload_len) {
+    // A piece that does not continue the one in progress. Nothing assembled from it
+    // would be the publication the broker sent.
+    if (active_) ++refused_;
+    active_   = false;
+    skipping_ = true;
+    return false;
+  }
+
+  if (msg_.payload_len + len > expected_ || (len != 0 && piece == nullptr)) {
+    ++refused_;
+    active_   = false;
+    skipping_ = true;
+    return false;
+  }
+  if (len != 0) std::memcpy(msg_.payload + msg_.payload_len, piece, len);
+  msg_.payload_len += len;
+  if (msg_.payload_len != expected_) return false;
+
+  msg_.payload[msg_.payload_len] = '\0';
+  active_ = false;
+  if (out != nullptr) *out = msg_;
   return true;
 }
 

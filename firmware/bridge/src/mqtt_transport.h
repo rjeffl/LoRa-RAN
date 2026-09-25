@@ -5,12 +5,12 @@
 // Impl Plan 4.3, D5.
 //
 // WHY AN INTERFACE AT ALL. D5 chose PubSubClient first and named espMqttClient the
-// designated fallback. The seam is what makes that a swap rather than a rewrite, and
-// the reasons to take it are already written down: PubSubClient is synchronous and
-// unmaintained-adjacent, and large payloads are exactly where it is weakest.
+// designated fallback. The seam made that a swap rather than a rewrite, and BF-37 took
+// it: PubSubClient 2.8 publishes at QoS 0 only, and spec 16.3 requires QoS 1 for events.
+// mqtt_esp.cpp is the implementation now.
 //
-// Keep the interface free of PubSubClient's shape. If a method here exists because
-// PubSubClient needs it called, the seam has already leaked.
+// Keep the interface free of any one library's shape. If a method here exists because a
+// library needs it called, the seam has already leaked.
 
 #pragma once
 
@@ -25,8 +25,8 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 1536 bytes of payload against MQTT_MAX_PACKET_SIZE of 2048. The largest
-// thing this firmware builds is a discovery config, and discovery does NOT pass
+// SIZES. 1536 bytes of payload. The largest thing this firmware builds is a discovery
+// config, and discovery does NOT pass
 // through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
 // from there, so the queue is sized for state and diagnostics rather than for the one
 // payload that dwarfs them. 32 slots x ~1640 bytes is ~52 KB of static RAM, which is
@@ -53,6 +53,11 @@ namespace bridge {
 
 inline constexpr size_t kMaxTopicLen   = 96;
 inline constexpr size_t kMaxPayloadLen = 1536;
+
+// How many publications the transport may hold unfinished before mqtt_task stops handing
+// it more (MqttTransport::pending()). Eight covers the events in flight at QoS 1 and one
+// tick's state. The transport's pool, sized in platformio.ini, is what this protects.
+inline constexpr size_t kMaxPendingPublishes = 8;
 
 struct PublishMessage {
   char   topic[kMaxTopicLen]     = {0};
@@ -101,6 +106,30 @@ struct InboundMessage {
 // `payload` need not be NUL-terminated; `out->payload` always is.
 bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload,
                   size_t payload_len);
+
+// Reassembles one inbound publication from the pieces a transport delivers. BF-37:
+// espMqttClient hands over a payload in pieces cut at its read buffer, each with its
+// offset and the total, and a config/set cut in two is not two config/sets.
+//
+// ARDUINO-FREE, so the cut points are tested at a desk (test_net). A publication whose
+// total cannot fit is refused once, on its first piece, and its later pieces are
+// ignored rather than counted again.
+class InboundAssembler {
+ public:
+  // Returns true when `out` holds a complete publication. `refused` counts each whole
+  // publication refused.
+  bool add(const char* topic, const uint8_t* piece, size_t len, size_t index, size_t total,
+           InboundMessage* out);
+
+  uint32_t refused() const { return refused_; }
+
+ private:
+  InboundMessage msg_{};
+  size_t         expected_ = 0;      // the total of the publication in progress
+  bool           active_   = false;  // a publication is part-assembled in msg_
+  bool           skipping_ = false;  // the one in progress was refused on its first piece
+  uint32_t       refused_  = 0;
+};
 
 // Where a received publication goes. The transport calls this from its own loop(),
 // which runs on mqtt_task - so an implementation must not block, and must not do
@@ -153,15 +182,13 @@ class MqttTransport {
   // Where loop() delivers what arrives. Null detaches. Set it BEFORE the first
   // connect_once(): a subscription made before a sink exists delivers to nothing,
   // and the broker will not send a retained command again to make up for it.
-  //
-  // THIS IS THE SEAM'S ONE CONCESSION TO PubSubClient. The header above says a
-  // method that exists because PubSubClient needs it called means the seam has
-  // leaked - this one exists because PubSubClient's callback is a bare function
-  // pointer with no user context, so the implementation needs somewhere to keep the
-  // sink. espMqttClient takes a std::function and would not need it. Kept because
-  // the alternative is every caller knowing which library is underneath, which is
-  // the thing the seam is for.
   virtual void set_inbound(MqttInbound* sink) = 0;
+
+  // Publications accepted and not yet finished: a QoS 0 message not yet written to the
+  // socket, or a QoS 1 message the broker has not acknowledged. mqtt_task stops handing
+  // over work while this is at kMaxPendingPublishes, so the transport's static pool
+  // holds one tick's work and not the whole publish queue (BF-37).
+  virtual size_t pending() = 0;
 
   // Connection attempts and failures, for the diagnostic topics. Not the publish
   // counts: those belong to the queue accounting, which is where a drop is visible.

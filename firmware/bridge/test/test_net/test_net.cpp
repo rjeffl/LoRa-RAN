@@ -8,7 +8,7 @@
 // the exact topic strings, and the refusal of anything that would violate either the
 // payload cap or the never-retain-an-event rule.
 //
-// WHAT IT CANNOT. That WiFi.begin() was actually called, that PubSubClient set the
+// WHAT IT CANNOT. That WiFi.begin() was actually called, that espMqttClient set the
 // LWT, that a reconnect happened on a real AP. Those need the target and B2 bench
 // time; the bench does not need to be spent on arithmetic.
 
@@ -334,6 +334,69 @@ void test_the_inbound_buffer_is_much_smaller_than_the_outbound_one() {
   TEST_ASSERT_TRUE(kMaxInboundPayloadLen < kMaxPayloadLen);
 }
 
+// BF-37 - espMqttClient delivers a payload in pieces cut at its read buffer. The
+// assembler hands on one publication when the last piece arrives, and not before.
+namespace {
+const uint8_t* bytes(const char* s) { return reinterpret_cast<const uint8_t*>(s); }
+}  // namespace
+
+void test_pieces_assemble_into_one_publication() {
+  InboundAssembler a;
+  InboundMessage   out;
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("{\"op\":"), 6, 0, 25, &out));
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("\"restore_"), 9, 6, 25, &out));
+  TEST_ASSERT_TRUE(a.add("lran/bridge/config/set", bytes("defaults\"}"), 10, 15, 25, &out));
+  TEST_ASSERT_EQUAL_STRING("lran/bridge/config/set", out.topic);
+  TEST_ASSERT_EQUAL_STRING("{\"op\":\"restore_defaults\"}", out.payload);
+  TEST_ASSERT_EQUAL_size_t(25, out.payload_len);
+  TEST_ASSERT_EQUAL_UINT32(0, a.refused());
+}
+
+void test_a_whole_publication_in_one_piece_and_an_empty_one_pass() {
+  InboundAssembler a;
+  InboundMessage   out;
+  TEST_ASSERT_TRUE(a.add("lran/gatelink/cmd/open/set", bytes("PRESS"), 5, 0, 5, &out));
+  TEST_ASSERT_EQUAL_STRING("PRESS", out.payload);
+  TEST_ASSERT_TRUE(a.add("lran/gatelink/cmd/open/set", nullptr, 0, 0, 0, &out));
+  TEST_ASSERT_EQUAL_size_t(0, out.payload_len);
+  TEST_ASSERT_EQUAL_UINT32(0, a.refused());
+}
+
+// Refused whole on its first piece, counted once, and its later pieces ignored.
+void test_an_oversized_publication_is_refused_once() {
+  InboundAssembler a;
+  InboundMessage   out;
+  static uint8_t   big[kMaxInboundPayloadLen] = {0};
+  const size_t     total                      = kMaxInboundPayloadLen;
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", big, 300, 0, total, &out));
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", big, total - 300, 300, total, &out));
+  TEST_ASSERT_EQUAL_UINT32(1, a.refused());
+  // The next publication is unaffected.
+  TEST_ASSERT_TRUE(a.add("lran/gatelink/cmd/open/set", bytes("PRESS"), 5, 0, 5, &out));
+}
+
+// A connection that drops mid-publication leaves it part-assembled. The next first piece
+// abandons it, counted, rather than splicing two publications together.
+void test_an_abandoned_publication_is_counted_and_not_spliced() {
+  InboundAssembler a;
+  InboundMessage   out;
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("{\"op\":"), 6, 0, 25, &out));
+  TEST_ASSERT_TRUE(a.add("lran/gatelink/cmd/open/set", bytes("PRESS"), 5, 0, 5, &out));
+  TEST_ASSERT_EQUAL_STRING("lran/gatelink/cmd/open/set", out.topic);
+  TEST_ASSERT_EQUAL_STRING("PRESS", out.payload);
+  TEST_ASSERT_EQUAL_UINT32(1, a.refused());
+}
+
+// A piece whose offset does not continue the publication in progress is refused.
+void test_a_piece_out_of_order_is_refused() {
+  InboundAssembler a;
+  InboundMessage   out;
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("{\"op\":"), 6, 0, 25, &out));
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("defaults\"}"), 10, 15, 25, &out));
+  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", bytes("\"restore_"), 9, 6, 25, &out));
+  TEST_ASSERT_EQUAL_UINT32(1, a.refused());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_first_connect_does_not_wait);
@@ -361,5 +424,10 @@ int main() {
   RUN_TEST(test_an_inbound_message_is_copied_by_length_and_terminated);
   RUN_TEST(test_an_oversized_inbound_message_is_refused);
   RUN_TEST(test_the_inbound_buffer_is_much_smaller_than_the_outbound_one);
+  RUN_TEST(test_pieces_assemble_into_one_publication);
+  RUN_TEST(test_a_whole_publication_in_one_piece_and_an_empty_one_pass);
+  RUN_TEST(test_an_oversized_publication_is_refused_once);
+  RUN_TEST(test_an_abandoned_publication_is_counted_and_not_spliced);
+  RUN_TEST(test_a_piece_out_of_order_is_refused);
   return UNITY_END();
 }

@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.62
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` vv0.49 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.63
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.50 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -25,8 +25,8 @@ names come from spec §14.1** below).
 `platformio.ini` (`heltec` and `native`), `main.cpp` (banner, placeholder-key check,
 network config, task start), `tasks.{h,cpp}` and `queues.{h,cpp}`, `task_runtime.{h,cpp}`
 (every FreeRTOS call), `net_policy.{h,cpp}` (backoff, topic grammar, the retain rule),
-`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_pubsub.{h,cpp}` (D5's
-first implementation), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
+`wifi_link.{h,cpp}`, `mqtt_transport.{h,cpp}` (the seam), `mqtt_esp.{h,cpp}` (espMqttClient,
+D5's fallback since BF-37), `ota_policy.{h,cpp}` (the rollback verdict, host-tested),
 `ota.{h,cpp}`, `partitions.csv`, `status_page.{h,cpp}` (what the OLED says, host-tested),
 `ui.{h,cpp}` and `board_ui.h`.
 
@@ -94,11 +94,18 @@ unregistered source has been produced on the bench.
 - **An inbound payload is refused, never defaulted to `0`.** `arg` carries `REBOOT`'s
   `0xA5` guard.
 
-**`MqttTransport::set_inbound` is the seam's one concession to PubSubClient**, whose
-callback is a bare function pointer with no user context, so the implementation keeps
-the sink in a file static. A second `PubSubTransport` is refused at `begin()` rather
-than allowed to steal the first's callbacks. The reasoning is written at the
-declaration; do not remove it and do not widen the concession.
+**BF-37 replaced PubSubClient with espMqttClient** (Impl Plan §4.3.3). **Three things to
+keep:**
+
+- **`mqtt_task` calls the library's `loop()`.** Do not let the library start its own
+  task, and do not call `loop()` from inside the inbound sink: a nested `loop()` reads
+  into the buffer the outer one is still parsing.
+- **The library's packets come from a static pool**, sized in `platformio.ini`. Anything
+  that publishes in bulk waits for `transport_has_room()`, as the queue drain, discovery
+  and `config/state` do. A full pool also refuses the CONNECT, so a pool filled by
+  unacknowledged events cannot reconnect.
+- **An inbound payload arrives in pieces.** `InboundAssembler` rebuilds it; a sink sees
+  only whole publications.
 
 **`BF-22` — version tolerance, built and on air 2026-09-16.** The ladder accepts
 **N and N−1** and refuses N−2; `node_tx_ver()` (`registry.h`) picks the version each node
@@ -270,9 +277,9 @@ them; Impl Plan §6.3.1. **Four things to keep:**
   and an event is remembered only once the sink has accepted it.
 - **Every event payload carries `synthetic`**, from `on_event()`'s own argument, because
   spec §7.3 gives an `EVENT` no `status_reason` to carry the mark (BF-27).
-- **`msg.qos` is not honoured on the wire.** PubSubClient 2.8 publishes at QoS 0, so
-  `drain_publish_queue()` holds a failed event and retries it first. espMqttClient is the
-  fix.
+- **Events have their own queue** (BF-38), drained before state. An event leaves it only
+  once the transport accepts it, and the transport holds it at QoS 1 until the broker
+  acknowledges it.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
@@ -431,8 +438,8 @@ Impl Plan §6.3.1) · `hex_proxy` · `ui` ·
 `debug` (BF-27 built its frame log as `frame_log` and its dummy publish as `dummy`).
 Task ownership is in Impl Plan §5.2/§5.3.
 
-`MqttTransport` is an interface; PubSubClient is the first implementation. Keep the seam —
-espMqttClient is the designated fallback.
+`MqttTransport` is an interface. PubSubClient was the first implementation, and espMqttClient,
+D5's designated fallback, replaced it at BF-37. Keep the seam.
 
 ## Publication rules
 

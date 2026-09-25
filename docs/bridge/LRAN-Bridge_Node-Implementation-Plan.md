@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.62
+**Version:** 0.63
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -481,7 +481,8 @@ before the reboot then stays retained, because nothing clears it. A normal set a
 Topic grammar and retention rules are in Protocol Spec §16.
 
 **Library selection (D5).** Define a thin **`MqttTransport` interface and implement it
-first against PubSubClient.** Bridge traffic is modest — a poll per node every 1–5
+first against PubSubClient.** **BF-37 took the designated fallback on 2026-09-25**, because
+PubSubClient publishes at QoS 0 only (§4.3.3). Bridge traffic is modest — a poll per node every 1–5
 minutes plus occasional commands and events — so throughput and QoS 2 are irrelevant.
 What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
 
@@ -522,8 +523,44 @@ What matters is reliable reconnect, LWT, and publishing discovery-config JSON.
   flag silently leaves a caller believing something untrue.
 - **Nothing is truncated.** An oversized topic or payload is refused and counted.
 - **A failed publish loses that message**, counted, and leaves the rest queued.
-  Re-queueing would reorder it behind newer state for the same entity. **An event is held
-  and retried instead** (§6.3.2).
+  Re-queueing would reorder it behind newer state for the same entity. **An event stays at
+  the head of its own queue instead** (§4.3.3).
+
+#### 4.3.3 What BF-37 and BF-38 changed, 2026-09-25
+
+**espMqttClient 1.7.3 replaced PubSubClient behind `MqttTransport`** (`mqtt_esp.{h,cpp}`),
+and events now reach the broker at QoS 1. BF-12's choices above carry over: the reconnect
+cadence, the 30 s keepalive, the LWT and both spec §16.3 checks. On 2026-09-25 a subscriber
+at QoS 1 received the bridge's events at QoS 1. Two events raised while the broker
+restarted reached it after the reconnect.
+
+| Choice | Why |
+|---|---|
+| **No internal task.** `mqtt_task` calls the library's `loop()` | The library runs where PubSubClient ran, at §5.2.1's priority and core. The inbound sink still runs on `mqtt_task` |
+| **A static packet pool** (`EMC_USE_MEMPOOL`, 48 blocks of 512 bytes) | Root rule 3. By default the library takes each outgoing packet from the heap |
+| **`mqtt_task` hands work over only while fewer than `kMaxPendingPublishes` (8) are unfinished** | The library queues a publish and writes it in `loop()`, where PubSubClient wrote at once. Without the gate the drain would move the whole publish queue into the pool |
+| **`connect_once()` waits up to 5 s for the CONNACK** | The seam promises one attempt that reports its outcome. The library connects over several `loop()` passes. PubSubClient's 5 s socket timeout bounded the same wait |
+| **A publish while not connected is refused** (`EMC_ALLOW_NOT_CONNECTED_PUBLISH=0`) | The bridge's own queues ride out an outage. The pool is not sized to |
+| **An accepted QoS 1 event is the library's until the broker acknowledges it** | A clean session, so the broker keeps nothing across a reconnect. The library keeps its unacknowledged publications and sends them again after the CONNACK |
+| **`InboundAssembler` rebuilds an inbound payload from its pieces** | The library delivers a payload in pieces cut at its read buffer. `test_net` covers the cut points. `set_inbound()` is no longer a concession to one library: the callback captures the transport |
+| **`MQTT_MAX_PACKET_SIZE` is gone** | The library sizes each packet to its contents |
+
+**Events have a queue of their own (BF-38)**, depth 8, and `mqtt_task` drains it before the
+state queue. Until then, state could fill all 32 publish slots during a broker outage and
+the queue then refused the next event. An event is peeked, published and only then
+removed, which replaces BF-25's held-event slot. **State stays DropNewest**: a state
+document the queue refuses is not recorded as published, so the node's next frame replaces
+it. Dropping the oldest instead would lose a change the policy had already recorded. The
+event queue reports `q_event_dropped` and `q_event_high_water` with the other queues.
+
+**The cost is about 42 KB of static RAM**: 197,328 bytes on `main` before BF-37 and 239,260
+after, for the event queue and the pool. After a broker reconnect on 2026-09-25 the bridge
+reported 72,580 bytes of heap free and 60,188 at the lowest. It prints both on every
+connect.
+
+**AsyncTCP (LGPL-3.0) is compiled and not linked.** espMqttClient lists it as a dependency
+on every ESP32 build. `THIRD_PARTY_NOTICES.md` gives the linker-map check that would show
+it linked.
 
 #### 4.3.2 What BF-19 publishes, 2026-09-14
 
@@ -699,7 +736,7 @@ the bridge would answer it `not_applied` on `config/ack`, a topic nobody watches
 | LoRa | **RadioLib** (SX1262) | MIT |
 | Protocol | **`/lib/lran-protocol/`** — the same library every node links | — |
 | WiFi | Arduino-ESP32 | LGPL-2.1-or-later |
-| MQTT | **`MqttTransport` → PubSubClient** (**D5**) | MIT |
+| MQTT | **`MqttTransport` → espMqttClient** (**D5**'s fallback, BF-37) | MIT |
 | JSON | ArduinoJson | MIT |
 | Display | **ThingPulse SSD1306 driver** — `thingpulse/ESP8266 and ESP32 OLED driver for SSD1306 displays`, version pinned. Not U8g2; see §5.1.1 | MIT |
 | HMAC / HKDF | mbedTLS via ESP-IDF | Apache-2.0 |
@@ -814,7 +851,7 @@ radio level. **M22 found no PER cost from saturated WiFi on the bench** (§8.1.3
 at the gate degrades with WiFi load, this pinning is one of the two levers, and antenna
 separation is the other. Neither rescues a design that publishes inline.
 
-**Queue depths: RX 8, publish 32, TX 4, log 16.** The publish queue is the deep one
+**Queue depths: RX 8, publish 32, event 8, TX 4, log 16.** The publish queue is the deep one
 because a single status frame fans out into a dozen entities and because it is what
 rides out a broker reconnect. **The TX queue is shallow on purpose**: the bridge
 serializes polls fleet-wide (§6.1, R-3.1d), so depth there would mean something
@@ -822,8 +859,8 @@ upstream had stopped honouring that, and a queue is the wrong place to discover 
 
 **A full queue drops the newest item and counts it.** Blocking is how a slow consumer
 reaches back and stops `lora_task`, which §5.2 and PRD §1.3 forbid. Dropping the
-oldest suits state, which is idempotent, and is wrong for events, which are not —
-**BF-24 and BF-25 own the per-class refinement** once the publication policy exists.
+oldest suits state, which is idempotent, and is wrong for events, which are not.
+**BF-38 built the per-class refinement** as a separate event queue, depth 8 (§4.3.3).
 Each queue carries `sent`, `dropped` and `high_water`; these are **bridge
 diagnostics, not schema `0xF0`**, because §14.1 is the wire's registry and a queue
 overflow has no §14 stage. The engineering log's 2026-09-10 entry records why root
@@ -853,8 +890,8 @@ a tripwire on the shape of the mistake, not a proof.
     rx_ladder.cpp       spec 14 stages 1-10: decode, MAC, reassembly   [lora_task]
     (lib/lran-link)     spec 12.3 CAD, backoff, transmit regardless     [lora_task]
     radio_config.h      RadioPins and the fixed PHY (spec 12.1, 12.2)
-    mqtt_transport.cpp  MqttTransport iface + PubSubClient impl,       [mqtt_task]
-                        inbound dispatch (§6.2.1)
+    mqtt_transport.cpp  MqttTransport iface, inbound reassembly       [mqtt_task]
+    mqtt_esp.cpp        the espMqttClient implementation (§4.3.3)      [mqtt_task]
     discovery.cpp       Discovery config generation and publication    [mqtt_task]
     publish.cpp         publication policy: on-change, staleness,      [app_task]
                         bench-node publication gate (§4.2a)
@@ -1070,7 +1107,7 @@ number, because a command path with no command source cannot be tested.
 
 | Decision | Why |
 |---|---|
-| `MqttTransport` gains an inbound sink | The seam's one concession to PubSubClient, whose callback is a bare function pointer with no user context. A second instance is refused rather than allowed to steal the first's callbacks |
+| `MqttTransport` gains an inbound sink | The seam's one concession to PubSubClient, whose callback is a bare function pointer with no user context. A second instance is refused rather than allowed to steal the first's callbacks. **Since BF-37 the concession is gone** (§4.3.3) |
 | Action tokens are spec §8.1's `cmd` names lowercased — `open`, `hold_open` | §16.1 fixes the topic shape and §16.2.1 leaves the vocabulary to the bridge. One term names one concept from Home Assistant to the wire. **Breaking to rename once B4 builds discovery on them** |
 | Inbound payload buffer is 64 bytes against the outbound 768 | Nothing the bridge *acts on* should arrive in a large buffer |
 | An unreadable payload is refused, never defaulted to `0` | `arg` carries `REBOOT`'s `0xA5` guard, so a silent default turns something unreadable into a different command |
@@ -1214,14 +1251,12 @@ keys, so these keys are frozen:
 | **A refused event is not remembered** | The node's retransmission of it, if one comes, then gets through. Counted as `queue_refused` |
 | **A broker connect forgets the documents, not the events** | None was retained. Forgetting them would let a late retransmission publish a second time |
 | **`make_publish()` refuses an event topic asked for at QoS 0**, as it refuses a retained one | The two halves of spec §16.3's rule are checked in the same place |
-| **A failed publish holds an event and retries it first** (`drain_publish_queue()`) | State is lost on a failed publish and the next frame replaces it. An event has no replacement, because the policy has already recorded it as published |
+| **A refused publish leaves an event at the head of its queue** (`drain_publish_queue()`). A held-event slot until BF-38 (§4.3.3) | State is lost on a failed publish and the next frame replaces it. An event has no replacement, because the policy has already recorded it as published |
 | **A bench node's event is decoded, counted as `bench_withheld` and never published** | Spec §16.6, as for its `STATUS` |
 
-**PubSubClient 2.8 publishes at QoS 0, whatever the message asks.** Spec §16.3 requires QoS 1.
-The message carries `qos = 1` and `make_publish()` checks it, but the transport ignores it.
-Over TCP to a LAN broker, QoS 0 loses a message only when the connection drops during the
-publish, and the held-event retry above covers the failure the bridge can see. D5's
-designated fallback, espMqttClient, publishes at QoS 1. The move is a separate branch.
+**PubSubClient 2.8 published at QoS 0, whatever the message asked**, although spec §16.3
+requires QoS 1. BF-37 moved the bridge to espMqttClient, D5's designated fallback, and
+events leave at QoS 1 (§4.3.3).
 
 **`lran/bridge/diag/publish/state` gains three counts**: `event_frames`, `events` and
 `event_repeats`. `bench_withheld`, `queue_refused` and `undecodable` now count both kinds of
@@ -2703,6 +2738,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.63** — **Events at QoS 1, from their own queue.** New §4.3.3 records BF-37's move to
+  espMqttClient, D5's designated fallback, and BF-38's event queue. §4.3, §4.3.1, §5.2.1,
+  §6.2.1 and §6.3.2 point to it.
 
 - **v0.62** — **Spec v0.15's code, on air.** §6.7.2a records two bridge fixes from the
   2026-09-25 bench run: a set refusing every PHY row answers `not_applied`, and the

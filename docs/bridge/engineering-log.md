@@ -3187,3 +3187,49 @@ bridge, so a bench step that opens a console mid-scenario is also a reboot.
 Suites: bridge 430 of 430, simnode 130 of 130; the `heltec` target builds. The run left
 `simnode_diag_enable` and each bench row's `deployed` cleared, and `phy_trial_s` back at
 120.
+
+## 2026-09-25 — events at QoS 1 on espMqttClient, from a queue of their own (BF-37, BF-38)
+
+**The bridge publishes events at QoS 1 now, and state can no longer take an event's queue
+slot.** BF-37 replaced PubSubClient 2.8 with espMqttClient 1.7.3, D5's designated fallback.
+BF-38 gave events a queue of their own. Impl Plan §4.3.3 records the choices. The bridge
+board ran `e08f4b1`, flashed from a clean tree.
+
+**What the bench showed**, on the sandbox broker:
+
+| Check | Result |
+|---|---|
+| A dummy `vehicle_while_held_open`, read by a subscriber at QoS 1 | Arrived at QoS 1, not retained. The broker delivers at the lower of the two QoS values, so the bridge published at QoS 1 |
+| The Mosquitto add-on restarted; three dummy `STATUS` frames and a `fire_asserted` with its follow-up raised during the outage | Both events arrived within 0.1 s of the bridge's `online`, each once |
+| `lran/bridge/diag/radio/state` afterwards | `q_event_high_water` 2 and `q_event_dropped` 0, beside the six older queues |
+| Heap, printed by the bridge on the reconnect | 72,580 bytes free, 60,188 at the lowest |
+
+**The run did not force a QoS 1 retransmission.** An event the broker has not acknowledged
+when the connection drops is sent again after the CONNACK. That behaviour comes from reading
+espMqttClient's `_clearQueue()` and `_onConnack()`, and no bench run has exercised it. The
+events in the outage row waited in the bridge's own event queue, which BF-38 built, and
+never reached the library before the reconnect.
+
+**Static RAM rose about 42 KB**, from 197,328 bytes on `main` to 239,260. The event queue
+takes 13 KB and the library's packet pool about 25 KB. There is no heap figure from before
+the change to compare with, because nothing printed one.
+
+**Three things in the library cost the most reading:**
+
+- **By default, espMqttClient allocates each outgoing packet on the heap.** Root rule 3
+  forbids that. `EMC_USE_MEMPOOL` switches it to a static pool, and nothing in its README
+  says so. With a pool, the library's `publish()` queues a packet and writes it in `loop()`,
+  so the drain now waits for `pending()` to fall below eight.
+- **An inbound payload arrives in pieces cut at the library's read buffer**, each with its
+  offset and the total. A `config/set` cut in two would have been parsed as two broken
+  ones. `InboundAssembler` rebuilds it, and `test_net` covers the cut points.
+- **Its `library.json` lists AsyncTCP, which is LGPL-3.0, as a dependency on every ESP32
+  build.** PlatformIO compiles it, and the linker map shows no AsyncTCP member in the image.
+  `THIRD_PARTY_NOTICES.md` has the `grep` that would show otherwise.
+
+**The synthetic filter for Home Assistant** is `ha/automations/lran_event_notify.yaml`. It
+was loaded into the sandbox HA as committed. A dummy event from the bridge reached the
+broker and did not trigger it. A hand-published event marked `synthetic: false` did, which
+left one persistent notification in the sandbox. The automation was deleted after the run.
+
+Suites: bridge 436 of 436; the `heltec` target builds.

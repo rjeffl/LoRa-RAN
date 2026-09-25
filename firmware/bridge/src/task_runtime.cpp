@@ -35,7 +35,7 @@
 #include "discovery.h"
 #include "levers.h"
 #include "lora_link.h"
-#include "mqtt_pubsub.h"
+#include "mqtt_esp.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
 #include "node_availability.h"
@@ -76,6 +76,11 @@ uint8_t      g_publish_storage[queue_storage_bytes(kPublishQueueDepth,
 StaticQueue_t g_publish_queue_buf;
 QueueHandle_t g_publish_queue = nullptr;
 
+// BF-38 - events alone, so state cannot take an event's slot (queues.h).
+uint8_t      g_event_storage[queue_storage_bytes(kEventQueueDepth, sizeof(PublishMessage))];
+StaticQueue_t g_event_queue_buf;
+QueueHandle_t g_event_queue = nullptr;
+
 // BF-18. mqtt_task parses a command topic into one of these; sched_task runs it.
 uint8_t      g_command_storage[queue_storage_bytes(kCommandQueueDepth,
                                                    sizeof(CommandRequest))];
@@ -100,12 +105,12 @@ QueueHandle_t g_config_queue = nullptr;
 inline constexpr size_t kLogDrainBudget = 16;
 
 // The transport, static like everything else here (root rule 3). The seam is
-// MqttTransport; this is the only line in the firmware that names PubSubClient's
-// implementation, which is what makes D5's designated fallback a one-line swap.
-PubSubTransport g_mqtt;
+// MqttTransport; this is the only line in the firmware that names its implementation,
+// which is what made D5's designated fallback a swap (BF-37).
+EspMqttTransport g_mqtt;
 
-// Health, as ota_task sees it. Atomics rather than calls into the objects: PubSubClient
-// is not thread-safe, and ota_task asking g_mqtt.connected() directly would be a read
+// Health, as ota_task sees it. Atomics rather than calls into the objects: the transport
+// is mqtt_task's alone, and ota_task asking g_mqtt.connected() directly would be a read
 // racing mqtt_task's writes. mqtt_task publishes the answer once per tick instead.
 std::atomic<bool> g_mqtt_up{false};
 std::atomic<bool> g_tasks_started{false};
@@ -1528,36 +1533,31 @@ void sched_task(void*) {
   }
 }
 
-// Everything queued, in one pass, while the broker holds. Stops on the first failed
-// publish and leaves the rest queued: a broker that refused one message is about to
-// refuse the next, and draining into a dead socket turns a reconnect into a data loss.
+// Moves queued publications into the transport while the broker holds: events first,
+// then state. Stops when the transport holds kMaxPendingPublishes unfinished, so its
+// static pool never takes more than one tick's work, and on the first refusal: a
+// transport that refused one message is about to refuse the next.
 //
-// A STATE MESSAGE IS LOST ON A FAILED PUBLISH. It has already been dequeued, and
-// re-queueing it would reorder it behind newer state for the same entity. Counted,
-// not silent - see queues.h on root rule 4. The node's next frame publishes it afresh.
+// AN EVENT LEAVES ITS QUEUE ONLY WHEN THE TRANSPORT ACCEPTS IT (BF-25, BF-38). It is
+// peeked, published, and only then removed, so a refusal leaves it at the head for the
+// next pass. Nothing publishes it afresh: the policy has already recorded it as published.
+// Once accepted it is the transport's at QoS 1, sent again after a reconnect until the
+// broker acknowledges it (BF-37).
 //
-// AN EVENT IS HELD AND TRIED FIRST ON THE NEXT PASS (BF-25). Nothing publishes it afresh:
-// the policy has already recorded it as published, so the node's retransmission, if one
-// comes, is withheld. Newer state cannot overtake it, because the pass stops at the
-// failure, and a second event cannot fail while one is held for the same reason. This is
-// what QoS 1 would give, and PubSubClient cannot (mqtt_pubsub.cpp).
-PublishMessage g_event_held;
-bool           g_event_is_held = false;
+// A STATE MESSAGE IS LOST ON A REFUSED PUBLISH. Re-queueing it would reorder it behind
+// newer state for the same entity. Counted, not silent - see queues.h on root rule 4.
+// The node's next frame publishes it afresh.
+bool transport_has_room() { return g_mqtt.pending() < kMaxPendingPublishes; }
 
 void drain_publish_queue() {
-  if (g_event_is_held) {
-    if (!g_mqtt.publish(g_event_held)) return;
-    g_event_is_held = false;
-  }
   PublishMessage msg;
-  while (xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
+  while (transport_has_room() && xQueuePeek(g_event_queue, &msg, 0) == pdTRUE) {
+    if (!g_mqtt.publish(msg)) return;
+    (void)xQueueReceive(g_event_queue, &msg, 0);
+  }
+  while (transport_has_room() && xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
     if (!g_mqtt.publish(msg)) {
-      if (is_event_topic(msg.topic)) {
-        g_event_held    = msg;
-        g_event_is_held = true;
-      } else {
-        g_accounting.record_dropped(QueueId::Publish);
-      }
+      g_accounting.record_dropped(QueueId::Publish);
       return;
     }
   }
@@ -1566,7 +1566,7 @@ void drain_publish_queue() {
 // ---------------------------------------------------------------------------
 // The inbound command sink (BF-18) - spec 16.2's `lran/<node>/cmd/<action>/set`.
 //
-// THIS RUNS INSIDE PubSubClient's CALLBACK, on mqtt_task, from g_mqtt.loop(). It
+// THIS RUNS INSIDE THE TRANSPORT'S CALLBACK, on mqtt_task, from g_mqtt.loop(). It
 // parses and queues; it does not transmit, take the scheduler's lock, or touch the
 // registry's learned state. Everything that decides is sched_task's.
 //
@@ -1628,7 +1628,7 @@ class CommandInbound final : public MqttInbound {
 //
 // THE DOCUMENTS ARE STATIC, for the reason BF-19 gives for sched_task's PublishMessage.
 // A PublishMessage is ~880 bytes and a config/ack is up to 768 more; mqtt_task's stack
-// is 6144 and PubSubClient's callback already sits inside it. mqtt_task is the only task
+// is 6144 and the transport's callback already sits inside it. mqtt_task is the only task
 // that touches any of these.
 // ---------------------------------------------------------------------------
 
@@ -1940,9 +1940,8 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
 }
 
 // ---------------------------------------------------------------------------
-// One sink, two topic families. MqttTransport::set_inbound takes a single sink
-// (mqtt_transport.h's one concession to PubSubClient), so the routing is here rather
-// than in the transport.
+// One sink, two topic families. MqttTransport::set_inbound takes a single sink, so the
+// routing is here rather than in the transport.
 // ---------------------------------------------------------------------------
 
 class InboundRouter final : public MqttInbound {
@@ -2000,9 +1999,9 @@ void drain_config_state(size_t budget) {
 // Plan 4.4), so it is not a branch that can be got wrong - it is the only branch.
 //
 // DRAINED A FEW AT A TIME RATHER THAN IN ONE BURST. The whole set is a few dozen
-// documents of ~450 bytes; publishing them back to back would hold mqtt_task inside
-// PubSubClient without a loop() between them, on a socket that has just reconnected.
-// At this task's 100 ms period the set is out within about a second either way.
+// documents of ~450 bytes; publishing them back to back would fill the transport's pool
+// without a loop() between them, on a socket that has just reconnected. At this task's
+// 100 ms period the set is out within about a second either way.
 //
 // PUBLISHED DIRECTLY, NOT THROUGH g_publish_queue. The queue is sized for state
 // (Impl Plan 4.3.2) and a reconnect would otherwise push a few dozen configs in front
@@ -2085,6 +2084,11 @@ void drain_discovery(size_t budget) {
 // retained state unless it was persisted, and the bridge is the only thing that can
 // put its own availability back (spec 16.5).
 void on_mqtt_connected() {
+  // BF-37 added about 42 KB of static RAM: the event queue and espMqttClient's pool. The
+  // heap WiFi and lwIP draw on is what is left, so each connect reports it.
+  Serial.printf("mqtt: connected, heap free %lu, lowest %lu\n",
+                static_cast<unsigned long>(esp_get_free_heap_size()),
+                static_cast<unsigned long>(esp_get_minimum_free_heap_size()));
   char topic[kMaxTopicLen];
   if (topic_availability("bridge", topic, sizeof(topic)) == 0) {
     return;
@@ -2172,10 +2176,11 @@ void mqtt_task(void*) {
         g_mqtt.loop();
         drain_publish_queue();
         // After the queue: a node's current reading matters more than a config HA has
-        // already got, and the set is republished on the next connect regardless.
-        drain_discovery(4);
+        // already got, and the set is republished on the next connect regardless. Each
+        // waits for the transport to have room, as the queue does (BF-37).
+        if (transport_has_room()) drain_discovery(4);
         // After discovery: an entity must exist before its state means anything.
-        drain_config_state(2);
+        if (transport_has_room()) drain_config_state(2);
       } else if (mqtt_next_ms == 0 || static_cast<int32_t>(now - mqtt_next_ms) >= 0) {
         // Same unsigned-wrap-safe comparison as wifi_link.cpp: millis() wraps at
         // ~49.7 days and this node is expected to run for years.
@@ -2456,12 +2461,14 @@ bool start_tasks() {
                                   &g_tx_queue_buf);
   g_publish_queue = xQueueCreateStatic(kPublishQueueDepth, sizeof(PublishMessage),
                                        g_publish_storage, &g_publish_queue_buf);
+  g_event_queue = xQueueCreateStatic(kEventQueueDepth, sizeof(PublishMessage),
+                                     g_event_storage, &g_event_queue_buf);
   g_config_queue = xQueueCreateStatic(kConfigQueueDepth, sizeof(ConfigJob),
                                       g_config_storage, &g_config_queue_buf);
   g_command_queue = xQueueCreateStatic(kCommandQueueDepth, sizeof(CommandRequest),
                                        g_command_storage, &g_command_queue_buf);
   if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||
-      g_command_queue == nullptr) {
+      g_event_queue == nullptr || g_command_queue == nullptr) {
     return false;
   }
 
@@ -2547,13 +2554,16 @@ bool take_tx(TxMessage* out) {
   return g_tx_queue != nullptr && xQueueReceive(g_tx_queue, out, 0) == pdTRUE;
 }
 
+// BF-38 - an event goes to its own queue, so no amount of state can take its slot.
 bool send_publish(const PublishMessage& msg) {
-  if (g_publish_queue == nullptr || xQueueSend(g_publish_queue, &msg, 0) != pdTRUE) {
-    g_accounting.record_dropped(QueueId::Publish);
+  const bool          event = is_event_topic(msg.topic);
+  const QueueId       id    = event ? QueueId::Event : QueueId::Publish;
+  const QueueHandle_t q     = event ? g_event_queue : g_publish_queue;
+  if (q == nullptr || xQueueSend(q, &msg, 0) != pdTRUE) {
+    g_accounting.record_dropped(id);
     return false;
   }
-  g_accounting.record_sent(
-      QueueId::Publish, static_cast<size_t>(uxQueueMessagesWaiting(g_publish_queue)));
+  g_accounting.record_sent(id, static_cast<size_t>(uxQueueMessagesWaiting(q)));
   return true;
 }
 
@@ -2607,7 +2617,7 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
   // again to make up for it (mqtt_transport.h).
   g_mqtt.set_inbound(&g_inbound_router);
 
-  // The LWT topic and payload are static storage, not stack: PubSubClient keeps the
+  // The LWT topic and payload are static storage, not stack: the transport keeps the
   // pointers it is given and uses them on every reconnect, so a stack buffer here
   // would publish whatever later occupied those bytes.
   static char will_topic[kMaxTopicLen];

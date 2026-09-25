@@ -93,6 +93,19 @@ void test_queue_depths_reflect_their_jobs() {
   TEST_ASSERT_TRUE(kRxQueueDepth > kTxQueueDepth);
 }
 
+// BF-38 - events have a queue of their own, so a full state queue cannot refuse one.
+// Counted apart, so a dropped event is never hidden inside the state queue's count.
+void test_events_have_their_own_queue_and_count() {
+  TEST_ASSERT_TRUE(kEventQueueDepth > 0);
+  QueueAccounting a;
+  for (size_t i = 0; i < kPublishQueueDepth; ++i) a.record_sent(QueueId::Publish, i + 1);
+  a.record_dropped(QueueId::Publish);
+  a.record_sent(QueueId::Event, 1);
+  TEST_ASSERT_EQUAL_UINT32(0, a.stat(QueueId::Event).dropped);
+  TEST_ASSERT_EQUAL_UINT32(1, a.stat(QueueId::Event).sent);
+  TEST_ASSERT_EQUAL_UINT32(1, a.stat(QueueId::Publish).dropped);
+}
+
 // Static storage arithmetic, asserted at a desk rather than discovered as a NULL
 // queue handle at boot.
 void test_queue_storage_is_depth_times_item() {
@@ -159,5 +172,6 @@ int main() {
   RUN_TEST(test_accounting_starts_clean);
   RUN_TEST(test_a_drop_is_counted_and_raises_the_health_flag);
   RUN_TEST(test_high_water_holds_the_deepest_occupancy);
+  RUN_TEST(test_events_have_their_own_queue_and_count);
   return UNITY_END();
 }

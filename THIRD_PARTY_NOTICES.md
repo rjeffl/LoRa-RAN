@@ -45,11 +45,25 @@ Copyright (c) 2016 by Fabrice Weinberg
 OLED display driver. Pinned at **4.6.2** in `firmware/bridge`, `firmware/simnode` and
 `firmware/range-test`; pinned at **^4.4.0** [4.6.2] in `wattcycle-reader/platformio.ini`.
 
-### PubSubClient — MIT
+### espMqttClient — MIT
 
-Copyright (c) 2008-2020 Nicholas O'Leary
+Copyright (c) 2022 Bert Melis
 
-MQTT client for the bridge. Pinned at **2.8** in `firmware/bridge/platformio.ini`.
+MQTT client for the bridge since **BF-37**, replacing PubSubClient. Pinned at **1.7.3** in
+`firmware/bridge/platformio.ini`.
+
+**It brings AsyncTCP (LGPL-3.0), which is compiled and not linked.** espMqttClient's
+`library.json` lists AsyncTCP as a dependency on every ESP32 build, so PlatformIO installs
+and compiles it. The bridge uses the library's synchronous client, and no AsyncTCP
+object reaches the image. The linker map is the check: after a bridge build, this command
+must print nothing.
+
+```bash
+grep 'libAsyncTCP\.a(' firmware/bridge/.pio/build/heltec/firmware.map
+```
+
+A line printed there means AsyncTCP code is in the firmware, and this section needs an
+LGPL-3.0 entry.
 
 ### Unity — MIT
 
@@ -169,8 +183,8 @@ worth recording rather than silently reconciling, and one has been resolved:
    firmware does not exist, the row still describes the design as planned.
 3. **Some §11.1 rows have no build yet.** ArduinoJson and the VE.Direct parser are
    listed there and neither is installed: the bridge builds without ArduinoJson, and
-   GateLink's firmware does not exist. PubSubClient, the third row this item named, is
-   now in the bridge build and in §1.
+   GateLink's firmware does not exist. PubSubClient, the third row this item named, was
+   in the bridge build until **BF-37** replaced it with espMqttClient.
 
 **Resolved 2026-09-08 — the display row.** §11.1 named **U8g2** and nothing in the
 repository ever used it: both Heltec V3 implementations chose the ThingPulse SSD1306
@@ -194,7 +208,7 @@ Apache-2.0 is linked rather than inlined for length.
 
 ### MIT
 
-Applies to: RadioLib, the ThingPulse SSD1306 driver, PubSubClient, Unity, M5StamPLC, M5Unified, M5GFX,
+Applies to: RadioLib, the ThingPulse SSD1306 driver, espMqttClient, Unity, M5StamPLC, M5Unified, M5GFX,
 and LRAN itself. Each component's own copyright line is in §1; the permission notice is
 identical to the one in this repository's `LICENSE`.
 

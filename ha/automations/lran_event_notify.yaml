@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The shape every LRAN event automation starts from. Hand-written, unlike ha/discovery/;
+# ha/README.md says what it shows and how it was checked.
+#
+# THE CONDITION IS THE POINT. A bridge's dummy publish (BF-27) reaches a node's real event
+# topics whenever that node has not been heard since the bridge booted, marked
+# `synthetic: true` (Impl Plan 6.6.2). Without the condition, a bench session on a
+# deployed bridge sends a real alert about an event that never happened.
+#
+# `is not sameas true`, not `== false`: a payload missing the key still alerts. An alert
+# withheld by a malformed payload is the worse failure for a gate.
+
+alias: "LRAN - GateLink event notification"
+description: >-
+  One notification per GateLink event. Synthetic events from the bridge's dummy
+  publish are ignored.
+mode: queued
+triggers:
+  - trigger: mqtt
+    topic: "lran/gatelink/event/#"
+conditions:
+  - condition: template
+    value_template: "{{ trigger.payload_json.synthetic is not sameas true }}"
+actions:
+  - action: persistent_notification.create
+    data:
+      title: "GateLink: {{ trigger.payload_json.event_type or 'unknown event' }}"
+      message: >-
+        {{ trigger.topic }} - event_id {{ trigger.payload_json.event_id }},
+        ctx_id {{ trigger.payload_json.ctx_id }},
+        follow_up {{ trigger.payload_json.follow_up }}
