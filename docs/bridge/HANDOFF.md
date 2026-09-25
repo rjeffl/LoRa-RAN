@@ -1,10 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that built the code spec v0.15 owed.** Group 1 below
-is done on host: the libraries, the simnode and the bridge carry D63, D64 and D66–D69, and
-every native suite passes. None of it has run on air, so group 1 now holds the bench check
-and two gaps the work found. The bridge log's 2026-09-25 *code spec v0.15 owed* entry has
-the findings.
+**Written 2026-09-25 by the session that ran spec v0.15's code on air.** That group is
+done: all four bench checks pass, and D69's readback ran end to end once the simnode sent
+`CONFIG_CHANGE`. The run found one bridge defect, a wrong `persist`, and fixed it with the
+two gaps the previous session listed. The bridge log's 2026-09-25 *Spec v0.15's code on
+air* entry has the findings.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,8 +19,8 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **No task is queued.** The operator picks the next one from *Work before GateLink*. The
-groups are in the suggested order: the first two change what GateLink is built against or
-what it depends on at deployment, and the rest do not.
+groups are in the suggested order: the first changes what GateLink depends on at
+deployment, the second is B5, and the rest do not change GateLink.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -50,21 +50,7 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise.
 
-### 1. Spec v0.15's code, on air
-
-**Built and host-tested on 2026-09-25**; Impl Plan §6.7.2a and Library Plan v0.21 say
-what changed. What remains is one bench session and two small fixes:
-
-- **Flash the bridge and both simnodes, and check each change at the broker**:
-  `config/state`'s `source` for an override set equal to its default, `invalid_value` for
-  a bandwidth of 300 on both topics, `boot` on `phy_reverted`, and `diag/rxlog/log` read by
-  `tools/simctl/rxlog.py`. The bridge's boot count starts at 1 on the first flash.
-- **No simnode sends `CONFIG_CHANGE` after its own PHY revert** (spec §8.7, D69). The
-  bridge's readback path can be driven only by setting the reason by hand until it does.
-- **The readback mirror skips a `CLAMPED` result**, so a clamped node set leaves the old
-  value in `config/state`. It predates v0.15; `ConfigStore::note_set_results()`.
-
-### 2. Event delivery, before events drive email and SMS
+### 1. Event delivery, before events drive email and SMS
 
 - **BF-37 — events at QoS 1.** PubSubClient 2.8 publishes at QoS 0 only, and spec §16.3
   requires QoS 1 for events. The fix is D5's designated fallback, espMqttClient, behind
@@ -77,7 +63,7 @@ what changed. What remains is one bench session and two small fixes:
   heard this boot, marked `synthetic: true`. Write the filter into the sandbox HA's
   automation examples now, so GateLink's automations start with it.
 
-### 3. B5 — the HEX proxy, against a simulated MPPT
+### 2. B5 — the HEX proxy, against a simulated MPPT
 
 **BF-36, then BF-28 and BF-29, then BF-30.** BF-36 gives `ROLE_GATELINK` a `HEX_REQ`
 responder with canned VE.Direct HEX answers. With it, **V-B6**'s three gates and the audit
@@ -85,7 +71,7 @@ trail are testable at a desk. BF-30's register semantics can be written from Vic
 HEX documentation. A canned answer proves the plumbing only, so the real MPPT confirms the
 charge-parameter readback at B6.
 
-### 4. Bridge defects the bench can reach
+### 3. Bridge defects the bench can reach
 
 These came from B4b's bench runs. None blocks GateLink, but the first two sit on the
 command path, and a GateLink command is a relay pulse.
@@ -113,24 +99,27 @@ command path, and a GateLink command is a relay pulse.
     comes back with the flag clear, and nothing withdraws the `online` it published. Impl
     Plan §4.2a.1.
 
-### 5. Bridge housekeeping
+### 4. Bridge housekeeping
 
 - **BF-11a**, the log queue and `log_task`'s drain, and **BF-11b**, the hardware watchdog
   fed from `sched_task`.
 - **`mqtt_task`'s high-water mark**, which nothing prints. `sched_task` logs its own on
   every configuration resolution; do the same here.
+- **The simnode's `phy reset` leaves the PHY rows marked `override` until a reboot.**
+  `PhyTrial::reset_to_defaults()` writes each default through `Store::restore()`, which
+  holds it as an override. Clear the rows instead. Found 2026-09-25.
 - **BF-27's bridge-side simulators and packet loopback.** They gate nothing. What they
   would add is an unattended, time-varying source; WellLink data waits for schema `0x20`
   (Impl Plan §8.2).
 
-### 6. A B7 rehearsal on the bench
+### 5. A B7 rehearsal on the bench
 
 **B7's conditions can run against the simnodes now**: broker restarts, WiFi outages and a
 node power cycle, with `deployed` set on the bench rows. It cannot accept B7, which
 depends on B6. What it can find is stuck availability or a frame lost on reconnect while
 the node is on a desk rather than at the gate.
 
-### 7. HA, before GateLink deploys
+### 6. HA, before GateLink deploys
 
 - **`mppt_charge_state` and `mppt_error` show raw VE.Direct codes in HA**, such as `3`, not
   names. Whether discovery maps them to names is BF-24's question, and GateLink's data
@@ -139,7 +128,7 @@ the node is on a desk rather than at the gate.
   every poll; `node/health/state` is the same. Publish-on-change never withholds either.
   Whether uptime belongs in the change hash is the operator's call. Impl Plan §6.6.2.
 
-### 8. Documents and tools
+### 7. Documents and tools
 
 - **The whole-document style passes** are owed, on a branch of their own.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
@@ -150,6 +139,8 @@ the node is on a desk rather than at the gate.
 ## Waits on GateLink or the operator
 
 - **B6 and B7**, and **BF-30**'s readback against the real MPPT.
+- **The readback mirror's `CLAMPED` fix is host-tested only.** No simnode row clamps; the
+  first node-held row that can is in GateLink's table.
 - **Set `deployed` on GateLink when it goes into the field**, on
   `lran/gatelink/config/set`. Until then the bridge polls it only once heard.
 - **GateLink's configuration block, `0x1000`–`0x1FFF`,** waits for the GateLink milestone
@@ -183,7 +174,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 Spec v0.15's code on air** entry, then the **code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.7.2a** spec v0.15's code; **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | **§9** is B5–B7, where the work goes next; **§7** has BF-37 and BF-38 |
@@ -199,8 +190,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B5**, with **BF-36**–**BF-38** added 2026-09-25 and **BF-28**–**BF-30**. **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **The code spec v0.15 owes** (group 1). **M26**. The whole-document style passes |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B5**, with **BF-36**–**BF-38** added 2026-09-25 and **BF-28**–**BF-30**. **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 
 ```bash
@@ -249,11 +240,12 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `30c295f`, flashed on 2026-09-24**, whose firmware is the poll-clash fix.
-Both simnodes run `0a0d6c9`, BF-33 slice 3. All three were on USB when this session ended: the bridge as
+**All three boards run `75a3ed0`, flashed on 2026-09-25** from a clean tree: spec v0.15's
+code with this session's fixes. The bridge holds `cmd_retries` 3, its default, as an
+override from D68's check; `restore_defaults` clears it. All three were on USB when this session ended: the bridge as
 `/dev/cu.usbserial-0001`, the Heltec simnode as `/dev/cu.usbserial-3` and the XIAO as
 `/dev/cu.usbmodem2101`. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
-their committed group in NVS. **`simnode_diag_enable` is 0**, and `deployed` reads 0 and
+their committed group in NVS, with `phy_trial_s` 120. **`simnode_diag_enable` is 0**, and `deployed` reads 0 and
 `poll_interval_s` 60 as overrides on `simnode0` to `simnode2`, so the bridge polls no node
 from boot. It reaches
 the sandbox broker. The broker still retains the simnode discovery configs from an earlier
@@ -263,8 +255,8 @@ range-test handoff owns them in its own roles.
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
-| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3` on 2026-09-24. Its port name moves across replug |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Holds `f1` in `ROLE_GATELINK` and `f3` in `ROLE_FAULT` in NVS |
+| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3` on 2026-09-25. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its port name moves across replug |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17
 sessions, because the bridge board moved to its production position for the D1 capture and
