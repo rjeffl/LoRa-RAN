@@ -13,6 +13,10 @@ those are independent implementations of published primitives (§9.1, README).
 Running it rewrites the four vector files in place:
 
     python3 tools/vectors/generate.py
+    python3 tools/vectors/generate.py --check   # exit 1 if it would change one
+
+`--check` writes nothing. It fails when the committed JSON is not what this file
+produces: a generator edited without regenerating, or a vector file edited by hand.
 
 Every constant, offset and rule below cites the section that fixes it. Where the
 specification is ambiguous the reading taken is marked `AMBIGUITY:` in a comment
@@ -37,6 +41,7 @@ import hashlib
 import hmac
 import json
 import re
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -1372,10 +1377,19 @@ def dumps(doc: dict) -> str:
     return text + "\n"
 
 
-def write(group: str, filename: str, vectors: list) -> None:
+def write(group: str, filename: str, vectors: list, check: bool) -> bool:
+    """Write one group's file, or with `check` compare against it. False on a mismatch."""
     path = HERE / filename
-    path.write_text(dumps(envelope(group, vectors)), encoding="utf-8")
-    print("%-24s %2d vectors -> %s" % (group, len(vectors), path.relative_to(HERE.parents[1])))
+    text = dumps(envelope(group, vectors))
+    rel = path.relative_to(HERE.parents[1])
+    if check:
+        same = path.exists() and path.read_text(encoding="utf-8") == text
+        print("%-24s %2d vectors, %s %s" % (group, len(vectors), rel,
+                                           "matches" if same else "DIFFERS"))
+        return same
+    path.write_text(text, encoding="utf-8")
+    print("%-24s %2d vectors -> %s" % (group, len(vectors), rel))
+    return True
 
 
 def assert_no_negative_reproduces_a_valid_frame(single_v, frag_v, negative_v) -> int:
@@ -1401,7 +1415,8 @@ def assert_no_negative_reproduces_a_valid_frame(single_v, frag_v, negative_v) ->
     return len(valid)
 
 
-def main() -> None:
+def main(argv: list) -> int:
+    check = "--check" in argv
     # §9.1 first: if key derivation is wrong every authenticated vector below is
     # wrong in a way no counter points at.
     kdf = build_kdf()
@@ -1409,10 +1424,11 @@ def main() -> None:
     frag_v = build_frag()
     negative_v = build_negative()
     valid_frames = assert_no_negative_reproduces_a_valid_frame(single_v, frag_v, negative_v)
-    write("kdf", "vectors_kdf.json", kdf)
-    write("single", "vectors_single.json", single_v)
-    write("frag", "vectors_frag.json", frag_v)
-    write("negative", "vectors_negative.json", negative_v)
+    # A list, not all(), so a check reports every file that differs.
+    same = [write("kdf", "vectors_kdf.json", kdf, check),
+            write("single", "vectors_single.json", single_v, check),
+            write("frag", "vectors_frag.json", frag_v, check),
+            write("negative", "vectors_negative.json", negative_v, check)]
     every = kdf + single_v + frag_v + negative_v
     adjudicated = [v["name"] for v in every if v.get("origin") == ADJUDICATED]
     print("%-24s %2d distinct valid frames, none reproduced by a negative vector"
@@ -1420,7 +1436,15 @@ def main() -> None:
     print("%-24s %2d derived, %d adjudicated (%s)"
           % ("provenance", len(every) - len(adjudicated), len(adjudicated),
              ", ".join(adjudicated)))
+    if not all(same):
+        # Root CLAUDE.md rule 12: never regenerate to match the codec. This check
+        # compares the generator with its own output and says nothing about the codec.
+        print("The committed vectors are not what generate.py produces. If the generator "
+              "change is intended, regenerate, read the diff (README, Regenerating) and "
+              "run embed.py.", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main(sys.argv[1:]))

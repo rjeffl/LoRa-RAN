@@ -65,6 +65,11 @@ is a change you intended. **Skipping `embed.py` leaves the C++ suite testing the
 set.** The D57 vectors went unembedded from 2026-09-20 to 2026-09-23, and one of them had
 found a codec defect in that time. A vector file diff that nobody read is a rubber stamp.
 
+CI's `checks` job now catches both omissions. `generate.py --check` fails when the
+committed JSON is not what the generator produces, and `embed.py --check` fails when
+`vectors_data.h` is not what the JSON produces. Neither writes a file. Neither compares
+anything with the codec, so a pass says the three files agree, not that they are right.
+
 ---
 
 ## File layout

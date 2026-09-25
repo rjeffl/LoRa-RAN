@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
 """Emit the W4 vectors as a C++ header of flash-resident constants.
 
 Purely mechanical: it reads the JSON that generate.py produced and re-expresses it
@@ -11,7 +13,12 @@ Why it exists: the target has no filesystem, and the JSON reader's fixed arena c
 flash (68 KB against 8 MB) and cost essentially no RAM. Native and target then run
 byte-identical data, which is the point.
 
-    python3 tools/vectors/embed.py
+    python3 tools/vectors/embed.py            # rewrites vectors_data.h
+    python3 tools/vectors/embed.py --check    # exit 1 if it would change it
+
+`--check` renders in memory and writes nothing, because CI's checks job also runs on
+a developer's tree through run_ci_local.py. It exists because the D57 vectors went
+unembedded for three days and hid a codec defect (spec 13.2, W4).
 """
 
 import json
@@ -53,7 +60,8 @@ def cstr(s):
     return "nullptr" if s is None else '"' + s.replace('"', '\\"') + '"'
 
 
-def main():
+def render():
+    """The header's full text, from the committed JSON."""
     groups = {g: json.loads((HERE / f"vectors_{g}.json").read_text())
               for g in ("kdf", "single", "frag", "negative")}
 
@@ -223,13 +231,27 @@ def main():
     out.append("}  // namespace lran_vectors")
     out.append("")
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text("\n".join(out))
     total = sum(len(g["vectors"]) for g in groups.values())
-    print(f"wrote {OUT.relative_to(HERE.parent.parent)}: {total} vectors, "
-          f"{OUT.stat().st_size // 1024} KB")
+    return "\n".join(out), total
+
+
+def main(argv):
+    text, total = render()
+    rel = OUT.relative_to(HERE.parent.parent)
+    if "--check" in argv:
+        if OUT.exists() and OUT.read_text() == text:
+            print(f"{rel} matches the JSON: {total} vectors")
+            return 0
+        print(f"{rel} does not match tools/vectors/vectors_*.json. "
+              "Run python3 tools/vectors/embed.py and commit the header, or the C++ "
+              "suite goes on testing the old set.", file=sys.stderr)
+        return 1
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(text)
+    print(f"wrote {rel}: {total} vectors, {OUT.stat().st_size // 1024} KB")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

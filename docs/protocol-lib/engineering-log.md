@@ -1013,3 +1013,23 @@ for that is proposed separately.
 `check.py` reports 66. The same gap exists at `94c51e7` (63 against 64), so it is a
 difference in how the two count, not a defect this branch introduced. It is not
 investigated here.
+
+## 2026-09-25 — CI now checks that `vectors_data.h` and the JSON match their generators
+
+The check the 2026-09-23 entry proposed is built. CI's `checks` job gains the step *W4
+vectors match their generators*, which runs two new modes:
+
+- `generate.py --check` fails when a committed `vectors_*.json` is not what the generator
+  produces.
+- `embed.py --check` fails when `vectors_data.h` is not what `embed.py` produces from the
+  committed JSON.
+
+Both render in memory and write nothing, because `run_ci_local.py` runs the `checks` job on
+a developer's tree. On the day it was built both passed: the 78 committed vectors and the
+header agreed. Each mode was then shown to fail on a drifted file and pass once the file
+was restored. `embed.py` reads the JSON as data, so a JSON whitespace edit leaves its
+check passing and fails `generate.py --check` alone, as it should.
+
+Neither check compares anything with the codec. A pass says the generator, the JSON and
+the header agree, not that any of them is right; `check.py` and the C++ suite still carry
+that.
