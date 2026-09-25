@@ -1,9 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-24 by the session that built BF-33 slice 3, the simnode's half of a PHY
-change, on the host.** It found that **no PHY change can start** while the bridge watches
-GateLink and WellLink, both provisioned and neither deployed, so slice 4's bench run waits on
-a decision. The engineering log's slice 3 entry has the evidence.
+**Written 2026-09-24 by the session that ran BF-33 slice 4, B4b's bench run.** Every
+criterion in B4b's row held on air, across three identities on two boards. B4b waits on the
+operator's acceptance. The run found one defect: a `POLL` and a PHY `CONFIG` can go to the
+same node in one tick, and both are lost. By operator decision, it is fixed on a branch of
+its own. The engineering log's *BF-33 slice 4 on air* entry has the evidence.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,13 +19,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 ```text
-Continue from docs/bridge/HANDOFF.md: B4b slice 4, the bench run.
+Continue from docs/bridge/HANDOFF.md: the poll clash.
 Continue from docs/bridge/HANDOFF.md: the vectors_data.h check.
 ```
 
 | Task | Read |
 |---|---|
-| **B4b slice 4, the bench run** | *The next job*; the engineering log's *D61* entry and its three *BF-33* entries of 2026-09-24, last first; spec **§12.4.1** to **§12.4.3**; Impl Plan §8's B4b row |
+| **The poll clash** (needs the bench) | *The next job*; the engineering log's *BF-33 slice 4 on air* entry, then *BF-34 on air*; `sched_task()` and `sched_polls()` in `firmware/bridge/src/task_runtime.cpp`; Impl Plan §6.1.1 |
 | **The `vectors_data.h` check** (no board) | *Open*'s last item; spec **§13.2**; `tools/vectors/embed.py`; `ci.yml`'s `checks` job |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -35,41 +36,41 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**BF-33 is four slices**, split on 2026-09-24:
+**B4b is met on the bench and not yet accepted.** The operator accepts it on the Impl Plan
+§8 row. The slice 4 PR carries the run.
 
-1. **`lran-config`** — **done**. `Access::Phy`, the bridge's rows, `Store`'s trial copy.
-2. **The bridge's fleet machine, spec §12.4.1 and §16.7.5** — **built, flashed, not run.**
-   Its boot and its refusal are confirmed on the board.
-3. **The simnode's half, spec §12.4.2** — **built on the host, flashed, not run.** One NVS
-   blob per board, a retune once every member identity accepts, and every role but
-   `ROLE_FAULT` answering the PHY group. A `get_all` on air returned the six rows.
-4. **The bench run** against B4b's row in Impl Plan §8: a reboot mid-trial, confirmation
-   by a received frame, the fleet moving together, and D33's clamp. **Unblocked by D61**,
-   built and host-tested on 2026-09-24 and not yet flashed.
+**The poll clash.** `sched_task` runs `sched_polls()`, `sched_roll()`,
+`sched_commands()`, `sched_config()` and `sched_phy()` in one 1 s tick. Each may send one
+frame, and none checks whether a poll answer is still due. On 2026-09-24 the bridge sent
+f2 a `POLL` and then, 211 ms later, a PHY `SET`. Neither frame was answered, and the change
+was abandoned `not_accepted`. BF-34's roll showed the same 210 ms gap. The fix the operator
+was offered is that no other frame goes out while a poll is outstanding. `g_poll_outstanding`
+already tracks that state. Before building it, check two costs. First, a node's
+`poll_reply_timeout_ms` of 10 s can now delay each step of a PHY fan-out, and §12.4.1
+step 8's margin reserves only `config_ack_timeout_ms` per node. Second, a command waits
+behind a poll, which adds to BS-3's latency. Prove the fix on air with a PHY change started
+in the same second as a poll, because the slice 4 runs avoided that timing on purpose.
 
-**Why slice 4 was blocked, and what D61 changed.** The bridge polled and watched every
-production row from boot, so 0x01 and 0x02, provisioned and not in the field, made every
-change answer `phy_fleet_incomplete`. D61 adds a bridge per-node lever, `deployed`, default
-0. A row is polled and watched from boot only when it is set, and otherwise once heard.
-Flash the bridge with D61 first; its NVS has no `deployed` value, so both production rows
-leave the fleet.
+**For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
+row you want in the fleet. Clear both afterwards. Start each change between poll cycles until
+the poll clash is fixed.
 
-**For the run itself:** set `simnode_diag_enable` to 1. Then make each simnode transmit
-once, because the bridge watches a bench node only after hearing it: `push f1` works, and
-f0 and f2 answer only polls. **Disable any enabled identity the bridge will not watch**, or
-its board never retunes. Set the flag back to 0 afterwards.
-
-**Still owed a board:** `mqtt_task`'s high-water mark, which nothing prints, and
-`sched_task`'s during a PHY change. It read 2312 of 5120 bytes free after an ordinary
-`CONFIG`.
+**Still owed a board:** `mqtt_task`'s high-water mark, which nothing prints.
 
 **The sandbox HA is drivable by API.** The session holds an admin token for it outside the
 repository, and HA's `hassio.addon_restart` restarts the broker. The Supervisor REST proxy
-refuses a long-lived token. **pyserial's open did not reset the bridge on 2026-09-24**;
-toggle RTS to capture its banner.
+refuses a long-lived token.
 
 ## Open, and not closable from here
 
+- **A `POLL` and another frame can go to one node in the same `sched_task` tick**, and
+  both are lost. *The next job* has the evidence and the proposed fix.
+- **The `config/ack` for a committed PHY change is lost** when the bridge restarts before
+  `mqtt_task` publishes it. The `config/state` published after the reboot is correct. Rare.
+- **The bridge's `phy_reverted` `event_id` restarts at 1 after a reboot.** No rule covers
+  the bridge's own events. An automation keyed on `event_id` alone would miss a repeat.
+- **The Firmware Tasks header cites the Impl Plan at v0.54**, against v0.56. Reconcile
+  v0.55's D61 lever and v0.56's B4b status, then bump.
 - **Four spec questions from BF-33 slice 2**, in the engineering log's entry of that name:
   an empty fleet refused `phy_fleet_incomplete`; the bridge's own PHY rows `READ_ONLY`
   without a usable store; no §16.7.5 reason for a failed commit write; and §12.4 step 1's
@@ -179,7 +180,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-24 entries**, the three **BF-33** entries last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | §8 is B4b, where the work goes next |
@@ -196,8 +197,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4b** (**BF-33**): slices 1 to 3 built, 2 and 3 flashed and not run; slice 4 blocked on the fleet decision. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **B4b**, the PHY fleet decision, then BF-33 slice 4 |
+| Not done | **B4b** (**BF-33**): all four slices done, and the criteria met on the bench on 2026-09-24; **not yet accepted**. The poll clash, unfixed. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | **B4b**'s acceptance, then the poll clash, then **BF-35** |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -245,21 +246,20 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs BF-27's dummy publish image, `bee046b-dirty`**, flashed on 2026-09-23
-before that work was committed. Its banner matches no commit, so reflash it from `main`
-before a run that cites the image. It reaches the house broker at <sandbox-broker-ip>.
-**Opening its USB serial port resets it**, even with DTR and RTS held low, so hold the port
-in one process for a whole console session. **`simnode_diag_enable` is off and persisted
-in its NVS.** The broker retains 48 simnode discovery configs from the enabled run, so Home
-Assistant carries four simnode devices whose entities read unavailable. The XIAO runs
-`98b4b04`; the Heltec simnode was not touched. All three were on USB when this session
-ended. **This table names the devices in this subproject's terms**; the range-test handoff
-owns them in its own roles.
+**The bridge runs `2066fc9`, D61's merge, flashed on 2026-09-24.** Both simnodes run
+`0a0d6c9`, BF-33 slice 3. All three were on USB when this session ended: the bridge as
+`/dev/cu.usbserial-0001`, the Heltec simnode as `/dev/cu.usbserial-3` and the XIAO as
+`/dev/cu.usbmodem2101`. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
+their committed group in NVS. **`simnode_diag_enable` is 0**, and `deployed` reads 0 as an
+override on `simnode0` to `simnode2`, so the bridge polls no node from boot. It reaches
+the sandbox broker. The broker still retains the simnode discovery configs from an earlier
+enabled run, so Home Assistant shows simnode devices whose entities read unavailable. **This table names the devices in this subproject's terms**; the
+range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
-| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-4` on 2026-09-23. Its port name moves across replug |
+| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3` on 2026-09-24. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Holds `f1` in `ROLE_GATELINK` and `f3` in `ROLE_FAULT` in NVS |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17
@@ -288,16 +288,17 @@ sum at compile time.
 
 [`traps.md`](./traps.md) has the full set. These are the ones the next job meets first:
 
-- **Opening any of these boards' serial ports reboots it, the XIAO included**, which resets
-  a simnode's identities and its `ctx_id`. **Hold both ports open for a whole run** — a
-  disabled identity re-enables on the next boot.
+- **Opening a serial port from pyserial reset none of these boards on 2026-09-24.** Toggle
+  RTS to reset one and capture its banner. A reset clears a simnode's identities and its
+  `ctx_id`, so **hold every port open for a whole run**; a disabled identity re-enables on
+  the next boot.
 - **A bench identity is polled only after the bridge has heard it.** `push f1` announces a
   `ROLE_GATELINK` identity; `fault <id> hdr_rsv` announces any role and moves no counter.
 - **A command takes 4–9 s from the MQTT publish to the node**, not ~1 s. A configuration
   set is slower still: it waits on the poll scheduler and the media access behind it.
 - **`sched_task` is the deepest task in this firmware since BF-32**, and it logs its
-  high-water mark on every configuration resolution: 1976–2324 bytes free of 3072 on
-  2026-09-23. Read that number before adding anything to its tick.
+  high-water mark on every configuration resolution: 1352 bytes free of 5120 on
+  2026-09-24, after three PHY changes. Read that number before adding anything to its tick.
 - **After a bridge boot, a bench identity refuses commands and `CONFIG` until the bridge
   hears it** (BF-34). `push f1` starts its roll, and `roll: f1 rolled to ctx …` on the
   bridge's serial log says it finished. A board still running pre-BF-34 firmware draws

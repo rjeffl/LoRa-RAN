@@ -59,8 +59,8 @@ the gate and `tx_seq` only, where `new_context()` also clears what a reboot lose
 `ACCEPTED` ACK goes out under the new `ctx_id` through `send_fresh_ack()`, so
 `ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
 
-**Spec §12.4.2's PHY change (BF-33 slice 3) is `phy_trial.{h,cpp}`, host-tested and not yet
-run on air.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS: **the only
+**Spec §12.4.2's PHY change (BF-33 slice 3) is `phy_trial.{h,cpp}`, and it ran on the
+bench on 2026-09-24.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS: **the only
 thing a simnode persists.** The board retunes once every enabled identity that is not
 `ROLE_FAULT` has accepted the same group, because the identities share one radio. **An enabled
 identity the bridge does not watch therefore holds the board on its old settings**; disable

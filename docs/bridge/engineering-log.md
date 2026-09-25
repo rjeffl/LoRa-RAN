@@ -2836,3 +2836,58 @@ each simnode transmit once, or set its `deployed` lever.
 
 **Not run on a board.** The bridge's native suite is 409 cases, all passing, and `heltec`
 builds. Nothing was flashed.
+
+## 2026-09-24 — BF-33 slice 4 on air: B4b's criteria hold, and a poll can clash with a PHY `CONFIG`
+
+**Every criterion in B4b's row held on the bench.** The bridge was flashed with D61
+(`2066fc9`), and both simnodes ran `0a0d6c9`, slice 3's build. Three identities made the
+fleet: f0 and f2 on the Heltec, and f1 on the XIAO. Each change moved `freq_hz` between
+917.4 and 917.0 MHz. Every `CONFIG` carried all six PHY rows. `phy_trial_s`,
+`config_ack_timeout_ms` and `poll_reply_timeout_ms` kept their defaults of 120 s, 8 s and
+10 s. The bench was set up this way:
+
+- `simnode_diag_enable` was 1, and `deployed` was 1 on `simnode0` to `simnode2`. Both were
+  set back to 0 afterwards.
+- **D61 held on air.** After the flash, the bridge sent no boot poll to 0x01 or 0x02. Each
+  `deployed` set enrolled its node within a second. After each later bridge reboot, the
+  bridge polled all three bench nodes at once.
+
+| Run | What was done | What happened |
+|---|---|---|
+| D33's clamp | `{"tx_power_dbm":10}` | The set was answered `clamped` at −4 dBm, the current value, so no trial opened and no `CONFIG` went out |
+| The fleet moves | 917.4 → 917.0, then back | Each run passed §12.4.1 steps 3 to 7: the fan-out took 3 s, the bridge heard all three nodes 5 s after it retuned, and then it committed. Each board committed on its first `GET`. A Heltec reset after the second run's commit came back on the committed group |
+| A node reboots in its trial | The Heltec was reset as soon as it retuned | The Heltec came back on 917.4, `REVERTED (reboot during trial)`. The bridge polled f0 and f2 on 917.0 and heard neither, so it committed nothing. It reverted 96 s after the first `CONFIG_ACK`, which is step 8's deadline for three nodes, and published `phy_reverted` `not_heard`. f1 answered polls on 917.0 and still reverted when its 120 s window closed, because a `POLL` confirms nothing. It then sent `PHY_REVERTED` detail `0x0001` in the first frame after the revert |
+| The bridge reboots before its commit | The bridge was reset 150 ms after it retuned | The bridge came back on 917.4 and published `phy_reverted` `restart`. All three nodes reverted when their windows closed, and f1 sent `PHY_REVERTED` |
+| The bridge reboots after its commit | The bridge was reset 150 ms after its commit, before any step 7 `GET` | The bridge came back on 917.0. Its §10.6 roll reached each node inside its window, and both boards committed 917.0 with no `GET` sent |
+| Back to Envelope A | 917.0 → 917.4 | The change committed on the bridge and on both boards |
+
+**A node's `PHY_REVERTED` from a bench identity never reaches the broker.** Spec §16.6
+withholds bench data from `event/` topics, and the bridge counted every such frame in
+`bench_withheld`. The bridge's own `phy_reverted` did publish, and §12.4.2 step 8 names it
+as what reaches Home Assistant. GateLink's event will be the first to publish.
+
+**A poll and a PHY `CONFIG` went to f2 211 ms apart, and the change was abandoned.** In
+one tick, `sched_polls()` sent f2 its `POLL`, and then `sched_phy()` sent f2 its `SET`.
+The bridge received no answer to either frame, and f2 logged no `CONFIG`. After
+`config_ack_timeout_ms`, the change was abandoned `not_accepted`, which is §12.4.1 step 4.
+f0 and f1 had already accepted. f1's board retuned alone and reverted at 120 s. The Heltec
+never retuned, because f2 had not accepted. The bridge read f2 back with `GET_ALL` once
+`phy_trial_s` had passed. The abandon worked as specified. The cause is that nothing in
+`sched_task` stops a second frame from going to a node whose poll answer is still due. The
+*BF-34 on air* entry saw the same 210 ms gap before a roll. By operator decision, the fix
+goes on a branch of its own. The later runs here were started at 36 s past the minute,
+between poll cycles.
+
+**Three smaller findings:**
+
+- **The `config/ack` for a committed change can be lost.** The reset 150 ms after the
+  commit beat `mqtt_task` to the broker, so that set got no answer. The `config/state`
+  published after the reboot showed the new value.
+- **`sched_task` had 1352 of 5120 bytes free** when the deferred readback completed. That
+  figure includes two completed PHY changes and one abandoned change, against 2312 after an
+  ordinary `CONFIG`. `lora_task`'s lowest figure was 6168 bytes. `mqtt_task`'s is still
+  unread, because nothing prints it.
+- **The bridge's `event_id` for `phy_reverted` restarts at 1 after a reboot**, so ids 1 and
+  2 were followed by id 1. Spec §7.3's deduplication covers node events, not the bridge's
+  topic, so this breaks no rule. An automation keyed on `event_id` alone would miss the
+  repeat.

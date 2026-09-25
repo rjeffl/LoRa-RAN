@@ -359,9 +359,11 @@ log. Never commit, echo or log the real values.
   six rows are in `/lib/lran-config/`'s table. **Spec v0.14's D59 makes a change a fleet
   operation**, set on `lran/bridge/config/set` alone, and no node commits until the bridge
   has heard every node on the new settings (§12.4.1). **BF-33 slice 2 built the bridge's
-  half** in `phy_change.{h,cpp}`, host-tested and not yet on air; a PHY row on a node's
+  half** in `phy_change.{h,cpp}`, and it ran on the bench on 2026-09-24. A PHY row on a node's
   topic answers `read_only`. **While a change runs, `blocks_traffic()` holds every other
-  authenticated frame**, because any one of them confirms the node that receives it. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  authenticated frame**, because any one of them confirms the node that receives it. **It does not hold polls**, so
+  a `POLL` and a `CONFIG` to one node can share a tick and both be lost; the handoff's *Open*
+  has the fix. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
   HA-visible config set is correct for before v0.13**; the hazard it named is real and is
   what the revert window exists for — a node that boots on the wrong channel is a walk to

@@ -1,7 +1,7 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.42
+**Version:** 0.43
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.54
@@ -74,8 +74,8 @@ Three consequences reach the code rather than the documents:
   (Protocol Spec v0.13, **D56**). §12.1's *"not runtime-configurable"* was withdrawn in
   v0.13. **v0.14's D59 makes the change a fleet operation**, set on the bridge's topic
   alone (§12.4.1). A node that boots on the wrong channel is a walk to the gate with a laptop, and
-  the revert window exists for that case. Until **BF-33** builds it, the six PHY rows are
-  `READ_ONLY`. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  the revert window exists for that case. **BF-33** built it, and it ran on the bench on
+  2026-09-24. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2).
 - **`cad_backoffs` is the instrument to watch after bring-up.** M20 measured 125 kHz every
   200 kHz, so 37.5 % of the band was never looked at, and §12.3's retry defaults were
@@ -317,6 +317,9 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.43** — **BF-33 ran on the bench**, so §1's PHY bullet no longer says the PHY rows
+  are `READ_ONLY`.
 
 - **v0.42** — **Protocol specification v0.13 → v0.14.** D59 fills in how §12.4's PHY change
   moves the fleet. §1's PHY bullet and BF-33's row cite it; BF-33's scope follows
