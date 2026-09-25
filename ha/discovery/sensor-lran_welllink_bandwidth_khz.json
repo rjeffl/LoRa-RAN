@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"bandwidth_khz","uniq_id":"lran_welllink_bandwidth_khz","stat_t":"~/config/state","val_tpl":"{{ value_json.bandwidth_khz.value }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"kHz","ent_cat":"diagnostic","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

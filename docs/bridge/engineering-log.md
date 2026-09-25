@@ -2959,3 +2959,42 @@ back to 917.4 MHz.
 `simnode2`, both as overrides. `lora_task` read 6344 bytes free at its lowest. No
 configuration resolution ran on a node's own topic, so `sched_task` printed no high-water
 figure.
+
+## 2026-09-25 — BF-35: the configuration table's controls, in the sandbox HA
+
+**Home Assistant registered every configuration entity the bridge published, and a write
+from HA came back through the bridge's `config/state`.** The bridge was flashed with
+the BF-35 change, before its commit, over USB on `/dev/cu.usbserial-0001`. esptool read MAC
+`44:1b:f6:f9:70:14`, the bridge board's. The image uses 60.2 % of RAM and 28.1 % of flash.
+The host suite passed 423 of 423.
+
+**Before anything was published, the operator chose the names and the layout**: the table
+name as the `object_id`, the bridge's PHY rows as box-mode controls, each node's PHY rows as
+sensors, and the bridge's per-node rows on the bridge's availability. Impl Plan §4.4.3 has
+the reasons.
+
+**What HA registered, read over its REST API about 20 s after the boot:**
+
+| Device | Entities | State |
+|---|---|---|
+| LoRa Bridge | 19 `number`, 1 `select`, 1 `switch` (`simnode_diag_enable`) | Every value the table's default. `tx_power_dbm` shows `-4.0`, because HA renders a number as a float |
+| GateLink, WellLink | `poll_interval_s` 60, `deployed` off | Available, on the bridge's availability |
+| GateLink, WellLink | 4 node-common `number`s, 6 PHY `sensor`s | `unavailable`, because neither node is online. R-3.3d, as intended |
+
+**Three writes went through HA's services and came back through the bridge**, and each was
+restored afterwards. `number.lora_bridge_diag_interval_s` went to 120 and back to 60.
+`switch.lora_bridge_simnode_diag_enable` went on and back off.
+`number.gatelink_poll_interval_s` went to 90 and back to 60. Every read came from the state
+HA took from `config/state`, since an MQTT `number` or `switch` with a state topic is not
+optimistic. No PHY row was written, because a write there starts a change across the fleet.
+`test_discovery` covers the `select`'s template instead, by parsing the rendered command
+through the bridge's own parser.
+
+**What this left behind.** The bridge runs the BF-35 image, and every lever holds the value
+it held before. The sandbox registry now has 45 new entities, all under `lran_bridge_`,
+`lran_gatelink_` and `lran_welllink_`. The bench nodes got none.
+
+**One gap this run exposed, not closed.** The `select` limits HA to 125, 250 and 500 kHz,
+but `lran/bridge/config/set` still takes any `bandwidth_khz` from 125 to 500, 300 among them.
+The table has a range, and the SX1262 has discrete points. Recorded under the handoff's
+*Open*.

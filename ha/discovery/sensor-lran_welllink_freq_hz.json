@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"freq_hz","uniq_id":"lran_welllink_freq_hz","stat_t":"~/config/state","val_tpl":"{{ value_json.freq_hz.value }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"Hz","ent_cat":"diagnostic","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

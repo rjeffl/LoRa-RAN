@@ -168,7 +168,7 @@ serial; `tools/simctl/rssi_capture.py` captures a long unattended run and
 **`BF-23` — Home Assistant discovery, built and host-tested.** `discovery.{h,cpp}` builds
 the configs and `mqtt_task` publishes them, retained, on boot and on every broker
 reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out of
-`diag_json.cpp` when discovery became its second user. **Four things to keep:**
+`diag_json.cpp` when discovery became its second user. **Five things to keep:**
 
 - **There is no "first time" flag, and adding one would break R-3.3b.** A boot and a
   reconnect take the same path, so the reconnect case cannot be the one that rots.
@@ -181,6 +181,9 @@ reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out
 - **`ha/discovery/` is generated, and CI checks it.** After any change to a discovery
   table, run `python3 tools/checks/ha_examples.py --write` and commit the diff — it is
   what Home Assistant will see differently.
+- **A configuration control comes from the table, never from an `EntityDesc` row** (BF-35,
+  Impl Plan §4.4.3). A `DiscoveryItem` carries a `param` instead of a `desc`, and the
+  table's name is its permanent `object_id`. A bench node gets no table entities.
 
 **`BF-23` — the runtime levers, built and host-tested 2026-09-23; not yet on air.**
 `levers.{h,cpp}` carries each bridge row's effective value from `ConfigStore` to the task

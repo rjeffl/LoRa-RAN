@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"phy_trial_s","uniq_id":"lran_gatelink_phy_trial_s","stat_t":"~/config/state","val_tpl":"{{ value_json.phy_trial_s.value }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"s","ent_cat":"diagnostic","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

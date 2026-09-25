@@ -1,7 +1,7 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.43
+**Version:** 0.44
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.14
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.54
@@ -286,7 +286,7 @@ deploy with its half of §12.4, and this bridge half is what tests that half fir
 | **BF-29** | **Write authorization** — arm, auto-expiry, refusal while disarmed, the three gates (§3.5b, **BS-2**) | **Opus** | *"The failure mode is battery damage, and it is invisible until it is not."* Three gates are only three gates if each is independently enforced and independently tested (**V-B6**) |
 | **BF-30** | Register semantics for charge-parameter readback as diagnostic sensors (R-3.5d) | **Opus** | Getting a register wrong under LiFePO4 is a battery-damage path, and this is the most change-prone part of the interface. Do **not** model 100+ registers as entities (R-3.5e) |
 | **BF-31** | **B6** GateLink integration, **B7** soak | **Opus** | Cross-node triage against real hardware. The work is mostly the operator's; the model's job is reading a symptom across the bridge, the node, the RF path and HA at once |
-| **BF-35** | **HA controls for the configuration table** — `number`, `switch` and `select` discovery generated from `/lib/lran-config/`'s table (**D44**), for the bridge's rows and each node's. Bridge PRD §6.2 lists a per-node poll interval `number`, and `simnode_diag_enable` would become a bridge `switch`. **Added 2026-09-24** with the operator, out of B4's tally (Impl Plan §8.2). Nothing is built, and no milestone gates on it yet | **Sonnet** | D44 makes the table the one source, so a control written by hand drifts from the range the bridge enforces. Every name becomes a permanent HA `object_id`, as BF-32's did. The PHY rows answer `READ_ONLY` until BF-33, so a control for them must not offer a write |
+| **BF-35** | **HA controls for the configuration table** — `number`, `switch` and `select` discovery generated from `/lib/lran-config/`'s table (**D44**), for the bridge's rows and each node's. Bridge PRD §6.2 lists a per-node poll interval `number`, and `simnode_diag_enable` would become a bridge `switch`. **Added 2026-09-24** with the operator, out of B4's tally (Impl Plan §8.2). **Built 2026-09-25 and shown in the sandbox HA**; Impl Plan §4.4.3 has the choices. No milestone gates on it | **Sonnet** | D44 makes the table the one source, so a control written by hand drifts from the range the bridge enforces. Every name becomes a permanent HA `object_id`, as BF-32's did, so the operator settled them first. The bridge's PHY rows are controls, because BF-33 made them writable on `lran/bridge/config/set`. A node's PHY rows answer `read_only` on its own topic (spec §16.7.1), so they are sensors |
 
 ---
 
@@ -317,6 +317,9 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.44** — **BF-35 is built** and shown in the sandbox HA. Its row no longer says the
+  PHY rows answer `READ_ONLY` until BF-33, which was out of date once BF-33 was built.
 
 - **v0.43** — **BF-33 ran on the bench**, so §1's PHY bullet no longer says the PHY rows
   are `READ_ONLY`.

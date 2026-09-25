@@ -255,6 +255,55 @@ const EntityDesc* node_entity(NodeType type, size_t index) {
   if (i < kNodeCommandEntityCount) return &kNodeCommandEntities[i];
   return nullptr;
 }
+size_t node_entity_count(NodeType type) {
+  return kNodeLinkEntityCount + state_entity_count(type) + kNodeCommandEntityCount;
+}
+
+// ---------------------------------------------------------------------------
+// BF-35 - the configuration table's rows, as controls.
+//
+// NOTHING HERE LISTS A PARAMETER. The rows are /lib/lran-config/'s (D44), walked in table
+// order, so a row added there gains its control here without an edit, and a control can
+// never offer a range the bridge would clamp.
+// ---------------------------------------------------------------------------
+
+using lran::config::Access;
+using lran::config::Owner;
+using lran::config::ParamDef;
+
+// The bridge's global rows, set on lran/bridge/config/set (spec 16.7.1).
+const ParamDef* bridge_param(size_t index) {
+  size_t k = 0;
+  for (size_t i = 0; i < lran::config::kBridgeParamCount; ++i) {
+    const ParamDef& d = lran::config::kBridgeParams[i];
+    if (d.owner != Owner::BridgeGlobal) continue;
+    if (k++ == index) return &d;
+  }
+  return nullptr;
+}
+
+// A node's rows, in the order its `config/state` carries them: the bridge's per-node rows,
+// then the node's own. GateLink's and WellLink's own blocks join here when their
+// milestones declare them.
+const ParamDef* node_param(size_t index) {
+  size_t k = 0;
+  for (size_t i = 0; i < lran::config::kBridgeParamCount; ++i) {
+    const ParamDef& d = lran::config::kBridgeParams[i];
+    if (d.owner != Owner::BridgePerNode) continue;
+    if (k++ == index) return &d;
+  }
+  const size_t i = index - k;
+  return i < lran::config::kNodeCommonParamCount ? &lran::config::kNodeCommonParams[i]
+                                                 : nullptr;
+}
+
+// The SX1262's LoRa bandwidths that are whole kilohertz, which is every one the table's
+// kHz unit can carry (spec 12.1). A select offers those inside the row's own range.
+constexpr int32_t kLoraBandwidthsKhz[] = {125, 250, 500};
+
+bool is_select(const ParamDef& p) {
+  return p.owner != Owner::Node && std::strcmp(p.name, "bandwidth_khz") == 0;
+}
 
 // True when this row belongs to this node type. A link entity always does; a button does
 // only if the node implements the command.
@@ -297,6 +346,131 @@ size_t base_topic(lran::NodeId node_id, char* out, size_t cap) {
   return static_cast<size_t>(n);
 }
 
+// The device block. `via_device` puts every node under the bridge in HA's device tree,
+// which is true of the topology and is also how a reader tells a silent node from a
+// silent bridge at a glance.
+size_t device_block(lran::NodeId node_id, const char* dev, const char* dname, char* out,
+                    size_t cap) {
+  JsonObject dj(out, cap);
+  char ids[64];
+  std::snprintf(ids, sizeof(ids), "[\"%s\"]", dev);
+  dj.raw("ids", ids);
+  dj.str("name", dname);
+  dj.str("mf", kManufacturer);
+  dj.str("mdl", dname);
+  if (node_id != lran::kNodeBridge) dj.str("via_device", "lran_bridge");
+  return dj.finish();
+}
+
+// BF-35 - one table row as a control, or as a sensor for a node's PHY row.
+//
+// IT WRITES WHAT SPEC 16.7.2 SAYS HA WRITES, `{"set": {<name>: <value>}}`, on the topic
+// spec 16.7.1 names for the row's owner, and reads `value_json.<name>.value` from the
+// matching `config/state` (16.7.4). `~` is that topic's device, so the bridge's rows land on
+// lran/bridge and a node's on lran/<node>.
+//
+// THE NAME HA SHOWS IS THE TABLE'S NAME. HA derives a new entity's id from the device name
+// and the entity name, so `number.gatelink_poll_interval_s` reads as the key a person would
+// publish by hand. The name can be changed in HA; the unique_id cannot.
+size_t param_config_json(lran::NodeId node_id, const ParamDef& p, char* out, size_t cap) {
+  char dev[48];
+  char base[64];
+  const char* dname = device_name(node_id);
+  if (device_id(node_id, dev, sizeof(dev)) == 0 || base_topic(node_id, base, sizeof(base)) == 0 ||
+      dname == nullptr) {
+    if (out != nullptr && cap > 0) out[0] = '\0';
+    return 0;
+  }
+  const char* component = param_component(p);
+  const bool  control   = std::strcmp(component, "sensor") != 0;
+
+  char uniq[80];
+  std::snprintf(uniq, sizeof(uniq), "%s_%s", dev, p.name);
+  char tmpl[80];
+
+  JsonObject j(out, cap);
+  j.str("~", base);
+  j.str("name", p.name);
+  j.str("uniq_id", uniq);
+  j.str("stat_t", "~/config/state");
+  // `.value` and nothing more. A value the bridge has never read back is null (spec
+  // 16.7.4), which renders `None`, and HA's number, select and switch all read that as
+  // unknown rather than as zero.
+  std::snprintf(tmpl, sizeof(tmpl), "{{ value_json.%s.value }}", p.name);
+  j.str("val_tpl", tmpl);
+
+  if (control) {
+    j.str("cmd_t", "~/config/set");
+    if (p.type == lran::PType::Bool) {
+      // Spec 16.7.2 takes `true` and `false` for a bool; config/state reports 1 and 0.
+      char on[80], off[80];
+      std::snprintf(on, sizeof(on), "{\"set\": {\"%s\": true}}", p.name);
+      std::snprintf(off, sizeof(off), "{\"set\": {\"%s\": false}}", p.name);
+      j.str("pl_on", on);
+      j.str("pl_off", off);
+      j.str("stat_on", "1");
+      j.str("stat_off", "0");
+    } else {
+      std::snprintf(tmpl, sizeof(tmpl), "{\"set\": {\"%s\": {{ value }}}}", p.name);
+      j.str("cmd_tpl", tmpl);
+    }
+    if (is_select(p)) {
+      char ops[64];
+      size_t n = 0;
+      ops[n++] = '[';
+      for (int32_t bw : kLoraBandwidthsKhz) {
+        if (bw < p.min || bw > p.max) continue;
+        const int w = std::snprintf(ops + n, sizeof(ops) - n, "%s\"%ld\"",
+                                    n > 1 ? "," : "", static_cast<long>(bw));
+        if (w < 0 || static_cast<size_t>(w) >= sizeof(ops) - n) {
+          if (out != nullptr && cap > 0) out[0] = '\0';
+          return 0;
+        }
+        n += static_cast<size_t>(w);
+      }
+      if (n + 2 > sizeof(ops)) {
+        if (out != nullptr && cap > 0) out[0] = '\0';
+        return 0;
+      }
+      ops[n++] = ']';
+      ops[n]   = '\0';
+      j.raw("options", ops);
+    } else if (p.type != lran::PType::Bool) {
+      // The table's own range, so HA refuses what the bridge would clamp. Box mode, so a
+      // slider cannot be dragged through a fleet-wide PHY change on its way to a value.
+      j.i32("min", p.min);
+      j.i32("max", p.max);
+      j.str("mode", "box");
+    }
+  }
+
+  // R-3.3d - a node's own rows follow the node's availability. The bridge's rows follow
+  // the bridge's, INCLUDING the per-node ones shown on a node's device: the bridge applies
+  // them, and `deployed` must be settable on a node that has never been heard (D61), which
+  // is exactly when that node reads offline.
+  if (p.owner == Owner::Node) {
+    j.str("avty_t", "~/availability");
+  } else {
+    char avty[64];
+    std::snprintf(avty, sizeof(avty), "%s/bridge/availability", kTopicRoot);
+    j.str("avty_t", avty);
+  }
+  j.str("pl_avail", kPayloadOnline);
+  j.str("pl_not_avail", kPayloadOffline);
+
+  // A select and a switch take no unit in HA's schema; a number and a sensor do.
+  if (!control || std::strcmp(component, "number") == 0) j.str("unit_of_meas", p.unit);
+  j.str("ent_cat", control ? "config" : "diagnostic");
+
+  char device[256];
+  if (device_block(node_id, dev, dname, device, sizeof(device)) == 0) {
+    if (out != nullptr && cap > 0) out[0] = '\0';
+    return 0;
+  }
+  j.raw("dev", device);
+  return j.finish();
+}
+
 }  // namespace
 
 const char* device_name(lran::NodeId node_id) {
@@ -323,13 +497,14 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
     if (cur->node > node_count) return false;
 
     if (cur->node == node_count) {
-      if (cur->entity >= kBridgeEntityCount) {
+      out->node_id = lran::kNodeBridge;
+      if (cur->entity < kBridgeEntityCount) {
+        out->desc = &kBridgeEntities[cur->entity];
+      } else if ((out->param = bridge_param(cur->entity - kBridgeEntityCount)) == nullptr) {
         ++cur->node;  // past the end; the next call returns false
         return false;
       }
-      out->valid   = true;
-      out->node_id = lran::kNodeBridge;
-      out->desc    = &kBridgeEntities[cur->entity];
+      out->valid = true;
       ++cur->entity;
       return true;
     }
@@ -345,24 +520,41 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
       continue;
     }
 
-    const EntityDesc* d = node_entity(info.type, cur->entity);
-    if (d == nullptr) {
+    const size_t      fixed = node_entity_count(info.type);
+    const EntityDesc* d     = cur->entity < fixed ? node_entity(info.type, cur->entity) : nullptr;
+    const ParamDef*   p     = nullptr;
+    if (d == nullptr && !info.is_bench) p = node_param(cur->entity - fixed);
+    if (d == nullptr && p == nullptr) {
       ++cur->node;
       cur->entity = 0;
       continue;
     }
     ++cur->entity;
-    if (!applies(*d, info.type)) continue;
+    if (d != nullptr && !applies(*d, info.type)) continue;
 
     out->valid   = true;
     out->node_id = info.id;
     out->desc    = d;
+    out->param   = p;
     return true;
   }
 }
 
+const char* discovery_object_id(const DiscoveryItem& item) {
+  if (item.desc != nullptr) return item.desc->object_id;
+  return item.param != nullptr ? item.param->name : nullptr;
+}
+
+const char* param_component(const ParamDef& p) {
+  if (p.owner == Owner::Node && p.access == Access::Phy) return "sensor";
+  if (p.type == lran::PType::Bool) return "switch";
+  if (is_select(p)) return "select";
+  return "number";
+}
+
 size_t discovery_topic(const DiscoveryItem& item, char* out, size_t cap) {
-  if (!item.valid || item.desc == nullptr || out == nullptr || cap == 0) {
+  if (!item.valid || (item.desc == nullptr) == (item.param == nullptr) || out == nullptr ||
+      cap == 0) {
     if (out != nullptr && cap > 0) out[0] = '\0';
     return 0;
   }
@@ -371,8 +563,10 @@ size_t discovery_topic(const DiscoveryItem& item, char* out, size_t cap) {
     out[0] = '\0';
     return 0;
   }
-  const int n = std::snprintf(out, cap, "%s/%s/%s_%s/config", kDiscoveryPrefix,
-                              item.desc->component, dev, item.desc->object_id);
+  const char* component =
+      item.desc != nullptr ? item.desc->component : param_component(*item.param);
+  const int n = std::snprintf(out, cap, "%s/%s/%s_%s/config", kDiscoveryPrefix, component,
+                              dev, discovery_object_id(item));
   if (n < 0 || static_cast<size_t>(n) >= cap) {
     out[0] = '\0';
     return 0;
@@ -381,10 +575,11 @@ size_t discovery_topic(const DiscoveryItem& item, char* out, size_t cap) {
 }
 
 size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
-  if (!item.valid || item.desc == nullptr) {
+  if (!item.valid || (item.desc == nullptr) == (item.param == nullptr)) {
     if (out != nullptr && cap > 0) out[0] = '\0';
     return 0;
   }
+  if (item.param != nullptr) return param_config_json(item.node_id, *item.param, out, cap);
   const EntityDesc& d = *item.desc;
 
   char dev[48];
@@ -461,23 +656,10 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   // simnode's Open never lands on a dashboard beside the gate's.
   if (d.diagnostic || lran::is_bench_node(item.node_id)) j.str("ent_cat", "diagnostic");
 
-  // The device block. `via_device` puts every node under the bridge in HA's device tree,
-  // which is true of the topology and is also how a reader tells a silent node from a
-  // silent bridge at a glance.
   char device[256];
-  {
-    JsonObject dj(device, sizeof(device));
-    char ids[64];
-    std::snprintf(ids, sizeof(ids), "[\"%s\"]", dev);
-    dj.raw("ids", ids);
-    dj.str("name", dname);
-    dj.str("mf", kManufacturer);
-    dj.str("mdl", dname);
-    if (item.node_id != lran::kNodeBridge) dj.str("via_device", "lran_bridge");
-    if (dj.finish() == 0) {
-      if (out != nullptr && cap > 0) out[0] = '\0';
-      return 0;
-    }
+  if (device_block(item.node_id, dev, dname, device, sizeof(device)) == 0) {
+    if (out != nullptr && cap > 0) out[0] = '\0';
+    return 0;
   }
   j.raw("dev", device);
 
