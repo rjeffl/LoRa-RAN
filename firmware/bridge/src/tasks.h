@@ -152,4 +152,9 @@ inline constexpr size_t kCommandQueueDepth = 4;
 // rather than a stream. A third queued behind two is refused and said so on config/ack.
 inline constexpr size_t kConfigQueueDepth = 2;
 
+// BF-28. mqtt_task turns a `vedirect/hex/request` into one of these and sched_task runs
+// it. Two, for the config queue's reasons: one HEX transaction is in flight across the
+// fleet, and a request is an operator at a dashboard. A third is refused on hex/response.
+inline constexpr size_t kHexQueueDepth = 2;
+
 }  // namespace bridge

@@ -97,6 +97,7 @@ enum class QueueId : uint8_t {
   Command,  // mqtt_task -> sched_task (BF-18)
   Config,   // mqtt_task -> sched_task (BF-32)
   Event,    // app_task  -> mqtt_task, events alone (BF-38)
+  Hex,      // mqtt_task -> sched_task (BF-28)
   kCount,
 };
 

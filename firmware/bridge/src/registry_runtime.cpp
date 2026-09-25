@@ -9,6 +9,7 @@
 #include <freertos/semphr.h>
 
 #include "command.h"
+#include "hex_proxy.h"
 #include "lora_link.h"
 #include "mbedtls_mac.h"
 
@@ -133,6 +134,16 @@ size_t registry_build_config(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, u
   ectx.node_key = key;
   size_t len    = 0;
   return lran::encode(h, payload, plen, ectx, buf, cap, &len) == lran::Status::Ok ? len : 0;
+}
+
+size_t registry_build_hex_req(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                              const char* hex, size_t n, uint8_t* buf, size_t cap) {
+  const uint8_t* key = g_registry.key_for(dst);
+  if (key == nullptr) return 0;
+  lran::EncodeCtx ectx;
+  ectx.mac      = &g_mac;
+  ectx.node_key = key;
+  return build_hex_req_frame(dst, ctx, seq, ver, hex, n, ectx, buf, cap);
 }
 
 }  // namespace bridge

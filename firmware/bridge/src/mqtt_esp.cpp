@@ -58,20 +58,20 @@ bool EspMqttTransport::begin(const MqttConfig& cfg) {
 
   // A lambda capturing one pointer fits std::function's inline storage, so installing
   // it allocates nothing.
-  client_.onMessage([this](const espMqttClientTypes::MessageProperties&, const char* topic,
-                           const uint8_t* payload, size_t len, size_t index, size_t total) {
-    on_piece(topic, payload, len, index, total);
-  });
+  client_.onMessage([this](const espMqttClientTypes::MessageProperties& props,
+                           const char* topic, const uint8_t* payload, size_t len, size_t index,
+                           size_t total) { on_piece(topic, payload, len, index, total, props.retain); });
   return true;
 }
 
 // Called from inside loop(), on mqtt_task. The library releases its mutex around this
 // callback, so the sink may publish.
 void EspMqttTransport::on_piece(const char* topic, const uint8_t* payload, size_t len,
-                                size_t index, size_t total) {
+                                size_t index, size_t total, bool retained) {
   if (!assembler_.add(topic, payload, len, index, total, &inbound_msg_)) {
     return;
   }
+  inbound_msg_.retained = retained;
   if (inbound_ == nullptr) {
     ++no_sink_;
     return;

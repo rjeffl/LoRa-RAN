@@ -157,6 +157,32 @@ bool parse_config_topic(const char* topic, ConfigTopic* out);
 // length written, or 0.
 size_t topic_config(const char* node, const char* leaf, char* out, size_t cap);
 
+// ---------------------------------------------------------------------------
+// The VE.Direct topics - `lran/<node>/vedirect/...` (spec 16.2). BF-28, BF-29.
+//
+// Two arrive: `hex/request`, a raw HEX string, and `write_enable/set`, a Home Assistant
+// switch's `ON` or `OFF`. Everything else under the domain is the bridge's to publish.
+// ---------------------------------------------------------------------------
+
+inline constexpr const char* kTopicHexRequestFilter  = "lran/+/vedirect/hex/request";
+inline constexpr const char* kTopicWriteEnableFilter = "lran/+/vedirect/write_enable/set";
+
+enum class VedirectInbound : uint8_t { HexRequest, WriteEnableSet };
+
+struct VedirectTopic {
+  uint8_t         node_id = 0;
+  VedirectInbound kind    = VedirectInbound::HexRequest;
+};
+
+// Parses exactly `lran/<node>/vedirect/hex/request` or `lran/<node>/vedirect/write_enable/set`.
+// False for any other shape or a node token spec 16.1 does not define. The bridge is not a
+// target: it has no MPPT.
+bool parse_vedirect_topic(const char* topic, VedirectTopic* out);
+
+// `lran/<node>/vedirect/<rest>`, where `rest` is `hex/response`, `hex/audit`,
+// `write_enable/state`, `write_enable/set` or `charge/state`. Returns the length written, or 0.
+size_t topic_vedirect(const char* node, const char* rest, char* out, size_t cap);
+
 // `lran/<node>/<domain>/state` for one of BF-24's decoded documents (spec 16.2). `domain`
 // is spec 16.1's token - `gate`, `detect`, `battery`, `solar` or `node`. Returns the
 // length written, or 0.

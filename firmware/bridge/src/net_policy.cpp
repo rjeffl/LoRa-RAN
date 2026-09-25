@@ -283,6 +283,44 @@ bool parse_config_topic(const char* topic, ConfigTopic* out) {
   return true;
 }
 
+bool parse_vedirect_topic(const char* topic, VedirectTopic* out) {
+  if (topic == nullptr || out == nullptr) return false;
+  // Five segments, matched by position, as parse_config_topic() does.
+  if (!segment_is(topic, 0, kTopicRoot) || !segment_is(topic, 2, "vedirect")) return false;
+  const char* extra     = nullptr;
+  size_t      extra_len = 0;
+  if (segment(topic, 5, &extra, &extra_len)) return false;  // a sixth segment
+
+  VedirectTopic parsed;
+  if (segment_is(topic, 3, "hex") && segment_is(topic, 4, "request")) {
+    parsed.kind = VedirectInbound::HexRequest;
+  } else if (segment_is(topic, 3, "write_enable") && segment_is(topic, 4, "set")) {
+    parsed.kind = VedirectInbound::WriteEnableSet;
+  } else {
+    return false;
+  }
+  const char* node_seg = nullptr;
+  size_t      node_len = 0;
+  if (!segment(topic, 1, &node_seg, &node_len)) return false;
+  if (!node_id_from_token(node_seg, node_len, &parsed.node_id)) return false;
+  *out = parsed;
+  return true;
+}
+
+size_t topic_vedirect(const char* node, const char* rest, char* out, size_t cap) {
+  if (out == nullptr || cap == 0) return 0;
+  if (node == nullptr || node[0] == '\0' || rest == nullptr || rest[0] == '\0') {
+    out[0] = '\0';
+    return 0;
+  }
+  const int n = std::snprintf(out, cap, "lran/%s/vedirect/%s", node, rest);
+  if (n < 0 || static_cast<size_t>(n) >= cap) {
+    out[0] = '\0';
+    return 0;
+  }
+  return static_cast<size_t>(n);
+}
+
 size_t topic_config(const char* node, const char* leaf, char* out, size_t cap) {
   if (out == nullptr || cap == 0) return 0;
   if (node == nullptr || node[0] == '\0' || leaf == nullptr || leaf[0] == '\0') {

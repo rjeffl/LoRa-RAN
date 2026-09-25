@@ -23,6 +23,7 @@
 #include "config_store.h"
 #include "diag_json.h"
 #include "error_reply.h"
+#include "hex_proxy.h"
 #include "levers.h"
 #include "lran/config.h"
 #include "lran/link/media_access.h"
@@ -97,6 +98,8 @@ void test_the_table_defaults_are_the_consumers_defaults() {
   TEST_ASSERT_EQUAL_UINT16(PublishLevers{}.republish_interval_s, v.republish_interval_s);
   TEST_ASSERT_EQUAL_UINT16(PublishLevers{}.bms_stale_s, v.bms_stale_s);
   TEST_ASSERT_EQUAL_UINT8(PublishLevers{}.cell_mv_deadband, v.cell_mv_deadband);
+  TEST_ASSERT_EQUAL_UINT32(kHexRspTimeoutDefaultMs, v.hex_rsp_timeout_ms);
+  TEST_ASSERT_EQUAL_UINT16(kWriteArmTimeoutDefaultS, v.mppt_write_arm_timeout_s);
 }
 
 void test_each_global_override_reaches_its_lever() {
@@ -117,6 +120,8 @@ void test_each_global_override_reaches_its_lever() {
   set(store, ConfigScope::Bridge, 0, "republish_interval_s", 300);
   set(store, ConfigScope::Bridge, 0, "bms_stale_s", 90);
   set(store, ConfigScope::Bridge, 0, "cell_mv_deadband", 0);
+  set(store, ConfigScope::Bridge, 0, "hex_rsp_timeout_ms", 4500);
+  set(store, ConfigScope::Bridge, 0, "mppt_write_arm_timeout_s", 60);
 
   const Levers v = levers_from(store);
   TEST_ASSERT_EQUAL_UINT16(15, v.diag_interval_s);
@@ -134,6 +139,8 @@ void test_each_global_override_reaches_its_lever() {
   TEST_ASSERT_EQUAL_UINT16(300, v.republish_interval_s);
   TEST_ASSERT_EQUAL_UINT16(90, v.bms_stale_s);
   TEST_ASSERT_EQUAL_UINT8(0, v.cell_mv_deadband);
+  TEST_ASSERT_EQUAL_UINT32(4500, v.hex_rsp_timeout_ms);
+  TEST_ASSERT_EQUAL_UINT16(60, v.mppt_write_arm_timeout_s);
 
   // And through the board, which carries them to app_task.
   LeverBoard board;
@@ -144,6 +151,8 @@ void test_each_global_override_reaches_its_lever() {
   TEST_ASSERT_EQUAL_UINT16(300, out.republish_interval_s);
   TEST_ASSERT_EQUAL_UINT16(90, out.bms_stale_s);
   TEST_ASSERT_EQUAL_UINT8(0, out.cell_mv_deadband);
+  TEST_ASSERT_EQUAL_UINT32(4500, out.hex_rsp_timeout_ms);
+  TEST_ASSERT_EQUAL_UINT16(60, out.mppt_write_arm_timeout_s);
 }
 
 // A value outside its row's range is clamped by the store, and the lever runs the clamped

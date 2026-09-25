@@ -21,6 +21,7 @@
 
 #include "command.h"
 #include "config_json.h"
+#include "charge_readback.h"
 #include "discovery.h"
 #include "mqtt_transport.h"
 #include "lran/schema/gatelink_status_v1.h"
@@ -337,6 +338,7 @@ void test_a_button_publishes_to_a_topic_the_bridge_parses() {
   size_t buttons = 0;
   for (size_t i = 0; i < w.n; ++i) {
     if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc->vedirect) continue;  // the write switch: its own test below
     ++buttons;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "cmd_t", cmd, sizeof(cmd)));
@@ -357,6 +359,7 @@ void test_a_button_press_payload_is_one_the_bridge_accepts() {
   char press[32];
   for (size_t i = 0; i < w.n; ++i) {
     if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc->vedirect) continue;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "payload_press", press, sizeof(press)));
     uint8_t  arg  = 0xFF;
     uint16_t arg2 = 0xFFFF;
@@ -546,7 +549,7 @@ void test_every_state_entity_reads_a_key_the_policy_writes() {
   for (size_t i = 0; i < w.n; ++i) {
     const EntityDesc* d = w.items[i].desc;
     if (w.items[i].node_id != kNodeGateLink || d == nullptr || d->state_suffix == nullptr ||
-        std::strncmp(d->state_suffix, "diag/", 5) == 0) {
+        std::strncmp(d->state_suffix, "diag/", 5) == 0 || d->vedirect) {
       continue;
     }
     char topic[kMaxTopicLen], key[48];
@@ -778,6 +781,56 @@ void test_a_bench_node_has_no_table_entities() {
   }
 }
 
+// BF-29 - the write switch commands the topic the bridge parses as the arm, with payloads the
+// inbound path accepts, and shows the state the bridge publishes. GateLink only.
+void test_the_write_switch_speaks_the_bridge_topics() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  size_t switches = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const EntityDesc* d = w.items[i].desc;
+    if (d == nullptr || !d->vedirect || d->command_suffix == nullptr) continue;
+    ++switches;
+    TEST_ASSERT_EQUAL_HEX8(kNodeGateLink, w.items[i].node_id);  // never a bench node
+    char base[80], cmd[80], stat[80], full[160];
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "cmd_t", cmd, sizeof(cmd)));
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "stat_t", stat, sizeof(stat)));
+    std::snprintf(full, sizeof(full), "%s%s", base, cmd + 1);
+    VedirectTopic t;
+    TEST_ASSERT_TRUE_MESSAGE(parse_vedirect_topic(full, &t), full);
+    TEST_ASSERT_EQUAL(VedirectInbound::WriteEnableSet, t.kind);
+    TEST_ASSERT_EQUAL_STRING("~/vedirect/write_enable/state", stat);
+    TEST_ASSERT_NULL(std::strstr(w.configs[i], "payload_press"));
+  }
+  TEST_ASSERT_EQUAL_size_t(1, switches);
+}
+
+// BF-30 - every charge sensor reads a key the readback document writes, for every
+// register in the table, and each is diagnostic.
+void test_every_charge_sensor_reads_a_key_the_readback_writes() {
+  ChargeReadback r;
+  char           doc[512];
+  TEST_ASSERT_GREATER_THAN(0, r.json(doc, sizeof(doc)));
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  size_t sensors = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const EntityDesc* d = w.items[i].desc;
+    if (d == nullptr || !d->vedirect || d->command_suffix != nullptr) continue;
+    ++sensors;
+    TEST_ASSERT_EQUAL_STRING("vedirect/charge/state", d->state_suffix);
+    char key[48];
+    std::snprintf(key, sizeof(key), "\"%s\":", d->value_key);
+    TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(doc, key), key);
+    TEST_ASSERT_TRUE(d->diagnostic);
+    TEST_ASSERT_NULL(d->state_class);
+  }
+  TEST_ASSERT_EQUAL_size_t(kChargeRegisterCount, sensors);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_unique_id_across_the_whole_fleet_is_distinct);
@@ -815,5 +868,7 @@ int main() {
   RUN_TEST(test_a_node_s_phy_rows_are_read_only_sensors);
   RUN_TEST(test_every_control_is_a_config_entity);
   RUN_TEST(test_a_bench_node_has_no_table_entities);
+  RUN_TEST(test_the_write_switch_speaks_the_bridge_topics);
+  RUN_TEST(test_every_charge_sensor_reads_a_key_the_readback_writes);
   return UNITY_END();
 }

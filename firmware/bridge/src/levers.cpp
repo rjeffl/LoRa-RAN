@@ -50,6 +50,8 @@ constexpr uint16_t kSimnodeDiagEnable     = bridge_row("simnode_diag_enable");
 constexpr uint16_t kRepublishIntervalS    = bridge_row("republish_interval_s");
 constexpr uint16_t kBmsStaleS             = bridge_row("bms_stale_s");
 constexpr uint16_t kCellMvDeadband        = bridge_row("cell_mv_deadband");
+constexpr uint16_t kHexRspTimeoutMs       = bridge_row("hex_rsp_timeout_ms");
+constexpr uint16_t kWriteArmTimeoutS      = bridge_row("mppt_write_arm_timeout_s");
 
 static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kPollReplyTimeoutMs != kNoRow && kCommandAckTimeoutMs != kNoRow &&
@@ -58,6 +60,7 @@ static_assert(kDiagIntervalS != kNoRow && kMissedPollThreshold != kNoRow &&
                   kErrorMinIntervalMs != kNoRow && kConfigReadbackTimeout != kNoRow &&
                   kConfigAckTimeoutMs != kNoRow && kPollIntervalS != kNoRow && kDeployed != kNoRow &&
                   kSimnodeDiagEnable != kNoRow && kRepublishIntervalS != kNoRow &&
+                  kHexRspTimeoutMs != kNoRow && kWriteArmTimeoutS != kNoRow &&
                   kBmsStaleS != kNoRow && kCellMvDeadband != kNoRow,
               "every lever reads a row of kBridgeParams");
 
@@ -87,6 +90,8 @@ Levers levers_from(const ConfigStore& store) {
   v.republish_interval_s       = static_cast<uint16_t>(store.global_value(kRepublishIntervalS));
   v.bms_stale_s                = static_cast<uint16_t>(store.global_value(kBmsStaleS));
   v.cell_mv_deadband           = static_cast<uint8_t>(store.global_value(kCellMvDeadband));
+  v.hex_rsp_timeout_ms         = static_cast<uint32_t>(store.global_value(kHexRspTimeoutMs));
+  v.mppt_write_arm_timeout_s   = static_cast<uint16_t>(store.global_value(kWriteArmTimeoutS));
   for (size_t i = 0; i < kNodeCount; ++i) {
     v.poll_interval_s[i] =
         static_cast<uint16_t>(store.node_value(kNodeTable[i].id, kPollIntervalS));
@@ -115,6 +120,8 @@ void LeverBoard::publish(const Levers& v) {
   republish_interval_s_.store(v.republish_interval_s, r);
   bms_stale_s_.store(v.bms_stale_s, r);
   cell_mv_deadband_.store(v.cell_mv_deadband, r);
+  hex_rsp_timeout_ms_.store(v.hex_rsp_timeout_ms, r);
+  mppt_write_arm_timeout_s_.store(v.mppt_write_arm_timeout_s, r);
   for (size_t i = 0; i < kNodeCount; ++i) poll_interval_s_[i].store(v.poll_interval_s[i], r);
   for (size_t i = 0; i < kNodeCount; ++i) deployed_[i].store(v.deployed[i], r);
 
@@ -142,6 +149,8 @@ bool LeverBoard::take_if_changed(uint32_t* seen, Levers* out) const {
   v.republish_interval_s       = republish_interval_s_.load(r);
   v.bms_stale_s                = bms_stale_s_.load(r);
   v.cell_mv_deadband           = cell_mv_deadband_.load(r);
+  v.hex_rsp_timeout_ms         = hex_rsp_timeout_ms_.load(r);
+  v.mppt_write_arm_timeout_s   = mppt_write_arm_timeout_s_.load(r);
   for (size_t i = 0; i < kNodeCount; ++i) v.poll_interval_s[i] = poll_interval_s_[i].load(r);
   for (size_t i = 0; i < kNodeCount; ++i) v.deployed[i] = deployed_[i].load(r);
 

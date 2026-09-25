@@ -100,6 +100,9 @@ struct InboundMessage {
   char   topic[kMaxTopicLen]            = {0};
   char   payload[kMaxInboundPayloadLen] = {0};
   size_t payload_len                    = 0;
+  // The broker delivered it from its retained store rather than live. BF-29 refuses to arm
+  // the MPPT write switch from one, because a retained `ON` would re-arm at every connect.
+  bool   retained                       = false;
 };
 
 // Fills `out` from what the transport received, refusing rather than truncating.

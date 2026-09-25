@@ -49,6 +49,7 @@ INCLUDES = [
     "lib/lran-protocol/include",
     "lib/lran-link/include",
     "lib/lran-config/include",
+    "lib/vedirect/include",
 ]
 
 

@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Battery type","uniq_id":"lran_gatelink_charge_battery_type","stat_t":"~/vedirect/charge/state","val_tpl":"{{ value_json.charge_battery_type }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","ent_cat":"diagnostic","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

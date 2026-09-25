@@ -47,7 +47,7 @@ class EspMqttTransport final : public MqttTransport {
 
  private:
   void on_piece(const char* topic, const uint8_t* payload, size_t len, size_t index,
-                size_t total);
+                size_t total, bool retained);
 
   espMqttClient    client_;
   MqttConfig       cfg_{};
