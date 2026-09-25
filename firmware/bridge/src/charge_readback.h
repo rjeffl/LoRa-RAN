@@ -2,8 +2,10 @@
 // Copyright (c) 2026 Robert J. Lee
 //
 // The MPPT's charge parameters, read back and published as diagnostic sensors. Task BF-30;
-// PRD R-3.5d, R-3.5e; Impl Plan 6.4; Victron's "BlueSolar HEX protocol", section 1.1,
-// "Battery settings registers".
+// PRD R-3.5d, R-3.5e; Impl Plan 6.4. Register IDs, widths and scales follow
+// osh-labs/VE.Direct_mppt_arduino's src/VeDirectRegisters.h, the VE.Direct reference of
+// record (GateLink Impl Plan 4.2.4). 0xEDE0 is not in that library, so it comes from
+// Victron's "BlueSolar HEX protocol", section 1.1.
 //
 // ARDUINO-FREE, AND IT DOES NO I/O. sched_task asks which register to read next, sends
 // the Get through the HEX proxy, and hands the answer back.
@@ -16,8 +18,9 @@
 // that decide how the pack is charged, and publishes them so a wrong profile is visible in
 // Home Assistant rather than latent (R-3.5d).
 //
-// SCALES ARE VICTRON'S, NOT OBSERVED. Every scale and width below is transcribed from the
-// document; none has been read from GateLink's MPPT 75/15 yet. BF-30's readback against the
+// SCALES ARE THE REFERENCE'S, NOT OBSERVED. Every scale and width below is transcribed
+// from the library or, for 0xEDE0, the document; none has been read from GateLink's
+// MPPT 75/15 yet. BF-30's readback against the
 // real MPPT at B6 is what confirms them. A wrong scale here publishes a plausible wrong
 // voltage, which is exactly the failure R-3.5d exists to expose, so a disagreement at B6 is
 // a finding to record, not a number to adjust until it looks right.
@@ -59,7 +62,9 @@ inline constexpr ChargeRegister kChargeRegisters[] = {
     {0xEDF1, 1, false, 0, "charge_battery_type", nullptr, "Battery type"},
     {0xEDF0, 2, false, 1, "charge_max_current_a", "A", "Maximum charge current"},
     {0xEDFB, 2, false, 2, "charge_absorption_time_limit_h", "h", "Absorption time limit"},
-    {0xEDEF, 1, false, 0, "charge_system_voltage_v", "V", "System voltage setting"},
+    // 0xEDEA, the library's SYSTEM_VOLTAGE. B5 first read 0xEDEF, a register the library
+    // does not name; B6 on the real MPPT confirms which one carries the setting.
+    {0xEDEA, 1, false, 0, "charge_system_voltage_v", "V", "System voltage setting"},
     {0xEDE0, 2, true, 2, "charge_low_temp_level_c", "°C", "Low temperature charge cut-off"},
 };
 inline constexpr size_t kChargeRegisterCount = sizeof(kChargeRegisters) / sizeof(kChargeRegisters[0]);

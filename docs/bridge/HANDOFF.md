@@ -22,11 +22,8 @@ file:
    commit messages and the headers `hex_proxy.h` and `charge_readback.h`. Add a BF-28–30
    paragraph to `firmware/bridge/CLAUDE.md`. Mark BF-28–30 and BF-36 built in Tasks §9.
    Add an engineering-log entry covering the four spec readings below.
-   **Cross-check the HEX code against `osh-labs/VE.Direct_mppt_arduino`**, the reference
-   of record (GateLink Impl Plan §4.2.4). B5 built from Victron's HEX PDF instead. Compare
-   `lib/vedirect/` framing and checksum, `charge_readback`'s register IDs and scaling, and
-   `sim_mppt`'s register table with the library's `src/VeDirectHexProtocol.*` and
-   `src/VeDirectRegisters.h`. Fix any drift, and re-cite the headers.
+   The cross-check against `osh-labs/VE.Direct_mppt_arduino` is done: see the log's
+   **B5's HEX code against osh-labs** entry. §6.4's subsection should cite the library.
 2. **Raise for spec v0.16**, one line each in the log: (a) a write-class `HEX_REQ` answers
    `HEX_RSP(REJECTED_UNAUTHENTICATED)` on a bad MAC, `COMMAND_ACK` on context, dedup or
    `seq`; (b) `HEX_RSP` repeats the request's `seq`; (c) §16.2 marks `write_enable/set`

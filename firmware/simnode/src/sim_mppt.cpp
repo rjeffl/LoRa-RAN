@@ -22,7 +22,7 @@ const SimRegister kProfile[kSimMpptRegisters] = {
     {0xEDF7, 2, true, 1420},   // absorption voltage, 0.01 V
     {0xEDFB, 2, true, 200},    // absorption time limit, 0.01 h
     {0xEDFD, 1, true, 0},      // automatic equalisation mode: off (R-6.1b)
-    {0xEDEF, 1, true, 12},     // battery voltage, V
+    {0xEDEA, 1, true, 12},     // system voltage, V: the library's SYSTEM_VOLTAGE
     {0xEDE0, 2, true, 500},    // battery low temperature level, 0.01 degC, sn16: 5.00
 };
 

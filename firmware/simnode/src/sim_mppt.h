@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Robert J. Lee
 //
 // A simulated Victron MPPT on the far side of ROLE_GATELINK's UART. Task BF-36; spec 6.7,
-// 7.6, 8.13; Victron's "BlueSolar HEX protocol" document, section 1.
+// 7.6, 8.13. Registers follow osh-labs/VE.Direct_mppt_arduino, the VE.Direct reference of
+// record (GateLink Impl Plan 4.2.4); Victron's "BlueSolar HEX protocol" document, section 1,
+// fills the gaps the library leaves.
 //
 // ARDUINO-FREE. This is the MPPT, not the node: it takes a HEX request string and returns
 // what an MPPT would put on the UART. gatelink.cpp is the node around it, and holds the

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// VE.Direct HEX frames: build one, check one, and read a Get or Set reply. Victron's
-// "BlueSolar HEX protocol" document, section 1, is the source for every value here; the
-// LRAN specification transports these strings verbatim and defines none of them (spec 6.7,
-// 7.6).
+// VE.Direct HEX frames: build one, check one, and read a Get or Set reply. Every value here
+// matches osh-labs/VE.Direct_mppt_arduino's src/VeDirectHexProtocol.h, the VE.Direct
+// reference of record (GateLink Impl Plan 4.2.4), checked 2026-09-25; the "Victron section"
+// notes below cite the document that library was verified against. The LRAN specification
+// transports these strings verbatim and defines none of them (spec 6.7, 7.6).
 //
 // WHY A LIBRARY. Two firmwares speak HEX before GateLink exists: the simnode's simulated
 // MPPT answers it (BF-36) and the bridge reads charge parameters back from it (BF-30).
@@ -17,7 +18,9 @@
 // THE FRAME. ':' then the command as ONE hex digit, then each data byte as two hex digits,
 // then a check byte as two. The command nibble, the data bytes and the check byte sum to
 // 0x55. Digits are uppercase; Victron says they must be, so a lowercase digit is refused
-// rather than accepted here and refused by the MPPT. The newline that ends a frame on the
+// rather than accepted here and refused by the MPPT. This is the one deliberate difference
+// from the library, whose receive parser accepts lowercase: it reads only the MPPT's own
+// output, while this code also checks requests typed into Home Assistant. The newline that ends a frame on the
 // UART is not part of the string: spec 7.6 carries the request without it.
 
 #pragma once

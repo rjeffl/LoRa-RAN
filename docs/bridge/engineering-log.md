@@ -3233,3 +3233,40 @@ broker and did not trigger it. A hand-published event marked `synthetic: false` 
 left one persistent notification in the sandbox. The automation was deleted after the run.
 
 Suites: bridge 436 of 436; the `heltec` target builds.
+
+## 2026-09-25 — B5's HEX code against osh-labs/VE.Direct_mppt_arduino: one register moved
+
+B5 built `lib/vedirect/`, `charge_readback` and `sim_mppt` from Victron's "BlueSolar HEX
+protocol" PDF. `osh-labs/VE.Direct_mppt_arduino` is now the VE.Direct reference of record
+(GateLink Impl Plan §4.2.4), so the code was compared against the library's
+`src/VeDirectHexProtocol.{h,cpp}` and `src/VeDirectRegisters.h` at its `main`. That
+register file says it was itself verified against the same PDF, Rev 18.
+
+**Framing agrees throughout.** The command and response nibbles, the Get/Set reply flags
+(`0x01`, `0x02`, `0x04`), the `0x55` checksum, little-endian register and value, and
+uppercase output all match.
+
+**One register disagreed, and it moved.** The bridge read "System voltage setting" at
+`0xEDEF`, and `sim_mppt` held it there. The library does not name `0xEDEF`; its
+`SYSTEM_VOLTAGE` is `0xEDEA`, un8, volts. Both now use `0xEDEA`. The HA `object_id`,
+`charge_system_voltage_v`, is unchanged. Which register carries the configured setting on
+the MPPT 75/15 is still unobserved; B6's readback against the real MPPT confirms it.
+
+**The other nine charge registers match** in ID, width, sign and scale: `0xEDF7`, `0xEDF6`,
+`0xEDF4` at 0.01 V; `0xEDFD` and `0xEDF1`, un8; `0xEDF2`, sn16 at 0.01 mV/K; `0xEDF0` at
+0.1 A; `0xEDFB` at 0.01 h. So do `sim_mppt`'s `0x0201` device state and `0xEDDA` error
+code.
+
+**Two gaps where the library is silent**, so the PDF still stands:
+
+- `0xEDE0`, battery low-temperature level, sn16 at 0.01 °C. The library has no such
+  register.
+- **Lowercase hex.** The library's receive parser accepts it; `lib/vedirect` refuses it.
+  This difference is kept on purpose: the library reads only MPPT output, while
+  `lib/vedirect` also checks requests typed into Home Assistant, and Victron requires
+  uppercase.
+
+`HexRsp` has no `Async` (`0xA`) member. The bridge never sees an unsolicited frame, but
+GateLink's UART will, and the library's async queue is the model for it there.
+
+Suites: `lib/vedirect` 12 of 12, simnode 140 of 140, bridge 466 of 466.
