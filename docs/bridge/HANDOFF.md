@@ -1,8 +1,8 @@
 # Bridge Node — session handoff
 
 **Written 2026-09-24 by the session that ran BF-33 slice 4, B4b's bench run.** Every
-criterion in B4b's row held on air, across three identities on two boards. B4b waits on the
-operator's acceptance. The run found one defect: a `POLL` and a PHY `CONFIG` can go to the
+criterion in B4b's row held on air, across three identities on two boards, and the operator
+accepted B4b the same day. The run found one defect: a `POLL` and a PHY `CONFIG` can go to the
 same node in one tick, and both are lost. By operator decision, it is fixed on a branch of
 its own. The engineering log's *BF-33 slice 4 on air* entry has the evidence.
 
@@ -36,8 +36,7 @@ Anything out of scope goes in one line under *Open*, not into the session.
 
 ## The next job, in one place
 
-**B4b is met on the bench and not yet accepted.** The operator accepts it on the Impl Plan
-§8 row. The slice 4 PR carries the run.
+**B4b is accepted** (Impl Plan §8).
 
 **The poll clash.** `sched_task` runs `sched_polls()`, `sched_roll()`,
 `sched_commands()`, `sched_config()` and `sched_phy()` in one 1 s tick. Each may send one
@@ -196,9 +195,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B4b** (**BF-33**): all four slices done, and the criteria met on the bench on 2026-09-24; **not yet accepted**. The poll clash, unfixed. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
-| Queue | **B4b**'s acceptance, then the poll clash, then **BF-35** |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **BF-27's dummy publish** built and on air. **BF-26 confirmed on air**, and the bench restored after V-B12. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | The poll clash, unfixed. **BF-35**, HA controls for the configuration table, unstarted. **BF-27's** bridge-side simulators and packet loopback. **M26**. **BF-11a**, **BF-11b**. The whole-document style passes |
+| Queue | The poll clash, then **BF-35** |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
