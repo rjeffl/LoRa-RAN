@@ -146,4 +146,10 @@ struct ConfigStateEntry {
 // `config/state`, spec 16.7.4, retained. Returns the length written, or 0.
 size_t build_config_state(const ConfigStateEntry* entries, size_t n, char* out, size_t cap);
 
+// `lran/bridge/event/phy_reverted`, spec 16.7.5. `(boot, event_id)` is the key Home
+// Assistant deduplicates on (spec 16.3, D67). `boot` 0 means NVS could not count the boot,
+// and is written null rather than as a key that would repeat. `node` null writes null.
+size_t build_phy_reverted(uint32_t boot, uint32_t event_id, const char* reason,
+                          const char* node, char* out, size_t cap);
+
 }  // namespace bridge

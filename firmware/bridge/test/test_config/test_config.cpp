@@ -495,6 +495,24 @@ void test_a_nodes_block_fits_one_publication() {
   TEST_ASSERT_TRUE_MESSAGE(state > 0, "a node's config/state no longer fits kMaxPayloadLen");
 }
 
+// Spec 16.7.5, D63, D67 - the bridge's own event carries `boot`, and a commit that failed
+// reports `commit_failed` with no node. A boot NVS could not count writes null.
+void test_phy_reverted_carries_boot_and_commit_failed() {
+  char doc[128];
+  TEST_ASSERT_GREATER_THAN_UINT32(
+      0, build_phy_reverted(7, 1, "commit_failed", nullptr, doc, sizeof(doc)));
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"boot\":7,\"event_id\":1,\"reason\":\"commit_failed\",\"node\":null}", doc);
+
+  TEST_ASSERT_GREATER_THAN_UINT32(
+      0, build_phy_reverted(0, 2, "not_heard", "gatelink", doc, sizeof(doc)));
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"boot\":null,\"event_id\":2,\"reason\":\"not_heard\",\"node\":\"gatelink\"}", doc);
+
+  char small[16];
+  TEST_ASSERT_EQUAL_UINT32(0, build_phy_reverted(7, 1, "restart", nullptr, small, sizeof(small)));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -539,6 +557,7 @@ int main(int, char**) {
   RUN_TEST(test_the_bridges_own_block_fits_one_publication);
   RUN_TEST(test_the_largest_refusable_set_still_fits_its_answer);
   RUN_TEST(test_a_nodes_block_fits_one_publication);
+  RUN_TEST(test_phy_reverted_carries_boot_and_commit_failed);
 
   return UNITY_END();
 }

@@ -350,8 +350,8 @@ void test_a_node_that_never_confirms_is_counted_as_w17() {
   TEST_ASSERT_EQUAL_UINT32(1, r.m.stats().committed);
 }
 
-// Step 7's write failed: no GET goes, and the bridge reverts. No phy_reverted reason fits,
-// so the abandon carries StoreFailed and the caller publishes no event.
+// Step 7's write failed: no GET goes, and the bridge reverts. The abandon carries
+// CommitFailed, which the caller publishes as phy_reverted `commit_failed` (D63).
 void test_a_failed_commit_reverts_before_any_get() {
   Rig r(1);
   r.fan_out(0);
@@ -362,7 +362,7 @@ void test_a_failed_commit_reverts_before_any_get() {
   r.m.commit_failed();
   const PhyStep s = r.step(20);
   TEST_ASSERT_TRUE(s.action == PhyAction::Abandon);
-  TEST_ASSERT_TRUE(s.reason == PhyReason::StoreFailed);
+  TEST_ASSERT_TRUE(s.reason == PhyReason::CommitFailed);
   TEST_ASSERT_TRUE(s.retuned);
   TEST_ASSERT_EQUAL_UINT32(0, r.m.stats().committed);
 }

@@ -311,7 +311,7 @@ void PhyChange::on_sent(lran::Seq seq, uint32_t now_ms) {
 void PhyChange::commit_failed() {
   if (phase_ != Phase::GetDue || index_ != 0 || get_attempts_ != 0) return;
   --stats_.committed;
-  abandon(PhyReason::StoreFailed, 0);
+  abandon(PhyReason::CommitFailed, 0);
 }
 
 void PhyChange::on_retuned(uint32_t now_ms) {

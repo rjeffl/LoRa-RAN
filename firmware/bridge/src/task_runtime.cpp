@@ -24,6 +24,7 @@
 
 #include "air_turn.h"
 #include "board_ui.h"
+#include "boot_count.h"
 #include "command.h"
 #include "config_json.h"
 #include "config_path.h"
@@ -221,6 +222,9 @@ static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonPa
 
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
+// spec 16.3, D67 - this boot's number, which keys the bridge's own events. 0 when NVS
+// could not count it.
+uint32_t    g_boot_count = 0;
 
 // spec 12.4.1 - the radio's settings at boot: the committed PHY group, which is D1's
 // envelope until a change has committed. config_begin() writes it before the tasks start.
@@ -912,19 +916,16 @@ bool queue_config_job(const ConfigJob& job);  // with the MQTT path below
 
 uint32_t g_phy_event_id = 0;  // spec 16.7.5 - counts from 1 at each boot
 
-// lran/bridge/event/phy_reverted - never retained, QoS 1 (spec 16.3).
+// lran/bridge/event/phy_reverted - never retained, QoS 1 (spec 16.3), keyed on
+// (boot, event_id) because event_id restarts at each boot (D67).
 bool publish_phy_reverted(const char* reason, lran::NodeId node) {
   char name[16] = {0};
   const bool has_node = node != 0 && node_topic_name(node, name, sizeof(name)) > 0;
   char payload[128];
-  const int n = has_node
-                    ? std::snprintf(payload, sizeof(payload),
-                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":\"%s\"}",
-                                    static_cast<unsigned long>(g_phy_event_id + 1), reason, name)
-                    : std::snprintf(payload, sizeof(payload),
-                                    "{\"event_id\":%lu,\"reason\":\"%s\",\"node\":null}",
-                                    static_cast<unsigned long>(g_phy_event_id + 1), reason);
-  if (n <= 0 || static_cast<size_t>(n) >= sizeof(payload)) return false;
+  if (build_phy_reverted(g_boot_count, g_phy_event_id + 1, reason, has_node ? name : nullptr,
+                         payload, sizeof(payload)) == 0) {
+    return false;
+  }
   char topic[kMaxTopicLen];
   if (topic_event(kTopicBridgeToken, "phy_reverted", topic, sizeof(topic)) == 0) return false;
   if (!make_publish(&g_sched_msg, topic, payload, /*retain=*/false, /*qos=*/1) ||
@@ -1008,9 +1009,10 @@ void publish_phy_node_state(const PhyStep& st) {
 
 const char* phy_reason_token(PhyReason r) {
   switch (r) {
-    case PhyReason::NotAccepted: return "not_accepted";
-    case PhyReason::NotHeard:    return "not_heard";
-    default:                     return nullptr;  // StoreFailed: see phy_change.h
+    case PhyReason::NotAccepted:  return "not_accepted";
+    case PhyReason::NotHeard:     return "not_heard";
+    case PhyReason::CommitFailed: return "commit_failed";  // D63
+    default:                      return nullptr;
   }
 }
 
@@ -1154,7 +1156,7 @@ void sched_phy(uint32_t now_ms) {
       case PhyAction::Abandon: {
         const char* reason = phy_reason_token(st.reason);
         Serial.printf("phy: change abandoned (%s, node %02x)%s\n",
-                      reason != nullptr ? reason : "store_failed",
+                      reason != nullptr ? reason : "?",
                       static_cast<unsigned>(st.culprit), st.retuned ? ", retuning back" : "");
         PhyConfig p;
         if (st.retuned) {
@@ -2519,6 +2521,8 @@ bool send_publish(const PublishMessage& msg) {
 // refuses to open still applies every set and answers APPLIED_NOT_PERSISTED, which is
 // spec 8.11's whole point.
 size_t config_begin() {
+  g_boot_count = boot_count_advance();
+  Serial.printf("boot: count %lu\n", static_cast<unsigned long>(g_boot_count));
   const bool global_ok = g_cfg_global_persist.begin(/*global=*/true, 0);
   lran::config::Persist* per_node[kNodeCount];
   for (size_t i = 0; i < kNodeCount; ++i) {
