@@ -520,6 +520,10 @@ void Node::send_fresh_ack(Identity& e, lran::NodeId peer, lran::Seq seq, lran::A
 }
 
 bool Node::send_status(Identity& e, lran::NodeId dst, lran::StatusReason reason, uint32_t now_ms) {
+  // spec 8.7, D69 - a poll's answer has no reason of its own, so it carries an owed
+  // CONFIG_CHANGE. Any other reason is kept, and the report waits for the next poll.
+  const bool report_change = e.gl.config_change_owed && reason == lran::StatusReason::PollResponse;
+  if (report_change) reason = lran::StatusReason::ConfigChange;
   uint8_t      payload[lran::schema::kGateLinkStatusV1Len];
   const size_t n = build_gatelink_status(e, reason, now_ms, payload, sizeof(payload));
   lran::Header h;
@@ -535,6 +539,7 @@ bool Node::send_status(Identity& e, lran::NodeId dst, lran::StatusReason reason,
     sink_printf(log_, "status %02x: 0xFE %s not queued", e.id, status_reason_name(reason));
     return false;
   }
+  if (report_change) e.gl.config_change_owed = false;
   return true;
 }
 
@@ -742,7 +747,10 @@ void Node::on_phy_revert(RevertCause cause) {
               cause == RevertCause::Reboot ? "reboot during trial" : "window expired");
   for (size_t i = 0; i < kMaxIdentities; ++i) {
     Identity& e = ids_->slot(i);
-    if (e.used && e.role == Role::GateLink) e.gl.phy_revert_detail = static_cast<uint16_t>(cause);
+    if (e.used && e.role == Role::GateLink) {
+      e.gl.phy_revert_detail  = static_cast<uint16_t>(cause);
+      e.gl.config_change_owed = true;
+    }
   }
 }
 

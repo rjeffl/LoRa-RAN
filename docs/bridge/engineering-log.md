@@ -3121,3 +3121,69 @@ design, not to this marking.
 - **The readback mirror skips a `CLAMPED` result**, though it carries the effective value
   (spec §7.4). `note_set_results()` records `OK` alone, so a clamped set leaves
   `config/state` showing the value from before the set. This predates v0.15.
+
+## 2026-09-25 — Spec v0.15's code on air: four checks pass, and the bench found a wrong `persist`
+
+**All four bench checks the handoff listed pass, after one bridge fix.** The bridge on
+`/dev/cu.usbserial-0001` (MAC `44:1b:f6:f9:70:14`) first ran `5176d1a`. The simnode Heltec
+on `/dev/cu.usbserial-3` (MAC `44:1b:f6:fa:bc:2c`) holds f0 `ROLE_RANGE` and f2
+`ROLE_HEALTH`. The XIAO on `/dev/cu.usbmodem2101` (MAC `68:ee:8f:4b:85:f4`) holds f1
+`ROLE_GATELINK`. Every board was identified by MAC before it was flashed. A paho client
+recorded `lran/#` with UTC timestamps; the times below come from it.
+
+**D68 — `source` follows the node's bit, not the value.** On the bridge's topic,
+`cmd_retries` set to 3, its default, reads `override`. On f1, the PHY rows first read
+`override` at Envelope A's values, because the XIAO's NVS held a committed group from an
+earlier change. After `phy reset` and a reboot, the same values read `default` (13:34:06).
+**The simnode's `phy reset` does not clear the marking until a reboot.**
+`PhyTrial::reset_to_defaults()` writes each default through `Store::restore()`, which
+holds it as an override, so a readback between the reset and the next boot still reads
+`override`.
+
+**D64 — a bandwidth of 300 is refused, and the ack's `persist` was wrong.** On the bridge's
+topic the entry read `invalid_value` with value 125, but `persist` read `persisted`
+(13:34:16). Spec §8.11 says `NOT_APPLIED` when every entry was refused. The unchanged-group
+path in `handle_config_set()` set `persisted` for every PHY-only set, on the reasoning that
+the group in force is the committed one. That holds for a row equal to the group, and not
+for a refused one. `phy_unchanged_persist()` now decides it, host-tested, and the reflashed
+bridge answered `not_applied` (13:36:52). With `phy_trial_s` 121 in the same set, the
+bandwidth read `invalid_value` and the change committed with `persist` `persisted`
+(13:37:12).
+
+**On a node's topic the answer is `read_only`, and that is correct.** Spec §16.7.1 answers
+any PHY row named on `lran/<node>/config/set` `read_only` with the last value read back,
+so a bandwidth of 300 there never reaches D64's check. The handoff expected
+`invalid_value` on both topics; the expectation was wrong, not the code.
+
+**D67 — `phy_reverted` carries `boot`.** The first flash booted as 1 and the reflash as 2.
+An SF 10 change, with the XIAO rebooted 1.5 s after the set and before it accepted, gave
+`{"boot":2,"event_id":1,"reason":"not_accepted","node":"simnode1"}` (13:37:37).
+
+**D66 — the frame log is on its new leaf.** `lran/bridge/diag/rxlog/log` carried 82
+publications by 13:38, none retained, and `rxlog/state` carried none.
+`tools/simctl/rxlog.py --seconds 90` read 12 records, two `STATUS` per bench node, with no
+losses.
+
+**D69 ran end to end once the simnode sent `CONFIG_CHANGE`.** The simnode now owes one
+after its own PHY revert and carries it in the next poll's answer (spec §8.7). An SF 10 set
+at 13:43:06 put the XIAO into its trial, and a reboot at 13:43:08 reverted it with detail
+`0x0002`. The bridge abandoned the change at 13:44:44 (`reason` `not_heard`, `event_id` 2).
+f1's next poll answer at 13:44:56 carried `PHY_REVERTED` and a `STATUS`. The bridge's next
+poll to f1, at 13:45:06, drew a `CONFIG_ACK` (schema `0x12`), and `simnode1/config/state`
+was republished at 13:45:08 with no `config/set` and no `config/ack`. The frame log does
+not record `status_reason`, so the `CONFIG_CHANGE` itself is inferred: nothing else in that
+window starts a readback.
+
+**The `CLAMPED` mirror fix is host-tested only.** `note_set_results()` now mirrors `OK`,
+`CLAMPED` and `INVALID_VALUE`, the three results spec §8.12 says carry the effective value.
+No simnode node-held row clamps on the bench: f1's readback carries its PHY rows and the
+bridge's per-node rows alone, so the fix waits for GateLink's table to reach the air.
+
+**Opening either simnode's port appeared to reboot the board**, although `con.py` set DTR
+and RTS low before `open()`, as `simctl.py` does. The boot banner followed each open, and
+f1's `ctx_id` changed each time. Every reboot is a new context and a context roll at the
+bridge, so a bench step that opens a console mid-scenario is also a reboot.
+
+Suites: bridge 430 of 430, simnode 130 of 130; the `heltec` target builds. The run left
+`simnode_diag_enable` and each bench row's `deployed` cleared, and `phy_trial_s` back at
+120.

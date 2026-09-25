@@ -65,6 +65,13 @@ struct PhyRequest {
   PhyGroup     target{};
 };
 
+// spec 8.11, 12.4.1 step 2 - `persist` for a set whose PHY rows change nothing. A named
+// row equal to the group in force answers from the committed group, so it reads as
+// persisted; a set whose every PHY row was refused (D64) applied nothing, and reads
+// `not_applied`. Other rows in the same set keep the persist their own apply gave.
+AckPersist phy_unchanged_persist(const PhyRequest& req, bool other_rows,
+                                 AckPersist rows_persist);
+
 // One of the two documents' worth of rows, in table order.
 size_t scope_rows(ConfigScope scope, const lran::config::ParamDef** out, size_t cap);
 

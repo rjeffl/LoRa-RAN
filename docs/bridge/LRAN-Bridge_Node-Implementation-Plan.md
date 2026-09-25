@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.61
+**Version:** 0.62
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1514,17 +1514,27 @@ less persisted of the two.
 **`source` in `config/state` is the node's own marking** (**D68**). The readback mirror
 keeps each result's `OVERRIDE` bit beside its value, so an override equal to its default
 reads `override`. A bridge-held row reads `Store::marked_override()`, which also marks a
-PHY trial value, because `config/state` reports the trial value while it runs.
+PHY trial value, because `config/state` reports the trial value while it runs. **The mirror
+takes a `CLAMPED` or `INVALID_VALUE` result as well as an `OK` one**, because spec §8.12
+has both carry the effective value. Until 2026-09-25 it took `OK` alone, so a clamped set
+left `config/state` showing the value from before the set.
 
 **A node's `CONFIG_CHANGE` is answered with a readback** (**D69**, spec §8.7). `app_task`
 marks the node, and `sched_config()` starts a `readback_only` job once Home Assistant's
 queued jobs are done. The job begins at `POLL` bit 1 and sends no `CONFIG`. It republishes
-`config/state` and publishes no `config/ack`, because no set is being answered.
+`config/state` and publishes no `config/ack`, because no set is being answered. The
+simnode's `ROLE_GATELINK` sends one after its own PHY revert (§10.2), so the path runs on
+the bench without setting the reason by hand.
 
 **A bandwidth off the list is refused alone** (**D64**). On the bridge's topic, the entry
 reads `invalid_value` and the change target keeps the current bandwidth, so the other PHY
 rows of the same set may still change. The status survives an abandon or a revert, because
-that entry never joined the change.
+that entry never joined the change. **A set whose every PHY row was refused answers
+`persist` `not_applied`** (spec §8.11), through `phy_unchanged_persist()`. It answered
+`persisted` until the 2026-09-25 bench run, because the unchanged-group path read every
+PHY-only set as answered from the committed group. On a node's topic a PHY row answers
+`read_only` whatever its value (spec §16.7.1), so a bandwidth of 300 there never reaches
+D64's check.
 
 **The bridge's own events carry `boot`** (**D67**). `boot_count.cpp` keeps the count in its
 own NVS namespace, apart from `cfg`, because `restore_defaults` clears `cfg`. A failed
@@ -2031,7 +2041,7 @@ logical identity at runtime (§10.4), not a separate binary.
 |---|---|---|---|
 | `ROLE_RANGE` | `PING` echo, `0xF0` on poll | Range test and link characterization. Minimal, so a failure is unambiguously RF | **B1** |
 | `ROLE_HEALTH` | `0xF0` on poll | The generic node — what WellLink looks like before it has a schema. Registry, availability and scheduling filler for multi-node tests | **B3** |
-| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics and the whole decode path with no gate present | **B3**, **B4** |
+| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config, and `CONFIG_CHANGE` in the poll answer after a PHY revert (spec §8.7, **D69**) | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics and the whole decode path with no gate present | **B3**, **B4** |
 | `ROLE_FAULT` | Deliberately malformed frames (§10.5) | The **only** test vehicle for the §14 discard ladder and its counters | **B3** |
 
 > **`ROLE_RANGE` is deliberately impoverished.** During **B1** the question is what the
@@ -2693,6 +2703,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.62** — **Spec v0.15's code, on air.** §6.7.2a records two bridge fixes from the
+  2026-09-25 bench run: a set refusing every PHY row answers `not_applied`, and the
+  readback mirror takes a `CLAMPED` result. §10.2's `ROLE_GATELINK` sends `CONFIG_CHANGE`
+  after its own PHY revert.
 
 - **v0.61** — **The code spec v0.15 owed the bridge is built.** New §6.7.2a records D63's
   `commit_failed`, D64's bandwidth refusal, D67's boot count, D68's `source` and D69's
