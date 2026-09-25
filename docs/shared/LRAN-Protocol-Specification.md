@@ -3286,7 +3286,7 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 
 ## 20. Changelog
 
-- **v0.15 (drafted 2026-09-25)** — **D60–D69: the text D60 and D61 were owed, eight
+- **v0.15 (2026-09-25)** — **D60–D69: the text D60 and D61 were owed, eight
   operator decisions, and one correction.** `ver` stays at `2`; **no frame layout, header
   field or authentication scope changes.** Schema `0x12` keeps its ID and offsets, and one
   byte in it changes meaning: **bit 7 of a `CONFIG_ACK` result's `status` becomes
@@ -3303,8 +3303,9 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
   `diag/publish/state` (D62) and `diag/rxlog/log`. §16.3 and §16.7.5 key a bridge event
   on **`(boot, event_id)`** (D67). §16.6 publishes a bench node's answers whatever
   `simnode_diag_enable` says (D65). **Corrected**: §7.3's deduplication key carries the
-  follow-up bit, without which it withheld every follow-up. **The header holds at v0.14
-  while v0.15 is drafted**, as v0.14's held at v0.13. **The W4 vectors are unchanged**:
+  follow-up bit, without which it withheld every follow-up. **The operator accepted the
+  draft the same day. The header holds at v0.14 until the citation sweep**, so that the
+  bump and the 26 citations it moves merge together and `main` stays green. **The W4 vectors are unchanged**:
   no committed vector sets `OVERRIDE` or carries `INVALID_VALUE`, and vectors for both
   are owed with the library change that decodes them.
 

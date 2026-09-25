@@ -54,14 +54,14 @@ Each group is one session unless its line says otherwise.
 
 ### 1. Specification v0.15
 
-**Drafted on 2026-09-25, and waiting on the operator's acceptance.** The operator decided
-every open item that day, as **D62–D69**. Decision Register §3.11 has the reasoning, and
-spec §20's v0.15 entry lists what each section gained. The spec header holds at v0.14
-until acceptance. Then:
+**Accepted and merged on 2026-09-25.** The operator decided every open item that day, as
+**D62–D69**. Decision Register §3.11 has the reasoning, and spec §20's v0.15 entry lists
+what each section gained. **The header holds at v0.14.** Bumping it alone fails CI's
+`Versioned document citations` check at 26 citations, so two steps remain:
 
-1. **Bump the header to v0.15** on the draft branch, and merge it.
-2. **Run the citation sweep on a second branch.** It moved 26 citations at v0.14.
-3. **Build what the decisions owe.** Each line is one change, and none has a task row yet:
+1. **Bump the header and run the citation sweep on one branch**, and merge them together.
+   Reconcile each citing document with v0.15 before moving its citation.
+2. **Build what the decisions owe.** Each line is one change, and none has a task row yet:
    - **`lran-protocol`**: bits 6:0 and bit 7 of a result's `status`, plus two W4 vectors,
      one with `OVERRIDE` set and one with `INVALID_VALUE` (D68, D64; spec §13.2).
    - **`lran-config`**: `bandwidth_khz` takes 125, 250 or 500, and anything else answers
