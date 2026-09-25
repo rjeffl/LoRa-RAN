@@ -48,6 +48,7 @@ INCLUDES = [
     "firmware/bridge/src",
     "lib/lran-protocol/include",
     "lib/lran-link/include",
+    "lib/lran-config/include",
 ]
 
 

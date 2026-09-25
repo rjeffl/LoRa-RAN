@@ -193,7 +193,7 @@ void setup() {
 
   Serial.print(F("Tasks started: "));
   Serial.println(static_cast<unsigned>(bridge::kTaskCount));
-  Serial.println(F("BF-15: WiFi, MQTT, OTA, the radio link and the registry. No discovery yet."));
+  Serial.println(F("WiFi, MQTT, OTA, the radio link, the registry and HA discovery."));
 
 #if defined(LRAN_V_B12_BLASTER)
   // V-B12's WiFi load, bench image only. The broker host is the one address this bench

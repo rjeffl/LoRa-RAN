@@ -10,6 +10,9 @@
 // availability topic pointing at the bridge instead of the node, a bench node reaching
 // the registry, a button for a command its node type does not implement, and a document
 // that did not fit being published truncated rather than dropped.
+//
+// BF-35 adds the configuration controls: a control for every table row that the topic it
+// sits on would accept, writing a payload the bridge's own parser takes.
 
 #include <unity.h>
 
@@ -17,6 +20,7 @@
 #include <cstring>
 
 #include "command.h"
+#include "config_json.h"
 #include "discovery.h"
 #include "mqtt_transport.h"
 #include "lran/schema/gatelink_status_v1.h"
@@ -49,7 +53,7 @@ struct Fleet {
 
 // Every item the cursor yields, collected so a test can ask questions of the whole set.
 struct Walk {
-  static constexpr size_t kMax = 192;
+  static constexpr size_t kMax = 256;
   DiscoveryItem items[kMax];
   char          topics[kMax][128];
   char          configs[kMax][kMaxDiscoveryPayload];
@@ -82,6 +86,34 @@ const char* value_of(const char* json, const char* key, char* out, size_t cap) {
   std::memcpy(out, p, static_cast<size_t>(end - p));
   out[end - p] = '\0';
   return out;
+}
+
+// A string value with its JSON escapes undone, for the values that carry JSON themselves.
+const char* string_of(const char* json, const char* key, char* out, size_t cap) {
+  char pattern[64];
+  std::snprintf(pattern, sizeof(pattern), "\"%s\":\"", key);
+  const char* p = std::strstr(json, pattern);
+  if (p == nullptr) return nullptr;
+  p += std::strlen(pattern);
+  size_t n = 0;
+  for (; *p != '\0' && *p != '"'; ++p) {
+    if (*p == '\\') ++p;
+    if (*p == '\0' || n + 1 >= cap) return nullptr;
+    out[n++] = *p;
+  }
+  out[n] = '\0';
+  return out;
+}
+
+// The item for one table row on one device, or nullptr.
+const DiscoveryItem* find_param(const Walk& w, NodeId node, const char* name, size_t* at) {
+  for (size_t i = 0; i < w.n; ++i) {
+    if (w.items[i].node_id != node || w.items[i].param == nullptr) continue;
+    if (std::strcmp(w.items[i].param->name, name) != 0) continue;
+    if (at != nullptr) *at = i;
+    return &w.items[i];
+  }
+  return nullptr;
 }
 
 bool has_key(const char* json, const char* key) {
@@ -159,7 +191,13 @@ void test_a_node_entity_points_at_its_own_availability_topic() {
   char base[80], avty[80];
   for (size_t i = 0; i < w.n; ++i) {
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
-    if (value_of(w.configs[i], "avty_t", avty, sizeof(avty)) != nullptr) {
+    const lran::config::ParamDef* p = w.items[i].param;
+    if (p != nullptr && p->owner != lran::config::Owner::Node) {
+      // BF-35 - a row the bridge applies follows the bridge, so `deployed` can be set on a
+      // node that has never been heard. A node's own rows fall through to the rule.
+      TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "avty_t", avty, sizeof(avty)));
+      TEST_ASSERT_EQUAL_STRING("lran/bridge/availability", avty);
+    } else if (value_of(w.configs[i], "avty_t", avty, sizeof(avty)) != nullptr) {
       // Relative to the device's own base topic, so it resolves to that node's.
       TEST_ASSERT_EQUAL_STRING("~/availability", avty);
     } else {
@@ -255,7 +293,7 @@ void test_a_button_exists_only_where_the_command_path_would_send_it() {
   Walk  w;
   w.run(f, true);
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     NodeType type = NodeType::GateLink;
     for (size_t k = 0; k < kNodeCount; ++k) {
       if (f.nodes[k].id == w.items[i].node_id) type = f.nodes[k].type;
@@ -271,7 +309,7 @@ void test_welllink_gets_no_gate_buttons() {
   Walk  w;
   w.run(f, false);
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].node_id != kNodeWellLink) continue;
+    if (w.items[i].node_id != kNodeWellLink || w.items[i].desc == nullptr) continue;
     TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::Open), w.items[i].desc->cmd);
     TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::HoldOpen), w.items[i].desc->cmd);
   }
@@ -284,6 +322,7 @@ void test_reboot_has_no_button_anywhere() {
   Walk  w;
   w.run(f, true);
   for (size_t i = 0; i < w.n; ++i) {
+    if (w.items[i].desc == nullptr) continue;
     TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::Reboot), w.items[i].desc->cmd);
   }
 }
@@ -297,7 +336,7 @@ void test_a_button_publishes_to_a_topic_the_bridge_parses() {
   char base[80], cmd[80];
   size_t buttons = 0;
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     ++buttons;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "cmd_t", cmd, sizeof(cmd)));
@@ -317,7 +356,7 @@ void test_a_button_press_payload_is_one_the_bridge_accepts() {
   w.run(f, false);
   char press[32];
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "payload_press", press, sizeof(press)));
     uint8_t  arg  = 0xFF;
     uint16_t arg2 = 0xFFFF;
@@ -340,7 +379,7 @@ void test_a_value_template_reads_the_key_and_nothing_more() {
   char tmpl[80];
   bool seen = false;
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].node_id != kNodeGateLink) continue;
+    if (w.items[i].node_id != kNodeGateLink || w.items[i].desc == nullptr) continue;
     if (std::strcmp(w.items[i].desc->object_id, "rssi") != 0) continue;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "val_tpl", tmpl, sizeof(tmpl)));
     TEST_ASSERT_EQUAL_STRING("{{ value_json.rssi_dbm }}", tmpl);
@@ -356,7 +395,7 @@ void test_an_unset_field_is_omitted_rather_than_written_null() {
   Walk  w;
   w.run(f, false);
   for (size_t i = 0; i < w.n; ++i) {
-    if (w.items[i].desc->command_suffix == nullptr) continue;
+    if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     TEST_ASSERT_FALSE(has_key(w.configs[i], "unit_of_meas"));
     TEST_ASSERT_FALSE(has_key(w.configs[i], "stat_cla"));
     TEST_ASSERT_FALSE(has_key(w.configs[i], "stat_t"));
@@ -506,7 +545,7 @@ void test_every_state_entity_reads_a_key_the_policy_writes() {
   size_t checked = 0;
   for (size_t i = 0; i < w.n; ++i) {
     const EntityDesc* d = w.items[i].desc;
-    if (w.items[i].node_id != kNodeGateLink || d->state_suffix == nullptr ||
+    if (w.items[i].node_id != kNodeGateLink || d == nullptr || d->state_suffix == nullptr ||
         std::strncmp(d->state_suffix, "diag/", 5) == 0) {
       continue;
     }
@@ -531,9 +570,211 @@ void test_a_bench_node_has_no_state_entities() {
   w.run(f, true);
   for (size_t i = 0; i < w.n; ++i) {
     if (!is_bench_node(w.items[i].node_id)) continue;
+    TEST_ASSERT_NOT_NULL_MESSAGE(w.items[i].desc, w.topics[i]);
     const char* sfx = w.items[i].desc->state_suffix;
     TEST_ASSERT_TRUE_MESSAGE(sfx == nullptr || std::strncmp(sfx, "diag/", 5) == 0,
                              w.topics[i]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// BF-35 - the configuration table's rows, as controls (D44, spec 16.7).
+// ---------------------------------------------------------------------------
+
+// Every row a topic accepts has its entity on that topic's device: the bridge's global
+// rows on the bridge, and the per-node and node rows on every node that is not a bench
+// node. The table is the one source, so a row added there must arrive here unasked.
+void test_every_table_row_has_an_entity_on_the_device_that_sets_it() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  using lran::config::Owner;
+  for (size_t i = 0; i < lran::config::kBridgeParamCount; ++i) {
+    const auto& d = lran::config::kBridgeParams[i];
+    if (d.owner == Owner::BridgeGlobal) {
+      TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeBridge, d.name, nullptr), d.name);
+    } else {
+      TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeGateLink, d.name, nullptr), d.name);
+      TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeWellLink, d.name, nullptr), d.name);
+      TEST_ASSERT_NULL_MESSAGE(find_param(w, kNodeBridge, d.name, nullptr), d.name);
+    }
+  }
+  for (size_t i = 0; i < lran::config::kNodeCommonParamCount; ++i) {
+    const auto& d = lran::config::kNodeCommonParams[i];
+    TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeGateLink, d.name, nullptr), d.name);
+    TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeWellLink, d.name, nullptr), d.name);
+  }
+}
+
+// Spec 16.7 - the table name IS the object id, and a published one is permanent.
+void test_a_control_s_unique_id_is_the_table_name() {
+  Fleet  f;
+  Walk   w;
+  size_t at = 0;
+  w.run(f, false);
+  char v[96];
+  TEST_ASSERT_NOT_NULL(find_param(w, kNodeGateLink, "poll_interval_s", &at));
+  TEST_ASSERT_EQUAL_STRING("homeassistant/number/lran_gatelink_poll_interval_s/config",
+                           w.topics[at]);
+  TEST_ASSERT_NOT_NULL(value_of(w.configs[at], "uniq_id", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("lran_gatelink_poll_interval_s", v);
+  TEST_ASSERT_NOT_NULL(value_of(w.configs[at], "name", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("poll_interval_s", v);
+
+  TEST_ASSERT_NOT_NULL(find_param(w, kNodeBridge, "simnode_diag_enable", &at));
+  TEST_ASSERT_EQUAL_STRING("homeassistant/switch/lran_bridge_simnode_diag_enable/config",
+                           w.topics[at]);
+}
+
+// THE ROUND TRIP. Every control's command, rendered as HA would render it, parses through
+// the bridge's own spec 16.7.2 parser to one entry naming its row. A template that drifts
+// from the parser is a control that publishes and is answered `not_applied` - on
+// config/ack, which nobody watches.
+void test_every_control_writes_a_set_the_bridge_parses() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  size_t controls = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const lran::config::ParamDef* p = w.items[i].param;
+    if (p == nullptr) continue;
+    const char* doc = w.configs[i];
+    char        v[128];
+    if (!has_key(doc, "cmd_t")) continue;
+    ++controls;
+    TEST_ASSERT_NOT_NULL(value_of(doc, "cmd_t", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("~/config/set", v);
+
+    char payloads[2][128];
+    size_t np = 0;
+    if (p->type == PType::Bool) {
+      TEST_ASSERT_NOT_NULL(string_of(doc, "pl_on", payloads[np++], sizeof(payloads[0])));
+      TEST_ASSERT_NOT_NULL(string_of(doc, "pl_off", payloads[np++], sizeof(payloads[0])));
+    } else {
+      TEST_ASSERT_NOT_NULL_MESSAGE(string_of(doc, "cmd_tpl", v, sizeof(v)), doc);
+      const char* hole = std::strstr(v, "{{ value }}");
+      TEST_ASSERT_NOT_NULL_MESSAGE(hole, v);
+      std::snprintf(payloads[np++], sizeof(payloads[0]), "%.*s%ld%s",
+                    static_cast<int>(hole - v), v, static_cast<long>(p->def), hole + 11);
+    }
+    for (size_t k = 0; k < np; ++k) {
+      ConfigSetRequest req;
+      const char*      err = nullptr;
+      TEST_ASSERT_TRUE_MESSAGE(
+          parse_config_set(payloads[k], std::strlen(payloads[k]), &req, &err), payloads[k]);
+      TEST_ASSERT_EQUAL_UINT8(1, req.count);
+      TEST_ASSERT_EQUAL_STRING(p->name, req.entries[0].name);
+      TEST_ASSERT_TRUE(req.entries[0].value_readable);
+      if (p->type == PType::Bool) {
+        TEST_ASSERT_EQUAL_INT32(k == 0 ? 1 : 0, req.entries[0].value);
+      } else {
+        TEST_ASSERT_EQUAL_INT32(p->def, req.entries[0].value);
+      }
+    }
+  }
+  TEST_ASSERT_TRUE(controls > 20);
+}
+
+// Every table entity reads its own row's `.value` from its device's config/state, and
+// a switch's states are the 1 and 0 that document carries for a bool.
+void test_every_table_entity_reads_its_row_from_config_state() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  for (size_t i = 0; i < w.n; ++i) {
+    const lran::config::ParamDef* p = w.items[i].param;
+    if (p == nullptr) continue;
+    char v[96], want[96];
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "stat_t", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("~/config/state", v);
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "val_tpl", v, sizeof(v)));
+    std::snprintf(want, sizeof(want), "{{ value_json.%s.value }}", p->name);
+    TEST_ASSERT_EQUAL_STRING(want, v);
+    if (p->type == PType::Bool && has_key(w.configs[i], "cmd_t")) {
+      TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "stat_on", v, sizeof(v)));
+      TEST_ASSERT_EQUAL_STRING("1", v);
+      TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "stat_off", v, sizeof(v)));
+      TEST_ASSERT_EQUAL_STRING("0", v);
+    }
+  }
+}
+
+// A number offers the table's range, so HA refuses what the bridge would clamp, in box
+// mode, so no slider can sweep a fleet-wide PHY change on its way to a value.
+void test_a_number_offers_the_table_s_range_in_box_mode() {
+  Fleet  f;
+  Walk   w;
+  size_t at = 0;
+  w.run(f, false);
+  TEST_ASSERT_NOT_NULL(find_param(w, kNodeBridge, "tx_power_dbm", &at));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.configs[at], "\"min\":-9,\"max\":-4"));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.configs[at], "\"mode\":\"box\""));
+  TEST_ASSERT_NOT_NULL(find_param(w, kNodeGateLink, "poll_interval_s", &at));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.configs[at], "\"min\":10,\"max\":3600"));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.configs[at], "\"unit_of_meas\":\"s\""));
+}
+
+// The bridge's PHY rows are the fleet's controls (D59); bandwidth is a select, because the
+// row's range would take a value no SX1262 bandwidth is.
+void test_the_bridge_s_phy_rows_are_controls_and_bandwidth_is_a_select() {
+  Fleet  f;
+  Walk   w;
+  size_t at = 0;
+  w.run(f, false);
+  const char* phy[] = {"freq_hz", "spreading_factor", "coding_rate_denominator",
+                       "tx_power_dbm", "phy_trial_s"};
+  for (const char* name : phy) {
+    TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeBridge, name, &at), name);
+    TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(w.topics[at], "/number/"), w.topics[at]);
+  }
+  TEST_ASSERT_NOT_NULL(find_param(w, kNodeBridge, "bandwidth_khz", &at));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.topics[at], "/select/"));
+  TEST_ASSERT_NOT_NULL(std::strstr(w.configs[at], "\"options\":[\"125\",\"250\",\"500\"]"));
+}
+
+// Spec 16.7.1 - a PHY row on a node's topic is answered read_only, so the node's device
+// shows it as a diagnostic sensor with nothing to write.
+void test_a_node_s_phy_rows_are_read_only_sensors() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  size_t seen = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const lran::config::ParamDef* p = w.items[i].param;
+    if (p == nullptr || w.items[i].node_id != kNodeGateLink) continue;
+    if (p->access != lran::config::Access::Phy) continue;
+    ++seen;
+    TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(w.topics[i], "/sensor/"), w.topics[i]);
+    TEST_ASSERT_FALSE(has_key(w.configs[i], "cmd_t"));
+    TEST_ASSERT_FALSE(has_key(w.configs[i], "cmd_tpl"));
+    char v[32];
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "ent_cat", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("diagnostic", v);
+  }
+  TEST_ASSERT_EQUAL_UINT(lran::config::kPhyGroupSize, seen);
+}
+
+// Every control sits under the device's configuration, off the dashboard.
+void test_every_control_is_a_config_entity() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  for (size_t i = 0; i < w.n; ++i) {
+    if (w.items[i].param == nullptr || !has_key(w.configs[i], "cmd_t")) continue;
+    char v[32];
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "ent_cat", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("config", v);
+  }
+}
+
+// Spec 16.6's open question: a bench node gets no table entities, even with the flag set.
+void test_a_bench_node_has_no_table_entities() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  for (size_t i = 0; i < w.n; ++i) {
+    if (!is_bench_node(w.items[i].node_id)) continue;
+    TEST_ASSERT_NULL_MESSAGE(w.items[i].param, w.topics[i]);
   }
 }
 
@@ -565,5 +806,14 @@ int main() {
   RUN_TEST(test_the_walk_ends_and_stays_ended);
   RUN_TEST(test_the_same_walk_twice_gives_the_same_set);
   RUN_TEST(test_the_bridge_s_own_entities_are_in_the_set);
+  RUN_TEST(test_every_table_row_has_an_entity_on_the_device_that_sets_it);
+  RUN_TEST(test_a_control_s_unique_id_is_the_table_name);
+  RUN_TEST(test_every_control_writes_a_set_the_bridge_parses);
+  RUN_TEST(test_every_table_entity_reads_its_row_from_config_state);
+  RUN_TEST(test_a_number_offers_the_table_s_range_in_box_mode);
+  RUN_TEST(test_the_bridge_s_phy_rows_are_controls_and_bandwidth_is_a_select);
+  RUN_TEST(test_a_node_s_phy_rows_are_read_only_sensors);
+  RUN_TEST(test_every_control_is_a_config_entity);
+  RUN_TEST(test_a_bench_node_has_no_table_entities);
   return UNITY_END();
 }

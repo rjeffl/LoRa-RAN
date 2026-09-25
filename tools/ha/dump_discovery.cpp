@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     char config[kMaxDiscoveryPayload];
     if (discovery_topic(item, topic, sizeof(topic)) == 0 ||
         discovery_config_json(item, config, sizeof(config)) == 0) {
-      std::fprintf(stderr, "ERR entity %s produced nothing\n", item.desc->object_id);
+      std::fprintf(stderr, "ERR entity %s produced nothing\n", discovery_object_id(item));
       return 1;
     }
     const std::string path = dir + "/" + filename(topic);

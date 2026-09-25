@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"tx_power_dbm","uniq_id":"lran_gatelink_tx_power_dbm","stat_t":"~/config/state","val_tpl":"{{ value_json.tx_power_dbm.value }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"dBm","ent_cat":"diagnostic","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

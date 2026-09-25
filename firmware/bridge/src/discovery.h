@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "lran/config/table.h"
 #include "registry.h"
 
 namespace bridge {
@@ -107,16 +108,41 @@ struct DiscoveryCursor {
   size_t entity  = 0;
 };
 
-// What one step produced.
+// What one step produced. EXACTLY ONE of `desc` and `param` is set.
+//
+// BF-35 - a `param` item is a /lib/lran-config/ table row, rendered as a Home Assistant
+// control on the topic that sets it (spec 16.7). It is not an EntityDesc because the
+// table is the one source of its name, range and unit (D44), and a second, hand-written
+// row describing the same parameter is the drift D44 exists to stop.
 struct DiscoveryItem {
   bool         valid = false;
   lran::NodeId node_id = 0;   // the bridge's own address for a bridge entity
   const EntityDesc* desc = nullptr;
+  const lran::config::ParamDef* param = nullptr;
 };
+
+// The object id an item publishes under: the EntityDesc's, or the table row's name.
+const char* discovery_object_id(const DiscoveryItem& item);
+
+// The HA component a table row becomes on the device that shows it (BF-35):
+//
+//   - `sensor` for a node's PHY row. Spec 16.7.1 answers it `read_only` on the node's
+//     topic, so a control there could only ever fail. The bridge's copy is the control.
+//   - `switch` for a `bool` row.
+//   - `select` for a row whose legal values are points rather than a range. Today that is
+//     `bandwidth_khz` alone: the table's 125-500 would take 300, which no SX1262
+//     bandwidth is.
+//   - `number` for everything else.
+const char* param_component(const lran::config::ParamDef& p);
 
 // Advances `cur` to the next entity that applies, and reports it. False when the set is
 // exhausted. Skips a node whose publication is gated (spec 16.6) and a button whose
 // `cmd` the node type does not implement.
+//
+// BF-35 - each device's configuration rows follow its fixed entities: the bridge's global
+// rows on the bridge, and on each node the bridge's per-node rows, then the node's own. A
+// BENCH NODE GETS NONE, even with the flag set. Whether its config/* topics are bench data
+// is spec 16.6's open question, and a registry row is not taken back once published.
 //
 // `simnode_diag_enable` is BF-26's flag, passed in rather than read, for the reason
 // node_availability.h gives: the gate is on publication and nowhere else.
