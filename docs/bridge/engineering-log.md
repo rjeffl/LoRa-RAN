@@ -3541,3 +3541,33 @@ the new context at `seq` 1 with no roll. `diag/cmd/state` read `cmd_unconfirmed`
 **This is still a simulated reset.** The simnode's `REBOOT` and `ctx new` clear what a
 reset clears without an `esp_restart()`. Group 2 of the handoff holds that gap. The bench
 was restored: `ack f1 normal`, and `simnode_diag_enable` was 0 throughout.
+
+## 2026-09-26 — The three restart edges: each now survives the restart in NVS, host-tested
+
+Group 1's last item. Impl Plan §6.7.8 has the design. This entry records what reading the
+code found.
+
+**The trial marker's loss had a second cost.** `Store::restore_defaults()` called
+`clear_all()`, which on the bridge is `Preferences::clear()` on the whole `cfg`
+namespace, and then `save_group()`, which writes the blob with the marker clear. Between
+the two writes, flash held no PHY group at all. A reset in that moment would bring the
+bridge up on the table's defaults, off a fleet that had moved. `clear_all()` now removes
+the scope's table keys one at a time and never touches the blob. `Store::restore_defaults()`
+no longer rewrites the group, and lran-config's `Persist` contract says so.
+
+**The owed `config/ack` clears only after it has left the bridge.** Clearing the record when
+`sched_task` queued the answer would not have fixed the 2026-09-24 case, because that
+answer was queued and then lost in the queue. `drain_publish_queue()` clears the record
+once the publish queue is empty and the transport's `pending()` is 0. A refused
+publication sets the answer back to owed, so a disconnect at the wrong moment can publish
+it twice.
+
+**The bench `online` needed a record, not a rule.** The first BF-26 build published
+`offline` at every boot with the flag clear, which spec §16.6 forbids (the *BF-26 on air*
+entry). With every state `Unknown` at boot, the bridge has no other way to tell a topic
+holding a retained `online` from one never published. The mask is written on the tick a
+bench row's topic changes between `online` and `offline`, not on every publication.
+
+**Verified:** lran-config 29 and bridge 490 host tests, simnode 140, the `heltec` and
+`simnode-heltec` builds, and `run_ci_local.py`. No bench run: each edge needs a reset
+timed within a fraction of a second, or a flag set while NVS refuses the write.

@@ -5,10 +5,43 @@
 
 #include "config_path.h"
 
+#include <cstdio>
+
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/schema/node_health_v1.h"
 
 namespace bridge {
+
+uint16_t phy_ack_rows(const bool named[kPhyGroupSize],
+                      const ResultStatus status[kPhyGroupSize]) {
+  uint16_t rows = 0;
+  for (size_t k = 0; k < kPhyGroupSize; ++k) {
+    if (!named[k]) continue;
+    uint16_t code = 1;
+    if (status[k] == ResultStatus::Clamped) code = 2;
+    if (status[k] == ResultStatus::InvalidValue) code = 3;
+    rows |= static_cast<uint16_t>(code << (2 * k));
+  }
+  return rows;
+}
+
+size_t phy_owed_ack_results(uint16_t rows, const PhyGroup& committed, ConfigResult* out,
+                            size_t cap) {
+  size_t n = 0;
+  for (size_t k = 0; k < kPhyGroupSize && n < cap; ++k) {
+    const uint16_t code = (rows >> (2 * k)) & 0x3u;
+    if (code == 0) continue;
+    ConfigResult r;
+    std::snprintf(r.name, sizeof(r.name), "%s", bridge_phy_row(k)->name);
+    r.status    = code == 2   ? ResultStatus::Clamped
+                  : code == 3 ? ResultStatus::InvalidValue
+                              : ResultStatus::Ok;
+    r.has_value = true;
+    r.value     = committed.v[k];
+    out[n++]    = r;
+  }
+  return n;
+}
 
 bool ConfigPath::submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq,
                         uint32_t now_ms) {

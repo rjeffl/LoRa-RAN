@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.54
+**Version:** 0.55
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.17
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.67
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.68
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-09-26
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -326,6 +326,11 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.55** — **The Impl Plan citation moves to v0.68.** Its new §6.7.8 closes three
+  restart edges from B4b's bench runs: the owed PHY `config/ack`, the trial marker a
+  `restore_defaults` cleared, and a retained bench `online` after a reboot. They amend
+  BF-26, BF-32 and BF-33 rather than adding a task, so no row changes here.
 
 - **v0.54** — **Protocol specification v0.15 → v0.16, Impl Plan v0.66 → v0.67.** The
   bridge no longer resyncs an actuation command, a `REBOOT` or a VE.Direct Restart after

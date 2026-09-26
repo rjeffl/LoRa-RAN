@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.67
+**Version:** 0.68
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-09-26
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -471,10 +471,10 @@ engineering log's *BF-26 on air* entry has the run.
 were before BF-26. Spec v0.15 settles that this is right: §16.6 publishes a bench node's
 answers whatever the flag says (**D65**), because each answers a request an operator made.
 
-**An `applied_not_persisted` answer leaves one gap.** If the flag is set but not persisted
-and the bridge reboots, it comes back with the flag clear. The `online` it published
-before the reboot then stays retained, because nothing clears it. A normal set answers
-`persisted`, as both sets did on the bench.
+**An `applied_not_persisted` answer left one gap until 2026-09-26.** If the flag is set but
+not persisted and the bridge reboots, it comes back with the flag clear, and the `online`
+it published before the reboot stayed retained. §6.7.8 closes it: NVS records which bench
+topics hold a retained `online`, and the boot withdraws each one while the flag is clear.
 
 ### 4.3 MQTT
 
@@ -1644,7 +1644,8 @@ PHY-only set as answered from the committed group. On a node's topic a PHY row a
 D64's check.
 
 **The bridge's own events carry `boot`** (**D67**). `boot_count.cpp` keeps the count in its
-own NVS namespace, apart from `cfg`, because `restore_defaults` clears `cfg`. A failed
+own NVS namespace, apart from `cfg`, because `restore_defaults` cleared `cfg` whole until
+§6.7.8 changed it. A failed
 commit write publishes `phy_reverted` with `reason` `commit_failed` (**D63**).
 
 #### 6.7.3 A lost `CONFIG_ACK` is recovered by readback
@@ -1747,6 +1748,34 @@ none of the three. `app_task` alone calls `RebootWatch`, so it takes no lock.
 on the node's defaults within 8 s: a `REBOOT` command, caught by `BOOT`, and a board reset,
 caught by `uptime_s` alone. The bridge engineering log's *mirror readback* entry has the
 run.
+
+#### 6.7.8 Three restart edges, built 2026-09-26
+
+B4b's bench runs found three ways a bridge restart left Home Assistant with the wrong
+answer. None is common. Each now survives the restart in NVS.
+
+| Edge | What went wrong | What the bridge does now |
+|---|---|---|
+| **A committed PHY change's `config/ack`** (spec §16.7.5) | A reset 150 ms after the commit beat `mqtt_task` to the broker, and the set got no answer | The commit's one blob write also records the answer as owed, with two bits per PHY row for its status. `mqtt_task` clears the record only once the publish queue is empty and the transport has sent what it held. After a reset, `sched_task` rebuilds the answer from the record and the committed group |
+| **A `restore_defaults` during a PHY trial** | `NvsPersist::clear_all()` erased the `cfg` namespace, and `Store::restore_defaults()` rewrote the group with the trial marker clear. A restart in that trial went unreported | `clear_all()` removes the table's keys one at a time and never touches the blob. `Store::restore_defaults()` no longer rewrites the group. The erase and rewrite also left a moment with no group on flash, and that is gone too |
+| **A retained bench `online` after a reboot** (§4.2a.1) | A flag set `applied_not_persisted` came back clear, and nothing withdrew the `online` published before the reboot | NVS keeps a mask of the bench topics holding a retained `online`, one bit per address from `0xF0`, written only when the mask changes. A boot with the flag clear queues `offline` for each topic in the mask |
+
+**The rebuilt `config/ack` carries the PHY rows alone.** A set's non-PHY entries are not in
+the blob, and the bridge's `config/state` carries their values. An answer that invented
+their statuses would say something the bridge does not know. Its `persist` is `persisted`,
+because the commit wrote the group.
+
+**A refused publication sends the answer again**, because the drain cannot tell whether
+the refused message was the answer. Home Assistant may then see the same answer twice,
+which is safer than never seeing it.
+
+**The blob is version 2**, with a `u16` of answer rows after the flags. Version 1 still
+decodes, as a blob owing nothing, so a bridge flashed over a committed group boots on it.
+The simnode shares the layout and writes the new field as zero.
+
+**Host-tested only.** `test_phy_change`, `test_config_path`, `test_availability` and
+lran-config's `test_table` cover the blob, the rebuilt answer, the withdrawal rule and the
+restore. None of the three edges has been run on the bench.
 
 ---
 
@@ -2878,6 +2907,12 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.68** — **Three restart edges are closed.** New §6.7.8: a committed PHY change's
+  `config/ack` is owed in NVS until `mqtt_task` has sent it, a `restore_defaults` no
+  longer clears an open trial's marker, and a boot withdraws a bench `online` the last
+  boot left retained. §4.2a.1's gap paragraph and §6.7.2a's boot-count note are updated to
+  match.
 
 - **v0.67** — **Protocol specification v0.15 → v0.16.** What the bridge inherits is
   **D70**: §6.2's resync no longer retries an actuation command or a `REBOOT`, which now

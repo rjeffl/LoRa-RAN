@@ -334,7 +334,8 @@ void test_restore_puts_back_a_committed_phy_value_without_a_trial() {
 }
 
 // RESTORE_DEFAULTS is a node-level operation, and spec 12.4 lets none move the PHY. The
-// committed group survives in RAM and is written back after the store is cleared.
+// committed group survives in RAM, and the store's copy is never rewritten: rewriting it
+// cleared the trial marker beside it (bridge engineering log, 2026-09-26).
 void test_restore_defaults_keeps_the_committed_phy_group() {
   Table       t = node_table();
   FakePersist p;
@@ -348,7 +349,7 @@ void test_restore_defaults_keeps_the_committed_phy_group() {
   TEST_ASSERT_EQUAL_INT32(8, s.effective(0x0100));
   TEST_ASSERT_EQUAL_INT32(10, s.effective(kSf));
   TEST_ASSERT_EQUAL_INT32(1, p.clears_);
-  TEST_ASSERT_EQUAL_INT32(2, p.group_saves_);
+  TEST_ASSERT_EQUAL_INT32(1, p.group_saves_);  // the commit's, and no other
   TEST_ASSERT_EQUAL_INT32(10, p.group_value(kSf));
 }
 

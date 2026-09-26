@@ -20,11 +20,21 @@ const char* availability_payload(Availability a) {
 
 const char* availability_publication(const NodeInfo& info, Availability state,
                                      bool simnode_diag_enable, bool clearing) {
-  if (state == Availability::Unknown) return nullptr;
   if (!bench_publication_allowed(info, simnode_diag_enable)) {
     return clearing ? kPayloadOffline : nullptr;
   }
   return availability_payload(state);
+}
+
+uint16_t bench_bit(lran::NodeId id) {
+  if (id < 0xF0 || id > 0xFE) return 0;
+  return static_cast<uint16_t>(1u << (id - 0xF0));
+}
+
+bool bench_withdrawal_owed(const NodeInfo& info, Availability state,
+                           uint16_t retained_online) {
+  if (!info.is_bench) return false;
+  return state != Availability::Unknown || (retained_online & bench_bit(info.id)) != 0;
 }
 
 void AvailabilityWatchdog::set_threshold(uint16_t polls) {

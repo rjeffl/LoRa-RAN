@@ -258,9 +258,10 @@ void test_bench_availability_is_published_only_with_simnode_diag_enable() {
 }
 
 // spec 16.6 - with the flag clear a bench node publishes nothing, except one `offline` on
-// the tick that clears it, so the entities HA kept stop claiming a reading. A production
-// node, and a bench node with the flag set, publish their real state. Unknown publishes
-// nothing in any case.
+// the tick that clears it, so the entities HA kept stop claiming a reading. That `offline`
+// goes out whatever the row's state, because the caller asks only for a topic that may
+// hold an `online`. A production node, and a bench node with the flag set, publish their
+// real state, and Unknown publishes nothing for either.
 void test_a_bench_node_publishes_only_offline_and_only_as_the_flag_clears() {
   Rig r;
   TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Online, false, false));
@@ -274,9 +275,36 @@ void test_a_bench_node_publishes_only_offline_and_only_as_the_flag_clears() {
       "online", availability_publication(r.info(kGate), Availability::Online, false, false));
   TEST_ASSERT_EQUAL_STRING(
       "online", availability_publication(r.info(kGate), Availability::Online, false, true));
-  TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Unknown, false, true));
+  TEST_ASSERT_EQUAL_STRING(
+      "offline", availability_publication(r.info(kSim0), Availability::Unknown, false, true));
   TEST_ASSERT_NULL(availability_publication(r.info(kSim0), Availability::Unknown, true, false));
   TEST_ASSERT_NULL(availability_publication(r.info(kGate), Availability::Unknown, false, false));
+}
+
+// spec 16.6, Impl Plan 4.2a.1 - a flag set `applied_not_persisted` comes back clear
+// after a reboot, with every row Unknown. The NVS mask names the bench topics the last
+// boot left `online`, and only those are owed an `offline`. A bench row judged this boot
+// is owed one as before, and a production row never is.
+void test_a_retained_online_is_withdrawn_after_a_reboot() {
+  Rig            r;
+  const NodeInfo sim = r.info(kSim0);
+  const uint16_t bit = bench_bit(sim.id);
+  TEST_ASSERT_NOT_EQUAL(0, bit);
+  TEST_ASSERT_EQUAL_UINT16(0x0001, bench_bit(0xF0));
+  TEST_ASSERT_EQUAL_UINT16(0x4000, bench_bit(0xFE));
+  TEST_ASSERT_EQUAL_UINT16(0, bench_bit(0xFF));
+  TEST_ASSERT_EQUAL_UINT16(0, bench_bit(0x01));
+
+  TEST_ASSERT_TRUE(bench_withdrawal_owed(sim, Availability::Unknown, bit));
+  TEST_ASSERT_FALSE(bench_withdrawal_owed(sim, Availability::Unknown, 0));
+  TEST_ASSERT_FALSE(bench_withdrawal_owed(sim, Availability::Unknown,
+                                          static_cast<uint16_t>(~bit)));
+  TEST_ASSERT_TRUE(bench_withdrawal_owed(sim, Availability::Online, 0));
+  TEST_ASSERT_TRUE(bench_withdrawal_owed(sim, Availability::Offline, 0));
+  TEST_ASSERT_FALSE(bench_withdrawal_owed(r.info(kGate), Availability::Online, 0xFFFF));
+
+  TEST_ASSERT_EQUAL_STRING(
+      "offline", availability_publication(sim, Availability::Unknown, false, true));
 }
 
 // spec 16.1's tokens, and no topic for an address it does not name.
@@ -318,6 +346,7 @@ int main() {
   RUN_TEST(test_a_broker_connect_republishes_every_known_node);
   RUN_TEST(test_bench_availability_is_published_only_with_simnode_diag_enable);
   RUN_TEST(test_a_bench_node_publishes_only_offline_and_only_as_the_flag_clears);
+  RUN_TEST(test_a_retained_online_is_withdrawn_after_a_reboot);
   RUN_TEST(test_node_topic_names_are_the_spec_tokens);
   return UNITY_END();
 }
