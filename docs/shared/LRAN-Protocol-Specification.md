@@ -1,7 +1,7 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.15
+**Version:** 0.16
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
@@ -298,7 +298,7 @@ subsequent command until reboot.
 ### 5.5 `ctx_id` — bytes 6–9, `uint32`
 
 The **remote node's current boot context ID**, regardless of frame direction. A node
-generates a random non-zero `uint32` at boot and uses it in every frame it sends; the
+generates a random non-zero `uint32` at boot, from a true entropy source (§10.1), and uses it in every frame it sends; the
 bridge learns it per node and echoes it back. `0x00000000` is reserved to mean
 "unknown." See §10.1.
 
@@ -1159,7 +1159,17 @@ on one UART — is a node implementation matter and is specified in
 
 `0x00`–`0x0F` are **actuation commands** and are the only values that reach a physical
 output. `0x10`+ are node-local. This split is deliberate: it lets a node apply a
-stricter policy to actuation without parsing semantics.
+stricter policy to actuation without parsing semantics. The bridge uses the same split to
+decide which requests §10.3's resync may retry (§10.7).
+
+**`REBOOT` acknowledges, then resets.** A node that accepts `REBOOT` sends
+`COMMAND_ACK(ACCEPTED)` under its current `ctx_id`, and resets only once that frame is on
+the air. After the reset it behaves as after any other boot (§10.7): a new `ctx_id`, an
+empty dedup cache, both sequence spaces reset, a `STATUS` with `status_reason` `BOOT`, and
+a `BOOT` event whose reset cause is `REBOOT_COMMAND` (§8.14). **A lost ACK is not
+retried into a second reboot.** The bridge's retry reaches a node that already rebooted,
+draws `REJECTED_CTX`, and ends there (§10.3, **D70**). The `BOOT` status and event are
+what confirm the reboot.
 
 > **Retired from v0.1:** `STOP`, `STEP_BY_STEP`, `PARTIAL_OPEN`, `LOCK`, `UNLOCK` as
 > separate commands, and `SET_POWER_PROFILE`. The first four assumed BusT4 command
@@ -1306,7 +1316,7 @@ bit 1 (§6.4), and republishes `config/state` from it (§16.7.4).
 | `0x07` | `BMS_ALARM` | High |
 | `0x08` | `MPPT_ERROR` | Normal |
 | `0x09` | `CHARGE_INHIBITED` | Low |
-| `0x0A` | `BOOT` | Low |
+| `0x0A` | `BOOT` | Low. `detail` carries the reset cause, §8.14 (**D71**) |
 | `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Added in v0.14 (D59)** |
 
 FIRE has its own event type and its own MQTT topic rather than being folded in as
@@ -1370,6 +1380,32 @@ not. **A node without a usable nonvolatile store also answers a PHY entry `READ_
 On timeout the node returns a `HEX_RSP` carrying `TIMEOUT` rather than silence. A
 silent transport failure is indistinguishable in HA from an MPPT that ignored the
 request.
+
+### 8.14 `reset_cause` (in a `BOOT` event's `detail`)
+
+**Added in v0.16 (D71).** A `BOOT` event (§8.9) carries in `detail` why the node last
+reset. The low byte is the value below, and the high byte is reserved and written `0`.
+
+| Value | Name | Meaning |
+|---|---|---|
+| `0x00` | `UNKNOWN` | The node could not determine the cause |
+| `0x01` | `POWER_ON` | Power applied, or restored after a full loss |
+| `0x02` | `REBOOT_COMMAND` | A `REBOOT` the node accepted (§8.1) |
+| `0x03` | `SOFTWARE` | A restart the firmware chose for itself, other than `REBOOT` |
+| `0x04` | `WATCHDOG` | A task, interrupt or hardware watchdog expired |
+| `0x05` | `PANIC` | An exception or abort |
+| `0x06` | `BROWNOUT` | The supply fell below the brownout threshold |
+| `0x07` | `EXTERNAL` | The reset pin, or a USB or debugger reset |
+
+**`REBOOT_COMMAND` depends on the node recording its intent before it resets**, because
+the chip reports a directed reboot and any other software restart alike. On an ESP32,
+`esp_reset_reason()` returns `ESP_RST_SW` for both, and the node keeps a marker in memory
+that survives a software reset. A node without that marker reports `SOFTWARE`.
+
+**The value is what makes an unplanned reset visible.** Without it, a watchdog reset and a
+directed reboot produce the same `BOOT` status. A run of `BOOT` events reporting
+`WATCHDOG` or `BROWNOUT` is how Home Assistant sees a node caught in a boot loop. A
+receiver treats a value it does not know as `UNKNOWN` (§13.2).
 
 ---
 
@@ -1616,6 +1652,23 @@ it in every frame it sends to that node. The bridge maintains a per-node table o
 `ctx_id` replaces cross-reboot sequence persistence: a node reboot produces a new
 context, invalidating every previously captured command addressed to it.
 
+**A node SHALL draw `ctx_id` from a true entropy source**, never from a generator seeded
+with a constant, a build value or uptime. On an ESP32 that is the hardware RNG while the
+RF subsystem or the bootloader's entropy source is enabled; without either, ESP-IDF
+documents `esp_random()` as pseudo-random. A node that uses neither WiFi nor Bluetooth
+enables the entropy source for the draw. **A `ctx_id` repeated across a reboot defeats
+three mechanisms at once:**
+
+- replay protection, because the reboot set `rx_high_water` to `0` under a context a
+  captured command still matches (§9.4 step 5);
+- §10.7's lost-ACK rule, because a retried `REBOOT` would pass step 2 and reboot the node
+  again, once per retry;
+- event deduplication, because the bridge would withhold the new boot's events as repeats
+  of the old boot's (§7.3).
+
+The check that falsifies compliance is a node's `ctx_id` logged across consecutive
+reboots, including a watchdog reset and a power cycle. Any repeat fails it.
+
 The bridge's own frames carry the **destination node's** `ctx_id`, not one of its own.
 The bridge does not have a context; it is the party that tracks everyone else's.
 
@@ -1654,7 +1707,7 @@ above remain the only two that carry replay meaning.
 1. A node receives a `COMMAND` whose `ctx_id` does not match → replies
    `COMMAND_ACK(REJECTED_CTX)` carrying its **own** `ctx_id` in the header.
 2. The bridge adopts the `ctx_id` from that ACK, resets its command `seq` for that node
-   to `1`, and retries the original command **once**.
+   to `1`, and retries the original command **once** — unless §10.7 withholds the retry.
 3. If a second `REJECTED_CTX` follows, the bridge stops retrying and publishes an
    availability/diagnostic fault rather than looping.
 
@@ -1663,6 +1716,12 @@ multi-node channel is a problem for every other node as well as this one.
 
 **A `REJECTED_CTX` answering a `ROLL_CONTEXT` completes the roll** (§10.6). It does not
 count toward step 3's limit.
+
+**A `REJECTED_CTX` answering an actuation command (`0x00`–`0x0F`), a `REBOOT`, or a VE.Direct
+Restart ends the request without a retry** (§10.7, **D70**). The bridge still adopts the
+`ctx_id` and resets its command `seq`, as step 2 says, and reports the request as
+unconfirmed. The answer may mean the node reset after it executed the request, and step 2's
+retry would then execute it a second time.
 
 ### 10.4 Command deduplication — required, because pulses are not idempotent
 
@@ -1774,6 +1833,63 @@ request is authenticated, so nobody without the node's key can start a roll.
 > surviving simnode drew `DUPLICATE_CACHED` and was not applied. Persisting the bridge's
 > `seq` was rejected because it fails when the bridge board is replaced or its NVS is
 > erased. The Decision Register §2.3 and §3.7 have the alternatives.
+
+### 10.7 Node reset — directed or not
+
+**Added in v0.16 (D70–D72).** A node can reset at any moment: on a `REBOOT` it accepted,
+or unplanned, on a watchdog, a panic or a brownout. The protocol treats both the same way
+after the reset. They differ in what the bridge knows while the reset is happening, and a
+reset in the middle of a request is where a second relay pulse would come from.
+
+**What every boot does.** The node takes a new `ctx_id` from a true entropy source
+(§10.1). It empties its dedup cache, sets `rx_high_water` to `0`, and resets its status
+`seq` and its `event_id` counter. Its first `STATUS` carries `status_reason` `BOOT`
+(§8.7). A node with an event schema also sends a `BOOT` event carrying the reset cause
+(§8.14). Configuration comes back from the nonvolatile store, or from defaults with
+`CONFIG_CHANGE` (§8.7). A node that reset during a PHY trial comes back on its last
+known-good settings (§12.4.2).
+
+**The bridge cannot tell a request the node executed from one it never received.** Both
+look the same from the bridge: an ACK that does not arrive, then `REJECTED_CTX` on the
+retry. The table follows one request through each point where the node can reset.
+
+| The node resets | Did the request execute? | What the bridge sees | Outcome |
+|---|---|---|---|
+| With nothing in flight | — | A `BOOT` `STATUS` under a new `ctx_id` | The bridge learns the context from it (§10.1) |
+| After the request is sent, before the node dispatches it | No | Retry answered `REJECTED_CTX` | A `0x10`+ command other than `REBOOT` is retried once and executes once (§10.3). **Anything else is reported unconfirmed** |
+| After dispatch, before the ACK is on the air | Yes, perhaps cut short | The same | The same. This row is why the rule above exists: a retry here is a second execution |
+| After the ACK is on the air | Yes | The ACK, or a lost ACK and then `REJECTED_CTX` | Complete, or unconfirmed as above |
+| On its own `REBOOT` | Yes, by definition | The ACK, or a lost ACK and then `REJECTED_CTX` | Complete, or unconfirmed. Never a second reboot (§8.1) |
+| During `ROLL_CONTEXT` | — | `REJECTED_CTX` | Completes the roll (§10.6 step 4) |
+| During a `CONFIG` | Perhaps | No `CONFIG_ACK` | Recovered by readback, as any lost `CONFIG_ACK` is (§7.4) |
+| During a write-class `HEX_REQ` | Perhaps | Retry answered `REJECTED_CTX` | A Set is retried, since writing a register twice writes one value. **A Restart is reported unconfirmed** |
+| With an `EVENT` not yet on the air | — | Nothing | The event is lost, since events have no ACK. See *active alarms* below |
+
+**Unconfirmed is an outcome, not a failure** (**D70**). The bridge reports it on the
+request's MQTT answer and does not retry. Two things confirm what happened: a `STATUS`
+with `GATE_STATE_CHANGE` for motion (§6.3), and the `BOOT` status and event for the
+reset. Whoever sent the request decides whether to send it again. A gate command that
+never ran costs a second press. A retry that ran twice costs a second pulse, which
+§10.4 exists to prevent.
+
+**The cost falls on one case**: a command sent to a node that reset while idle, before
+the bridge heard its `BOOT` status. That command never ran, and under D70 it is reported
+unconfirmed instead of being retried. It is a narrow window, because the `BOOT` status is
+the node's first frame.
+
+**Active alarms are sent again at boot** (**D72**). An `EVENT` queued when the node
+resets is lost, and for `FIRE_ASSERTED` that is the one loss the system cannot absorb
+(§8.9). A node that finds the FIRE input asserted, or the hard-shutdown condition present,
+when it boots sends `FIRE_ASSERTED` or `HARD_SHUTDOWN` after its `BOOT` status. The new
+`ctx_id` gives the event a new deduplication key (§7.3), so an alert that did get out
+before the reset arrives twice. A second SMS is the accepted price of never missing a fire.
+
+> **Why this section exists.** Through v0.15, §8.1 guarded `REBOOT` against being sent by
+> accident and said nothing about what follows it. §10.3's resync then turned one lost
+> ACK into two reboots. The same path turned a watchdog reset between an `OPEN` and its
+> ACK into two relay pulses, with no directed reboot involved. The Decision Register
+> §3.12 has the alternatives: a node that persists its last dispatch, and a documented
+> double pulse.
 
 ---
 
@@ -3285,6 +3401,17 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.16 (2026-09-25)** — **D70–D72: a node reset, directed or not.** `ver` stays at
+  `2`; **no frame layout, header field, schema or authentication scope changes.** New
+  **§10.7** follows a request through each point where a node can reset. **§10.3's resync
+  no longer retries an actuation command, a `REBOOT` or a VE.Direct Restart** (D70). A lost
+  ACK followed by a node reset made it a second relay pulse or a second reboot, and the
+  bridge now reports the request unconfirmed. §8.1 says **`REBOOT` acknowledges, then
+  resets**. New **§8.14 `reset_cause`** travels in a `BOOT` event's `detail` (D71). §10.7
+  has a node **send active alarms again at boot** (D72). **§10.1 and §5.5 require a
+  `ctx_id` from a true entropy source**, and name the check that falsifies it. An
+  enumeration value was added, so §13.2 requires no version bump.
 
 - **v0.15 (2026-09-25)** — **D60–D69: the text D60 and D61 were owed, eight
   operator decisions, and one correction.** `ver` stays at `2`; **no frame layout, header
