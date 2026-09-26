@@ -4,7 +4,7 @@
 specific to this target.
 
 **Primary document:** `docs/rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md`.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 **Record:** `docs/rangetest/engineering-log.md`.
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. It bites hardest here,
 because most of this target's writing is dated campaign record: engineering-log entries,
