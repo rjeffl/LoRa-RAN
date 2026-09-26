@@ -259,10 +259,9 @@ RevertCause PhyTrial::tick(uint32_t now_ms) {
 
 bool PhyTrial::reset_to_defaults() {
   if (!writable()) return false;
-  store_.revert_phy_trial();
-  for (size_t i = 0; i < kPhyGroupSize; ++i) {
-    (void)store_.restore(phy_row(i)->id, phy_row(i)->def);
-  }
+  // Forgotten, not restored: restore() holds a default as an override, and every PHY row
+  // then read as one until a reboot (found 2026-09-25).
+  store_.forget_phy_group();
   committed_       = group();
   state_           = PhyState::Idle;
   accepted_        = 0;

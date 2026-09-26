@@ -12,6 +12,7 @@
 #include "task_runtime.h"
 
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -102,10 +103,16 @@ StaticQueue_t g_hex_queue_buf;
 QueueHandle_t g_hex_queue = nullptr;
 
 // BF-27 - log_task drains lora_link's frame-log ring directly (frame_log.h), which is
-// why there is no g_log_queue here. A queue would have cost lora_task a copy into it and
-// bought nothing: the ring IS the queue, single-producer and single-consumer, and it
+// why the frame log has no queue here. A queue would have cost lora_task a copy into it
+// and bought nothing: the ring IS the queue, single-producer and single-consumer, and it
 // overwrites where a queue would refuse - which for a diagnostic timeline is the right
-// failure. TODO(BF-11a): the LEVELED log still has no queue.
+// failure.
+
+// BF-11a - the leveled log, which IS a queue. A line is an event with a cause, and the
+// line that fills the queue is the newest of a burst whose start is already queued.
+uint8_t      g_log_storage[queue_storage_bytes(kLogQueueDepth, sizeof(LogMessage))];
+StaticQueue_t g_log_queue_buf;
+QueueHandle_t g_log_queue = nullptr;
 
 // Records moved per pass. Sixteen is four batches of the four-a-second a `--gap 250`
 // burst produces, so the drain outruns the ring by two orders of magnitude and the
@@ -469,7 +476,7 @@ void sched_versions() {
   uint8_t      ver = 0;
   while (lora_take_bad_version(&src, &ver)) {
     if (registry_note_unsupported_version(src, ver)) {
-      Serial.printf("ver: %02x speaks v%u, this bridge accepts %u-%u\n",
+      log_printf(LogLevel::Warn, "ver: %02x speaks v%u, this bridge accepts %u-%u\n",
                     static_cast<unsigned>(src), static_cast<unsigned>(ver),
                     static_cast<unsigned>(lran::kProtoVer - 1),
                     static_cast<unsigned>(lran::kProtoVer));
@@ -550,7 +557,7 @@ bool air_pending(AirWait* w, const char* path, uint32_t now_ms, OnAired on_aired
     if (static_cast<int32_t>(now_ms - w->queued_ms) < static_cast<int32_t>(kAirWaitMaxMs)) {
       return true;
     }
-    Serial.printf("air: %s frame not reported by lora_task after %lu ms - window opens now\n",
+    log_printf(LogLevel::Warn, "air: %s frame not reported by lora_task after %lu ms - window opens now\n",
                   path, static_cast<unsigned long>(kAirWaitMaxMs));
     done_ms = now_ms;
   }
@@ -702,7 +709,7 @@ void sched_commands(uint32_t now_ms) {
         if (refused) g_roll.note_cmd_refused();
       }
       if (refused) {
-        Serial.printf("cmd: %02x refused, context roll pending\n", static_cast<unsigned>(req.dst));
+        log_printf(LogLevel::Info, "cmd: %02x refused, context roll pending\n", static_cast<unsigned>(req.dst));
         publish_cmd_refused_roll_pending(req.dst);
         return;
       }
@@ -731,7 +738,7 @@ void sched_commands(uint32_t now_ms) {
         return;
 
       case CmdAction::Resolve:
-        Serial.printf("cmd: %02x seq %u -> outcome %d result %u detail %u\n",
+        log_printf(LogLevel::Info, "cmd: %02x seq %u -> outcome %d result %u detail %u\n",
                       static_cast<unsigned>(st.dst), static_cast<unsigned>(st.seq),
                       static_cast<int>(st.outcome), static_cast<unsigned>(st.result),
                       static_cast<unsigned>(st.detail));
@@ -815,14 +822,14 @@ void sched_roll(uint32_t now_ms) {
           // 1, which is spec 10.3 step 2's write. After this the pending bit clears, and
           // not before: a command admitted in between would carry the old context.
           (void)registry_adopt_ctx(st.dst, st.ctx_id);
-          Serial.printf("roll: %02x rolled to ctx 0x%08lx after %u attempt(s)\n",
+          log_printf(LogLevel::Info, "roll: %02x rolled to ctx 0x%08lx after %u attempt(s)\n",
                         static_cast<unsigned>(st.dst), static_cast<unsigned long>(st.ctx_id),
                         static_cast<unsigned>(st.attempt) + 1u);
         } else if (st.no_ack) {
-          Serial.printf("roll: %02x FAILED, no answer to %u attempt(s); still pending\n",
+          log_printf(LogLevel::Warn, "roll: %02x FAILED, no answer to %u attempt(s); still pending\n",
                         static_cast<unsigned>(st.dst), static_cast<unsigned>(st.attempt) + 1u);
         } else {
-          Serial.printf("roll: %02x FAILED, answered result %u; still pending\n",
+          log_printf(LogLevel::Warn, "roll: %02x FAILED, answered result %u; still pending\n",
                         static_cast<unsigned>(st.dst), static_cast<unsigned>(st.result));
         }
         g_roll_pending = pending;
@@ -865,7 +872,7 @@ void publish_config_resolution(const ConfigStep& step) {
   // sched_task's deepest path, reported the way lora_task reports its own. This node's
   // CLAUDE.md asks for a stack size corrected FROM A MEASUREMENT rather than doubled
   // after a crash, and this is the measurement.
-  Serial.printf("config: %02x outcome %d, sched stack high-water %u bytes free\n",
+  log_printf(LogLevel::Info, "config: %02x outcome %d, sched stack high-water %u bytes free\n",
                 static_cast<unsigned>(step.dst), static_cast<int>(step.op_outcome),
                 static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 
@@ -1232,11 +1239,11 @@ void sched_phy_start(uint32_t now_ms) {
   g_phy_job_waiting = false;
   if (!started) {
     // The fleet emptied or outgrew kMaxPhyFleet after mqtt_task checked it. Nothing moved.
-    Serial.printf("phy: change not started, fleet of %u\n", static_cast<unsigned>(n));
+    log_printf(LogLevel::Info, "phy: change not started, fleet of %u\n", static_cast<unsigned>(n));
     publish_phy_resolution(/*committed=*/false, false);
     return;
   }
-  Serial.printf("phy: change started across %u node(s)\n", static_cast<unsigned>(n));
+  log_printf(LogLevel::Info, "phy: change started across %u node(s)\n", static_cast<unsigned>(n));
 }
 
 // Builds and queues a CONFIG to `dst`. True when it went; `*seq` is the one it took.
@@ -1326,7 +1333,7 @@ void sched_phy(uint32_t now_ms) {
         // reverts the change.
         PhyConfig p;
         if (!phy_config_from(st.group, kPhy, &p)) {
-          Serial.println(F("phy: target group breaks the EIRP ceiling - not retuning"));
+          log_printf(LogLevel::Error, "phy: target group breaks the EIRP ceiling - not retuning");
           continue;
         }
         {
@@ -1335,7 +1342,7 @@ void sched_phy(uint32_t now_ms) {
           (void)g_cfg_global_persist.mark_trial(true);
         }
         g_phy_ticket = lora_request_phy(p);
-        Serial.println(F("phy: every node accepted - retuning"));
+        log_printf(LogLevel::Info, "phy: every node accepted - retuning");
         continue;
       }
 
@@ -1350,12 +1357,12 @@ void sched_phy(uint32_t now_ms) {
           ok = g_config.commit_phy_trial();
         }
         if (!ok) {
-          Serial.println(F("phy: commit FAILED, NVS refused the group - reverting"));
+          log_printf(LogLevel::Error, "phy: commit FAILED, NVS refused the group - reverting");
           SchedLock lock;
           g_phy_change.commit_failed();
           continue;
         }
-        Serial.println(F("phy: every node heard - committed"));
+        log_printf(LogLevel::Info, "phy: every node heard - committed");
         g_phy_ack_rows = rows;
         g_phy_ack_state =
             publish_phy_resolution(/*committed=*/true, /*persisted=*/true) ? kPhyAckQueued
@@ -1369,7 +1376,7 @@ void sched_phy(uint32_t now_ms) {
 
       case PhyAction::Abandon: {
         const char* reason = phy_reason_token(st.reason);
-        Serial.printf("phy: change abandoned (%s, node %02x)%s\n",
+        log_printf(LogLevel::Warn, "phy: change abandoned (%s, node %02x)%s\n",
                       reason != nullptr ? reason : "?",
                       static_cast<unsigned>(st.culprit), st.retuned ? ", retuning back" : "");
         PhyConfig p;
@@ -1473,7 +1480,7 @@ void sched_availability() {
     }
     if (c.changed) {
       // The bench record of V-B3 while bench publication is off.
-      Serial.printf("availability: %s %s (missed_polls %u, threshold %u)\n", name,
+      log_printf(LogLevel::Info, "availability: %s %s (missed_polls %u, threshold %u)\n", name,
                     availability_payload(c.to), static_cast<unsigned>(ns.missed_polls),
                     static_cast<unsigned>(g_availability.threshold()));
     }
@@ -1654,7 +1661,7 @@ void publish_arm_state(size_t i, bool armed) {
 }
 
 void resolve_hex(const HexStep& st) {
-  Serial.printf("hex: %02x seq %u %s -> %s status %u result %u, sched stack %u bytes free\n",
+  log_printf(LogLevel::Info, "hex: %02x seq %u %s -> %s status %u result %u, sched stack %u bytes free\n",
                 static_cast<unsigned>(st.dst), static_cast<unsigned>(st.seq),
                 st.write ? "write" : "read", hex_outcome_token(st.outcome),
                 static_cast<unsigned>(st.status), static_cast<unsigned>(st.ack_result),
@@ -1669,7 +1676,7 @@ void resolve_hex(const HexStep& st) {
       // No MPPT behind this node, or not one that answers: stop rather than spend a
       // timeout on every register (charge_readback.h). The next write or boot tries again.
       g_charge[i].abandon();
-      Serial.printf("hex: %02x readback abandoned at 0x%04X\n", static_cast<unsigned>(st.dst),
+      log_printf(LogLevel::Warn, "hex: %02x readback abandoned at 0x%04X\n", static_cast<unsigned>(st.dst),
                     static_cast<unsigned>(g_hex_job.reg));
       return;
     }
@@ -1690,7 +1697,7 @@ void resolve_hex(const HexStep& st) {
         !publish_vedirect(st.dst, "hex/audit", g_hex_doc, /*retain=*/true)) {
       // Gate 3 failed to record. Said on the console, because a silent audit gap is the
       // failure the trail exists to prevent.
-      Serial.printf("hex: %02x seq %u AUDIT NOT PUBLISHED\n", static_cast<unsigned>(st.dst),
+      log_printf(LogLevel::Error, "hex: %02x seq %u AUDIT NOT PUBLISHED\n", static_cast<unsigned>(st.dst),
                     static_cast<unsigned>(st.seq));
     }
   }
@@ -1703,7 +1710,7 @@ void resolve_hex(const HexStep& st) {
 
 // A write refused before it reached the proxy. It is still an attempt, so it is audited.
 void refuse_hex_in_sched(const HexRequest& req, const char* outcome, bool write) {
-  Serial.printf("hex: %02x refused, %s\n", static_cast<unsigned>(req.dst), outcome);
+  log_printf(LogLevel::Info, "hex: %02x refused, %s\n", static_cast<unsigned>(req.dst), outcome);
   if (hex_refusal_json(req, outcome, g_hex_doc, sizeof(g_hex_doc)) > 0) {
     (void)publish_vedirect(req.dst, "hex/response", g_hex_doc, /*retain=*/false);
   }
@@ -1728,7 +1735,7 @@ void sched_hex(uint32_t now_ms) {
     for (size_t i = 0; i < kNodeCount; ++i) {
       if (g_arm[i].expire(now_ms, g_arm_timeout_s)) {
         g_arm_owed.fetch_or(1u << i);
-        Serial.printf("hex: %02x write arm expired\n", static_cast<unsigned>(kNodeTable[i].id));
+        log_printf(LogLevel::Info, "hex: %02x write arm expired\n", static_cast<unsigned>(kNodeTable[i].id));
       }
     }
   }
@@ -1901,7 +1908,7 @@ void sched_levers() {
   g_sched_levers_have    = true;
 
   // The bench record that a set reached its consumer, not just the store.
-  Serial.printf("levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
+  log_printf(LogLevel::Info, "levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
                 "config ack %u ms, readback %u ms, hex rsp %u ms, arm %u s, simnode diag %s\n",
                 static_cast<unsigned>(g_sched_levers_seen),
                 static_cast<unsigned>(v.diag_interval_s),
@@ -1947,6 +1954,14 @@ void lora_task(void*) {
 void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
+
+  // BF-11b - the one feed point, in the task that would notice a stall (Impl Plan 5.2).
+  // A watchdog that fails to arm is logged and the bridge runs on unwatched, because a
+  // bridge that refuses to boot for want of a watchdog protects nothing.
+  const bool watched = esp_task_wdt_init(kWatchdogTimeoutS, /*panic=*/true) == ESP_OK &&
+                       esp_task_wdt_add(nullptr) == ESP_OK;
+  if (!watched) log_printf(LogLevel::Error, "wdt: not armed - sched_task runs unwatched");
+
   for (;;) {
     sched_levers();            // BF-23 - root rule 8
     sched_versions();          // BF-22 - R-3.1f, spec 13.1
@@ -1958,7 +1973,9 @@ void sched_task(void*) {
     sched_hex(millis());       // BF-28, BF-29, BF-30 - Impl Plan 6.4, PRD 3.5
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5
     sched_diag(millis());      // BF-19 - spec 14.1, 16.2
-    // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
+    // Fed after the whole tick rather than before it, so a tick that hangs part way
+    // through is the one that starves the watchdog.
+    if (watched) (void)esp_task_wdt_reset();
     vTaskDelayUntil(&last, period);
   }
 }
@@ -2738,6 +2755,25 @@ void on_mqtt_connected() {
 // THIS TASK MAY BLOCK. A publish on a reconnecting broker can occupy it for the
 // socket timeout, and that is exactly what the queue in front of it buys: lora_task
 // keeps receiving throughout (R-3.2b, PRD 1.3 property 2).
+// mqtt_task's stack high-water mark, logged each time it reaches a new low. espMqttClient's
+// loop() runs on this stack since BF-37, and inbound parsing, discovery and config/state
+// all run beneath it, so no one call site is the deepest the way sched_task's
+// configuration resolution is. A new low is the event worth a line; checked every 10 s
+// because the call walks the untouched stack, and a 100 ms tick would do that ten times
+// a second to learn nothing new.
+void mqtt_stack_check(uint32_t now_ms) {
+  static uint32_t next_ms = 0;
+  static uint32_t lowest  = UINT32_MAX;
+  if (static_cast<int32_t>(now_ms - next_ms) < 0) return;
+  next_ms = now_ms + 10000;
+  const uint32_t free_bytes = uxTaskGetStackHighWaterMark(nullptr);
+  if (free_bytes >= lowest) return;
+  lowest = free_bytes;
+  log_printf(LogLevel::Info, "mqtt: stack high-water %lu bytes free of %lu",
+             static_cast<unsigned long>(free_bytes),
+             static_cast<unsigned long>(task_spec(TaskId::Mqtt).stack_bytes));
+}
+
 void mqtt_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Mqtt).period_ms);
   TickType_t       last   = xTaskGetTickCount();
@@ -2784,6 +2820,7 @@ void mqtt_task(void*) {
       }
     }
 
+    mqtt_stack_check(now);
     vTaskDelayUntil(&last, period);
   }
 }
@@ -3021,6 +3058,19 @@ size_t drain_chan() {
   return n;
 }
 
+// BF-11a - one pass of the leveled log's drain. Returns how many lines it printed.
+LogMessage g_log_line;  // static, for the reason g_log_msg is: this stack is 3072
+
+size_t drain_log_queue() {
+  size_t n = 0;
+  char   line[kLogTextLen + 8];
+  while (n < kLogDrainBudget && xQueueReceive(g_log_queue, &g_log_line, 0) == pdTRUE) {
+    if (log_render(g_log_line, line, sizeof(line)) > 0) Serial.println(line);
+    ++n;
+  }
+  return n;
+}
+
 void log_task(void*) {
   for (;;) {
     // LOWEST PRIORITY ON PURPOSE - a log that can preempt the radio changes what it
@@ -3029,7 +3079,7 @@ void log_task(void*) {
     // A busy tick comes straight back rather than sleeping: the ring is 64 records and
     // a drain that always sleeps 100 ms between budgets falls behind a burst and starts
     // overwriting, which is loss this task invented rather than found.
-    const size_t moved = drain_frame_log() + drain_chan();
+    const size_t moved = drain_log_queue() + drain_frame_log() + drain_chan();
     if (moved < kLogDrainBudget) vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -3070,8 +3120,11 @@ bool start_tasks() {
                                        g_command_storage, &g_command_queue_buf);
   g_hex_queue = xQueueCreateStatic(kHexQueueDepth, sizeof(HexRequest), g_hex_storage,
                                    &g_hex_queue_buf);
+  g_log_queue = xQueueCreateStatic(kLogQueueDepth, sizeof(LogMessage), g_log_storage,
+                                   &g_log_queue_buf);
   if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||
-      g_event_queue == nullptr || g_command_queue == nullptr || g_hex_queue == nullptr) {
+      g_event_queue == nullptr || g_command_queue == nullptr || g_hex_queue == nullptr ||
+      g_config_queue == nullptr || g_log_queue == nullptr) {
     return false;
   }
 
@@ -3168,6 +3221,25 @@ bool send_publish(const PublishMessage& msg) {
   }
   g_accounting.record_sent(id, static_cast<size_t>(uxQueueMessagesWaiting(q)));
   return true;
+}
+
+void log_printf(LogLevel level, const char* fmt, ...) {
+  LogMessage msg;
+  va_list    ap;
+  va_start(ap, fmt);
+  (void)log_format(&msg, level, fmt, ap);  // a cut line ends in "..." and is still sent
+  va_end(ap);
+  if (g_log_queue == nullptr) {
+    char line[kLogTextLen + 8];
+    if (log_render(msg, line, sizeof(line)) > 0) Serial.println(line);
+    return;
+  }
+  if (xQueueSend(g_log_queue, &msg, 0) != pdTRUE) {
+    g_accounting.record_dropped(QueueId::Log);
+    return;
+  }
+  g_accounting.record_sent(QueueId::Log,
+                           static_cast<size_t>(uxQueueMessagesWaiting(g_log_queue)));
 }
 
 // BF-32 - the configuration store, before the tasks and before the network. Returns how

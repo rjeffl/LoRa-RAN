@@ -148,7 +148,7 @@ class PhyTrial {
 
   // `phy reset` - the committed group back to the table's defaults and the blob erased,
   // so a bench board left on a stranded group recovers without a reflash. Any trial is
-  // dropped. Owes a retune.
+  // dropped, and no PHY row reads as an override afterwards. Owes a retune.
   bool reset_to_defaults();
 
   bool                         writable() const;
@@ -157,6 +157,7 @@ class PhyTrial {
   uint32_t                     window_left_ms(uint32_t now_ms) const;
   lran::PersistStatus          read_persist_status() const { return store_.read_persist_status(); }
   const PhyTrialStats&         stats() const { return stats_; }
+  bool marked_override(uint16_t id) const { return store_.marked_override(id); }
   PhyGroup                     committed() const { return committed_; }
 
  private:

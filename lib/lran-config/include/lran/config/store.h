@@ -127,6 +127,13 @@ class Store {
   // committed group again and the caller retunes from it. Nothing is written.
   void revert_phy_trial() { ntrial_ = 0; }
 
+  // A BENCH TOOL, NOT A PROTOCOL OPERATION: the simnode's `phy reset` console command.
+  // Drops the trial copy and every PHY row's override in RAM, so the group reads as the
+  // table's defaults and none of its rows reads as an override. Every other override
+  // stays. It writes nothing; the caller erases the stored group itself. Spec 12.4 lets no
+  // node-level operation move the PHY, and nothing on the air reaches this.
+  void forget_phy_group();
+
   // spec 8.11, D53 - after a read this reports whether the current overrides are
   // persisted, and reads PERSISTED when there are none.
   PersistStatus read_persist_status() const;

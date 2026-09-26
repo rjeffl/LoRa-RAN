@@ -1,0 +1,128 @@
+# bridge /dev/cu.usbserial-0001 (MAC 44:1b:f6:f9:70:14), 4ef3f2c
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+LRAN Bridge Node - node 0x00
+Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+Version: 0.1.0 (4ef3f2c)
+Slot: app0
+Image state: not_pending
+Reset: power_on
+CHAN-BOOT,4ef3f2c,917400000,9,1250,1000,-1100,10
+WiFi SSID: McLeeNet
+MQTT broker: 192.168.2.52:1883
+Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+boot: count 19
+Config: 17 stored value(s) restored
+Tasks started: 7
+WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+[   579][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 203 - ASSOC_FAIL
+[   601][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag off
+mqtt: stack high-water 4616 bytes free of 6144
+[   691][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+OTA: listening as lran-bridge
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 5832 bytes free
+[   748][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+[   758][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+mqtt: connected, heap free 64824, lowest 59688
+CHAN,0,630,1002,99,1,2,0,-1100,-1130,-1125
+CHAN,1,1632,1000,100,0,1,0,-1100,-1130,-1125
+CHAN,2,2632,1000,100,0,4,0,-1090,-1130,-1124
+mqtt: stack high-water 2568 bytes free of 6144
+CHANSUM,0,9,10,10002,999,1,7,0,3,0,-1090,-1140,-1130,-1132
+CHAN,17,17632,1000,100,0,3,0,-1080,-1140,-1125
+CHAN,60,60632,1000,100,0,1,0,-1100,-1130,-1126
+CHANSUM,10,69,60,60000,6000,0,4,0,2,0,-1080,-1140,-1130,-1134
+mqtt: stack high-water 2124 bytes free of 6144
+CHAN,100,100632,1000,100,0,1,0,-1100,-1130,-1124
+CHAN,101,101632,1000,100,0,1,0,-1090,-1130,-1124
+CHAN,103,103632,1000,100,0,3,0,-1070,-1140,-1124
+CHAN,107,107632,1000,100,0,1,0,-1100,-1130,-1123
+CHAN,108,108632,1000,100,0,1,0,-1100,-1130,-1124
+availability: simnode1 online (missed_polls 0, threshold 3)
+FRAME #0 rx t=110543 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=0
+CHAN,109,109632,1000,98,2,56,1,-290,-1130,-668
+FRAME #1 tx t=111513 peer=0xf1 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=41
+poll: f1 answered in 1704 ms (window 10000 ms)
+FRAME #2 rx t=112278 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-31 snr=11 st=0 rx=0 deaf=233
+FRAME #3 tx t=112600 peer=0xf1 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=254
+CHAN,111,111639,1008,87,13,55,1,-290,-1140,-623
+FRAME #4 rx t=113079 peer=0xf1 type=2 schema=0 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=488
+roll: f1 rolled to ctx 0xaef2dd53 after 1 attempt(s)
+CHAN,112,112647,1004,80,20,21,1,-290,-1130,-912
+FRAME #5 tx t=117606 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=513
+FRAME #6 rx t=118266 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=746
+config: f1 outcome 1, sched stack high-water 2296 bytes free
+CHAN,117,117653,1004,81,20,41,1,-290,-1130,-716
+CHAN,122,122657,1000,100,0,1,0,-1100,-1130,-1124
+CHAN,126,126657,1000,100,0,1,0,-940,-1140,-1123
+CHANSUM,70,129,60,60025,5927,73,182,4,11,0,-290,-1140,-1130,-1133
+CHAN,140,140657,1000,100,0,5,0,-1080,-1130,-1122
+FRAME #7 tx t=170598 peer=0xf1 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=767
+poll: f1 answered in 789 ms (window 10000 ms)
+FRAME #8 rx t=171363 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-31 snr=11 st=0 rx=0 deaf=959
+CHAN,170,170665,1000,86,14,54,1,-290,-1130,-617
+
+# simnode XIAO /dev/cu.usbmodem2101 (MAC 68:ee:8f:4b:85:f4), f1, 4ef3f2c
+
+>>> help
+OK commands:
+  id add <hex> <ROLE_RANGE|ROLE_HEALTH|ROLE_GATELINK|ROLE_FAULT>
+  id del <hex>   |  id list
+  enable <hex>   |  disable <hex>
+  ver <hex> <n>
+  ctx <hex> [new]
+  ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]   (dst defaults to 00)
+  stats <hex>
+  radio          (the driver's counters: frames actually on air)
+  phy [reset]    (spec 12.4.2: the board's PHY group; reset erases it)
+  log <quiet|info|debug>
+  fault <hex> <name> [count] [gap <ms>] [to <hex>] [ctx <hex32>] [seq <n>]
+  fault <hex> off   |  fault list
+ROLE_GATELINK:
+  push <hex> [reason]              (spec 8.7 name; default DEBUG_SYNTHETIC)
+  event <hex> <type> | again | follow   (spec 8.9 name)
+  ack <hex> normal | suppress [count] | dup [count] | delay <ms>
+  field <hex> <name> <value|na> | field <hex> list | field <hex> reset
+  mppt <hex> list | set <reg> <value> | timeout [count] | hex_timeout <ms> | reset
+
+>>> id list
+phy
+OK 1 identity
+id f1 ROLE_GATELINK enabled ver 2 ctx 0xd93c0111 tx_seq 1 cmd_hw 0 rx 0 tx 0 dropped 0
+   gatelink ack_delay 0 ms, executions 0, actuations 0, next event_id 1
+OK phy idle, store nvs, window 0 ms, accepted 0x00
+  effective 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+  committed 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+  trials 0 committed 0 reverted 0 abandoned 0 commit_failed 0
+
+>>> phy reset
+OK phy reset - D1's group, store erased, retuning
+radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+phy: retuned, board idle
+
+>>> push f1
+OK push f1 -> 00 schema 0xFE DEBUG_SYNTHETIC
+roll f1 <- 00 seq 1: ctx 0xd93c0111 -> 0xaef2dd53, ACCEPTED
+config f1 <- 00 seq 1: op 3, 0 entries, 6 result(s)
+
+# mosquitto_sub lran/simnode1/config/#, first get_all
+lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+lran/simnode1/config/set {"op":"get_all"}
+lran/simnode1/config/ack {"op":"get_all","persist":"not_applied","error":"context_roll_pending"}
+Timed out
+# mosquitto_sub lran/simnode1/config/#, get_all after push f1
+lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+lran/simnode1/config/set {"op":"get_all"}
+lran/simnode1/config/ack {"op":"get_all","persist":"persisted","results":{"poll_interval_s":{"status":"ok","value":60},"deployed":{"status":"ok","value":0},"freq_hz":{"status":"ok","value":917400000},"spreading_factor":{"status":"ok","value":9},"bandwidth_khz":{"status":"ok","value":125},"coding_rate_denominator":{"status":"ok","value":5},"tx_power_dbm":{"status":"ok","value":-4},"phy_trial_s":{"status":"ok","value":120}}}
+lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"default"},"spreading_factor":{"value":9,"source":"default"},"bandwidth_khz":{"value":125,"source":"default"},"coding_rate_denominator":{"value":5,"source":"default"},"tx_power_dbm":{"value":-4,"source":"default"},"phy_trial_s":{"value":120,"source":"default"}}
+Timed out

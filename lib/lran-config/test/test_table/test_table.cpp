@@ -353,6 +353,30 @@ void test_restore_defaults_keeps_the_committed_phy_group() {
   TEST_ASSERT_EQUAL_INT32(10, p.group_value(kSf));
 }
 
+// The simnode's `phy reset`. It held each default as an override through restore()
+// until 2026-09-26, so every PHY row read as an override until a reboot. The group
+// returns to its defaults unmarked, and every other override stays.
+void test_forget_phy_group_leaves_the_defaults_unmarked() {
+  Table       t = node_table();
+  FakePersist p;
+  Store       s(t, &p);
+  s.enable_phy_trial();
+  TEST_ASSERT_TRUE(s.restore(kSf, 10));
+  (void)s.apply(set_entry(0x0100, PType::U8, 16), nullptr, nullptr);
+  (void)s.apply(set_entry(kTxp, PType::I16, static_cast<uint16_t>(-6)), nullptr, nullptr);
+  TEST_ASSERT_TRUE(s.phy_trial_pending());
+
+  s.forget_phy_group();
+  TEST_ASSERT_FALSE(s.phy_trial_pending());
+  TEST_ASSERT_EQUAL_INT32(9, s.effective(kSf));
+  TEST_ASSERT_FALSE(s.is_override(kSf));
+  TEST_ASSERT_FALSE(s.marked_override(kSf));
+  TEST_ASSERT_FALSE(s.marked_override(kTxp));
+  TEST_ASSERT_TRUE(s.is_override(0x0100));
+  TEST_ASSERT_EQUAL_INT32(16, s.effective(0x0100));
+  TEST_ASSERT_EQUAL_INT32(0, p.group_saves_);
+}
+
 // spec 7.4, R-5.3d - with no usable store the change is still applied and still ACKed,
 // and persist_status says so. HA must never be told a value was saved when it was not.
 void test_an_unusable_store_still_applies_and_says_so() {
@@ -599,6 +623,7 @@ int main(int, char**) {
   RUN_TEST(test_a_failed_commit_keeps_the_trial_and_commits_nothing);
   RUN_TEST(test_restore_puts_back_a_committed_phy_value_without_a_trial);
   RUN_TEST(test_restore_defaults_keeps_the_committed_phy_group);
+  RUN_TEST(test_forget_phy_group_leaves_the_defaults_unmarked);
   RUN_TEST(test_an_unusable_store_still_applies_and_says_so);
   RUN_TEST(test_a_read_with_no_overrides_reports_persisted);
   RUN_TEST(test_restore_defaults_clears_every_override);

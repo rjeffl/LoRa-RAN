@@ -248,6 +248,18 @@ bool Store::commit_phy_trial() {
   return true;
 }
 
+void Store::forget_phy_group() {
+  ntrial_ = 0;
+  size_t kept = 0;
+  for (size_t i = 0; i < noverrides_; ++i) {
+    const ParamDef* d = find(overrides_[i].id);
+    if (d != nullptr && d->access == Access::Phy) continue;
+    overrides_[kept++] = overrides_[i];
+  }
+  for (size_t i = kept; i < noverrides_; ++i) overrides_[i] = Override{};
+  noverrides_ = kept;
+}
+
 bool Store::restore_defaults() {
   // The committed PHY group survives, in RAM and in the store (see store.h).
   Override kept[kPhyGroupSize] = {};

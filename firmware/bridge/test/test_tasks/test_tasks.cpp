@@ -157,6 +157,13 @@ void test_high_water_holds_the_deepest_occupancy() {
   TEST_ASSERT_EQUAL_UINT32(5, a.stat(QueueId::Rx).high_water);
 }
 
+// BF-11b - the watchdog is fed once per sched_task tick, so its timeout must span
+// several ticks, or one slow tick resets the bridge. tasks.h argues for ten.
+void test_watchdog_spans_several_sched_ticks() {
+  const uint32_t tick_ms = task_spec(TaskId::Sched).period_ms;
+  TEST_ASSERT_TRUE(kWatchdogTimeoutS * 1000u >= 5u * tick_ms);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_lora_outranks_every_other_task);
@@ -173,5 +180,6 @@ int main() {
   RUN_TEST(test_a_drop_is_counted_and_raises_the_health_flag);
   RUN_TEST(test_high_water_holds_the_deepest_occupancy);
   RUN_TEST(test_events_have_their_own_queue_and_count);
+  RUN_TEST(test_watchdog_spans_several_sched_ticks);
   return UNITY_END();
 }
