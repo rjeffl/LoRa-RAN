@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.65
+**Version:** 0.66
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1706,6 +1706,37 @@ touches `g_config`, as it is the only writer of the lever board. It would also t
 off `sched_task`. It was not chosen: it needs a new queue item of about a kilobyte, and it
 moves the `config/ack` publish to another task, for a race that one short lock closes.
 
+#### 6.7.7 A node reboot owes a readback, built 2026-09-25
+
+**The readback mirror said what a node ran before its reboot.** A simnode holds its
+overrides in RAM, so a reboot cleared them while `config/state` went on reporting them as
+current. A node with a store (**D49**) keeps them, and the bridge cannot tell the two apart
+from the reboot alone. So the bridge asks: **a node reboot sets the same pending bit a
+`CONFIG_CHANGE` does**, and `sched_config()` starts the same `readback_only` job (§6.7.2a).
+It costs one `POLL` per reboot.
+
+**A new `ctx_id` is not the trigger.** Spec §10.1 says a new context no longer means a
+reboot, because a roll (§10.6) makes one and keeps the configuration. The same section
+names what does report a reboot, `boot_count` and `uptime_s`. `RebootWatch` in
+`config_path.h` reads three signs from a node's `STATUS`, on schemas `0x10`, `0xFE` and
+`0xF0`, and any one is enough:
+
+| Sign | Why it is needed |
+|---|---|
+| `status_reason` `BOOT` (spec §8.7) | The first `STATUS` after a boot may be the first the bridge hears this run, with nothing to compare. `0xF0` has no reason field |
+| `boot_count` changed, both readings non-zero | A simulated GateLink reboot on the simnode keeps the board's uptime. `0` is unavailable (§7.2.4) and never compared |
+| `uptime_s` below the last reading plus the time since it arrived | A node with no store reports `boot_count` `0`. Adding the gap catches a node heard again only after it ran longer than it had before the reboot |
+
+The third sign allows 5 s plus 1/256 of the gap. The 5 s covers truncation to whole
+seconds and a frame's wait for media access (§12.3, up to `backoff_max_ms` a turn), and
+the fraction covers clock drift at about forty times a crystal's tolerance. A roll moves
+none of the three. `app_task` alone calls `RebootWatch`, so it takes no lock.
+
+**On the bench on 2026-09-25**, each of two reboots of `simnode1` put `config/state` back
+on the node's defaults within 8 s: a `REBOOT` command, caught by `BOOT`, and a board reset,
+caught by `uptime_s` alone. The bridge engineering log's *mirror readback* entry has the
+run.
+
 ---
 
 ## 7. Test and verification plan
@@ -2836,6 +2867,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.66** — **A node reboot owes a readback.** New §6.7.7: the bridge reads a reboot
+  from a node's `STATUS`, never from a new `ctx_id`, and asks for a readback, so
+  `config/state` stops reporting overrides a reboot cleared.
 
 - **v0.65** — **Three air-timing defects from B4b's bench runs are fixed.** §6.1.1's
   exchange row now says every exchange holds every other, and that a PHY change's step-6

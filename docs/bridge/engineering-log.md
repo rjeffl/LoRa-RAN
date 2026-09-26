@@ -3440,3 +3440,39 @@ that load, not that it closes that case. The host test
 6416. **The bench was restored**: `deployed` 0 and `poll_interval_s` 60 on `simnode0` to
 `simnode2`, and `simnode_diag_enable` 0, all acknowledged. The fleet is on 917.4 MHz. f1 holds
 `dedup_cache_depth` 8, its default, in RAM until its next reboot.
+
+## 2026-09-25 — The mirror readback: a node reboot is read from its STATUS, and config/state follows it
+
+**`config/state` no longer reports overrides a node reboot cleared.** The bridge now reads a
+reboot from a node's `STATUS` and asks for a readback, through the pending bit D69's
+`CONFIG_CHANGE` already sets. Impl Plan §6.7.7 records the design.
+
+**The handoff proposed a readback when a node's `ctx_id` changes. Spec §10.1 rules that
+out.** Since v0.13 a new context "no longer means the node rebooted", because a roll makes
+one, and the same section names `boot_count` and `uptime_s` as the fields that report a
+reboot. Keyed on the context, the readback would fire after every bridge restart, once per
+roll. It would also race the roll: a node whose `ACCEPTED` is lost is learned at its next
+frame, before the roll resolves on `REJECTED_CTX`. `RebootWatch` in `config_path.h` reads
+three signs instead: `status_reason` `BOOT`, a change in a non-zero `boot_count`, and an
+`uptime_s` below the last reading plus the time since. A roll moves none of them.
+
+**On the bench**, the bridge ran `3534e0b`. f1 was on the XIAO, running `7e7b92a`. Each
+case first set `dedup_cache_depth` 16 on `lran/simnode1/config/set`, and `config/state`
+showed it as an override within 3 s. The trace is
+[`data/mirror-readback-bench-2026-09-25.log`](./data/mirror-readback-bench-2026-09-25.log).
+
+| Case | Sign that caught it | `config: f1 rebooted` | `config/state` back to `null`, `default` |
+|---|---|---|---|
+| `REBOOT` on `lran/simnode1/cmd/reboot/set`, payload `165` | `BOOT`, in the simnode's first `STATUS` | On that `STATUS` | 8 s after the publish |
+| Board reset, by reopening the XIAO's port, then `push f1` | **`uptime_s` alone.** The push carried `DEBUG_SYNTHETIC`, and a real boot reports `boot_count` 0 | On the push | 4 s after the push |
+
+**The board reset abandoned a BF-30 charge readback mid-pass**, at `0xEDFB`, because the
+reset landed on a `HEX_REQ` in flight. That is the pass's own timeout doing its job; the
+next first hearing starts a new pass.
+
+**The node's readback marks `freq_hz` and its PHY neighbours `override`.** That is the
+simnode's `phy reset` defect, already under group 2 of the handoff, and not new.
+
+`sched_task` read 1900 bytes free at its lowest, on a `HEX_REQ`. The previous entry's run
+read 1932. **The bench was restored:** `simnode_diag_enable` 0, acknowledged. f1's override
+went with its reboot. Native suites: 483 cases pass. `heltec` builds.
