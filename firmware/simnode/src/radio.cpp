@@ -20,6 +20,7 @@
 #include <new>
 
 #include "lran/link/media_access.h"
+#include "lran/link/rx_arrival.h"
 
 namespace simnode {
 namespace {
@@ -64,13 +65,27 @@ uint8_t g_rx_buf[256];  // the SX1262 accepts 255 bytes; spec 14 stage 2a must s
 
 uint32_t g_begin_failed_ms  = 0;
 uint32_t g_last_irq_read_ms = 0;
-bool     g_header_seen      = false;
-uint32_t g_header_seen_ms   = 0;
+lran::link::RxArrival g_arrival;  // the CAD guard's view of an arriving frame
 
 constexpr uint32_t kBeginRetryMs      = 10000;
 constexpr uint32_t kCadTimeoutMs      = 500;   // a few 4.1 ms symbols at SF9 / 125 kHz
 constexpr uint32_t kIrqReadMs         = 1000;  // HEADER_ERR never reaches DIO1
 constexpr uint32_t kRxInProgressMaxMs = 1500;  // spec 15.1 - the longest frame at SF9 is 1107 ms
+
+// PREAMBLE_DETECTED added to RadioLib's receive flags, so the CAD guard sees a frame from
+// its preamble on (rx_arrival.h). Flags only: DIO1 stays on RX_DONE alone.
+constexpr RadioLibIrqFlags_t kRxIrqFlags =
+    RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED);
+
+int16_t start_receive_radio() {
+  return g_radio->startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF, kRxIrqFlags,
+                               RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+}
+
+lran::link::RxArrivalState observe_arrival(uint32_t irq, uint32_t now_ms) {
+  return g_arrival.observe((irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED) != 0,
+                           (irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) != 0, now_ms);
+}
 
 uint32_t elapsed(uint32_t now_ms, uint32_t since_ms) { return now_ms - since_ms; }
 
@@ -116,7 +131,7 @@ int16_t radio_begin() {
   if (st != RADIOLIB_ERR_NONE) return st;
 
   g_radio->setDio1Action(on_dio1);
-  return g_radio->startReceive();
+  return start_receive_radio();
 }
 
 void end_tx() {
@@ -143,7 +158,9 @@ void try_begin(uint32_t now_ms) {
   }
   g_stats.last_begin_status = st;
   g_dio1                    = false;
-  g_header_seen             = false;
+  g_arrival.reset();
+  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs,
+                       lran::link::burst_holdoff_ms(g_phy));
   g_mode                    = Mode::Receive;
   g_ready                   = true;
 
@@ -159,9 +176,9 @@ void try_begin(uint32_t now_ms) {
 }
 
 void start_receive(uint32_t now_ms) {
-  g_dio1        = false;  // TX_DONE and CAD_DONE share DIO1 with RX_DONE
-  g_header_seen = false;
-  const int16_t st = g_radio->startReceive();
+  g_dio1 = false;  // TX_DONE and CAD_DONE share DIO1 with RX_DONE
+  g_arrival.reset();
+  const int16_t st = start_receive_radio();
   if (st != RADIOLIB_ERR_NONE) {
     radio_failed(st, now_ms);
     return;
@@ -175,10 +192,12 @@ void service_receive(Node* node, uint32_t now_ms) {
   g_last_irq_read_ms = now_ms;
 
   const uint32_t irq = g_radio->getIrqFlags();
+  (void)observe_arrival(irq, now_ms);  // dated here, so a dead one is stale when a CAD asks
   if ((irq & RADIOLIB_SX126X_IRQ_RX_DONE) == 0) {
     // spec 14 stage 1, the header half: a LoRa header failing its own CRC raises no RX_DONE.
     if ((irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0) {
       node->on_phy_crc_error(now_ms);
+      g_arrival.note_reception_end(now_ms);
       start_receive(now_ms);
     }
     return;
@@ -192,7 +211,8 @@ void service_receive(Node* node, uint32_t now_ms) {
   const int16_t st   = g_radio->readData(g_rx_buf, len);  // clears the IRQ register
   const float   rssi = g_radio->getRSSI();
   const float   snr  = g_radio->getSNR();
-  g_header_seen      = false;
+  g_arrival.reset();
+  g_arrival.note_reception_end(now_ms);  // the next frame of a burst may be starting
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     node->on_phy_crc_error(now_ms);
@@ -226,34 +246,28 @@ void start_transmit(uint32_t now_ms) {
   g_mode_start_ms = now_ms;
 }
 
-bool reception_in_progress(uint32_t irq, uint32_t now_ms) {
-  if ((irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) == 0) {
-    g_header_seen = false;
-    return false;
-  }
-  if (!g_header_seen) {
-    g_header_seen    = true;
-    g_header_seen_ms = now_ms;
-    return true;
-  }
-  return elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
-}
-
 void start_cad(Node* node, uint32_t now_ms) {
+  // Too soon after a reception for a burst's next frame to show: ask again next pass.
+  if (g_arrival.holding_off(now_ms)) return;
+
   const uint32_t irq = g_radio->getIrqFlags();
   if ((irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0) {
     g_dio1 = true;  // read the waiting frame first
     return;
   }
-  if (reception_in_progress(irq, now_ms)) {
-    // A CAD would take the radio out of receive and destroy the arriving frame.
+  const lran::link::RxArrivalState arrival = observe_arrival(irq, now_ms);
+  if (arrival == lran::link::RxArrivalState::Arriving) {
+    // A CAD would take the radio out of receive and destroy the arriving frame, from its
+    // preamble on.
     ++g_stats.cad_deferred;
     if (report_cad(node, CadResult::Busy, now_ms) == TxStep::Transmit) start_transmit(now_ms);
     return;
   }
-  if (g_header_seen) {
+  if (arrival == lran::link::RxArrivalState::Stale) {
+    // A reception that died. Clear the register and CAD on a later pass, so a preamble
+    // hidden behind the sticky flag can raise it again.
     start_receive(now_ms);
-    if (g_mode != Mode::Receive) return;
+    return;
   }
   const int16_t st = g_radio->startChannelScan();
   if (st != RADIOLIB_ERR_NONE) {
@@ -349,7 +363,7 @@ void radio_service(Node* node, Outbox* outbox, uint32_t now_ms) {
       // frame arriving. radio_begin() then reconfigures the chip, as the bridge's
       // lora_task does.
       if (g_mode == Mode::Receive && g_phy_requested && !g_have_tx && outbox->size() == 0 &&
-          !g_header_seen) {
+          !g_arrival.arriving(now_ms)) {
         g_phy           = g_phy_next;
         g_phy_requested = false;
         g_phy_retuned   = true;

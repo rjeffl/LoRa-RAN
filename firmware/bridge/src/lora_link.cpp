@@ -17,6 +17,7 @@
 #include <new>
 
 #include "lran/link/chan_monitor.h"
+#include "lran/link/rx_arrival.h"
 #include "frame_log.h"
 #include "queues.h"
 #include "rx_deaf.h"
@@ -128,8 +129,7 @@ RxMessage g_rx_msg;
 
 uint32_t g_begin_failed_ms = 0;
 uint32_t g_last_irq_read_ms = 0;
-bool     g_header_seen      = false;
-uint32_t g_header_seen_ms   = 0;
+lran::link::RxArrival g_arrival;  // the CAD guard's view of an arriving frame
 
 constexpr uint32_t kBeginRetryMs = 10000;
 
@@ -153,6 +153,17 @@ constexpr uint32_t kIrqReadMs = 1000;
 // spec 15.1 - the longest frame at SF9 is 1107 ms. A valid header seen longer ago than
 // this with no RX_DONE behind it is a reception that died, not one still arriving.
 constexpr uint32_t kRxInProgressMaxMs = 1500;
+
+// RadioLib's receive flags plus PREAMBLE_DETECTED, so the CAD guard sees a frame from its
+// preamble rather than from its header (rx_arrival.h). Flags only: DIO1 stays on RX_DONE
+// alone, so a preamble wakes nothing.
+constexpr RadioLibIrqFlags_t kRxIrqFlags =
+    RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1UL << RADIOLIB_IRQ_PREAMBLE_DETECTED);
+
+int16_t start_receive_radio() {
+  return g_radio->startReceive(RADIOLIB_SX126X_RX_TIMEOUT_INF, kRxIrqFlags,
+                               RADIOLIB_IRQ_RX_DEFAULT_MASK, 0);
+}
 
 void IRAM_ATTR on_dio1() {
   g_dio1 = true;
@@ -212,7 +223,7 @@ int16_t radio_begin() {
   if (r != RADIOLIB_ERR_NONE) return r;
 
   g_radio->setDio1Action(on_dio1);
-  return g_radio->startReceive();
+  return start_receive_radio();
 }
 
 // THE ONE PLACE g_mode CHANGES. Closing the deaf interval here rather than at each call
@@ -267,7 +278,9 @@ void try_begin(uint32_t now_ms) {
   }
   g_stats.last_begin_status = st;
   g_dio1                    = false;
-  g_header_seen             = false;
+  g_arrival.reset();
+  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs,
+                       lran::link::burst_holdoff_ms(g_phy));
   enter_mode(Mode::Receive, now_ms);
   g_ready                   = true;
 
@@ -295,9 +308,9 @@ void try_begin(uint32_t now_ms) {
 void start_receive(uint32_t now_ms) {
   // TX_DONE and CAD_DONE arrive on the same DIO1 line as RX_DONE. The wake they left is
   // dropped here, the one point it is known not to be a packet.
-  g_dio1        = false;
-  g_header_seen = false;
-  const int16_t st = g_radio->startReceive();
+  g_dio1 = false;
+  g_arrival.reset();
+  const int16_t st = start_receive_radio();
   if (st != RADIOLIB_ERR_NONE) {
     radio_failed(st, now_ms);
     return;
@@ -380,6 +393,11 @@ void log_rx(RxOutcome outcome, uint32_t now_ms, bool ladder_ran, bool radio_meta
   g_frame_log.record(e);
 }
 
+lran::link::RxArrivalState observe_arrival(uint32_t irq, uint32_t now_ms) {
+  return g_arrival.observe((irq & RADIOLIB_SX126X_IRQ_PREAMBLE_DETECTED) != 0,
+                           (irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) != 0, now_ms);
+}
+
 void service_receive(uint32_t now_ms) {
   const RxWake wake = rx_wake(g_dio1, now_ms, g_last_irq_read_ms, kIrqReadMs);
   if (wake == RxWake::Skip) return;
@@ -387,6 +405,10 @@ void service_receive(uint32_t now_ms) {
   g_last_irq_read_ms = now_ms;
 
   const uint32_t irq = g_radio->getIrqFlags();
+
+  // Dates a preamble or header from this read, not from the next CAD's, so one that is
+  // going nowhere is already stale when a CAD asks (rx_arrival.h).
+  (void)observe_arrival(irq, now_ms);
 
   // Kept, rather than switched on directly: BF-27's record needs to say which of the
   // two delivering cases this was, and re-deriving it below would be a second place for
@@ -401,6 +423,7 @@ void service_receive(uint32_t now_ms) {
       // Counted as the PHY CRC error it is, and receive is restarted to clear the register.
       g_ladder.on_phy_crc_error();
       log_rx(RxOutcome::HeaderError, now_ms, false, false, 0.0f, 0.0f);
+      g_arrival.note_reception_end(now_ms);
       start_receive(now_ms);
       return;
     case RxPass::WakeEmpty:
@@ -427,7 +450,8 @@ void service_receive(uint32_t now_ms) {
   const int16_t st   = g_radio->readData(g_rx_buf, len);  // clears the IRQ register
   const float   rssi = g_radio->getRSSI();
   const float   snr  = g_radio->getSNR();
-  g_header_seen      = false;
+  g_arrival.reset();
+  g_arrival.note_reception_end(now_ms);  // the next frame of a burst may be starting
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     g_ladder.on_phy_crc_error();  // spec 14 stage 1
@@ -517,23 +541,12 @@ void start_transmit(uint32_t now_ms) {
   }
 }
 
-// A frame is arriving when the radio has seen a valid header and no RX_DONE yet. Only a
-// recent header counts: one older than the longest frame is a reception that died, and a
-// stale flag would otherwise defer every CAD after it.
-bool reception_in_progress(uint32_t irq, uint32_t now_ms) {
-  if ((irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) == 0) {
-    g_header_seen = false;
-    return false;
-  }
-  if (!g_header_seen) {
-    g_header_seen    = true;
-    g_header_seen_ms = now_ms;
-    return true;
-  }
-  return elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
-}
-
 void start_cad(uint32_t now_ms) {
+  // A reception just ended, and the sender's next frame may be in its first symbols, too
+  // early for any flag. Not a CAD and not a busy one: the frame keeps its retries, and
+  // the next pass asks again (rx_arrival.h).
+  if (g_arrival.holding_off(now_ms)) return;
+
   const uint32_t irq = g_radio->getIrqFlags();
 
   // A frame is already waiting to be read. Read it on the next pass, then CAD.
@@ -542,18 +555,20 @@ void start_cad(uint32_t now_ms) {
     return;
   }
 
-  if (reception_in_progress(irq, now_ms)) {
-    // The channel is busy by definition - busy with a frame this radio is receiving. A CAD
-    // would take the radio out of receive and destroy that frame. Reported as the busy CAD
-    // it stands in for, and the radio stays in receive.
+  const lran::link::RxArrivalState arrival = observe_arrival(irq, now_ms);
+  if (arrival == lran::link::RxArrivalState::Arriving) {
+    // The channel is busy by definition - busy with a frame this radio is receiving, from
+    // its preamble on. A CAD would take the radio out of receive and destroy that frame.
+    // Reported as the busy CAD it stands in for, and the radio stays in receive.
     ++g_stats.cad_deferred;
     if (report_cad(CadResult::Busy, now_ms) == TxStep::Transmit) start_transmit(now_ms);
     return;
   }
-  if (g_header_seen) {
-    // The header outlived the longest frame: that reception died. Clear the register.
+  if (arrival == lran::link::RxArrivalState::Stale) {
+    // The flag outlived its bound: that reception died. Clear the register, and CAD on a
+    // later pass, once a real preamble hidden behind the sticky flag can raise it again.
     start_receive(now_ms);
-    if (g_mode != Mode::Receive) return;
+    return;
   }
 
   const int16_t st = g_radio->startChannelScan();
@@ -656,13 +671,11 @@ void lora_start(const RadioPins& pins, const PhyConfig& phy) {
 // that wait to sample faster would change lora_task's duty cycle, and this instrument
 // exists to measure the channel rather than to perturb the thing it is measuring.
 void sample_channel(uint32_t now_ms) {
-  // READ, NEVER reception_in_progress(): that function needs the IRQ register, which is
-  // another SPI transaction, and it MUTATES g_header_seen - calling it here would drive
-  // the CAD deferral logic from the sampler. The same staleness bound is applied, so a
-  // header that never completed stops suppressing samples instead of suppressing them
-  // for good.
-  const bool ours_arriving =
-      g_header_seen && elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
+  // READ, NEVER observe_arrival(): that needs the IRQ register, which is another SPI
+  // transaction, and it MUTATES g_arrival - calling it here would drive the CAD deferral
+  // logic from the sampler. The same staleness bounds apply, so a reception that never
+  // completed stops suppressing samples instead of suppressing them for good.
+  const bool ours_arriving = g_arrival.arriving(now_ms);
 
   if (g_mode != Mode::Receive || ours_arriving) {
     g_chan.skip(now_ms);
@@ -678,8 +691,7 @@ void sample_channel(uint32_t now_ms) {
 // leaves the radio down and retried every 10 s on the new settings, and the fleet
 // machine's deadline then reverts them.
 void service_retune(uint32_t now_ms) {
-  const bool ours_arriving =
-      g_header_seen && elapsed(now_ms, g_header_seen_ms) < kRxInProgressMaxMs;
+  const bool ours_arriving = g_arrival.arriving(now_ms);
   if (g_have_tx || ours_arriving || (g_mode != Mode::Receive && g_mode != Mode::Down)) return;
 
   uint32_t ticket = 0;

@@ -3679,3 +3679,82 @@ the bridge's own reaction to a `BOOT` status can cause the loss, one boot in fiv
 No BOOT event reached MQTT, and none should: spec §16.6 withholds a bench node's events.
 The bridge's `event_frames` counter and its `rxlog` are the evidence here. Spec §10.7's
 active alarms (D72) never arise on a simnode, because its inputs boot at their defaults.
+
+## 2026-09-26 — The lost BOOT event: the bridge's own CAD destroyed it, twice over
+
+**The event was not lost to a collision.** The bridge's CAD took its radio out of receive
+while the event was arriving. The *simnode's resets are real* entry above found the loss,
+at one boot in five, and named a collision as likely. A CAD opens two windows in which it
+destroys an arriving frame. Closing both took two commits, `5ba4d8c` and `71e9173`. After
+the second, 60 boots lost no event.
+
+### What the first trace already showed
+
+The node had sent the event: it answered the readback `POLL` at `seq` 3 and 4, so `seq` 2
+went out. The bridge was deaf for 46 ms before that `POLL`, and for 21–25 ms before every
+other `POLL` in the trace. One CAD costs 21–25 ms, so 46 ms is two, and one of them found
+the channel busy. The minute around it confirms that: `cad_backoffs` rose by 1 and
+`cad_deferred` by 0. A busy CAD that was not deferred ran while the event was on the air,
+and the radio had not yet flagged a valid header.
+
+### The first window: preamble to header
+
+Both radio drivers deferred a CAD while `HEADER_VALID` was set, and not before it.
+RadioLib 7.7.1's default receive flags leave `PREAMBLE_DETECTED` out. So a CAD between a
+preamble and its header destroyed the frame. At SF9 that window is about 88 ms: 8 preamble
+symbols, 4.25 of sync and 8 of header, at 4.096 ms each. `5ba4d8c` enables the flag in
+both drivers and moves the rule into `lib/lran-link`'s `RxArrival`.
+
+### The second window: a burst's next frame
+
+**The preamble guard alone still lost one event in 40.** In that boot (`boot_count` 57),
+the `POLL` went at +975 ms, 48 ms of deafness behind it, and the busy CAD was again not
+deferred. So that CAD started before the event's preamble could be detected at all. The
+node sends its event 39 ms after its status ends: a 247 ms `EVENT` (spec §15.1) arrives
+286 ms after the status, in every boot here. A CAD in the event's first symbols destroys
+it, and no receive flag is up that early.
+
+`71e9173` starts no CAD for 176 ms after any reception ends. That is twice the
+preamble-to-header time, derived from the PHY in use. The holdoff is neither a CAD nor a
+busy one, so it spends no retry and moves no counter. The same commit fixes a flaw found
+in review. The flags are sticky, so a real preamble behind a stale one set no new bit, and
+the driver restarted receive and ran its CAD in the same pass, over the real frame. It now
+leaves the CAD to the next pass.
+
+### The runs
+
+Each run reset the XIAO with `reboot` every 12 s, or every 30 s in the first run. It read
+the node's `radio` and `stats f1` after each boot and logged the bridge's `rxlog` and
+`diag/radio/state` from the broker. `simnode_diag_enable` and f1's `deployed` were set for
+each run and cleared after it.
+
+| Run | Bridge | Boots | Events heard | Bridge `cad_deferred` | Bridge `cad_backoffs` | Trace |
+|---|---|---:|---:|---:|---:|---|
+| Baseline | `a85734f` | 12 | 12 | not read per run | not read per run | [`a-baseline`](./data/boot-event-loss-bench-2026-09-26-a-baseline.log) |
+| Preamble guard | `5ba4d8c` | 40 | **39** | 0 → 14 | 0 → 19 | [`b-preamble`](./data/boot-event-loss-bench-2026-09-26-b-preamble.log) |
+| Guard and holdoff | `71e9173-dirty` | 60 | **60** | 0 → 25 | 0 → 36 | [`c-holdoff`](./data/boot-event-loss-bench-2026-09-26-c-holdoff.log) |
+
+The third image reads `-dirty` because this branch's document edits were uncommitted when
+it was built. Its code is `71e9173`'s. The XIAO ran the same commit in each run, and its
+banner carries no git field.
+
+**The node rarely backed off, and never deferred.** Across the 112 boots, its
+`cad_deferred` read 0 each time and its `cad_backoffs` read 0 in 108. The other four read 1
+in the second run, and 1, 2 and 2 in the third. It sent 4 frames in 96 boots
+and 5 in 16. **`tx_forced` stayed 0** on both boards.
+
+**The holdoff moved the earliest readback `POLL`, not the typical one.** Measured from
+the `BOOT` status, the earliest went at 322 ms in the second run and at 488 ms in the
+third. The median moved from 753 to 718 ms, because `sched_task`'s 1 s tick sets most of
+the delay. Each of the third run's 25 deferrals is a CAD that found a frame arriving and
+let it land.
+
+### What this does not show
+
+**Zero losses in 60 is not proof of zero.** Before either fix, one event was lost in 17
+boots: one in the five of the first trace and none in the baseline's 12. A residual stays, because CSMA
+cannot close it: a frame that starts in the same few milliseconds as a CAD. The holdoff
+covers only a burst whose second frame starts within 176 ms of the first.
+
+**No counter tells a preamble deferral from a header deferral.** `cad_deferred` counts
+both. The figures above cannot say which window each deferral closed.
