@@ -55,6 +55,7 @@ class Console {
   void cmd_event(char** argv, int argc, uint32_t now_ms);
   void cmd_ack(char** argv, int argc, uint32_t now_ms);
   void cmd_field(char** argv, int argc);
+  void cmd_mppt(char** argv, int argc);
   void fault_list();
   void list_identity(const Identity& e);
 

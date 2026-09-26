@@ -89,6 +89,10 @@ struct EntityDesc {
   // `ent_cat: diagnostic`. A counter belongs under the device's diagnostics rather than
   // on a dashboard beside the gate's own state.
   bool diagnostic;
+  // BF-29, BF-30 - a VE.Direct row: the write switch or a charge-parameter sensor. It
+  // applies where hex_allowed() says an MPPT sits behind the node, as a button applies
+  // where command_allowed() does.
+  bool vedirect = false;
 };
 
 // ---------------------------------------------------------------------------

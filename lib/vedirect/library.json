@@ -1,0 +1,15 @@
+{
+  "name": "vedirect",
+  "version": "0.1.0",
+  "description": "VE.Direct HEX frames for LRAN - build, check and read Get and Set replies. Victron's BlueSolar HEX protocol document is the source; LRAN transports these strings verbatim (LRAN-Protocol-Specification v0.15, 7.6). Arduino-free.",
+  "keywords": ["vedirect", "victron", "lran"],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": "vedirect/hex.h",
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": ["-std=gnu++17"]
+  }
+}

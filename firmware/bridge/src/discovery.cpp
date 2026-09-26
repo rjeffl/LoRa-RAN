@@ -5,9 +5,11 @@
 
 #include "discovery.h"
 
+#include <array>
 #include <cstdio>
 #include <cstring>
 
+#include "charge_readback.h"
 #include "command.h"
 #include "json_writer.h"
 #include "net_policy.h"
@@ -236,6 +238,44 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
 constexpr size_t kGateLinkStateEntityCount =
     sizeof(kGateLinkStateEntities) / sizeof(kGateLinkStateEntities[0]);
 
+// ---------------------------------------------------------------------------
+// BF-29, BF-30 - the VE.Direct rows. Impl Plan 6.4; PRD R-3.5b, R-3.5d, R-3.5e.
+//
+// THE WRITE SWITCH IS GATE 2's FACE. Its state is `vedirect/write_enable/state`, which the
+// bridge publishes back to OFF when the arm expires, so the switch never shows armed when
+// the bridge would refuse. HA's switch defaults, `ON` and `OFF`, are the payloads.
+//
+// THE SENSORS ARE charge_readback.h's TABLE, built from it here rather than listed again,
+// so a register added there gains its sensor and a key cannot drift between the document
+// and the entity. Diagnostic, and with no state class: they are settings read back, not
+// measurements, and HA should not chart them as statistics.
+// ---------------------------------------------------------------------------
+
+constexpr EntityDesc kWriteEnableEntity = {
+    "vedirect_write_enable", "MPPT write enable", "switch", "vedirect/write_enable/state",
+    nullptr, nullptr, nullptr, nullptr, "vedirect/write_enable/set", nullptr, 0, false, true};
+
+constexpr std::array<EntityDesc, kChargeRegisterCount> charge_entities() {
+  std::array<EntityDesc, kChargeRegisterCount> a{};
+  for (size_t i = 0; i < kChargeRegisterCount; ++i) {
+    const ChargeRegister& r = kChargeRegisters[i];
+    const bool volts = r.unit != nullptr && r.unit[0] == 'V' && r.unit[1] == '\0';
+    const bool amps  = r.unit != nullptr && r.unit[0] == 'A' && r.unit[1] == '\0';
+    a[i] = EntityDesc{r.key,   r.name,  "sensor",
+                      "vedirect/charge/state", r.key, r.unit,
+                      volts ? "voltage" : (amps ? "current" : nullptr),
+                      nullptr, nullptr, nullptr, 0, true, true};
+  }
+  return a;
+}
+constexpr std::array<EntityDesc, kChargeRegisterCount> kChargeEntities = charge_entities();
+constexpr size_t kVedirectEntityCount = 1 + kChargeRegisterCount;
+
+const EntityDesc* vedirect_entity(size_t i) {
+  if (i == 0) return &kWriteEnableEntity;
+  return i - 1 < kChargeRegisterCount ? &kChargeEntities[i - 1] : nullptr;
+}
+
 // A node type's state rows (BG-2): the template half of "a registry row, a decoder and a
 // template". WellLink's schema 0x20 is reserved and undefined (spec 7.1), and a bench node
 // publishes no state (spec 16.6), so both have none.
@@ -246,17 +286,20 @@ const EntityDesc* state_entities(NodeType type) {
   return type == NodeType::GateLink ? kGateLinkStateEntities : nullptr;
 }
 
-// A node's whole set, in one order: its link first, then its state, then its buttons.
+// A node's whole set, in one order: its link first, then its state, then its buttons, then
+// its VE.Direct rows.
 const EntityDesc* node_entity(NodeType type, size_t index) {
   if (index < kNodeLinkEntityCount) return &kNodeLinkEntities[index];
   size_t i = index - kNodeLinkEntityCount;
   if (i < state_entity_count(type)) return &state_entities(type)[i];
   i -= state_entity_count(type);
   if (i < kNodeCommandEntityCount) return &kNodeCommandEntities[i];
-  return nullptr;
+  i -= kNodeCommandEntityCount;
+  return vedirect_entity(i);
 }
 size_t node_entity_count(NodeType type) {
-  return kNodeLinkEntityCount + state_entity_count(type) + kNodeCommandEntityCount;
+  return kNodeLinkEntityCount + state_entity_count(type) + kNodeCommandEntityCount +
+         kVedirectEntityCount;
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +349,7 @@ bool is_select(const ParamDef& p) {
 // True when this row belongs to this node type. A link entity always does; a button does
 // only if the node implements the command.
 bool applies(const EntityDesc& d, NodeType type) {
+  if (d.vedirect) return hex_allowed(type);
   if (d.command_suffix == nullptr) return true;
   return command_allowed(type, d.cmd);
 }
@@ -531,6 +575,11 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
     }
     ++cur->entity;
     if (d != nullptr && !applies(*d, info.type)) continue;
+    // Spec 16.6 axes 1 and 3 - a bench entity reads `diag/state` and nothing else, so the
+    // VE.Direct rows are production-only. A bench node's hex/response, hex/audit and
+    // write_enable topics still answer an operator who publishes to them (D65's reason),
+    // which is how V-B6 runs at a desk.
+    if (d != nullptr && d->vedirect && info.is_bench) continue;
 
     out->valid   = true;
     out->node_id = info.id;

@@ -3233,3 +3233,115 @@ broker and did not trigger it. A hand-published event marked `synthetic: false` 
 left one persistent notification in the sandbox. The automation was deleted after the run.
 
 Suites: bridge 436 of 436; the `heltec` target builds.
+
+## 2026-09-25 — B5's HEX code against osh-labs/VE.Direct_mppt_arduino: one register moved
+
+B5 built `lib/vedirect/`, `charge_readback` and `sim_mppt` from Victron's "BlueSolar HEX
+protocol" PDF. `osh-labs/VE.Direct_mppt_arduino` is now the VE.Direct reference of record
+(GateLink Impl Plan §4.2.4), so the code was compared against the library's
+`src/VeDirectHexProtocol.{h,cpp}` and `src/VeDirectRegisters.h` at its `main`. That
+register file says it was itself verified against the same PDF, Rev 18.
+
+**Framing agrees throughout.** The command and response nibbles, the Get/Set reply flags
+(`0x01`, `0x02`, `0x04`), the `0x55` checksum, little-endian register and value, and
+uppercase output all match.
+
+**One register disagreed, and it moved.** The bridge read "System voltage setting" at
+`0xEDEF`, and `sim_mppt` held it there. The library does not name `0xEDEF`; its
+`SYSTEM_VOLTAGE` is `0xEDEA`, un8, volts. Both now use `0xEDEA`. The HA `object_id`,
+`charge_system_voltage_v`, is unchanged. Which register carries the configured setting on
+the MPPT 75/15 is still unobserved; B6's readback against the real MPPT confirms it.
+
+**The other nine charge registers match** in ID, width, sign and scale: `0xEDF7`, `0xEDF6`,
+`0xEDF4` at 0.01 V; `0xEDFD` and `0xEDF1`, un8; `0xEDF2`, sn16 at 0.01 mV/K; `0xEDF0` at
+0.1 A; `0xEDFB` at 0.01 h. So do `sim_mppt`'s `0x0201` device state and `0xEDDA` error
+code.
+
+**Two gaps where the library is silent**, so the PDF still stands:
+
+- `0xEDE0`, battery low-temperature level, sn16 at 0.01 °C. The library has no such
+  register.
+- **Lowercase hex.** The library's receive parser accepts it; `lib/vedirect` refuses it.
+  This difference is kept on purpose: the library reads only MPPT output, while
+  `lib/vedirect` also checks requests typed into Home Assistant, and Victron requires
+  uppercase.
+
+`HexRsp` has no `Async` (`0xA`) member. The bridge never sees an unsolicited frame, but
+GateLink's UART will, and the library's async queue is the model for it there.
+
+Suites: `lib/vedirect` 12 of 12, simnode 140 of 140, bridge 466 of 466.
+
+## 2026-09-25 — B5's spec readings: four points where the code chose, raised for v0.16
+
+BF-36 and BF-28 to BF-30 met four places where spec v0.15 is silent or reads two ways. The
+operator chose each reading on 2026-09-25, and the code builds it. Each is raised for
+spec v0.16 here, one line each. Until v0.16 settles them, the code is a reading of the
+specification, not a statement of it.
+
+- **(a) A refused write-class `HEX_REQ`.** §8.13 names `HEX_RSP(REJECTED_UNAUTHENTICATED)`
+  for a request with no valid MAC, and §9.4 step 3 names `COMMAND_ACK(REJECTED_MAC)` for
+  every authenticated frame. The simnode answers a bad MAC with the `HEX_RSP`, and a
+  context, deduplication or `seq` failure with the `COMMAND_ACK` §9.4 names. The bridge
+  claims either answer. Raise: §7.6 should say which frame answers at each step.
+- **(b) `HEX_RSP`'s `seq`.** §9.2's table correlates a `HEX_RSP` to its request by `seq`,
+  and §7.6 does not say the node repeats it. The simnode repeats the request's `seq`, and
+  the bridge matches on the node and that `seq`. Raise: §7.6 should state it.
+- **(c) A retained `write_enable/set`.** §16.2 marks `write_enable/{state,set}` retained
+  together. A retained `ON` on `set` would re-arm writes on every broker reconnect, which
+  defeats gate 2. The bridge ignores a retained `set` and publishes an empty retained
+  message to clear it. Raise: §16.2 should mark `set` not retained.
+- **(d) Two VE.Direct topics the spec does not list.** `vedirect/charge/state`, the
+  readback R-3.5d asks for, is not in §16.2; it follows §16.1's grammar with `charge` as
+  the item. §16.6's list of a bench node's answers names `config/ack`, `config/state` and
+  `cmd/ack`, and not `hex/response`, `hex/audit` or `write_enable/state`. The bridge
+  publishes those three for a bench node whatever `simnode_diag_enable` says, for D65's
+  reason, and gates the bench readback on the flag. Raise: §16.2 and §16.6 should list
+  them.
+
+Impl Plan §6.4.1 records the code, and none of it has been on air.
+
+## 2026-09-25 — V-B6 on the bench: the three gates, the expiry and the audit, against f1's simulated MPPT
+
+**V-B6 passed on the bench.** The bridge board and the XIAO were flashed from `7e7b92a`, a
+clean tree, and f1 ran `ROLE_GATELINK` with BF-36's simulated MPPT. A script held both
+serial ports open for the whole run and published to `lran/simnode1/vedirect/...` on the
+sandbox broker. `simnode_diag_enable` was 1 for the run, so the bench readback published,
+and 0 afterwards.
+
+| Step | Result |
+|---|---|
+| Get `0xEDF7`, `:7F7ED006A` | `answered`, `ok`, `:7F7ED008C05D9`, 14.20 V. `seq` 11, in the read space |
+| Set `0xEDF7` to 14.00 V while disarmed | `refused_disarmed`, no frame on air; `hex/audit` with `authorization` `disarmed` |
+| `ON` on `write_enable/set` | `write_enable/state` `ON` 0.8 s later |
+| The same Set while armed | `answered`, `ok`; `hex/audit` with `authorization` `armed`. The XIAO logged the write under command `seq` 2 |
+| Get `0xEDF7` again | `:7F7ED007805ED`, 14.00 V. The readback pass after the write had already published it on `charge/state` |
+| `mppt f1 timeout 1`, then a Get | `answered` with `status` `timeout` and a `null` response |
+| `hello` on `hex/request` | `malformed`, `seq` `null`, nothing transmitted |
+| Arm, then wait | `write arm expired` and `write_enable/state` `OFF` **301.0 s** after the arm. The Set that followed was `refused_disarmed` |
+| A fresh subscriber | Received the retained `hex/audit` (the last refusal), `write_enable/state` `OFF` and `charge/state` |
+
+**The first readback pass ran as the bridge first heard f1**, after the roll, one register
+every 2 s, and all ten answered. The XIAO counted 43 frames in and 44 out, with no drop and
+no rejection.
+
+**A retained `write_enable/set` is refused on a reconnect, and only then.** The first
+attempt published a retained `ON` while the bridge was subscribed, and the bridge armed. The
+test was wrong, not the code: a broker delivers a message to a subscriber already
+connected with the retain flag clear (MQTT 3.1.1 §3.3.1.3), so that `ON` is
+indistinguishable from an operator's. The case the rule guards is a reconnect. With that
+`ON` still retained, a reset of the bridge logged `retained write_enable/set ignored and
+cleared`, published an empty retained message on `write_enable/set`, and stayed disarmed.
+A fresh subscriber then found no retained `set`.
+
+**A refused write takes a command `seq`.** The two `refused_disarmed` Sets took `seq` 1 and
+4, and neither reached the air. The node accepts any `seq` above its high-water mark (spec
+§9.4), so the gap costs nothing. It does mean `seq` on `hex/audit` is not a count of writes
+the node saw.
+
+**`charge/state` does not follow a change made behind the bridge's back.** After `mppt f1
+reset` put 14.20 V back, `charge/state` still read 14.00 V, because a pass runs only on
+first hearing and after a write the bridge sent. On GateLink the same happens when a
+setting is changed with VictronConnect. The next bridge boot corrects it.
+
+Not covered: gate 1 on air. No bench tool sends a write-class `HEX_REQ` with a bad MAC;
+`test_gatelink` and `test_hex_proxy` cover it on the host.

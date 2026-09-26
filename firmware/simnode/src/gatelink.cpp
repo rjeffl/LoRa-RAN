@@ -24,7 +24,9 @@
 
 #include "lran/codec.h"
 #include "lran/messages.h"
+#include "lran/wire.h"
 #include "node.h"
+#include "vedirect/hex.h"
 
 namespace simnode {
 namespace {
@@ -164,6 +166,9 @@ constexpr uint8_t kNodeFlagDryRun     = 0x04;
 constexpr uint8_t kNodeFlagBmsPolling = 0x08;
 constexpr uint8_t kNodeFlagDebug      = 0x10;
 constexpr uint8_t kNodeFlagAgeNotPersisted = 0x40;
+
+// spec 7.2.6 - mppt_flags bit 2, generated while the node waits on the MPPT.
+constexpr uint8_t kMpptFlagHexOutstanding = 0x04;
 
 // spec 8.12 - one CONFIG_ACK result, from the RAM store. The store holds no defaults, so
 // every value in it is one a SET wrote, and spec 7.4 marks it OVERRIDE (D68).
@@ -344,6 +349,8 @@ size_t build_gatelink_status(const Identity& e, lran::StatusReason reason, uint3
       (s.node_flags & ~(kNodeFlagDryRun | kNodeFlagBmsPolling | kNodeFlagDebug)) |
       (e.gl.dry_run ? kNodeFlagDryRun : 0) | (e.gl.bms_polling ? kNodeFlagBmsPolling : 0) |
       (e.gl.debug_modes != 0 ? kNodeFlagDebug : 0));
+  s.mppt_flags = static_cast<uint8_t>((s.mppt_flags & ~kMpptFlagHexOutstanding) |
+                                      (e.gl.hex_pending.active ? kMpptFlagHexOutstanding : 0));
   s.status_reason = static_cast<uint8_t>(reason);
   size_t n = 0;
   return lran::schema::serialize(s, out, cap, &n) == lran::Status::Ok ? n : 0;
@@ -464,9 +471,24 @@ FieldResult field_set(GateLinkState* gl, const char* name, const char* value) {
 
 void Node::refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why) {
   // spec 9.4 steps 2-3 - answered with COMMAND_ACK carrying this node's own ctx_id (spec
-  // 10.3), for both authenticated types. Only a frame addressed to this identity.
+  // 10.3), for every authenticated type. Only a frame addressed to this identity.
   if (hdr.dst != e.id) return;
-  if (hdr.type != lran::MsgType::Command && hdr.type != lran::MsgType::Config) return;
+  if (hdr.type == lran::MsgType::HexReq) {
+    // A write-class HEX_REQ whose MAC failed or is absent answers HEX_RSP
+    // (REJECTED_UNAUTHENTICATED), as spec 8.13 names it. A context mismatch still answers
+    // COMMAND_ACK(REJECTED_CTX), because that ACK is what carries this node's ctx_id back
+    // for the bridge's resync (spec 10.3). The split is the reading decided with the
+    // operator on 2026-09-25 and raised for spec v0.16.
+    ++e.gl.hex_requests;
+    if (why == lran::Status::RejectedMac) {
+      sink_printf(log_, "hex %02x <- %02x seq %u: write-class, MAC failed, REJECTED_UNAUTHENTICATED",
+                  e.id, hdr.src, static_cast<unsigned>(hdr.seq));
+      send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::RejectedUnauthenticated, nullptr, 0);
+      return;
+    }
+  } else if (hdr.type != lran::MsgType::Command && hdr.type != lran::MsgType::Config) {
+    return;
+  }
   const lran::AckResult r =
       why == lran::Status::RejectedCtx ? lran::AckResult::RejectedCtx : lran::AckResult::RejectedMac;
   sink_printf(log_, "cmd %02x <- %02x seq %u: %s (frame ctx 0x%08lx, own 0x%08lx)", e.id, hdr.src,
@@ -1000,7 +1022,124 @@ void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payloa
   send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
 }
 
+bool Node::send_hex_rsp(Identity& e, lran::NodeId dst, lran::Seq seq, lran::HexStatus status,
+                        const char* hex, size_t n) {
+  const lran::msg::HexRsp rsp{static_cast<uint8_t>(status), static_cast<uint8_t>(n),
+                              reinterpret_cast<const uint8_t*>(hex)};
+  uint8_t payload[lran::kMaxPayloadPlain];
+  size_t  len = 0;
+  if (n > 0xFF || lran::msg::serialize(rsp, payload, sizeof(payload), &len) != lran::Status::Ok) {
+    sink_printf(log_, "hex %02x seq %u: HEX_RSP did not serialize", e.id, static_cast<unsigned>(seq));
+    return false;
+  }
+  lran::Header h;
+  h.ver    = e.proto_ver;
+  h.type   = lran::MsgType::HexRsp;
+  h.src    = e.id;
+  h.dst    = dst;
+  // The request's seq, as a solicited CONFIG_ACK carries its request's (spec 7.4.1): the
+  // bridge correlates by seq (spec 9.2), and HEX_RSP has no field of its own for it.
+  h.seq    = seq;
+  h.ctx_id = e.ctx_id;
+  h.schema = lran::kSchemaNone;
+  if (!send(e, h, payload, len, 0)) {
+    ++answers_dropped_;
+    sink_printf(log_, "hex %02x seq %u: HEX_RSP not queued", e.id, static_cast<unsigned>(seq));
+    return false;
+  }
+  return true;
+}
+
+void Node::on_hex_req(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
+                      uint32_t now_ms) {
+  if (silenced(e, "HEX_REQ", hdr)) return;
+  ++e.gl.hex_requests;
+
+  // The codec has already checked the MAC of a write-class request (spec 9.4 step 3). The
+  // class comes from the command nibble, never from `flags` bit 0, which is declared by the
+  // sender and not trusted (spec 7.6).
+  const bool write = lran::hex_req_is_write_class(payload, len);
+  if (write) {
+    // spec 9.4 applies steps 4-6 to every authenticated type, so a write-class HEX_REQ
+    // shares the command seq space and the gate, as a CONFIG does. Without it a captured
+    // Set could be replayed for as long as the ctx_id lasts.
+    const lran::GateResult g = e.gate.check(hdr.seq);
+    switch (g.verdict) {
+      case lran::Verdict::Execute:
+        phy_->on_authenticated();  // spec 12.4.2 step 5, as on_config()
+        break;
+      case lran::Verdict::ReturnCached:
+        sink_printf(log_, "hex %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED, not forwarded",
+                    e.id, hdr.src, static_cast<unsigned>(hdr.seq));
+        send_ack(e, hdr.src, hdr.seq, lran::AckResult::DuplicateCached,
+                 static_cast<uint8_t>(g.cached_result));
+        return;
+      case lran::Verdict::InFlight:
+        return;
+      case lran::Verdict::Reject:
+        sink_printf(log_, "hex %02x <- %02x seq %u: REJECTED_SEQ, high water %u", e.id, hdr.src,
+                    static_cast<unsigned>(hdr.seq), static_cast<unsigned>(e.gate.high_water()));
+        send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedSeq, 0);
+        return;
+    }
+    // Recorded before the MPPT is asked: spec 9.4 step 6 moves the state before dispatch,
+    // and a write the node forwarded has consumed its seq whatever the MPPT answers.
+    e.gate.record(hdr.seq, lran::AckResult::Accepted, 0);
+  }
+
+  lran::msg::HexReq req;
+  // The node's own shape check, the same one lran::hex_req_is_write_class() makes: a colon
+  // and a hex command nibble. Nothing else in the string is the node's to judge (spec 6.7);
+  // a bad checksum goes to the MPPT, which answers it with a frame error.
+  const bool shaped = lran::msg::deserialize(payload, len, &req) == lran::Status::Ok &&
+                      req.n >= 2 && req.hex[0] == ':' &&
+                      std::strchr("0123456789ABCDEFabcdef", req.hex[1]) != nullptr &&
+                      req.hex[1] != '\0';
+  if (!shaped) {
+    sink_printf(log_, "hex %02x <- %02x seq %u: MALFORMED_REQUEST", e.id, hdr.src,
+                static_cast<unsigned>(hdr.seq));
+    send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::MalformedRequest, nullptr, 0);
+    return;
+  }
+  if (e.gl.hex_pending.active) {
+    sink_printf(log_, "hex %02x <- %02x seq %u: transaction outstanding, BUSY", e.id, hdr.src,
+                static_cast<unsigned>(hdr.seq));
+    send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::Busy, nullptr, 0);
+    return;
+  }
+
+  char   rsp[vedirect::kMaxChars];
+  size_t rsp_n = 0;
+  bool   quiet = false;
+  if (e.gl.hex_timeout_left > 0) {
+    --e.gl.hex_timeout_left;
+    quiet = true;
+    sink_printf(log_, "hex %02x: timeout fault, MPPT does not answer, %u left", e.id,
+                static_cast<unsigned>(e.gl.hex_timeout_left));
+  } else {
+    quiet = e.gl.mppt.answer(reinterpret_cast<const char*>(req.hex), req.n, rsp, sizeof(rsp),
+                             &rsp_n) == MpptReply::Silent;
+  }
+  if (quiet) {
+    // spec 8.13 - TIMEOUT rather than silence, after the node's own wait.
+    e.gl.hex_pending = {true, now_ms + e.gl.hex_timeout_ms, hdr.src, hdr.seq};
+    return;
+  }
+  sink_printf(log_, "hex %02x <- %02x seq %u: %s %.*s -> %.*s", e.id, hdr.src,
+              static_cast<unsigned>(hdr.seq), write ? "write" : "read", static_cast<int>(req.n),
+              reinterpret_cast<const char*>(req.hex), static_cast<int>(rsp_n), rsp);
+  send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::Ok, rsp, rsp_n);
+}
+
 void Node::tick_gatelink(Identity& e, uint32_t now_ms) {
+  GateLinkState::HexPending& h = e.gl.hex_pending;
+  if (h.active && e.enabled && static_cast<int32_t>(now_ms - h.due_ms) >= 0) {
+    h.active = false;
+    sink_printf(log_, "hex %02x -> %02x seq %u: no MPPT answer in %lu ms, TIMEOUT", e.id, h.peer,
+                static_cast<unsigned>(h.seq), static_cast<unsigned long>(e.gl.hex_timeout_ms));
+    send_hex_rsp(e, h.peer, h.seq, lran::HexStatus::Timeout, nullptr, 0);
+  }
+
   PendingAck& p = e.gl.pending;
   if (!p.active || !e.enabled || now_ms - p.start_ms < p.delay_ms) return;
   const PendingAck done = p;

@@ -71,4 +71,10 @@ size_t registry_build_config(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, u
                              const lran::schema::NodeConfigV1& cfg, uint8_t* buf,
                              size_t cap);
 
+// The same, for a HEX_REQ (spec 7.6). BF-28. The key is supplied whatever the request, and
+// the library MACs a write-class one by its command nibble (spec 9.2). Returns the frame
+// length, or 0.
+size_t registry_build_hex_req(lran::NodeId dst, lran::CtxId ctx, lran::Seq seq, uint8_t ver,
+                              const char* hex, size_t n, uint8_t* buf, size_t cap);
+
 }  // namespace bridge

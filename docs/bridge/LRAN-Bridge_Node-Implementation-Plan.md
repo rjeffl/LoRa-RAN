@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.63
+**Version:** 0.64
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1285,9 +1285,69 @@ lran/<node>/vedirect/hex/request  (HA -> bridge)
 - The audit topic is **retained**, so the last write attempt survives an HA restart. This
   is deliberate — it is the record you want when a charge parameter turns out to be wrong
   and nobody remembers changing it.
-- On boot the bridge issues read-class HEX requests for the charge parameters and
-  publishes them as diagnostic sensors, **so a wrong charge profile is visible rather than
-  latent** (**R-3.5d**).
+- When it first hears a node, and again after each write the node answers, the bridge
+  issues read-class HEX requests for the charge parameters and publishes them as
+  diagnostic sensors, **so a wrong charge profile is visible rather than latent**
+  (**R-3.5d**).
+
+#### 6.4.1 What BF-28 to BF-30 built, 2026-09-25
+
+**The proxy is `hex_proxy.{h,cpp}`, built like the command path**: Arduino-free, doing no
+I/O, deciding while `sched_task` acts. `test_hex_proxy` has 28 host tests, and it tests
+each of V-B6's three gates on its own. **V-B6 passed on the bench on 2026-09-25**, against
+the simulated MPPT that BF-36 gave simnode `ROLE_GATELINK` (§10.2). The engineering log's
+*V-B6 on the bench* entry has the run. Gate 1 is host-tested only, because no bench tool
+sends a write with a bad MAC.
+
+**The three gates on a write stand alone** (PRD R-3.5b, BS-2). The bridge judges a write
+from the command nibble alone, Set (`0x8`) or Restart (`0x6`), as spec §7.6 does.
+
+1. **A MAC.** The library adds one to every write-class `HEX_REQ` it encodes, and the node
+   refuses one without it. `build_hex_req_frame()` produces no frame at all when the node
+   key is missing.
+2. **An armed switch that expires** (`WriteArm`). `HexProxy::next()` asks whether the node
+   is armed before every write transmission, a resync's included. It asks with the clock,
+   so a lapsed arm refuses a write before `sched_task` has published the switch off. A
+   refused write builds no frame and resolves `refused_disarmed`.
+3. **An audit entry for every write attempt**, refusals included, published retained on
+   `hex/audit`. The entry is the response document plus `authorization` (`armed` or
+   `disarmed`) and `at`, which is ISO 8601 UTC, or `null` before SNTP has set the clock.
+
+| Decision | Why |
+|---|---|
+| **A write takes its `seq` from the command space**, and one HEX transaction is in flight across the fleet | Spec §9.4 steps 4–6 apply to every authenticated type, and a resync resets that space to 1 (spec §10.3). The proxy therefore serializes with the command path and the roll, for §6.2.1's reason |
+| **A write is never retried.** One with no answer resolves `unknown` | The node's deduplication cache holds an ACK result, not the MPPT's answer, so a retried write would draw `COMMAND_ACK(DUPLICATE_CACHED)` and never the register value. A Get settles an `unknown` write, as a readback settles a lost `CONFIG_ACK` (§6.7.3). Spec §10.3's resync is the one exception: it retries once, because the node refused the first at step 2 and never forwarded it. Decided with the operator on 2026-09-25 |
+| **A read is retried under the same `seq`**, twice by default | A read changes nothing, and its `seq` is in neither sequence space (spec §10.2). A read with no answer resolves `no_response` |
+| **A retained `write_enable/set` is ignored and cleared** | Spec §16.2 marks the topic retained. A retained `ON` would re-arm writes on every broker reconnect. Decided with the operator on 2026-09-25, and raised for spec v0.16. The broker marks a message retained only when it replays it on a subscribe, so the rule acts on a reconnect; a retained `ON` published while the bridge is connected arms it, as any `ON` does |
+| **A request that is not a VE.Direct HEX frame is refused before any airtime** | `classify_hex()` uses `lib/vedirect`'s parser. A frame the MPPT would answer with a frame error would otherwise cost a solar node a transmission. The refusal answers on `hex/response` as `malformed`; `busy` and `context_roll_pending` answer the same way |
+| **`hex/response` is not retained** | An answer replayed on an HA restart would report a request nobody had just made, as `config/ack`'s would (spec §16.7.3) |
+| **Two bridge rows**: `hex_rsp_timeout_ms` (3000) and `mppt_write_arm_timeout_s` (300) | Root rule 8. The read retry count is a count, not a time, and stays a constant |
+| **A bench node's answers publish whatever `simnode_diag_enable` says; its readback follows the flag** | D65's reason: gated, a request on a bench node's own topic would go unanswered. The readback is data the node did not report in answer to anyone. The VE.Direct discovery entities are GateLink's alone (spec §16.6) |
+
+**The readback is `charge_readback.{h,cpp}`** (BF-30, R-3.5d). It reads ten charge registers
+in one pass and publishes them retained on `lran/<node>/vedirect/charge/state`, where
+Home Assistant shows them as diagnostic sensors. A pass runs when the bridge first hears a
+node after boot, and again after any write the node answered. A setting changed behind
+the bridge, with VictronConnect for example, shows at the next boot. A register the node refuses
+or cannot read is `null`, never 0 V. A read that fails outright abandons the rest of the
+pass, because a node with no MPPT behind it would otherwise spend a timeout on every
+register. `hex_allowed()` limits the proxy and the readback to GateLink and simnode rows.
+
+| Decision | Why |
+|---|---|
+| **Register IDs, widths, signs and scales follow [`osh-labs/VE.Direct_mppt_arduino`](https://github.com/osh-labs/VE.Direct_mppt_arduino)**, `src/VeDirectRegisters.h` | It is the VE.Direct reference of record (GateLink Impl Plan §4.2.4). `0xEDE0`, the low-temperature charge level, is not in that library, so it comes from Victron's *BlueSolar HEX protocol* §1.1 |
+| **The system voltage setting is `0xEDEA`**, the library's `SYSTEM_VOLTAGE` | B5 first read `0xEDEF`, which the library does not name. The engineering log's *B5's HEX code against osh-labs* entry records the cross-check |
+| **Every key is prefixed `charge_`**, chosen with the operator on 2026-09-25 | It marks a setting read back, beside GateLink's readings such as `pack_voltage` and `mppt_batt_voltage`. The keys are HA `object_id`s and are frozen |
+| **Ten registers, not the MPPT's whole table** | R-3.5e forbids modelling a hundred registers as entities. These ten decide how the pack is charged |
+
+**No scale has been observed on the MPPT 75/15.** Every value comes from the reference, and
+B6's readback against the real MPPT is what confirms them. A wrong scale publishes a
+plausible wrong voltage, which is the failure R-3.5d exists to expose. A disagreement at B6
+is a finding to record, not a number to adjust.
+
+**Four spec readings were raised for v0.16** in the engineering log's *B5's spec readings*
+entry: the answer to a refused write, `HEX_RSP`'s `seq`, the retained `write_enable/set`,
+and the `charge/state` topic that §16.2 does not list.
 
 ### 6.5 OTA
 
@@ -1729,7 +1789,7 @@ can be compared with one taken on the Wio.
 | **B3b** | **Command path, version tolerance and the scripted catalogue** | **B3a**, spec v0.12's answers for BF-18 and BF-19a | Each simnode identity's derived key verified by a command round-trip. Context resync retries once and then faults. **A suppressed ACK produces a retry with the same `seq`, and the simnode reports a deduplicated hit rather than a second execution.** Version tolerance accepts N−1 and rejects N−2 with a distinct reason. **The whole §10.5 fault catalogue runs from a committed `simctl` script.** *With a second simnode transmitter — the XIAO + Wio alongside a Heltec — two boards transmitting concurrently exercise CAD and backoff.* **Accepted 2026-09-17**, on the tasks confirmed on air the day before. **V-B12 moved to B4** the same day, with the operator — §8.1 says what it needs and why B4 is where that exists |
 | **B4** | **MQTT, discovery and publication policy — no node hardware** | B3a | Discovery publishes one device per node, correct availability references, **and republishes on broker restart**. All §6.3 policy rules demonstrated: jitter suppressed, staleness marks unavailable, sentinels not published as numbers, synthetic marked, heartbeat republish works. **Events publish non-retained and do not replay on HA restart or discovery refresh.** The whole fleet is demonstrable with dummy publish and simulators only. **V-B12** measured — the one criterion here that needs a board, §8.1. **Met 2026-09-23**, §8.1.3. **Accepted 2026-09-24** with the operator, on §8.2's tally. **BF-33 moved to B4b** the same day |
 | **B4b** | **PHY commit-and-revert** | B3b; BF-32's configuration path | Spec §12.4 (**D56**, **D59**) on the bench, bridge and simnode: one atomic `CONFIG` carries frequency, SF, BW, CR and TX power. **A revert survives a reboot in the middle of a trial.** **Only a frame received on the new settings confirms them**; a frame sent does not. Silence for `phy_trial_s` reverts both ends, and an `EVENT` follows once the link is back. **The fleet moves together.** TX power is clamped by D33 in the table. **Split from B4 on 2026-09-24** with the operator, §8.2. **Met on the bench on 2026-09-24**, across three identities on two boards; the bridge engineering log's *BF-33 slice 4 on air* entry has each run. **Accepted 2026-09-24** with the operator |
-| **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot |
+| **B5** | **HEX proxy** | B4, a real MPPT reachable via GateLink or a simulator | Read passes. Write rejected while disarmed, accepted while armed, **and the arm auto-expires with the switch published back to off**. Every attempt appears in the retained audit trail. Charge-parameter readback published as diagnostic sensors on boot. **Met on the bench on 2026-09-25** against BF-36's simulated MPPT; the bridge engineering log's *V-B6 on the bench* entry has the run. The readback reached `charge/state`, but HA shows its sensors for GateLink only (spec §16.6). **Accepted 2026-09-25** with the operator |
 | **B6** | **GateLink integration** | B5, **B4b**, GateLink M6 | End-to-end with the real node: command round-trip, status decode, event delivery, per-node availability, diagnostics populated |
 | **B7** | **Soak** | B6 | Continuous operation across broker restarts, WiFi outages and a node power cycle, with no lost frames on reconnect and no stuck availability state |
 
@@ -2076,7 +2136,7 @@ logical identity at runtime (§10.4), not a separate binary.
 |---|---|---|---|
 | `ROLE_RANGE` | `PING` echo, `0xF0` on poll | Range test and link characterization. Minimal, so a failure is unambiguously RF | **B1** |
 | `ROLE_HEALTH` | `0xF0` on poll | The generic node — what WellLink looks like before it has a schema. Registry, availability and scheduling filler for multi-node tests | **B3** |
-| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config, and `CONFIG_CHANGE` in the poll answer after a PHY revert (spec §8.7, **D69**) | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics and the whole decode path with no gate present | **B3**, **B4** |
+| `ROLE_GATELINK` | `0xFE` on poll, `0x11` events, `COMMAND_ACK`, `0x12` config, `CONFIG_CHANGE` in the poll answer after a PHY revert (spec §8.7, **D69**), and `HEX_RSP` from a simulated MPPT (§10.9.3, **BF-36**) | The full peer. Exercises command retry, dedup, event dedup, config ACK semantics, the HEX proxy's three gates and the whole decode path with no gate present | **B3**, **B4**, **B5** |
 | `ROLE_FAULT` | Deliberately malformed frames (§10.5) | The **only** test vehicle for the §14 discard ladder and its counters | **B3** |
 
 > **`ROLE_RANGE` is deliberately impoverished.** During **B1** the question is what the
@@ -2128,6 +2188,7 @@ serial, driven by hand or by `/tools/simctl/`.
 | `radio` | The driver's own counts: `TX_DONE`, TX errors and timeouts, forced transmissions, CAD errors. The only evidence on the board that a frame reached the air — added 2026-09-14 |
 | `fault <hex> <name> [count]` | Inject a fault from §10.5, once or `count` times |
 | `field <hex> <name> <value>` | Override a generated telemetry field — sentinels, out-of-range, stale flags |
+| `mppt <hex> <mode>` | The simulated MPPT behind a `ROLE_GATELINK` identity: `list` \| `set <reg> <value>` \| `timeout [count]` \| `hex_timeout <ms>` \| `reset` — HEX proxy tests (§10.9.3), added 2026-09-25 |
 | `log <level>` | Serial verbosity |
 
 `/tools/simctl/` scripts these into repeatable scenarios so a regression run is one
@@ -2581,6 +2642,42 @@ The engineering log's BF-6 entry records three questions for spec v0.12: how a
 `DUPLICATE_CACHED` ACK carries the cached result, what answers a repeated `CONFIG`, and
 §7.4's reliance on fragmentation that §3.1's cap on a reassembled set rules out.
 
+
+#### 10.9.3 The simulated MPPT (BF-36), 2026-09-25
+
+**`ROLE_GATELINK` answers `HEX_REQ` from a simulated MPPT**, so B5 can run at a desk.
+§10.2 had it answer none, which left B5 waiting on GateLink although §8 lets it run
+against a simulator. `sim_mppt.{h,cpp}` is the MPPT and `gatelink.cpp`'s `on_hex_req()`
+is the node around it. The HEX frame codec is `lib/vedirect/`, shared with the bridge's
+readback (BF-30).
+
+**The node stays transport only (spec §7.6); the MPPT holds the registers.** The node
+inspects the command nibble and the leading colon, and nothing else. The MPPT holds twelve
+registers from Victron's battery-settings table, set to a LiFePO4 profile as GateLink PRD
+R-6.1b asks. A Set accepted while armed can therefore be read back changed, which is the
+only evidence V-B6 has that a write reached anything. The values are plausible, not
+GateLink's pack specification.
+
+**Four answers follow a reading of the specification decided with the operator on
+2026-09-25**, and raised for spec v0.16 because the text does not settle them:
+
+| Case | Answer | Why |
+|---|---|---|
+| Write-class, MAC absent or wrong | `HEX_RSP(REJECTED_UNAUTHENTICATED)` | Spec §8.13 names it for this case; §9.4 step 3 names `COMMAND_ACK(REJECTED_MAC)` |
+| Write-class, wrong `ctx_id` | `COMMAND_ACK(REJECTED_CTX)` | That ACK carries the node's own `ctx_id`, which the bridge's resync needs (spec §10.3) |
+| Write-class, replayed or stale `seq` | `COMMAND_ACK(DUPLICATE_CACHED)` or `(REJECTED_SEQ)`, not forwarded | §9.4 applies steps 4–6 to every authenticated type. `on_config()` answers the same way |
+| Any answer | `HEX_RSP` repeats the request's `seq` | Correlation is by `seq` (spec §9.2), as a solicited `CONFIG_ACK` does (§7.4.1) |
+
+**Two statuses come from the node, the rest from the MPPT.** A string with no colon or no
+hex command digit is `MALFORMED_REQUEST` and never reaches the MPPT. A shaped string with a
+bad checksum does reach it, and the MPPT answers Victron's frame error, `:4AAAAFD`, under
+`OK`. A second request while the node waits on the MPPT is `BUSY`. A Restart, which
+Victron's MPPT never answers, and the `timeout` fault are both `TIMEOUT` after
+`hex_timeout_ms` (default 1000), with `mppt_flags` bit 2 set in any `STATUS` meanwhile.
+
+**A node reboot clears the transaction and keeps the registers**, because a GateLink reboot
+does not touch the MPPT.
+
 ---
 
 ## 11. Development environment and workflow
@@ -2738,6 +2835,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.64** — **B5 is met on the bench and accepted.** §8's row records both. New §6.4.1 records BF-28's HEX
+  proxy, BF-29's write gates and BF-30's charge readback, whose registers follow
+  `osh-labs/VE.Direct_mppt_arduino`. §6.4's readback bullet now says when a pass runs.
+  §10.2 and §10.9.3 already record BF-36's simulated MPPT.
 
 - **v0.63** — **Events at QoS 1, from their own queue.** New §4.3.3 records BF-37's move to
   espMqttClient, D5's designated fallback, and BF-38's event queue. §4.3, §4.3.1, §5.2.1,

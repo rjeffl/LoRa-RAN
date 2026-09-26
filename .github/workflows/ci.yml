@@ -307,6 +307,12 @@ jobs:
       - name: Configuration library
         run: pio test -d lib/lran-config -e native
 
+      # VE.Direct HEX frames, checked against Victron's worked examples. The simnode's
+      # simulated MPPT answers with it (BF-36) and the bridge reads registers with it
+      # (BF-30), so a checksum rule the two disagreed on would never reach the air.
+      - name: VE.Direct library
+        run: pio test -d lib/vedirect -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 

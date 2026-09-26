@@ -82,7 +82,9 @@ produced — `docs/<node>/HANDOFF.md` and the engineering logs. **Do not assume 
 
 ```
 lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
-            vedirect, bms-ble                               [planned]
+            vedirect — HEX frames [built]; its text parser  [planned]
+            VE.Direct reference: osh-labs/VE.Direct_mppt_arduino, not Victron's PDFs
+            bms-ble                                         [planned]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/, welllink/                            [planned]
 tools/      vectors/, checks/, simctl/, rangetest/, ha/               [built]

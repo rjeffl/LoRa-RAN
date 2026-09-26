@@ -139,11 +139,13 @@ bool IdentityTable::new_context(lran::NodeId id) {
   e->rx_chunk = 0;
   e->ping     = PendingPing{};
 
-  // What a GateLink reboot loses: RAM-only config, event ids, a command mid-execution. The
-  // synthetic telemetry and the ack settings are the operator's bench setup and survive.
+  // What a GateLink reboot loses: RAM-only config, event ids, a command or HEX transaction
+  // mid-execution. The synthetic telemetry and the ack settings are the operator's bench
+  // setup and survive, and so does the MPPT, which a node reboot does not touch.
   e->gl.next_event_id  = 1;
   e->gl.has_last_event = false;
   e->gl.pending        = PendingAck{};
+  e->gl.hex_pending    = GateLinkState::HexPending{};
   for (StoredParam& p : e->gl.params) p = StoredParam{};
   if (e->gl.status.boot_count < 0xFFFF) ++e->gl.status.boot_count;
   return true;

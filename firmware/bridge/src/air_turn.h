@@ -34,6 +34,7 @@ struct AirTurn {
   bool roll_busy          = false;  // ContextRoll::busy()
   bool config_busy        = false;  // ConfigPath::busy()
   bool phy_blocks_traffic = false;  // PhyChange::blocks_traffic()
+  bool hex_busy           = false;  // HexProxy::busy() - BF-28
   bool request_waiting    = false;  // a command or configuration job queued, not yet admitted
 };
 
@@ -41,10 +42,10 @@ struct AirTurn {
 // after an abandon lasts up to phy_trial_s, and no frame of the change is in flight then.
 inline bool poll_may_start(const AirTurn& a) {
   return !a.command_busy && !a.roll_busy && !a.config_busy && !a.phy_blocks_traffic &&
-         !a.request_waiting;
+         !a.hex_busy && !a.request_waiting;
 }
 
-// A command, a roll, a CONFIG or a PHY change may start.
+// A command, a roll, a CONFIG, a HEX request or a PHY change may start.
 inline bool exchange_may_start(const AirTurn& a) { return !a.poll_outstanding; }
 
 }  // namespace bridge

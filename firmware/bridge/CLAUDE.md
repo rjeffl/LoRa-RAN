@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.63
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.50 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.64
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.51 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -280,6 +280,24 @@ them; Impl Plan §6.3.1. **Four things to keep:**
 - **Events have their own queue** (BF-38), drained before state. An event leaves it only
   once the transport accepts it, and the transport holds it at QoS 1 until the broker
   acknowledges it.
+
+**`BF-28` to `BF-30` — the HEX proxy, its write gates and the charge readback, built and
+host-tested 2026-09-25; V-B6 passed on the bench the same day.** `hex_proxy.{h,cpp}` and `charge_readback.{h,cpp}`
+decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
+
+- **Each write gate stands alone, and each has its own test.** The MAC is the library's,
+  `WriteArm` is asked with the clock before every write transmission, and every write
+  attempt, a refusal included, publishes a retained `hex/audit` entry. A change that lets
+  one gate lean on another has removed a gate.
+- **A write is never retried.** A retry would draw `DUPLICATE_CACHED`, never the MPPT's
+  answer, so an unanswered write is `unknown` and a Get settles it. A read retries under
+  the same `seq`. Spec §10.3's resync is the one exception.
+- **A retained `write_enable/set` is ignored and cleared**, so a reconnect cannot re-arm
+  writes. The broker sets the retain flag only on a replay at subscribe, so test the rule
+  across a bridge reset, not with a live publish.
+- **The charge registers come from `osh-labs/VE.Direct_mppt_arduino`**, and their scales
+  are unconfirmed until B6. A readback that disagrees with the real MPPT is a finding to
+  record, not a scale to adjust.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by

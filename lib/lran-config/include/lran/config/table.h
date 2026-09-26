@@ -108,6 +108,15 @@ inline constexpr ParamDef kBridgeParams[] = {
      "dBm", "Conducted; the maximum IS D33's ceiling, spec 18.2"},
     {0x0015, "phy_trial_s", Owner::BridgeGlobal, Access::Phy, PType::U16, 30, 900, 120,
      "s", "Revert window after a PHY change, spec 12.4"},
+
+    // BF-28, BF-29 - the HEX proxy (Bridge PRD 3.5). 0x0016-0x001F stay free beside the
+    // PHY rows. The arm timeout is PRD R-3.5b's, name and default. The response wait
+    // covers GateLink's own hex_timeout_ms (1000) plus a frame each way at SF9 and a CAD
+    // backoff, so a node's TIMEOUT answer arrives before the bridge gives up on it.
+    {0x0020, "mppt_write_arm_timeout_s", Owner::BridgeGlobal, Access::ReadWrite, PType::U16,
+     30, 3600, 300, "s", "MPPT write-enable auto-expiry, PRD R-3.5b"},
+    {0x0021, "hex_rsp_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite, PType::U16, 1500,
+     30000, 3000, "ms", "HEX_RSP wait before a read is retried, PRD R-3.5a"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
     // D61 - 1 polls and watches the node from boot, so it counts toward spec 12.4.1's fleet

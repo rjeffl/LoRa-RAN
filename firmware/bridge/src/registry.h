@@ -55,6 +55,23 @@ inline constexpr NodeProvision kNodeTable[] = {
 };
 inline constexpr size_t kNodeCount = sizeof(kNodeTable) / sizeof(kNodeTable[0]);
 
+// BF-28 - which node types carry an MPPT behind a VE.Direct port, and so get the HEX proxy,
+// the write switch and the readback. GateLink does. A simnode is allowed for
+// command_allowed()'s reason: its role is chosen at runtime and the bridge cannot know
+// which identity is ROLE_GATELINK. The node is the authority; a role with no MPPT behind it
+// does not answer.
+inline bool hex_allowed(NodeType type) {
+  return type == NodeType::GateLink || type == NodeType::Simnode;
+}
+
+// The node's row in kNodeTable, or -1. Per-node arrays elsewhere are indexed by it.
+inline int node_table_index(lran::NodeId id) {
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (kNodeTable[i].id == id) return static_cast<int>(i);
+  }
+  return -1;
+}
+
 // No duplicate, and neither the bridge's own address nor broadcast. A duplicate would
 // shadow a row; the other two would give the bridge a key for an address no node owns.
 constexpr bool node_table_valid(const NodeProvision* table, size_t n) {

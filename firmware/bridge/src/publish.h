@@ -112,6 +112,10 @@ class PublishSink {
 // answered since boot).
 using UtcSeconds = int64_t;
 
+// Before this the clock is the ESP32's power-on default, not SNTP's answer. 2026-01-01.
+// Shared by BF-24's traversal time and BF-29's audit entry.
+inline constexpr UtcSeconds kUtcPlausible = 1767225600;
+
 // Spec 8.9's name for an event_type, lower case, which is also its topic leaf. Null for a
 // value the table does not list. dummy.cpp reads a console's event name back through it.
 const char* event_type_name(uint8_t v);

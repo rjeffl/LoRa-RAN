@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.50
+**Version:** 0.51
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.63
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.64
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.21
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -290,10 +290,10 @@ any other frame no longer wait for their answers together (Impl Plan §6.1.1).
 
 | # | Task | Model | Why |
 |---|---|---|---|
-| **BF-36** | **A simulated MPPT for `ROLE_GATELINK`** — a `HEX_REQ` responder in the simnode that answers with canned VE.Direct HEX responses, a `TIMEOUT` status on demand (spec §7.6, §8.13), and a console command to set a simulated register's value. The simulated MPPT holds the registers; the node still holds none (spec §7.6). **Added 2026-09-25.** Impl Plan §2.1 counts B5 as reachable on two boards, and §8 lets B5 run against a simulator, but §10.2's `ROLE_GATELINK` answers no `HEX_REQ`. Correct §10.2 in the same commit | **Sonnet** | The node is transport only (spec §6.7), so the responder needs no register semantics of its own: a table of request strings and answers. It must verify the MAC on a write-class request as GateLink will (spec §9.2), or V-B6's authenticated path is untested |
-| **BF-28** | HEX wrap/unwrap, request and response plumbing, retained audit trail (§6.4) | **Sonnet** | Transport and logging. The node is transport only; the shape is written out in §6.4's flow |
-| **BF-29** | **Write authorization** — arm, auto-expiry, refusal while disarmed, the three gates (§3.5b, **BS-2**) | **Opus** | *"The failure mode is battery damage, and it is invisible until it is not."* Three gates are only three gates if each is independently enforced and independently tested (**V-B6**) |
-| **BF-30** | Register semantics for charge-parameter readback as diagnostic sensors (R-3.5d) | **Opus** | Getting a register wrong under LiFePO4 is a battery-damage path, and this is the most change-prone part of the interface. Do **not** model 100+ registers as entities (R-3.5e) |
+| **BF-36** | **A simulated MPPT for `ROLE_GATELINK`** — a `HEX_REQ` responder in the simnode that answers with canned VE.Direct HEX responses, a `TIMEOUT` status on demand (spec §7.6, §8.13), and a console command to set a simulated register's value. The simulated MPPT holds the registers; the node still holds none (spec §7.6). **Added 2026-09-25.** Impl Plan §2.1 counts B5 as reachable on two boards, and §8 lets B5 run against a simulator, but §10.2's `ROLE_GATELINK` answers no `HEX_REQ`. Correct §10.2 in the same commit. **Built and host-tested 2026-09-25**, Impl Plan §10.9.3: `sim_mppt.{h,cpp}` holds twelve battery-settings registers on a LiFePO4 profile, and `lib/vedirect/` is the HEX codec it shares with BF-30 | **Sonnet** | The node is transport only (spec §6.7), so the responder needs no register semantics of its own: a table of request strings and answers. It must verify the MAC on a write-class request as GateLink will (spec §9.2), or V-B6's authenticated path is untested |
+| **BF-28** | HEX wrap/unwrap, request and response plumbing, retained audit trail (§6.4). **Built and host-tested 2026-09-25**, Impl Plan §6.4.1: `hex_proxy.{h,cpp}`. A write shares the command `seq` space and is never retried; a read is retried under the same `seq`. **Run on the bench 2026-09-25** against BF-36 | **Sonnet** | Transport and logging. The node is transport only; the shape is written out in §6.4's flow |
+| **BF-29** | **Write authorization** — arm, auto-expiry, refusal while disarmed, the three gates (§3.5b, **BS-2**). **Built and host-tested 2026-09-25**, Impl Plan §6.4.1: `WriteArm`, and `test_hex_proxy` tests each gate on its own. A retained `write_enable/set` is ignored and cleared, chosen with the operator. **V-B6 passed on the bench 2026-09-25**; gate 1 is host-tested only | **Opus** | *"The failure mode is battery damage, and it is invisible until it is not."* Three gates are only three gates if each is independently enforced and independently tested (**V-B6**) |
+| **BF-30** | Register semantics for charge-parameter readback as diagnostic sensors (R-3.5d). **Built and host-tested 2026-09-25**, Impl Plan §6.4.1: `charge_readback.{h,cpp}` reads ten registers from `osh-labs/VE.Direct_mppt_arduino`'s table. **Their scales are unconfirmed until B6 reads the real MPPT** | **Opus** | Getting a register wrong under LiFePO4 is a battery-damage path, and this is the most change-prone part of the interface. Do **not** model 100+ registers as entities (R-3.5e) |
 | **BF-31** | **B6** GateLink integration, **B7** soak | **Opus** | Cross-node triage against real hardware. The work is mostly the operator's; the model's job is reading a symptom across the bridge, the node, the RF path and HA at once |
 | **BF-35** | **HA controls for the configuration table** — `number`, `switch` and `select` discovery generated from `/lib/lran-config/`'s table (**D44**), for the bridge's rows and each node's. Bridge PRD §6.2 lists a per-node poll interval `number`, and `simnode_diag_enable` would become a bridge `switch`. **Added 2026-09-24** with the operator, out of B4's tally (Impl Plan §8.2). **Built 2026-09-25 and shown in the sandbox HA**; Impl Plan §4.4.3 has the choices. No milestone gates on it | **Sonnet** | D44 makes the table the one source, so a control written by hand drifts from the range the bridge enforces. Every name becomes a permanent HA `object_id`, as BF-32's did, so the operator settled them first. The bridge's PHY rows are controls, because BF-33 made them writable on `lran/bridge/config/set`. A node's PHY rows answer `read_only` on its own topic (spec §16.7.1), so they are sensors |
 
@@ -326,6 +326,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.51** — **BF-36 and BF-28 to BF-30 are built, and V-B6 passed on the bench.** Their
+  rows record it. The Impl Plan citation moves to v0.64, whose new §6.4.1 is the
+  record.
 
 - **v0.50** — **BF-37 and BF-38 are built.** Their rows record it. The Impl Plan citation
   moves to v0.63, whose new §4.3.3 is the record; nothing else in this document changes

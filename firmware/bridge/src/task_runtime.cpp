@@ -20,6 +20,7 @@
 
 #include <atomic>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
 
 #include "air_turn.h"
@@ -28,10 +29,12 @@
 #include "command.h"
 #include "config_json.h"
 #include "config_path.h"
+#include "charge_readback.h"
 #include "config_store.h"
 #include "context_roll.h"
 #include "diag_json.h"
 #include "dummy.h"
+#include "hex_proxy.h"
 #include "discovery.h"
 #include "levers.h"
 #include "lora_link.h"
@@ -92,6 +95,11 @@ QueueHandle_t g_command_queue = nullptr;
 uint8_t      g_config_storage[queue_storage_bytes(kConfigQueueDepth, sizeof(ConfigJob))];
 StaticQueue_t g_config_queue_buf;
 QueueHandle_t g_config_queue = nullptr;
+
+// BF-28. mqtt_task turns a `vedirect/hex/request` into one of these; sched_task runs it.
+uint8_t      g_hex_storage[queue_storage_bytes(kHexQueueDepth, sizeof(HexRequest))];
+StaticQueue_t g_hex_queue_buf;
+QueueHandle_t g_hex_queue = nullptr;
 
 // BF-27 - log_task drains lora_link's frame-log ring directly (frame_log.h), which is
 // why there is no g_log_queue here. A queue would have cost lora_task a copy into it and
@@ -213,6 +221,20 @@ std::atomic<bool> g_phy_busy{false};
 // spec 8.7, D69 - nodes whose STATUS reported CONFIG_CHANGE and whose readback has not
 // yet started. app_task sets a bit; sched_config() takes it when the path is free.
 std::atomic<uint32_t> g_config_change_pending{0};
+
+// BF-28, BF-29, BF-30 - the HEX proxy, each node's write arm and its charge readback, under
+// the SAME lock and for the same reasons as the command path. A write shares the command
+// seq space (spec 9.4), so the proxy serializes with the command path, the roll and the
+// configuration path, as they do with each other. mqtt_task arms and disarms under the
+// lock; sched_task expires, admits and publishes.
+HexProxy       g_hex;
+WriteArm       g_arm[kNodeCount];
+uint32_t       g_arm_timeout_s = kWriteArmTimeoutDefaultS;  // sched_levers(), under the lock
+ChargeReadback g_charge[kNodeCount];                        // sched_task alone
+bool           g_charge_started[kNodeCount] = {};           // sched_task alone
+HexRequest     g_hex_job;                                   // the request in flight; sched_task
+std::atomic<uint32_t> g_arm_owed{0};         // node bits whose write_enable/state is owed
+std::atomic<bool>     g_hex_republish{false};  // every arm state and readback, on connect
 std::atomic<uint32_t> g_fleet_watched{0};
 std::atomic<uint32_t> g_fleet_not_online{0};
 
@@ -374,6 +396,9 @@ void cmd_on_ack(const RxMessage& msg) {
   // The roll claims its own ACK first. An ACK neither claims reaches the command path,
   // which is the one that counts it ignored.
   if (g_roll.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis)) return;
+  // BF-28 - a write-class HEX_REQ is answered by a COMMAND_ACK when spec 9.4 steps 2, 4 or
+  // 5 refuse it. The proxy claims only the ack_seq of its own write in flight.
+  if (g_hex.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis)) return;
   g_command.on_ack(msg.hdr.src, ack, msg.hdr.ctx_id, msg.rx_millis);
 }
 
@@ -389,6 +414,15 @@ void config_on_ack(const RxMessage& msg) {
   // The PHY change claims its own answers first, as the roll does in cmd_on_ack().
   if (g_phy_change.on_config_ack(msg.hdr.src, ack, msg.hdr.seq, msg.rx_millis)) return;
   g_config_path.on_config_ack(msg.hdr.src, ack, msg.hdr.seq, msg.rx_millis);
+}
+
+// BF-28. A HEX_RSP arrived. Correlated by the node and the header's seq (spec 9.2), which
+// the node repeats from the request.
+void hex_on_rsp(const RxMessage& msg) {
+  lran::msg::HexRsp rsp;
+  if (lran::msg::deserialize(msg.payload, msg.payload_len, &rsp) != lran::Status::Ok) return;
+  SchedLock lock;
+  (void)g_hex.on_rsp(msg.hdr.src, msg.hdr.seq, rsp);  // copies the string; payload is msg's
 }
 
 void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
@@ -439,9 +473,11 @@ AirTurn air_turn_locked() {
   a.roll_busy          = g_roll.busy();
   a.config_busy        = g_config_path.busy();
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
+  a.hex_busy           = g_hex.busy();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
                       (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
+                      (g_hex_queue != nullptr && uxQueueMessagesWaiting(g_hex_queue) > 0) ||
                       g_config_change_pending.load() != 0;  // D69
   return a;
 }
@@ -574,8 +610,8 @@ void sched_commands(uint32_t now_ms) {
   {
     SchedLock lock;
     // BF-33 - no authenticated frame while a PHY change runs (phy_change.h).
-    idle = !g_command.busy() && !g_roll.busy() && !g_phy_change.blocks_traffic() &&
-           exchange_may_start(air_turn_locked());
+    idle = !g_command.busy() && !g_roll.busy() && !g_hex.busy() &&
+           !g_phy_change.blocks_traffic() && exchange_may_start(air_turn_locked());
   }
   if (idle) {
     CommandRequest req;
@@ -660,7 +696,8 @@ void sched_roll(uint32_t now_ms) {
   bool         start = false;
   {
     SchedLock lock;
-    start = !g_roll.busy() && !g_command.busy() && !g_phy_change.blocks_traffic() &&
+    start = !g_roll.busy() && !g_command.busy() && !g_hex.busy() &&
+            !g_phy_change.blocks_traffic() &&
             exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
   }
   if (start) {
@@ -856,7 +893,7 @@ void sched_config(uint32_t now_ms) {
     bool busy = false;
     {
       SchedLock lock;
-      busy = g_config_path.busy() || g_phy_change.blocks_traffic() ||
+      busy = g_config_path.busy() || g_hex.busy() || g_phy_change.blocks_traffic() ||
              !exchange_may_start(air_turn_locked());
     }
     if (!busy && !g_phy_job_waiting) {
@@ -1073,7 +1110,10 @@ void sched_phy_start(uint32_t now_ms) {
   bool started = false;
   {
     SchedLock lock;
-    if (g_command.busy() || g_roll.busy() || !exchange_may_start(air_turn_locked())) return;
+    if (g_command.busy() || g_roll.busy() || g_hex.busy() ||
+        !exchange_may_start(air_turn_locked())) {
+      return;
+    }
     started = g_phy_change.start(g_phy_job.phy_from, g_phy_job.phy_to, fleet, n, now_ms);
   }
   g_phy_job_waiting = false;
@@ -1412,6 +1452,234 @@ bool     g_sched_levers_have = false;
 Levers   g_sched_levers_applied;
 Levers   g_sched_levers_next;
 
+// ---------------------------------------------------------------------------
+// The HEX proxy (BF-28), its write gates (BF-29) and the charge readback (BF-30).
+// Impl Plan 6.4; PRD 3.5, BS-2; spec 7.6, 16.2.
+//
+// THE DOCUMENTS ARE STATIC and sched_task's alone, for BF-19's reason: a PublishMessage and
+// a few hundred bytes of JSON do not belong on a 5 KB stack beside everything else here.
+// ---------------------------------------------------------------------------
+
+char   g_hex_doc[512];
+char   g_hex_rsp[kHexMaxChars];
+size_t g_hex_rsp_len = 0;
+
+bool publish_vedirect(lran::NodeId node, const char* rest, const char* payload, bool retain) {
+  char token[32];
+  char topic[kMaxTopicLen];
+  if (node_topic_name(node, token, sizeof(token)) == 0 ||
+      topic_vedirect(token, rest, topic, sizeof(topic)) == 0) {
+    return false;
+  }
+  return make_publish(&g_sched_msg, topic, payload, retain, /*qos=*/0) &&
+         send_publish(g_sched_msg);
+}
+
+// A bench node's readback is data it did not report in answer to anyone, so it follows
+// simnode_diag_enable as its availability does (spec 16.6). Its answers to an operator's
+// request - hex/response, hex/audit, write_enable/state - publish either way, for D65's
+// reason: gated, a request on a bench node's own topic would go unanswered.
+bool charge_publication_allowed(size_t i) {
+  return bench_publication_allowed(registry_info_at(i), g_simnode_diag_enable);
+}
+
+void publish_charge(size_t i) {
+  if (!charge_publication_allowed(i)) return;
+  if (g_charge[i].json(g_hex_doc, sizeof(g_hex_doc)) == 0) return;
+  // Retained, as every `/state` leaf is (spec 16.2): a charge profile read at boot must still
+  // be readable after an HA restart, and the next read is a boot or a write away.
+  char rest[32];
+  std::snprintf(rest, sizeof(rest), "%s/state", kChargeItem);
+  (void)publish_vedirect(kNodeTable[i].id, rest, g_hex_doc, /*retain=*/true);
+}
+
+// Retained `ON` or `OFF` (spec 16.2). The switch shows what gate 2 will do.
+void publish_arm_state(size_t i, bool armed) {
+  (void)publish_vedirect(kNodeTable[i].id, "write_enable/state", armed ? "ON" : "OFF",
+                         /*retain=*/true);
+}
+
+void resolve_hex(const HexStep& st) {
+  Serial.printf("hex: %02x seq %u %s -> %s status %u result %u, sched stack %u bytes free\n",
+                static_cast<unsigned>(st.dst), static_cast<unsigned>(st.seq),
+                st.write ? "write" : "read", hex_outcome_token(st.outcome),
+                static_cast<unsigned>(st.status), static_cast<unsigned>(st.ack_result),
+                static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+  const int i = node_table_index(st.dst);
+  if (i < 0) return;
+
+  if (g_hex_job.origin == HexOrigin::Readback) {
+    const bool ok = st.outcome == HexOutcome::Answered &&
+                    static_cast<lran::HexStatus>(st.status) == lran::HexStatus::Ok;
+    if (!ok) {
+      // No MPPT behind this node, or not one that answers: stop rather than spend a
+      // timeout on every register (charge_readback.h). The next write or boot tries again.
+      g_charge[i].abandon();
+      Serial.printf("hex: %02x readback abandoned at 0x%04X\n", static_cast<unsigned>(st.dst),
+                    static_cast<unsigned>(g_hex_job.reg));
+      return;
+    }
+    if (g_charge[i].on_answer(g_hex_job.reg, g_hex_rsp, g_hex_rsp_len)) publish_charge(i);
+    return;
+  }
+
+  // An operator's request: the answer, and for a write the audit entry (gate 3).
+  if (hex_response_json(g_hex_job, st, g_hex_rsp, g_hex_rsp_len, g_hex_doc, sizeof(g_hex_doc)) >
+      0) {
+    // Not retained: an answer replayed on an HA restart would report a request nobody had
+    // just made, as config/ack's would (spec 16.7.3).
+    (void)publish_vedirect(st.dst, "hex/response", g_hex_doc, /*retain=*/false);
+  }
+  if (st.audit) {
+    if (hex_audit_json(g_hex_job, st, g_hex_rsp, g_hex_rsp_len, utc_at(millis()), g_hex_doc,
+                       sizeof(g_hex_doc)) == 0 ||
+        !publish_vedirect(st.dst, "hex/audit", g_hex_doc, /*retain=*/true)) {
+      // Gate 3 failed to record. Said on the console, because a silent audit gap is the
+      // failure the trail exists to prevent.
+      Serial.printf("hex: %02x seq %u AUDIT NOT PUBLISHED\n", static_cast<unsigned>(st.dst),
+                    static_cast<unsigned>(st.seq));
+    }
+  }
+  // A write that may have reached the MPPT is read back, so what HA shows is what the MPPT
+  // now holds rather than what was asked for (R-3.5d).
+  if (st.write && (st.outcome == HexOutcome::Answered || st.outcome == HexOutcome::Unknown)) {
+    g_charge[i].request_all();
+  }
+}
+
+// A write refused before it reached the proxy. It is still an attempt, so it is audited.
+void refuse_hex_in_sched(const HexRequest& req, const char* outcome, bool write) {
+  Serial.printf("hex: %02x refused, %s\n", static_cast<unsigned>(req.dst), outcome);
+  if (hex_refusal_json(req, outcome, g_hex_doc, sizeof(g_hex_doc)) > 0) {
+    (void)publish_vedirect(req.dst, "hex/response", g_hex_doc, /*retain=*/false);
+  }
+  if (!write) return;
+  bool armed = false;
+  {
+    SchedLock  lock;
+    const int  i = node_table_index(req.dst);
+    armed        = i >= 0 && g_arm[i].armed(millis(), g_arm_timeout_s);
+  }
+  if (hex_refusal_audit_json(req, outcome, armed, utc_at(millis()), g_hex_doc,
+                             sizeof(g_hex_doc)) > 0) {
+    (void)publish_vedirect(req.dst, "hex/audit", g_hex_doc, /*retain=*/true);
+  }
+}
+
+void sched_hex(uint32_t now_ms) {
+  // GATE 2's expiry. armed() already refuses a lapsed arm; this publishes the switch back
+  // to off, so HA does not go on showing armed (Impl Plan 6.4).
+  {
+    SchedLock lock;
+    for (size_t i = 0; i < kNodeCount; ++i) {
+      if (g_arm[i].expire(now_ms, g_arm_timeout_s)) {
+        g_arm_owed.fetch_or(1u << i);
+        Serial.printf("hex: %02x write arm expired\n", static_cast<unsigned>(kNodeTable[i].id));
+      }
+    }
+  }
+  const bool republish = g_hex_republish.exchange(false);
+  const uint32_t owed  = g_arm_owed.exchange(0);
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (!hex_allowed(kNodeTable[i].type)) continue;
+    const bool again = republish && charge_publication_allowed(i);
+    if ((owed & (1u << i)) == 0 && !again) continue;
+    bool shown = false;
+    {
+      SchedLock lock;
+      shown = g_arm[i].shown_armed();
+    }
+    publish_arm_state(i, shown);
+    if (again) publish_charge(i);
+  }
+
+  // BF-30 - a node is read back once it has been heard, the first time this boot. A bench
+  // node waits for simnode_diag_enable, which spares airtime on a bench where most
+  // identities have no MPPT behind them.
+  for (size_t i = 0; i < kNodeCount; ++i) {
+    if (g_charge_started[i] || !hex_allowed(kNodeTable[i].type) ||
+        !charge_publication_allowed(i)) {
+      continue;
+    }
+    NodeState ns;
+    if (!registry_state(kNodeTable[i].id, &ns) || ns.frames_heard == 0) continue;
+    g_charge_started[i] = true;
+    g_charge[i].request_all();
+  }
+
+  // Admit one request: an operator's first, then the next readback register.
+  bool idle = false;
+  {
+    SchedLock lock;
+    idle = !g_hex.busy() && !g_command.busy() && !g_roll.busy() && !g_config_path.busy() &&
+           !g_phy_change.blocks_traffic() && !g_phy_job_waiting &&
+           exchange_may_start(air_turn_locked());
+  }
+  if (idle) {
+    bool have = g_hex_queue != nullptr && xQueueReceive(g_hex_queue, &g_hex_job, 0) == pdTRUE;
+    for (size_t i = 0; !have && i < kNodeCount; ++i) {
+      const ChargeRegister* reg = g_charge[i].next();
+      if (reg == nullptr) continue;
+      g_hex_job        = HexRequest{};
+      g_hex_job.dst    = kNodeTable[i].id;
+      g_hex_job.origin = HexOrigin::Readback;
+      g_hex_job.reg    = reg->id;
+      g_hex_job.n = static_cast<uint8_t>(vedirect::encode_get(reg->id, g_hex_job.hex,
+                                                              sizeof(g_hex_job.hex)));
+      have = g_hex_job.n > 0;
+    }
+    if (have) {
+      const bool write = classify_hex(g_hex_job.hex, g_hex_job.n) == HexClass::Write;
+      NodeState  ns;
+      lran::Seq  seq = 0;
+      if (write && roll_pending_for(g_hex_job.dst)) {
+        // spec 10.6 bridge step 7, as a command's: refused rather than held.
+        refuse_hex_in_sched(g_hex_job, "context_roll_pending", true);
+      } else if (registry_state(g_hex_job.dst, &ns) &&
+                 (!write || registry_take_cmd_seq(g_hex_job.dst, &seq))) {
+        g_hex_rsp_len = 0;
+        SchedLock lock;
+        (void)g_hex.submit(g_hex_job, write, ns.ctx_id, seq, now_ms);
+      }
+    }
+  }
+
+  for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
+    HexStep st;
+    {
+      SchedLock lock;
+      const int i     = node_table_index(g_hex.in_flight_node());
+      const bool armed = i >= 0 && g_arm[i].armed(now_ms, g_arm_timeout_s);  // GATE 2
+      st              = g_hex.next(now_ms, armed);
+      if (st.action == HexAction::Resolve) {
+        g_hex_rsp_len = g_hex.response_len();
+        if (g_hex_rsp_len > 0) std::memcpy(g_hex_rsp, g_hex.response(), g_hex_rsp_len);
+      }
+    }
+    switch (st.action) {
+      case HexAction::None:
+        return;
+      case HexAction::Resolve:
+        resolve_hex(st);
+        continue;
+      case HexAction::Send:
+        break;
+    }
+    if (st.ctx_adopted) (void)registry_adopt_ctx(st.dst, st.ctx_id);  // spec 10.3 step 2
+
+    TxMessage tx;
+    tx.dst = st.dst;
+    NodeState hns;
+    const uint8_t ver = registry_state(st.dst, &hns) ? node_tx_ver(hns) : lran::kProtoVer;
+    tx.len = registry_build_hex_req(st.dst, st.ctx_id, st.seq, ver, g_hex_job.hex, g_hex_job.n,
+                                    tx.bytes, sizeof(tx.bytes));
+    if (tx.len == 0 || !send_tx(tx)) return;
+    SchedLock lock;
+    g_hex.on_sent(now_ms);
+    return;
+  }
+}
+
 void sched_levers() {
   if (!g_levers.take_if_changed(&g_sched_levers_seen, &g_sched_levers_next)) return;
   const Levers& v = g_sched_levers_next;
@@ -1429,6 +1697,8 @@ void sched_levers() {
     g_config_path.set_readback_timeout_ms(v.config_readback_timeout_ms);
     g_config_path.set_ack_timeout_ms(v.config_ack_timeout_ms);
     g_phy_change.set_ack_timeout_ms(v.config_ack_timeout_ms);
+    g_hex.set_rsp_timeout_ms(v.hex_rsp_timeout_ms);
+    g_arm_timeout_s = v.mppt_write_arm_timeout_s;
   }
   g_availability.set_threshold(v.missed_poll_threshold);
   g_diag_interval_s = v.diag_interval_s;
@@ -1475,7 +1745,7 @@ void sched_levers() {
 
   // The bench record that a set reached its consumer, not just the store.
   Serial.printf("levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
-                "config ack %u ms, readback %u ms, simnode diag %s\n",
+                "config ack %u ms, readback %u ms, hex rsp %u ms, arm %u s, simnode diag %s\n",
                 static_cast<unsigned>(g_sched_levers_seen),
                 static_cast<unsigned>(v.diag_interval_s),
                 static_cast<unsigned>(v.poll_reply_timeout_ms),
@@ -1484,6 +1754,8 @@ void sched_levers() {
                 static_cast<unsigned>(v.cmd_retries),
                 static_cast<unsigned>(v.config_ack_timeout_ms),
                 static_cast<unsigned>(v.config_readback_timeout_ms),
+                static_cast<unsigned>(v.hex_rsp_timeout_ms),
+                static_cast<unsigned>(v.mppt_write_arm_timeout_s),
                 v.simnode_diag_enable ? "on" : "off");
 }
 
@@ -1526,6 +1798,7 @@ void sched_task(void*) {
     sched_commands(millis());  // BF-18 - Impl Plan 6.2, BS-3
     sched_config(millis());    // BF-32 - spec 7.4, 7.4.1, 16.7
     sched_phy(millis());       // BF-33 - spec 12.4.1, 16.7.5
+    sched_hex(millis());       // BF-28, BF-29, BF-30 - Impl Plan 6.4, PRD 3.5
     sched_availability();      // BF-20 - PRD 3.4, spec 16.5
     sched_diag(millis());      // BF-19 - spec 14.1, 16.2
     // TODO(BF-11b): feed the hardware watchdog from here, once one is enabled.
@@ -1940,6 +2213,138 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
 }
 
 // ---------------------------------------------------------------------------
+// BF-28, BF-29 - the VE.Direct inbound topics. Spec 16.2; PRD 3.5.
+//
+// ON mqtt_task. A request is classified here so a malformed one is refused without a
+// transmission, and queued for sched_task otherwise. The write switch is applied here,
+// under the scheduler's lock, because arming is a field write and nothing else.
+// Refusals publish from this task's own static message, as config/ack does.
+// ---------------------------------------------------------------------------
+
+struct VedirectInboundStats {
+  uint32_t received        = 0;
+  uint32_t bad_topic       = 0;  // no such node, or one with no MPPT
+  uint32_t malformed       = 0;
+  uint32_t queue_full      = 0;
+  uint32_t retained_refused = 0;  // a retained write_enable/set, never applied
+  uint32_t bad_switch      = 0;   // neither ON nor OFF
+};
+VedirectInboundStats g_vedirect_inbound;
+PublishMessage       g_vedirect_msg;
+char                 g_vedirect_doc[512];
+
+void publish_vedirect_from_mqtt(lran::NodeId node, const char* rest, const char* payload,
+                                bool retain) {
+  char token[32];
+  char topic[kMaxTopicLen];
+  if (node_topic_name(node, token, sizeof(token)) == 0 ||
+      topic_vedirect(token, rest, topic, sizeof(topic)) == 0) {
+    return;
+  }
+  if (!make_publish(&g_vedirect_msg, topic, payload, retain, /*qos=*/0) ||
+      !g_mqtt.publish(g_vedirect_msg)) {
+    g_accounting.record_dropped(QueueId::Publish);
+  }
+}
+
+class VedirectRequests final : public MqttInbound {
+ public:
+  void on_message(const InboundMessage& msg) override {
+    VedirectTopic t;
+    if (!parse_vedirect_topic(msg.topic, &t)) return;
+    ++g_vedirect_inbound.received;
+    const NodeInfo* info = registry_find(t.node_id);
+    if (info == nullptr || !hex_allowed(info->type)) {
+      ++g_vedirect_inbound.bad_topic;
+      return;
+    }
+    if (t.kind == VedirectInbound::WriteEnableSet) {
+      on_switch(t.node_id, msg);
+    } else {
+      on_request(t.node_id, msg);
+    }
+  }
+
+ private:
+  // GATE 2's arm, PRD R-3.5c: a deliberate step of its own.
+  void on_switch(lran::NodeId node, const InboundMessage& msg) {
+    const int i = node_table_index(node);
+    if (i < 0) return;
+    if (msg.retained) {
+      // Spec 16.2 marks this topic retained, and a retained `ON` would re-arm writes at
+      // every connect - after a bridge reboot above all, which is when nobody is watching.
+      // It is never applied, and it is cleared so it cannot come back. Raised for spec
+      // v0.16; decided with the operator on 2026-09-25.
+      ++g_vedirect_inbound.retained_refused;
+      Serial.printf("hex: %02x retained write_enable/set ignored and cleared\n",
+                    static_cast<unsigned>(node));
+      publish_vedirect_from_mqtt(node, "write_enable/set", "", /*retain=*/true);
+      return;
+    }
+    bool on = false;
+    if (msg.payload_len == 2 && std::strncmp(msg.payload, "ON", 2) == 0) {
+      on = true;
+    } else if (!(msg.payload_len == 3 && std::strncmp(msg.payload, "OFF", 3) == 0)) {
+      // Refused, never defaulted (this node's CLAUDE.md): an unreadable arm stays as it was.
+      ++g_vedirect_inbound.bad_switch;
+      return;
+    }
+    {
+      SchedLock lock;
+      if (on) {
+        g_arm[i].arm(millis());
+      } else {
+        g_arm[i].disarm();
+      }
+    }
+    g_arm_owed.fetch_or(1u << i);
+    Serial.printf("hex: %02x write %s\n", static_cast<unsigned>(node), on ? "ARMED" : "disarmed");
+  }
+
+  void on_request(lran::NodeId node, const InboundMessage& msg) {
+    HexRequest req;
+    req.dst    = node;
+    req.origin = HexOrigin::Operator;
+    const size_t n = msg.payload_len < kHexMaxChars ? msg.payload_len : kHexMaxChars;
+    req.n          = static_cast<uint8_t>(n);
+    std::memcpy(req.hex, msg.payload, n);
+
+    const HexClass cls = msg.payload_len > kHexMaxChars ? HexClass::Malformed
+                                                        : classify_hex(req.hex, req.n);
+    if (cls == HexClass::Malformed) {
+      ++g_vedirect_inbound.malformed;
+      if (hex_refusal_json(req, "malformed", g_vedirect_doc, sizeof(g_vedirect_doc)) > 0) {
+        publish_vedirect_from_mqtt(node, "hex/response", g_vedirect_doc, /*retain=*/false);
+      }
+      return;
+    }
+    if (g_hex_queue != nullptr && xQueueSend(g_hex_queue, &req, 0) == pdTRUE) {
+      g_accounting.record_sent(QueueId::Hex,
+                               static_cast<size_t>(uxQueueMessagesWaiting(g_hex_queue)));
+      return;
+    }
+    g_accounting.record_dropped(QueueId::Hex);
+    ++g_vedirect_inbound.queue_full;
+    if (hex_refusal_json(req, "busy", g_vedirect_doc, sizeof(g_vedirect_doc)) > 0) {
+      publish_vedirect_from_mqtt(node, "hex/response", g_vedirect_doc, /*retain=*/false);
+    }
+    if (cls == HexClass::Write) {
+      // GATE 3 - a write refused for want of room is still an attempt.
+      const int i     = node_table_index(node);
+      bool      armed = false;
+      {
+        SchedLock lock;
+        armed = i >= 0 && g_arm[i].armed(millis(), g_arm_timeout_s);
+      }
+      if (hex_refusal_audit_json(req, "busy", armed, utc_at(millis()), g_vedirect_doc,
+                                 sizeof(g_vedirect_doc)) > 0) {
+        publish_vedirect_from_mqtt(node, "hex/audit", g_vedirect_doc, /*retain=*/true);
+      }
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------
 // One sink, two topic families. MqttTransport::set_inbound takes a single sink, so the
 // routing is here rather than in the transport.
 // ---------------------------------------------------------------------------
@@ -1959,11 +2364,17 @@ class InboundRouter final : public MqttInbound {
       handle_config_set(config_target, msg);
       return;
     }
+    VedirectTopic vedirect_target;
+    if (parse_vedirect_topic(msg.topic, &vedirect_target)) {
+      vedirect_.on_message(msg);
+      return;
+    }
     commands_.on_message(msg);
   }
 
  private:
-  CommandInbound commands_;
+  CommandInbound  commands_;
+  VedirectRequests vedirect_;
 };
 
 InboundRouter g_inbound_router;
@@ -2120,6 +2531,13 @@ void on_mqtt_connected() {
   // reconnect has to put back is the retained `config/state` below, not the request.
   (void)g_mqtt.subscribe(kTopicConfigFilter, /*qos=*/1);
 
+  // BF-28, BF-29 - the HEX proxy's two, renewed for the same reason. The write switch's
+  // `set` may arrive retained, and the inbound path refuses that (task_runtime.cpp,
+  // VedirectRequests), so subscribing cannot re-arm anything.
+  (void)g_mqtt.subscribe(kTopicHexRequestFilter, /*qos=*/1);
+  (void)g_mqtt.subscribe(kTopicWriteEnableFilter, /*qos=*/1);
+  g_hex_republish = true;
+
   // BF-23 - the discovery configs, republished from the top on every connect
   // (R-3.3b). The cursor is restarted here and drained by mqtt_task's loop; a
   // reconnect part-way through a previous drain therefore starts again rather than
@@ -2254,6 +2672,10 @@ void app_task(void*) {
     // one answers the readback a POLL bit 1 asked for (D45). Both arrive here.
     if (msg.hdr.type == lran::MsgType::ConfigAck) {
       config_on_ack(msg);
+    }
+    // BF-28. A HEX_RSP ends a HEX transaction (spec 7.6).
+    if (msg.hdr.type == lran::MsgType::HexRsp) {
+      hex_on_rsp(msg);
     }
     // Discard counters are lora_task's; sched_task publishes them (BF-19).
     // BF-24 - a STATUS becomes its documents (Impl Plan 6.3). The registry refused an
@@ -2467,8 +2889,10 @@ bool start_tasks() {
                                       g_config_storage, &g_config_queue_buf);
   g_command_queue = xQueueCreateStatic(kCommandQueueDepth, sizeof(CommandRequest),
                                        g_command_storage, &g_command_queue_buf);
+  g_hex_queue = xQueueCreateStatic(kHexQueueDepth, sizeof(HexRequest), g_hex_storage,
+                                   &g_hex_queue_buf);
   if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||
-      g_event_queue == nullptr || g_command_queue == nullptr) {
+      g_event_queue == nullptr || g_command_queue == nullptr || g_hex_queue == nullptr) {
     return false;
   }
 

@@ -53,6 +53,9 @@ struct Levers {
   uint16_t republish_interval_s = 0;
   uint16_t bms_stale_s          = 0;
   uint8_t  cell_mv_deadband     = 0;
+  // BF-28, BF-29 - the HEX proxy's, read by sched_task (hex_proxy.h).
+  uint32_t hex_rsp_timeout_ms       = 0;
+  uint16_t mppt_write_arm_timeout_s = 0;
 
   // D47 - one value per node, in kNodeTable's order.
   uint16_t poll_interval_s[kNodeCount] = {};
@@ -101,6 +104,8 @@ class LeverBoard {
   std::atomic<uint16_t> republish_interval_s_{0};
   std::atomic<uint16_t> bms_stale_s_{0};
   std::atomic<uint8_t>  cell_mv_deadband_{0};
+  std::atomic<uint32_t> hex_rsp_timeout_ms_{0};
+  std::atomic<uint16_t> mppt_write_arm_timeout_s_{0};
   std::atomic<uint16_t> poll_interval_s_[kNodeCount] = {};
   std::atomic<bool>     deployed_[kNodeCount]        = {};
 };

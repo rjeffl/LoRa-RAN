@@ -37,7 +37,8 @@ void test_an_outstanding_poll_holds_every_other_exchange() {
 // The reverse case, inferred from the code: a POLL sent while an answer is still due.
 void test_each_other_exchange_holds_a_scheduled_poll() {
   bool AirTurn::*const busy[] = {&AirTurn::command_busy, &AirTurn::roll_busy,
-                                 &AirTurn::config_busy, &AirTurn::phy_blocks_traffic};
+                                 &AirTurn::config_busy, &AirTurn::phy_blocks_traffic,
+                                 &AirTurn::hex_busy};
   for (bool AirTurn::*const field : busy) {
     AirTurn a;
     a.*field = true;

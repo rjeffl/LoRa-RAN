@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.25
+**Version:** 0.26
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-09-25
@@ -315,7 +315,7 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
 |---|---|---|---|
 | **LRAN LoRa frame format** | bridge ↔ any node | **LRAN** | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §3–§15 |
 | **LRAN MQTT interface** | bridge ↔ HA | **LRAN** | Protocol Spec §16 |
-| **VE.Direct** (text + HEX) | GateLink ↔ MPPT 75/15 | Victron | Vendor documentation; transported verbatim |
+| **VE.Direct** (text + HEX) | GateLink ↔ MPPT 75/15 | Victron | [`osh-labs/VE.Direct_mppt_arduino`](https://github.com/osh-labs/VE.Direct_mppt_arduino), the reference of record; Victron's documents only where it is silent. Transported verbatim |
 | **TDT BLE BMS** | GateLink ↔ battery pack | Pack vendor | `/docs/gatelink/bms-protocol.md` — **still to be written up** from the PoC workspace (`/wattcycle-reader/`) |
 | **1050 accessory I/O** | GateLink ↔ gate controller | Nice/Apollo | Vendor manual; GateLink PRD |
 
@@ -697,7 +697,7 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.25 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.26 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.15** (`ver = 2`) |
 | [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D69** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.21 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.20 |
@@ -712,7 +712,7 @@ assumed now.
 | [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.47 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-09-25 |
 | [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.11 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.14 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.15 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
 | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.11 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
@@ -746,6 +746,11 @@ assumed now.
 
 ## 13. Changelog
 
+- **v0.26** — **VE.Direct's reference is `osh-labs/VE.Direct_mppt_arduino`, not Victron's
+  PDFs.** That library already decodes the text and HEX protocols and is proven in the
+  field; the B5 session instead read Victron's HEX PDF, at real cost. §5's protocol table
+  now names the library as the reference of record. §12's version column follows the
+  GateLink Implementation Plan to v0.15.
 - **v0.25** — **Protocol specification v0.14 → v0.15.** No architecture changes. §12's
   version column follows the sweep: the Decision Register to v0.21 and **D1–D69**, and six
   node and library documents to their new revisions.

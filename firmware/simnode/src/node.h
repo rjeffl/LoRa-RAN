@@ -13,7 +13,8 @@
 // WHAT EACH ROLE ANSWERS (Impl Plan 10.2). ROLE_RANGE echoes PING (spec 6.6, 17.3) and answers
 // POLL with schema 0xF0; ROLE_HEALTH answers POLL with 0xF0. ROLE_GATELINK (BF-6, gatelink.cpp)
 // answers POLL with 0xFE, COMMAND with COMMAND_ACK through its CommandGate, CONFIG with
-// CONFIG_ACK, and sends 0x11 events on request. ROLE_FAULT answers nothing: every fault is
+// CONFIG_ACK, HEX_REQ with HEX_RSP from a simulated MPPT (BF-36), and sends 0x11 events on
+// request. ROLE_FAULT answers nothing: every fault is
 // armed from the console on any identity (BF-8). Since BF-33, ROLE_RANGE and ROLE_HEALTH
 // also answer a CONFIG, for spec 12.4's PHY group and nothing else, because a fleet change
 // must move every node the bridge polls.
@@ -231,6 +232,11 @@ class Node {
   void            answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
                                        size_t len, uint32_t now_ms);
   void            refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why);
+  // BF-36 - spec 7.6's transport, with the simulated MPPT on the far side (sim_mppt.h).
+  void            on_hex_req(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                             size_t len, uint32_t now_ms);
+  bool            send_hex_rsp(Identity& e, lran::NodeId dst, lran::Seq seq,
+                               lran::HexStatus status, const char* hex, size_t n);
   lran::AckResult execute(Identity& e, const lran::msg::Command& c, AfterAck* after);
   void            finish_command(Identity& e, const PendingAck& p, uint32_t now_ms);
   void            tick_gatelink(Identity& e, uint32_t now_ms);

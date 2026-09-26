@@ -61,8 +61,6 @@ constexpr uint8_t kNodeTraversalVolatile  = 0x40;
 // move this small is that jitter; a new traversal moves it by at least a poll interval.
 constexpr UtcSeconds kTraversalJitterS = 2;
 
-// Before this the clock is the ESP32's power-on default, not SNTP's answer. 2026-01-01.
-constexpr UtcSeconds kUtcPlausible = 1767225600;
 
 // Spec 8.3-8.7's names, lowercased so one term names one concept from HA to the wire, as
 // net_policy.h's command tokens are. A value the table does not list is null, never a

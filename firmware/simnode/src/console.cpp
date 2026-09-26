@@ -108,6 +108,8 @@ void Console::execute(char* line, uint32_t now_ms) {
     cmd_ack(argv, argc, now_ms);
   } else if (std::strcmp(cmd, "field") == 0) {
     cmd_field(argv, argc);
+  } else if (std::strcmp(cmd, "mppt") == 0) {
+    cmd_mppt(argv, argc);
   } else if (board_ != nullptr && board_(argv, argc, out_)) {
     return;
   } else {
@@ -135,6 +137,7 @@ void Console::cmd_help() {
       "  event <hex> <type> | again | follow   (spec 8.9 name)",
       "  ack <hex> normal | suppress [count] | dup [count] | delay <ms>",
       "  field <hex> <name> <value|na> | field <hex> list | field <hex> reset",
+      "  mppt <hex> list | set <reg> <value> | timeout [count] | hex_timeout <ms> | reset",
   };
   for (const char* l : kLines) out_->line(l);
 }
@@ -553,6 +556,76 @@ void Console::cmd_field(char** argv, int argc) {
     return;
   }
   sink_printf(out_, "OK field %02x %s = %s", id, argv[2], argv[3]);
+}
+
+// BF-36 - the simulated MPPT behind ROLE_GATELINK's UART (sim_mppt.h).
+void Console::cmd_mppt(char** argv, int argc) {
+  static const char kUsage[] =
+      "ERR usage: mppt <hex> list | set <reg> <value> | timeout [count] | hex_timeout <ms> | reset";
+  uint8_t   id = 0;
+  Identity* e  = nullptr;
+  if (argc < 3 || !parse_hex_byte(argv[1], &id) || (e = ids_->find(id)) == nullptr) {
+    out_->line(kUsage);
+    return;
+  }
+  if (e->role != Role::GateLink) {
+    sink_printf(out_, "ERR mppt %02x: needs ROLE_GATELINK", id);
+    return;
+  }
+  const char*   mode = argv[2];
+  unsigned long v    = 0;
+  SimMppt&      m    = e->gl.mppt;
+
+  if (std::strcmp(mode, "list") == 0 && argc == 3) {
+    sink_printf(out_, "OK mppt %02x: %u requests, %u writes accepted, hex_timeout %lu ms, "
+                "timeout fault %u left%s", id, static_cast<unsigned>(e->gl.hex_requests),
+                static_cast<unsigned>(m.writes()), static_cast<unsigned long>(e->gl.hex_timeout_ms),
+                static_cast<unsigned>(e->gl.hex_timeout_left),
+                e->gl.hex_pending.active ? ", transaction outstanding" : "");
+    for (size_t i = 0; i < m.count(); ++i) {
+      const SimRegister& r = m.reg(i);
+      sink_printf(out_, "  0x%04X %s %lu (0x%0*lX)", static_cast<unsigned>(r.id),
+                  r.writable ? "rw" : "ro", static_cast<unsigned long>(r.value),
+                  static_cast<int>(2 * r.width), static_cast<unsigned long>(r.value));
+    }
+    return;
+  }
+  if (std::strcmp(mode, "reset") == 0 && argc == 3) {
+    m.reset();
+    e->gl.hex_timeout_left = 0;
+    sink_printf(out_, "OK mppt %02x reset: canned profile restored, timeout fault disarmed", id);
+    return;
+  }
+  if (std::strcmp(mode, "set") == 0 && argc == 5) {
+    char*               end = nullptr;
+    const unsigned long reg = std::strtoul(argv[3], &end, 16);
+    if (end == argv[3] || *end != '\0' || reg > 0xFFFF || !parse_uint(argv[4], 0xFFFFFFFFul, &v) ||
+        !m.set(static_cast<uint16_t>(reg), static_cast<uint32_t>(v))) {
+      sink_printf(out_, "ERR mppt %02x set %s %s: unknown register or value too wide", id, argv[3],
+                  argv[4]);
+      return;
+    }
+    sink_printf(out_, "OK mppt %02x 0x%04lX = %lu", id, reg, v);
+    return;
+  }
+  if (std::strcmp(mode, "timeout") == 0 && argc <= 4) {
+    v = 1;
+    if (argc == 4 && !parse_uint(argv[3], 0xFFFF, &v)) {
+      sink_printf(out_, "ERR bad count '%s'", argv[3]);
+      return;
+    }
+    e->gl.hex_timeout_left = static_cast<uint16_t>(v);
+    sink_printf(out_, "OK mppt %02x timeout: the next %lu request(s) go unanswered, then TIMEOUT",
+                id, v);
+    return;
+  }
+  if (std::strcmp(mode, "hex_timeout") == 0 && argc == 4 && parse_uint(argv[3], 60000, &v) &&
+      v > 0) {
+    e->gl.hex_timeout_ms = static_cast<uint32_t>(v);
+    sink_printf(out_, "OK mppt %02x hex_timeout %lu ms", id, v);
+    return;
+  }
+  out_->line(kUsage);
 }
 
 void Console::cmd_log(char** argv, int argc) {
