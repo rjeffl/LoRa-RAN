@@ -609,9 +609,9 @@ void sched_commands(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    // BF-33 - no authenticated frame while a PHY change runs (phy_change.h).
-    idle = !g_command.busy() && !g_roll.busy() && !g_hex.busy() &&
-           !g_phy_change.blocks_traffic() && exchange_may_start(air_turn_locked());
+    // One exchange at a time (air_turn.h), a PHY change's included: BF-33 allows no
+    // authenticated frame while one runs (phy_change.h).
+    idle = exchange_may_start(air_turn_locked());
   }
   if (idle) {
     CommandRequest req;
@@ -696,9 +696,7 @@ void sched_roll(uint32_t now_ms) {
   bool         start = false;
   {
     SchedLock lock;
-    start = !g_roll.busy() && !g_command.busy() && !g_hex.busy() &&
-            !g_phy_change.blocks_traffic() &&
-            exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
+    start = exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
   }
   if (start) {
     // spec 10.6 bridge step 2 - under the ctx_id the node's frame carried, with the next
@@ -893,8 +891,7 @@ void sched_config(uint32_t now_ms) {
     bool busy = false;
     {
       SchedLock lock;
-      busy = g_config_path.busy() || g_hex.busy() || g_phy_change.blocks_traffic() ||
-             !exchange_may_start(air_turn_locked());
+      busy = !exchange_may_start(air_turn_locked());
     }
     if (!busy && !g_phy_job_waiting) {
       // RECEIVED STRAIGHT INTO THE STATIC, NOT ONTO THE STACK. A ConfigJob is about a
@@ -1110,8 +1107,7 @@ void sched_phy_start(uint32_t now_ms) {
   bool started = false;
   {
     SchedLock lock;
-    if (g_command.busy() || g_roll.busy() || g_hex.busy() ||
-        !exchange_may_start(air_turn_locked())) {
+    if (!exchange_may_start(air_turn_locked())) {
       return;
     }
     started = g_phy_change.start(g_phy_job.phy_from, g_phy_job.phy_to, fleet, n, now_ms);
@@ -1611,9 +1607,7 @@ void sched_hex(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    idle = !g_hex.busy() && !g_command.busy() && !g_roll.busy() && !g_config_path.busy() &&
-           !g_phy_change.blocks_traffic() && !g_phy_job_waiting &&
-           exchange_may_start(air_turn_locked());
+    idle = !g_phy_job_waiting && exchange_may_start(air_turn_locked());
   }
   if (idle) {
     bool have = g_hex_queue != nullptr && xQueueReceive(g_hex_queue, &g_hex_job, 0) == pdTRUE;
