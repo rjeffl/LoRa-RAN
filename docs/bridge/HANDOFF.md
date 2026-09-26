@@ -67,9 +67,6 @@ sat on the command path, and the state mirror's readback, were fixed on 2026-09-
   - A flag set `applied_not_persisted` leaves a stale `online` after a reboot. The bridge
     comes back with the flag clear, and nothing withdraws the `online` it published. Impl
     Plan §4.2a.1.
-- **D70 on the bench** (spec §10.7). The bridge's no-resync rule is host-tested only. Run
-  `ack suppress 1` on a simnode, then send `reboot` with `165`, and then `open`. Each should
-  publish `cmd/ack` `unconfirmed`, and the simnode should log one reboot and one actuation.
 
 ### 2. Bridge housekeeping
 

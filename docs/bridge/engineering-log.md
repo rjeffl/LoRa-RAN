@@ -3509,3 +3509,35 @@ entropy, and it has a node send `FIRE_ASSERTED` and `HARD_SHUTDOWN` again at boo
 **Not run on the bench.** The 2026-09-25 mirror-readback run showed `REBOOT` with its ACK
 delivered: `ACCEPTED`, a new `ctx_id`, and an authenticated `CONFIG` accepted afterwards.
 The simnode's reboot is simulated, and no run has lost the ACK. The handoff holds both.
+
+## 2026-09-25 — D70 on the bench: a reset between a command and its ACK ends `unconfirmed`, with one execution
+
+**The bridge no longer resyncs an actuation or a `REBOOT` that drew `REJECTED_CTX`.** It
+publishes `unconfirmed`, adopts the node's new context, and sends nothing more. The bridge
+ran `99d5be4`, flashed over USB for this run. f1 was on the XIAO, whose build still names
+spec v0.15 in its banner; nothing it does on this path changed in v0.16. The trace is
+[`data/d70-bench-2026-09-25.log`](./data/d70-bench-2026-09-25.log).
+
+**The handoff's recipe could not test `OPEN`.** An `OPEN` whose ACK is suppressed, with no
+reset, is answered from the dedup cache and ends `acked`, which is correct. The actuation
+case needs a reset between the execution and the retry. `ctx f1 new` on the console
+supplies it: it calls the same `new_context()` as the simulated `REBOOT`, and it went in
+10 ms after the simnode logged `OPEN ACCEPTED`, well inside `command_ack_timeout_ms`
+3000. Case C is the recipe as written, kept as the control.
+
+Each case armed `ack f1 suppress 1` first.
+
+| Case | Simnode | `cmd/ack` | Executions, actuations after |
+|---|---|---|---|
+| A: `REBOOT`, payload `165` | `REBOOT ACCEPTED`, `rebooted`, then `REJECTED_CTX` on the retry | `unconfirmed`, attempts 2, result 3, 5.7 s after the publish | 1, 0 |
+| B: `OPEN`, then `ctx f1 new` | `OPEN ACCEPTED`, then `REJECTED_CTX` on the retry | `unconfirmed`, attempts 2, result 3, 8.4 s after the publish | 2, 1 |
+| C: `OPEN`, no reset | `OPEN ACCEPTED`, then `DUPLICATE_CACHED (ACCEPTED), not executed` | `acked`, attempts 2, result 7 | 3, 2 |
+
+**One reboot and one actuation per command, and no third frame.** In A and B the retry
+carried the old `ctx_id` and the same `seq`, and the bridge's next command reached
+the new context at `seq` 1 with no roll. `diag/cmd/state` read `cmd_unconfirmed` 2 and
+`cmd_resyncs` 0 after B.
+
+**This is still a simulated reset.** The simnode's `REBOOT` and `ctx new` clear what a
+reset clears without an `esp_restart()`. Group 2 of the handoff holds that gap. The bench
+was restored: `ack f1 normal`, and `simnode_diag_enable` was 0 throughout.

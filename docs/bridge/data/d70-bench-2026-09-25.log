@@ -1,0 +1,79 @@
+    0.20 SIM ESP-ROM:esp32s3-20210327
+    0.20 SIM Build:Mar 27 2021
+    0.20 SIM rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+    0.20 SIM Saved PC:0x4203699e
+    0.20 SIM SPIWP:0xee
+    0.20 SIM mode:DIO, clock div:1
+    0.20 SIM load:0x3fce3808,len:0x4bc
+    0.20 SIM load:0x403c9700,len:0xbd8
+    0.20 SIM load:0x403cc700,len:0x2a0c
+    0.20 SIM entry 0x403c98d0
+    1.63 SIM LRAN simnode - bench nodes 0xF0-0xF3
+    1.63 SIM Binding spec: LRAN-Protocol-Specification v0.15 (ver = 2)
+    1.63 SIM Board: xiao_esp32s3+wio_sx1262_kit
+    1.63 SIM id f1 ROLE_GATELINK ctx 0xe89b5b39
+    1.63 SIM [  1620][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+    1.84 SIM OLED: up
+    1.84 SIM radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    1.84 SIM B0: identities, console, faults, OLED; all four roles. Type 'help'.
+    3.01 SIM> log info
+    3.06 SIM OK log info
+    3.52 SIM> ack f1 normal
+    3.52 SIM> id list
+    3.67 SIM OK ack f1 normal
+    3.67 SIM OK 1 identity
+    3.67 SIM id f1 ROLE_GATELINK enabled ver 2 ctx 0xe89b5b39 tx_seq 1 cmd_hw 0 rx 0 tx 0 dropped 0
+    3.67 SIM    gatelink ack_delay 0 ms, executions 0, actuations 0, next event_id 1
+    4.52 SIM> push f1
+    4.69 SIM OK push f1 -> 00 schema 0xFE DEBUG_SYNTHETIC
+    6.94 SIM roll f1 <- 00 seq 1: ctx 0xe89b5b39 -> 0x75f05aee, ACCEPTED
+   16.53 SIM> id list
+   16.53 SIM OK 1 identity
+   16.73 SIM id f1 ROLE_GATELINK enabled ver 2 ctx 0x75f05aee tx_seq 2 cmd_hw 0 rx 2 tx 3 dropped 0
+   16.73 SIM    gatelink ack_delay 0 ms, executions 0, actuations 0, next event_id 1
+   17.53 === CASE A: REBOOT, ACK suppressed
+   17.53 SIM> ack f1 suppress 1
+   17.55 SIM OK fault f1 ack_suppress: next 1 ACK(s) withheld
+   18.04 MQTT lran/simnode1/cmd/reboot/set 165
+   18.98 SIM cmd f1 <- 00 seq 1: REBOOT ACCEPTED
+   18.98 SIM fault f1 ack_suppress: ACK for seq 1 withheld, 0 left
+   18.98 SIM id f1 rebooted: ctx 0x2c85d0ff
+   22.84 SIM cmd f1 <- 00 seq 1: REJECTED_CTX (frame ctx 0x75f05aee, own 0x2c85d0ff)
+   23.71 MQTT lran/simnode1/cmd/ack {"outcome":"unconfirmed","seq":1,"attempts":2,"result":3,"detail":0}
+   23.73 ACK A: {"outcome":"unconfirmed","seq":1,"attempts":2,"result":3,"detail":0}
+   29.74 SIM> id list
+   29.77 SIM OK 1 identity
+   29.77 SIM id f1 ROLE_GATELINK enabled ver 2 ctx 0x2c85d0ff tx_seq 5 cmd_hw 0 rx 5 tx 7 dropped 1
+   29.77 SIM    gatelink ack_delay 0 ms, executions 1, actuations 0, next event_id 1
+   30.74 === CASE B: OPEN, ACK suppressed, node reset before the retry
+   30.74 SIM> ack f1 suppress 1
+   30.79 SIM OK fault f1 ack_suppress: next 1 ACK(s) withheld
+   31.25 MQTT lran/simnode1/cmd/open/set PRESS
+   34.86 SIM cmd f1 <- 00 seq 1: OPEN ACCEPTED
+   34.86 SIM fault f1 ack_suppress: ACK for seq 1 withheld, 0 left
+   34.87 SIM> ctx f1 new
+   35.06 SIM OK id f1 ctx 0x91976b36
+   38.93 SIM cmd f1 <- 00 seq 1: REJECTED_CTX (frame ctx 0x2c85d0ff, own 0x91976b36)
+   39.69 MQTT lran/simnode1/cmd/ack {"outcome":"unconfirmed","seq":1,"attempts":2,"result":3,"detail":0}
+   39.73 ACK B: {"outcome":"unconfirmed","seq":1,"attempts":2,"result":3,"detail":0}
+   45.74 SIM> id list
+   45.86 SIM OK 1 identity
+   45.86 SIM id f1 ROLE_GATELINK enabled ver 2 ctx 0x91976b36 tx_seq 2 cmd_hw 0 rx 7 tx 8 dropped 2
+   45.86 SIM    gatelink ack_delay 0 ms, executions 2, actuations 1, next event_id 1
+   46.74 === CASE C (control): OPEN, ACK suppressed, no reset
+   46.74 SIM> ack f1 suppress 1
+   46.88 SIM OK fault f1 ack_suppress: next 1 ACK(s) withheld
+   47.26 MQTT lran/simnode1/cmd/open/set PRESS
+   48.80 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":2,"cmd_refused_busy":0,"cmd_sent":4,"cmd_retries":2,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":2,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   49.93 SIM cmd f1 <- 00 seq 1: OPEN ACCEPTED
+   49.93 SIM fault f1 ack_suppress: ACK for seq 1 withheld, 0 left
+   55.21 SIM cmd f1 <- 00 seq 1: dedup hit, DUPLICATE_CACHED (ACCEPTED), not executed
+   55.68 MQTT lran/simnode1/cmd/ack {"outcome":"acked","seq":1,"attempts":2,"result":7,"detail":0}
+   55.75 ACK C: {"outcome":"acked","seq":1,"attempts":2,"result":7,"detail":0}
+   61.75 SIM> id list
+   61.75 SIM> ack f1 normal
+   61.93 SIM OK 1 identity
+   61.93 SIM id f1 ROLE_GATELINK enabled ver 2 ctx 0x91976b36 tx_seq 3 cmd_hw 1 rx 9 tx 9 dropped 2
+   61.93 SIM    gatelink ack_delay 0 ms, executions 3, actuations 2, next event_id 1
+   61.93 SIM OK ack f1 normal
+   63.76 reboot lines: 1
