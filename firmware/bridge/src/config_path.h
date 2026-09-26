@@ -40,6 +40,7 @@
 #include "lran/schema/node_config_v1.h"
 #include "lran/types.h"
 #include "phy_change.h"
+#include "registry.h"
 
 namespace bridge {
 
@@ -96,6 +97,50 @@ struct ConfigJob {
 // a payload that does not decode, is false.
 bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payload,
                                   size_t len);
+
+// A node reboot, read from its STATUS, so that the bridge can ask for a readback.
+//
+// WHY. The readback mirror (config_store.h) holds what a node last said it runs, and a
+// reboot can change that without a word. A simnode holds its overrides in RAM, so a
+// reboot clears them while `config/state` goes on reporting them. A node with a store
+// (D49) keeps them, and the bridge cannot tell the two apart from the reboot alone. The
+// answer costs one POLL per reboot: ask.
+//
+// NOT ON A NEW ctx_id. Spec 10.1 says a new context no longer means a reboot, because a
+// roll (spec 10.6) makes one and keeps the configuration. The same section names what
+// does report a reboot: `boot_count` and `uptime_s`. So a roll cannot trigger this.
+//
+// THREE SIGNS, ANY ONE ENOUGH:
+//   - `status_reason` BOOT (spec 8.7), on schemas 0x10 and 0xFE;
+//   - `boot_count` changed, when both readings are non-zero (0 is unavailable, 7.2.4);
+//   - `uptime_s` is below what the last reading predicts. The prediction adds the time
+//     since that frame arrived, so a node heard again only after running longer than
+//     it had before its reboot is still caught. The slack covers truncation to whole
+//     seconds and a frame's wait for media access (spec 12.3), and scales with the gap
+//     for clock drift.
+// Schema 0xF0 carries no `status_reason`; the other two signs apply to it.
+//
+// The first STATUS heard from a node sets the reference and reports nothing, unless it
+// says BOOT. app_task alone calls this, so it takes no lock.
+class RebootWatch {
+ public:
+  // True when this STATUS shows `src` rebooted since its last one. `rx_ms` is the
+  // bridge's receive time.
+  bool on_status(const lran::Header& hdr, const uint8_t* payload, size_t len,
+                 uint32_t rx_ms);
+
+  static constexpr uint32_t kSlackS       = 5;
+  static constexpr uint32_t kDriftDivisor = 256;  // ~0.4 %, far above a crystal's
+
+ private:
+  struct Seen {
+    bool     heard      = false;
+    uint32_t uptime_s   = 0;
+    uint16_t boot_count = 0;
+    uint32_t rx_ms      = 0;
+  };
+  Seen seen_[kNodeCount] = {};
+};
 
 enum class ConfigAction : uint8_t {
   None,

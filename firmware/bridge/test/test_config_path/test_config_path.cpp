@@ -19,6 +19,7 @@
 
 #include "config_path.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/node_health_v1.h"
 
 using namespace bridge;
 using namespace lran;
@@ -349,6 +350,128 @@ void test_config_change_is_read_from_a_status() {
   TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n));
 }
 
+// RebootWatch - a node reboot owes a readback, and a context roll does not.
+
+namespace {
+
+// A schema 0xFE STATUS from 0xF1, serialized into `buf`.
+size_t sim_status(uint8_t* buf, uint32_t uptime_s, uint16_t boot_count,
+                  StatusReason reason, Header* h) {
+  schema::GateLinkStatusV1 st;
+  st.uptime_s      = uptime_s;
+  st.boot_count    = boot_count;
+  st.status_reason = static_cast<uint8_t>(reason);
+  size_t n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(st, buf, kMaxSchemaPayload, &n));
+  *h        = Header{};
+  h->type   = MsgType::Status;
+  h->schema = kSchemaSimnodeStatusV1;
+  h->src    = kNodeSim1;
+  return n;
+}
+
+bool heard(RebootWatch& w, uint32_t uptime_s, uint16_t boot_count, uint32_t rx_ms,
+           StatusReason reason = StatusReason::PollResponse) {
+  uint8_t buf[kMaxSchemaPayload];
+  Header  h;
+  const size_t n = sim_status(buf, uptime_s, boot_count, reason, &h);
+  return w.on_status(h, buf, n, rx_ms);
+}
+
+}  // namespace
+
+// The first STATUS sets the reference. Polls a minute apart, uptime a minute on: no
+// reboot, and a roll between them changes neither field, so it cannot fire this.
+void test_steady_uptime_is_not_a_reboot() {
+  RebootWatch w;
+  TEST_ASSERT_FALSE(heard(w, 5000, 0, 1000));
+  TEST_ASSERT_FALSE(heard(w, 5060, 0, 61000));
+  TEST_ASSERT_FALSE(heard(w, 5119, 0, 121000));  // a second short: truncation and media access
+}
+
+void test_uptime_going_backwards_is_a_reboot() {
+  RebootWatch w;
+  (void)heard(w, 5000, 0, 1000);
+  TEST_ASSERT_TRUE(heard(w, 12, 0, 61000));
+  // The new reading is the reference now; the next poll is steady again.
+  TEST_ASSERT_FALSE(heard(w, 72, 0, 121000));
+}
+
+// Last heard at 100 s of uptime; rebooted; heard again an hour later at 600 s. The
+// uptime went up, and it is still far short of the 3700 s the gap predicts.
+void test_a_reboot_across_a_long_gap_is_caught() {
+  RebootWatch w;
+  (void)heard(w, 100, 0, 0);
+  TEST_ASSERT_TRUE(heard(w, 600, 0, 3600000));
+}
+
+// A day between frames: the drift allowance keeps a slow node clock from reading as a
+// reboot. 86400 s at 0.1 % slow is 86 s short, inside 5 + 86400 / 256.
+void test_clock_drift_over_a_day_is_not_a_reboot() {
+  RebootWatch w;
+  (void)heard(w, 1000, 0, 0);
+  TEST_ASSERT_FALSE(heard(w, 1000 + 86400 - 86, 0, 86400000));
+}
+
+void test_status_reason_boot_is_a_reboot_even_first_heard() {
+  RebootWatch w;
+  TEST_ASSERT_TRUE(heard(w, 3, 0, 0, StatusReason::Boot));
+}
+
+// A simulated GateLink reboot on the simnode bumps boot_count and keeps the board's
+// uptime; the count alone must be enough. A count of 0 is unavailable and never compared.
+void test_boot_count_change_is_a_reboot() {
+  RebootWatch w;
+  (void)heard(w, 5000, 4, 0);
+  TEST_ASSERT_TRUE(heard(w, 5060, 5, 60000));
+  TEST_ASSERT_FALSE(heard(w, 5120, 0, 120000));
+  TEST_ASSERT_FALSE(heard(w, 5180, 5, 180000));
+}
+
+// Schema 0xF0 has uptime_s and boot_count and no status_reason.
+void test_node_health_uptime_is_read() {
+  RebootWatch w;
+  schema::NodeHealthV1 hv;
+  uint8_t buf[kMaxSchemaPayload];
+  size_t  n = 0;
+  Header  h;
+  h.type   = MsgType::Status;
+  h.schema = kSchemaNodeHealthV1;
+  h.src    = kNodeSim2;
+  hv.uptime_s = 900;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(hv, buf, sizeof(buf), &n));
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n, 0));
+  hv.uptime_s = 20;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(hv, buf, sizeof(buf), &n));
+  TEST_ASSERT_TRUE(w.on_status(h, buf, n, 60000));
+}
+
+// Each node keeps its own reference, and nothing else is read: not another type, not an
+// unregistered source, not a payload that does not decode.
+void test_reboot_watch_reads_only_what_it_should() {
+  RebootWatch w;
+  uint8_t buf[kMaxSchemaPayload];
+  Header  h;
+  size_t  n = sim_status(buf, 5000, 0, StatusReason::PollResponse, &h);
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n, 0));
+
+  // Another node's first frame at a low uptime is its reference, not 0xF1's reboot.
+  n = sim_status(buf, 10, 0, StatusReason::PollResponse, &h);
+  h.src = kNodeSim0;
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n, 60000));
+
+  n = sim_status(buf, 10, 0, StatusReason::Boot, &h);
+  h.src = 0x7E;  // not in kNodeTable
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n, 60000));
+  h.src  = kNodeSim1;
+  h.type = MsgType::Event;
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n, 60000));
+  h.type = MsgType::Status;
+  TEST_ASSERT_FALSE(w.on_status(h, buf, n - 1, 60000));
+  // None of those moved 0xF1's reference.
+  TEST_ASSERT_FALSE(heard(w, 5060, 0, 60000));
+}
+
 // The CONFIG's ACK window counts from when the frame left lora_task.
 void test_the_ack_window_counts_from_when_the_config_aired() {
   ConfigPath path;
@@ -383,5 +506,13 @@ int main(int, char**) {
   RUN_TEST(test_config_change_is_read_from_a_status);
 
   RUN_TEST(test_the_ack_window_counts_from_when_the_config_aired);
+  RUN_TEST(test_steady_uptime_is_not_a_reboot);
+  RUN_TEST(test_uptime_going_backwards_is_a_reboot);
+  RUN_TEST(test_a_reboot_across_a_long_gap_is_caught);
+  RUN_TEST(test_clock_drift_over_a_day_is_not_a_reboot);
+  RUN_TEST(test_status_reason_boot_is_a_reboot_even_first_heard);
+  RUN_TEST(test_boot_count_change_is_a_reboot);
+  RUN_TEST(test_node_health_uptime_is_read);
+  RUN_TEST(test_reboot_watch_reads_only_what_it_should);
   return UNITY_END();
 }

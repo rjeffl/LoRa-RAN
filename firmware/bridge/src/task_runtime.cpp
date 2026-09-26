@@ -218,9 +218,11 @@ std::atomic<bool> g_phy_busy{false};
 
 // spec 12.4.1 step 2's `phy_fleet_incomplete`, for mqtt_task: the nodes the scheduler
 // polls, and those of them not online. sched_availability() writes both every tick.
-// spec 8.7, D69 - nodes whose STATUS reported CONFIG_CHANGE and whose readback has not
-// yet started. app_task sets a bit; sched_config() takes it when the path is free.
+// spec 8.7, D69 - nodes whose STATUS reported CONFIG_CHANGE, or showed a reboot, and
+// whose readback has not yet started. app_task sets a bit; sched_config() takes it when
+// the path is free.
 std::atomic<uint32_t> g_config_change_pending{0};
+RebootWatch           g_reboot_watch;  // app_task alone
 
 // BF-28, BF-29, BF-30 - the HEX proxy, each node's write arm and its charge readback, under
 // the SAME lock and for the same reasons as the command path. A write shares the command
@@ -986,7 +988,8 @@ void sched_config(uint32_t now_ms) {
           (void)g_config_path.submit(g_config_job, ns.ctx_id, seq, now_ms);
         }
       } else if (const uint32_t pending = g_config_change_pending.load(); pending != 0) {
-        // spec 8.7, D69 - after Home Assistant's own jobs, one node's readback at a time.
+        // spec 8.7, D69, or a node reboot - after Home Assistant's own jobs, one node's
+        // readback at a time.
         // No command seq is taken: the readback is a POLL, and POLL takes a poll seq.
         for (size_t i = 0; i < kNodeCount; ++i) {
           const uint32_t bit = node_bit(kNodeTable[i].id);
@@ -2777,6 +2780,13 @@ void app_task(void*) {
       // A bench node's too: its config/state publishes whatever simnode_diag_enable says
       // (D65). A dummy frame never reaches here, so it cannot ask for one.
       if (status_reports_config_change(msg.hdr, msg.payload, msg.payload_len)) {
+        g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
+      }
+      // A reboot may have cleared what the readback mirror says the node runs, and
+      // config/state would go on reporting it (config_path.h, RebootWatch).
+      if (g_reboot_watch.on_status(msg.hdr, msg.payload, msg.payload_len, msg.rx_millis)) {
+        Serial.printf("config: %02x rebooted, readback owed\n",
+                      static_cast<unsigned>(msg.hdr.src));
         g_config_change_pending.fetch_or(node_bit(msg.hdr.src));
       }
     }
