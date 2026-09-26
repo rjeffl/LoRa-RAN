@@ -30,7 +30,7 @@ has not been reconciled with the intervening revisions.**
   quickly.** At a milestone boundary, move whole entries, unedited, into
   `engineering-log-<first date>_<last date>.md` beside it, and name that file at the top of
   the live log. Keep in the live file every entry that an open investigation still relies
-  on. Moving an entry does not rewrite it. The bridge log was split this way on 2026-09-18.
+  on. Moving an entry does not rewrite it. The bridge log was split this way on 2026-09-18 and 2026-09-26.
 - Every document carries a version, a status and a `Last updated` date in its header, and
   a changelog as its final section. Both are updated in the same commit as the change.
 
