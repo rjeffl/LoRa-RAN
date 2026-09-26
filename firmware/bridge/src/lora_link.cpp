@@ -286,7 +286,7 @@ void try_begin(uint32_t now_ms) {
 
   // What the radio was actually configured with, from the values it was configured from.
   // The banner's PHY line is a string; this one cannot drift from kPhy. Conducted power
-  // and antenna gain stay separate (root rule 10).
+  // and antenna gain stay separate (root rule 11).
   log_printf(LogLevel::Info,
              "LoRa: radio up - %lu Hz, SF%u, BW %u.%u kHz, CR 4/%u, %d dBm conducted, "
              "%u.%u dBi antenna\n",

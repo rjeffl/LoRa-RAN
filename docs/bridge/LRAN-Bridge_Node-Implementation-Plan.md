@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.71
+**Version:** 0.72
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -164,8 +164,9 @@ alone, and no node commits until the bridge has heard every node on the new sett
 (`clamp_conducted()`, and `tools/rangetest/eirp_check.py` verifies it ran). Bench work may
 sit at −9 dBm, the SX1262's hard floor; **restore the D33 ceiling before a range test**,
 and **record conducted power in dBm rather than a RadioLib power index** — the Heltec and
-Wio certified powers differ by about 6 dB, so an index does not carry between them (root
-`CLAUDE.md` rule 10, **M6**). A range test run at bench power is a range test that has to
+Wio powers tested for their FCC grants differ by about 6 dB, so an index does not carry
+between them (root `CLAUDE.md` rule 11, **M6**). Neither module's grant covers LRAN (spec
+§18.2). A range test run at bench power is a range test that has to
 be repeated.
 
 ### 2.3 The XIAO + Wio-SX1262 as a target-radio simnode
@@ -2949,6 +2950,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.72** — **§2.2 no longer calls the modules' powers certified.** They are the
+  conducted powers each module's FCC grant was tested at, and spec §18.2 says neither
+  grant covers LRAN; the old wording ran against root `CLAUDE.md` rule 11. The rule
+  citation moves from 10 to 11, where the root file's renumbering put TX power.
 
 - **v0.71** — **A CAD waits for a frame's preamble, and for a burst's second frame.**
   §5.3.1's table has two new rules for both radio drivers. They defer a CAD while a
