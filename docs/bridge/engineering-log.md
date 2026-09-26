@@ -3299,3 +3299,49 @@ specification, not a statement of it.
   them.
 
 Impl Plan §6.4.1 records the code, and none of it has been on air.
+
+## 2026-09-25 — V-B6 on the bench: the three gates, the expiry and the audit, against f1's simulated MPPT
+
+**V-B6 passed on the bench.** The bridge board and the XIAO were flashed from `7e7b92a`, a
+clean tree, and f1 ran `ROLE_GATELINK` with BF-36's simulated MPPT. A script held both
+serial ports open for the whole run and published to `lran/simnode1/vedirect/...` on the
+sandbox broker. `simnode_diag_enable` was 1 for the run, so the bench readback published,
+and 0 afterwards.
+
+| Step | Result |
+|---|---|
+| Get `0xEDF7`, `:7F7ED006A` | `answered`, `ok`, `:7F7ED008C05D9`, 14.20 V. `seq` 11, in the read space |
+| Set `0xEDF7` to 14.00 V while disarmed | `refused_disarmed`, no frame on air; `hex/audit` with `authorization` `disarmed` |
+| `ON` on `write_enable/set` | `write_enable/state` `ON` 0.8 s later |
+| The same Set while armed | `answered`, `ok`; `hex/audit` with `authorization` `armed`. The XIAO logged the write under command `seq` 2 |
+| Get `0xEDF7` again | `:7F7ED007805ED`, 14.00 V. The readback pass after the write had already published it on `charge/state` |
+| `mppt f1 timeout 1`, then a Get | `answered` with `status` `timeout` and a `null` response |
+| `hello` on `hex/request` | `malformed`, `seq` `null`, nothing transmitted |
+| Arm, then wait | `write arm expired` and `write_enable/state` `OFF` **301.0 s** after the arm. The Set that followed was `refused_disarmed` |
+| A fresh subscriber | Received the retained `hex/audit` (the last refusal), `write_enable/state` `OFF` and `charge/state` |
+
+**The first readback pass ran as the bridge first heard f1**, after the roll, one register
+every 2 s, and all ten answered. The XIAO counted 43 frames in and 44 out, with no drop and
+no rejection.
+
+**A retained `write_enable/set` is refused on a reconnect, and only then.** The first
+attempt published a retained `ON` while the bridge was subscribed, and the bridge armed. The
+test was wrong, not the code: a broker delivers a message to a subscriber already
+connected with the retain flag clear (MQTT 3.1.1 §3.3.1.3), so that `ON` is
+indistinguishable from an operator's. The case the rule guards is a reconnect. With that
+`ON` still retained, a reset of the bridge logged `retained write_enable/set ignored and
+cleared`, published an empty retained message on `write_enable/set`, and stayed disarmed.
+A fresh subscriber then found no retained `set`.
+
+**A refused write takes a command `seq`.** The two `refused_disarmed` Sets took `seq` 1 and
+4, and neither reached the air. The node accepts any `seq` above its high-water mark (spec
+§9.4), so the gap costs nothing. It does mean `seq` on `hex/audit` is not a count of writes
+the node saw.
+
+**`charge/state` does not follow a change made behind the bridge's back.** After `mppt f1
+reset` put 14.20 V back, `charge/state` still read 14.00 V, because a pass runs only on
+first hearing and after a write the bridge sent. On GateLink the same happens when a
+setting is changed with VictronConnect. The next bridge boot corrects it.
+
+Not covered: gate 1 on air. No bench tool sends a write-class `HEX_REQ` with a bad MAC;
+`test_gatelink` and `test_hex_proxy` cover it on the host.

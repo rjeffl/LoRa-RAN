@@ -282,7 +282,7 @@ them; Impl Plan §6.3.1. **Four things to keep:**
   acknowledges it.
 
 **`BF-28` to `BF-30` — the HEX proxy, its write gates and the charge readback, built and
-host-tested 2026-09-25; not yet on air.** `hex_proxy.{h,cpp}` and `charge_readback.{h,cpp}`
+host-tested 2026-09-25; V-B6 passed on the bench the same day.** `hex_proxy.{h,cpp}` and `charge_readback.{h,cpp}`
 decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
 
 - **Each write gate stands alone, and each has its own test.** The MAC is the library's,
@@ -293,7 +293,8 @@ decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
   answer, so an unanswered write is `unknown` and a Get settles it. A read retries under
   the same `seq`. Spec §10.3's resync is the one exception.
 - **A retained `write_enable/set` is ignored and cleared**, so a reconnect cannot re-arm
-  writes.
+  writes. The broker sets the retain flag only on a replay at subscribe, so test the rule
+  across a bridge reset, not with a live publish.
 - **The charge registers come from `osh-labs/VE.Direct_mppt_arduino`**, and their scales
   are unconfirmed until B6. A readback that disagrees with the real MPPT is a finding to
   record, not a scale to adjust.
