@@ -1,0 +1,245 @@
+21:51:43 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"sour
+21:51:43 [bridge] ESP-ROM:esp32s3-20210327
+21:51:43 [xiao] ESP-ROM:esp32s3-20210327
+21:51:43 [bridge] Build:Mar 27 2021
+21:51:43 [xiao] Build:Mar 27 2021
+21:51:43 [bridge] rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+21:51:43 [xiao] rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+21:51:43 [xiao] Saved PC:0x4203699e
+21:51:43 [bridge] SPIWP:0xee
+21:51:43 [xiao] SPIWP:0xee
+21:51:43 [bridge] mode:DIO, clock div:1
+21:51:43 [xiao] mode:DIO, clock div:1
+21:51:43 [bridge] load:0x3fce3808,len:0x4bc
+21:51:43 [xiao] load:0x3fce3808,len:0x4bc
+21:51:43 [xiao] load:0x403c9700,len:0xbd8
+21:51:43 [xiao] load:0x403cc700,len:0x2a0c
+21:51:43 [xiao] entry 0x403c98d0
+21:51:43 [bridge] load:0x403c9700,len:0xbd8
+21:51:43 [bridge] load:0x403cc700,len:0x2a0c
+21:51:43 [bridge] entry 0x403c98d0
+21:51:44 [bridge] LRAN Bridge Node - node 0x00
+21:51:44 [bridge] Binding spec: LRAN-Protocol-Specification v0.15 (ver = 2)
+21:51:44 [bridge] PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+21:51:44 [bridge] Version: 0.1.0 (74659b9-dirty)
+21:51:44 [bridge] Slot: app0
+21:51:44 [bridge] Image state: not_pending
+21:51:44 [bridge] CHAN-BOOT,74659b9-dirty,917400000,9,1250,1000,-1100,10
+21:51:44 [bridge] WiFi SSID: McLeeNet
+21:51:44 [bridge] MQTT broker: 192.168.2.52:1883
+21:51:44 [bridge] Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+21:51:44 [bridge] boot: count 14
+21:51:44 [bridge] Config: 17 stored value(s) restored
+21:51:44 [bridge] levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readba[   571][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+21:51:44 [bridge] ck 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag off
+21:51:44 [bridge] Tasks started: 7
+21:51:44 [bridge] WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+21:51:44 [bridge] LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+21:51:44 [bridge] LoRa: stack high-water 6416 bytes free
+21:51:44 [bridge] [   740][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+21:51:44 [bridge] [   749][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+21:51:44 [bridge] [   788][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+21:51:44 [bridge] OTA: listening as lran-bridge
+21:51:44 [bridge] mqtt: connected, heap free 68300, lowest 59512
+21:51:44 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"sour
+21:51:45 [xiao] LRAN simnode - bench nodes 0xF0-0xF3
+21:51:45 [xiao] Binding spec: LRAN-Protocol-Specification v0.15 (ver = 2)
+21:51:45 [xiao] Board: xiao_esp32s3+wio_sx1262_kit
+21:51:45 [xiao] id f1 ROLE_GATELINK ctx 0x532f0fd1
+21:51:45 [xiao] [  1620][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+21:51:45 [bridge] CHAN,0,622,1000,99,1,4,0,-1080,-1130,-1117
+21:51:45 [xiao] OLED: up
+21:51:45 [xiao] radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+21:51:45 [xiao] B0: identities, console, faults, OLED; all four roles. Type 'help'.
+21:51:46 [bridge] CHAN,1,1622,1000,100,0,13,0,-1060,-1130,-1115
+21:51:47 [bridge] CHAN,2,2622,1000,100,0,9,0,-1090,-1130,-1117
+21:51:48 [bridge] CHAN,3,3622,1000,100,0,5,0,-1090,-1130,-1119
+21:51:54 [bridge] CHANSUM,0,9,10,10000,999,1,31,0,4,0,-1060,-1130,-1130,-1130
+21:51:58 [bridge] CHAN,13,13622,1000,100,0,1,0,-730,-1130,-1116
+21:51:58 [mqtt] lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"simnode_diag_enable":{"status":"ok","value":1}}}
+21:51:59 [bridge] levers: gen 4 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag on
+21:51:59 [bridge] CHAN,14,14622,1001,100,0,3,0,-1080,-1130,-1118
+21:52:00 [bridge] CHAN,15,15623,1000,100,0,4,0,-1100,-1130,-1119
+21:52:01 [bridge] CHAN,16,16623,1000,100,0,6,0,-1100,-1130,-1118
+21:52:01 [xiao] OK push f1 -> 00 schema 0xFE DEBUG_SYNTHETIC
+21:52:02 [bridge] FRAME #0 rx t=18578 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=0
+21:52:02 [bridge] FRAME #0 rx t=18578 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=0
+21:52:02 [bridge] CHAN,17,17623,1007,101,0,57,1,-290,-1130,-677
+21:52:03 [bridge] availability: simnode1 online (missed_polls 0, threshold 3)
+21:52:03 [bridge] FRAME #1 tx t=19591 peer=0xf1 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+21:52:03 [bridge] FRAME #1 tx t=19591 peer=0xf1 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+21:52:03 [bridge] CHAN,18,18630,1008,95,5,3,0,-1090,-1130,-1118
+21:52:04 [bridge] poll: f1 answered in 790 ms (window 10000 ms)
+21:52:04 [bridge] poll: f1 answered in 790 ms (window 10000 ms)
+21:52:04 [bridge] FRAME #2 rx t=20357 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=214
+21:52:04 [bridge] FRAME #2 rx t=20357 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=214
+21:52:04 [bridge] FRAME #3 tx t=20589 peer=0xf1 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=235
+21:52:04 [bridge] FRAME #3 tx t=20589 peer=0xf1 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=235
+21:52:04 [bridge] CHAN,19,19638,1008,78,22,55,1,-290,-1120,-564
+21:52:04 [xiao] roll f1 <- 00 seq 1: ctx 0x532f0fd1 -> 0x91953840, ACCEPTED
+21:52:04 [bridge] FRAME #4 rx t=21068 peer=0xf1 type=2 schema=0 frag=0x01 seq=1 rssi=-31 snr=10 st=0 rx=0 deaf=468
+21:52:04 [bridge] FRAME #4 rx t=21068 peer=0xf1 type=2 schema=0 frag=0x01 seq=1 rssi=-31 snr=10 st=0 rx=0 deaf=468
+21:52:05 [bridge] roll: f1 rolled to ctx 0x91953840 after 1 attempt(s)
+21:52:05 [bridge] roll: f1 rolled to ctx 0x91953840 after 1 attempt(s)
+21:52:05 [bridge] FRAME #5 tx t=21590 peer=0xf1 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=489
+21:52:05 [bridge] FRAME #5 tx t=21590 peer=0xf1 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=489
+21:52:05 [bridge] CHAN,20,20646,1001,74,25,21,1,-290,-1130,-892
+21:52:05 [xiao] hex f1 <- 00 seq 1: read :7F7ED006A -> :7F7ED008C05D9
+21:52:05 OK: f1 rolled after 4 s
+21:52:05 [mqtt] lran/simnode1/config/set {"set": {"dedup_cache_depth": 16}}
+21:52:06 [bridge] FRAME #6 rx t=22106 peer=0xf1 type=9 schema=0 frag=0x01 seq=1 rssi=-31 snr=11 st=0 rx=0 deaf=722
+21:52:06 [bridge] FRAME #6 rx t=22106 peer=0xf1 type=9 schema=0 frag=0x01 seq=1 rssi=-31 snr=11 st=0 rx=0 deaf=722
+21:52:06 [bridge] hex: f1 seq 1 read -> answered status 0 result 0, sched stack 2396 bytes free
+21:52:06 [bridge] hex: f1 seq 1 read -> answered status 0 result 0, sched stack 2396 bytes free
+21:52:06 [bridge] CHAN,21,21647,1000,81,19,26,1,-290,-1130,-868
+21:52:07 [bridge] FRAME #7 tx t=23855 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=764
+21:52:07 [bridge] FRAME #7 tx t=23855 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=764
+21:52:07 [xiao] config f1 <- 00 seq 1: op 1, 1 entry, 1 result(s)
+21:52:08 [bridge] FRAME #8 rx t=24371 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-31 snr=11 st=0 rx=0 deaf=1018
+21:52:08 [bridge] FRAME #8 rx t=24371 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-31 snr=11 st=0 rx=0 deaf=1018
+21:52:08 [mqtt] lran/simnode1/config/ack {"op":"set","persist":"applied_not_persisted","results":{"dedup_cache_depth":{"status":"ok","value":16}}}
+21:52:08 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":16,"source":"override"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"sourc
+21:52:08 [bridge] config: f1 outcome 1, sched stack high-water 2300 bytes free
+21:52:08 [bridge] config: f1 outcome 1, sched stack high-water 2300 bytes free
+21:52:08 [bridge] FRAME #9 tx t=24597 peer=0xf1 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1043
+21:52:08 [bridge] FRAME #9 tx t=24597 peer=0xf1 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1043
+21:52:08 [bridge] CHAN,23,23654,1009,65,34,25,1,-280,-1130,-822
+21:52:08 [xiao] hex f1 <- 00 seq 2: read :7F6ED006B -> :7F6ED00460520
+21:52:08 OK: config/state shows 16 after 3 s
+21:52:09 [bridge] FRAME #10 rx t=25116 peer=0xf1 type=9 schema=0 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=1276
+21:52:09 [bridge] FRAME #10 rx t=25116 peer=0xf1 type=9 schema=0 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=1276
+21:52:09 [bridge] hex: f1 seq 2 read -> answered status 0 result 0, sched stack 2128 bytes free
+21:52:09 [bridge] hex: f1 seq 2 read -> answered status 0 result 0, sched stack 2128 bytes free
+21:52:09 [bridge] CHAN,24,24663,1004,82,18,26,1,-290,-1130,-871
+21:52:10 [bridge] FRAME #11 tx t=26602 peer=0xf1 type=1 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1301
+21:52:10 [bridge] FRAME #11 tx t=26602 peer=0xf1 type=1 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1301
+21:52:10 [xiao] cmd f1 <- 00 seq 2: REBOOT ACCEPTED
+21:52:10 [xiao] id f1 rebooted: ctx 0x238c1d2f
+21:52:10 [bridge] FRAME #12 rx t=27078 peer=0xf1 type=2 schema=0 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=1534
+21:52:10 [bridge] FRAME #12 rx t=27078 peer=0xf1 type=2 schema=0 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=1534
+21:52:11 [bridge] cmd: f1 seq 2 -> outcome 1 result 0 detail 0
+21:52:11 [bridge] cmd: f1 seq 2 -> outcome 1 result 0 detail 0
+21:52:11 [mqtt] lran/simnode1/cmd/ack {"outcome":"acked","seq":2,"attempts":1,"result":0,"detail":0}
+21:52:11 [bridge] config: f1 rebooted, readback owed
+21:52:11 [bridge] config: f1 rebooted, readback owed
+21:52:11 [bridge] FRAME #13 rx t=27651 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=1534
+21:52:11 [bridge] FRAME #13 rx t=27651 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=1534
+21:52:11 [bridge] CHAN,26,26669,1003,74,27,69,2,-290,-1130,-373
+21:52:11 OK: A: reboot seen after 3 s
+21:52:11 [bridge] FRAME #14 tx t=28187 peer=0xf1 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1559
+21:52:11 [bridge] FRAME #14 tx t=28187 peer=0xf1 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1559
+21:52:12 [xiao] hex f1 <- 00 seq 3: read :7F4ED006D -> :7F4ED008C05DC
+21:52:12 [bridge] FRAME #15 rx t=28703 peer=0xf1 type=9 schema=0 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=1792
+21:52:12 [bridge] FRAME #15 rx t=28703 peer=0xf1 type=9 schema=0 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=1792
+21:52:12 [bridge] CHAN,27,27672,1004,74,25,22,0,-290,-1130,-876
+21:52:13 [bridge] hex: f1 seq 3 read -> answered status 0 result 0, sched stack 2128 bytes free
+21:52:13 [bridge] hex: f1 seq 3 read -> answered status 0 result 0, sched stack 2128 bytes free
+21:52:13 [bridge] CHAN,28,28676,1008,101,0,4,1,-290,-1130,-1092
+21:52:14 [bridge] FRAME #16 tx t=30599 peer=0xf1 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1817
+21:52:14 [bridge] FRAME #16 tx t=30599 peer=0xf1 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1817
+21:52:15 [bridge] FRAME #17 rx t=31365 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=2009
+21:52:15 [bridge] FRAME #17 rx t=31365 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-30 snr=11 st=0 rx=0 deaf=2009
+21:52:15 [bridge] CHAN,30,30686,1000,88,12,82,1,-290,-1120,-361
+21:52:15 [bridge] FRAME #18 rx t=31794 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=2009
+21:52:15 [bridge] FRAME #18 rx t=31794 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=2009
+21:52:16 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"sour
+21:52:16 [bridge] config: f1 outcome 3, sched stack high-water 2128 bytes free
+21:52:16 [bridge] config: f1 outcome 3, sched stack high-water 2128 bytes free
+21:52:16 [bridge] FRAME #19 tx t=32600 peer=0xf1 type=8 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=2034
+21:52:16 [bridge] FRAME #19 tx t=32600 peer=0xf1 type=8 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=2034
+21:52:16 [bridge] CHAN,31,31686,1001,90,9,12,1,-290,-1130,-1016
+21:52:16 [xiao] hex f1 <- 00 seq 4: read :7FDED0064 -> :7FDED000064
+21:52:16 OK: A: config/state back off 16 after 5 s
+21:52:17 [bridge] FRAME #20 rx t=33121 peer=0xf1 type=9 schema=0 frag=0x01 seq=4 rssi=-30 snr=11 st=0 rx=0 deaf=2268
+21:52:17 [bridge] FRAME #20 rx t=33121 peer=0xf1 type=9 schema=0 frag=0x01 seq=4 rssi=-30 snr=11 st=0 rx=0 deaf=2268
+21:52:17 [bridge] hex: f1 seq 4 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:17 [bridge] hex: f1 seq 4 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:17 [bridge] CHAN,32,32687,1004,85,16,28,1,-290,-1130,-882
+21:52:18 [bridge] FRAME #21 tx t=34592 peer=0xf1 type=8 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=2289
+21:52:18 [bridge] FRAME #21 tx t=34592 peer=0xf1 type=8 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=2289
+21:52:18 [bridge] CHAN,33,33691,1008,89,11,1,0,-1100,-1130,-1119
+21:52:18 [xiao] hex f1 <- 00 seq 5: read :7F2ED006F -> :7F2ED0000006F
+21:52:18 [bridge] FRAME #22 rx t=35113 peer=0xf1 type=9 schema=0 frag=0x01 seq=5 rssi=-30 snr=11 st=0 rx=0 deaf=2522
+21:52:18 [bridge] FRAME #22 rx t=35113 peer=0xf1 type=9 schema=0 frag=0x01 seq=5 rssi=-30 snr=11 st=0 rx=0 deaf=2522
+21:52:19 [bridge] hex: f1 seq 5 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:19 [bridge] hex: f1 seq 5 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:19 [bridge] CHAN,34,34699,1005,87,14,27,1,-290,-1130,-888
+21:52:20 [bridge] FRAME #23 tx t=36599 peer=0xf1 type=8 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=2547
+21:52:20 [bridge] FRAME #23 tx t=36599 peer=0xf1 type=8 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=2547
+21:52:20 [xiao] hex f1 <- 00 seq 6: read :7F1ED0070 -> :7F1ED00FF71
+21:52:20 [bridge] FRAME #24 rx t=37119 peer=0xf1 type=9 schema=0 frag=0x01 seq=6 rssi=-31 snr=11 st=0 rx=0 deaf=2780
+21:52:20 [bridge] FRAME #24 rx t=37119 peer=0xf1 type=9 schema=0 frag=0x01 seq=6 rssi=-31 snr=11 st=0 rx=0 deaf=2780
+21:52:21 [bridge] hex: f1 seq 6 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:21 [bridge] hex: f1 seq 6 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:21 [bridge] CHAN,36,36706,1004,87,14,26,1,-290,-1130,-888
+21:52:21 [mqtt] lran/simnode1/config/set {"set": {"dedup_cache_depth": 16}}
+21:52:22 [bridge] FRAME #25 tx t=38591 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=2801
+21:52:22 [bridge] FRAME #25 tx t=38591 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=2801
+21:52:22 [bridge] CHAN,37,37710,1008,87,13,1,0,-1100,-1130,-1119
+21:52:22 [xiao] config f1 <- 00 seq 1: op 1, 1 entry, 1 result(s)
+21:52:22 [bridge] FRAME #26 rx t=39111 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=3055
+21:52:22 [bridge] FRAME #26 rx t=39111 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-30 snr=11 st=0 rx=0 deaf=3055
+21:52:23 [bridge] config: f1 outcome 1, sched stack high-water 1900 bytes free
+21:52:23 [bridge] config: f1 outcome 1, sched stack high-water 1900 bytes free
+21:52:23 [bridge] FRAME #27 tx t=39593 peer=0xf1 type=8 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=3076
+21:52:23 [bridge] FRAME #27 tx t=39593 peer=0xf1 type=8 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=3076
+21:52:23 [mqtt] lran/simnode1/config/ack {"op":"set","persist":"applied_not_persisted","results":{"dedup_cache_depth":{"status":"ok","value":16}}}
+21:52:23 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":16,"source":"override"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"sourc
+21:52:23 [bridge] CHAN,38,38718,1001,72,27,24,1,-290,-1130,-862
+21:52:23 [xiao] hex f1 <- 00 seq 7: read :7F0ED0071 -> :7F0ED009600DB
+21:52:23 OK: config/state shows 16 after 2 s
+21:52:23 [xiao] read error read failed: [Errno 9] Bad file descriptor
+21:52:23 [bridge] FRAME #28 rx t=40112 peer=0xf1 type=9 schema=0 frag=0x01 seq=7 rssi=-31 snr=11 st=0 rx=0 deaf=3309
+21:52:23 [bridge] FRAME #28 rx t=40112 peer=0xf1 type=9 schema=0 frag=0x01 seq=7 rssi=-31 snr=11 st=0 rx=0 deaf=3309
+21:52:24 [bridge] hex: f1 seq 7 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:24 [bridge] hex: f1 seq 7 read -> answered status 0 result 0, sched stack 1900 bytes free
+21:52:24 [bridge] CHAN,39,39719,1003,88,12,26,1,-290,-1150,-902
+21:52:25 [xiao2] ESP-ROM:esp32s3-20210327
+21:52:25 [xiao2] Build:Mar 27 2021
+21:52:25 [xiao2] rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+21:52:25 [xiao2] Saved PC:0x4203699e
+21:52:25 [xiao2] SPIWP:0xee
+21:52:25 [xiao2] mode:DIO, clock div:1
+21:52:25 [xiao2] load:0x3fce3808,len:0x4bc
+21:52:25 [xiao2] load:0x403c9700,len:0xbd8
+21:52:25 [xiao2] load:0x403cc700,len:0x2a0c
+21:52:25 [xiao2] entry 0x403c98d0
+21:52:25 [bridge] FRAME #29 tx t=41593 peer=0xf1 type=8 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=3330
+21:52:25 [bridge] FRAME #29 tx t=41593 peer=0xf1 type=8 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=3330
+21:52:25 [bridge] CHAN,40,40722,1008,86,14,8,0,-1090,-1160,-1128
+21:52:26 [xiao2] LRAN simnode - bench nodes 0xF0-0xF3
+21:52:26 [xiao2] Binding spec: LRAN-Protocol-Specification v0.15 (ver = 2)
+21:52:26 [xiao2] Board: xiao_esp32s3+wio_sx1262_kit
+21:52:26 [xiao2] id f1 ROLE_GATELINK ctx 0x03878612
+21:52:26 [xiao2] [  1620][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+21:52:26 [xiao2] OLED: up
+21:52:26 [xiao2] radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+21:52:26 [xiao2] B0: identities, console, faults, OLED; all four roles. Type 'help'.
+21:52:27 [bridge] CHAN,42,42732,1000,100,0,1,0,-1100,-1130,-1119
+21:52:29 [bridge] hex: f1 seq 8 read -> no_response status 0 result 0, sched stack 1900 bytes free
+21:52:29 [bridge] hex: f1 seq 8 read -> no_response status 0 result 0, sched stack 1900 bytes free
+21:52:29 [bridge] hex: f1 readback abandoned at 0xEDFB
+21:52:29 [bridge] hex: f1 readback abandoned at 0xEDFB
+21:52:30 [xiao2] OK push f1 -> 00 schema 0xFE DEBUG_SYNTHETIC
+21:52:31 [bridge] config: f1 rebooted, readback owed
+21:52:31 [bridge] config: f1 rebooted, readback owed
+21:52:31 [bridge] FRAME #30 rx t=47708 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=12 st=0 rx=0 deaf=3563
+21:52:31 [bridge] FRAME #30 rx t=47708 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-30 snr=12 st=0 rx=0 deaf=3563
+21:52:31 [bridge] CHAN,46,46732,1007,101,0,55,1,-290,-1130,-680
+21:52:31 OK: B: reboot seen after 1 s
+21:52:32 [bridge] FRAME #31 tx t=49111 peer=0xf1 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=3609
+21:52:32 [bridge] FRAME #31 tx t=49111 peer=0xf1 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=3609
+21:52:33 [bridge] CHAN,48,48746,1003,78,21,41,0,-290,-1130,-698
+21:52:33 [bridge] FRAME #32 rx t=49876 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-31 snr=11 st=0 rx=0 deaf=3801
+21:52:33 [bridge] FRAME #32 rx t=49876 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-31 snr=11 st=0 rx=0 deaf=3801
+21:52:34 [bridge] FRAME #33 rx t=50305 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=3801
+21:52:34 [bridge] FRAME #33 rx t=50305 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-30 snr=11 st=0 rx=0 deaf=3801
+21:52:34 [bridge] config: f1 outcome 3, sched stack high-water 1900 bytes free
+21:52:34 [bridge] config: f1 outcome 3, sched stack high-water 1900 bytes free
+21:52:34 [mqtt] lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"sour
+21:52:34 [bridge] CHAN,49,49749,1007,101,0,55,2,-290,-1130,-690
+21:52:34 OK: B: config/state back off 16 after 3 s
+21:52:35 [mqtt] lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"simnode_diag_enable":{"status":"ok","value":0}}}
+21:52:35 [bridge] levers: gen 6 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag off
+21:52:36 [bridge] CHAN,51,51756,1000,100,0,1,0,-1090,-1130,-1119
+21:52:40 done

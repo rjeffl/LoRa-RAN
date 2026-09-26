@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.64
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.51 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.66
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.53 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.15** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -214,7 +214,7 @@ that owns its consumer; Impl Plan §4.4.2. **Four things to keep:**
 `config_json.{h,cpp}` reads spec §16.7.2's payload and writes `config/ack` and
 `config/state`; `config_store.{h,cpp}` holds what the bridge owns; `config_path.{h,cpp}`
 is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (D49).
-**Five things to keep:**
+**Six things to keep:**
 
 - **The topic decides which row a name means.** `cad_retries`, `backoff_max_ms` and
   `frag_reassembly_timeout_ms` are in BOTH blocks of the table, because the bridge and
@@ -232,6 +232,10 @@ is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (
   published from an incomplete answer.**
 - **A readback REPLACES the state mirror; a set's ACK MERGES into it.** Confusing them
   blanks every row the set did not name, which the bench showed on 2026-09-21.
+- **A node reboot owes a readback, and it is read from `STATUS`, never from a new
+  `ctx_id`** (Impl Plan §6.7.7). A roll changes the `ctx_id` and keeps the
+  configuration (spec §10.1), so a readback keyed on the context fires after every
+  bridge restart and still misses nothing it should catch.
 - **NVS restores through `Store::restore()`**, not `apply()`, since BF-33: a stored PHY
   value replayed through `apply()` would open a trial at every boot. A value stored before a range changed is
   clamped on the way back in and a row that has since become `READ_ONLY` is refused.

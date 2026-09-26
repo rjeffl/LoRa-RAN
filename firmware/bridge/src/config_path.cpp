@@ -6,6 +6,7 @@
 #include "config_path.h"
 
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/node_health_v1.h"
 
 namespace bridge {
 
@@ -40,6 +41,51 @@ bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payloa
   lran::schema::GateLinkStatusV1 s;
   if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
   return s.status_reason == static_cast<uint8_t>(lran::StatusReason::ConfigChange);
+}
+
+bool RebootWatch::on_status(const lran::Header& hdr, const uint8_t* payload, size_t len,
+                            uint32_t rx_ms) {
+  if (hdr.type != lran::MsgType::Status) return false;
+  size_t i = 0;
+  while (i < kNodeCount && kNodeTable[i].id != hdr.src) ++i;
+  if (i == kNodeCount) return false;
+
+  uint32_t uptime_s   = 0;
+  uint16_t boot_count = 0;
+  bool     says_boot  = false;
+  if (hdr.schema == lran::kSchemaGateLinkStatusV1 ||
+      hdr.schema == lran::kSchemaSimnodeStatusV1) {
+    lran::schema::GateLinkStatusV1 s;
+    if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
+    uptime_s   = s.uptime_s;
+    boot_count = s.boot_count;
+    says_boot  = s.status_reason == static_cast<uint8_t>(lran::StatusReason::Boot);
+  } else if (hdr.schema == lran::kSchemaNodeHealthV1) {
+    lran::schema::NodeHealthV1 s;
+    if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
+    uptime_s   = s.uptime_s;
+    boot_count = s.boot_count;
+  } else {
+    return false;
+  }
+
+  Seen& last     = seen_[i];
+  bool  rebooted = says_boot;
+  if (last.heard) {
+    if (boot_count != 0 && last.boot_count != 0 && boot_count != last.boot_count) {
+      rebooted = true;
+    }
+    // Unsigned subtraction survives millis() wrapping once between two frames.
+    const uint32_t gap_s     = (rx_ms - last.rx_ms) / 1000u;
+    const uint64_t expected  = static_cast<uint64_t>(last.uptime_s) + gap_s;
+    const uint64_t tolerance = kSlackS + gap_s / kDriftDivisor;
+    if (static_cast<uint64_t>(uptime_s) + tolerance < expected) rebooted = true;
+  }
+  last.heard      = true;
+  last.uptime_s   = uptime_s;
+  last.boot_count = boot_count;
+  last.rx_ms      = rx_ms;
+  return rebooted;
 }
 
 ConfigStep ConfigPath::next(uint32_t now_ms) {
