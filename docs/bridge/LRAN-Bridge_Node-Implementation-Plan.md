@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.64
+**Version:** 0.65
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1034,7 +1034,8 @@ entry argues each choice.
 | Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
 | `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
 | OTA | An upload in progress holds new polls; an outstanding poll keeps `lora_task_idle()` false (R-5.3d) |
-| One exchange on the air | **An outstanding poll holds every other exchange**: a command, a roll, a `CONFIG` and the start of a PHY change. **No scheduled poll starts** while one of those waits for its answer, while a PHY change blocks traffic, or while a command or configuration job waits in its queue. `air_turn.h` states the rule. The engineering log's *poll clash* entry, 2026-09-24, has the defect it closes |
+| One exchange on the air | **An outstanding poll holds every other exchange**: a command, a roll, a `CONFIG`, a HEX request and the start of a PHY change. **Each of those holds the others too**, which until 2026-09-25 a command and a `CONFIG` did not: both could be in flight to one node, each with a seq from the same command space. **No scheduled poll starts** while one of those waits for its answer, while a PHY change blocks traffic, or while a command or configuration job waits in its queue. `air_turn.h` states the rule, and `exchange_may_start()` is the only place it is checked. **A PHY change's step-6 `POLL`s go one at a time**, each held until the last is answered or its `config_ack_timeout_ms` has passed. The engineering log's *poll clash* entry, 2026-09-24, has the defect it closes |
+| Reply windows | **A command's, a roll's, a `CONFIG`'s, a HEX request's and a PHY change's window opens when the frame leaves `lora_task`**, not when `sched_task` queues it, because media access can hold a frame for seconds (spec §12.3). `lora_tx_finished()` reports each ticketed frame, sent or not, and the path's `next()` waits for that report, for 10 s at most. **The scheduled poll is the exception**: its window and its answer time count from the queue, and `poll_reply_timeout_ms` above is sized for that. The engineering log's 2026-09-25 *air-timing defects* entry has the defect this closes |
 
 #### 6.1.2 What BF-20 built, 2026-09-14
 
@@ -2835,6 +2836,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.65** — **Three air-timing defects from B4b's bench runs are fixed.** §6.1.1's
+  exchange row now says every exchange holds every other, and that a PHY change's step-6
+  `POLL`s go one at a time. A new row says a reply window opens when its frame leaves
+  `lora_task`.
 
 - **v0.64** — **B5 is met on the bench and accepted.** §8's row records both. New §6.4.1 records BF-28's HEX
   proxy, BF-29's write gates and BF-30's charge readback, whose registers follow
