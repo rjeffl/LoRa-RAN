@@ -3416,10 +3416,10 @@ appeared.** The fleet was f0 and f2 on the Heltec and f1 on the XIAO, with `depl
 | Check | Result |
 |---|---|
 | Rolls after the boot | f0, f1 and f2, **1 attempt each** |
-| A `CONFIG` and an `OPEN` to f1 published 50 ms apart, four times, both orders | **Serial every time.** The `COMMAND` went, its ACK came back, and only then the `CONFIG`, 0.1–1.8 s later |
-| Five more `OPEN`s to f1 | All acknowledged at the first attempt, 1.8–2.1 s after the publish |
+| A `CONFIG` and an `OPEN` to f1 published 50 ms apart, four times, both orders | **Serial every time.** The `COMMAND` went, its ACK came back, and only then the `CONFIG`, 0.2–1.7 s later |
+| Five more `OPEN`s to f1 | All acknowledged at the first attempt, 1.5–2.7 s from the publish to `cmd/ack` |
 | PHY change to 917.0 MHz and back | **Both committed**, in 11.6 s and 13.8 s |
-| Step-6 `POLL`s | Six, each sent 0.3–1.8 s after the previous node's answer |
+| Step-6 `POLL`s | Six. After each change's first, each went 0.2–2.1 s after the previous node's answer |
 | A frame sent while another path's answer was due | **0 of 111** |
 | `air:` backstop lines | 0 |
 
