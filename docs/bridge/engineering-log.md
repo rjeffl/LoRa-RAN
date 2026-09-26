@@ -3571,3 +3571,32 @@ bench row's topic changes between `online` and `offline`, not on every publicati
 **Verified:** lran-config 29 and bridge 490 host tests, simnode 140, the `heltec` and
 `simnode-heltec` builds, and `run_ci_local.py`. No bench run: each edge needs a reset
 timed within a fraction of a second, or a flag set while NVS refuses the write.
+
+## 2026-09-26 — Group 2's housekeeping: the leveled log, the watchdog and `phy reset`, host-tested
+
+Four of group 2's five items, scoped with the operator at the start: BF-11a, BF-11b,
+`mqtt_task`'s high-water mark and the simnode's `phy reset`. The simnode's spec v0.16
+reset obligations and BF-27's bridge-side simulators became groups of their own in the
+handoff. Impl Plan §5.2.2 has the design.
+
+**The first line length cut the longest line.** `LogMessage` held 160 bytes, the frame
+log's line length. The test that formats the `levers:` line with every field at its widest
+failed: that line reaches 182 characters. It is 192 now. A cut line ends in `...`, but a cut
+`levers:` line hides the value a bench run set out to confirm.
+
+**The watchdog timeout is compile-time, against root rule 8's letter.** Impl Plan §5.2.2
+argues it. The TWDT was already running under Arduino-ESP32 at 5 s, watching only core
+0's idle task. `esp_task_wdt_init()` reconfigures it to 10 s rather than failing, which the
+IDF 4.4 header states.
+
+**`phy reset` had to leave the table's defaults unmarked, and no call on `Store` could do
+that.** `restore()` holds any value it is given as an override, a default included, and
+`restore_defaults()` deliberately keeps the PHY group (D52). lran-config gains
+`Store::forget_phy_group()`, documented as a bench tool that nothing on the air reaches.
+
+**Verified:** bridge 497, lran-config 30 and simnode 140 host tests; the `heltec`,
+`simnode-heltec` and `simnode-xiao-wio` builds; `run_ci_local.py`. **Nothing was flashed.**
+Owed on the bench: the `Reset:` banner line, one `mqtt: stack high-water` line after
+connect, `sched_task`'s high-water mark on the next configuration resolution against
+2026-09-24's 1352 bytes, and `phy reset` on a simnode followed by a readback with no PHY
+row marked as an override.

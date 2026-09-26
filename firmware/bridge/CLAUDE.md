@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.68
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.55 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.69
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.56 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -305,6 +305,17 @@ decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
 - **The charge registers come from `osh-labs/VE.Direct_mppt_arduino`**, and their scales
   are unconfirmed until B6. A readback that disagrees with the real MPPT is a finding to
   record, not a scale to adjust.
+
+**`BF-11a` and `BF-11b` — the leveled log and the watchdog, built and host-tested
+2026-09-26.** `log.{h,cpp}` formats; `log_printf()` in `task_runtime.cpp` queues and
+`log_task` prints; Impl Plan §5.2.2. **Three things to keep:**
+
+- **`sched_task` and `lora_task` log through `log_printf()`, never `Serial`.** A serial
+  write blocks while the UART buffer is full. Other tasks may still print directly.
+- **An info line prints exactly as its caller wrote it.** Tools and bench notes match on
+  the text, so a prefix belongs on `WARN` and `ERROR` lines only.
+- **The watchdog is fed at the end of `sched_task`'s tick, and nowhere else.** A second
+  feed point is a task that keeps a hung bridge alive.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by

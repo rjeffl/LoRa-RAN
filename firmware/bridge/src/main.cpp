@@ -14,6 +14,7 @@
 // at one - and this one prints only the SSID and the broker address.
 
 #include <Arduino.h>
+#include <esp_system.h>
 
 #include "lran/link/chan_monitor.h"
 #include "blaster.h"
@@ -57,6 +58,24 @@ bool master_key_is_placeholder() {
   return true;
 }
 
+// BF-11b - why the last boot ended. A watchdog reset leaves no other trace: the panic it
+// raises prints to a serial port that nobody at a mains-powered bridge is watching.
+const char* reset_reason_name(esp_reset_reason_t r) {
+  switch (r) {
+    case ESP_RST_POWERON:   return "power_on";
+    case ESP_RST_EXT:       return "external_pin";
+    case ESP_RST_SW:        return "software";
+    case ESP_RST_PANIC:     return "panic";
+    case ESP_RST_INT_WDT:   return "interrupt_watchdog";
+    case ESP_RST_TASK_WDT:  return "task_watchdog";
+    case ESP_RST_WDT:       return "other_watchdog";
+    case ESP_RST_DEEPSLEEP: return "deep_sleep";
+    case ESP_RST_BROWNOUT:  return "brownout";
+    case ESP_RST_SDIO:      return "sdio";
+    default:                return "unknown";
+  }
+}
+
 }  // namespace
 
 void setup() {
@@ -94,6 +113,8 @@ void setup() {
   Serial.println(bridge::ota_running_slot());
   Serial.print(F("Image state: "));
   Serial.println(bridge::ota_state_name(bridge::ota_image_state()));
+  Serial.print(F("Reset: "));
+  Serial.println(reset_reason_name(esp_reset_reason()));
 
   // M25 - the capture file's header. A six-to-twelve-hour capture is read by a tool
   // months later on a machine that has none of this context, so the file has to say what

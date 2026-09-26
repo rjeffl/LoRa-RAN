@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.68
+**Version:** 0.69
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -875,6 +875,42 @@ missing.
 if `portMAX_DELAY`, `delay()`, a WiFi or publish call, or a queue call with a
 non-zero timeout appears in the code `lora_task` owns. It reads one function's text —
 a tripwire on the shape of the mistake, not a proof.
+
+#### 5.2.2 The leveled log and the watchdog, built by BF-11a and BF-11b on 2026-09-26
+
+**`log_printf()` formats a line on the caller's stack and queues it without waiting.**
+`log_task` prints it. A full queue drops the newest line and counts it as
+`q_log_dropped`, the counter every queue already had. A serial write blocks its caller
+while the UART buffer is full, and Arduino's `printf` takes a heap block for any line over
+64 bytes; `sched_task` and `lora_task` are the two tasks that must do neither. **Their
+lines moved to the queue, and no other task's did**: `mqtt_task`, `app_task` and the boot
+path still print directly, by operator choice, until a reason to move them appears.
+
+| Choice | Value | Why |
+|---|---|---|
+| Line length | 192 bytes | The `levers:` line reaches 182 characters with every field at its widest. `test_log` checks that it fits; 160 cut it |
+| Levels | `ERROR`, `WARN`, info | An info line prints as it did before, so nothing that reads the serial log changes. The other two gain a prefix |
+| Before `start_tasks()` | Straight to `Serial` | There is no queue yet and no task to protect |
+| Cost | ~3.1 KB static, ~200 bytes of the caller's stack | The stack cost replaces `Serial.printf`'s 64-byte buffer. Read `sched_task`'s high-water mark on the bench |
+
+**The task watchdog watches `sched_task` alone**, fed once at the end of each tick, so a
+tick that hangs part way through is the one that starves it. Its timeout is **10 s**,
+`kWatchdogTimeoutS` in `tasks.h`: ten ticks, against ESP-IDF's default of 5 s, because a
+tick can wait behind the configuration lock while NVS erases a page. The value is
+compile-time on purpose. Root rule 8 protects a node that cannot be reflashed, the bridge
+takes OTA, and a timeout that Home Assistant could set to 1 s is a way into a reset loop.
+**A watchdog that fails to arm is logged, and the bridge runs unwatched.** The boot banner
+prints `Reset:` with `esp_reset_reason()`, because a watchdog reset leaves no other trace
+on a bridge nobody watches over serial.
+
+**What the watchdog does not see.** It catches a hung `sched_task`, and with it a lock
+that some other task never releases. It does not catch a hung `lora_task`, `mqtt_task` or
+`app_task` whose locks stay free. Making the feed conditional on those tasks' progress is
+a separate decision, not taken here.
+
+`mqtt_task` logs its own high-water mark each time the mark reaches a new low, checked
+every 10 s. No single call site is its deepest, the way the configuration resolution is
+`sched_task`'s.
 
 ### 5.3 Module map
 
@@ -2907,6 +2943,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.69** — **BF-11a and BF-11b are built**, new §5.2.2: the leveled log's queue, with
+  `sched_task`'s and `lora_task`'s lines moved onto it, and the task watchdog fed from
+  `sched_task` at 10 s. `mqtt_task` logs its stack high-water mark.
 
 - **v0.68** — **Three restart edges are closed.** New §6.7.8: a committed PHY change's
   `config/ack` is owed in NVS until `mqtt_task` has sent it, a `restore_defaults` no

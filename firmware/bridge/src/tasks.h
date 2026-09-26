@@ -101,6 +101,20 @@ bool all_priorities_above_arduino_loop();
 // Names are unique - they are what a panic backtrace prints.
 bool task_names_are_unique();
 
+// BF-11b - the task watchdog's timeout, in seconds. sched_task is the one task it
+// watches (Impl Plan 5.2), fed once a tick.
+//
+// TEN TICKS, NOT ESP-IDF'S FIVE SECONDS. A tick can wait behind the scheduler's and the
+// configuration store's locks, and an NVS commit under the second one can run long
+// while the flash erases a page. Ten seconds keeps a slow tick from resetting the bridge
+// and still reboots a hung one before a single poll interval has passed. The same
+// timeout applies to the idle task ESP-IDF already watches on core 0.
+//
+// COMPILE-TIME, AGAINST ROOT RULE 8's LETTER. The rule protects a node that cannot be
+// reflashed without a walk to the gate. The bridge takes OTA, and a watchdog timeout
+// that Home Assistant could set to one second is a way to put it in a reset loop.
+inline constexpr uint32_t kWatchdogTimeoutS = 10;
+
 // ---------------------------------------------------------------------------
 // Queues. Depths are here rather than at the creation site so the sizing argument
 // has one home, and so the native tests can reason about them.

@@ -253,10 +253,10 @@ void radio_failed(int16_t status, uint32_t now_ms) {
     ++g_stats.tx_dropped_no_radio;
     end_tx(now_ms);
   }
-  // TODO(BF-11a): through the log queue. A line every 10 s from a dead radio is loud on
-  // purpose; it is the only symptom a field log would otherwise show.
-  Serial.printf("LoRa: radio down, RadioLib status %d - retrying in %lu s\n",
-                static_cast<int>(status), static_cast<unsigned long>(kBeginRetryMs / 1000));
+  // A line every 10 s from a dead radio is loud on purpose; it is the only symptom a
+  // field log would otherwise show.
+  log_printf(LogLevel::Error, "LoRa: radio down, RadioLib status %d - retrying in %lu s\n",
+             static_cast<int>(status), static_cast<unsigned long>(kBeginRetryMs / 1000));
 }
 
 void try_begin(uint32_t now_ms) {
@@ -274,20 +274,22 @@ void try_begin(uint32_t now_ms) {
   // What the radio was actually configured with, from the values it was configured from.
   // The banner's PHY line is a string; this one cannot drift from kPhy. Conducted power
   // and antenna gain stay separate (root rule 10).
-  Serial.printf("LoRa: radio up - %lu Hz, SF%u, BW %u.%u kHz, CR 4/%u, %d dBm conducted, "
-                "%u.%u dBi antenna\n",
-                static_cast<unsigned long>(g_phy.freq_hz), static_cast<unsigned>(g_phy.sf),
-                static_cast<unsigned>(g_phy.bw_khz10 / 10),
-                static_cast<unsigned>(g_phy.bw_khz10 % 10),
-                static_cast<unsigned>(g_phy.cr_denom), static_cast<int>(g_phy.conducted_dbm),
-                static_cast<unsigned>(g_phy.antenna_gain_dbi10 / 10),
-                static_cast<unsigned>(g_phy.antenna_gain_dbi10 % 10));
+  log_printf(LogLevel::Info,
+             "LoRa: radio up - %lu Hz, SF%u, BW %u.%u kHz, CR 4/%u, %d dBm conducted, "
+             "%u.%u dBi antenna\n",
+             static_cast<unsigned long>(g_phy.freq_hz), static_cast<unsigned>(g_phy.sf),
+             static_cast<unsigned>(g_phy.bw_khz10 / 10),
+             static_cast<unsigned>(g_phy.bw_khz10 % 10),
+             static_cast<unsigned>(g_phy.cr_denom), static_cast<int>(g_phy.conducted_dbm),
+             static_cast<unsigned>(g_phy.antenna_gain_dbi10 / 10),
+             static_cast<unsigned>(g_phy.antenna_gain_dbi10 % 10));
 
   // THE FALSIFIER FOR lora_task's STACK SIZE (tasks.cpp). Taken after begin() and the
-  // printf above, the two deepest things this task does. Bytes never touched since the
-  // task started; a small number here is the warning a stack overflow never gives.
-  Serial.printf("LoRa: stack high-water %u bytes free\n",
-                static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+  // log_printf above, which formats on this stack: the two deepest things this task does.
+  // Bytes never touched since the task started; a small number here is the warning a
+  // stack overflow never gives.
+  log_printf(LogLevel::Info, "LoRa: stack high-water %u bytes free\n",
+             static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
 }
 
 void start_receive(uint32_t now_ms) {

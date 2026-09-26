@@ -1,8 +1,9 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-26 by the session that closed the three restart edges.** Each now
-survives a bridge restart in NVS (Impl Plan §6.7.8). They are host-tested, and none has
-run on the bench. Group 1 is done.
+**Written 2026-09-26 by the session that did group 2's housekeeping.** BF-11a's leveled
+log, BF-11b's watchdog, `mqtt_task`'s high-water mark and the simnode's `phy reset` fix
+are host-tested (Impl Plan §5.2.2). None has been flashed. Group 2 keeps its two larger
+items, one session each.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,7 +18,13 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
-is done; groups 2 to 4 remain.
+is done; group 2's two remaining items and groups 3 and 4 remain.
+
+**Owed on the bench, whenever the boards are next flashed:** the bridge's `Reset:` banner
+line; one `mqtt: stack high-water` line after connect; `sched_task`'s high-water mark on
+the next configuration resolution, against 1352 bytes on 2026-09-24, since `log_printf()`
+formats about 130 bytes more on its stack than `Serial.printf` did; and `phy reset` on a
+simnode, then a readback with no PHY row marked as an override.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -61,16 +68,11 @@ sat on the command path, and the state mirror's readback, were fixed on 2026-09-
   A bench run would confirm the owed PHY `config/ack`: reset the bridge within 150 ms of
   a commit, and watch `lran/bridge/config/ack` for the answer after the reboot.
 
-### 2. Bridge housekeeping
+### 2. Simnode reset, then BF-27's simulators
 
-- **BF-11a**, the log queue and `log_task`'s drain, and **BF-11b**, the hardware watchdog
-  fed from `sched_task`.
-- **`mqtt_task`'s high-water mark**, which nothing prints. `sched_task` logs its own on
-  every configuration resolution; do the same here. espMqttClient's `loop()` now runs on
-  that stack.
-- **The simnode's `phy reset` leaves the PHY rows marked `override` until a reboot.**
-  `PhyTrial::reset_to_defaults()` writes each default through `Store::restore()`, which
-  holds it as an override. Clear the rows instead. Found 2026-09-25.
+One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
+on 2026-09-26.
+
 - **The simnode does not meet spec v0.16's reset obligations** (§10.1, §8.14, §10.7). It
   draws `ctx_id` from `esp_random()` with no radio subsystem on, which ESP-IDF calls
   pseudo-random. It sends no `BOOT` event with a reset cause, and its `REBOOT` is simulated
@@ -78,6 +80,9 @@ sat on the command path, and the state mirror's readback, were fixed on 2026-09-
 - **BF-27's bridge-side simulators and packet loopback.** They gate nothing. What they
   would add is an unattended, time-varying source; WellLink data waits for schema `0x20`
   (Impl Plan §8.2).
+- **The watchdog does not see a hung `lora_task`, `mqtt_task` or `app_task`** whose locks
+  stay free (Impl Plan §5.2.2). Whether the feed should wait on their progress is the
+  operator's call.
 
 ### 3. A B7 rehearsal on the bench
 
@@ -174,8 +179,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **M26**. The whole-document style passes |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **The simnode's spec v0.16 reset obligations**. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 
 ```bash

@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "log.h"
 #include "mqtt_transport.h"
 #include "queues.h"
 #include "tasks.h"
@@ -55,6 +56,12 @@ bool take_tx(TxMessage* out);
 // refuses an oversized payload, a retained event topic (spec 16.3) and a bench node's
 // production topic (spec 16.6). BF-24's policy (publish.h) decides what reaches it.
 bool send_publish(const PublishMessage& msg);
+
+// BF-11a - a leveled line for log_task to print. Formats on the caller's stack, about
+// 200 bytes of it, and queues without waiting; a full queue drops the line and counts it
+// as `q_log_dropped`. Before start_tasks() there is no queue and no task to protect, so
+// the line goes straight to Serial.
+void log_printf(LogLevel level, const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 
 // Start WiFi and the broker client. Called from setup() with the values from
 // secrets.h, which main.cpp is the only translation unit to see.
