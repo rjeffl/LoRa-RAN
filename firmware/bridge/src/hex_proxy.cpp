@@ -52,6 +52,9 @@ bool HexProxy::submit(const HexRequest& req, bool write, lran::CtxId ctx, lran::
   }
   req_   = req;
   write_ = write;
+  vedirect::Frame f;
+  restart_ = vedirect::decode(req.hex, req.n, &f) == vedirect::Parse::Ok &&
+             f.cmd == static_cast<uint8_t>(vedirect::HexCmd::Restart);
   if (write) {
     seq_ = write_seq;
     ctx_ = ctx;
@@ -144,6 +147,8 @@ HexStep HexProxy::next(uint32_t now_ms, bool armed) {
       st.ack_result = ack_result_;
       st.ack_detail = ack_detail_;
       st.audit      = write_;  // GATE 3: every write, whatever became of it
+      st.ctx_id      = ctx_;
+      st.ctx_adopted = ctx_adopted_;  // a Restart's REJECTED_CTX (spec 10.7)
       phase_        = Phase::Idle;
       return st;
   }
@@ -181,9 +186,23 @@ bool HexProxy::on_ack(lran::NodeId src, const lran::msg::CommandAck& ack, lran::
     return false;
   }
   if (static_cast<lran::AckResult>(ack.result) == lran::AckResult::RejectedCtx &&
+      !resync_used_ && restart_) {
+    // Spec 10.7, D70 - the node may have reset after the MPPT restarted, and a retry would
+    // restart it again. Adopt the context for the next request and report the write as
+    // Unknown, which it is: the MPPT may have acted on it.
+    ctx_         = ack_ctx;
+    ctx_adopted_ = true;
+    ack_result_  = ack.result;
+    ack_detail_  = ack.detail;
+    resolve(HexOutcome::Unknown);
+    return true;
+  }
+  if (static_cast<lran::AckResult>(ack.result) == lran::AckResult::RejectedCtx &&
       !resync_used_) {
-    // spec 10.3 step 2, as CommandPath does. The node refused at spec 9.4 step 2, before
-    // the gate and before the MPPT, so this one retry cannot write twice.
+    // spec 10.3 step 2, as CommandPath does. The refusal at spec 9.4 step 2 came before
+    // the MPPT this time, but the node may have reset after writing on an earlier
+    // attempt (spec 10.7). A Set writes one value however often it arrives, so the
+    // retry is safe; a Restart is not, and is handled above.
     ctx_              = ack_ctx;
     seq_              = 1;
     resync_used_      = true;

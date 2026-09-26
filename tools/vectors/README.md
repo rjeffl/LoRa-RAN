@@ -1,8 +1,10 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.15 (`ver = 2`)
-**Vectors last regenerated against:** v0.15, on 2026-09-25. Every vector kept its bytes;
-only each file's `spec` field changed. **D68 makes bit 7 of a `CONFIG_ACK` result's
+**Binding specification:** `LRAN-Protocol-Specification` v0.16 (`ver = 2`)
+**Vectors last regenerated against:** v0.16, on 2026-09-25. Every vector kept its bytes;
+only each file's `spec` field changed. v0.16 adds §8.14's `reset_cause`, which travels in
+an event's `detail`, a field the codec carries opaque, so no vector was added for it.
+**At v0.15**, likewise on 2026-09-25: **D68 makes bit 7 of a `CONFIG_ACK` result's
 `status` `OVERRIDE`, and D64 adds `INVALID_VALUE` (`0x05`)**. Two vectors added on
 2026-09-25 cover them: `config_ack_override` and `config_ack_invalid_value`. Every earlier
 vector kept its bytes.

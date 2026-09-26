@@ -1,11 +1,11 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.16
+**Version:** 0.17
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
 **Last updated:** 2026-09-25
 
@@ -130,11 +130,15 @@ obligations:
   completes (spec §10.6, **D58**). A restart resets the bridge's command `seq`, so without
   the roll a node that did not restart answers from its dedup cache and never runs the
   command.
+- **R-3.1i.** The bridge SHALL NOT resync an actuation command, a `REBOOT` or a VE.Direct
+  Restart after `REJECTED_CTX`, and SHALL report it unconfirmed (spec §10.7, **D70**). The
+  node may have reset after executing it, and its dedup cache went with the reset.
 
 > **Retries interact with a hardware safety property.** A retried command reaching
 > GateLink is a **second relay pulse**, not an idempotent re-send. The protocol's
 > `(ctx_id, seq)` deduplication is what makes bridge-side retry safe — the bridge must
-> not work around it by varying `seq` on a retry.
+> not work around it by varying `seq` on a retry. **A node reset empties that cache**,
+> which is why R-3.1i withholds the resync where a second execution would do harm.
 
 ### 3.2 WiFi
 
@@ -499,6 +503,10 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.17** — **Protocol specification v0.15 → v0.16.** New **R-3.1i**: the bridge does
+  not resync a request that may have executed before a node reset, and reports it
+  unconfirmed (**D70**). The other v0.16 changes bind nodes, not the bridge.
 
 - **v0.16** — **Protocol specification v0.14 → v0.15.** What the bridge inherits: a
   `config/state` `source` read from each result's `OVERRIDE` bit (D68), a readback when a

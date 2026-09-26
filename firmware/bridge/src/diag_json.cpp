@@ -48,6 +48,7 @@ size_t diag_command_json(const CommandStats& s, const RollStats& roll, char* out
   j.u32("cmd_no_ack", s.no_ack);
   j.u32("cmd_resyncs", s.resyncs);
   j.u32("cmd_resync_failed", s.resync_failed);
+  j.u32("cmd_unconfirmed", s.unconfirmed);
   j.u32("cmd_ack_ignored", s.ack_ignored);
   j.u32("cmd_refused_roll_pending", roll.cmd_refused);
   j.u32("roll_sent", roll.sent);

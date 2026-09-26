@@ -303,6 +303,18 @@ enum class EventType : uint8_t {
   PhyReverted          = 0x0B,  // spec 12.4.2 step 8, D59
 };
 
+// spec 8.14, D71 - a BOOT event's `detail`, low byte. The high byte is reserved.
+enum class ResetCause : uint8_t {
+  Unknown       = 0x00,
+  PowerOn       = 0x01,
+  RebootCommand = 0x02,
+  Software      = 0x03,
+  Watchdog      = 0x04,
+  Panic         = 0x05,
+  Brownout      = 0x06,
+  External      = 0x07,
+};
+
 // spec 8.10
 enum class ConfigOp : uint8_t {
   Set             = 0x01,

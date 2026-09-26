@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.15
+**Version:** 0.16
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.11
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.12
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -915,9 +915,9 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
 | **M0** | **Carrier board bring-up** | BOM in hand; **M4** settled | LDO holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. *Previously read "+22 dBm", which neither envelope permits.* **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio on the §3.3 pin map with the correct TCXO voltage and DIO2 RF-switch mode. Module confirmed to need no TXEN/RXEN. Ping/loopback to a Heltec succeeds on the bench. **Failure here is D30 trigger 1** |
-| **M1** | **Platform HAL** | Host in hand | Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through `/lib/lran-platform/`. **The same HAL compiles for the Heltec bridge target** |
+| **M1** | **Platform HAL** | Host in hand | Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through `/lib/lran-platform/`. **The same HAL compiles for the Heltec bridge target**. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j) |
 | **M2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `/docs/1050-config.md` written. **M1, M2, M3, M8 measurements captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
-| **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
+| **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
 | **M4** | **VE.Direct** | M0, **M4 measurement** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. §9.6 baseline log started |
 | **M5** | **Battery and BMS** | M1 | TDT client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (M7)**, settling the sign convention |
 | **M6** | **Inputs live, read-only** | M2, M3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
@@ -1161,6 +1161,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.16** — **Protocol specification v0.15 → v0.16, and PRD v0.11 → v0.12.** M1's
+  acceptance gains the relays held off through a reset (PRD R-3.5j). M3's gains the reset
+  behaviour of spec §10.7 (PRD R-3.5f–R-3.5k). No build step changes yet; the milestones
+  are where the requirements are checked.
 
 - **v0.15** — **§4.2.4 names `osh-labs/VE.Direct_mppt_arduino` the reference of record for
   VE.Direct**, over Victron's PDFs, which serve only where the library is silent. The

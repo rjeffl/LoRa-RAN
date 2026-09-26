@@ -634,6 +634,7 @@ void publish_cmd_ack(const CmdStep& st) {
     case CmdOutcome::Acked:        outcome = "acked"; break;
     case CmdOutcome::NoAck:        outcome = "no_ack"; break;
     case CmdOutcome::ResyncFailed: outcome = "resync_failed"; break;
+    case CmdOutcome::Unconfirmed:  outcome = "unconfirmed"; break;
     case CmdOutcome::Pending:      break;
   }
   // Sized for this document alone, not kMaxPayloadLen: this runs on sched_task, the
@@ -723,6 +724,9 @@ void sched_commands(uint32_t now_ms) {
                       static_cast<unsigned>(st.dst), static_cast<unsigned>(st.seq),
                       static_cast<int>(st.outcome), static_cast<unsigned>(st.result),
                       static_cast<unsigned>(st.detail));
+        // spec 10.7, D70 - an unconfirmed command adopted the node's new context without
+        // a retry to carry it to the registry, so it goes there now.
+        if (st.ctx_adopted) (void)registry_adopt_ctx(st.dst, st.ctx_id);
         publish_cmd_ack(st);
         continue;
 
@@ -1740,6 +1744,7 @@ void sched_hex(uint32_t now_ms) {
       case HexAction::None:
         return;
       case HexAction::Resolve:
+        if (st.ctx_adopted) (void)registry_adopt_ctx(st.dst, st.ctx_id);  // spec 10.7
         resolve_hex(st);
         continue;
       case HexAction::Send:

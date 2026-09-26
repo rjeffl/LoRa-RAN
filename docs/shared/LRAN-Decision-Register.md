@@ -1,7 +1,7 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.22
+**Version:** 0.23
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Last updated:** 2026-09-25
@@ -420,6 +420,9 @@ Frames from a node that is not deployed are processed as they are now.
 | **D67** | How Home Assistant recognises a repeat of a bridge event | **The bridge's events carry `boot`, the bridge's boot count, and `(boot, event_id)` is the key**, as `ctx_id` does in a node's key. The bridge keeps no boot count today. Operator, 2026-09-25, §3.11 | Protocol Spec §16.3, §16.7.5; Bridge Impl Plan |
 | **D68** | How `CONFIG_ACK` reports an override (**W15**) | **Bit 7 of each result entry's `status` is `OVERRIDE`**, and bits 6:0 carry §8.12's value, as `count`'s bit 7 carries `MORE_FOLLOWS` (D57). Schema `0x12` keeps its ID and every offset. §13.2 routes a resized field to a new schema ID, and the exception is taken because no GateLink exists and every end that decodes `0x12` today can be reflashed. Operator, 2026-09-25, §3.11 | Protocol Spec §7.4, §8.12, §16.7.4; GateLink PRD R-5.3e |
 | **D69** | When a node sends `status_reason` `CONFIG_CHANGE` (**W16**) | **When its effective configuration changes and no `CONFIG_ACK` reported the change.** The bridge answers it with a readback. Settled before GateLink M3 by operator decision, 2026-09-25, §3.11 | Protocol Spec §8.7; GateLink PRD |
+| **D70** | What the bridge does when a retry draws `REJECTED_CTX` and the node may have executed the request | **An actuation command (`0x00`–`0x0F`), a `REBOOT` or a VE.Direct Restart ends unconfirmed, without §10.3's retry.** The bridge adopts the node's context and reports the request unconfirmed. Every other request keeps the retry. Operator, 2026-09-25, §3.12 | Protocol Spec §10.3, §10.7; Bridge Impl Plan |
+| **D71** | How a node reports why it reset | **A `BOOT` event's `detail` carries `reset_cause`**, a new §8.14 enumeration. No layout changes. Operator, 2026-09-25, §3.12 | Protocol Spec §8.9, §8.14; GateLink PRD |
+| **D72** | What a node does about an alarm event lost to a reset | **It sends `FIRE_ASSERTED` or `HARD_SHUTDOWN` again at boot while the condition is still present.** A duplicate alert is accepted. Operator, 2026-09-25, §3.12 | Protocol Spec §10.7; GateLink PRD |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1074,6 +1077,43 @@ whose §3.9 and §3.10 said it was owed.
   value is for the rest: an override lost when the store fails, or a PHY revert
   (§12.4.2 step 6). The operator took W16 now rather than at GateLink M3, for D68's reason.
 
+### 3.12 D70–D72 — a node reset, directed or not, 2026-09-25
+
+**A question about `REBOOT` found that §10.3's resync can execute a request twice.** A
+node that resets after it executes a request, and before its ACK is on the air, answers
+the bridge's retry with `REJECTED_CTX`. §10.3 step 2 then adopted the new context and sent
+the request again, which the node accepted: its dedup cache and `rx_high_water` went with
+the reset. For an `OPEN` that is a second relay pulse. For a `REBOOT` whose ACK was lost,
+it is a second reboot. The bridge cannot tell this answer from the one a node gives when
+it reset before it received the request. The operator took each recommendation offered
+on 2026-09-25. Spec v0.16's §10.7 carries the text.
+
+- **D70.** Three answers were offered:
+  - **Chosen:** withhold the retry for anything that is not safe to execute twice, and
+    report the request unconfirmed. The cost is one case. A command sent to a node that
+    reset while idle, before the bridge heard its `BOOT` status, never ran and is not
+    retried, so the operator presses again.
+  - **Rejected:** the node persists `(ctx_id, seq, result)` before each dispatch and
+    answers an old-context retry from it. It is exact, but it costs a nonvolatile write
+    per command, and it binds GateLink to a store that D69 already allows to fail.
+  - **Rejected:** keep the retry, and state the double pulse in §9.5. That makes root
+    rule 2's failure a documented behaviour.
+
+  A VE.Direct Set keeps the retry because writing a register twice writes one value.
+  A Restart does not keep it.
+- **D71.** The value goes in the `BOOT` event's `detail`, which §7.3 already reserves for
+  event-specific use, so `ver`, the schema and every offset stay put. A field in
+  `STATUS`'s node block would have needed a new schema ID. Deferring would leave a
+  watchdog reset and a directed reboot indistinguishable, which is the case D70 is about.
+- **D72.** Events have no ACK, so one queued at a reset is lost. The operator chose a
+  possible duplicate alert over a possible missed fire. Persisting the event queue was
+  rejected: the replay would travel under a new `ctx_id` and escape deduplication anyway,
+  at the cost of a store write per event.
+
+**The spec also now requires `ctx_id` from a true entropy source** (§10.1). That is a
+clarification, not a decision. A repeated `ctx_id` would have let a retried `REBOOT` loop
+and reopened replay, which is why it came up here.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1232,6 +1272,11 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.23** — **D70–D72 resolved on 2026-09-25**: a request that may have executed before
+  a node reset is not retried under §10.3, a `BOOT` event reports the reset cause, and a
+  node sends active alarms again at boot. §3.12 has the reasoning, and spec v0.16 carries
+  the text.
 
 - **v0.22** — **D5's fallback taken.** The bridge moved to espMqttClient on 2026-09-25
   (BF-37). D5's outcome records it; the decision itself is unchanged.

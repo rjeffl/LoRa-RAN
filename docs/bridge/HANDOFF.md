@@ -78,6 +78,10 @@ sat on the command path, and the state mirror's readback, were fixed on 2026-09-
 - **The simnode's `phy reset` leaves the PHY rows marked `override` until a reboot.**
   `PhyTrial::reset_to_defaults()` writes each default through `Store::restore()`, which
   holds it as an override. Clear the rows instead. Found 2026-09-25.
+- **The simnode does not meet spec v0.16's reset obligations** (§10.1, §8.14, §10.7). It
+  draws `ctx_id` from `esp_random()` with no radio subsystem on, which ESP-IDF calls
+  pseudo-random. It sends no `BOOT` event with a reset cause, and its `REBOOT` is simulated
+  rather than an `esp_restart()`. Bench evidence therefore stops short of a real reset.
 - **BF-27's bridge-side simulators and packet loopback.** They gate nothing. What they
   would add is an unattended, time-varying source; WellLink data waits for schema `0x20`
   (Impl Plan §8.2).
@@ -98,6 +102,9 @@ the node is on a desk rather than at the gate.
   VictronConnect for example. A readback pass runs only on first hearing and after a write
   the bridge sent, so the next boot corrects it. Whether a periodic pass is worth the
   airtime is the operator's call. Found on the bench 2026-09-25.
+- **A `BOOT` event's `reset_cause` reaches HA as a number** in `detail` (spec §8.14).
+  Whether the bridge names it, as the event topics name nothing else today, is the
+  operator's call.
 - **`node/state` republishes on every frame**, because `uptime_s` is in it and changes
   every poll; `node/health/state` is the same. Publish-on-change never withholds either.
   Whether uptime belongs in the change hash is the operator's call. Impl Plan §6.6.2.

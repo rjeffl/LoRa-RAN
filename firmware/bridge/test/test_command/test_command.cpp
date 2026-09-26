@@ -42,6 +42,15 @@ CommandRequest open_gate() {
   return r;
 }
 
+// A command spec 10.3 step 2 may retry (spec 10.7). The resync tests use it, because
+// open_gate()'s REJECTED_CTX ends without a retry (D70).
+CommandRequest request_status() {
+  CommandRequest r;
+  r.dst = kTarget;
+  r.cmd = static_cast<uint8_t>(Cmd::RequestStatus);
+  return r;
+}
+
 msg::CommandAck ack_of(Seq seq, AckResult result, uint8_t detail = 0) {
   msg::CommandAck a;
   a.ack_seq = seq;
@@ -203,7 +212,7 @@ void test_exhaustion_resolves_as_no_ack_and_stops() {
 
 void test_rejected_ctx_adopts_the_acks_context_and_retries_once() {
   CommandPath c;
-  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 77, 0));
+  TEST_ASSERT_TRUE(c.submit(request_status(), kCtx, 77, 0));
   send_now(c, 0);
 
   constexpr CtxId kNodeCtx = 0xAABBCCDDu;
@@ -221,7 +230,7 @@ void test_rejected_ctx_adopts_the_acks_context_and_retries_once() {
 // other node, so the second REJECTED_CTX stops the command rather than resyncing again.
 void test_a_second_rejected_ctx_stops_rather_than_looping() {
   CommandPath c;
-  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 77, 0));
+  TEST_ASSERT_TRUE(c.submit(request_status(), kCtx, 77, 0));
   send_now(c, 0);
   c.on_ack(kTarget, ack_of(77, AckResult::RejectedCtx), 0xAABBCCDDu, 100);
 
@@ -241,7 +250,7 @@ void test_a_second_rejected_ctx_stops_rather_than_looping() {
 // sequence space the node will accept.
 void test_the_resync_retry_starts_a_fresh_attempt_budget() {
   CommandPath c;
-  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 77, 0));
+  TEST_ASSERT_TRUE(c.submit(request_status(), kCtx, 77, 0));
   uint32_t now = 0;
   send_now(c, now);
   now = after_window(c, now, 0);
@@ -249,6 +258,72 @@ void test_the_resync_retry_starts_a_fresh_attempt_budget() {
 
   c.on_ack(kTarget, ack_of(77, AckResult::RejectedCtx), 0xAABBCCDDu, now);
   TEST_ASSERT_EQUAL_UINT8(0, c.next(now).attempt);
+}
+
+// ---------------------------------------------------------------------------
+// spec 10.7, D70 - a REJECTED_CTX that may follow an execution is not retried.
+// ---------------------------------------------------------------------------
+
+// The node reset after the OPEN and before its ACK aired. A retry would be the second
+// relay pulse spec 10.4 exists to prevent, so the command ends unconfirmed, and the
+// node's context is adopted for the next one.
+void test_rejected_ctx_on_an_actuation_command_is_unconfirmed_not_retried() {
+  CommandPath c;
+  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 77, 0));
+  send_now(c, 0);
+
+  constexpr CtxId kNodeCtx = 0xAABBCCDDu;
+  c.on_ack(kTarget, ack_of(77, AckResult::RejectedCtx), kNodeCtx, 100);
+
+  const CmdStep st = c.next(100);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::Resolve), static_cast<int>(st.action));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdOutcome::Unconfirmed),
+                        static_cast<int>(st.outcome));
+  TEST_ASSERT_TRUE(st.ctx_adopted);  // the caller writes the context to the registry
+  TEST_ASSERT_EQUAL_HEX32(kNodeCtx, st.ctx_id);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::RejectedCtx), st.result);
+  TEST_ASSERT_EQUAL_UINT32(1, c.stats().sent);  // never a second frame
+  TEST_ASSERT_EQUAL_UINT32(0, c.stats().resyncs);
+  TEST_ASSERT_EQUAL_UINT32(1, c.stats().unconfirmed);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::None), static_cast<int>(c.next(100).action));
+}
+
+// spec 8.1 - the REBOOT's ACK was lost, its retry carried the old context, and the
+// rebooted node refused it. Retrying under the new context would reboot it again.
+void test_a_reboot_whose_ack_was_lost_is_not_sent_again() {
+  CommandPath c;
+  CommandRequest r;
+  r.dst = kTarget;
+  r.cmd = static_cast<uint8_t>(Cmd::Reboot);
+  r.arg = kRebootGuard;
+  TEST_ASSERT_TRUE(c.submit(r, kCtx, 77, 0));
+  uint32_t now = 0;
+  send_now(c, now);
+  now = after_window(c, now, 0);
+  const CmdStep retry = send_now(c, now);  // the ACK never arrived
+  TEST_ASSERT_EQUAL_UINT16(77, retry.seq);
+
+  c.on_ack(kTarget, ack_of(77, AckResult::RejectedCtx), 0xAABBCCDDu, now + 100);
+  const CmdStep st = c.next(now + 100);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdOutcome::Unconfirmed),
+                        static_cast<int>(st.outcome));
+  TEST_ASSERT_EQUAL_UINT32(2, c.stats().sent);
+  TEST_ASSERT_EQUAL_UINT32(0, c.stats().resyncs);
+}
+
+// spec 8.1's split, read by range: every actuation value and REBOOT withhold the retry,
+// and every other node-local command keeps it.
+void test_resync_may_retry_follows_the_actuation_split() {
+  for (unsigned v = 0x00; v <= 0x0F; ++v) {
+    TEST_ASSERT_FALSE(resync_may_retry(static_cast<uint8_t>(v)));
+  }
+  TEST_ASSERT_FALSE(resync_may_retry(static_cast<uint8_t>(Cmd::Reboot)));
+  const uint8_t retried[] = {
+      static_cast<uint8_t>(Cmd::RequestStatus),  static_cast<uint8_t>(Cmd::RequestConfig),
+      static_cast<uint8_t>(Cmd::SetDebugMode),   static_cast<uint8_t>(Cmd::SetRelayDryRun),
+      static_cast<uint8_t>(Cmd::SetBmsPolling),
+  };
+  for (uint8_t v : retried) TEST_ASSERT_TRUE(resync_may_retry(v));
 }
 
 // spec 10.3 step 2 adopts a context; the registry is where it lands, and the next
@@ -497,6 +572,9 @@ int main() {
   RUN_TEST(test_rejected_ctx_adopts_the_acks_context_and_retries_once);
   RUN_TEST(test_a_second_rejected_ctx_stops_rather_than_looping);
   RUN_TEST(test_the_resync_retry_starts_a_fresh_attempt_budget);
+  RUN_TEST(test_rejected_ctx_on_an_actuation_command_is_unconfirmed_not_retried);
+  RUN_TEST(test_a_reboot_whose_ack_was_lost_is_not_sent_again);
+  RUN_TEST(test_resync_may_retry_follows_the_actuation_split);
   RUN_TEST(test_adopt_ctx_resets_the_registrys_seq_space);
   RUN_TEST(test_a_second_command_is_refused_while_one_is_in_flight);
   RUN_TEST(test_an_ack_that_matches_nothing_is_counted_and_ignored);
