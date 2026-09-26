@@ -105,14 +105,10 @@ the node is on a desk rather than at the gate.
 ### 5. Documents and tools
 
 - **The whole-document style passes** are owed, on a branch of their own.
-- **`ha/README.md` says `kMaxPayloadLen` is 768 bytes.** It has been 1536 since BF-33, and
-  the sentence's argument about discovery key lengths needs rechecking, not only the number.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
   called the Davis "not periodic" on the day that confirmed its clock to half a second.
   Left unfixed by operator direction. Fix it before any future capture, because that
   verdict is what the documents cite when they attribute an occupant.
-- **`lib/lran-link/library.json` cites spec v0.11**, and `spec_citation_version.py` does
-  not read it. `firmware/simnode/CLAUDE.md` cites the Firmware Tasks at v0.34.
 - **No counter tells a preamble deferral from a header deferral**, as `cad_deferred` counts
   both. A split would say which window each deferral closed.
 
