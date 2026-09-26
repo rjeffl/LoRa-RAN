@@ -1044,6 +1044,11 @@ void test_phy_reset_restores_the_defaults() {
   TEST_ASSERT_TRUE(b.phy.retune_due());
   PhyBlob blob;
   TEST_ASSERT_FALSE(b.persist.read(&blob));
+  // A default is not an override. restore() made each one read as one until a reboot.
+  // The six PHY rows are 0x0110 to 0x0115 (table.h).
+  for (size_t i = 0; i < kPhyGroupSize; ++i) {
+    TEST_ASSERT_FALSE(b.phy.marked_override(static_cast<uint16_t>(0x0110 + i)));
+  }
 }
 
 // The group maps onto the radio's units, and the bridge's defaults are the boot PHY.
