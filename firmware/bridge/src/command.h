@@ -81,6 +81,11 @@ struct CommandRequest {
 // node is the authority on what it implements; this only spares the airtime.
 bool command_allowed(NodeType type, uint8_t cmd);
 
+// Whether spec 10.3 step 2 may retry `cmd` after a REJECTED_CTX (spec 10.7, D70). False
+// for actuation (0x00-0x0F) and REBOOT: the answer may mean the node reset after it
+// executed, and the retry would be a second relay pulse or a second reboot.
+bool resync_may_retry(uint8_t cmd);
+
 // ---------------------------------------------------------------------------
 // The state machine's output.
 // ---------------------------------------------------------------------------
@@ -99,6 +104,7 @@ enum class CmdOutcome : uint8_t {
   Acked,         // a COMMAND_ACK arrived; `result` and `detail` are the node's (spec 8.2)
   NoAck,         // every attempt timed out. The command MAY have executed
   ResyncFailed,  // a second REJECTED_CTX - spec 10.3 step 3, stop rather than loop
+  Unconfirmed,   // REJECTED_CTX on a command spec 10.7 does not retry (D70). It MAY have run
 };
 
 struct CmdStep {
@@ -113,9 +119,9 @@ struct CmdStep {
   lran::CtxId ctx_id  = 0;
   uint8_t     attempt = 0;  // 0 for the first transmission; diagnostics only
 
-  // Send, after a resync: `ctx_id` above was adopted from a REJECTED_CTX and the
-  // caller must write it and `seq` back to the registry (spec 10.3 step 2) so the
-  // NEXT command starts in the node's current context rather than repeating this one.
+  // Send, after a resync, or Resolve with outcome Unconfirmed: `ctx_id` above was
+  // adopted from a REJECTED_CTX and the caller must write it back to the registry
+  // (spec 10.3 step 2) so the NEXT command starts in the node's current context.
   bool ctx_adopted = false;
 
   // Resolve: how it ended.
@@ -133,6 +139,7 @@ struct CommandStats {
   uint32_t no_ack        = 0;
   uint32_t resyncs       = 0;  // REJECTED_CTX adopted and retried once (spec 10.3)
   uint32_t resync_failed = 0;  // a second REJECTED_CTX
+  uint32_t unconfirmed   = 0;  // REJECTED_CTX adopted and NOT retried (spec 10.7, D70)
   uint32_t ack_ignored   = 0;  // wrong src, wrong ack_seq, or nothing in flight
 };
 

@@ -60,6 +60,14 @@ bool command_allowed(NodeType type, uint8_t cmd) {
   return false;
 }
 
+bool resync_may_retry(uint8_t cmd) {
+  // Spec 8.1's split, read the way a node reads it: by range, without parsing semantics.
+  // NOP falls in the actuation range and loses a retry it could have had, which costs
+  // one unconfirmed NOP and keeps the rule a comparison.
+  if (cmd <= 0x0F) return false;
+  return static_cast<lran::Cmd>(cmd) != lran::Cmd::Reboot;
+}
+
 // ---------------------------------------------------------------------------
 // The state machine.
 // ---------------------------------------------------------------------------
@@ -132,7 +140,11 @@ CmdStep CommandPath::next(uint32_t now_ms) {
       st.outcome = outcome_;
       st.result  = result_;
       st.detail  = detail_;
-      phase_     = Phase::Idle;
+      if (outcome_ == CmdOutcome::Unconfirmed) {
+        st.ctx_id      = ctx_;
+        st.ctx_adopted = true;
+      }
+      phase_ = Phase::Idle;
       return st;
   }
   return st;
@@ -171,6 +183,19 @@ void CommandPath::on_ack(lran::NodeId src, const lran::msg::CommandAck& ack,
       detail_  = ack.detail;
       phase_   = Phase::Resolved;
       ++stats_.resync_failed;
+      return;
+    }
+    if (!resync_may_retry(req_.cmd)) {
+      // Spec 10.7, D70 - the node reset, and nothing says whether before or after it
+      // executed. Adopt its context so the next command reaches it, and stop: a retry
+      // here is the second pulse spec 10.4 exists to prevent. `attempt_` is kept, so
+      // the published count says how many frames carried the old context.
+      ctx_     = ack_ctx;
+      outcome_ = CmdOutcome::Unconfirmed;
+      result_  = ack.result;
+      detail_  = ack.detail;
+      phase_   = Phase::Resolved;
+      ++stats_.unconfirmed;
       return;
     }
     // Spec 10.3 step 2 - adopt the ctx_id the ACK carried, reset this node's command

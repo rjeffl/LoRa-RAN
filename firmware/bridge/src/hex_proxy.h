@@ -143,7 +143,8 @@ struct HexStep {
   lran::Seq   seq         = 0;
   lran::CtxId ctx_id      = 0;
   uint8_t     attempt     = 0;
-  bool        ctx_adopted = false;  // as CmdStep's: write ctx_id and seq back to the registry
+  bool        ctx_adopted = false;  // as CmdStep's: write ctx_id and seq back to the registry,
+                                    // on a Send or on a Restart's Resolve (spec 10.7)
 
   // Resolve.
   HexOutcome outcome    = HexOutcome::Pending;
@@ -224,6 +225,7 @@ class HexProxy {
   lran::CtxId ctx_    = 0;
   uint8_t    attempt_ = 0;
   bool       resync_used_ = false;
+  bool       restart_     = false;  // a VE.Direct Restart: spec 10.7 withholds its resync
   bool       ctx_adopted_ = false;
   uint32_t   window_opened_ms_ = 0;
 

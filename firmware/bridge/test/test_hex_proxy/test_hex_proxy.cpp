@@ -264,6 +264,23 @@ void test_resync_once_then_stop() {
   TEST_ASSERT_EQUAL(HexOutcome::ResyncFailed, st.outcome);
 }
 
+// spec 10.7, D70 - a Restart refused for its context may already have restarted the MPPT
+// before the node reset. It is not resent; the context is adopted for the next request.
+void test_a_restart_refused_for_its_context_is_not_resent() {
+  HexProxy p;
+  HexStep  st = start(p, ":64F", true, 1000, 17);
+  TEST_ASSERT_TRUE(st.write);
+  const msg::CommandAck ctx1{17, static_cast<uint8_t>(AckResult::RejectedCtx), 0};
+  TEST_ASSERT_TRUE(p.on_ack(kNodeSim1, ctx1, 0xCAFEu, 1100));
+  st = p.next(1100, true);
+  TEST_ASSERT_EQUAL(HexAction::Resolve, st.action);
+  TEST_ASSERT_EQUAL(HexOutcome::Unknown, st.outcome);
+  TEST_ASSERT_TRUE(st.ctx_adopted);
+  TEST_ASSERT_EQUAL_HEX32(0xCAFEu, st.ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(1, p.stats().sent);
+  TEST_ASSERT_EQUAL_UINT32(0, p.stats().resyncs);
+}
+
 void test_one_transaction_at_a_time() {
   HexProxy p;
   start(p, ":7F0ED0071", false);
@@ -437,6 +454,7 @@ int main(int, char**) {
   RUN_TEST(test_a_duplicate_or_stale_answer_to_a_write_is_rejected);
   RUN_TEST(test_a_read_never_claims_a_command_ack);
   RUN_TEST(test_resync_once_then_stop);
+  RUN_TEST(test_a_restart_refused_for_its_context_is_not_resent);
   RUN_TEST(test_one_transaction_at_a_time);
   RUN_TEST(test_the_response_document);
   RUN_TEST(test_the_audit_names_authorization_and_time);

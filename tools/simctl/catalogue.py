@@ -116,7 +116,8 @@ BEHAVIOUR_ROWS = (
     Scenario("ack_dup", None, 0, 0, args=("1",), role="ROLE_GATELINK",
              why="two ACKs for one command, the second ignored and not a second result"),
     Scenario("ctx_reject", None, 0, 0, args=("2",), role="ROLE_GATELINK",
-             why="spec 10.3 step 3 - the bridge resyncs once, is refused again, and stops"),
+             why="spec 10.3 step 3 - send request_status: the bridge resyncs once, is refused again,"
+                 " and stops. An open or reboot ends unconfirmed at once (spec 10.7)"),
     Scenario("event_replay", None, 0, 2, role="ROLE_GATELINK",
              why="same (ctx_id, event_id) twice, published once (spec 16.3)"),
     Scenario("silent", None, 0, 0, args=("4",),

@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.66
+**Version:** 0.67
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.21 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.17
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-09-25
 
@@ -1065,7 +1065,9 @@ MQTT command topic
   -> await COMMAND_ACK within command_ack_timeout_ms (default 3000)
        ACK           -> publish result, done
        no ACK        -> retry with backoff, SAME seq, up to cmd_retries (default 3)
-       REJECTED_CTX  -> adopt the ACK's ctx_id, reset cmd_seq to 1, retry ONCE
+       REJECTED_CTX  -> adopt the ACK's ctx_id, reset cmd_seq to 1, then
+                          0x00-0x0F or REBOOT -> publish `unconfirmed`, done (spec 10.7)
+                          anything else       -> retry ONCE
        2nd REJECTED_CTX -> stop; publish a diagnostic fault
   -> exhausted      -> publish failure; do NOT keep trying
 ```
@@ -1078,6 +1080,14 @@ MQTT command topic
   command and is actually a second gate command.
 - **The context resync retries exactly once** before giving up. A resync loop on a shared
   channel is a transmit storm affecting every other node, not just this one.
+
+**An actuation command or a `REBOOT` is never resynced** (Protocol Spec §10.7, **D70**).
+A `REJECTED_CTX` on its retry may mean the node reset after it executed, and the resync
+would then be a second relay pulse or a second reboot. The command ends with `outcome`
+`unconfirmed` on `cmd/ack`, the registry adopts the node's context, and
+`cmd_unconfirmed` on `lran/bridge/diag/cmd/state` counts it. The `STATUS` that follows
+settles what happened: `GATE_STATE_CHANGE` for motion, `BOOT` for a reboot. `resync_may_retry()`
+in `command.{h,cpp}` holds the rule, and `test_command` has three cases for it.
 
 **After a bridge restart, each node's commands wait on its context roll** (Protocol Spec
 §10.6, **D58**, Bridge PRD **R-3.1h**). A restart resets `cmd_seq`, and a node that did not
@@ -1317,6 +1327,7 @@ from the command nibble alone, Set (`0x8`) or Restart (`0x6`), as spec §7.6 doe
 | Decision | Why |
 |---|---|
 | **A write takes its `seq` from the command space**, and one HEX transaction is in flight across the fleet | Spec §9.4 steps 4–6 apply to every authenticated type, and a resync resets that space to 1 (spec §10.3). The proxy therefore serializes with the command path and the roll, for §6.2.1's reason |
+| **A Restart refused with `REJECTED_CTX` is not resynced.** It resolves `unknown`, and the node's context is adopted (spec §10.7, **D70**) | The node may have reset after the MPPT restarted. A Set keeps the resync, because writing a register twice writes one value. `test_hex_proxy` has the case |
 | **A write is never retried.** One with no answer resolves `unknown` | The node's deduplication cache holds an ACK result, not the MPPT's answer, so a retried write would draw `COMMAND_ACK(DUPLICATE_CACHED)` and never the register value. A Get settles an `unknown` write, as a readback settles a lost `CONFIG_ACK` (§6.7.3). Spec §10.3's resync is the one exception: it retries once, because the node refused the first at step 2 and never forwarded it. Decided with the operator on 2026-09-25 |
 | **A read is retried under the same `seq`**, twice by default | A read changes nothing, and its `seq` is in neither sequence space (spec §10.2). A read with no answer resolves `no_response` |
 | **A retained `write_enable/set` is ignored and cleared** | Spec §16.2 marks the topic retained. A retained `ON` would re-arm writes on every broker reconnect. Decided with the operator on 2026-09-25, and raised for spec v0.16. The broker marks a message retained only when it replays it on a subscribe, so the rule acts on a reconnect; a retained `ON` published while the bridge is connected arms it, as any `ON` does |
@@ -2282,7 +2293,7 @@ rename after that is breaking. A row whose counter does not appear in
 | `seq_wrap` | `seq` wrapping through `0xFFFF` | — | Accepted. **The failure this guards against is a plain `>` comparison rejecting every frame until reboot** |
 | `ack_suppress` | `COMMAND` received, no ACK | — | Bridge retries with the **same `seq`**; simnode reports a dedup hit (**V-B5**, **BS-3**) |
 | `ack_dup` | Two ACKs for one command | — | Second ignored, not counted as a second result |
-| **`ctx_reject`** | `COMMAND_ACK(REJECTED_CTX)` to the next `count` `COMMAND`s, whatever context they carried | — | **Added by BF-21**, and the only way to reach Protocol Spec §10.3 **step 3** deliberately: `ctx_reject 2` makes the bridge resync once, meet a second rejection, and **stop rather than loop**. It acts **before the dedup gate** — §9.4 checks context at step 2 and the gate at steps 4–6, so no `seq` is consumed and no result is cached; cached, the resync retry would meet a `DUPLICATE_CACHED` instead of the second rejection. BF-18 failed three times to force this by racing the console, because the rejection-to-retry window is under a second |
+| **`ctx_reject`** | `COMMAND_ACK(REJECTED_CTX)` to the next `count` `COMMAND`s, whatever context they carried | — | **Added by BF-21**, and the only way to reach Protocol Spec §10.3 **step 3** deliberately: `ctx_reject 2` makes the bridge resync once, meet a second rejection, and **stop rather than loop**. **Since spec v0.16 it needs a command §10.7 lets the bridge resync**, such as `request_status`. An actuation command or a `reboot` ends `unconfirmed` at the first rejection (D70), which is the fault's other use. It acts **before the dedup gate** — §9.4 checks context at step 2 and the gate at steps 4–6, so no `seq` is consumed and no result is cached; cached, the resync retry would meet a `DUPLICATE_CACHED` instead of the second rejection. BF-18 failed three times to force this by racing the console, because the rejection-to-retry window is under a second |
 | `event_replay` | Same `(ctx_id, event_id)` twice | — | Bridge publishes **once** (Protocol Spec §16.3) |
 | `flood` | Frames at maximum rate | — | Bridge stays responsive; `lora_task` does not block (§1.3) |
 | `silent` | Identity stops answering | — | Availability → offline after `missed_poll_threshold` (**V-B3**) |
@@ -2867,6 +2878,14 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.67** — **Protocol specification v0.15 → v0.16.** What the bridge inherits is
+  **D70**: §6.2's resync no longer retries an actuation command or a `REBOOT`, which now
+  ends `unconfirmed`, and §6.4 does not resync a VE.Direct Restart. Both are built on this
+  revision. The other v0.16 changes are node obligations: `REBOOT` acknowledges then resets,
+  a `BOOT` event's `reset_cause` (D71), active alarms sent again at boot (D72), and a
+  `ctx_id` from true entropy. The bridge publishes a node's event `detail` as it does today,
+  so `reset_cause` reaches Home Assistant as a number.
 
 - **v0.66** — **A node reboot owes a readback.** New §6.7.7: the bridge reads a reboot
   from a node's `STATUS`, never from a new `ctx_id`, and asks for a readback, so
