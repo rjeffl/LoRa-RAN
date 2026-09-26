@@ -1,8 +1,7 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-25 by the session that finished group 1, B5, on branch `b5-hex-proxy`.**
-BF-36 and BF-28 to BF-30 are built, documented, and V-B6 passed on the bench. The branch
-waits for the operator to accept B5.
+**Written 2026-09-25 by the session that finished group 1, B5.** B5 was accepted on
+2026-09-25 and merged. BF-36 and BF-28 to BF-30 are built, and V-B6 passed on the bench.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -16,10 +15,7 @@ waits for the operator to accept B5.
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: B5's acceptance, on `b5-hex-proxy`.** The PR is open as a draft and its
-description states which of §8's B5 criteria the bench met. Once the operator accepts it,
-take it out of draft, merge it, delete the branch, and rewrite this section. Then the
-operator picks the next group from *Work before GateLink*.
+**Queued: nothing.** The operator picks the next group from *Work before GateLink*.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -31,7 +27,7 @@ Anything out of scope goes in one line under the right group below, not into the
 
 **B4b is accepted** (Impl Plan §8).
 
-**B5 ran against BF-36's simulated MPPT**, as §8 allows, and waits for acceptance. The real
+**B5 is accepted** (Impl Plan §8), against BF-36's simulated MPPT, as §8 allows. The real
 MPPT's readback, which confirms BF-30's register scales, comes at B6.
 
 **B6 and B7 need GateLink**, and GateLink M6 gates B6.
@@ -47,12 +43,7 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise.
 
-### 1. B5 — awaiting acceptance
-
-**See *Start here*.** Impl Plan §6.4.1 and the engineering log's *V-B6 on the bench* entry
-are the record.
-
-### 2. Bridge defects the bench can reach
+### 1. Bridge defects the bench can reach
 
 These came from B4b's bench runs. None blocks GateLink, but the first two sit on the
 command path, and a GateLink command is a relay pulse.
@@ -82,7 +73,7 @@ command path, and a GateLink command is a relay pulse.
     comes back with the flag clear, and nothing withdraws the `online` it published. Impl
     Plan §4.2a.1.
 
-### 3. Bridge housekeeping
+### 2. Bridge housekeeping
 
 - **BF-11a**, the log queue and `log_task`'s drain, and **BF-11b**, the hardware watchdog
   fed from `sched_task`.
@@ -96,14 +87,14 @@ command path, and a GateLink command is a relay pulse.
   would add is an unattended, time-varying source; WellLink data waits for schema `0x20`
   (Impl Plan §8.2).
 
-### 4. A B7 rehearsal on the bench
+### 3. A B7 rehearsal on the bench
 
 **B7's conditions can run against the simnodes now**: broker restarts, WiFi outages and a
 node power cycle, with `deployed` set on the bench rows. It cannot accept B7, which
 depends on B6. What it can find is stuck availability or a frame lost on reconnect while
 the node is on a desk rather than at the gate.
 
-### 5. HA, before GateLink deploys
+### 4. HA, before GateLink deploys
 
 - **`mppt_charge_state` and `mppt_error` show raw VE.Direct codes in HA**, such as `3`, not
   names. Whether discovery maps them to names is BF-24's question, and GateLink's data
@@ -116,7 +107,7 @@ the node is on a desk rather than at the gate.
   every poll; `node/health/state` is the same. Publish-on-change never withholds either.
   Whether uptime belongs in the change hash is the operator's call. Impl Plan §6.6.2.
 
-### 6. Documents and tools
+### 5. Documents and tools
 
 - **The whole-document style passes** are owed, on a branch of their own.
 - **`ha/README.md` says `kMaxPayloadLen` is 768 bytes.** It has been 1536 since BF-33, and
@@ -188,9 +179,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, and **V-B6** passed on the bench 2026-09-25. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B5's acceptance**. **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **M26**. The whole-document style passes |
-| Queue | B5's acceptance; then the operator picks from *Work before GateLink* |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **BF-11a**, **BF-11b**. **M26**. The whole-document style passes |
+| Queue | Empty; the operator picks from *Work before GateLink* |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
