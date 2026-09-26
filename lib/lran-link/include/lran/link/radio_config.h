@@ -62,7 +62,7 @@ struct PhyConfig {
   uint8_t  sf;
   uint8_t  cr_denom;  // 5 is CR 4/5
 
-  // Root rule 10 - conducted power and antenna gain are recorded SEPARATELY. The D33
+  // Root rule 11 - conducted power and antenna gain are recorded SEPARATELY. The D33
   // ceiling is EIRP, and a combined figure cannot be audited.
   int8_t  conducted_dbm;
   uint8_t antenna_gain_dbi10;  // 30 is 3.0 dBi, Bridge PRD R-4.3a.1's stick

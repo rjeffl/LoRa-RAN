@@ -30,9 +30,12 @@ Every config is published **retained**, on boot and on every broker reconnect
 (**R-3.3b**).
 
 **The keys are Home Assistant's abbreviations** — `stat_t`, `uniq_id`, `dev_cla`. They are
-as stable as the long forms and they are used because `kMaxPayloadLen` is 768 bytes and
-the long forms put a node's config within a hundred bytes of it; growing that buffer costs
-RAM in every publish queue slot. `~` is the device's base topic, so `~/diag/state` reads
+as stable as the long forms. They were chosen when `kMaxPayloadLen` was 768 bytes, and the
+long forms put a config within about a hundred bytes of it. The buffer has been 1536 bytes
+since BF-33, sized for the `config/*` documents rather than discovery. On 2026-09-26 the
+largest config here was 541 bytes as published and 656 with every key written long, so
+the abbreviations no longer decide whether a config fits. They stay because changing them
+changes every retained config and buys nothing. `~` is the device's base topic, so `~/diag/state` reads
 as `lran/gatelink/diag/state`.
 
 ## What is here, and what is not
@@ -44,7 +47,7 @@ as `lran/gatelink/diag/state`.
 
 | Absent | Why |
 |---|---|
-| `lran_simnode*` | Spec §16.6 gates a bench node's publication and **BF-26** has not built the toggle. HA's registry remembers a `unique_id` forever, so four devices that could never update is a cost paid once and kept. Regenerate with `--bench` to see what they would be |
+| `lran_simnode*` | Spec §16.6 gates a bench node's publication behind the bridge's `simnode_diag_enable` switch (**BF-26**), which is off by default, and these files are generated with it off. HA's registry remembers a `unique_id` forever, so a bench device published by accident is a cost paid once and kept. `tools/ha/dump_discovery.cpp` takes `--bench` to show what the switch publishes |
 | Every §14.1 counter as its own entity | 22 rows per node in HA's registry, paid forever, for numbers read during a bench session. They stay readable on `lran/bridge/diag/state`. **R-3.5e** reasons the same way about the MPPT's registers |
 | A `reboot` button | Spec §8.1 guards `REBOOT` with `0xA5` in `arg` precisely so it cannot be issued by accident, and a dashboard button is that accident. It stays reachable by publishing to `lran/<node>/cmd/reboot/set` |
 | `set_debug_mode` and its neighbours | They carry a bitmask in `arg2` and a button cannot express one. They belong with the configuration work |

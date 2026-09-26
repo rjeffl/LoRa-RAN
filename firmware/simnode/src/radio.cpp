@@ -165,7 +165,7 @@ void try_begin(uint32_t now_ms) {
   g_ready                   = true;
 
   // From the values the radio was configured with, so it cannot drift from kPhy. Conducted
-  // power and antenna gain stay separate (root rule 10).
+  // power and antenna gain stay separate (root rule 11).
   sink_printf(g_log,
               "radio: up - %lu Hz, SF%u, BW %u.%u kHz, CR 4/%u, %d dBm conducted, %u.%u dBi antenna",
               static_cast<unsigned long>(g_phy.freq_hz), static_cast<unsigned>(g_phy.sf),

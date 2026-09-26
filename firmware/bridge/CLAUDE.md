@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the bridge.
 
-**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.71
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.58 (**the `BF-*` task order**).
+**Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.17 (requirements,
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.72
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.59 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
