@@ -51,6 +51,10 @@ bool radio_take_retuned();
 
 const lran::link::PhyConfig& radio_phy();
 
+// Nothing of ours in media access or on the air. With an empty outbox, every frame queued
+// has reached TX_DONE or been given up on - what spec 8.1 waits for before a reset.
+bool radio_tx_idle();
+
 bool              radio_ready();
 const RadioStats& radio_stats();
 

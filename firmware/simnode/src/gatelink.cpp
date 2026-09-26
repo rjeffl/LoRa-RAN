@@ -79,6 +79,21 @@ constexpr EventName kEvents[] = {
     {"PHY_REVERTED", lran::EventType::PhyReverted},
 };
 
+struct ResetCauseName {
+  const char*      name;
+  lran::ResetCause value;
+};
+constexpr ResetCauseName kResetCauses[] = {
+    {"UNKNOWN", lran::ResetCause::Unknown},
+    {"POWER_ON", lran::ResetCause::PowerOn},
+    {"REBOOT_COMMAND", lran::ResetCause::RebootCommand},
+    {"SOFTWARE", lran::ResetCause::Software},
+    {"WATCHDOG", lran::ResetCause::Watchdog},
+    {"PANIC", lran::ResetCause::Panic},
+    {"BROWNOUT", lran::ResetCause::Brownout},
+    {"EXTERNAL", lran::ResetCause::External},
+};
+
 // ---------------------------------------------------------------------------
 // The field table - every GateLinkStatusV1 member but status_reason, which `push` owns.
 // ---------------------------------------------------------------------------
@@ -259,6 +274,23 @@ const char* event_type_name(lran::EventType t) {
 
 bool parse_event_type(const char* token, lran::EventType* out) {
   for (const EventName& n : kEvents) {
+    if (std::strcmp(token, n.name) == 0) {
+      *out = n.value;
+      return true;
+    }
+  }
+  return false;
+}
+
+const char* reset_cause_name(lran::ResetCause c) {
+  for (const ResetCauseName& n : kResetCauses) {
+    if (n.value == c) return n.name;
+  }
+  return "?";
+}
+
+bool parse_reset_cause(const char* token, lran::ResetCause* out) {
+  for (const ResetCauseName& n : kResetCauses) {
     if (std::strcmp(token, n.name) == 0) {
       *out = n.value;
       return true;
@@ -880,10 +912,11 @@ void Node::finish_command(Identity& e, const PendingAck& p, uint32_t now_ms) {
       send_config_readback(e, p.peer);
       break;
     case AfterAck::Reboot:
-      // spec 10.1 - a reboot is a new context. The ACK above went out under the old one.
-      ids_->new_context(e.id);
-      sink_printf(log_, "id %02x rebooted: ctx 0x%08lx", e.id, static_cast<unsigned long>(e.ctx_id));
-      send_status(e, p.peer, lran::StatusReason::Boot, now_ms);
+      // spec 8.1 - the ACK above goes out under the current ctx_id, and the board resets
+      // once it is on the air. The new context, the BOOT status and the BOOT event come from
+      // the next boot's on_boot(), as after any other reset (spec 10.7).
+      restart_owed_ = true;
+      sink_printf(log_, "id %02x REBOOT accepted: board restarts once the ACK is on the air", e.id);
       break;
   }
 }
@@ -1158,6 +1191,43 @@ const char* emit_result_name(EmitResult r) {
     case EmitResult::EncodeFailed:    return "encode failed";
   }
   return "?";
+}
+
+bool Node::announce_boot(Identity& e, lran::ResetCause cause, uint32_t now_ms) {
+  // spec 10.7 - the first STATUS carries BOOT, and the event follows it. The event is what
+  // says why: without the cause a watchdog reset and a directed reboot look alike (8.14).
+  const bool status_queued = send_status(e, lran::kNodeBridge, lran::StatusReason::Boot, now_ms);
+  lran::schema::GateLinkEventV1 ev = make_event(e, lran::EventType::Boot, now_ms);
+  ev.detail                        = static_cast<uint16_t>(cause);  // high byte reserved, 0
+  e.gl.last_event                  = ev;
+  e.gl.has_last_event              = true;
+  const bool event_queued          = send_event(e, lran::kNodeBridge, ev);
+  if (!event_queued) ++answers_dropped_;
+  sink_printf(log_, "id %02x boot: ctx 0x%08lx, reset cause %s, boot_count %u%s", e.id,
+              static_cast<unsigned long>(e.ctx_id), reset_cause_name(cause),
+              static_cast<unsigned>(e.gl.status.boot_count),
+              status_queued && event_queued ? "" : " - NOT ALL QUEUED");
+  return status_queued && event_queued;
+}
+
+void Node::on_boot(lran::ResetCause cause, uint16_t boot_count, uint32_t now_ms) {
+  boot_count_ = boot_count;
+  for (size_t i = 0; i < kMaxIdentities; ++i) {
+    Identity& e = ids_->slot(i);
+    if (!e.used || !e.enabled || e.role != Role::GateLink) continue;
+    e.gl.status.boot_count = boot_count;
+    (void)announce_boot(e, cause, now_ms);
+  }
+}
+
+EmitResult Node::reboot_identity(lran::NodeId id, lran::ResetCause cause, uint32_t now_ms) {
+  Identity* e = ids_->find(id);
+  if (e == nullptr) return EmitResult::NoIdentity;
+  if (!e->enabled) return EmitResult::Disabled;
+  if (e->role != Role::GateLink) return EmitResult::WrongRole;
+  if (out_->free_slots() < 2) return EmitResult::OutboxFull;
+  ids_->new_context(id);
+  return announce_boot(*e, cause, now_ms) ? EmitResult::Ok : EmitResult::EncodeFailed;
 }
 
 EmitResult Node::push(lran::NodeId id, lran::StatusReason reason, uint32_t now_ms) {

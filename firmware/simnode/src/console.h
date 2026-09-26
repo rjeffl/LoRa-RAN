@@ -27,7 +27,7 @@ namespace simnode {
 inline constexpr size_t kConsoleLineMax = 128;
 
 // A command the board supplies, for what cannot be host code - `radio`, which reads the
-// driver. Returns false when `argv[0]` is not its command.
+// driver, and `reboot`, which resets the chip. Returns false when `argv[0]` is not its command.
 using BoardCommand = bool (*)(char** argv, int argc, Sink* out);
 
 class Console {
@@ -56,6 +56,7 @@ class Console {
   void cmd_ack(char** argv, int argc, uint32_t now_ms);
   void cmd_field(char** argv, int argc);
   void cmd_mppt(char** argv, int argc);
+  void cmd_reboot(char** argv, int argc, uint32_t now_ms);
   void fault_list();
   void list_identity(const Identity& e);
 

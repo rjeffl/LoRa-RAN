@@ -18,7 +18,8 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
-is done; group 2's two remaining items and groups 3 and 4 remain.
+has one new item, the lost `BOOT` event. Group 2's two remaining items and groups 3 and 4
+remain.
 
 **Nothing is owed on the bench.** The engineering log's second 2026-09-26 entry has the
 four readings. `sched_task`'s PHY-change low of 1352 bytes is not re-measured; the next PHY
@@ -65,16 +66,18 @@ sat on the command path, and the state mirror's readback, were fixed on 2026-09-
 - **The three restart edges were closed on 2026-09-26**, host-tested (Impl Plan §6.7.8).
   A bench run would confirm the owed PHY `config/ack`: reset the bridge within 150 ms of
   a commit, and watch `lran/bridge/config/ack` for the answer after the reboot.
+- **The bridge's readback `POLL` can cost a node its `BOOT` event.** The bridge answers a
+  `BOOT` status with a `POLL` about 350 ms later (Impl Plan §6.7.7), while the node's
+  `BOOT` event is due. One boot in five lost the event on 2026-09-26. A collision is likely
+  but unconfirmed: read the simnode's `radio` counters across a few `reboot` cycles first.
+  Whether the bridge should wait before that `POLL` is the operator's call. The
+  engineering log's *simnode's resets are real* entry has the timing.
 
-### 2. Simnode reset, then BF-27's simulators
+### 2. BF-27's simulators, and the watchdog's reach
 
 One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
-on 2026-09-26.
+on 2026-09-26, and so was the simnode's reset (spec §10.1, §10.7, §8.14).
 
-- **The simnode does not meet spec v0.16's reset obligations** (§10.1, §8.14, §10.7). It
-  draws `ctx_id` from `esp_random()` with no radio subsystem on, which ESP-IDF calls
-  pseudo-random. It sends no `BOOT` event with a reset cause, and its `REBOOT` is simulated
-  rather than an `esp_restart()`. Bench evidence therefore stops short of a real reset.
 - **BF-27's bridge-side simulators and packet loopback.** They gate nothing. What they
   would add is an unattended, time-varying source; WellLink data waits for schema `0x20`
   (Impl Plan §8.2).
@@ -161,7 +164,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-25 mirror readback** entry, then the two **2026-09-25 air-timing** entries, then the **2026-09-25 events at QoS 1** entry, then the **2026-09-25 Spec v0.15's code on air** entry, then the **code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-26 simnode's resets** entry, then the **2026-09-25 mirror readback** entry, then the two **2026-09-25 air-timing** entries, then the **2026-09-25 events at QoS 1** entry, then the **2026-09-25 Spec v0.15's code on air** entry, then the **code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.7.7** the readback a node reboot owes; **§4.3.3** BF-37's transport and BF-38's event queue; **§6.7.2a** spec v0.15's code; **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | **§9** is B5–B7, where the work goes next |
@@ -177,7 +180,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **The simnode's spec v0.16 reset obligations**. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 

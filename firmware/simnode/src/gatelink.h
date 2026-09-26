@@ -2,12 +2,13 @@
 // Copyright (c) 2026 Robert J. Lee
 //
 // ROLE_GATELINK's tokens and telemetry fields. Task BF-6; Impl Plan 10.2, 10.4; spec 7.2-7.4,
-// 8.1-8.12.
+// 8.1-8.14.
 //
 // ARDUINO-FREE. The protocol behaviour lives in gatelink.cpp as Node members (node.h); this
 // header holds what the console needs to name things.
 //
-// EXACT TOKENS. Status reasons and event types are the spec 8.7 and 8.9 names, and field
+// EXACT TOKENS. Status reasons, event types and reset causes are the spec 8.7, 8.9 and 8.14
+// names, and field
 // names are the GateLinkStatusV1 member names, character for character - a simctl script
 // types them.
 
@@ -25,6 +26,9 @@ const char* status_reason_name(lran::StatusReason r);
 bool        parse_status_reason(const char* token, lran::StatusReason* out);
 const char* event_type_name(lran::EventType t);
 bool        parse_event_type(const char* token, lran::EventType* out);
+// spec 8.14 - a BOOT event's reset cause, by its spec name.
+const char* reset_cause_name(lran::ResetCause c);
+bool        parse_reset_cause(const char* token, lran::ResetCause* out);
 const char* ack_result_name(lran::AckResult r);
 const char* cmd_name(uint8_t cmd);
 

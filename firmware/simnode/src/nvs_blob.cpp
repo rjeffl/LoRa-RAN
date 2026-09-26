@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Task BF-33, slice 3; see nvs_blob.h.
+// Task BF-33, slice 3, and the boot count; see nvs_blob.h.
 
 #include "nvs_blob.h"
 
@@ -13,6 +13,9 @@ namespace {
 // board reflashed from one role to the other from reading the other's group.
 inline constexpr const char* kNamespace = "simnode_phy";
 inline constexpr const char* kKey       = "phy";
+
+inline constexpr const char* kBootNamespace = "simnode_boot";
+inline constexpr const char* kBootKey       = "count";
 
 }  // namespace
 
@@ -36,6 +39,16 @@ bool NvsBlob::write(const uint8_t* bytes, size_t len) {
 bool NvsBlob::erase() {
   if (!open_) return false;
   return !prefs_.isKey(kKey) || prefs_.remove(kKey);
+}
+
+uint16_t nvs_count_boot() {
+  Preferences prefs;
+  if (!prefs.begin(kBootNamespace, /*readOnly=*/false)) return 0;
+  uint16_t n = static_cast<uint16_t>(prefs.getUShort(kBootKey, 0) + 1);
+  if (n == 0) n = 1;
+  const bool saved = prefs.putUShort(kBootKey, n) == sizeof(n);
+  prefs.end();
+  return saved ? n : 0;
 }
 
 }  // namespace simnode

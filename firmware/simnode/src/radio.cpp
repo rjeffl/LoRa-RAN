@@ -367,6 +367,10 @@ void radio_service(Node* node, Outbox* outbox, uint32_t now_ms) {
   }
 }
 
+bool radio_tx_idle() {
+  return !g_have_tx && g_mode != Mode::Cad && g_mode != Mode::Transmit;
+}
+
 void radio_request_phy(const lran::link::PhyConfig& phy) {
   g_phy_next      = phy;
   g_phy_requested = true;

@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.56
+**Version:** 0.57
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.17
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.69
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.70
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -326,6 +326,11 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.57** — **The Impl Plan citation moves to v0.70.** Its §10.9.2 makes the simnode's
+  `REBOOT` a real reset, with a `BOOT` event carrying the reset cause, and §10.4 adds the
+  `reboot` commands. They meet spec v0.16's reset obligations in the simnode and add no
+  task, so no row changes here.
 
 - **v0.56** — **BF-11a and BF-11b are done**, host-tested; the Impl Plan citation moves
   to v0.69 for its new §5.2.2.

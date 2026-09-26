@@ -446,8 +446,8 @@ bool FaultInjector::build(const ArmedFault& a, Identity& e, uint32_t now_ms) {
 
   // A correct 0xF0 payload, the base every single-frame fault deviates from.
   uint8_t      health[lran::schema::kNodeHealthV1Len];
-  const size_t hlen = build_health_payload(e, *node_->radio_counters(), now_ms, health,
-                                           sizeof(health));
+  const size_t hlen = build_health_payload(e, *node_->radio_counters(), node_->boot_count(),
+                                           now_ms, health, sizeof(health));
   if (hlen == 0) return false;
 
   // Shorthand: encode one health STATUS, run `body`, push it. `body` patches and reseals.

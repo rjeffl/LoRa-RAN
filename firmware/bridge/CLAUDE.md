@@ -4,7 +4,7 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.16 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.69
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.70
 (build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.56 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 

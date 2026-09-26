@@ -3631,3 +3631,51 @@ the retry succeeded. That is spec §10.1 working as written, not a defect.
 
 No watchdog reset appeared on any board during the run. The bench was left as it was
 found: `simnode_diag_enable` 0, and no row's `deployed` changed.
+
+## 2026-09-26 — The simnode's resets are real: five boots on the bench, one BOOT event lost on air
+
+**The simnode now meets spec v0.16's reset obligations** (§10.1, §10.7, §8.14). An accepted
+`REBOOT` resets the board through `esp_restart()` once its ACK is on the air. Every boot
+sends a `BOOT` status and then a `BOOT` event with the reset cause. `ctx_id` is drawn with
+the bootloader's entropy source on, and `boot_count` comes from NVS. Impl Plan §10.9.2 has
+the design, and `firmware/simnode/CLAUDE.md` has the three things to keep.
+
+The run used the XIAO on `/dev/cu.usbmodem2101`, flashed from this branch, with the
+bridge on `a85734f`. `simnode_diag_enable` and f1's `deployed` were set for the run and
+cleared after it. The trace is
+[`data/simnode-reset-bench-2026-09-26.log`](./data/simnode-reset-bench-2026-09-26.log).
+
+| Reset | Cause the node reported | `boot_count` | `ctx_id` | BOOT status and event in the bridge's `rxlog` |
+|---|---|---|---|---|
+| Port opened (`rst:0x15`) | `EXTERNAL` | 7 | `0x34f3b1d8` | Both |
+| `REBOOT` on `lran/simnode1/cmd/reboot/set`, `165` | `REBOOT_COMMAND` | 8 | `0x2ac1e583` | Both. `cmd/ack` read `acked`, one attempt |
+| `reboot` | `SOFTWARE` | 9 | `0x2c60dc3d` | **Status only** |
+| `reboot panic` | `PANIC` | 10 | `0x31e23bc1` | Both |
+| `reboot f1 WATCHDOG`, simulated | `WATCHDOG` | 11 | `0x3e0ddc84` | Both |
+
+**The ACK went out before the reset.** The node logged `REBOOT ACCEPTED`, and 160 ms later
+`REBOOT: ACK on the air, restarting`. The ROM line after it read `rst:0xc
+(RTC_SW_CPU_RST)`.
+
+**No `ctx_id` repeated** across the ten boots of both runs. All five in this table start
+`0x2` or `0x3`, so a further sample checked the spread: twelve `reboot` cycles and twenty
+`ctx f1 new` draws. Their first hex digits ran from `0` to `f`, with no repeat. Spec §10.1's falsifying check
+also names a watchdog reset and a power cycle. Neither ran: the simnode has no command that
+starves a watchdog, and a power cycle needs hands on the cable.
+
+**The first run reported the port-open reset as `UNKNOWN`.** ESP-IDF 4.4 has no
+`ESP_RST_USB`, and returns `ESP_RST_UNKNOWN` for the S3's `USB_UART_CHIP_RESET`. `main.cpp`
+now reads the ROM reason in that case, and the second run's table shows the fix.
+
+**The `SOFTWARE` boot's event never reached the bridge.** The node queued it as `seq` 2,
+after the status at `seq` 1. The bridge's `rxlog` shows the status at 1216531 ms and then
+its own readback `POLL` at 1216884 ms (Impl Plan §6.7.7). In the other four boots the event
+arrived about 290 ms after the status, so it was due while the bridge transmitted. The
+node heard the `POLL` and answered it at `seq` 3 and 4. That points to a collision. Nothing
+confirms it yet, because the node's `radio` counters were not read during the run. Spec
+§10.7 already counts a lost event as lost, because events have no ACK. What is new is that
+the bridge's own reaction to a `BOOT` status can cause the loss, one boot in five here.
+
+No BOOT event reached MQTT, and none should: spec §16.6 withholds a bench node's events.
+The bridge's `event_frames` counter and its `rxlog` are the evidence here. Spec §10.7's
+active alarms (D72) never arise on a simnode, because its inputs boot at their defaults.

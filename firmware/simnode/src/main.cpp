@@ -8,11 +8,16 @@
 // nothing else. The key is never printed.
 
 #include <Arduino.h>
+#include <bootloader_random.h>
+#include <esp_attr.h>
+#include <esp_rom_sys.h>
 #include <esp_system.h>
+#include <soc/reset_reasons.h>
 
 #include <cstring>
 
 #include "console.h"
+#include "gatelink.h"
 #include "fault.h"
 #include "identity.h"
 #include "lran/link/radio_config.h"
@@ -86,11 +91,61 @@ bool phy_command(char** argv, int argc, simnode::Sink* out) {
   return true;
 }
 
+// spec 8.14 - a REBOOT the node accepted and any other software restart both read
+// ESP_RST_SW, so the node records its intent where a software reset leaves it. RTC_NOINIT
+// holds garbage after a power-on, which is why the value is a pattern and not a flag, and
+// why it is trusted only under ESP_RST_SW.
+RTC_NOINIT_ATTR uint32_t g_reboot_marker;
+constexpr uint32_t       kRebootMarker = 0x5245424Fu;  // "REBO"
+
+lran::ResetCause reset_cause_at_boot() {
+  const bool directed = g_reboot_marker == kRebootMarker;
+  g_reboot_marker     = 0;
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return lran::ResetCause::PowerOn;
+    case ESP_RST_EXT:      return lran::ResetCause::External;
+    case ESP_RST_SW:       return directed ? lran::ResetCause::RebootCommand
+                                           : lran::ResetCause::Software;
+    case ESP_RST_PANIC:    return lran::ResetCause::Panic;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return lran::ResetCause::Watchdog;
+    case ESP_RST_BROWNOUT: return lran::ResetCause::Brownout;
+    default:               break;
+  }
+  // ESP-IDF 4.4 has no ESP_RST_USB and reports a reset from the USB peripheral as
+  // ESP_RST_UNKNOWN. Both boards are ESP32-S3, and a host opening the port resets them this
+  // way (0x15 on the bench, 2026-09-26). Spec 8.14 names it EXTERNAL.
+  switch (esp_rom_get_reset_reason(0)) {
+    case RESET_REASON_CORE_USB_UART:
+    case RESET_REASON_CORE_USB_JTAG: return lran::ResetCause::External;
+    default:                         return lran::ResetCause::Unknown;
+  }
+}
+
+// `reboot` and `reboot panic` - the whole board, through the chip. The console handles
+// `reboot <hex>`, one identity simulated, and passes these two here.
+bool reboot_command(char** argv, int argc, simnode::Sink* out) {
+  if (argc == 2 && std::strcmp(argv[1], "panic") == 0) {
+    simnode::sink_printf(out, "OK reboot panic - abort(), expect PANIC");
+    Serial.flush();
+    abort();
+  }
+  if (argc != 1) {
+    simnode::sink_printf(out, "ERR usage: reboot [<hex> [cause]] | reboot panic");
+    return true;
+  }
+  simnode::sink_printf(out, "OK reboot - esp_restart(), expect SOFTWARE");
+  Serial.flush();
+  esp_restart();
+}
+
 // `radio` - what the driver saw. `stats` counts frames an identity queued; this counts
 // TX_DONE, which is the only evidence on this board that a frame reached the air. Also
-// dispatches `phy`, because the console takes one board hook.
+// dispatches `phy` and `reboot`, because the console takes one board hook.
 bool radio_command(char** argv, int argc, simnode::Sink* out) {
   if (std::strcmp(argv[0], "phy") == 0) return phy_command(argv, argc, out);
+  if (std::strcmp(argv[0], "reboot") == 0) return reboot_command(argv, argc, out);
   if (std::strcmp(argv[0], "radio") != 0) return false;
   if (argc != 1) {
     simnode::sink_printf(out, "ERR usage: radio");
@@ -185,6 +240,18 @@ void phy_service(uint32_t now) {
   }
 }
 
+// spec 8.1 - REBOOT acknowledges, then resets, and only once the ACK is on the air: an empty
+// outbox and an idle radio. A radio that is down will send nothing, so it does not hold the
+// reset. The marker tells the next boot this was the REBOOT and not another restart.
+void restart_service() {
+  if (!g_node.restart_owed()) return;
+  if (simnode::radio_ready() && (g_outbox.size() != 0 || !simnode::radio_tx_idle())) return;
+  Serial.println(F("REBOOT: ACK on the air, restarting"));
+  Serial.flush();
+  g_reboot_marker = kRebootMarker;
+  esp_restart();
+}
+
 }  // namespace
 
 void setup() {
@@ -196,6 +263,17 @@ void setup() {
   Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)"));
   Serial.print(F("Board: "));
   Serial.println(simnode::kBoardName);
+
+  const lran::ResetCause cause = reset_cause_at_boot();
+  const uint16_t         boots = simnode::nvs_count_boot();
+  Serial.printf("Reset cause: %s (esp_reset_reason %d), boot_count %u\n",
+                simnode::reset_cause_name(cause), static_cast<int>(esp_reset_reason()),
+                static_cast<unsigned>(boots));
+
+  // spec 10.1 - ctx_id from a true entropy source. The simnode runs neither WiFi nor
+  // Bluetooth, so esp_random() is pseudo-random until this turns the SAR ADC noise source on.
+  // It stays on: nothing here uses the ADC, and a roll or `id add` draws a ctx_id later.
+  bootloader_random_enable();
 
   {
     const uint8_t master[] = LRAN_MASTER_KEY;
@@ -210,8 +288,8 @@ void setup() {
 
   // Impl Plan 10.8.1's assignment: the XIAO carries the target radio, so it is 0xF1
   // ROLE_GATELINK (BF-6). The Heltec's 0xF0 stays ROLE_RANGE, because faults arm on any
-  // identity and a range peer is what a first bring-up wants. Nothing persists: a reboot is
-  // a new context for every identity, which is what a node reboot is.
+  // identity and a range peer is what a first bring-up wants. Identities do not persist: a
+  // reboot is a new context for every identity, which is what a node reboot is.
 #if defined(LRAN_PROFILE_HELTEC)
   add_default(lran::kNodeSim0, simnode::Role::Range);
   add_default(lran::kNodeSim2, simnode::Role::Health);
@@ -238,6 +316,8 @@ void setup() {
     Serial.println(F("PHY: stored group breaks D33's EIRP ceiling - booting on kPhy"));
   }
   simnode::radio_start(simnode::kRadio, boot_phy, &g_sink);
+  // spec 10.7 - the BOOT status and event, queued behind nothing: they are the first frames.
+  g_node.on_boot(cause, boots, millis());
   Serial.println(F("B0: identities, console, faults, OLED; all four roles. Type 'help'."));
 }
 
@@ -250,6 +330,7 @@ void loop() {
   phy_service(now);
   g_faults.tick(now);
   simnode::radio_service(&g_node, &g_outbox, now);
+  restart_service();
   ui_service(now);
   delay(1);  // spec 12.3 backoffs are milliseconds; nothing here needs a finer loop
 }

@@ -127,7 +127,7 @@ void test_a_poll_is_answered_with_node_health() {
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                         static_cast<int>(schema::deserialize(got.payload, got.payload_len, &h)));
   TEST_ASSERT_EQUAL_UINT32(61, h.uptime_s);
-  TEST_ASSERT_EQUAL_UINT16(kU16NotAvailable, h.boot_count);
+  TEST_ASSERT_EQUAL_UINT16(kU16NotAvailable, h.boot_count);  // on_boot() not called: no count
   TEST_ASSERT_EQUAL_UINT16(1, h.rx_frames);
   // Frames sent before this one. The health payload is built before it is queued, so a
   // 0xF0 never counts itself - the next one will.
@@ -142,6 +142,24 @@ void test_a_poll_is_answered_with_node_health() {
   b.node.on_rx(buf, len, -42, 95, 62000);
   b.out.pop(&f);
   TEST_ASSERT_EQUAL_UINT16(2, bridge_decode(f, kNodeSim0, b).hdr.seq);
+}
+
+// spec 7.5 - 0xF0 carries the board's boot count once on_boot() has it from NVS.
+void test_node_health_reports_the_board_boot_count() {
+  Board b;
+  b.ids.add(kNodeSim0, Role::Health);
+  b.node.on_boot(ResetCause::PowerOn, 5, 0);
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());  // no event schema, so nothing to announce
+
+  uint8_t buf[kMaxFrame];
+  b.node.on_rx(buf, poll_to(kNodeSim0, b, buf), -42, 95, 1000);
+  OutFrame f;
+  TEST_ASSERT_TRUE(b.out.pop(&f));
+  const Frame          got = bridge_decode(f, kNodeSim0, b);
+  schema::NodeHealthV1 h;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::deserialize(got.payload, got.payload_len, &h)));
+  TEST_ASSERT_EQUAL_UINT16(5, h.boot_count);
 }
 
 // Each identity hears every frame. The one addressed answers; the other counts it
@@ -390,6 +408,7 @@ void test_a_phy_crc_error_is_heard_by_every_enabled_identity() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_a_poll_is_answered_with_node_health);
+  RUN_TEST(test_node_health_reports_the_board_boot_count);
   RUN_TEST(test_each_identity_hears_every_frame_and_only_the_addressed_one_answers);
   RUN_TEST(test_a_disabled_identity_is_silent);
   RUN_TEST(test_an_identity_speaks_the_version_it_announces);
