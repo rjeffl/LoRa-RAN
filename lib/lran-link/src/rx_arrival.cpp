@@ -23,6 +23,8 @@ uint32_t preamble_to_header_ms(const PhyConfig& phy) {
   return static_cast<uint32_t>((us + 999u) / 1000u);
 }
 
+uint32_t burst_holdoff_ms(const PhyConfig& phy) { return 2u * preamble_to_header_ms(phy); }
+
 RxArrivalState RxArrival::observe(bool preamble, bool header, uint32_t now_ms) {
   if (header) {
     if (!header_seen_) {
@@ -43,6 +45,10 @@ RxArrivalState RxArrival::observe(bool preamble, bool header, uint32_t now_ms) {
   }
   preamble_seen_ = false;
   return RxArrivalState::Idle;
+}
+
+bool RxArrival::holding_off(uint32_t now_ms) const {
+  return reception_ended_ && elapsed(now_ms, reception_end_ms_) < holdoff_ms_;
 }
 
 bool RxArrival::arriving(uint32_t now_ms) const {

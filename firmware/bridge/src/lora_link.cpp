@@ -279,7 +279,8 @@ void try_begin(uint32_t now_ms) {
   g_stats.last_begin_status = st;
   g_dio1                    = false;
   g_arrival.reset();
-  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs);
+  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs,
+                       lran::link::burst_holdoff_ms(g_phy));
   enter_mode(Mode::Receive, now_ms);
   g_ready                   = true;
 
@@ -422,6 +423,7 @@ void service_receive(uint32_t now_ms) {
       // Counted as the PHY CRC error it is, and receive is restarted to clear the register.
       g_ladder.on_phy_crc_error();
       log_rx(RxOutcome::HeaderError, now_ms, false, false, 0.0f, 0.0f);
+      g_arrival.note_reception_end(now_ms);
       start_receive(now_ms);
       return;
     case RxPass::WakeEmpty:
@@ -449,6 +451,7 @@ void service_receive(uint32_t now_ms) {
   const float   rssi = g_radio->getRSSI();
   const float   snr  = g_radio->getSNR();
   g_arrival.reset();
+  g_arrival.note_reception_end(now_ms);  // the next frame of a burst may be starting
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     g_ladder.on_phy_crc_error();  // spec 14 stage 1
@@ -539,6 +542,11 @@ void start_transmit(uint32_t now_ms) {
 }
 
 void start_cad(uint32_t now_ms) {
+  // A reception just ended, and the sender's next frame may be in its first symbols, too
+  // early for any flag. Not a CAD and not a busy one: the frame keeps its retries, and
+  // the next pass asks again (rx_arrival.h).
+  if (g_arrival.holding_off(now_ms)) return;
+
   const uint32_t irq = g_radio->getIrqFlags();
 
   // A frame is already waiting to be read. Read it on the next pass, then CAD.
@@ -557,9 +565,10 @@ void start_cad(uint32_t now_ms) {
     return;
   }
   if (arrival == lran::link::RxArrivalState::Stale) {
-    // The flag outlived its bound: that reception died. Clear the register.
+    // The flag outlived its bound: that reception died. Clear the register, and CAD on a
+    // later pass, once a real preamble hidden behind the sticky flag can raise it again.
     start_receive(now_ms);
-    if (g_mode != Mode::Receive) return;
+    return;
   }
 
   const int16_t st = g_radio->startChannelScan();

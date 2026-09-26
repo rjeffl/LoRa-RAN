@@ -159,7 +159,8 @@ void try_begin(uint32_t now_ms) {
   g_stats.last_begin_status = st;
   g_dio1                    = false;
   g_arrival.reset();
-  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs);
+  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs,
+                       lran::link::burst_holdoff_ms(g_phy));
   g_mode                    = Mode::Receive;
   g_ready                   = true;
 
@@ -196,6 +197,7 @@ void service_receive(Node* node, uint32_t now_ms) {
     // spec 14 stage 1, the header half: a LoRa header failing its own CRC raises no RX_DONE.
     if ((irq & RADIOLIB_SX126X_IRQ_HEADER_ERR) != 0) {
       node->on_phy_crc_error(now_ms);
+      g_arrival.note_reception_end(now_ms);
       start_receive(now_ms);
     }
     return;
@@ -210,6 +212,7 @@ void service_receive(Node* node, uint32_t now_ms) {
   const float   rssi = g_radio->getRSSI();
   const float   snr  = g_radio->getSNR();
   g_arrival.reset();
+  g_arrival.note_reception_end(now_ms);  // the next frame of a burst may be starting
 
   if (st == RADIOLIB_ERR_CRC_MISMATCH) {
     node->on_phy_crc_error(now_ms);
@@ -244,6 +247,9 @@ void start_transmit(uint32_t now_ms) {
 }
 
 void start_cad(Node* node, uint32_t now_ms) {
+  // Too soon after a reception for a burst's next frame to show: ask again next pass.
+  if (g_arrival.holding_off(now_ms)) return;
+
   const uint32_t irq = g_radio->getIrqFlags();
   if ((irq & RADIOLIB_SX126X_IRQ_RX_DONE) != 0) {
     g_dio1 = true;  // read the waiting frame first
@@ -257,9 +263,11 @@ void start_cad(Node* node, uint32_t now_ms) {
     if (report_cad(node, CadResult::Busy, now_ms) == TxStep::Transmit) start_transmit(now_ms);
     return;
   }
-  if (arrival == lran::link::RxArrivalState::Stale) {  // a reception that died
+  if (arrival == lran::link::RxArrivalState::Stale) {
+    // A reception that died. Clear the register and CAD on a later pass, so a preamble
+    // hidden behind the sticky flag can raise it again.
     start_receive(now_ms);
-    if (g_mode != Mode::Receive) return;
+    return;
   }
   const int16_t st = g_radio->startChannelScan();
   if (st != RADIOLIB_ERR_NONE) {

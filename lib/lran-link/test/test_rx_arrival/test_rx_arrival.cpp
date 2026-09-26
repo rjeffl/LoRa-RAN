@@ -15,10 +15,11 @@ namespace {
 
 constexpr uint32_t kPreambleMs = 88;
 constexpr uint32_t kFrameMs    = 1500;
+constexpr uint32_t kHoldoffMs  = 176;
 
 RxArrival make() {
   RxArrival a;
-  a.set_bounds(kPreambleMs, kFrameMs);
+  a.set_bounds(kPreambleMs, kFrameMs, kHoldoffMs);
   return a;
 }
 
@@ -42,6 +43,40 @@ void test_the_bound_follows_the_phy() {
   p.sf       = 7;
   p.bw_khz10 = 2500;
   TEST_ASSERT_EQUAL_UINT32(11, preamble_to_header_ms(p));   // 21.25 x 0.512 ms
+}
+
+// Twice the preamble-to-header time, so it scales with the PHY too.
+void test_the_holdoff_at_d1_phy_is_176_ms() {
+  TEST_ASSERT_EQUAL_UINT32(176, burst_holdoff_ms(kPhy));
+  PhyConfig p = kPhy;
+  p.sf        = 12;
+  TEST_ASSERT_EQUAL_UINT32(1394, burst_holdoff_ms(p));
+}
+
+// The loss the preamble guard left: a BOOT event starting 39 ms after its status.
+void test_no_cad_straight_after_a_reception() {
+  RxArrival a = make();
+  TEST_ASSERT_FALSE(a.holding_off(1000));  // nothing received yet
+  a.note_reception_end(1000);
+  TEST_ASSERT_TRUE(a.holding_off(1000));
+  TEST_ASSERT_TRUE(a.holding_off(1039));
+  TEST_ASSERT_TRUE(a.holding_off(1175));
+  TEST_ASSERT_FALSE(a.holding_off(1176));
+}
+
+// Restarting receive clears the register, not the time since the last frame ended.
+void test_reset_keeps_the_holdoff() {
+  RxArrival a = make();
+  a.note_reception_end(1000);
+  a.reset();
+  TEST_ASSERT_TRUE(a.holding_off(1100));
+}
+
+void test_the_holdoff_survives_a_millis_wrap() {
+  RxArrival a = make();
+  a.note_reception_end(0xFFFFFFF0u);
+  TEST_ASSERT_TRUE(a.holding_off(0x20));
+  TEST_ASSERT_FALSE(a.holding_off(0xFFFFFFF0u + kHoldoffMs));
 }
 
 void test_no_flag_is_idle() {
@@ -103,6 +138,10 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_the_bound_at_d1_phy_is_88_ms);
   RUN_TEST(test_the_bound_follows_the_phy);
+  RUN_TEST(test_the_holdoff_at_d1_phy_is_176_ms);
+  RUN_TEST(test_no_cad_straight_after_a_reception);
+  RUN_TEST(test_reset_keeps_the_holdoff);
+  RUN_TEST(test_the_holdoff_survives_a_millis_wrap);
   RUN_TEST(test_no_flag_is_idle);
   RUN_TEST(test_a_fresh_preamble_is_arriving);
   RUN_TEST(test_a_preamble_past_its_bound_is_stale);
