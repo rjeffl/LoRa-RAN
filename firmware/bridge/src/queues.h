@@ -70,6 +70,8 @@ struct TxMessage {
   uint8_t     bytes[lran::kMaxFrame] = {0};
   size_t      len                    = 0;
   lran::NodeId dst                   = 0;  // diagnostics and the raw frame log
+  // Nonzero when a reply window waits for this frame; lora_tx_finished() reports it.
+  uint32_t    ticket                 = 0;
 };
 
 // ---------------------------------------------------------------------------

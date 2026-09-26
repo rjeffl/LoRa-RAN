@@ -207,13 +207,15 @@ void test_a_change_that_works_commits_once_every_node_is_heard() {
   s = r.step(1200);
   TEST_ASSERT_TRUE(s.action == PhyAction::SendPoll);
   TEST_ASSERT_EQUAL_HEX8(kA, s.dst);
-  s = r.step(1200);
-  TEST_ASSERT_TRUE(s.action == PhyAction::SendPoll);
-  TEST_ASSERT_EQUAL_HEX8(kB, s.dst);
+  // kB's POLL waits for kA's answer: one step-6 POLL outstanding at a time.
+  TEST_ASSERT_TRUE(r.step(1200).action == PhyAction::None);
   TEST_ASSERT_TRUE(r.step(1300).action == PhyAction::None);
 
   r.m.on_heard(kA, 1500);
-  TEST_ASSERT_TRUE(r.step(1600).action == PhyAction::None);  // kB not heard yet
+  s = r.step(1600);
+  TEST_ASSERT_TRUE(s.action == PhyAction::SendPoll);
+  TEST_ASSERT_EQUAL_HEX8(kB, s.dst);
+  TEST_ASSERT_TRUE(r.step(1650).action == PhyAction::None);  // kB not heard yet
   r.m.on_heard(kB, 1700);
 
   // Step 7 - commit, then one GET per node in the order of step 3.
@@ -290,6 +292,46 @@ void test_a_stray_ack_is_not_claimed() {
   (void)r.step(0);
   TEST_ASSERT_FALSE(r.m.on_config_ack(kB, set_ack(moved()), r.seq, 10));
   TEST_ASSERT_FALSE(r.m.on_config_ack(kA, set_ack(moved()), r.seq + 1, 10));
+}
+
+// Step 6 - a node that does not answer holds the next POLL for one ACK timeout, and no
+// longer. On 2026-09-24 two step-6 POLLs went 229 ms apart to different nodes.
+void test_a_silent_node_holds_the_next_poll_for_one_timeout() {
+  Rig r;
+  r.fan_out(1000);
+  (void)r.step(1000);
+  r.m.on_retuned(1000);
+
+  PhyStep s = r.step(1100);
+  TEST_ASSERT_TRUE(s.action == PhyAction::SendPoll);
+  TEST_ASSERT_EQUAL_HEX8(kA, s.dst);
+  TEST_ASSERT_TRUE(r.step(1100 + kAckMs - 1).action == PhyAction::None);
+  s = r.step(1100 + kAckMs);
+  TEST_ASSERT_TRUE(s.action == PhyAction::SendPoll);
+  TEST_ASSERT_EQUAL_HEX8(kB, s.dst);
+}
+
+// on_aired() moves a step-6 POLL's timeout to when the frame left lora_task.
+void test_a_step6_poll_times_out_from_when_it_aired() {
+  Rig r(1);
+  r.fan_out(1000);
+  (void)r.step(1000);
+  r.m.on_retuned(1000);
+
+  TEST_ASSERT_TRUE(r.step(1100).action == PhyAction::SendPoll);
+  r.m.on_aired(3600);  // 2.5 s of media access
+  TEST_ASSERT_TRUE(r.step(1100 + kAckMs).action == PhyAction::None);
+  TEST_ASSERT_TRUE(r.step(3600 + kAckMs).action == PhyAction::SendPoll);
+}
+
+// on_aired() moves a SET's ACK timeout the same way, so a slow media access is not read
+// as a node that did not answer (spec 7.4's `unknown`).
+void test_a_set_times_out_from_when_it_aired() {
+  Rig r;
+  TEST_ASSERT_TRUE(r.step(0).action == PhyAction::SendSet);
+  r.m.on_aired(2500);
+  TEST_ASSERT_TRUE(r.step(kAckMs).action == PhyAction::None);
+  TEST_ASSERT_TRUE(r.step(2500 + kAckMs).action == PhyAction::Abandon);
 }
 
 // Step 8 - a node not heard by the deadline reverts the bridge. With two nodes and the
@@ -380,6 +422,9 @@ int main(int, char**) {
   RUN_TEST(test_a_clamped_value_abandons);
   RUN_TEST(test_a_missing_ack_abandons_and_defers_the_readback);
   RUN_TEST(test_a_stray_ack_is_not_claimed);
+  RUN_TEST(test_a_silent_node_holds_the_next_poll_for_one_timeout);
+  RUN_TEST(test_a_step6_poll_times_out_from_when_it_aired);
+  RUN_TEST(test_a_set_times_out_from_when_it_aired);
   RUN_TEST(test_a_node_not_heard_by_the_deadline_reverts_the_bridge);
   RUN_TEST(test_an_unanswered_get_is_sent_again_and_a_late_answer_counts);
   RUN_TEST(test_a_node_that_never_confirms_is_counted_as_w17);

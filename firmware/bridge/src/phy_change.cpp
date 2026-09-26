@@ -214,7 +214,22 @@ PhyStep PhyChange::next(uint32_t now_ms) {
       if (phase_ == Phase::AwaitingRetune) return step;
       // spec 12.4.1 step 6 - a POLL to each node not yet heard, again after each ACK
       // timeout. POLL is unauthenticated (spec 9.2), so no node counts it as confirmation.
+      //
+      // ONE AT A TIME. A POLL whose answer is still due holds the next, to any node. Until
+      // 2026-09-25 each node's POLL waited only on its own, and on the bench two went
+      // 229 ms apart to different nodes, so two answers were due at once (air_turn.h).
       for (size_t i = 0; i < nfleet_; ++i) {
+        if (!heard_[i] && polled_[i] && since(now_ms, polled_ms_[i]) < ack_timeout_ms_) {
+          return step;
+        }
+      }
+      // In turn from the node after the last one polled, so a silent node does not take
+      // every turn from the nodes behind it.
+      bool any_polled = false;
+      for (size_t i = 0; i < nfleet_; ++i) any_polled = any_polled || polled_[i];
+      const size_t first = any_polled ? index_ + 1 : 0;
+      for (size_t k = 0; k < nfleet_; ++k) {
+        const size_t i = (first + k) % nfleet_;
         if (heard_[i]) continue;
         if (polled_[i] && since(now_ms, polled_ms_[i]) < ack_timeout_ms_) continue;
         index_      = i;
@@ -302,6 +317,20 @@ void PhyChange::on_sent(lran::Seq seq, uint32_t now_ms) {
     case Phase::Hearing:
       polled_[index_]    = true;
       polled_ms_[index_] = now_ms;
+      return;
+    default:
+      return;
+  }
+}
+
+void PhyChange::on_aired(uint32_t aired_ms) {
+  switch (phase_) {
+    case Phase::AwaitingSetAck:
+    case Phase::AwaitingGet:
+      sent_ms_ = aired_ms;
+      return;
+    case Phase::Hearing:
+      if (polled_[index_]) polled_ms_[index_] = aired_ms;
       return;
     default:
       return;

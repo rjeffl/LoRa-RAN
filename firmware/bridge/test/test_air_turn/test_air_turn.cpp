@@ -3,9 +3,9 @@
 //
 // The poll clash - one exchange on the air at a time (air_turn.h; PRD R-3.1d).
 //
-// THE PROPERTY UNDER TEST: a scheduled POLL and any other exchange never wait for their
-// answers at the same time. With one scheduled poll outstanding, nothing else starts;
-// with anything else in flight or waiting, no scheduled poll starts.
+// THE PROPERTY UNDER TEST: no two exchanges wait for their answers at the same time. With
+// a scheduled poll or any other exchange outstanding, no other exchange starts; with
+// anything in flight or waiting, no scheduled poll starts.
 //
 // WHAT THIS CANNOT COVER. That sched_task asks these questions at every start, and a node
 // answering on air. The bench run in the engineering log is where the fix is proven.
@@ -53,15 +53,23 @@ void test_a_waiting_request_goes_before_a_due_poll() {
   TEST_ASSERT_TRUE(exchange_may_start(a));
 }
 
-// Only the scheduled poll's own state holds an exchange. Whether one exchange may start
-// beside another is each path's own busy() check, which this does not replace.
-void test_nothing_but_a_poll_holds_an_exchange() {
+// sched_config() once asked about neither the command nor the roll, and they did not ask
+// about the CONFIG, so a command and a CONFIG could share one node's seq space in flight.
+void test_each_exchange_holds_every_other() {
+  bool AirTurn::*const busy[] = {&AirTurn::command_busy, &AirTurn::roll_busy,
+                                 &AirTurn::config_busy, &AirTurn::phy_blocks_traffic,
+                                 &AirTurn::hex_busy};
+  for (bool AirTurn::*const field : busy) {
+    AirTurn a;
+    a.*field = true;
+    TEST_ASSERT_FALSE(exchange_may_start(a));
+  }
+}
+
+// A request waiting in its queue holds a poll, not an exchange: it IS the next exchange.
+void test_a_waiting_request_holds_no_exchange() {
   AirTurn a;
-  a.command_busy       = true;
-  a.roll_busy          = true;
-  a.config_busy        = true;
-  a.phy_blocks_traffic = true;
-  a.request_waiting    = true;
+  a.request_waiting = true;
   TEST_ASSERT_TRUE(exchange_may_start(a));
 }
 
@@ -73,6 +81,7 @@ int main() {
   RUN_TEST(test_an_outstanding_poll_holds_every_other_exchange);
   RUN_TEST(test_each_other_exchange_holds_a_scheduled_poll);
   RUN_TEST(test_a_waiting_request_goes_before_a_due_poll);
-  RUN_TEST(test_nothing_but_a_poll_holds_an_exchange);
+  RUN_TEST(test_each_exchange_holds_every_other);
+  RUN_TEST(test_a_waiting_request_holds_no_exchange);
   return UNITY_END();
 }

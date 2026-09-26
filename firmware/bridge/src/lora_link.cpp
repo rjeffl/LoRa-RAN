@@ -68,6 +68,11 @@ PhyConfig             g_phy_next{};
 uint32_t              g_phy_requested = 0;
 std::atomic<uint32_t> g_phy_applied{0};
 
+// The last ticketed frame to leave lora_task, and when. Guarded by g_diag_mux, like the
+// retune request above. lora_tx_finished() reads them.
+uint32_t g_tx_done_ticket = 0;
+uint32_t g_tx_done_ms     = 0;
+
 lran::Counters g_counters;
 LoraStats      g_stats;
 RxLadder       g_ladder(&g_counters);
@@ -222,9 +227,20 @@ void enter_mode(Mode next, uint32_t now_ms) {
   g_mode_start_ms    = now_ms;
 }
 
-void end_tx() {
+// A frame left lora_task, on air or not. Every path that lets go of g_tx calls this, so a
+// reply window waiting on it opens even when the frame never went out.
+void note_tx_done(uint32_t now_ms) {
+  if (g_tx.ticket == 0) return;
+  portENTER_CRITICAL(&g_diag_mux);
+  g_tx_done_ticket = g_tx.ticket;
+  g_tx_done_ms     = now_ms;
+  portEXIT_CRITICAL(&g_diag_mux);
+}
+
+void end_tx(uint32_t now_ms) {
   g_access.finish();
   g_have_tx = false;
+  note_tx_done(now_ms);
 }
 
 void radio_failed(int16_t status, uint32_t now_ms) {
@@ -235,7 +251,7 @@ void radio_failed(int16_t status, uint32_t now_ms) {
   ++g_stats.begin_failures;
   if (g_have_tx) {
     ++g_stats.tx_dropped_no_radio;
-    end_tx();
+    end_tx(now_ms);
   }
   // TODO(BF-11a): through the log queue. A line every 10 s from a dead radio is loud on
   // purpose; it is the only symptom a field log would otherwise show.
@@ -461,7 +477,7 @@ void start_transmit(uint32_t now_ms) {
   const int16_t st = g_radio->startTransmit(g_tx.bytes, g_tx.len);
   if (st != RADIOLIB_ERR_NONE) {
     ++g_stats.tx_errors;
-    end_tx();
+    end_tx(now_ms);
     start_receive(now_ms);
     return;
   }
@@ -582,7 +598,7 @@ void service_transmit(uint32_t now_ms) {
     return;
   }
   (void)g_radio->finishTransmit();  // clears the IRQ register and returns to standby
-  end_tx();
+  end_tx(now_ms);
   start_receive(now_ms);
 }
 
@@ -596,6 +612,7 @@ void service_tx(uint32_t now_ms) {
   switch (g_access.step(now_ms)) {
     case TxStep::Idle:
       g_have_tx = false;
+      note_tx_done(now_ms);
       return;
     case TxStep::Wait:
       return;  // backing off, and still receiving
@@ -686,7 +703,10 @@ void lora_service(uint32_t now_ms) {
     case Mode::Down:
       // Nothing can be sent. Draining keeps producers' drop counters honest: a frame left
       // queued would go out long after its poll or command had timed out upstream.
-      while (take_tx(&g_tx)) ++g_stats.tx_dropped_no_radio;
+      while (take_tx(&g_tx)) {
+        ++g_stats.tx_dropped_no_radio;
+        note_tx_done(now_ms);
+      }
       if (elapsed(now_ms, g_begin_failed_ms) >= kBeginRetryMs) try_begin(now_ms);
       break;
     case Mode::Receive:
@@ -746,6 +766,17 @@ uint32_t lora_request_phy(const PhyConfig& phy) {
 }
 
 bool lora_phy_applied(uint32_t ticket) { return g_phy_applied.load() == ticket; }
+
+bool lora_tx_finished(uint32_t ticket, uint32_t* done_ms) {
+  portENTER_CRITICAL(&g_diag_mux);
+  const uint32_t t  = g_tx_done_ticket;
+  const uint32_t ms = g_tx_done_ms;
+  portEXIT_CRITICAL(&g_diag_mux);
+  // Wrap-safe, like every millis() comparison here: tickets wrap too, skipping 0.
+  if (t == 0 || static_cast<int32_t>(t - ticket) < 0) return false;
+  *done_ms = ms;
+  return true;
+}
 
 void lora_configure_errors(uint32_t min_interval_ms) {
   g_error_policy.configure(min_interval_ms);

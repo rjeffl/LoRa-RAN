@@ -54,9 +54,12 @@ keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a reg
 a queue send**, so it never nests with the registry's; a bench row is polled only after it
 has been heard; `lora_task_idle()` is false while a poll is outstanding, which an OTA
 upload waits on; and **one exchange is on the air at a time** (`air_turn.h`): an outstanding
-poll holds every other exchange, and any other exchange holds the next scheduled poll. A
-second frame 211 ms after a `POLL` lost both frames on 2026-09-24. **A new path that
-transmits asks `exchange_may_start()` before it starts**, and is added to `AirTurn`.
+poll holds every other exchange, every exchange holds every other, and any exchange holds
+the next scheduled poll. A second frame 211 ms after a `POLL` lost both frames on
+2026-09-24. **A new path that transmits asks `exchange_may_start()` before it starts**, and
+is added to `AirTurn`. **It also queues with `send_tx_awaited()` and holds its `next()` on
+`air_pending()`**, so its reply window opens when the frame leaves `lora_task` rather than
+when it is queued; media access can hold a frame for seconds.
 
 **`BF-20` — the availability watchdog, built and host-tested.** `node_availability.{h,cpp}`
 judges and `sched_task` publishes; Impl Plan §6.1.2. **Three things to keep:** the watchdog
@@ -396,7 +399,7 @@ log. Never commit, echo or log the real values.
   topic answers `read_only`. **While a change runs, `blocks_traffic()` holds every other
   authenticated frame**, because any one of them confirms the node that receives it. It
   holds scheduled polls as well, through `air_turn.h`; the change sends its own step-6
-  polls. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
+  polls, one at a time, in turn across the nodes. The pin map, TCXO voltage and RF-switch flag stay in the injected radio
   config (§12.2) and are not parameters. **Text saying the PHY belongs nowhere near the
   HA-visible config set is correct for before v0.13**; the hazard it named is real and is
   what the revert window exists for — a node that boots on the wrong channel is a walk to

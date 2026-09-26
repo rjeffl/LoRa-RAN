@@ -244,6 +244,16 @@ void test_the_window_survives_the_millis_wrap() {
   TEST_ASSERT_EQUAL(RollAction::Send, r.next(t0 + r.ack_timeout_ms()).action);
 }
 
+// The 2026-09-24 case: f1's roll went on air about 2.5 s after it was queued, and the
+// retry went 527 ms after that. Counted from the air, the window is still open then.
+void test_the_window_counts_from_when_the_frame_aired() {
+  ContextRoll r = started();  // queued at 1000
+  r.on_aired(3500);
+  TEST_ASSERT_EQUAL(RollAction::None, r.next(3500 + 527).action);
+  TEST_ASSERT_EQUAL(RollAction::None, r.next(3500 + r.ack_timeout_ms() - 1).action);
+  TEST_ASSERT_EQUAL(RollAction::Send, r.next(3500 + r.ack_timeout_ms()).action);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_node_starts_pending_and_none_is_due);
@@ -259,5 +269,6 @@ int main() {
   RUN_TEST(test_one_roll_in_flight_and_the_next_is_due_after_it);
   RUN_TEST(test_the_timeout_and_retry_count_are_runtime_settable);
   RUN_TEST(test_the_window_survives_the_millis_wrap);
+  RUN_TEST(test_the_window_counts_from_when_the_frame_aired);
   return UNITY_END();
 }

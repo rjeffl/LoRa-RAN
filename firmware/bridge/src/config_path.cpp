@@ -141,6 +141,12 @@ void ConfigPath::on_sent(uint32_t now_ms) {
   }
 }
 
+void ConfigPath::on_aired(uint32_t aired_ms) {
+  if (phase_ == Phase::AwaitingAck || phase_ == Phase::AwaitingReadback) {
+    window_opened_ms_ = aired_ms;
+  }
+}
+
 void ConfigPath::stage(const lran::schema::NodeConfigAckV1& ack) {
   for (size_t i = 0; i < ack.count; ++i) {
     if (staged_count_ >= kMaxStagedResults) {

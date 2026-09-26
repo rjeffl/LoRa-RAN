@@ -3345,3 +3345,98 @@ setting is changed with VictronConnect. The next bridge boot corrects it.
 
 Not covered: gate 1 on air. No bench tool sends a write-class `HEX_REQ` with a bad MAC;
 `test_gatelink` and `test_hex_proxy` cover it on the host.
+
+## 2026-09-25 — The air-timing defects: exchanges exclude each other, windows open on air, step-6 POLLs take turns
+
+**Three defects from B4b's bench runs are fixed and host-tested, and none is yet shown on
+air.** All three sat in `sched_task`'s decision about when a frame may go or when its answer
+is late. Each is one commit on `b-defects-air-timing`.
+
+**A command and a `CONFIG` could be in flight to one node together** (`30d3ae1`). Every
+pair of exchanges excluded each other except two: `sched_config()` did not ask whether a
+command or a roll was busy, and `sched_commands()` and `sched_roll()` did not ask about the
+`CONFIG`. Each sender carried its own list, so the gap was one missing term in three places.
+`exchange_may_start()` in `air_turn.h` now answers for every exchange, and each sender asks it
+alone plus its own extra condition. A gate command can now wait behind a `CONFIG`, for its ACK
+timeout and then its readback, where before it would have gone beside it.
+
+**A reply window opened at the queue, not on air** (`2b55681`). This is the *poll clash
+fixed* entry's f1 roll, retried 527 ms after it went on air. The code confirms the
+mechanism that entry could only infer: every path called `on_sent(now_ms)` straight after
+`send_tx()`, and `lora_task` can hold a frame through several CAD rounds of up to
+`backoff_max_ms` each. The trace still does not show when that frame was queued, so the
+2.5 s wait remains an inference from the arithmetic. The command, roll, `CONFIG`, HEX and
+PHY-change paths now queue with a ticket. `lora_task` records when each ticketed frame
+leaves it, whether sent, timed out, refused by the radio or dropped with the radio down.
+`sched_task` holds that path's `next()` until then, and `on_aired()` moves the window's
+start. **A HEX write was the sharpest case**: it is never retried, so a window closed
+early reported `unknown` for a write that happened.
+
+**The scheduled poll keeps its window at the queue.** `scheduler.h` says its answer time
+includes the queue and media access on purpose, B3a records it against
+`poll_reply_timeout_ms` (Impl Plan §6.1.1), and 10 s is sized for that wait. Moving it would
+change a measure that other entries cite. Polls a `CONFIG` readback or a PHY change sends
+belong to their path, and they do wait for the air.
+
+**The hold has a 10 s backstop.** If `lora_task` never reported a frame, the path would
+hold for good, and on the command path that means a gate that stops answering. After 10 s the
+window opens from then, and the serial log prints `air: <path> frame not reported`. Nothing
+should print that line; if it prints, look for an exit from `lora_task`'s transmit path that
+does not call `note_tx_done()`.
+
+**A PHY change's step-6 `POLL`s go one at a time** (`3c53e7f`). Each node's `POLL` waited
+only for that node's previous one, so two went 229 ms apart to different nodes. Now a
+`POLL` whose answer is still due holds the next, to any node, for one
+`config_ack_timeout_ms`. **The first version of this fix starved a node**: after a silent
+node's timeout, the loop picked the first unheard node again, which was the silent one.
+`test_a_silent_node_holds_the_next_poll_for_one_timeout` caught it, and the nodes now take
+turns from the one after the last polled. Worst case, with every node silent, each node is
+polled once per `nfleet × config_ack_timeout_ms` rather than once per timeout. Step 8's
+deadline is unchanged.
+
+**What would show these on air**, on a bench run with the frame log (BF-27):
+
+- No `CONFIG` `tx` record while a `COMMAND` or `ROLL_CONTEXT` to any node awaits its answer,
+  and the reverse.
+- No roll or command retry within `cmd_ack_timeout_ms` of the previous attempt's `tx`
+  record. The `tx` record is written when `start_transmit()` starts, so the window, which
+  now opens at `TX_DONE`, closes at least that long after it.
+- Every step-6 `POLL` `tx` record follows the previous one's answer, or comes at least
+  `config_ack_timeout_ms` after it.
+
+Native suites: 475 cases pass. `heltec` builds.
+
+## 2026-09-25 — The air-timing fixes on air: no two exchanges overlapped, and every one took one attempt
+
+**The bridge ran `6db6771` for a 5-minute bench run, and none of the three defects
+appeared.** The fleet was f0 and f2 on the Heltec and f1 on the XIAO, with `deployed` set and
+`poll_interval_s` 10. The trace is
+[`data/air-timing-bench-2026-09-25.log`](./data/air-timing-bench-2026-09-25.log).
+
+| Check | Result |
+|---|---|
+| Rolls after the boot | f0, f1 and f2, **1 attempt each** |
+| A `CONFIG` and an `OPEN` to f1 published 50 ms apart, four times, both orders | **Serial every time.** The `COMMAND` went, its ACK came back, and only then the `CONFIG`, 0.2–1.7 s later |
+| Five more `OPEN`s to f1 | All acknowledged at the first attempt, 1.5–2.7 s from the publish to `cmd/ack` |
+| PHY change to 917.0 MHz and back | **Both committed**, in 11.6 s and 13.8 s |
+| Step-6 `POLL`s | Six. After each change's first, each went 0.2–2.1 s after the previous node's answer |
+| A frame sent while another path's answer was due | **0 of 111** |
+| `air:` backstop lines | 0 |
+
+**How an overlap was counted.** A `tx` in the bridge's frame log opens its peer's answer
+until the next `rx` from that peer, or until that path's own window has passed: 10 s for a
+`POLL`, 3.5 s for a `COMMAND`, 8 s for a `CONFIG` and 3 s for a `HEX_REQ`, each plus 300 ms
+of airtime. **A flat 10 s cap for every type, the poll-clash entry's rule, flags five
+frames.** All five follow a BF-30 `HEX_REQ` to f0 or f2 by 5.0–9.2 s. Neither identity has
+an MPPT behind it, so neither answers, and the HEX path's 3 s window had closed.
+
+**Media access was busy, so the window fix had something to act on.** The bridge counted 44
+CAD backoffs and 2 forced transmissions over 105 frames. No exchange was retried. **The
+2026-09-24 roll retry was not reproduced**, so this run shows the fix does no harm under
+that load, not that it closes that case. The host test
+`test_the_window_counts_from_when_the_frame_aired` in `test_context_roll` replays it.
+
+`sched_task` read 1932 bytes free at its lowest, on a `CONFIG` resolution; `lora_task` read
+6416. **The bench was restored**: `deployed` 0 and `poll_interval_s` 60 on `simnode0` to
+`simnode2`, and `simnode_diag_enable` 0, all acknowledged. The fleet is on 917.4 MHz. f1 holds
+`dedup_cache_depth` 8, its default, in RAM until its next reboot.

@@ -482,6 +482,71 @@ AirTurn air_turn_locked() {
   return a;
 }
 
+// ---------------------------------------------------------------------------
+// A reply window opens when its frame leaves lora_task, not when sched_task queues it.
+//
+// WHY. On 2026-09-24 the bridge retried f1's roll 527 ms after the first attempt went on
+// air, and 52 ms after f1's ACCEPTED arrived. A 3000 ms window that closed then opened
+// about 2.5 s before the frame went out, which fits a frame that waited that long for
+// media access (spec 12.3, up to backoff_max_ms a turn). Every path opened its window at
+// the queue, so each lost that wait from its window.
+//
+// NOT THE SCHEDULED POLL. Its window and its answer time count from the queue on purpose
+// (scheduler.h, Impl Plan 6.1.1), and its reply_timeout_ms is sized to cover the wait.
+// A POLL that a CONFIG readback or a PHY change sends is its path's, and does wait here.
+//
+// HOW. A sender queues its frame with a ticket and keeps it in the path's AirWait. Until
+// lora_tx_finished() reports the ticket, sched_task does not call that path's next(): the
+// window cannot close and no retry can go. Then on_aired() moves the window's start to
+// when the frame left. An ACK cannot arrive before that, so holding next() delays no
+// resolution.
+//
+// THE BACKSTOP. lora_task reports every frame it lets go of, sent or not. If a report
+// never comes, a path held for good would be a gate that no longer answers, so after
+// kAirWaitMaxMs the window opens from now and the line below says so.
+// ---------------------------------------------------------------------------
+
+struct AirWait {
+  uint32_t ticket    = 0;  // 0: no frame waits
+  uint32_t queued_ms = 0;
+};
+
+// Past the longest media access the bench has seen (about 2.5 s) with room to spare.
+constexpr uint32_t kAirWaitMaxMs = 10000;
+
+AirWait  g_cmd_air, g_roll_air, g_cfg_air, g_hex_air, g_phy_air;
+uint32_t g_tx_ticket = 0;  // sched_task's alone
+
+// send_tx(), with a ticket the path's window waits on. False when the queue refused it.
+bool send_tx_awaited(TxMessage& tx, AirWait* w, uint32_t now_ms) {
+  g_tx_ticket = g_tx_ticket + 1 == 0 ? 1 : g_tx_ticket + 1;
+  tx.ticket   = g_tx_ticket;
+  if (!send_tx(tx)) return false;
+  w->ticket    = tx.ticket;
+  w->queued_ms = now_ms;
+  return true;
+}
+
+// True while w's frame is still with lora_task, and the caller skips its path's next().
+// Otherwise it calls on_aired(ms), under SchedLock, once per frame.
+template <typename OnAired>
+bool air_pending(AirWait* w, const char* path, uint32_t now_ms, OnAired on_aired) {
+  if (w->ticket == 0) return false;
+  uint32_t done_ms = 0;
+  if (!lora_tx_finished(w->ticket, &done_ms)) {
+    if (static_cast<int32_t>(now_ms - w->queued_ms) < static_cast<int32_t>(kAirWaitMaxMs)) {
+      return true;
+    }
+    Serial.printf("air: %s frame not reported by lora_task after %lu ms - window opens now\n",
+                  path, static_cast<unsigned long>(kAirWaitMaxMs));
+    done_ms = now_ms;
+  }
+  w->ticket = 0;
+  SchedLock lock;
+  on_aired(done_ms);
+  return false;
+}
+
 // One tick: close an expired reply window, then start at most one poll. A POLL the TX queue
 // refuses is counted by send_tx() and not reported to the scheduler, so the node stays due
 // and the next tick tries again.
@@ -609,9 +674,9 @@ void sched_commands(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    // BF-33 - no authenticated frame while a PHY change runs (phy_change.h).
-    idle = !g_command.busy() && !g_roll.busy() && !g_hex.busy() &&
-           !g_phy_change.blocks_traffic() && exchange_may_start(air_turn_locked());
+    // One exchange at a time (air_turn.h), a PHY change's included: BF-33 allows no
+    // authenticated frame while one runs (phy_change.h).
+    idle = exchange_may_start(air_turn_locked());
   }
   if (idle) {
     CommandRequest req;
@@ -638,6 +703,9 @@ void sched_commands(uint32_t now_ms) {
     }
   }
 
+  if (air_pending(&g_cmd_air, "cmd", now_ms, [](uint32_t ms) { g_command.on_aired(ms); })) {
+    return;
+  }
   for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
     CmdStep st;
     {
@@ -673,7 +741,7 @@ void sched_commands(uint32_t now_ms) {
     const uint8_t ver = registry_state(st.dst, &cns) ? node_tx_ver(cns) : lran::kProtoVer;
     tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, ver, cmd, tx.bytes,
                                     sizeof(tx.bytes));
-    if (tx.len == 0 || !send_tx(tx)) return;
+    if (tx.len == 0 || !send_tx_awaited(tx, &g_cmd_air, now_ms)) return;
 
     SchedLock lock;
     g_command.on_sent(now_ms);
@@ -696,9 +764,7 @@ void sched_roll(uint32_t now_ms) {
   bool         start = false;
   {
     SchedLock lock;
-    start = !g_roll.busy() && !g_command.busy() && !g_hex.busy() &&
-            !g_phy_change.blocks_traffic() &&
-            exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
+    start = exchange_may_start(air_turn_locked()) && g_roll.next_due(&node);
   }
   if (start) {
     // spec 10.6 bridge step 2 - under the ctx_id the node's frame carried, with the next
@@ -711,6 +777,9 @@ void sched_roll(uint32_t now_ms) {
     }
   }
 
+  if (air_pending(&g_roll_air, "roll", now_ms, [](uint32_t ms) { g_roll.on_aired(ms); })) {
+    return;
+  }
   for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
     RollStep st;
     uint32_t pending = 0;
@@ -754,7 +823,7 @@ void sched_roll(uint32_t now_ms) {
     const uint8_t ver = registry_state(st.dst, &cns) ? node_tx_ver(cns) : lran::kProtoVer;
     tx.len = registry_build_command(st.dst, st.ctx_id, st.seq, ver, cmd, tx.bytes,
                                     sizeof(tx.bytes));
-    if (tx.len == 0 || !send_tx(tx)) return;
+    if (tx.len == 0 || !send_tx_awaited(tx, &g_roll_air, now_ms)) return;
 
     SchedLock lock;
     g_roll.on_sent(now_ms);
@@ -893,8 +962,7 @@ void sched_config(uint32_t now_ms) {
     bool busy = false;
     {
       SchedLock lock;
-      busy = g_config_path.busy() || g_hex.busy() || g_phy_change.blocks_traffic() ||
-             !exchange_may_start(air_turn_locked());
+      busy = !exchange_may_start(air_turn_locked());
     }
     if (!busy && !g_phy_job_waiting) {
       // RECEIVED STRAIGHT INTO THE STATIC, NOT ONTO THE STACK. A ConfigJob is about a
@@ -935,6 +1003,10 @@ void sched_config(uint32_t now_ms) {
     }
   }
 
+  if (air_pending(&g_cfg_air, "config", now_ms,
+                  [](uint32_t ms) { g_config_path.on_aired(ms); })) {
+    return;
+  }
   for (int guard = 0; guard < 4; ++guard) {
     ConfigStep step;
     {
@@ -964,7 +1036,7 @@ void sched_config(uint32_t now_ms) {
         tx.len = build_poll_frame(step.dst, ns.ctx_id, poll_seq, node_tx_ver(ns), tx.bytes,
                                   sizeof(tx.bytes),
                                   lran::kPollFlagFullStatus | lran::kPollFlagConfigReadback);
-        if (tx.len == 0 || !send_tx(tx)) return;
+        if (tx.len == 0 || !send_tx_awaited(tx, &g_cfg_air, now_ms)) return;
         SchedLock lock;
         g_config_path.on_sent(now_ms);
         return;
@@ -977,7 +1049,7 @@ void sched_config(uint32_t now_ms) {
         const uint8_t ver = registry_state(step.dst, &ns) ? node_tx_ver(ns) : lran::kProtoVer;
         tx.len = registry_build_config(step.dst, step.ctx_id, step.seq, ver, step.payload,
                                        tx.bytes, sizeof(tx.bytes));
-        if (tx.len == 0 || !send_tx(tx)) return;
+        if (tx.len == 0 || !send_tx_awaited(tx, &g_cfg_air, now_ms)) return;
         SchedLock lock;
         g_config_path.on_sent(now_ms);
         return;
@@ -1110,8 +1182,7 @@ void sched_phy_start(uint32_t now_ms) {
   bool started = false;
   {
     SchedLock lock;
-    if (g_command.busy() || g_roll.busy() || g_hex.busy() ||
-        !exchange_may_start(air_turn_locked())) {
+    if (!exchange_may_start(air_turn_locked())) {
       return;
     }
     started = g_phy_change.start(g_phy_job.phy_from, g_phy_job.phy_to, fleet, n, now_ms);
@@ -1127,14 +1198,15 @@ void sched_phy_start(uint32_t now_ms) {
 }
 
 // Builds and queues a CONFIG to `dst`. True when it went; `*seq` is the one it took.
-bool send_phy_config(lran::NodeId dst, const lran::schema::NodeConfigV1& cfg, lran::Seq* seq) {
+bool send_phy_config(lran::NodeId dst, const lran::schema::NodeConfigV1& cfg, lran::Seq* seq,
+                     uint32_t now_ms) {
   NodeState ns;
   if (!registry_state(dst, &ns) || !registry_take_cmd_seq(dst, seq)) return false;
   TxMessage tx;
   tx.dst = dst;
   tx.len = registry_build_config(dst, ns.ctx_id, *seq, node_tx_ver(ns), cfg, tx.bytes,
                                  sizeof(tx.bytes));
-  return tx.len != 0 && send_tx(tx);
+  return tx.len != 0 && send_tx_awaited(tx, &g_phy_air, now_ms);
 }
 
 // Static for sched_task's stack: a NodeConfigV1 is about 300 bytes.
@@ -1155,6 +1227,10 @@ void sched_phy(uint32_t now_ms) {
     g_phy_change.on_retuned(now_ms);
   }
 
+  if (air_pending(&g_phy_air, "phy", now_ms,
+                  [](uint32_t ms) { g_phy_change.on_aired(ms); })) {
+    return;
+  }
   for (int guard = 0; guard < 8; ++guard) {
     PhyStep st;
     {
@@ -1173,7 +1249,7 @@ void sched_phy(uint32_t now_ms) {
           build_phy_get(&g_phy_cfg);
         }
         lran::Seq seq = 0;
-        if (!send_phy_config(st.dst, g_phy_cfg, &seq)) return;
+        if (!send_phy_config(st.dst, g_phy_cfg, &seq, now_ms)) return;
         SchedLock lock;
         g_phy_change.on_sent(seq, now_ms);
         return;  // one frame per tick, as the other paths send
@@ -1191,7 +1267,7 @@ void sched_phy(uint32_t now_ms) {
         tx.dst = st.dst;
         tx.len = build_poll_frame(st.dst, ns.ctx_id, poll_seq, node_tx_ver(ns), tx.bytes,
                                   sizeof(tx.bytes));
-        if (tx.len == 0 || !send_tx(tx)) return;
+        if (tx.len == 0 || !send_tx_awaited(tx, &g_phy_air, now_ms)) return;
         SchedLock lock;
         g_phy_change.on_sent(0, now_ms);
         return;
@@ -1611,9 +1687,7 @@ void sched_hex(uint32_t now_ms) {
   bool idle = false;
   {
     SchedLock lock;
-    idle = !g_hex.busy() && !g_command.busy() && !g_roll.busy() && !g_config_path.busy() &&
-           !g_phy_change.blocks_traffic() && !g_phy_job_waiting &&
-           exchange_may_start(air_turn_locked());
+    idle = !g_phy_job_waiting && exchange_may_start(air_turn_locked());
   }
   if (idle) {
     bool have = g_hex_queue != nullptr && xQueueReceive(g_hex_queue, &g_hex_job, 0) == pdTRUE;
@@ -1644,6 +1718,9 @@ void sched_hex(uint32_t now_ms) {
     }
   }
 
+  if (air_pending(&g_hex_air, "hex", now_ms, [](uint32_t ms) { g_hex.on_aired(ms); })) {
+    return;
+  }
   for (int step = 0; step < 2; ++step) {  // at most a Send, then a Resolve
     HexStep st;
     {
@@ -1673,7 +1750,7 @@ void sched_hex(uint32_t now_ms) {
     const uint8_t ver = registry_state(st.dst, &hns) ? node_tx_ver(hns) : lran::kProtoVer;
     tx.len = registry_build_hex_req(st.dst, st.ctx_id, st.seq, ver, g_hex_job.hex, g_hex_job.n,
                                     tx.bytes, sizeof(tx.bytes));
-    if (tx.len == 0 || !send_tx(tx)) return;
+    if (tx.len == 0 || !send_tx_awaited(tx, &g_hex_air, now_ms)) return;
     SchedLock lock;
     g_hex.on_sent(now_ms);
     return;

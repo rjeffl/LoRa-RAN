@@ -147,6 +147,10 @@ void CommandPath::on_sent(uint32_t now_ms) {
   if (attempt_ > 0) ++stats_.retries;
 }
 
+void CommandPath::on_aired(uint32_t aired_ms) {
+  if (phase_ == Phase::AwaitingAck) window_opened_ms_ = aired_ms;
+}
+
 void CommandPath::on_ack(lran::NodeId src, const lran::msg::CommandAck& ack,
                          lran::CtxId ack_ctx, uint32_t now_ms) {
   // An ACK for a command that is not in flight, from a node that is not the one

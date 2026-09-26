@@ -160,6 +160,10 @@ class PhyChange {
   // CONFIG. A frame the TX queue refused is not reported, and the next tick asks again.
   void on_sent(lran::Seq seq, uint32_t now_ms);
 
+  // That frame left lora_task at `aired_ms`. Its ACK timeout, or a step-6 POLL's, counts
+  // from then, and so does the window a node that lost only its answer may have opened.
+  void on_aired(uint32_t aired_ms);
+
   // The Commit step's write failed. No GET has gone, so no node has committed: the bridge
   // reverts, and every node reverts on silence.
   void commit_failed();

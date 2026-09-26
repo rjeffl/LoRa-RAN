@@ -349,6 +349,17 @@ void test_config_change_is_read_from_a_status() {
   TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n));
 }
 
+// The CONFIG's ACK window counts from when the frame left lora_task.
+void test_the_ack_window_counts_from_when_the_config_aired() {
+  ConfigPath path;
+  path.set_ack_timeout_ms(1000);
+  (void)path.submit(job_for(0xF1), 0, 7, 0);
+  send_config(path, 0);
+  path.on_aired(2500);
+  TEST_ASSERT_TRUE(path.next(1000).action == ConfigAction::None);
+  TEST_ASSERT_TRUE(path.next(3500).action == ConfigAction::Resolve);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -371,5 +382,6 @@ int main(int, char**) {
   RUN_TEST(test_a_readback_only_job_sends_no_config);
   RUN_TEST(test_config_change_is_read_from_a_status);
 
+  RUN_TEST(test_the_ack_window_counts_from_when_the_config_aired);
   return UNITY_END();
 }

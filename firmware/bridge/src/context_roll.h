@@ -123,8 +123,14 @@ class ContextRoll {
   // Call until it returns None.
   RollStep next(uint32_t now_ms);
 
-  // The frame from the last Send is on the TX queue. The reply window starts now.
+  // The frame from the last Send is on the TX queue. The reply window opens now, and
+  // on_aired() moves its start to when the frame left lora_task.
   void on_sent(uint32_t now_ms);
+
+  // The frame from the last Send left lora_task at `aired_ms`: on air, or given up. The
+  // window reopens from then, because a frame can wait seconds for media access (spec
+  // 12.3) and a window counted from the queue closes early by that much.
+  void on_aired(uint32_t aired_ms);
 
   // A COMMAND_ACK passed the ladder. True when it answered the roll in flight and was
   // consumed here; false leaves it for the command path. An ACK for anything else is NOT

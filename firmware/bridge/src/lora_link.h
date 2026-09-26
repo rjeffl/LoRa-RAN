@@ -77,6 +77,13 @@ void lora_configure(const MediaAccessConfig& access, uint32_t frag_timeout_ms);
 uint32_t lora_request_phy(const PhyConfig& phy);
 bool     lora_phy_applied(uint32_t ticket);
 
+// True once the frame queued with TxMessage::ticket `ticket` has left lora_task: sent,
+// timed out, refused by the radio or dropped with the radio down. `*done_ms` is when, on
+// lora_task's clock, which is sched_task's too. sched_task issues tickets in queue order
+// and the TX queue is FIFO, so a later ticket finished means this one did. `*done_ms` is
+// then the later frame's time, which errs late, never early. Safe from any task.
+bool lora_tx_finished(uint32_t ticket, uint32_t* done_ms);
+
 // Spec 14.2's floor between two ERRORs to one peer (BF-19a). Root rule 8, and the same
 // rule as lora_configure(): from lora_task only.
 void lora_configure_errors(uint32_t min_interval_ms);

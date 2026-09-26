@@ -45,7 +45,14 @@ inline bool poll_may_start(const AirTurn& a) {
          !a.hex_busy && !a.request_waiting;
 }
 
-// A command, a roll, a CONFIG, a HEX request or a PHY change may start.
-inline bool exchange_may_start(const AirTurn& a) { return !a.poll_outstanding; }
+// A command, a roll, a CONFIG, a HEX request or a PHY change may start. Every exchange in
+// flight holds every other, and this is the one place that says so. Until 2026-09-25 each
+// sender listed the others it waited for, and sched_config() left out the command and the
+// roll while those two left out the CONFIG. A command and a CONFIG to one node could then
+// be in flight together, each with a seq from the same command space.
+inline bool exchange_may_start(const AirTurn& a) {
+  return !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
+         !a.phy_blocks_traffic && !a.hex_busy;
+}
 
 }  // namespace bridge

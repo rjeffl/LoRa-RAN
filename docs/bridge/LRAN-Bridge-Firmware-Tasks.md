@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.51
+**Version:** 0.52
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.16
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.64
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.65
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.21
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -326,6 +326,11 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.52** — **The Impl Plan citation moves to v0.65.** Its §6.1.1 now says every exchange
+  holds every other, that a reply window opens when its frame leaves `lora_task`, and that a
+  PHY change's step-6 `POLL`s go one at a time. No task row owns those fixes, and this
+  document's one line on the rule, in §9's B4b paragraph, is still true.
 
 - **v0.51** — **BF-36 and BF-28 to BF-30 are built, and V-B6 passed on the bench.** Their
   rows record it. The Impl Plan citation moves to v0.64, whose new §6.4.1 is the

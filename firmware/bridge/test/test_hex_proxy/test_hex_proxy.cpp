@@ -408,6 +408,16 @@ void test_readback_abandon_stops_the_pass() {
   TEST_ASSERT_NULL(r.next());
 }
 
+// The response window counts from when the request left lora_task. For a write, which is
+// never retried, a window closed early would report `unknown` for a write that happened.
+void test_the_window_counts_from_when_the_request_aired() {
+  HexProxy p;
+  (void)start(p, ":7F0ED0071", false, 0);
+  p.on_aired(2500);
+  TEST_ASSERT_EQUAL(HexAction::None, p.next(p.rsp_timeout_ms(), false).action);
+  TEST_ASSERT_EQUAL(HexAction::Send, p.next(2500 + p.rsp_timeout_ms(), false).action);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_classify_follows_the_command_nibble);
@@ -438,5 +448,6 @@ int main(int, char**) {
   RUN_TEST(test_readback_refuses_what_it_cannot_trust);
   RUN_TEST(test_readback_reports_a_change_only_when_the_value_moves);
   RUN_TEST(test_readback_abandon_stops_the_pass);
+  RUN_TEST(test_the_window_counts_from_when_the_request_aired);
   return UNITY_END();
 }
