@@ -7,10 +7,11 @@
 // ARDUINO-ONLY, AND THAT IS WHY IT IS ITS OWN FILE. phy_trial.h holds the policy and takes
 // a BlobStore; this is the one file that knows the bytes live in flash.
 //
-// THE FIRST THING A SIMNODE PERSISTS. Everything else on the board still resets with it,
-// identities included. Only the PHY group survives, because a board that forgot a
+// THE PHY GROUP AND THE BOOT COUNT ARE ALL A SIMNODE PERSISTS. Everything else on the board
+// resets with it, identities included. The PHY group survives because a board that forgot a
 // committed group would come back on D1's defaults while the bridge stayed on the new
-// settings - the stranded node spec 12.4 exists to prevent. `phy reset` erases it.
+// settings - the stranded node spec 12.4 exists to prevent. `phy reset` erases it, and
+// leaves the boot count alone.
 
 #pragma once
 
@@ -35,5 +36,10 @@ class NvsBlob final : public BlobStore {
   mutable Preferences prefs_;
   bool                open_ = false;
 };
+
+// spec 7.2 offset 68 - boot_count "from nonvolatile storage". Counts this boot and returns
+// the count, in its own namespace. 0 when NVS refused, which spec 7.2 reads as unavailable,
+// so the count wraps from 0xFFFF to 1.
+uint16_t nvs_count_boot();
 
 }  // namespace simnode

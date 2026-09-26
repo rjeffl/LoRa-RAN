@@ -110,6 +110,8 @@ void Console::execute(char* line, uint32_t now_ms) {
     cmd_field(argv, argc);
   } else if (std::strcmp(cmd, "mppt") == 0) {
     cmd_mppt(argv, argc);
+  } else if (std::strcmp(cmd, "reboot") == 0 && argc >= 2 && std::strcmp(argv[1], "panic") != 0) {
+    cmd_reboot(argv, argc, now_ms);  // one identity; `reboot` and `reboot panic` are the board's
   } else if (board_ != nullptr && board_(argv, argc, out_)) {
     return;
   } else {
@@ -125,6 +127,7 @@ void Console::cmd_help() {
       "  enable <hex>   |  disable <hex>",
       "  ver <hex> <n>",
       "  ctx <hex> [new]",
+      "  reboot | reboot panic   (the board, esp_restart() or abort(): every identity resets)",
       "  ping <hex> <n> [pattern] [frag [<chunk>]] [to <hex>]   (dst defaults to 00)",
       "  stats <hex>",
       "  radio          (the driver's counters: frames actually on air)",
@@ -138,6 +141,7 @@ void Console::cmd_help() {
       "  ack <hex> normal | suppress [count] | dup [count] | delay <ms>",
       "  field <hex> <name> <value|na> | field <hex> list | field <hex> reset",
       "  mppt <hex> list | set <reg> <value> | timeout [count] | hex_timeout <ms> | reset",
+      "  reboot <hex> [cause]            (one identity, simulated; spec 8.14 name, default SOFTWARE)",
   };
   for (const char* l : kLines) out_->line(l);
 }
@@ -456,6 +460,31 @@ void Console::cmd_event(char** argv, int argc, uint32_t now_ms) {
   }
   sink_printf(out_, "OK event %02x -> 00 event_id %lu%s", id, static_cast<unsigned long>(event_id),
               mode == EventMode::Again ? " (repeat)" : mode == EventMode::FollowUp ? " (follow-up)" : "");
+}
+
+// reboot <hex> [cause]
+//
+// ONE identity's simulated reboot, for a test that needs the board's other identities to keep
+// running. A REBOOT command, `reboot` and `reboot panic` reset the whole board through main.cpp.
+void Console::cmd_reboot(char** argv, int argc, uint32_t now_ms) {
+  uint8_t          id    = 0;
+  lran::ResetCause cause = lran::ResetCause::Software;
+  if (argc > 3 || !parse_hex_byte(argv[1], &id)) {
+    sink_printf(out_, "ERR usage: reboot [<hex> [cause]] | reboot panic");
+    return;
+  }
+  if (argc == 3 && !parse_reset_cause(argv[2], &cause)) {
+    sink_printf(out_, "ERR bad reset cause '%s' - a spec 8.14 name, such as WATCHDOG", argv[2]);
+    return;
+  }
+  const EmitResult r = node_->reboot_identity(id, cause, now_ms);
+  if (r != EmitResult::Ok) {
+    sink_printf(out_, "ERR reboot %02x: %s", id, emit_result_name(r));
+    return;
+  }
+  const Identity* e = ids_->find(id);
+  sink_printf(out_, "OK id %02x rebooted, ctx 0x%08lx, BOOT %s -> 00", id,
+              static_cast<unsigned long>(e->ctx_id), reset_cause_name(cause));
 }
 
 // ack <hex> normal | suppress [count] | dup [count] | delay <ms>

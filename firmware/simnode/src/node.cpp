@@ -263,11 +263,12 @@ void Node::deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload,
   ++e.unhandled;
 }
 
-size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint32_t now_ms,
-                            uint8_t* out, size_t cap) {
+size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint16_t boot_count,
+                            uint32_t now_ms, uint8_t* out, size_t cap) {
   lran::schema::NodeHealthV1 h;
   h.uptime_s      = now_ms / 1000;  // millis() wraps at 49.7 days; a bench board reboots first
-  h.boot_count    = lran::kU16NotAvailable;  // nothing persists across a simnode reboot
+  // The board's count from NVS. Spec 7.5 names no sentinel; root rule 6's stands for none.
+  h.boot_count    = boot_count != 0 ? boot_count : lran::kU16NotAvailable;
   h.rx_frames     = sat16(e.counters.rx_frames);
   h.tx_frames     = sat16(e.counters.tx_frames);
   h.rx_dropped    = sat16(e.counters.total_dropped());
@@ -336,7 +337,7 @@ void Node::answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms) {
   if (silenced(e, "poll", hdr)) return;
 
   uint8_t      payload[lran::schema::kNodeHealthV1Len];
-  const size_t n = build_health_payload(e, radio_counters_, now_ms, payload, sizeof(payload));
+  const size_t n = build_health_payload(e, radio_counters_, boot_count_, now_ms, payload, sizeof(payload));
   lran::Header out;
   out.ver    = e.proto_ver;
   out.type   = lran::MsgType::Status;

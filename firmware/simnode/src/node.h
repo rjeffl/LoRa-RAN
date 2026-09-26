@@ -89,9 +89,10 @@ const char* ping_result_name(PingResult r);
 
 // spec 7.5 - identity `e`'s schema 0xF0 payload, marked synthetic through health_flags bit 0.
 // Writes lran::schema::kNodeHealthV1Len bytes; returns the count, or 0 on failure. Shared by
-// the POLL answer and the fault carrier frame, so both report the same thing.
-size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint32_t now_ms,
-                            uint8_t* out, size_t cap);
+// the POLL answer and the fault carrier frame, so both report the same thing. `boot_count` is
+// the board's, 0 when NVS gave none.
+size_t build_health_payload(const Identity& e, const lran::Counters& radio, uint16_t boot_count,
+                            uint32_t now_ms, uint8_t* out, size_t cap);
 
 // spec 7.2 / 7.1 - identity `e`'s schema 0xFE payload with `reason`, from its synthetic
 // telemetry. Writes kGateLinkStatusV1Len bytes; returns the count, or 0. gatelink.cpp.
@@ -167,6 +168,23 @@ class Node {
   // `event <hex> ...` - a 0x11 event to the bridge. `event_id` receives the id sent.
   EmitResult event(lran::NodeId id, lran::EventType type, EventMode mode, uint32_t now_ms,
                    uint32_t* event_id = nullptr);
+
+  // spec 10.7 - what every boot owes, called once from setup() with the chip's reset cause
+  // and the board's count from NVS (0 when it has none). Each enabled ROLE_GATELINK identity
+  // sends STATUS with BOOT, then a BOOT event carrying `cause` (spec 8.14). The other roles
+  // have no status_reason and no event schema, and report the count in 0xF0.
+  void     on_boot(lran::ResetCause cause, uint16_t boot_count, uint32_t now_ms);
+  uint16_t boot_count() const { return boot_count_; }
+
+  // `reboot <hex> [cause]` - ONE identity's simulated reboot: a new context, what a reboot
+  // clears, then the same STATUS and BOOT event as on_boot(). The board and every other
+  // identity keep running, so a resync test can reboot one node of four.
+  EmitResult reboot_identity(lran::NodeId id, lran::ResetCause cause, uint32_t now_ms);
+
+  // spec 8.1 - an accepted REBOOT resets the BOARD, once its ACK is on the air. main.cpp
+  // reads this, waits for the radio to drain, and calls esp_restart(). The simnode's four
+  // identities share one chip, so a REBOOT to one restarts them all.
+  bool restart_owed() const { return restart_owed_; }
 
   // The radio's spec 12.3 instrument. Shared, because the channel is: every identity reports
   // it in 0xF0.
@@ -261,6 +279,8 @@ class Node {
                                lran::schema::NodeConfigAckV1* out, uint32_t now_ms);
   size_t          slot_of(const Identity& e) const;
   void            send_phy_reverted(Identity& e, lran::NodeId dst, uint32_t now_ms);
+  // spec 10.7 - STATUS with BOOT, then the BOOT event. False when either was not queued.
+  bool            announce_boot(Identity& e, lran::ResetCause cause, uint32_t now_ms);
 
   IdentityTable* ids_;
   Outbox*        out_;
@@ -271,6 +291,8 @@ class Node {
   LogLevel       level_           = LogLevel::Info;
   uint32_t       ping_timeout_ms_ = kDefaultPingTimeoutMs;
   uint32_t       answers_dropped_ = 0;
+  uint16_t       boot_count_      = 0;  // 0 is unavailable (spec 7.2.4)
+  bool           restart_owed_    = false;
   LastRx         last_rx_;
 
   // A full CONFIG and CONFIG_ACK are several hundred bytes each; held here rather than on

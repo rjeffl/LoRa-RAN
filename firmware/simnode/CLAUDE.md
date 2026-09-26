@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.47 §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.70 §10.
 **Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.34 §4 (BF-2 to BF-9), and §7's BF-34 for the context roll.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
@@ -60,13 +60,25 @@ the gate and `tx_seq` only, where `new_context()` also clears what a reboot lose
 `ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
 
 **Spec §12.4.2's PHY change (BF-33 slice 3) is `phy_trial.{h,cpp}`, and it ran on the
-bench on 2026-09-24.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS: **the only
-thing a simnode persists.** The board retunes once every enabled identity that is not
+bench on 2026-09-24.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS. The
+PHY group and the boot count are all a simnode persists. The board retunes once every enabled identity that is not
 `ROLE_FAULT` has accepted the same group, because the identities share one radio. **An enabled
 identity the bridge does not watch therefore holds the board on its old settings**; disable
 it before a PHY change. Any authenticated frame to any identity confirms the board, a roll
 included. `ROLE_RANGE` and `ROLE_HEALTH` answer `CONFIG` for the PHY group only. `phy` prints
 the group, the trial and the store; `phy reset` puts D1's group back and erases the blob.
+
+**A reset is a real one since 2026-09-26 (spec §10.1, §10.7, §8.14).** An accepted `REBOOT`
+resets the board through `esp_restart()` once `radio_tx_idle()` shows its ACK on the air, so
+every identity on the board boots again. Each boot, of any cause, gives every enabled
+`ROLE_GATELINK` identity a `BOOT` status and then a `BOOT` event with the reset cause in
+`detail`, from `Node::on_boot()`. **Keep three things:** `setup()` turns the entropy source on
+before the first `ctx_id` and leaves it on, because the board runs neither WiFi nor Bluetooth;
+the `RTC_NOINIT` marker is trusted only under `ESP_RST_SW`, since a power-on leaves it
+garbage; and IDF 4.4 reports a USB reset as `ESP_RST_UNKNOWN`, so `main.cpp` reads the ROM
+reason to name it `EXTERNAL`. `reboot` and `reboot panic` reset the board from the console.
+`reboot <hex> [cause]` simulates one identity's reboot, for a test that needs the other
+identities to keep running.
 
 **`ROLE_GATELINK` answers `HEX_REQ` from a simulated MPPT (BF-36, 2026-09-25)**:
 `sim_mppt.{h,cpp}`, driven by `mppt <hex> list | set <reg> <value> | timeout [count] |
@@ -91,6 +103,9 @@ bridge. Change them there, and run both firmwares' tests.
 
 ### Traps found building it
 
+- **Opening the XIAO's port resets it, and the next boot reports `EXTERNAL`.** Every BOOT
+  event a port open causes carries that cause, so a run that counts causes holds the port
+  open for its whole length.
 - **Two Heltecs boot with the same identities**, `f0 ROLE_RANGE` and `f2 ROLE_HEALTH`.
   Identities do not persist, so both answer to `f0` until one is reconfigured, and every
   reset restores the defaults. **A committed PHY group does persist** (BF-33): a board

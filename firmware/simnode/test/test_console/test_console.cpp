@@ -136,6 +136,31 @@ void test_enable_disable_ver_and_ctx() {
   TEST_ASSERT_TRUE(r.t.any_starts_with("ERR usage"));
 }
 
+// `reboot <hex> [cause]` is host code; `reboot` and `reboot panic` reset the chip, so they go
+// to the board hook, and a console without one refuses them rather than rebooting one identity.
+void test_reboot_forms() {
+  Rig r;
+  r.run("id add f1 ROLE_GATELINK");
+  const CtxId before = r.ids.find(0xF1)->ctx_id;
+
+  r.run("reboot f1 WATCHDOG");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("OK id f1 rebooted, ctx 0x"));
+  TEST_ASSERT_TRUE(r.t.any_contains("BOOT WATCHDOG -> 00"));
+  TEST_ASSERT_NOT_EQUAL(before, r.ids.find(0xF1)->ctx_id);
+  TEST_ASSERT_EQUAL_size_t(2, r.out.size());  // STATUS, then the BOOT event
+
+  r.run("reboot f1");
+  TEST_ASSERT_TRUE(r.t.any_contains("BOOT SOFTWARE -> 00"));
+  r.run("reboot f1 watchdog");  // exact spec 8.14 token
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR bad reset cause 'watchdog'"));
+  r.run("reboot f2");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR reboot f2:"));
+  r.run("reboot");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR unknown command 'reboot'"));
+  r.run("reboot panic");
+  TEST_ASSERT_TRUE(r.t.any_starts_with("ERR unknown command 'reboot'"));
+}
+
 // Impl Plan 10.4's ping, plus `to <hex>`.
 void test_ping_forms() {
   Rig r;
@@ -305,6 +330,7 @@ int main() {
   RUN_TEST(test_id_add_list_and_del);
   RUN_TEST(test_bad_ids_and_roles_are_refused_by_name);
   RUN_TEST(test_enable_disable_ver_and_ctx);
+  RUN_TEST(test_reboot_forms);
   RUN_TEST(test_ping_forms);
   RUN_TEST(test_gatelink_commands);
   RUN_TEST(test_fault_command_arms_and_disarms);

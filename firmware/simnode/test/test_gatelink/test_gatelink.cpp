@@ -441,26 +441,91 @@ void test_request_status_sends_the_ack_then_the_status() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::PollResponse), next_status(b).status_reason);
 }
 
-// spec 10.1 - REBOOT is a new context. The ACK goes out under the old one, then BOOT under the new.
-void test_reboot_acks_under_the_old_context_then_boots_a_new_one() {
+schema::GateLinkEventV1 next_gl_event(Board& b, Header* hdr = nullptr) {
+  Heard h;
+  TEST_ASSERT_TRUE_MESSAGE(hear(b, &h), "no frame queued");
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::Event), static_cast<uint8_t>(h.hdr.type));
+  schema::GateLinkEventV1 ev;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::deserialize(h.payload, h.len, &ev)));
+  if (hdr != nullptr) *hdr = h.hdr;
+  return ev;
+}
+
+// spec 8.1 - REBOOT acknowledges under the current context, then the BOARD resets. Nothing
+// else is queued: the new context, BOOT status and BOOT event belong to the next boot.
+void test_reboot_acks_then_owes_a_board_restart() {
   Board       b;
   const CtxId old = b.f1().ctx_id;
-  b.node.event(kNodeSim1, EventType::Boot, EventMode::New, 0);
-  OutFrame drop;
-  while (b.out.pop(&drop)) {}
+  TEST_ASSERT_FALSE(b.node.restart_owed());
 
   command(b, 7, Cmd::Reboot, kRebootGuard);
   Header h;
   expect_ack(next_ack(b, &h), 7, AckResult::Accepted);
   TEST_ASSERT_EQUAL_UINT32(old, h.ctx_id);
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());
+  TEST_ASSERT_TRUE(b.node.restart_owed());
+  TEST_ASSERT_EQUAL_UINT32(old, b.f1().ctx_id);
+}
 
+// spec 10.7 - every boot: STATUS with BOOT, then a BOOT event whose detail is the reset cause
+// (8.14), from each enabled ROLE_GATELINK identity and no other.
+void test_boot_sends_a_boot_status_then_the_reset_cause() {
+  Board b;
+  b.ids.add(kNodeSim0, Role::Health);
+  b.ids.add(kNodeSim3, Role::GateLink);
+  b.ids.find(kNodeSim3)->enabled = false;
+  b.node.on_boot(ResetCause::RebootCommand, 7, 2000);
+
+  Header h;
   const schema::GateLinkStatusV1 s = next_status(b, &h);
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::Boot), s.status_reason);
-  TEST_ASSERT_NOT_EQUAL(old, h.ctx_id);
+  TEST_ASSERT_EQUAL_UINT16(7, s.boot_count);
+  TEST_ASSERT_EQUAL_UINT8(kNodeSim1, h.src);
   TEST_ASSERT_EQUAL_UINT32(b.f1().ctx_id, h.ctx_id);
-  TEST_ASSERT_EQUAL_UINT16(1, s.boot_count);
+
+  const schema::GateLinkEventV1 ev = next_gl_event(b, &h);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(EventType::Boot), ev.event_type);
+  TEST_ASSERT_EQUAL_UINT16(0x0002, ev.detail);
+  TEST_ASSERT_EQUAL_UINT32(1, ev.event_id);
+  TEST_ASSERT_EQUAL_UINT32(2, ev.uptime_s);
+  TEST_ASSERT_EQUAL_UINT32(b.f1().ctx_id, h.ctx_id);
+
+  TEST_ASSERT_EQUAL_size_t(0, b.out.size());
+  TEST_ASSERT_EQUAL_UINT16(7, b.node.boot_count());
+}
+
+// `reboot <hex> [cause]` - one identity takes a new context and announces its boot; the
+// board's other identities keep theirs, and the board does not restart.
+void test_reboot_identity_reboots_one_identity_only() {
+  Board b;
+  b.ids.add(kNodeSim3, Role::GateLink);
+  b.ids.add(kNodeSim0, Role::Health);
+  const CtxId f1_old = b.f1().ctx_id;
+  const CtxId f3_old = b.ids.find(kNodeSim3)->ctx_id;
+  command(b, 1, Cmd::Nop);
+  expect_ack(next_ack(b), 1, AckResult::Accepted);
+
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(EmitResult::Ok),
+                        static_cast<int>(b.node.reboot_identity(kNodeSim1, ResetCause::Watchdog, 0)));
+  TEST_ASSERT_NOT_EQUAL(f1_old, b.f1().ctx_id);
+  TEST_ASSERT_EQUAL_UINT32(f3_old, b.ids.find(kNodeSim3)->ctx_id);
   TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());
-  TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.next_event_id);
+  TEST_ASSERT_FALSE(b.node.restart_owed());
+
+  Header h;
+  const schema::GateLinkStatusV1 s = next_status(b, &h);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(StatusReason::Boot), s.status_reason);
+  TEST_ASSERT_EQUAL_UINT16(1, h.seq);  // spec 10.2 - the status space restarts
+  TEST_ASSERT_EQUAL_UINT32(b.f1().ctx_id, h.ctx_id);
+  const schema::GateLinkEventV1 ev = next_gl_event(b);
+  TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(ResetCause::Watchdog), ev.detail);
+  TEST_ASSERT_EQUAL_UINT32(1, ev.event_id);
+
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(EmitResult::WrongRole),
+                        static_cast<int>(b.node.reboot_identity(kNodeSim0, ResetCause::Software, 0)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(EmitResult::NoIdentity),
+                        static_cast<int>(b.node.reboot_identity(kNodeSim2, ResetCause::Software, 0)));
 }
 
 void test_silent_withholds_a_command_before_the_gate() {
@@ -1317,7 +1382,9 @@ int main() {
   RUN_TEST(test_ack_dup_sends_two_identical_acks_then_stops);
   RUN_TEST(test_command_results_follow_spec_8);
   RUN_TEST(test_request_status_sends_the_ack_then_the_status);
-  RUN_TEST(test_reboot_acks_under_the_old_context_then_boots_a_new_one);
+  RUN_TEST(test_reboot_acks_then_owes_a_board_restart);
+  RUN_TEST(test_boot_sends_a_boot_status_then_the_reset_cause);
+  RUN_TEST(test_reboot_identity_reboots_one_identity_only);
   RUN_TEST(test_silent_withholds_a_command_before_the_gate);
   RUN_TEST(test_role_health_does_not_answer_a_command);
   RUN_TEST(test_a_roll_takes_a_new_context_and_acks_under_it);

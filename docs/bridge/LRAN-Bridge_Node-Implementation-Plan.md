@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.69
+**Version:** 0.70
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1772,7 +1772,7 @@ names what does report a reboot, `boot_count` and `uptime_s`. `RebootWatch` in
 | Sign | Why it is needed |
 |---|---|
 | `status_reason` `BOOT` (spec §8.7) | The first `STATUS` after a boot may be the first the bridge hears this run, with nothing to compare. `0xF0` has no reason field |
-| `boot_count` changed, both readings non-zero | A simulated GateLink reboot on the simnode keeps the board's uptime. `0` is unavailable (§7.2.4) and never compared |
+| `boot_count` changed, both readings non-zero | A simulated GateLink reboot on the simnode, `reboot <hex>`, keeps the board's uptime. `0` is unavailable (§7.2.4) and never compared |
 | `uptime_s` below the last reading plus the time since it arrived | A node with no store reports `boot_count` `0`. Adding the gap catches a node heard again only after it ran longer than it had before the reboot |
 
 The third sign allows 5 s plus 1/256 of the gap. The 5 s covers truncation to whole
@@ -2288,6 +2288,8 @@ serial, driven by hand or by `/tools/simctl/`.
 | `enable <hex>` / `disable <hex>` | Stop or resume an identity — availability watchdog test |
 | `ver <hex> <n>` | Set the `ver` an identity announces — version-tolerance test (**V-B10**) |
 | `ctx <hex> [new]` | Show or regenerate `ctx_id` — resync test |
+| `reboot` / `reboot panic` | Reset the whole board through `esp_restart()` or `abort()`. Every identity boots again, and the chip reports `SOFTWARE` or `PANIC` (spec §8.14) — added 2026-09-26 |
+| `reboot <hex> [cause]` | Simulate one `ROLE_GATELINK` identity's reboot: a new context, then the `BOOT` status and a `BOOT` event carrying `cause`, `SOFTWARE` by default. The board's other identities keep running — added 2026-09-26 |
 | `push <hex> [reason]` | Emit an unsolicited status with a given `status_reason` |
 | `event <hex> <type>` | Emit an event; repeat the same `event_id` to test bridge-side dedup |
 | `ack <hex> <mode>` | `normal` \| `suppress` \| `delay <ms>` \| `dup` — command-path tests |
@@ -2740,8 +2742,11 @@ by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
 **What a command does on a simnode.** No output exists. `NOP`, the settings commands and the
 actuation commands answer per spec §8.2, and an actuation command is counted in `actuations`.
 `SET_RELAY_DRY_RUN 1` turns later actuations into `DRY_RUN`. `REQUEST_STATUS` and
-`REQUEST_CONFIG` follow their ACK with a status or a readback. `REBOOT` with `0xA5` follows
-its ACK with a new context and a `BOOT` status. **`ROLL_CONTEXT` is answered by every role**
+`REQUEST_CONFIG` follow their ACK with a status or a readback. **`REBOOT` with `0xA5` resets
+the board** once its ACK is on the air (spec §8.1), so every identity on it boots again.
+Each boot, of any cause, gives every enabled `ROLE_GATELINK` identity a `BOOT` status and
+then a `BOOT` event carrying the reset cause (spec §10.7, §8.14). An `RTC_NOINIT` marker
+separates `REBOOT_COMMAND` from `SOFTWARE`, and NVS keeps the board's `boot_count`. **`ROLL_CONTEXT` is answered by every role**
 since BF-34 (spec §10.6, §6.2.2). It skips the gate and answers `ACTUATOR_BUSY` while a
 command is in flight. Otherwise it takes a new `ctx_id` and resets the gate and the status
 `seq`, and nothing else. The `ACCEPTED` ACK goes out under the new `ctx_id`.
@@ -2943,6 +2948,12 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.70** — **The simnode meets spec v0.16's reset obligations.** §10.9.2: a `REBOOT`
+  resets the board through `esp_restart()` once its ACK is on the air, and every boot sends
+  a `BOOT` status and a `BOOT` event with the reset cause. `ctx_id` is drawn with the
+  entropy source on, and `boot_count` comes from NVS. §10.4 adds `reboot`, `reboot panic`
+  and `reboot <hex> [cause]`.
 
 - **v0.69** — **BF-11a and BF-11b are built**, new §5.2.2: the leveled log's queue, with
   `sched_task`'s and `lora_task`'s lines moved onto it, and the task watchdog fed from
