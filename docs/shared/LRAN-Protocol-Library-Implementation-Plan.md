@@ -1,9 +1,9 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.21
+**Version:** 0.22
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.15**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.16**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
@@ -923,6 +923,11 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.22** — **Protocol specification v0.15 → v0.16.** `types.h` gains `ResetCause`,
+  spec §8.14's values for a `BOOT` event's `detail` (D71). The codec carries `detail` as an
+  opaque `uint16` and is unchanged, so no W4 vector moves. The rest of v0.16 binds the
+  bridge's command path and the nodes, not the library.
 
 - **v0.21** — **The code spec v0.15 owed the library is built.** The codec reads a
   `CONFIG_ACK` result's `status` as §8.12's value in bits 6:0 and `OVERRIDE` in bit 7

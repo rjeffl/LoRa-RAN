@@ -1,11 +1,11 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.11
+**Version:** 0.12
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Last updated:** 2026-09-25
 
 > **This document exists to hold ground, not to specify a node.** It records what is
@@ -228,6 +228,13 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.12** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.15 → v0.16**. What reaches this node when it is designed: spec §10.7's reset
+  obligations, which GateLink PRD R-3.5f–R-3.5k state for GateLink. The bridge does not
+  resync a command that may have run before a reset (D70). A `BOOT` event carries the reset
+  cause (D71), which needs an event schema this node does not yet have. `ctx_id` comes
+  from true entropy, and active alarms are sent again at boot (D72).
 
 - **v0.11** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.14 → v0.15**. What reaches this node when it is designed: every `CONFIG_ACK` result

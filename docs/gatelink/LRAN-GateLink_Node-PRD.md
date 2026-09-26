@@ -1,11 +1,11 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.11
+**Version:** 0.12
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.15**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
 **Last updated:** 2026-09-25
 
@@ -400,6 +400,32 @@ here**. Node-specific obligations:
   Spec §10.6, **D58**). A bridge restart resets the bridge's command `seq`; without the
   roll, GateLink would answer the bridge's next commands from its dedup cache and never
   run them.
+
+**A reset, directed or not** (Protocol Spec §10.7, **D70–D72**). A watchdog, a panic or a
+brownout can reset GateLink at any moment, including between a relay pulse and its ACK.
+The bridge does not resync a command that may have run (D70). These requirements cover
+the node's side:
+
+- **R-3.5f.** GateLink SHALL send the `COMMAND_ACK` for an accepted `REBOOT` and reset
+  only once that frame is on the air (Protocol Spec §8.1).
+- **R-3.5g.** GateLink SHALL send a `BOOT` event after every boot, carrying the reset
+  cause in `detail` (§8.14, **D71**). A directed reboot reads `REBOOT_COMMAND` only if
+  GateLink records its intent before it resets, in memory that survives a software reset.
+- **R-3.5h.** GateLink SHALL draw `ctx_id` from a true entropy source (§10.1). The draw
+  happens at boot, which may be before BLE starts, so GateLink enables the entropy source
+  for it. **Verified by** `ctx_id` logged across consecutive reboots of each cause in
+  §8.14 that the bench can produce, with no repeat.
+- **R-3.5i.** GateLink SHALL send `FIRE_ASSERTED` or `HARD_SHUTDOWN` after its `BOOT`
+  status when the condition is present at boot (**D72**). An event queued at a reset is
+  lost, and a second alert is the accepted price of never missing a fire.
+- **R-3.5j.** **No relay may energize from reset until the firmware drives it.** The
+  relay drivers SHALL hold every output off through the boot ROM, a watchdog reset and a
+  brownout, whatever state the ESP32's pins pass through. A pulse at boot is an
+  unauthenticated gate command. **Verified by** each relay output observed on a scope
+  through a power cycle, a watchdog reset and a brownout.
+- **R-3.5k.** GateLink SHALL reset the SX1262 through its reset line at every boot. An
+  ESP32 reset does not reset the radio, which can be left transmitting or on a PHY trial's
+  settings.
 
 ---
 
@@ -968,6 +994,13 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.12** — **Protocol specification v0.15 → v0.16.** New **R-3.5f–R-3.5k** cover a
+  reset, directed or not (spec §10.7): `REBOOT` acknowledged before the reset, a `BOOT`
+  event carrying the reset cause (**D71**), `ctx_id` from true entropy, active alarms sent
+  again at boot (**D72**), relays held off through a reset, and the radio reset at boot.
+  The bridge no longer resyncs a command that may have run (**D70**), so R-3.5d's
+  deduplication is no longer the only guard against a second pulse.
 
 - **v0.11** — **Protocol specification v0.14 → v0.15.** R-5.3e takes two changes: a
   restore-defaults keeps the committed PHY group (**D60**), and each value's marking comes
