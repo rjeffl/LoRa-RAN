@@ -1,0 +1,2447 @@
+    0.01 CMD publish lran/bridge/config/set {"set": {"simnode_diag_enable": true}}
+    0.02 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":4,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+    0.02 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+    0.02 MQTT lran/simnode1/availability offline
+    0.02 MQTT lran/bridge/version {"version":"0.1.0","git":"71e9173-dirty","slot":"app0","ota_state":"verified_or_usb"}
+    0.29 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"simnode_diag_enable":{"status":"ok","value":1}}}
+    0.60 MQTT lran/simnode1/availability online
+    0.60 MQTT lran/bridge/diag/radio/state {"tx_frames":2,"cad_backoffs":1,"errors_suppressed":0,"cad_deferred":1,"cad_free":2,"rx_deaf_ms":467,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+    0.60 MQTT lran/bridge/diag/publish/state {"status_frames":2,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":1,"events":0,"event_repeats":0,"bench_withheld":3,"queue_refused":0,"undecodable":0}
+    0.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":7,"ms":12598,"deaf":492,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    1.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":8,"ms":13534,"deaf":684,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+    1.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":9,"ms":13736,"deaf":705,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    2.01 CMD publish lran/simnode1/config/set {"set": {"deployed": true}}
+    2.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":10,"ms":14426,"deaf":938,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+    3.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":11,"ms":15602,"deaf":964,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    5.02 SER --- port open
+    6.99 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":12,"ms":18867,"deaf":1197,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+    8.75 SER hex f1 <- 00 seq 3: read :7F4ED006D -> :7F4ED008C05DC
+    8.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":13,"ms":20603,"deaf":1222,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    9.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":14,"ms":21298,"deaf":1455,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   10.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":15,"ms":22604,"deaf":1480,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   10.83 SER hex f1 <- 00 seq 4: read :7FDED0064 -> :7FDED000064
+   11.50 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":16,"ms":23298,"deaf":1713,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   12.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":17,"ms":24605,"deaf":1738,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":5,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   12.79 SER hex f1 <- 00 seq 5: read :7F2ED006F -> :7F2ED0000006F
+   13.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":18,"ms":25299,"deaf":1971,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":5,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   15.49 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":19,"ms":27363,"deaf":2017,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":6,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   15.50 SER hex f1 <- 00 seq 6: read :7F1ED0070 -> :7F1ED00FF71
+   16.19 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":20,"ms":28052,"deaf":2250,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":6,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   17.78 SER hex f1 <- 00 seq 7: read :7F0ED0071 -> :7F0ED009600DB
+   17.81 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":21,"ms":29595,"deaf":2271,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":7,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   18.39 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":22,"ms":30289,"deaf":2504,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":7,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   19.75 SER hex f1 <- 00 seq 8: read :7FBED0066 -> :7FBED00C8009E
+   19.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":23,"ms":31602,"deaf":2525,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":8,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   20.44 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":24,"ms":32296,"deaf":2758,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":8,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   21.80 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":25,"ms":33603,"deaf":2783,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":9,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   21.82 SER hex f1 <- 00 seq 9: read :7EAED0077 -> :7EAED000C6B
+   23.89 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":26,"ms":35731,"deaf":3016,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":9,"rssi":-31,"snr":12,"st":0,"rx":0}]}
+   25.76 SER hex f1 <- 00 seq 10: read :7E0ED0081 -> :7E0ED00F4018C
+   25.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":27,"ms":37593,"deaf":3037,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":10,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   26.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":28,"ms":38282,"deaf":3270,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":10,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   35.02 CMD radio
+   35.07 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   35.07 SER   tx_frames 16 tx_errors 0 tx_timeouts 0 tx_forced 0
+   35.07 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   35.52 CMD stats f1
+   35.53 SER OK stats f1
+   35.53 SER   rx_frames 13 tx_frames 16 rx_dropped 0 unhandled 0
+   35.53 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   35.53 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   35.53 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   35.63 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   35.63 SER   cad_backoffs 3 (radio) answers_dropped 0 (node)
+   39.53 CMD reboot
+   39.54 SER OK reboot - esp_restart(), expect SOFTWARE
+   39.54 SER ESP-ROM:esp32s3-20210327
+   39.54 SER Build:Mar 27 2021
+   39.54 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+   39.54 SER Saved PC:0x4203741a
+   39.54 SER SPIWP:0xee
+   39.54 SER mode:DIO, clock div:1
+   39.54 SER load:0x3fce3808,len:0x4bc
+   39.64 SER load:0x403c9700,len:0xbd8
+   39.64 SER load:0x403cc700,len:0x2a0c
+   39.64 SER entry 0x403c98d0
+   41.16 SER LRAN simnode - bench nodes 0xF0-0xF3
+   41.16 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   41.16 SER Board: xiao_esp32s3+wio_sx1262_kit
+   41.16 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 87
+   41.16 SER id f1 ROLE_GATELINK ctx 0x9b2296ed
+   41.23 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   41.23 SER OLED: up
+   41.23 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   41.23 SER id f1 boot: ctx 0x9b2296ed, reset cause SOFTWARE, boot_count 87
+   41.34 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+   41.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":29,"ms":53898,"deaf":3270,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   42.37 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":30,"ms":54184,"deaf":3270,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   42.69 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":31,"ms":54596,"deaf":3291,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   43.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":32,"ms":55537,"deaf":3483,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   44.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":33,"ms":55966,"deaf":3483,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   47.53 CMD radio
+   47.55 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   47.55 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+   47.55 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   48.03 CMD stats f1
+   48.03 SER OK stats f1
+   48.03 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+   48.03 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   48.03 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   48.03 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   48.14 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   48.14 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+   52.04 CMD reboot
+   52.05 SER OK reboot - esp_restart(), expect SOFTWARE
+   52.05 SER ESP-ROM:esp32s3-20210327
+   52.05 SER Build:Mar 27 2021
+   52.05 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+   52.05 SER Saved PC:0x4203741a
+   52.05 SER SPIWP:0xee
+   52.05 SER mode:DIO, clock div:1
+   52.05 SER load:0x3fce3808,len:0x4bc
+   52.15 SER load:0x403c9700,len:0xbd8
+   52.15 SER load:0x403cc700,len:0x2a0c
+   52.15 SER entry 0x403c98d0
+   53.67 SER LRAN simnode - bench nodes 0xF0-0xF3
+   53.67 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   53.67 SER Board: xiao_esp32s3+wio_sx1262_kit
+   53.67 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 88
+   53.67 SER id f1 ROLE_GATELINK ctx 0x07a726d8
+   53.74 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   53.74 SER OLED: up
+   53.74 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   53.74 SER id f1 boot: ctx 0x07a726d8, reset cause SOFTWARE, boot_count 88
+   53.85 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+   54.49 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":34,"ms":66407,"deaf":3483,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   54.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":35,"ms":66693,"deaf":3483,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   56.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":36,"ms":67925,"deaf":3504,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   56.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":37,"ms":68861,"deaf":3696,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   57.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":38,"ms":69290,"deaf":3696,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+   60.04 CMD radio
+   60.04 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   60.15 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+   60.15 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   60.54 CMD stats f1
+   60.55 SER OK stats f1
+   60.55 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+   60.55 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   60.55 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   60.55 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   60.65 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   60.65 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+   60.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":39,"ms":72899,"deaf":3738,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":5,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   61.63 MQTT lran/bridge/diag/radio/state {"tx_frames":16,"cad_backoffs":4,"errors_suppressed":0,"cad_deferred":2,"cad_free":16,"rx_deaf_ms":3930,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+   61.63 MQTT lran/bridge/diag/publish/state {"status_frames":7,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":3,"events":0,"event_repeats":0,"bench_withheld":10,"queue_refused":0,"undecodable":0}
+   61.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":40,"ms":73835,"deaf":3930,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   64.55 CMD reboot
+   64.56 SER OK reboot - esp_restart(), expect SOFTWARE
+   64.56 SER ESP-ROM:esp32s3-20210327
+   64.56 SER Build:Mar 27 2021
+   64.56 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+   64.56 SER Saved PC:0x4203741a
+   64.56 SER SPIWP:0xee
+   64.56 SER mode:DIO, clock div:1
+   64.56 SER load:0x3fce3808,len:0x4bc
+   64.66 SER load:0x403c9700,len:0xbd8
+   64.66 SER load:0x403cc700,len:0x2a0c
+   64.66 SER entry 0x403c98d0
+   66.18 SER LRAN simnode - bench nodes 0xF0-0xF3
+   66.18 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   66.18 SER Board: xiao_esp32s3+wio_sx1262_kit
+   66.18 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 89
+   66.18 SER id f1 ROLE_GATELINK ctx 0xc9d637e5
+   66.25 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   66.25 SER OLED: up
+   66.25 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   66.25 SER id f1 boot: ctx 0xc9d637e5, reset cause SOFTWARE, boot_count 89
+   66.36 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+   67.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":41,"ms":78919,"deaf":3930,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   67.31 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":42,"ms":79205,"deaf":3930,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   67.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":43,"ms":79597,"deaf":3951,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":6,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   68.76 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":44,"ms":80533,"deaf":4143,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+   69.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":45,"ms":80962,"deaf":4143,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   72.55 CMD radio
+   72.58 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   72.58 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+   72.58 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   73.06 CMD stats f1
+   73.06 SER OK stats f1
+   73.06 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+   73.06 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   73.06 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   73.06 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   73.16 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   73.16 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+   77.06 CMD reboot
+   77.07 SER OK reboot - esp_restart(), expect SOFTWARE
+   77.07 SER ESP-ROM:esp32s3-20210327
+   77.07 SER Build:Mar 27 2021
+   77.07 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+   77.07 SER Saved PC:0x4203741a
+   77.07 SER SPIWP:0xee
+   77.07 SER mode:DIO, clock div:1
+   77.07 SER load:0x3fce3808,len:0x4bc
+   77.18 SER load:0x403c9700,len:0xbd8
+   77.18 SER load:0x403cc700,len:0x2a0c
+   77.18 SER entry 0x403c98d0
+   78.70 SER LRAN simnode - bench nodes 0xF0-0xF3
+   78.70 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   78.70 SER Board: xiao_esp32s3+wio_sx1262_kit
+   78.70 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 90
+   78.70 SER id f1 ROLE_GATELINK ctx 0x781887ee
+   78.77 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   78.77 SER OLED: up
+   78.77 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   78.77 SER id f1 boot: ctx 0x781887ee, reset cause SOFTWARE, boot_count 90
+   78.87 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+   79.59 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":46,"ms":91435,"deaf":4143,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   79.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":47,"ms":91721,"deaf":4143,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   81.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":48,"ms":93007,"deaf":4168,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":7,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   82.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":49,"ms":93943,"deaf":4360,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   82.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":50,"ms":94372,"deaf":4360,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+   85.07 CMD radio
+   85.10 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   85.10 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+   85.10 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   85.57 CMD stats f1
+   85.58 SER OK stats f1
+   85.58 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+   85.58 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   85.58 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   85.58 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   85.68 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   85.68 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+   89.58 CMD reboot
+   89.59 SER OK reboot - esp_restart(), expect SOFTWARE
+   89.59 SER ESP-ROM:esp32s3-20210327
+   89.59 SER Build:Mar 27 2021
+   89.59 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+   89.59 SER Saved PC:0x4203741a
+   89.59 SER SPIWP:0xee
+   89.59 SER mode:DIO, clock div:1
+   89.59 SER load:0x3fce3808,len:0x4bc
+   89.69 SER load:0x403c9700,len:0xbd8
+   89.70 SER load:0x403cc700,len:0x2a0c
+   89.70 SER entry 0x403c98d0
+   91.22 SER LRAN simnode - bench nodes 0xF0-0xF3
+   91.22 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   91.22 SER Board: xiao_esp32s3+wio_sx1262_kit
+   91.22 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 91
+   91.22 SER id f1 ROLE_GATELINK ctx 0x12aa3dcf
+   91.29 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   91.29 SER OLED: up
+   91.29 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   91.29 SER id f1 boot: ctx 0x12aa3dcf, reset cause SOFTWARE, boot_count 91
+   91.39 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+   92.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":51,"ms":103950,"deaf":4360,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   92.39 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":52,"ms":104236,"deaf":4360,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   92.70 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":53,"ms":104598,"deaf":4381,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":8,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   93.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":54,"ms":105902,"deaf":4573,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   94.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":55,"ms":106332,"deaf":4573,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+   97.58 CMD radio
+   97.63 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+   97.63 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+   97.63 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+   98.09 CMD stats f1
+   98.09 SER OK stats f1
+   98.09 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+   98.09 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+   98.09 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+   98.09 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+   98.19 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+   98.19 SER   cad_backoffs 1 (radio) answers_dropped 0 (node)
+  102.09 CMD reboot
+  102.10 SER OK reboot - esp_restart(), expect SOFTWARE
+  102.10 SER ESP-ROM:esp32s3-20210327
+  102.10 SER Build:Mar 27 2021
+  102.10 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  102.10 SER Saved PC:0x4203741a
+  102.10 SER SPIWP:0xee
+  102.10 SER mode:DIO, clock div:1
+  102.10 SER load:0x3fce3808,len:0x4bc
+  102.21 SER load:0x403c9700,len:0xbd8
+  102.21 SER load:0x403cc700,len:0x2a0c
+  102.21 SER entry 0x403c98d0
+  103.73 SER LRAN simnode - bench nodes 0xF0-0xF3
+  103.73 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  103.73 SER Board: xiao_esp32s3+wio_sx1262_kit
+  103.73 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 92
+  103.73 SER id f1 ROLE_GATELINK ctx 0x2779c224
+  103.80 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  103.80 SER OLED: up
+  103.80 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  103.80 SER id f1 boot: ctx 0x2779c224, reset cause SOFTWARE, boot_count 92
+  103.90 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  104.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":56,"ms":116465,"deaf":4573,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  104.89 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":57,"ms":116751,"deaf":4573,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  105.59 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":58,"ms":117428,"deaf":4598,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":9,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  106.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":59,"ms":118368,"deaf":4790,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  106.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":60,"ms":118798,"deaf":4790,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  110.10 CMD radio
+  110.13 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  110.13 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  110.13 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  110.60 CMD stats f1
+  110.60 SER OK stats f1
+  110.60 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  110.60 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  110.60 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  110.60 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  110.71 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  110.71 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  114.61 CMD reboot
+  114.62 SER OK reboot - esp_restart(), expect SOFTWARE
+  114.62 SER ESP-ROM:esp32s3-20210327
+  114.62 SER Build:Mar 27 2021
+  114.62 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  114.62 SER Saved PC:0x4203741a
+  114.62 SER SPIWP:0xee
+  114.62 SER mode:DIO, clock div:1
+  114.62 SER load:0x3fce3808,len:0x4bc
+  114.72 SER load:0x403c9700,len:0xbd8
+  114.72 SER load:0x403cc700,len:0x2a0c
+  114.72 SER entry 0x403c98d0
+  116.24 SER LRAN simnode - bench nodes 0xF0-0xF3
+  116.24 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  116.24 SER Board: xiao_esp32s3+wio_sx1262_kit
+  116.24 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 93
+  116.24 SER id f1 ROLE_GATELINK ctx 0xb6aba60b
+  116.31 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  116.31 SER OLED: up
+  116.31 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  116.31 SER id f1 boot: ctx 0xb6aba60b, reset cause SOFTWARE, boot_count 93
+  116.42 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  117.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":61,"ms":128979,"deaf":4790,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  117.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":62,"ms":129265,"deaf":4790,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  117.74 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":63,"ms":129601,"deaf":4815,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":10,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  118.77 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":64,"ms":130537,"deaf":5007,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  119.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":65,"ms":130967,"deaf":5007,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  121.58 MQTT lran/bridge/diag/radio/state {"tx_frames":21,"cad_backoffs":7,"errors_suppressed":0,"cad_deferred":4,"cad_free":21,"rx_deaf_ms":5028,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  121.59 MQTT lran/bridge/diag/publish/state {"status_frames":18,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":8,"events":0,"event_repeats":0,"bench_withheld":26,"queue_refused":0,"undecodable":0}
+  122.19 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":66,"ms":134030,"deaf":5053,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":11,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  122.61 CMD radio
+  122.65 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  122.65 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  122.65 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  123.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":67,"ms":134970,"deaf":5245,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  123.11 CMD stats f1
+  123.11 SER OK stats f1
+  123.11 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  123.11 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  123.11 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  123.11 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  123.22 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  123.22 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  127.12 CMD reboot
+  127.13 SER OK reboot - esp_restart(), expect SOFTWARE
+  127.13 SER ESP-ROM:esp32s3-20210327
+  127.13 SER Build:Mar 27 2021
+  127.13 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  127.13 SER Saved PC:0x4203741a
+  127.13 SER SPIWP:0xee
+  127.13 SER mode:DIO, clock div:1
+  127.13 SER load:0x3fce3808,len:0x4bc
+  127.23 SER load:0x403c9700,len:0xbd8
+  127.23 SER load:0x403cc700,len:0x2a0c
+  127.23 SER entry 0x403c98d0
+  128.75 SER LRAN simnode - bench nodes 0xF0-0xF3
+  128.75 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  128.75 SER Board: xiao_esp32s3+wio_sx1262_kit
+  128.75 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 94
+  128.75 SER id f1 ROLE_GATELINK ctx 0x27d0de74
+  128.82 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  128.82 SER OLED: up
+  128.82 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  128.82 SER id f1 boot: ctx 0x27d0de74, reset cause SOFTWARE, boot_count 94
+  128.93 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  129.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":68,"ms":141489,"deaf":5245,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  129.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":69,"ms":141775,"deaf":5245,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  130.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":70,"ms":142658,"deaf":5266,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":12,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  131.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":71,"ms":143593,"deaf":5458,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  132.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":72,"ms":144023,"deaf":5458,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  135.12 CMD radio
+  135.17 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  135.17 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  135.17 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  135.63 CMD stats f1
+  135.63 SER OK stats f1
+  135.63 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  135.63 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  135.63 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  135.63 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  135.73 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  135.73 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  139.63 CMD reboot
+  139.64 SER OK reboot - esp_restart(), expect SOFTWARE
+  139.64 SER ESP-ROM:esp32s3-20210327
+  139.64 SER Build:Mar 27 2021
+  139.64 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  139.64 SER Saved PC:0x4203741a
+  139.64 SER SPIWP:0xee
+  139.64 SER mode:DIO, clock div:1
+  139.64 SER load:0x3fce3808,len:0x4bc
+  139.74 SER load:0x403c9700,len:0xbd8
+  139.74 SER load:0x403cc700,len:0x2a0c
+  139.74 SER entry 0x403c98d0
+  141.27 SER LRAN simnode - bench nodes 0xF0-0xF3
+  141.27 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  141.27 SER Board: xiao_esp32s3+wio_sx1262_kit
+  141.27 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 95
+  141.27 SER id f1 ROLE_GATELINK ctx 0xac61ec5c
+  141.34 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  141.34 SER OLED: up
+  141.34 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  141.34 SER id f1 boot: ctx 0xac61ec5c, reset cause SOFTWARE, boot_count 95
+  141.44 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  142.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":73,"ms":154003,"deaf":5458,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  142.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":74,"ms":154288,"deaf":5458,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  142.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":75,"ms":154601,"deaf":5479,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":13,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  143.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":76,"ms":155541,"deaf":5671,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":12,"st":0,"rx":0}]}
+  144.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":77,"ms":155971,"deaf":5671,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  147.63 CMD radio
+  147.68 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  147.68 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  147.68 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  148.14 CMD stats f1
+  148.14 SER OK stats f1
+  148.14 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  148.14 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  148.14 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  148.14 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  148.24 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  148.24 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  152.14 CMD reboot
+  152.15 SER OK reboot - esp_restart(), expect SOFTWARE
+  152.15 SER ESP-ROM:esp32s3-20210327
+  152.15 SER Build:Mar 27 2021
+  152.15 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  152.15 SER Saved PC:0x4203741a
+  152.15 SER SPIWP:0xee
+  152.15 SER mode:DIO, clock div:1
+  152.15 SER load:0x3fce3808,len:0x4bc
+  152.26 SER load:0x403c9700,len:0xbd8
+  152.26 SER load:0x403cc700,len:0x2a0c
+  152.26 SER entry 0x403c98d0
+  153.78 SER LRAN simnode - bench nodes 0xF0-0xF3
+  153.78 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  153.78 SER Board: xiao_esp32s3+wio_sx1262_kit
+  153.78 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 96
+  153.78 SER id f1 ROLE_GATELINK ctx 0xea804abb
+  153.85 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  153.85 SER OLED: up
+  153.85 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  153.85 SER id f1 boot: ctx 0xea804abb, reset cause SOFTWARE, boot_count 96
+  153.95 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  154.61 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":78,"ms":166514,"deaf":5671,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  154.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":79,"ms":166800,"deaf":5671,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  156.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":80,"ms":168182,"deaf":5692,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":14,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  157.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":81,"ms":169127,"deaf":5884,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  157.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":82,"ms":169556,"deaf":5884,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  160.15 CMD radio
+  160.15 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  160.15 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  160.15 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  160.65 CMD stats f1
+  160.65 SER OK stats f1
+  160.65 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  160.65 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  160.65 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  160.65 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  160.75 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  160.75 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  164.65 CMD reboot
+  164.66 SER OK reboot - esp_restart(), expect SOFTWARE
+  164.66 SER ESP-ROM:esp32s3-20210327
+  164.66 SER Build:Mar 27 2021
+  164.66 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  164.66 SER Saved PC:0x4203741a
+  164.66 SER SPIWP:0xee
+  164.66 SER mode:DIO, clock div:1
+  164.66 SER load:0x3fce3808,len:0x4bc
+  164.77 SER load:0x403c9700,len:0xbd8
+  164.77 SER load:0x403cc700,len:0x2a0c
+  164.77 SER entry 0x403c98d0
+  166.29 SER LRAN simnode - bench nodes 0xF0-0xF3
+  166.29 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  166.29 SER Board: xiao_esp32s3+wio_sx1262_kit
+  166.29 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 97
+  166.29 SER id f1 ROLE_GATELINK ctx 0x6aebf8cb
+  166.36 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  166.36 SER OLED: up
+  166.36 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  166.36 SER id f1 boot: ctx 0x6aebf8cb, reset cause SOFTWARE, boot_count 97
+  166.46 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  167.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":83,"ms":179022,"deaf":5884,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  167.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":84,"ms":179308,"deaf":5884,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  167.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":85,"ms":179600,"deaf":5905,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":15,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  168.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":86,"ms":180536,"deaf":6097,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  168.99 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":87,"ms":180965,"deaf":6097,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  172.65 CMD radio
+  172.67 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  172.67 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  172.67 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  173.15 CMD stats f1
+  173.15 SER OK stats f1
+  173.15 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  173.15 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  173.15 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  173.15 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  173.26 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  173.26 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  177.15 CMD reboot
+  177.16 SER OK reboot - esp_restart(), expect SOFTWARE
+  177.16 SER ESP-ROM:esp32s3-20210327
+  177.16 SER Build:Mar 27 2021
+  177.16 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  177.16 SER Saved PC:0x4203741a
+  177.16 SER SPIWP:0xee
+  177.16 SER mode:DIO, clock div:1
+  177.16 SER load:0x3fce3808,len:0x4bc
+  177.27 SER load:0x403c9700,len:0xbd8
+  177.27 SER load:0x403cc700,len:0x2a0c
+  177.27 SER entry 0x403c98d0
+  178.79 SER LRAN simnode - bench nodes 0xF0-0xF3
+  178.79 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  178.79 SER Board: xiao_esp32s3+wio_sx1262_kit
+  178.79 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 98
+  178.79 SER id f1 ROLE_GATELINK ctx 0xd9991984
+  178.86 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  178.86 SER OLED: up
+  178.86 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  178.86 SER id f1 boot: ctx 0xd9991984, reset cause SOFTWARE, boot_count 98
+  178.96 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  179.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":88,"ms":191526,"deaf":6097,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  179.90 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":89,"ms":191812,"deaf":6097,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  180.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":90,"ms":192778,"deaf":6122,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":16,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  181.59 MQTT lran/bridge/diag/radio/state {"tx_frames":27,"cad_backoffs":11,"errors_suppressed":0,"cad_deferred":8,"cad_free":27,"rx_deaf_ms":6314,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  181.59 MQTT lran/bridge/diag/publish/state {"status_frames":28,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":13,"events":0,"event_repeats":0,"bench_withheld":41,"queue_refused":0,"undecodable":0}
+  181.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":91,"ms":193714,"deaf":6314,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  182.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":92,"ms":194143,"deaf":6314,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  183.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":93,"ms":195596,"deaf":6335,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":17,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  184.61 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":94,"ms":196537,"deaf":6527,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  185.16 CMD radio
+  185.18 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  185.18 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  185.18 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  185.66 CMD stats f1
+  185.66 SER OK stats f1
+  185.66 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  185.66 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  185.66 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  185.66 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  185.76 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  185.76 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  189.66 CMD reboot
+  189.67 SER OK reboot - esp_restart(), expect SOFTWARE
+  189.67 SER ESP-ROM:esp32s3-20210327
+  189.67 SER Build:Mar 27 2021
+  189.67 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  189.67 SER Saved PC:0x4203741a
+  189.67 SER SPIWP:0xee
+  189.67 SER mode:DIO, clock div:1
+  189.67 SER load:0x3fce3808,len:0x4bc
+  189.78 SER load:0x403c9700,len:0xbd8
+  189.78 SER load:0x403cc700,len:0x2a0c
+  189.78 SER entry 0x403c98d0
+  191.30 SER LRAN simnode - bench nodes 0xF0-0xF3
+  191.30 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  191.30 SER Board: xiao_esp32s3+wio_sx1262_kit
+  191.30 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 99
+  191.30 SER id f1 ROLE_GATELINK ctx 0x41a969b9
+  191.37 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  191.37 SER OLED: up
+  191.37 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  191.37 SER id f1 boot: ctx 0x41a969b9, reset cause SOFTWARE, boot_count 99
+  191.47 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  192.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":95,"ms":204035,"deaf":6527,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  192.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":96,"ms":204321,"deaf":6527,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+  192.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":97,"ms":204593,"deaf":6548,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":18,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  193.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":98,"ms":205528,"deaf":6740,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  194.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":99,"ms":205958,"deaf":6740,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  197.67 CMD radio
+  197.73 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  197.73 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  197.73 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  198.17 CMD stats f1
+  198.18 SER OK stats f1
+  198.18 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  198.18 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  198.18 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  198.18 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  198.28 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  198.28 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  202.18 CMD reboot
+  202.19 SER OK reboot - esp_restart(), expect SOFTWARE
+  202.19 SER ESP-ROM:esp32s3-20210327
+  202.19 SER Build:Mar 27 2021
+  202.19 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  202.19 SER Saved PC:0x4203741a
+  202.19 SER SPIWP:0xee
+  202.19 SER mode:DIO, clock div:1
+  202.19 SER load:0x3fce3808,len:0x4bc
+  202.29 SER load:0x403c9700,len:0xbd8
+  202.29 SER load:0x403cc700,len:0x2a0c
+  202.29 SER entry 0x403c98d0
+  203.81 SER LRAN simnode - bench nodes 0xF0-0xF3
+  203.81 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  203.81 SER Board: xiao_esp32s3+wio_sx1262_kit
+  203.81 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 100
+  203.88 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x6671f04e
+  203.88 SER  Mode.
+  203.88 SER OLED: up
+  203.88 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  203.88 SER id f1 boot: ctx 0x6671f04e, reset cause SOFTWARE, boot_count 100
+  203.99 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  204.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":100,"ms":216551,"deaf":6740,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  204.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":101,"ms":216837,"deaf":6740,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  205.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":102,"ms":217223,"deaf":6765,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":19,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  206.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":103,"ms":218163,"deaf":6957,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  206.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":104,"ms":218592,"deaf":6957,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  210.18 CMD radio
+  210.22 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  210.22 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  210.22 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  210.69 CMD stats f1
+  210.69 SER OK stats f1
+  210.69 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  210.69 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  210.69 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  210.69 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  210.80 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  210.80 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  214.69 CMD reboot
+  214.71 SER OK reboot - esp_restart(), expect SOFTWARE
+  214.71 SER ESP-ROM:esp32s3-20210327
+  214.71 SER Build:Mar 27 2021
+  214.71 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  214.71 SER Saved PC:0x4203741a
+  214.71 SER SPIWP:0xee
+  214.71 SER mode:DIO, clock div:1
+  214.71 SER load:0x3fce3808,len:0x4bc
+  214.81 SER load:0x403c9700,len:0xbd8
+  214.81 SER load:0x403cc700,len:0x2a0c
+  214.81 SER entry 0x403c98d0
+  216.33 SER LRAN simnode - bench nodes 0xF0-0xF3
+  216.33 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  216.33 SER Board: xiao_esp32s3+wio_sx1262_kit
+  216.33 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 101
+  216.33 SER id f1 ROLE_GATELINK ctx 0xfe6ca7fe
+  216.40 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  216.40 SER OLED: up
+  216.40 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  216.40 SER id f1 boot: ctx 0xfe6ca7fe, reset cause SOFTWARE, boot_count 101
+  216.51 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  217.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":105,"ms":229067,"deaf":6957,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  217.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":106,"ms":229353,"deaf":6957,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  217.89 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":107,"ms":229599,"deaf":6982,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":20,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  218.71 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":108,"ms":230535,"deaf":7174,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  219.12 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":109,"ms":230965,"deaf":7174,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  222.70 CMD radio
+  222.77 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  222.78 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  222.78 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  223.20 CMD stats f1
+  223.21 SER OK stats f1
+  223.21 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  223.21 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  223.21 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  223.21 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  223.31 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  223.31 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  227.21 CMD reboot
+  227.22 SER OK reboot - esp_restart(), expect SOFTWARE
+  227.22 SER ESP-ROM:esp32s3-20210327
+  227.22 SER Build:Mar 27 2021
+  227.22 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  227.22 SER Saved PC:0x4203741a
+  227.22 SER SPIWP:0xee
+  227.22 SER mode:DIO, clock div:1
+  227.22 SER load:0x3fce3808,len:0x4bc
+  227.32 SER load:0x403c9700,len:0xbd8
+  227.32 SER load:0x403cc700,len:0x2a0c
+  227.32 SER entry 0x403c98d0
+  228.85 SER LRAN simnode - bench nodes 0xF0-0xF3
+  228.85 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  228.85 SER Board: xiao_esp32s3+wio_sx1262_kit
+  228.85 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 102
+  228.92 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x277ea8b3
+  228.92 SER  Mode.
+  228.92 SER OLED: up
+  228.92 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  228.92 SER id f1 boot: ctx 0x277ea8b3, reset cause SOFTWARE, boot_count 102
+  229.02 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  229.70 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":110,"ms":241582,"deaf":7174,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  229.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":111,"ms":241868,"deaf":7174,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  230.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":112,"ms":242605,"deaf":7199,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":21,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  231.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":113,"ms":243545,"deaf":7391,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  232.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":114,"ms":243975,"deaf":7391,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  235.21 CMD radio
+  235.24 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  235.24 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  235.24 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  235.71 CMD stats f1
+  235.71 SER OK stats f1
+  235.71 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  235.71 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  235.71 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  235.71 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  235.82 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  235.82 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  239.72 CMD reboot
+  239.73 SER OK reboot - esp_restart(), expect SOFTWARE
+  239.73 SER ESP-ROM:esp32s3-20210327
+  239.73 SER Build:Mar 27 2021
+  239.73 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  239.73 SER Saved PC:0x4203741a
+  239.73 SER SPIWP:0xee
+  239.73 SER mode:DIO, clock div:1
+  239.73 SER load:0x3fce3808,len:0x4bc
+  239.83 SER load:0x403c9700,len:0xbd8
+  239.83 SER load:0x403cc700,len:0x2a0c
+  239.83 SER entry 0x403c98d0
+  241.35 SER LRAN simnode - bench nodes 0xF0-0xF3
+  241.35 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  241.35 SER Board: xiao_esp32s3+wio_sx1262_kit
+  241.35 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 103
+  241.35 SER id f1 ROLE_GATELINK ctx 0xf48a6b5f
+  241.42 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  241.42 SER OLED: up
+  241.42 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  241.42 SER id f1 boot: ctx 0xf48a6b5f, reset cause SOFTWARE, boot_count 103
+  241.53 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  241.65 MQTT lran/bridge/diag/radio/state {"tx_frames":32,"cad_backoffs":12,"errors_suppressed":0,"cad_deferred":9,"cad_free":32,"rx_deaf_ms":7391,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  241.65 MQTT lran/bridge/diag/publish/state {"status_frames":38,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":17,"events":0,"event_repeats":0,"bench_withheld":55,"queue_refused":0,"undecodable":0}
+  242.31 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":115,"ms":254090,"deaf":7391,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  242.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":116,"ms":254376,"deaf":7391,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  242.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":117,"ms":254598,"deaf":7413,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":22,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  243.69 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":118,"ms":255534,"deaf":7605,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  244.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":119,"ms":255963,"deaf":7605,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  245.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":120,"ms":257595,"deaf":7626,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":23,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  246.77 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":121,"ms":258531,"deaf":7818,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  247.72 CMD radio
+  247.76 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  247.76 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  247.76 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  248.22 CMD stats f1
+  248.23 SER OK stats f1
+  248.23 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  248.23 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  248.23 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  248.23 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  248.33 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  248.33 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  252.23 CMD reboot
+  252.24 SER OK reboot - esp_restart(), expect SOFTWARE
+  252.24 SER ESP-ROM:esp32s3-20210327
+  252.24 SER Build:Mar 27 2021
+  252.24 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  252.24 SER Saved PC:0x4203741a
+  252.24 SER SPIWP:0xee
+  252.24 SER mode:DIO, clock div:1
+  252.24 SER load:0x3fce3808,len:0x4bc
+  252.34 SER load:0x403c9700,len:0xbd8
+  252.35 SER load:0x403cc700,len:0x2a0c
+  252.35 SER entry 0x403c98d0
+  253.87 SER LRAN simnode - bench nodes 0xF0-0xF3
+  253.87 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  253.87 SER Board: xiao_esp32s3+wio_sx1262_kit
+  253.87 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 104
+  253.94 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0xa8e9135b
+  253.94 SER  Mode.
+  253.94 SER OLED: up
+  253.94 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  253.94 SER id f1 boot: ctx 0xa8e9135b, reset cause SOFTWARE, boot_count 104
+  254.04 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  254.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":122,"ms":266603,"deaf":7818,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  255.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":123,"ms":266889,"deaf":7818,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  257.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":124,"ms":269140,"deaf":7910,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":24,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  258.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":125,"ms":270076,"deaf":8102,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  258.75 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":126,"ms":270505,"deaf":8102,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  260.23 CMD radio
+  260.26 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  260.26 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  260.26 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  260.74 CMD stats f1
+  260.74 SER OK stats f1
+  260.74 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  260.74 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  260.74 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  260.74 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  260.84 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  260.84 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  264.74 CMD reboot
+  264.75 SER OK reboot - esp_restart(), expect SOFTWARE
+  264.75 SER ESP-ROM:esp32s3-20210327
+  264.75 SER Build:Mar 27 2021
+  264.75 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  264.75 SER Saved PC:0x4203741a
+  264.75 SER SPIWP:0xee
+  264.75 SER mode:DIO, clock div:1
+  264.75 SER load:0x3fce3808,len:0x4bc
+  264.85 SER load:0x403c9700,len:0xbd8
+  264.85 SER load:0x403cc700,len:0x2a0c
+  264.85 SER entry 0x403c98d0
+  266.38 SER LRAN simnode - bench nodes 0xF0-0xF3
+  266.38 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  266.38 SER Board: xiao_esp32s3+wio_sx1262_kit
+  266.38 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 105
+  266.38 SER id f1 ROLE_GATELINK ctx 0x7156a91e
+  266.45 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  266.45 SER OLED: up
+  266.45 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  266.45 SER id f1 boot: ctx 0x7156a91e, reset cause SOFTWARE, boot_count 105
+  266.55 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  267.29 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":127,"ms":279115,"deaf":8102,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  267.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":128,"ms":279401,"deaf":8102,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  267.80 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":129,"ms":279603,"deaf":8123,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":25,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  268.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":130,"ms":280539,"deaf":8315,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  269.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":131,"ms":280968,"deaf":8315,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":12,"st":0,"rx":0}]}
+  272.75 CMD radio
+  272.78 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  272.78 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  272.78 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  273.25 CMD stats f1
+  273.25 SER OK stats f1
+  273.25 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  273.25 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  273.25 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  273.25 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  273.35 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  273.35 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  277.26 CMD reboot
+  277.27 SER OK reboot - esp_restart(), expect SOFTWARE
+  277.27 SER ESP-ROM:esp32s3-20210327
+  277.27 SER Build:Mar 27 2021
+  277.27 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  277.27 SER Saved PC:0x4203741a
+  277.27 SER SPIWP:0xee
+  277.27 SER mode:DIO, clock div:1
+  277.27 SER load:0x3fce3808,len:0x4bc
+  277.37 SER load:0x403c9700,len:0xbd8
+  277.37 SER load:0x403cc700,len:0x2a0c
+  277.37 SER entry 0x403c98d0
+  278.89 SER LRAN simnode - bench nodes 0xF0-0xF3
+  278.89 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  278.89 SER Board: xiao_esp32s3+wio_sx1262_kit
+  278.89 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 106
+  278.96 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0xc5e1efb7
+  278.96 SER  Mode.
+  278.96 SER OLED: up
+  278.96 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  278.96 SER id f1 boot: ctx 0xc5e1efb7, reset cause SOFTWARE, boot_count 106
+  279.07 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  279.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":132,"ms":291630,"deaf":8315,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  280.15 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":133,"ms":291916,"deaf":8315,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  280.69 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":134,"ms":292598,"deaf":8336,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":26,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  284.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":135,"ms":296165,"deaf":8528,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  284.76 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":136,"ms":296594,"deaf":8528,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  285.26 CMD radio
+  285.31 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  285.31 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  285.31 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  285.76 CMD stats f1
+  285.76 SER OK stats f1
+  285.76 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  285.76 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  285.76 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  285.76 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  285.86 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  285.86 SER   cad_backoffs 2 (radio) answers_dropped 0 (node)
+  289.77 CMD reboot
+  289.78 SER OK reboot - esp_restart(), expect SOFTWARE
+  289.78 SER ESP-ROM:esp32s3-20210327
+  289.78 SER Build:Mar 27 2021
+  289.78 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  289.78 SER Saved PC:0x4203741a
+  289.78 SER SPIWP:0xee
+  289.78 SER mode:DIO, clock div:1
+  289.78 SER load:0x3fce3808,len:0x4bc
+  289.88 SER load:0x403c9700,len:0xbd8
+  289.88 SER load:0x403cc700,len:0x2a0c
+  289.88 SER entry 0x403c98d0
+  291.40 SER LRAN simnode - bench nodes 0xF0-0xF3
+  291.40 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  291.40 SER Board: xiao_esp32s3+wio_sx1262_kit
+  291.40 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 107
+  291.47 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0xeba36a62
+  291.47 SER  Mode.
+  291.47 SER OLED: up
+  291.47 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  291.47 SER id f1 boot: ctx 0xeba36a62, reset cause SOFTWARE, boot_count 107
+  291.58 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  292.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":137,"ms":304139,"deaf":8528,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  292.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":138,"ms":304425,"deaf":8528,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  292.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":139,"ms":304627,"deaf":8549,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":27,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  293.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":140,"ms":305567,"deaf":8741,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+  294.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":141,"ms":305996,"deaf":8741,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  297.77 CMD radio
+  297.82 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  297.82 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  297.82 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  298.28 CMD stats f1
+  298.28 SER OK stats f1
+  298.28 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  298.28 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  298.28 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  298.28 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  298.38 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  298.38 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  301.58 MQTT lran/bridge/diag/radio/state {"tx_frames":38,"cad_backoffs":15,"errors_suppressed":0,"cad_deferred":9,"cad_free":38,"rx_deaf_ms":8741,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  301.59 MQTT lran/bridge/diag/publish/state {"status_frames":49,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":22,"events":0,"event_repeats":0,"bench_withheld":71,"queue_refused":0,"undecodable":0}
+  302.28 CMD reboot
+  302.29 SER OK reboot - esp_restart(), expect SOFTWARE
+  302.29 SER ESP-ROM:esp32s3-20210327
+  302.29 SER Build:Mar 27 2021
+  302.29 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  302.29 SER Saved PC:0x4203741a
+  302.29 SER SPIWP:0xee
+  302.29 SER mode:DIO, clock div:1
+  302.29 SER load:0x3fce3808,len:0x4bc
+  302.39 SER load:0x403c9700,len:0xbd8
+  302.39 SER load:0x403cc700,len:0x2a0c
+  302.39 SER entry 0x403c98d0
+  303.92 SER LRAN simnode - bench nodes 0xF0-0xF3
+  303.92 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  303.92 SER Board: xiao_esp32s3+wio_sx1262_kit
+  303.92 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 108
+  303.92 SER id f1 ROLE_GATELINK ctx 0x077f9ba3
+  303.99 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  303.99 SER OLED: up
+  303.99 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  303.99 SER id f1 boot: ctx 0x077f9ba3, reset cause SOFTWARE, boot_count 108
+  304.09 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  304.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":142,"ms":316655,"deaf":8741,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  305.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":143,"ms":316941,"deaf":8741,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  305.69 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":144,"ms":317597,"deaf":8766,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":28,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  306.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":145,"ms":318532,"deaf":8958,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  307.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":146,"ms":318962,"deaf":8958,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  308.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":147,"ms":320594,"deaf":8979,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":29,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  309.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":148,"ms":321534,"deaf":9171,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  310.29 CMD radio
+  310.38 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  310.38 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  310.38 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  310.79 CMD stats f1
+  310.79 SER OK stats f1
+  310.79 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  310.79 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  310.79 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  310.79 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  310.90 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  310.90 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  314.80 CMD reboot
+  314.81 SER OK reboot - esp_restart(), expect SOFTWARE
+  314.81 SER ESP-ROM:esp32s3-20210327
+  314.81 SER Build:Mar 27 2021
+  314.81 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  314.81 SER Saved PC:0x4203741a
+  314.81 SER SPIWP:0xee
+  314.81 SER mode:DIO, clock div:1
+  314.81 SER load:0x3fce3808,len:0x4bc
+  314.91 SER load:0x403c9700,len:0xbd8
+  314.91 SER load:0x403cc700,len:0x2a0c
+  314.91 SER entry 0x403c98d0
+  316.43 SER LRAN simnode - bench nodes 0xF0-0xF3
+  316.43 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  316.43 SER Board: xiao_esp32s3+wio_sx1262_kit
+  316.43 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 109
+  316.43 SER id f1 ROLE_GATELINK ctx 0x607e5289
+  316.50 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  316.50 SER OLED: up
+  316.50 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  316.50 SER id f1 boot: ctx 0x607e5289, reset cause SOFTWARE, boot_count 109
+  316.60 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  317.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":149,"ms":329169,"deaf":9171,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  317.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":150,"ms":329455,"deaf":9171,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  317.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":151,"ms":329657,"deaf":9192,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":30,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  318.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":152,"ms":330597,"deaf":9384,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  319.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":153,"ms":331027,"deaf":9384,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  322.80 CMD radio
+  322.81 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  322.82 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  322.82 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  323.30 CMD stats f1
+  323.30 SER OK stats f1
+  323.30 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  323.30 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  323.30 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  323.30 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  323.41 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  323.41 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  327.30 CMD reboot
+  327.31 SER OK reboot - esp_restart(), expect SOFTWARE
+  327.31 SER ESP-ROM:esp32s3-20210327
+  327.31 SER Build:Mar 27 2021
+  327.31 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  327.31 SER Saved PC:0x4203741a
+  327.31 SER SPIWP:0xee
+  327.31 SER mode:DIO, clock div:1
+  327.31 SER load:0x3fce3808,len:0x4bc
+  327.42 SER load:0x403c9700,len:0xbd8
+  327.42 SER load:0x403cc700,len:0x2a0c
+  327.42 SER entry 0x403c98d0
+  328.94 SER LRAN simnode - bench nodes 0xF0-0xF3
+  328.94 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  328.94 SER Board: xiao_esp32s3+wio_sx1262_kit
+  328.94 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 110
+  328.94 SER id f1 ROLE_GATELINK ctx 0xe234ee73
+  329.01 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  329.01 SER OLED: up
+  329.01 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  329.01 SER id f1 boot: ctx 0xe234ee73, reset cause SOFTWARE, boot_count 110
+  329.11 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  329.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":154,"ms":341678,"deaf":9384,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  330.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":155,"ms":341963,"deaf":9384,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  330.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":156,"ms":342596,"deaf":9405,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":31,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  331.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":157,"ms":343536,"deaf":9597,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  332.17 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":158,"ms":343966,"deaf":9597,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  335.31 CMD radio
+  335.34 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  335.34 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  335.34 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  335.81 CMD stats f1
+  335.81 SER OK stats f1
+  335.81 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  335.81 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  335.81 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  335.81 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  335.92 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  335.92 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  339.82 CMD reboot
+  339.83 SER OK reboot - esp_restart(), expect SOFTWARE
+  339.83 SER ESP-ROM:esp32s3-20210327
+  339.83 SER Build:Mar 27 2021
+  339.83 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  339.83 SER Saved PC:0x4203741a
+  339.83 SER SPIWP:0xee
+  339.83 SER mode:DIO, clock div:1
+  339.83 SER load:0x3fce3808,len:0x4bc
+  339.93 SER load:0x403c9700,len:0xbd8
+  339.93 SER load:0x403cc700,len:0x2a0c
+  339.93 SER entry 0x403c98d0
+  341.45 SER LRAN simnode - bench nodes 0xF0-0xF3
+  341.45 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  341.45 SER Board: xiao_esp32s3+wio_sx1262_kit
+  341.45 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 111
+  341.45 SER id f1 ROLE_GATELINK ctx 0x7bd8ac91
+  341.52 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  341.52 SER OLED: up
+  341.52 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  341.52 SER id f1 boot: ctx 0x7bd8ac91, reset cause SOFTWARE, boot_count 111
+  341.63 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  342.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":159,"ms":354191,"deaf":9597,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  342.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":160,"ms":354477,"deaf":9597,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  342.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":161,"ms":354680,"deaf":9618,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":32,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  343.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":162,"ms":355615,"deaf":9810,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  344.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":163,"ms":356045,"deaf":9810,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  347.82 CMD radio
+  347.86 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  347.86 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  347.86 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  348.33 CMD stats f1
+  348.33 SER OK stats f1
+  348.33 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  348.33 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  348.33 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  348.33 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  348.43 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  348.43 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  352.33 CMD reboot
+  352.34 SER OK reboot - esp_restart(), expect SOFTWARE
+  352.34 SER ESP-ROM:esp32s3-20210327
+  352.34 SER Build:Mar 27 2021
+  352.34 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  352.34 SER Saved PC:0x4203741a
+  352.34 SER SPIWP:0xee
+  352.34 SER mode:DIO, clock div:1
+  352.34 SER load:0x3fce3808,len:0x4bc
+  352.45 SER load:0x403c9700,len:0xbd8
+  352.45 SER load:0x403cc700,len:0x2a0c
+  352.45 SER entry 0x403c98d0
+  353.97 SER LRAN simnode - bench nodes 0xF0-0xF3
+  353.97 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  353.97 SER Board: xiao_esp32s3+wio_sx1262_kit
+  353.97 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 112
+  354.04 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x34ffa59d
+  354.04 SER  Mode.
+  354.04 SER OLED: up
+  354.04 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  354.04 SER id f1 boot: ctx 0x34ffa59d, reset cause SOFTWARE, boot_count 112
+  354.14 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  354.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":164,"ms":366707,"deaf":9810,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  355.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":165,"ms":366993,"deaf":9810,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  355.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":166,"ms":367599,"deaf":9835,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":33,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  356.74 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":167,"ms":368535,"deaf":10027,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  357.09 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":168,"ms":368964,"deaf":10027,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  360.34 CMD radio
+  360.37 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  360.38 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  360.38 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  360.84 CMD stats f1
+  360.84 SER OK stats f1
+  360.84 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  360.84 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  360.84 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  360.84 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  360.95 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  360.95 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  361.59 MQTT lran/bridge/diag/radio/state {"tx_frames":44,"cad_backoffs":15,"errors_suppressed":0,"cad_deferred":9,"cad_free":44,"rx_deaf_ms":10027,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  361.59 MQTT lran/bridge/diag/publish/state {"status_frames":60,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":27,"events":0,"event_repeats":0,"bench_withheld":87,"queue_refused":0,"undecodable":0}
+  364.85 CMD reboot
+  364.85 SER OK reboot - esp_restart(), expect SOFTWARE
+  364.85 SER ESP-ROM:esp32s3-20210327
+  364.85 SER Build:Mar 27 2021
+  364.85 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  364.85 SER Saved PC:0x4203741a
+  364.96 SER SPIWP:0xee
+  364.96 SER mode:DIO, clock div:1
+  364.96 SER load:0x3fce3808,len:0x4bc
+  364.96 SER load:0x403c9700,len:0xbd8
+  364.96 SER load:0x403cc700,len:0x2a0c
+  364.96 SER entry 0x403c98d0
+  366.48 SER LRAN simnode - bench nodes 0xF0-0xF3
+  366.48 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  366.48 SER Board: xiao_esp32s3+wio_sx1262_kit
+  366.48 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 113
+  366.48 SER id f1 ROLE_GATELINK ctx 0x1035df0b
+  366.55 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  366.55 SER OLED: up
+  366.55 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  366.55 SER id f1 boot: ctx 0x1035df0b, reset cause SOFTWARE, boot_count 113
+  366.66 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  367.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":169,"ms":379223,"deaf":10027,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  367.60 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":170,"ms":379509,"deaf":10027,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  367.78 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":171,"ms":379711,"deaf":10048,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":34,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  368.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":172,"ms":380647,"deaf":10240,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+  369.24 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":173,"ms":381076,"deaf":10240,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  370.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":174,"ms":382599,"deaf":10261,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":35,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  371.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":175,"ms":383535,"deaf":10453,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  372.85 CMD radio
+  372.86 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  372.86 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  372.86 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  373.35 CMD stats f1
+  373.36 SER OK stats f1
+  373.36 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  373.36 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  373.36 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  373.36 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  373.46 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  373.46 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  377.36 CMD reboot
+  377.37 SER OK reboot - esp_restart(), expect SOFTWARE
+  377.37 SER ESP-ROM:esp32s3-20210327
+  377.37 SER Build:Mar 27 2021
+  377.37 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  377.37 SER Saved PC:0x4203741a
+  377.37 SER SPIWP:0xee
+  377.37 SER mode:DIO, clock div:1
+  377.37 SER load:0x3fce3808,len:0x4bc
+  377.47 SER load:0x403c9700,len:0xbd8
+  377.48 SER load:0x403cc700,len:0x2a0c
+  377.48 SER entry 0x403c98d0
+  379.00 SER LRAN simnode - bench nodes 0xF0-0xF3
+  379.00 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  379.00 SER Board: xiao_esp32s3+wio_sx1262_kit
+  379.00 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 114
+  379.00 SER id f1 ROLE_GATELINK ctx 0xc063aeaa
+  379.07 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  379.07 SER OLED: up
+  379.07 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  379.07 SER id f1 boot: ctx 0xc063aeaa, reset cause SOFTWARE, boot_count 114
+  379.17 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  379.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":176,"ms":391734,"deaf":10453,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  380.08 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":177,"ms":392020,"deaf":10453,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  380.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":178,"ms":392606,"deaf":10478,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":36,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  381.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":179,"ms":393547,"deaf":10670,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  382.14 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":180,"ms":393976,"deaf":10670,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  385.36 CMD radio
+  385.40 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  385.40 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  385.40 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  385.87 CMD stats f1
+  385.87 SER OK stats f1
+  385.87 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  385.87 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  385.87 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  385.87 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  385.97 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  385.97 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  389.87 CMD reboot
+  389.88 SER OK reboot - esp_restart(), expect SOFTWARE
+  389.88 SER ESP-ROM:esp32s3-20210327
+  389.88 SER Build:Mar 27 2021
+  389.88 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  389.88 SER Saved PC:0x4203741a
+  389.88 SER SPIWP:0xee
+  389.88 SER mode:DIO, clock div:1
+  389.88 SER load:0x3fce3808,len:0x4bc
+  389.98 SER load:0x403c9700,len:0xbd8
+  389.98 SER load:0x403cc700,len:0x2a0c
+  389.98 SER entry 0x403c98d0
+  391.51 SER LRAN simnode - bench nodes 0xF0-0xF3
+  391.51 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  391.51 SER Board: xiao_esp32s3+wio_sx1262_kit
+  391.51 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 115
+  391.58 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x50766897
+  391.58 SER  Mode.
+  391.58 SER OLED: up
+  391.58 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  391.58 SER id f1 boot: ctx 0x50766897, reset cause SOFTWARE, boot_count 115
+  391.68 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  392.38 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":181,"ms":404248,"deaf":10670,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  392.71 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":182,"ms":404534,"deaf":10670,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  392.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":183,"ms":404736,"deaf":10691,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":37,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  393.81 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":184,"ms":405672,"deaf":10883,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  394.22 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":185,"ms":406101,"deaf":10883,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  397.88 CMD radio
+  397.91 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  397.91 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  397.91 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  398.38 CMD stats f1
+  398.38 SER OK stats f1
+  398.38 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  398.38 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  398.38 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  398.38 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  398.49 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  398.49 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  402.38 CMD reboot
+  402.39 SER OK reboot - esp_restart(), expect SOFTWARE
+  402.39 SER ESP-ROM:esp32s3-20210327
+  402.39 SER Build:Mar 27 2021
+  402.39 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  402.39 SER Saved PC:0x4203741a
+  402.39 SER SPIWP:0xee
+  402.39 SER mode:DIO, clock div:1
+  402.39 SER load:0x3fce3808,len:0x4bc
+  402.50 SER load:0x403c9700,len:0xbd8
+  402.50 SER load:0x403cc700,len:0x2a0c
+  402.50 SER entry 0x403c98d0
+  404.02 SER LRAN simnode - bench nodes 0xF0-0xF3
+  404.02 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  404.02 SER Board: xiao_esp32s3+wio_sx1262_kit
+  404.02 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 116
+  404.02 SER id f1 ROLE_GATELINK ctx 0xa4871f58
+  404.09 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  404.09 SER OLED: up
+  404.09 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  404.09 SER id f1 boot: ctx 0xa4871f58, reset cause SOFTWARE, boot_count 116
+  404.19 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  404.97 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":186,"ms":416758,"deaf":10883,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  405.18 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":187,"ms":417044,"deaf":10883,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  405.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":188,"ms":417596,"deaf":10904,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":38,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  406.72 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":189,"ms":418532,"deaf":11096,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  407.12 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":190,"ms":418961,"deaf":11096,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  410.39 CMD radio
+  410.49 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  410.49 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  410.49 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  410.89 CMD stats f1
+  410.89 SER OK stats f1
+  410.89 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  410.89 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  410.89 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  410.89 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  411.00 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  411.00 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  414.90 CMD reboot
+  414.91 SER OK reboot - esp_restart(), expect SOFTWARE
+  414.91 SER ESP-ROM:esp32s3-20210327
+  414.91 SER Build:Mar 27 2021
+  414.91 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  414.91 SER Saved PC:0x4203741a
+  414.91 SER SPIWP:0xee
+  414.91 SER mode:DIO, clock div:1
+  414.91 SER load:0x3fce3808,len:0x4bc
+  415.02 SER load:0x403c9700,len:0xbd8
+  415.02 SER load:0x403cc700,len:0x2a0c
+  415.02 SER entry 0x403c98d0
+  416.54 SER LRAN simnode - bench nodes 0xF0-0xF3
+  416.54 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  416.54 SER Board: xiao_esp32s3+wio_sx1262_kit
+  416.54 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 117
+  416.54 SER id f1 ROLE_GATELINK ctx 0xa19dfff9
+  416.61 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  416.61 SER OLED: up
+  416.61 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  416.61 SER id f1 boot: ctx 0xa19dfff9, reset cause SOFTWARE, boot_count 117
+  416.71 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  417.47 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":191,"ms":429274,"deaf":11096,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  417.77 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":192,"ms":429560,"deaf":11096,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  417.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":193,"ms":429762,"deaf":11117,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":39,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  418.80 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":194,"ms":430702,"deaf":11309,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  419.28 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":195,"ms":431132,"deaf":11309,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  421.66 MQTT lran/bridge/diag/radio/state {"tx_frames":50,"cad_backoffs":15,"errors_suppressed":0,"cad_deferred":9,"cad_free":50,"rx_deaf_ms":11309,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  421.67 MQTT lran/bridge/diag/publish/state {"status_frames":71,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":32,"events":0,"event_repeats":0,"bench_withheld":103,"queue_refused":0,"undecodable":0}
+  422.90 CMD radio
+  422.94 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  422.94 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  422.94 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  423.41 CMD stats f1
+  423.41 SER OK stats f1
+  423.41 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  423.41 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  423.41 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  423.41 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  423.51 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  423.51 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  427.46 CMD reboot
+  427.47 SER OK reboot - esp_restart(), expect SOFTWARE
+  427.47 SER ESP-ROM:esp32s3-20210327
+  427.47 SER Build:Mar 27 2021
+  427.47 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  427.47 SER Saved PC:0x4203741a
+  427.47 SER SPIWP:0xee
+  427.47 SER mode:DIO, clock div:1
+  427.47 SER load:0x3fce3808,len:0x4bc
+  427.58 SER load:0x403c9700,len:0xbd8
+  427.58 SER load:0x403cc700,len:0x2a0c
+  427.58 SER entry 0x403c98d0
+  429.10 SER LRAN simnode - bench nodes 0xF0-0xF3
+  429.10 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  429.10 SER Board: xiao_esp32s3+wio_sx1262_kit
+  429.10 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 118
+  429.17 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0xc664393f
+  429.17 SER  Mode.
+  429.17 SER OLED: up
+  429.17 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  429.17 SER id f1 boot: ctx 0xc664393f, reset cause SOFTWARE, boot_count 118
+  429.27 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  429.94 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":196,"ms":441786,"deaf":11309,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  430.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":197,"ms":442072,"deaf":11309,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  430.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":198,"ms":442594,"deaf":11330,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":40,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  431.75 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":199,"ms":443530,"deaf":11522,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  432.16 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":200,"ms":443960,"deaf":11522,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  433.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":201,"ms":445606,"deaf":11547,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":41,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  434.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":202,"ms":446542,"deaf":11739,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  435.47 CMD radio
+  435.48 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  435.48 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  435.48 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  435.97 CMD stats f1
+  435.97 SER OK stats f1
+  435.97 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  435.97 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  435.97 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  435.97 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  436.08 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  436.08 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  439.98 CMD reboot
+  439.99 SER OK reboot - esp_restart(), expect SOFTWARE
+  439.99 SER ESP-ROM:esp32s3-20210327
+  439.99 SER Build:Mar 27 2021
+  439.99 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  439.99 SER Saved PC:0x4203741a
+  439.99 SER SPIWP:0xee
+  439.99 SER mode:DIO, clock div:1
+  439.99 SER load:0x3fce3808,len:0x4bc
+  440.09 SER load:0x403c9700,len:0xbd8
+  440.09 SER load:0x403cc700,len:0x2a0c
+  440.09 SER entry 0x403c98d0
+  441.61 SER LRAN simnode - bench nodes 0xF0-0xF3
+  441.61 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  441.61 SER Board: xiao_esp32s3+wio_sx1262_kit
+  441.61 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 119
+  441.61 SER id f1 ROLE_GATELINK ctx 0xcf1a97ca
+  441.68 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  441.68 SER OLED: up
+  441.68 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  441.68 SER id f1 boot: ctx 0xcf1a97ca, reset cause SOFTWARE, boot_count 119
+  441.79 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  442.50 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":203,"ms":454299,"deaf":11739,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  442.74 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":204,"ms":454585,"deaf":11739,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  443.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":205,"ms":455127,"deaf":11760,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":42,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  444.24 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":206,"ms":456067,"deaf":11952,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  444.65 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":207,"ms":456496,"deaf":11952,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  447.98 CMD radio
+  448.02 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  448.02 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  448.02 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  448.49 CMD stats f1
+  448.49 SER OK stats f1
+  448.49 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  448.49 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  448.49 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  448.49 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  448.59 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  448.59 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  452.49 CMD reboot
+  452.50 SER OK reboot - esp_restart(), expect SOFTWARE
+  452.50 SER ESP-ROM:esp32s3-20210327
+  452.50 SER Build:Mar 27 2021
+  452.50 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  452.50 SER Saved PC:0x4203741a
+  452.50 SER SPIWP:0xee
+  452.50 SER mode:DIO, clock div:1
+  452.50 SER load:0x3fce3808,len:0x4bc
+  452.60 SER load:0x403c9700,len:0xbd8
+  452.60 SER load:0x403cc700,len:0x2a0c
+  452.60 SER entry 0x403c98d0
+  454.13 SER LRAN simnode - bench nodes 0xF0-0xF3
+  454.13 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  454.13 SER Board: xiao_esp32s3+wio_sx1262_kit
+  454.13 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 120
+  454.20 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x38522276
+  454.20 SER  Mode.
+  454.20 SER OLED: up
+  454.20 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  454.20 SER id f1 boot: ctx 0x38522276, reset cause SOFTWARE, boot_count 120
+  454.30 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  454.94 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":208,"ms":466815,"deaf":11952,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  455.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":209,"ms":467101,"deaf":11952,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  455.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":210,"ms":467594,"deaf":11973,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":43,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  456.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":211,"ms":468534,"deaf":12165,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  457.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":212,"ms":468964,"deaf":12165,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  460.49 CMD radio
+  460.49 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  460.49 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  460.49 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  461.00 CMD stats f1
+  461.00 SER OK stats f1
+  461.00 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  461.00 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  461.00 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  461.00 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  461.10 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  461.11 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  465.00 CMD reboot
+  465.01 SER OK reboot - esp_restart(), expect SOFTWARE
+  465.01 SER ESP-ROM:esp32s3-20210327
+  465.01 SER Build:Mar 27 2021
+  465.01 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  465.01 SER Saved PC:0x4203741a
+  465.01 SER SPIWP:0xee
+  465.01 SER mode:DIO, clock div:1
+  465.01 SER load:0x3fce3808,len:0x4bc
+  465.11 SER load:0x403c9700,len:0xbd8
+  465.11 SER load:0x403cc700,len:0x2a0c
+  465.11 SER entry 0x403c98d0
+  466.64 SER LRAN simnode - bench nodes 0xF0-0xF3
+  466.64 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  466.64 SER Board: xiao_esp32s3+wio_sx1262_kit
+  466.64 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 121
+  466.64 SER id f1 ROLE_GATELINK ctx 0x106634fc
+  466.71 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  466.71 SER OLED: up
+  466.71 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  466.71 SER id f1 boot: ctx 0x106634fc, reset cause SOFTWARE, boot_count 121
+  466.81 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  467.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":213,"ms":479326,"deaf":12165,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  467.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":214,"ms":479612,"deaf":12165,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  469.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":215,"ms":480855,"deaf":12186,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":44,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  469.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":216,"ms":481790,"deaf":12378,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  470.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":217,"ms":482220,"deaf":12378,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  473.01 CMD radio
+  473.02 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  473.02 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  473.02 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  473.51 CMD stats f1
+  473.51 SER OK stats f1
+  473.51 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  473.51 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  473.51 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  473.51 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  473.61 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  473.61 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  477.51 CMD reboot
+  477.52 SER OK reboot - esp_restart(), expect SOFTWARE
+  477.52 SER ESP-ROM:esp32s3-20210327
+  477.52 SER Build:Mar 27 2021
+  477.52 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  477.52 SER Saved PC:0x4203741a
+  477.52 SER SPIWP:0xee
+  477.52 SER mode:DIO, clock div:1
+  477.52 SER load:0x3fce3808,len:0x4bc
+  477.62 SER load:0x403c9700,len:0xbd8
+  477.62 SER load:0x403cc700,len:0x2a0c
+  477.62 SER entry 0x403c98d0
+  479.15 SER LRAN simnode - bench nodes 0xF0-0xF3
+  479.15 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  479.15 SER Board: xiao_esp32s3+wio_sx1262_kit
+  479.15 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 122
+  479.22 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x4ee5353c
+  479.22 SER  Mode.
+  479.22 SER OLED: up
+  479.22 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  479.22 SER id f1 boot: ctx 0x4ee5353c, reset cause SOFTWARE, boot_count 122
+  479.32 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  480.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":218,"ms":491834,"deaf":12378,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  480.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":219,"ms":492120,"deaf":12378,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  480.80 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":220,"ms":492602,"deaf":12399,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":45,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  481.72 MQTT lran/bridge/diag/radio/state {"tx_frames":56,"cad_backoffs":17,"errors_suppressed":0,"cad_deferred":11,"cad_free":56,"rx_deaf_ms":12591,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  481.72 MQTT lran/bridge/diag/publish/state {"status_frames":82,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":37,"events":0,"event_repeats":0,"bench_withheld":119,"queue_refused":0,"undecodable":0}
+  481.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":221,"ms":493538,"deaf":12591,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  482.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":222,"ms":493967,"deaf":12591,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  485.51 CMD radio
+  485.55 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  485.55 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  485.55 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  486.01 CMD stats f1
+  486.01 SER OK stats f1
+  486.01 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  486.01 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  486.01 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  486.01 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  486.11 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  486.11 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  490.01 CMD reboot
+  490.02 SER OK reboot - esp_restart(), expect SOFTWARE
+  490.02 SER ESP-ROM:esp32s3-20210327
+  490.02 SER Build:Mar 27 2021
+  490.02 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  490.02 SER Saved PC:0x4203741a
+  490.02 SER SPIWP:0xee
+  490.02 SER mode:DIO, clock div:1
+  490.02 SER load:0x3fce3808,len:0x4bc
+  490.13 SER load:0x403c9700,len:0xbd8
+  490.13 SER load:0x403cc700,len:0x2a0c
+  490.13 SER entry 0x403c98d0
+  491.65 SER LRAN simnode - bench nodes 0xF0-0xF3
+  491.65 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  491.65 SER Board: xiao_esp32s3+wio_sx1262_kit
+  491.65 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 123
+  491.65 SER id f1 ROLE_GATELINK ctx 0x36cbde79
+  491.72 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  491.72 SER OLED: up
+  491.72 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  491.72 SER id f1 boot: ctx 0x36cbde79, reset cause SOFTWARE, boot_count 123
+  491.82 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  492.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":223,"ms":504337,"deaf":12591,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  492.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":224,"ms":504623,"deaf":12591,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  493.66 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":225,"ms":505499,"deaf":12616,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":46,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  494.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":226,"ms":506435,"deaf":12808,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  495.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":227,"ms":506864,"deaf":12808,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  496.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":228,"ms":508600,"deaf":12833,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":47,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  497.80 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":229,"ms":509541,"deaf":13025,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  498.01 CMD radio
+  498.07 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  498.07 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  498.07 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  498.52 CMD stats f1
+  498.52 SER OK stats f1
+  498.52 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  498.52 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  498.52 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  498.52 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  498.62 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  498.62 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  502.52 CMD reboot
+  502.53 SER OK reboot - esp_restart(), expect SOFTWARE
+  502.53 SER ESP-ROM:esp32s3-20210327
+  502.53 SER Build:Mar 27 2021
+  502.53 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  502.53 SER Saved PC:0x4203741a
+  502.53 SER SPIWP:0xee
+  502.53 SER mode:DIO, clock div:1
+  502.53 SER load:0x3fce3808,len:0x4bc
+  502.63 SER load:0x403c9700,len:0xbd8
+  502.63 SER load:0x403cc700,len:0x2a0c
+  502.63 SER entry 0x403c98d0
+  504.15 SER LRAN simnode - bench nodes 0xF0-0xF3
+  504.15 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  504.15 SER Board: xiao_esp32s3+wio_sx1262_kit
+  504.15 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 124
+  504.15 SER id f1 ROLE_GATELINK ctx 0x02461293
+  504.22 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  504.22 SER OLED: up
+  504.22 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  504.22 SER id f1 boot: ctx 0x02461293, reset cause SOFTWARE, boot_count 124
+  504.33 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  505.07 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":230,"ms":516843,"deaf":13025,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  505.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":231,"ms":517129,"deaf":13025,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+  505.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":232,"ms":517601,"deaf":13046,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":48,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  506.66 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":233,"ms":518537,"deaf":13238,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  507.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":234,"ms":518966,"deaf":13238,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  510.52 CMD radio
+  510.62 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  510.62 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  510.62 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  511.02 CMD stats f1
+  511.02 SER OK stats f1
+  511.02 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  511.02 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  511.02 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  511.02 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  511.13 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  511.13 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  515.03 CMD reboot
+  515.03 SER OK reboot - esp_restart(), expect SOFTWARE
+  515.03 SER ESP-ROM:esp32s3-20210327
+  515.03 SER Build:Mar 27 2021
+  515.03 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  515.03 SER Saved PC:0x4203741a
+  515.14 SER SPIWP:0xee
+  515.14 SER mode:DIO, clock div:1
+  515.14 SER load:0x3fce3808,len:0x4bc
+  515.14 SER load:0x403c9700,len:0xbd8
+  515.14 SER load:0x403cc700,len:0x2a0c
+  515.14 SER entry 0x403c98d0
+  516.66 SER LRAN simnode - bench nodes 0xF0-0xF3
+  516.66 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  516.66 SER Board: xiao_esp32s3+wio_sx1262_kit
+  516.66 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 125
+  516.66 SER id f1 ROLE_GATELINK ctx 0x08f76467
+  516.73 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  516.83 SER OLED: up
+  516.83 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  516.83 SER id f1 boot: ctx 0x08f76467, reset cause SOFTWARE, boot_count 125
+  516.93 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  517.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":235,"ms":529353,"deaf":13238,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  517.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":236,"ms":529639,"deaf":13238,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  519.20 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":237,"ms":530995,"deaf":13263,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":49,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  520.12 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":238,"ms":531931,"deaf":13455,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  520.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":239,"ms":532360,"deaf":13455,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  523.03 CMD radio
+  523.12 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  523.12 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  523.12 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  523.53 CMD stats f1
+  523.53 SER OK stats f1
+  523.53 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  523.53 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  523.53 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  523.53 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  523.63 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  523.63 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  527.54 CMD reboot
+  527.55 SER OK reboot - esp_restart(), expect SOFTWARE
+  527.55 SER ESP-ROM:esp32s3-20210327
+  527.55 SER Build:Mar 27 2021
+  527.55 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  527.55 SER Saved PC:0x4203741a
+  527.55 SER SPIWP:0xee
+  527.55 SER mode:DIO, clock div:1
+  527.55 SER load:0x3fce3808,len:0x4bc
+  527.65 SER load:0x403c9700,len:0xbd8
+  527.65 SER load:0x403cc700,len:0x2a0c
+  527.65 SER entry 0x403c98d0
+  529.17 SER LRAN simnode - bench nodes 0xF0-0xF3
+  529.17 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  529.17 SER Board: xiao_esp32s3+wio_sx1262_kit
+  529.17 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 126
+  529.17 SER id f1 ROLE_GATELINK ctx 0x28d43bf0
+  529.24 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  529.24 SER OLED: up
+  529.24 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  529.24 SER id f1 boot: ctx 0x28d43bf0, reset cause SOFTWARE, boot_count 126
+  529.34 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  530.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":240,"ms":541861,"deaf":13455,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  530.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":241,"ms":542147,"deaf":13455,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  530.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":242,"ms":542599,"deaf":13476,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":50,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  531.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":243,"ms":543535,"deaf":13668,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  532.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":244,"ms":543964,"deaf":13668,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  535.54 CMD radio
+  535.60 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  535.60 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  535.60 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  536.04 CMD stats f1
+  536.04 SER OK stats f1
+  536.04 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  536.04 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  536.04 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  536.04 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  536.15 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  536.15 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  540.04 CMD reboot
+  540.04 SER OK reboot - esp_restart(), expect SOFTWARE
+  540.06 SER ESP-ROM:esp32s3-20210327
+  540.06 SER Build:Mar 27 2021
+  540.06 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  540.06 SER Saved PC:0x4203741a
+  540.06 SER SPIWP:0xee
+  540.06 SER mode:DIO, clock div:1
+  540.06 SER load:0x3fce3808,len:0x4bc
+  540.06 SER load:0x403c9700,len:0xbd8
+  540.06 SER load:0x403cc700,len:0x2a0c
+  540.16 SER entry 0x403c98d0
+  541.63 MQTT lran/bridge/diag/radio/state {"tx_frames":61,"cad_backoffs":19,"errors_suppressed":0,"cad_deferred":13,"cad_free":61,"rx_deaf_ms":13668,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  541.64 MQTT lran/bridge/diag/publish/state {"status_frames":91,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":41,"events":0,"event_repeats":0,"bench_withheld":132,"queue_refused":0,"undecodable":0}
+  541.68 SER LRAN simnode - bench nodes 0xF0-0xF3
+  541.68 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  541.68 SER Board: xiao_esp32s3+wio_sx1262_kit
+  541.68 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 127
+  541.68 SER id f1 ROLE_GATELINK ctx 0x7ea31f8e
+  541.75 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  541.75 SER OLED: up
+  541.75 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  541.75 SER id f1 boot: ctx 0x7ea31f8e, reset cause SOFTWARE, boot_count 127
+  541.85 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  542.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":245,"ms":554366,"deaf":13668,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  542.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":246,"ms":554652,"deaf":13668,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  544.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":247,"ms":556055,"deaf":13689,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":51,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  545.14 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":248,"ms":556995,"deaf":13881,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":10,"st":0,"rx":0}]}
+  545.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":249,"ms":557425,"deaf":13881,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  548.05 CMD radio
+  548.09 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  548.09 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  548.09 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  548.55 CMD stats f1
+  548.55 SER OK stats f1
+  548.55 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  548.55 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  548.55 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  548.55 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  548.65 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  548.65 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  552.55 CMD reboot
+  552.56 SER OK reboot - esp_restart(), expect SOFTWARE
+  552.56 SER ESP-ROM:esp32s3-20210327
+  552.56 SER Build:Mar 27 2021
+  552.56 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  552.56 SER Saved PC:0x4203741a
+  552.56 SER SPIWP:0xee
+  552.66 SER mode:DIO, clock div:1
+  552.66 SER load:0x3fce3808,len:0x4bc
+  552.66 SER load:0x403c9700,len:0xbd8
+  552.66 SER load:0x403cc700,len:0x2a0c
+  552.66 SER entry 0x403c98d0
+  554.19 SER LRAN simnode - bench nodes 0xF0-0xF3
+  554.19 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  554.19 SER Board: xiao_esp32s3+wio_sx1262_kit
+  554.19 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 128
+  554.19 SER id f1 ROLE_GATELINK ctx 0x3d4b2551
+  554.26 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  554.26 SER OLED: up
+  554.26 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  554.26 SER id f1 boot: ctx 0x3d4b2551, reset cause SOFTWARE, boot_count 128
+  554.36 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  555.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":250,"ms":566877,"deaf":13881,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  555.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":251,"ms":567162,"deaf":13881,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  555.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":252,"ms":567595,"deaf":13902,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":52,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  556.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":253,"ms":568535,"deaf":14094,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  557.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":254,"ms":568965,"deaf":14094,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  559.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":255,"ms":571124,"deaf":14136,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":53,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  560.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":256,"ms":572062,"deaf":14328,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  560.55 CMD radio
+  560.59 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  560.59 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  560.59 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  561.06 CMD stats f1
+  561.06 SER OK stats f1
+  561.06 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  561.06 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  561.06 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  561.06 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  561.16 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  561.16 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  565.06 CMD reboot
+  565.07 SER OK reboot - esp_restart(), expect SOFTWARE
+  565.07 SER ESP-ROM:esp32s3-20210327
+  565.07 SER Build:Mar 27 2021
+  565.07 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  565.07 SER Saved PC:0x4203741a
+  565.07 SER SPIWP:0xee
+  565.07 SER mode:DIO, clock div:1
+  565.07 SER load:0x3fce3808,len:0x4bc
+  565.18 SER load:0x403c9700,len:0xbd8
+  565.18 SER load:0x403cc700,len:0x2a0c
+  565.18 SER entry 0x403c98d0
+  566.70 SER LRAN simnode - bench nodes 0xF0-0xF3
+  566.70 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  566.70 SER Board: xiao_esp32s3+wio_sx1262_kit
+  566.70 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 129
+  566.70 SER id f1 ROLE_GATELINK ctx 0x307bbb30
+  566.77 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  566.77 SER OLED: up
+  566.77 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  566.77 SER id f1 boot: ctx 0x307bbb30, reset cause SOFTWARE, boot_count 129
+  566.87 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  567.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":257,"ms":579389,"deaf":14328,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  567.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":258,"ms":579674,"deaf":14328,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  569.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":259,"ms":580847,"deaf":14349,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":54,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  569.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":260,"ms":581783,"deaf":14541,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  570.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":261,"ms":582212,"deaf":14541,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  573.07 CMD radio
+  573.12 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  573.12 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  573.12 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  573.57 CMD stats f1
+  573.57 SER OK stats f1
+  573.57 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  573.57 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  573.57 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  573.57 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  573.67 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  573.67 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  577.57 CMD reboot
+  577.58 SER OK reboot - esp_restart(), expect SOFTWARE
+  577.58 SER ESP-ROM:esp32s3-20210327
+  577.58 SER Build:Mar 27 2021
+  577.58 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  577.58 SER Saved PC:0x4203741a
+  577.58 SER SPIWP:0xee
+  577.58 SER mode:DIO, clock div:1
+  577.58 SER load:0x3fce3808,len:0x4bc
+  577.68 SER load:0x403c9700,len:0xbd8
+  577.68 SER load:0x403cc700,len:0x2a0c
+  577.68 SER entry 0x403c98d0
+  579.21 SER LRAN simnode - bench nodes 0xF0-0xF3
+  579.21 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  579.21 SER Board: xiao_esp32s3+wio_sx1262_kit
+  579.21 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 130
+  579.21 SER id f1 ROLE_GATELINK ctx 0x695f5acd
+  579.28 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  579.28 SER OLED: up
+  579.28 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  579.28 SER id f1 boot: ctx 0x695f5acd, reset cause SOFTWARE, boot_count 130
+  579.38 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  580.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":262,"ms":591895,"deaf":14541,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  580.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":263,"ms":592181,"deaf":14541,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  580.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":264,"ms":592594,"deaf":14562,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":55,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  583.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":265,"ms":595642,"deaf":14754,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  584.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":266,"ms":596072,"deaf":14754,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  585.57 CMD radio
+  585.63 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  585.63 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  585.63 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  586.07 CMD stats f1
+  586.08 SER OK stats f1
+  586.08 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  586.08 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  586.08 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  586.08 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  586.18 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  586.18 SER   cad_backoffs 2 (radio) answers_dropped 0 (node)
+  590.08 CMD reboot
+  590.09 SER OK reboot - esp_restart(), expect SOFTWARE
+  590.09 SER ESP-ROM:esp32s3-20210327
+  590.09 SER Build:Mar 27 2021
+  590.09 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  590.09 SER Saved PC:0x4203741a
+  590.09 SER SPIWP:0xee
+  590.09 SER mode:DIO, clock div:1
+  590.09 SER load:0x3fce3808,len:0x4bc
+  590.19 SER load:0x403c9700,len:0xbd8
+  590.19 SER load:0x403cc700,len:0x2a0c
+  590.19 SER entry 0x403c98d0
+  591.71 SER LRAN simnode - bench nodes 0xF0-0xF3
+  591.71 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  591.71 SER Board: xiao_esp32s3+wio_sx1262_kit
+  591.71 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 131
+  591.71 SER id f1 ROLE_GATELINK ctx 0x8d82c50f
+  591.78 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  591.78 SER OLED: up
+  591.78 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  591.78 SER id f1 boot: ctx 0x8d82c50f, reset cause SOFTWARE, boot_count 131
+  591.89 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  592.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":267,"ms":604402,"deaf":14754,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  592.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":268,"ms":604687,"deaf":14754,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  594.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":269,"ms":606457,"deaf":14796,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":56,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  595.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":270,"ms":607393,"deaf":14988,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  596.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":271,"ms":607822,"deaf":14988,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  598.08 CMD radio
+  598.13 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  598.13 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  598.13 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  598.58 CMD stats f1
+  598.58 SER OK stats f1
+  598.58 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  598.58 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  598.58 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  598.58 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  598.69 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  598.69 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  601.63 MQTT lran/bridge/diag/radio/state {"tx_frames":67,"cad_backoffs":24,"errors_suppressed":0,"cad_deferred":16,"cad_free":67,"rx_deaf_ms":14988,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  601.64 MQTT lran/bridge/diag/publish/state {"status_frames":102,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":46,"events":0,"event_repeats":0,"bench_withheld":148,"queue_refused":0,"undecodable":0}
+  602.58 CMD reboot
+  602.59 SER OK reboot - esp_restart(), expect SOFTWARE
+  602.59 SER ESP-ROM:esp32s3-20210327
+  602.59 SER Build:Mar 27 2021
+  602.59 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  602.59 SER Saved PC:0x4203741a
+  602.59 SER SPIWP:0xee
+  602.59 SER mode:DIO, clock div:1
+  602.59 SER load:0x3fce3808,len:0x4bc
+  602.70 SER load:0x403c9700,len:0xbd8
+  602.70 SER load:0x403cc700,len:0x2a0c
+  602.70 SER entry 0x403c98d0
+  604.22 SER LRAN simnode - bench nodes 0xF0-0xF3
+  604.22 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  604.22 SER Board: xiao_esp32s3+wio_sx1262_kit
+  604.22 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 132
+  604.22 SER id f1 ROLE_GATELINK ctx 0x339f79e2
+  604.29 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  604.29 SER OLED: up
+  604.29 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  604.29 SER id f1 boot: ctx 0x339f79e2, reset cause SOFTWARE, boot_count 132
+  604.39 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  605.07 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":272,"ms":616907,"deaf":14988,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  605.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":273,"ms":617193,"deaf":14988,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  605.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":274,"ms":617596,"deaf":15009,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":57,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  606.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":275,"ms":618536,"deaf":15201,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  607.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":276,"ms":618966,"deaf":15201,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  610.59 CMD radio
+  610.65 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  610.65 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  610.65 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  611.09 CMD stats f1
+  611.09 SER OK stats f1
+  611.09 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  611.09 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  611.09 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  611.09 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  611.20 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  611.20 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  615.09 CMD reboot
+  615.10 SER OK reboot - esp_restart(), expect SOFTWARE
+  615.11 SER ESP-ROM:esp32s3-20210327
+  615.11 SER Build:Mar 27 2021
+  615.11 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  615.11 SER Saved PC:0x4203741a
+  615.11 SER SPIWP:0xee
+  615.11 SER mode:DIO, clock div:1
+  615.11 SER load:0x3fce3808,len:0x4bc
+  615.11 SER load:0x403c9700,len:0xbd8
+  615.11 SER load:0x403cc700,len:0x2a0c
+  615.22 SER entry 0x403c98d0
+  616.73 SER LRAN simnode - bench nodes 0xF0-0xF3
+  616.73 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  616.73 SER Board: xiao_esp32s3+wio_sx1262_kit
+  616.73 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 133
+  616.73 SER id f1 ROLE_GATELINK ctx 0xc00e6a67
+  616.80 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  616.80 SER OLED: up
+  616.80 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  616.80 SER id f1 boot: ctx 0xc00e6a67, reset cause SOFTWARE, boot_count 133
+  616.91 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  617.64 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":277,"ms":629420,"deaf":15201,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  617.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":278,"ms":629706,"deaf":15201,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  618.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":279,"ms":630678,"deaf":15222,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":58,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  619.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":280,"ms":631614,"deaf":15414,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  620.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":281,"ms":632043,"deaf":15414,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  621.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":282,"ms":633599,"deaf":15439,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":59,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  622.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":283,"ms":634535,"deaf":15631,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  623.10 CMD radio
+  623.16 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  623.16 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  623.16 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  623.60 CMD stats f1
+  623.60 SER OK stats f1
+  623.60 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  623.60 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  623.60 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  623.60 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  623.71 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  623.71 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  627.60 CMD reboot
+  627.61 SER OK reboot - esp_restart(), expect SOFTWARE
+  627.61 SER ESP-ROM:esp32s3-20210327
+  627.61 SER Build:Mar 27 2021
+  627.61 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  627.61 SER Saved PC:0x4203741a
+  627.61 SER SPIWP:0xee
+  627.61 SER mode:DIO, clock div:1
+  627.61 SER load:0x3fce3808,len:0x4bc
+  627.72 SER load:0x403c9700,len:0xbd8
+  627.72 SER load:0x403cc700,len:0x2a0c
+  627.72 SER entry 0x403c98d0
+  629.24 SER LRAN simnode - bench nodes 0xF0-0xF3
+  629.24 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  629.24 SER Board: xiao_esp32s3+wio_sx1262_kit
+  629.24 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 134
+  629.31 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0xcbfa6f12
+  629.31 SER  Mode.
+  629.31 SER OLED: up
+  629.31 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  629.31 SER id f1 boot: ctx 0xcbfa6f12, reset cause SOFTWARE, boot_count 134
+  629.41 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  630.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":284,"ms":641929,"deaf":15631,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  630.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":285,"ms":642215,"deaf":15631,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  630.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":286,"ms":642597,"deaf":15652,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":60,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  631.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":287,"ms":643542,"deaf":15844,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":12,"st":0,"rx":0}]}
+  632.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":288,"ms":643971,"deaf":15844,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  635.60 CMD radio
+  635.68 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  635.68 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  635.68 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  636.11 CMD stats f1
+  636.11 SER OK stats f1
+  636.11 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  636.11 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  636.11 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  636.11 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  636.21 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  636.21 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  640.11 CMD reboot
+  640.12 SER OK reboot - esp_restart(), expect SOFTWARE
+  640.12 SER ESP-ROM:esp32s3-20210327
+  640.12 SER Build:Mar 27 2021
+  640.12 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  640.12 SER Saved PC:0x4203741a
+  640.12 SER SPIWP:0xee
+  640.12 SER mode:DIO, clock div:1
+  640.12 SER load:0x3fce3808,len:0x4bc
+  640.23 SER load:0x403c9700,len:0xbd8
+  640.23 SER load:0x403cc700,len:0x2a0c
+  640.23 SER entry 0x403c98d0
+  641.75 SER LRAN simnode - bench nodes 0xF0-0xF3
+  641.75 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  641.75 SER Board: xiao_esp32s3+wio_sx1262_kit
+  641.75 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 135
+  641.75 SER id f1 ROLE_GATELINK ctx 0x62ec4d60
+  641.82 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  641.82 SER OLED: up
+  641.82 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  641.82 SER id f1 boot: ctx 0x62ec4d60, reset cause SOFTWARE, boot_count 135
+  641.92 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  642.64 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":289,"ms":654436,"deaf":15844,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  642.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":290,"ms":654722,"deaf":15844,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  643.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":291,"ms":655294,"deaf":15865,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":61,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  644.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":292,"ms":656230,"deaf":16057,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  644.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":293,"ms":656659,"deaf":16057,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":12,"st":0,"rx":0}]}
+  648.11 CMD radio
+  648.14 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  648.14 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  648.14 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  648.62 CMD stats f1
+  648.62 SER OK stats f1
+  648.62 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  648.62 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  648.62 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  648.62 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  648.72 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  648.72 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  652.62 CMD reboot
+  652.63 SER OK reboot - esp_restart(), expect SOFTWARE
+  652.63 SER ESP-ROM:esp32s3-20210327
+  652.73 SER Build:Mar 27 2021
+  652.73 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  652.73 SER Saved PC:0x4203741a
+  652.73 SER SPIWP:0xee
+  652.73 SER mode:DIO, clock div:1
+  652.73 SER load:0x3fce3808,len:0x4bc
+  652.73 SER load:0x403c9700,len:0xbd8
+  652.73 SER load:0x403cc700,len:0x2a0c
+  652.73 SER entry 0x403c98d0
+  654.26 SER LRAN simnode - bench nodes 0xF0-0xF3
+  654.26 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  654.26 SER Board: xiao_esp32s3+wio_sx1262_kit
+  654.26 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 136
+  654.26 SER id f1 ROLE_GATELINK ctx 0x5731d8ed
+  654.33 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  654.33 SER OLED: up
+  654.33 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  654.33 SER id f1 boot: ctx 0x5731d8ed, reset cause SOFTWARE, boot_count 136
+  654.43 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  655.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":294,"ms":666947,"deaf":16057,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  655.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":295,"ms":667233,"deaf":16057,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  655.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":296,"ms":667595,"deaf":16078,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":62,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  656.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":297,"ms":668535,"deaf":16270,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  657.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":298,"ms":668964,"deaf":16270,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  660.63 CMD radio
+  660.68 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  660.68 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  660.68 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  661.13 CMD stats f1
+  661.13 SER OK stats f1
+  661.13 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  661.13 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  661.13 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  661.13 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  661.23 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  661.23 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  661.63 MQTT lran/bridge/diag/radio/state {"tx_frames":73,"cad_backoffs":26,"errors_suppressed":0,"cad_deferred":18,"cad_free":73,"rx_deaf_ms":16270,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  661.63 MQTT lran/bridge/diag/publish/state {"status_frames":113,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":51,"events":0,"event_repeats":0,"bench_withheld":164,"queue_refused":0,"undecodable":0}
+  665.13 CMD reboot
+  665.14 SER OK reboot - esp_restart(), expect SOFTWARE
+  665.14 SER ESP-ROM:esp32s3-20210327
+  665.14 SER Build:Mar 27 2021
+  665.14 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  665.14 SER Saved PC:0x4203741a
+  665.14 SER SPIWP:0xee
+  665.14 SER mode:DIO, clock div:1
+  665.14 SER load:0x3fce3808,len:0x4bc
+  665.24 SER load:0x403c9700,len:0xbd8
+  665.24 SER load:0x403cc700,len:0x2a0c
+  665.24 SER entry 0x403c98d0
+  666.77 SER LRAN simnode - bench nodes 0xF0-0xF3
+  666.77 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  666.77 SER Board: xiao_esp32s3+wio_sx1262_kit
+  666.77 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 137
+  666.84 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x64340997
+  666.84 SER  Mode.
+  666.84 SER OLED: up
+  666.84 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  666.84 SER id f1 boot: ctx 0x64340997, reset cause SOFTWARE, boot_count 137
+  666.94 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  667.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":299,"ms":679458,"deaf":16270,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  667.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":300,"ms":679744,"deaf":16270,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  668.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":301,"ms":680606,"deaf":16291,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":63,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  669.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":302,"ms":681542,"deaf":16483,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  670.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":303,"ms":681971,"deaf":16483,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  673.14 CMD radio
+  673.18 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  673.18 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  673.18 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  673.64 CMD stats f1
+  673.64 SER OK stats f1
+  673.64 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  673.64 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  673.64 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  673.64 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  673.74 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  673.74 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  677.64 CMD reboot
+  677.64 SER OK reboot - esp_restart(), expect SOFTWARE
+  677.66 SER ESP-ROM:esp32s3-20210327
+  677.66 SER Build:Mar 27 2021
+  677.66 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  677.66 SER Saved PC:0x4203741a
+  677.66 SER SPIWP:0xee
+  677.66 SER mode:DIO, clock div:1
+  677.66 SER load:0x3fce3808,len:0x4bc
+  677.66 SER load:0x403c9700,len:0xbd8
+  677.66 SER load:0x403cc700,len:0x2a0c
+  677.76 SER entry 0x403c98d0
+  679.27 SER LRAN simnode - bench nodes 0xF0-0xF3
+  679.27 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  679.27 SER Board: xiao_esp32s3+wio_sx1262_kit
+  679.27 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 138
+  679.27 SER id f1 ROLE_GATELINK ctx 0x06f49760
+  679.34 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  679.34 SER OLED: up
+  679.34 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  679.34 SER id f1 boot: ctx 0x06f49760, reset cause SOFTWARE, boot_count 138
+  679.45 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  680.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":304,"ms":691964,"deaf":16483,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  680.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":305,"ms":692250,"deaf":16483,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  680.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":306,"ms":692606,"deaf":16508,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":64,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  681.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":307,"ms":693542,"deaf":16700,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  682.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":308,"ms":693971,"deaf":16700,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  683.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":309,"ms":695598,"deaf":16725,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":65,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  684.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":310,"ms":696534,"deaf":16917,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  685.64 CMD radio
+  685.71 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  685.71 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  685.71 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  686.15 CMD stats f1
+  686.15 SER OK stats f1
+  686.15 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  686.15 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  686.15 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  686.15 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  686.25 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  686.25 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  690.15 CMD reboot
+  690.16 SER OK reboot - esp_restart(), expect SOFTWARE
+  690.16 SER ESP-ROM:esp32s3-20210327
+  690.16 SER Build:Mar 27 2021
+  690.16 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  690.16 SER Saved PC:0x4203741a
+  690.16 SER SPIWP:0xee
+  690.16 SER mode:DIO, clock div:1
+  690.16 SER load:0x3fce3808,len:0x4bc
+  690.26 SER load:0x403c9700,len:0xbd8
+  690.26 SER load:0x403cc700,len:0x2a0c
+  690.26 SER entry 0x403c98d0
+  691.79 SER LRAN simnode - bench nodes 0xF0-0xF3
+  691.79 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  691.79 SER Board: xiao_esp32s3+wio_sx1262_kit
+  691.79 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 139
+  691.79 SER id f1 ROLE_GATELINK ctx 0x0b6825df
+  691.86 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  691.86 SER OLED: up
+  691.86 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  691.86 SER id f1 boot: ctx 0x0b6825df, reset cause SOFTWARE, boot_count 139
+  691.96 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  692.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":311,"ms":704475,"deaf":16917,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  692.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":312,"ms":704761,"deaf":16917,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  693.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":313,"ms":704963,"deaf":16938,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":66,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  694.03 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":314,"ms":705899,"deaf":17130,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  694.44 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":315,"ms":706328,"deaf":17130,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  698.15 CMD radio
+  698.23 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  698.23 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  698.23 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  698.65 CMD stats f1
+  698.66 SER OK stats f1
+  698.66 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  698.66 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  698.66 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  698.66 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  698.76 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  698.76 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  702.66 CMD reboot
+  702.67 SER OK reboot - esp_restart(), expect SOFTWARE
+  702.67 SER ESP-ROM:esp32s3-20210327
+  702.67 SER Build:Mar 27 2021
+  702.67 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  702.67 SER Saved PC:0x4203741a
+  702.67 SER SPIWP:0xee
+  702.67 SER mode:DIO, clock div:1
+  702.67 SER load:0x3fce3808,len:0x4bc
+  702.78 SER load:0x403c9700,len:0xbd8
+  702.78 SER load:0x403cc700,len:0x2a0c
+  702.78 SER entry 0x403c98d0
+  704.31 SER LRAN simnode - bench nodes 0xF0-0xF3
+  704.31 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  704.31 SER Board: xiao_esp32s3+wio_sx1262_kit
+  704.40 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 140
+  704.40 SER [  1669][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x66db5057
+  704.40 SER  Mode.
+  704.40 SER OLED: up
+  704.51 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  704.51 SER id f1 boot: ctx 0x66db5057, reset cause SOFTWARE, boot_count 140
+  704.51 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  705.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":316,"ms":717021,"deaf":17130,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  705.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":317,"ms":717307,"deaf":17130,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  705.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":318,"ms":717599,"deaf":17151,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":67,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  706.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":319,"ms":718535,"deaf":17343,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  707.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":320,"ms":718964,"deaf":17343,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  710.66 CMD radio
+  710.69 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  710.69 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  710.69 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  711.16 CMD stats f1
+  711.16 SER OK stats f1
+  711.17 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  711.17 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  711.17 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  711.17 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  711.27 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  711.27 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  715.17 CMD reboot
+  715.17 SER OK reboot - esp_restart(), expect SOFTWARE
+  715.17 SER ESP-ROM:esp32s3-20210327
+  715.17 SER Build:Mar 27 2021
+  715.17 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  715.17 SER Saved PC:0x4203741a
+  715.28 SER SPIWP:0xee
+  715.28 SER mode:DIO, clock div:1
+  715.28 SER load:0x3fce3808,len:0x4bc
+  715.28 SER load:0x403c9700,len:0xbd8
+  715.28 SER load:0x403cc700,len:0x2a0c
+  715.28 SER entry 0x403c98d0
+  716.80 SER LRAN simnode - bench nodes 0xF0-0xF3
+  716.80 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  716.80 SER Board: xiao_esp32s3+wio_sx1262_kit
+  716.80 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 141
+  716.80 SER id f1 ROLE_GATELINK ctx 0x867d29aa
+  716.87 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  716.87 SER OLED: up
+  716.87 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  716.87 SER id f1 boot: ctx 0x867d29aa, reset cause SOFTWARE, boot_count 141
+  716.98 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  717.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":321,"ms":729493,"deaf":17343,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  717.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":322,"ms":729779,"deaf":17343,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  720.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":323,"ms":732236,"deaf":17406,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":68,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  721.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":324,"ms":733171,"deaf":17598,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  721.63 MQTT lran/bridge/diag/radio/state {"tx_frames":79,"cad_backoffs":32,"errors_suppressed":0,"cad_deferred":22,"cad_free":79,"rx_deaf_ms":17598,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  721.64 MQTT lran/bridge/diag/publish/state {"status_frames":124,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":56,"events":0,"event_repeats":0,"bench_withheld":180,"queue_refused":0,"undecodable":0}
+  721.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":325,"ms":733601,"deaf":17598,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  723.17 CMD radio
+  723.22 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  723.22 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  723.22 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  723.67 CMD stats f1
+  723.67 SER OK stats f1
+  723.67 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  723.67 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  723.67 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  723.67 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  723.78 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  723.78 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  727.68 CMD reboot
+  727.69 SER OK reboot - esp_restart(), expect SOFTWARE
+  727.69 SER ESP-ROM:esp32s3-20210327
+  727.69 SER Build:Mar 27 2021
+  727.69 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  727.69 SER Saved PC:0x4203741a
+  727.69 SER SPIWP:0xee
+  727.69 SER mode:DIO, clock div:1
+  727.69 SER load:0x3fce3808,len:0x4bc
+  727.79 SER load:0x403c9700,len:0xbd8
+  727.79 SER load:0x403cc700,len:0x2a0c
+  727.79 SER entry 0x403c98d0
+  729.31 SER LRAN simnode - bench nodes 0xF0-0xF3
+  729.31 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  729.31 SER Board: xiao_esp32s3+wio_sx1262_kit
+  729.31 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 142
+  729.31 SER id f1 ROLE_GATELINK ctx 0xf786840d
+  729.38 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  729.38 SER OLED: up
+  729.38 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  729.38 SER id f1 boot: ctx 0xf786840d, reset cause SOFTWARE, boot_count 142
+  729.48 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  730.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":326,"ms":742001,"deaf":17598,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  730.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":327,"ms":742287,"deaf":17598,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  730.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":328,"ms":742600,"deaf":17619,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":69,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  731.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":329,"ms":743540,"deaf":17811,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  732.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":330,"ms":743970,"deaf":17811,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  735.68 CMD radio
+  735.75 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  735.75 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  735.75 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  736.18 CMD stats f1
+  736.18 SER OK stats f1
+  736.18 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  736.18 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  736.18 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  736.18 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  736.28 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  736.28 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  740.18 CMD reboot
+  740.19 SER OK reboot - esp_restart(), expect SOFTWARE
+  740.20 SER ESP-ROM:esp32s3-20210327
+  740.20 SER Build:Mar 27 2021
+  740.20 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  740.20 SER Saved PC:0x4203741a
+  740.20 SER SPIWP:0xee
+  740.20 SER mode:DIO, clock div:1
+  740.20 SER load:0x3fce3808,len:0x4bc
+  740.20 SER load:0x403c9700,len:0xbd8
+  740.20 SER load:0x403cc700,len:0x2a0c
+  740.30 SER entry 0x403c98d0
+  741.82 SER LRAN simnode - bench nodes 0xF0-0xF3
+  741.82 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  741.82 SER Board: xiao_esp32s3+wio_sx1262_kit
+  741.82 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 143
+  741.82 SER id f1 ROLE_GATELINK ctx 0x20e6b65b
+  741.89 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  741.89 SER OLED: up
+  741.89 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  741.89 SER id f1 boot: ctx 0x20e6b65b, reset cause SOFTWARE, boot_count 143
+  741.99 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  742.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":331,"ms":754509,"deaf":17811,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  742.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":332,"ms":754795,"deaf":17811,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  743.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":333,"ms":755137,"deaf":17832,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":70,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  744.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":334,"ms":756073,"deaf":18024,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  744.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":335,"ms":756502,"deaf":18024,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  746.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":336,"ms":758165,"deaf":18070,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":71,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  747.25 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":337,"ms":759101,"deaf":18262,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-31,"snr":11,"st":0,"rx":0}]}
+  748.19 CMD radio
+  748.22 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  748.22 SER   tx_frames 5 tx_errors 0 tx_timeouts 0 tx_forced 0
+  748.22 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  748.69 CMD stats f1
+  748.69 SER OK stats f1
+  748.69 SER   rx_frames 2 tx_frames 5 rx_dropped 0 unhandled 0
+  748.69 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  748.69 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  748.69 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  748.80 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  748.80 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  752.69 CMD reboot
+  752.69 SER OK reboot - esp_restart(), expect SOFTWARE
+  752.71 SER ESP-ROM:esp32s3-20210327
+  752.71 SER Build:Mar 27 2021
+  752.71 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  752.71 SER Saved PC:0x4203741a
+  752.71 SER SPIWP:0xee
+  752.71 SER mode:DIO, clock div:1
+  752.71 SER load:0x3fce3808,len:0x4bc
+  752.71 SER load:0x403c9700,len:0xbd8
+  752.71 SER load:0x403cc700,len:0x2a0c
+  752.81 SER entry 0x403c98d0
+  754.33 SER LRAN simnode - bench nodes 0xF0-0xF3
+  754.33 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  754.33 SER Board: xiao_esp32s3+wio_sx1262_kit
+  754.33 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 144
+  754.33 SER id f1 ROLE_GATELINK ctx 0xc1dff975
+  754.40 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  754.40 SER OLED: up
+  754.40 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  754.40 SER id f1 boot: ctx 0xc1dff975, reset cause SOFTWARE, boot_count 144
+  754.50 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  755.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":338,"ms":767017,"deaf":18262,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  755.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":339,"ms":767303,"deaf":18262,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  755.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":340,"ms":767595,"deaf":18283,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":72,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  756.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":341,"ms":768531,"deaf":18475,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  757.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":342,"ms":768960,"deaf":18475,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  760.69 CMD radio
+  760.75 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  760.75 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  760.75 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  761.19 CMD stats f1
+  761.19 SER OK stats f1
+  761.19 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  761.19 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  761.19 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  761.19 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  761.30 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  761.30 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  765.19 CMD reboot
+  765.20 SER OK reboot - esp_restart(), expect SOFTWARE
+  765.20 SER ESP-ROM:esp32s3-20210327
+  765.20 SER Build:Mar 27 2021
+  765.20 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  765.20 SER Saved PC:0x4203741a
+  765.20 SER SPIWP:0xee
+  765.20 SER mode:DIO, clock div:1
+  765.20 SER load:0x3fce3808,len:0x4bc
+  765.30 SER load:0x403c9700,len:0xbd8
+  765.30 SER load:0x403cc700,len:0x2a0c
+  765.30 SER entry 0x403c98d0
+  766.83 SER LRAN simnode - bench nodes 0xF0-0xF3
+  766.83 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  766.83 SER Board: xiao_esp32s3+wio_sx1262_kit
+  766.83 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 145
+  766.83 SER id f1 ROLE_GATELINK ctx 0x835969c0
+  766.90 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+  766.90 SER OLED: up
+  766.90 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  766.90 SER id f1 boot: ctx 0x835969c0, reset cause SOFTWARE, boot_count 145
+  767.00 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  767.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":343,"ms":779519,"deaf":18475,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  767.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":344,"ms":779805,"deaf":18475,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  768.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":345,"ms":780071,"deaf":18500,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":73,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  769.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":346,"ms":781007,"deaf":18692,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  769.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":347,"ms":781436,"deaf":18692,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  773.19 CMD radio
+  773.27 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  773.27 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  773.27 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  773.70 CMD stats f1
+  773.70 SER OK stats f1
+  773.70 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  773.70 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  773.70 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  773.70 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  773.80 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  773.80 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  777.70 CMD reboot
+  777.70 SER OK reboot - esp_restart(), expect SOFTWARE
+  777.72 SER ESP-ROM:esp32s3-20210327
+  777.72 SER Build:Mar 27 2021
+  777.72 SER rst:0xc (RTC_SW_CPU_RST),boot:0x28 (SPI_FAST_FLASH_BOOT)
+  777.72 SER Saved PC:0x4203741a
+  777.72 SER SPIWP:0xee
+  777.72 SER mode:DIO, clock div:1
+  777.72 SER load:0x3fce3808,len:0x4bc
+  777.72 SER load:0x403c9700,len:0xbd8
+  777.72 SER load:0x403cc700,len:0x2a0c
+  777.82 SER entry 0x403c98d0
+  779.34 SER LRAN simnode - bench nodes 0xF0-0xF3
+  779.34 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+  779.34 SER Board: xiao_esp32s3+wio_sx1262_kit
+  779.34 SER Reset cause: SOFTWARE (esp_reset_reason 3), boot_count 146
+  779.41 SER [  1633][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x6ca4b348
+  779.41 SER  Mode.
+  779.41 SER OLED: up
+  779.41 SER radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+  779.41 SER id f1 boot: ctx 0x6ca4b348, reset cause SOFTWARE, boot_count 146
+  779.51 SER B0: identities, console, faults, OLED; all four roles. Type 'help'.
+  780.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":348,"ms":792026,"deaf":18692,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  780.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":349,"ms":792312,"deaf":18692,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-30,"snr":12,"st":0,"rx":0}]}
+  780.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":350,"ms":792598,"deaf":18717,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":74,"rssi":null,"snr":null,"st":0,"rx":5}]}
+  781.63 MQTT lran/bridge/diag/radio/state {"tx_frames":85,"cad_backoffs":36,"errors_suppressed":0,"cad_deferred":25,"cad_free":85,"rx_deaf_ms":18909,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+  781.64 MQTT lran/bridge/diag/publish/state {"status_frames":135,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":61,"events":0,"event_repeats":0,"bench_withheld":196,"queue_refused":0,"undecodable":0}
+  781.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":351,"ms":793534,"deaf":18909,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":3,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  782.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":352,"ms":793963,"deaf":18909,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-30,"snr":11,"st":0,"rx":0}]}
+  785.70 CMD radio
+  785.78 SER OK radio up, 917400000 Hz SF9 CR 4/5 -4 dBm
+  785.78 SER   tx_frames 4 tx_errors 0 tx_timeouts 0 tx_forced 0
+  785.78 SER   cad_errors 0 cad_deferred 0 rx_driver_errors 0 begin_failures 0
+  786.20 CMD stats f1
+  786.20 SER OK stats f1
+  786.20 SER   rx_frames 1 tx_frames 4 rx_dropped 0 unhandled 0
+  786.20 SER   rx_crc_err 0 rx_runt 0 rx_oversize 0 rx_bad_crc 0 rx_bad_ver 0
+  786.20 SER   rx_not_addressed 0 rx_rejected_ctx 0 rx_rejected_mac 0
+  786.20 SER   rx_reassembly_timeout 0 rx_frag_duplicate 0 rx_frag_late 0
+  786.31 SER   rx_rejected_seq 0 rx_dup_command 0 acks_suppressed 0
+  786.31 SER   cad_backoffs 0 (radio) answers_dropped 0 (node)
+  791.21 CMD publish lran/simnode1/config/set {"set": {"deployed": false}}
+  792.21 CMD publish lran/bridge/config/set {"set": {"simnode_diag_enable": false}}
+  792.44 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"simnode_diag_enable":{"status":"ok","value":0}}}
+  792.63 MQTT lran/simnode1/availability offline

@@ -203,8 +203,15 @@ the Heltec V3's 1.8 V TCXO, the OLED behind Vext, and `MQTT_MAX_PACKET_SIZE`.
   read it as a range: two boots differed by 248 bytes.
 - **RadioLib's `scanChannel()` has no timeout and `transmit()` busy-waits.** Start the
   operation and read the IRQ register against a deadline, as `lora_link` does.
-- **Receive routes only `RX_DONE` to DIO1.** `HEADER_VALID` and `HEADER_ERR` never wake the
-  task; `lora_link` reads them on a 1 s poll and before a CAD.
+- **Receive routes only `RX_DONE` to DIO1.** `PREAMBLE_DETECTED`, `HEADER_VALID` and
+  `HEADER_ERR` never wake the task; `lora_link` reads them on a 1 s poll and before a CAD.
+- **A CAD destroys a frame from its preamble on**, not only from its valid header. RadioLib's
+  default receive flags leave `PREAMBLE_DETECTED` out, so a driver has to add it, as both
+  do through `lib/lran-link`'s `RxArrival`. Without it, a `BOOT` event was lost on
+  2026-09-26 with no counter to show it.
+- **No flag sees a frame's first symbols.** A CAD started just as a node's second frame
+  begins still destroys it, so `RxArrival` starts no CAD for 176 ms after a reception
+  ends. The guard alone still lost one `BOOT` event in 40.
 - **Never ask `getPacketLength()` whether a packet arrived.** Gate on `RX_DONE`.
 - **RadioLib's `SPIClass` `Module` constructor allocates on the heap.** Construct an
   `ArduinoHal` in static storage.

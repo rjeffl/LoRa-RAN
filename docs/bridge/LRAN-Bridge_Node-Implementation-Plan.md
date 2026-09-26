@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.70
+**Version:** 0.71
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -967,7 +967,8 @@ names it through `using` declarations in `lora_link.h`.
 | **One reassembly slot per peer, eight in all** | §11.3 asks for one per peer the bridge can receive from; six identities are provisioned. A single frame never takes a slot (§11.2). Displacing a live set for capacity counts `rx_reassembly_abandoned` |
 | **CAD and transmit are started, then read back against a deadline** | RadioLib's `scanChannel()` has no timeout and `transmit()` busy-waits. `lora_task`'s one wait is a bounded `ulTaskNotifyTake` on DIO1 |
 | **A backoff is state; `lora_task` keeps receiving** | The busy channel is usually a node, often talking to the bridge |
-| **No CAD while a valid header is less than 1500 ms old** | A CAD takes the radio out of receive and destroys the arriving frame; that case counts as a busy CAD |
+| **No CAD while a frame is arriving: a preamble less than 88 ms old, or a valid header less than 1500 ms old** | A CAD takes the radio out of receive and destroys the arriving frame; that case counts as a busy CAD. The preamble half was added on 2026-09-26, after a CAD between a preamble and its header lost a `BOOT` event. `lib/lran-link`'s `RxArrival` holds the rule for both firmwares, and derives the 88 ms from the PHY in use |
+| **No CAD for 176 ms after a reception ends** | A node's frames come in pairs: a `BOOT` status and its event, a `POLL` answer and its charge frame. The second starts about 39 ms after the first, and a CAD in its first symbols destroys it before any flag is raised. The holdoff is neither a CAD nor a busy one, so it costs no retry and moves no counter. Added 2026-09-26 with the preamble half; `RxArrival` derives it from the PHY |
 | **`ArduinoHal` in static storage** | RadioLib's `SPIClass` `Module` constructor allocates its HAL on the heap |
 | **The OTA verdict requires `radio_ok`** | An image whose radio never initialises is a bad image. **This is a §6.5.2 re-run trigger** |
 
@@ -2948,6 +2949,13 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.71** — **A CAD waits for a frame's preamble, and for a burst's second frame.**
+  §5.3.1's table has two new rules for both radio drivers. They defer a CAD while a
+  preamble is under 88 ms old at D1's PHY, which needs `PREAMBLE_DETECTED` enabled. They
+  start no CAD for 176 ms after a reception ends. A CAD in either window had destroyed a
+  simnode's `BOOT` event after the readback `POLL` of §6.7.7 (bridge engineering log,
+  2026-09-26). Both rules live in `lib/lran-link`'s `RxArrival`.
 
 - **v0.70** — **The simnode meets spec v0.16's reset obligations.** §10.9.2: a `REBOOT`
   resets the board through `esp_restart()` once its ACK is on the air, and every boot sends
