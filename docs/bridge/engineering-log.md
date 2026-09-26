@@ -3476,3 +3476,36 @@ simnode's `phy reset` defect, already under group 2 of the handoff, and not new.
 `sched_task` read 1900 bytes free at its lowest, on a `HEX_REQ`. The previous entry's run
 read 1932. **The bench was restored:** `simnode_diag_enable` 0, acknowledged. f1's override
 went with its reboot. Native suites: 483 cases pass. `heltec` builds.
+
+## 2026-09-25 — A node reset between a command and its ACK made §10.3's resync a second execution
+
+**The question was what the spec provides to reboot a node.** `REBOOT` (`0x7F`, guard
+`0xA5`) was the whole answer, and §8.1's table row was all the spec said about it. Tracing
+a lost ACK through it found the defect. The rebooted node answers the bridge's retry with
+`REJECTED_CTX`. §10.3 step 2 adopted the new context and resent the `REBOOT` with `seq` 1,
+and the node accepted it, because its dedup cache and `rx_high_water` went with the reset.
+**One lost ACK, two reboots.**
+
+**The same path runs without any directed reboot.** A watchdog, a panic or a brownout
+between an `OPEN` and its ACK draws the same answer, and the resync became a second relay
+pulse. The bridge cannot tell that answer from a node that reset before the request
+arrived. `command.cpp` and `hex_proxy.cpp` both resynced, and `hex_proxy.cpp`'s comment
+argued the retry could not write twice. That holds only for a node that has not reset.
+
+**The operator chose D70–D72 the same day**, and spec v0.16's new §10.7 lists every reset
+case. An actuation command, a `REBOOT` or a VE.Direct Restart that draws `REJECTED_CTX`
+now ends `unconfirmed`, and the bridge adopts the context without a retry. `resync_may_retry()`
+reads spec §8.1's split by range. `test_command` gains three cases and `test_hex_proxy`
+one; the three resync cases that used `OPEN` now use `REQUEST_STATUS`. Native suites:
+487 bridge cases, 137 library and 140 simnode, all pass. `heltec` and the simnode build.
+
+**Two more gaps turned up in the trace.** §10.1 said only "random" for `ctx_id`, and a
+node without WiFi or Bluetooth gets a pseudo-random `esp_random()`. A repeated `ctx_id`
+would have let the retried `REBOOT` pass §9.4 step 2 and loop. It would also have reopened
+replay, and the bridge would have withheld the new boot's events as repeats. And an
+`EVENT` queued at a reset is lost, because events have no ACK. v0.16 requires true
+entropy, and it has a node send `FIRE_ASSERTED` and `HARD_SHUTDOWN` again at boot.
+
+**Not run on the bench.** The 2026-09-25 mirror-readback run showed `REBOOT` with its ACK
+delivered: `ACCEPTED`, a new `ctx_id`, and an authenticated `CONFIG` accepted afterwards.
+The simnode's reboot is simulated, and no run has lost the ACK. The handoff holds both.
