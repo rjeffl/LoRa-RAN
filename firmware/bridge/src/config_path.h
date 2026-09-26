@@ -171,6 +171,11 @@ class ConfigPath {
   // The frame from the last Send or RequestReadback is on the TX queue.
   void on_sent(uint32_t now_ms);
 
+  // The frame from the last Send or RequestReadback left lora_task at `aired_ms`: on air, or given up. The
+  // window reopens from then, because a frame can wait seconds for media access (spec
+  // 12.3) and a window counted from the queue closes early by that much.
+  void on_aired(uint32_t aired_ms);
+
   // A CONFIG_ACK passed the receive ladder. `ack_seq` is the header's `seq`: a solicited
   // answer repeats the request's on every message, and an unsolicited readback takes one
   // from the node's status space per message (D45), so it is NOT matched for a readback.

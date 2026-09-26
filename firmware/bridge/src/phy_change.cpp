@@ -214,6 +214,7 @@ PhyStep PhyChange::next(uint32_t now_ms) {
       if (phase_ == Phase::AwaitingRetune) return step;
       // spec 12.4.1 step 6 - a POLL to each node not yet heard, again after each ACK
       // timeout. POLL is unauthenticated (spec 9.2), so no node counts it as confirmation.
+
       for (size_t i = 0; i < nfleet_; ++i) {
         if (heard_[i]) continue;
         if (polled_[i] && since(now_ms, polled_ms_[i]) < ack_timeout_ms_) continue;
@@ -302,6 +303,20 @@ void PhyChange::on_sent(lran::Seq seq, uint32_t now_ms) {
     case Phase::Hearing:
       polled_[index_]    = true;
       polled_ms_[index_] = now_ms;
+      return;
+    default:
+      return;
+  }
+}
+
+void PhyChange::on_aired(uint32_t aired_ms) {
+  switch (phase_) {
+    case Phase::AwaitingSetAck:
+    case Phase::AwaitingGet:
+      sent_ms_ = aired_ms;
+      return;
+    case Phase::Hearing:
+      if (polled_[index_]) polled_ms_[index_] = aired_ms;
       return;
     default:
       return;

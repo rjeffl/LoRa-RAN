@@ -191,6 +191,11 @@ class HexProxy {
 
   void on_sent(uint32_t now_ms);
 
+  // The frame from the last Send left lora_task at `aired_ms`: on air, or given up. The
+  // window reopens from then, because a frame can wait seconds for media access (spec
+  // 12.3) and a window counted from the queue closes early by that much.
+  void on_aired(uint32_t aired_ms);
+
   // A HEX_RSP passed the receive ladder. Claimed when it answers what is in flight: the
   // node and the seq (spec 9.2). The response string is copied in.
   bool on_rsp(lran::NodeId src, lran::Seq seq, const lran::msg::HexRsp& rsp);

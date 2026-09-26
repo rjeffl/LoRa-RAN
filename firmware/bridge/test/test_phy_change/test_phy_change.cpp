@@ -292,6 +292,29 @@ void test_a_stray_ack_is_not_claimed() {
   TEST_ASSERT_FALSE(r.m.on_config_ack(kA, set_ack(moved()), r.seq + 1, 10));
 }
 
+// on_aired() moves a step-6 POLL's timeout to when the frame left lora_task.
+void test_a_step6_poll_times_out_from_when_it_aired() {
+  Rig r(1);
+  r.fan_out(1000);
+  (void)r.step(1000);
+  r.m.on_retuned(1000);
+
+  TEST_ASSERT_TRUE(r.step(1100).action == PhyAction::SendPoll);
+  r.m.on_aired(3600);  // 2.5 s of media access
+  TEST_ASSERT_TRUE(r.step(1100 + kAckMs).action == PhyAction::None);
+  TEST_ASSERT_TRUE(r.step(3600 + kAckMs).action == PhyAction::SendPoll);
+}
+
+// on_aired() moves a SET's ACK timeout the same way, so a slow media access is not read
+// as a node that did not answer (spec 7.4's `unknown`).
+void test_a_set_times_out_from_when_it_aired() {
+  Rig r;
+  TEST_ASSERT_TRUE(r.step(0).action == PhyAction::SendSet);
+  r.m.on_aired(2500);
+  TEST_ASSERT_TRUE(r.step(kAckMs).action == PhyAction::None);
+  TEST_ASSERT_TRUE(r.step(2500 + kAckMs).action == PhyAction::Abandon);
+}
+
 // Step 8 - a node not heard by the deadline reverts the bridge. With two nodes and the
 // defaults the deadline is 120 s - 2 x 8 s after the first node's answer.
 void test_a_node_not_heard_by_the_deadline_reverts_the_bridge() {
@@ -380,6 +403,8 @@ int main(int, char**) {
   RUN_TEST(test_a_clamped_value_abandons);
   RUN_TEST(test_a_missing_ack_abandons_and_defers_the_readback);
   RUN_TEST(test_a_stray_ack_is_not_claimed);
+  RUN_TEST(test_a_step6_poll_times_out_from_when_it_aired);
+  RUN_TEST(test_a_set_times_out_from_when_it_aired);
   RUN_TEST(test_a_node_not_heard_by_the_deadline_reverts_the_bridge);
   RUN_TEST(test_an_unanswered_get_is_sent_again_and_a_late_answer_counts);
   RUN_TEST(test_a_node_that_never_confirms_is_counted_as_w17);

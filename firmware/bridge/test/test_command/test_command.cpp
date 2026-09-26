@@ -461,6 +461,30 @@ void test_a_command_without_a_key_is_not_built() {
       0, build_command_frame(kTarget, kCtx, 1, kProtoVer, cmd, no_key, buf, sizeof(buf)));
 }
 
+// A frame can wait seconds for media access (spec 12.3). The window counts from when it
+// left lora_task, so that wait does not bring a retry early.
+void test_the_window_counts_from_when_the_frame_aired() {
+  CommandPath c;
+  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 5, 0));
+  send_now(c, 0);
+  c.on_aired(2500);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::None),
+                        static_cast<int>(c.next(after_window(c, 0, 0)).action));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::Send),
+                        static_cast<int>(c.next(after_window(c, 2500, 0)).action));
+}
+
+// An ACK that resolved the command before sched_task saw the frame leave is not undone.
+void test_a_late_on_aired_leaves_a_resolved_command_alone() {
+  CommandPath c;
+  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 5, 0));
+  send_now(c, 0);
+  c.on_ack(kTarget, ack_of(5, AckResult::Accepted), kCtx, 900);
+  c.on_aired(800);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::Resolve),
+                        static_cast<int>(c.next(900).action));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_every_retry_reuses_the_same_seq);
@@ -484,5 +508,7 @@ int main() {
   RUN_TEST(test_the_window_survives_the_millis_wrap);
   RUN_TEST(test_the_command_frame_is_what_a_node_decodes);
   RUN_TEST(test_a_command_without_a_key_is_not_built);
+  RUN_TEST(test_the_window_counts_from_when_the_frame_aired);
+  RUN_TEST(test_a_late_on_aired_leaves_a_resolved_command_alone);
   return UNITY_END();
 }

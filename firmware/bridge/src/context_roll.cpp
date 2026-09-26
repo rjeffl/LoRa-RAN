@@ -98,6 +98,10 @@ void ContextRoll::on_sent(uint32_t now_ms) {
   if (attempt_ > 0) ++stats_.retries;
 }
 
+void ContextRoll::on_aired(uint32_t aired_ms) {
+  if (phase_ == Phase::AwaitingAck) window_opened_ms_ = aired_ms;
+}
+
 bool ContextRoll::on_ack(lran::NodeId src, const lran::msg::CommandAck& ack,
                          lran::CtxId ack_ctx, uint32_t now_ms) {
   if (phase_ != Phase::AwaitingAck || src != dst_ || ack.ack_seq != seq_) return false;

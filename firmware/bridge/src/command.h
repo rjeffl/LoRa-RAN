@@ -159,8 +159,14 @@ class CommandPath {
   // or a retry whose window has closed - and Resolve exactly once per command.
   CmdStep next(uint32_t now_ms);
 
-  // The frame from the last Send is on the TX queue. The reply window starts now.
+  // The frame from the last Send is on the TX queue. The reply window opens now, and
+  // on_aired() moves its start to when the frame left lora_task.
   void on_sent(uint32_t now_ms);
+
+  // The frame from the last Send left lora_task at `aired_ms`: on air, or given up. The
+  // window reopens from then, because a frame can wait seconds for media access (spec
+  // 12.3) and a window counted from the queue closes early by that much.
+  void on_aired(uint32_t aired_ms);
 
   // A COMMAND_ACK passed the receive ladder. `ack_ctx` is the ACK header's ctx_id,
   // which for a REJECTED_CTX is the node's own and is what the resync adopts

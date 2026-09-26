@@ -159,6 +159,10 @@ void HexProxy::on_sent(uint32_t now_ms) {
   if (attempt_ > 0) ++stats_.read_retries;
 }
 
+void HexProxy::on_aired(uint32_t aired_ms) {
+  if (phase_ == Phase::Awaiting) window_opened_ms_ = aired_ms;
+}
+
 bool HexProxy::on_rsp(lran::NodeId src, lran::Seq seq, const lran::msg::HexRsp& rsp) {
   if (phase_ != Phase::Awaiting || src != req_.dst || seq != seq_) {
     ++stats_.answer_ignored;
