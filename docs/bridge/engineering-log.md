@@ -3405,3 +3405,38 @@ deadline is unchanged.
   `config_ack_timeout_ms` after it.
 
 Native suites: 475 cases pass. `heltec` builds.
+
+## 2026-09-25 — The air-timing fixes on air: no two exchanges overlapped, and every one took one attempt
+
+**The bridge ran `6db6771` for a 5-minute bench run, and none of the three defects
+appeared.** The fleet was f0 and f2 on the Heltec and f1 on the XIAO, with `deployed` set and
+`poll_interval_s` 10. The trace is
+[`data/air-timing-bench-2026-09-25.log`](./data/air-timing-bench-2026-09-25.log).
+
+| Check | Result |
+|---|---|
+| Rolls after the boot | f0, f1 and f2, **1 attempt each** |
+| A `CONFIG` and an `OPEN` to f1 published 50 ms apart, four times, both orders | **Serial every time.** The `COMMAND` went, its ACK came back, and only then the `CONFIG`, 0.1–1.8 s later |
+| Five more `OPEN`s to f1 | All acknowledged at the first attempt, 1.8–2.1 s after the publish |
+| PHY change to 917.0 MHz and back | **Both committed**, in 11.6 s and 13.8 s |
+| Step-6 `POLL`s | Six, each sent 0.3–1.8 s after the previous node's answer |
+| A frame sent while another path's answer was due | **0 of 111** |
+| `air:` backstop lines | 0 |
+
+**How an overlap was counted.** A `tx` in the bridge's frame log opens its peer's answer
+until the next `rx` from that peer, or until that path's own window has passed: 10 s for a
+`POLL`, 3.5 s for a `COMMAND`, 8 s for a `CONFIG` and 3 s for a `HEX_REQ`, each plus 300 ms
+of airtime. **A flat 10 s cap for every type, the poll-clash entry's rule, flags five
+frames.** All five follow a BF-30 `HEX_REQ` to f0 or f2 by 5.0–9.2 s. Neither identity has
+an MPPT behind it, so neither answers, and the HEX path's 3 s window had closed.
+
+**Media access was busy, so the window fix had something to act on.** The bridge counted 44
+CAD backoffs and 2 forced transmissions over 105 frames. No exchange was retried. **The
+2026-09-24 roll retry was not reproduced**, so this run shows the fix does no harm under
+that load, not that it closes that case. The host test
+`test_the_window_counts_from_when_the_frame_aired` in `test_context_roll` replays it.
+
+`sched_task` read 1932 bytes free at its lowest, on a `CONFIG` resolution; `lora_task` read
+6416. **The bench was restored**: `deployed` 0 and `poll_interval_s` 60 on `simnode0` to
+`simnode2`, and `simnode_diag_enable` 0, all acknowledged. The fleet is on 917.4 MHz. f1 holds
+`dedup_cache_depth` 8, its default, in RAM until its next reboot.
