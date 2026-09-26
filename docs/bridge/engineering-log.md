@@ -3270,3 +3270,32 @@ code.
 GateLink's UART will, and the library's async queue is the model for it there.
 
 Suites: `lib/vedirect` 12 of 12, simnode 140 of 140, bridge 466 of 466.
+
+## 2026-09-25 — B5's spec readings: four points where the code chose, raised for v0.16
+
+BF-36 and BF-28 to BF-30 met four places where spec v0.15 is silent or reads two ways. The
+operator chose each reading on 2026-09-25, and the code builds it. Each is raised for
+spec v0.16 here, one line each. Until v0.16 settles them, the code is a reading of the
+specification, not a statement of it.
+
+- **(a) A refused write-class `HEX_REQ`.** §8.13 names `HEX_RSP(REJECTED_UNAUTHENTICATED)`
+  for a request with no valid MAC, and §9.4 step 3 names `COMMAND_ACK(REJECTED_MAC)` for
+  every authenticated frame. The simnode answers a bad MAC with the `HEX_RSP`, and a
+  context, deduplication or `seq` failure with the `COMMAND_ACK` §9.4 names. The bridge
+  claims either answer. Raise: §7.6 should say which frame answers at each step.
+- **(b) `HEX_RSP`'s `seq`.** §9.2's table correlates a `HEX_RSP` to its request by `seq`,
+  and §7.6 does not say the node repeats it. The simnode repeats the request's `seq`, and
+  the bridge matches on the node and that `seq`. Raise: §7.6 should state it.
+- **(c) A retained `write_enable/set`.** §16.2 marks `write_enable/{state,set}` retained
+  together. A retained `ON` on `set` would re-arm writes on every broker reconnect, which
+  defeats gate 2. The bridge ignores a retained `set` and publishes an empty retained
+  message to clear it. Raise: §16.2 should mark `set` not retained.
+- **(d) Two VE.Direct topics the spec does not list.** `vedirect/charge/state`, the
+  readback R-3.5d asks for, is not in §16.2; it follows §16.1's grammar with `charge` as
+  the item. §16.6's list of a bench node's answers names `config/ack`, `config/state` and
+  `cmd/ack`, and not `hex/response`, `hex/audit` or `write_enable/state`. The bridge
+  publishes those three for a bench node whatever `simnode_diag_enable` says, for D65's
+  reason, and gates the bench readback on the flag. Raise: §16.2 and §16.6 should list
+  them.
+
+Impl Plan §6.4.1 records the code, and none of it has been on air.
