@@ -3600,3 +3600,34 @@ Owed on the bench: the `Reset:` banner line, one `mqtt: stack high-water` line a
 connect, `sched_task`'s high-water mark on the next configuration resolution against
 2026-09-24's 1352 bytes, and `phy reset` on a simnode followed by a readback with no PHY
 row marked as an override.
+
+## 2026-09-26 — Group 2's housekeeping on the bench: all four owed lines read
+
+The bridge ran `4ef3f2c` on `/dev/cu.usbserial-0001` (MAC `44:1b:f6:f9:70:14`), flashed
+over USB. Both simnodes ran the same commit: the Heltec on `/dev/cu.usbserial-4` (MAC
+`44:1b:f6:fa:bc:2c`) holds f0 and f2, and the XIAO on `/dev/cu.usbmodem2101` (MAC
+`68:ee:8f:4b:85:f4`) holds f1. The trace is
+[`data/housekeeping-bench-2026-09-26.log`](./data/housekeeping-bench-2026-09-26.log).
+
+- **The `Reset:` banner line reads `Reset: power_on`** after an RTS reset. The ROM line
+  above it reads `rst:0x1 (POWERON)`, so the two agree: the CP2102 pulls EN, and the S3
+  reports that as a power-on reset.
+- **`mqtt_task`'s high-water mark fell three times**: 4616 bytes free of 6144 before the
+  broker connected, 2568 after it, and 2124 once the `get_all` readbacks had run. That
+  leaves 2124 bytes as the lowest reading so far, not a settled figure.
+- **`sched_task` had 2296 bytes free** after f1's `get_all` resolved. The comparable
+  2026-09-24 figure is 2312, after an ordinary `CONFIG`, so `log_printf()` costs about 16
+  bytes on this path rather than the 130 expected. The 1352 bytes of 2026-09-24 came after
+  two PHY changes and an abandoned one. No PHY change ran here, so that low is not
+  re-measured.
+- **`phy reset` leaves no PHY row marked `override`.** After `phy reset` on the XIAO, a
+  `get_all` on `lran/simnode1/config/set` drew six PHY results, and `config/state` showed
+  `freq_hz` to `phy_trial_s` as `default`. `poll_interval_s` 60 and `deployed` 0 stayed
+  overrides, as the previous bench left them.
+
+**The first `get_all` was refused with `context_roll_pending`.** The reflash gave f1 a new
+`ctx_id`, and the bridge had not heard it. `push f1` rolled the context in one attempt, and
+the retry succeeded. That is spec §10.1 working as written, not a defect.
+
+No watchdog reset appeared on any board during the run. The bench was left as it was
+found: `simnode_diag_enable` 0, and no row's `deployed` changed.

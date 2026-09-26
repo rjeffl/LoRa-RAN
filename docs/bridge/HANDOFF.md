@@ -2,8 +2,8 @@
 
 **Written 2026-09-26 by the session that did group 2's housekeeping.** BF-11a's leveled
 log, BF-11b's watchdog, `mqtt_task`'s high-water mark and the simnode's `phy reset` fix
-are host-tested (Impl Plan §5.2.2). None has been flashed. Group 2 keeps its two larger
-items, one session each.
+are host-tested (Impl Plan §5.2.2) and were confirmed on the bench the same day. Group 2
+keeps its two larger items, one session each.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,11 +20,9 @@ file:
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
 is done; group 2's two remaining items and groups 3 and 4 remain.
 
-**Owed on the bench, whenever the boards are next flashed:** the bridge's `Reset:` banner
-line; one `mqtt: stack high-water` line after connect; `sched_task`'s high-water mark on
-the next configuration resolution, against 1352 bytes on 2026-09-24, since `log_printf()`
-formats about 130 bytes more on its stack than `Serial.printf` did; and `phy reset` on a
-simnode, then a readback with no PHY row marked as an override.
+**Nothing is owed on the bench.** The engineering log's second 2026-09-26 entry has the
+four readings. `sched_task`'s PHY-change low of 1352 bytes is not re-measured; the next PHY
+run should read it.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
