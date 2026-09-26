@@ -49,16 +49,34 @@ class NvsPersist final : public lran::config::Persist {
 
   bool usable() const override { return open_; }
   bool save(uint16_t id, lran::config::Value v) override;
+  // Removes this scope's table keys one at a time, never the namespace. The blob and the
+  // bench record below are not table keys, so a RESTORE_DEFAULTS leaves an open trial's
+  // marker in place and the committed group never leaves flash (store.h).
   bool clear_all() override;
   // spec 12.4 - the PHY group as one blob under one key, so the group lands in one NVS
   // commit (phy_change.h has the layout). Writing it also clears the trial marker below,
-  // in the same commit.
+  // and records the answer stage_owed_ack() staged, in the same commit.
   bool save_group(const uint16_t* ids, const lran::config::Value* values, size_t n) override;
+
+  // spec 16.7.5 - the commit's config/ack, owed until mqtt_task has sent it. Staged before
+  // the commit so it lands in the commit's own write: a reset 150 ms after a commit lost
+  // the answer on 2026-09-24. `rows` is config_path.h's phy_ack_rows(). The next
+  // save_group() consumes the stage, whether or not its write succeeds.
+  void stage_owed_ack(uint16_t rows);
+  bool owed_ack(uint16_t* rows) const;
+  bool clear_owed_ack();
+
+  // spec 16.6 - the bench nodes whose availability topic this bridge left `online`,
+  // retained, one bit per address from 0xF0 (node_availability.h's bench_bit()). A flag
+  // set `applied_not_persisted` comes back clear after a reboot, and this is how the boot
+  // knows which `online` to withdraw. Not a table key, so clear_all() keeps it.
+  uint16_t bench_online() const;
+  bool     save_bench_online(uint16_t mask);
 
   // spec 12.4.1 - the bridge restarted during a trial if this reads true at boot. Set at
   // step 5 and cleared by the commit or the revert, each by rewriting the blob with the
   // group it already holds, so the marker never lands without the group beside it.
-  bool mark_trial(bool open);
+  bool mark_trial(bool open);  // keeps an owed ack beside it
   bool trial_marked() const;
 
   // What this namespace holds for `id`. False when nothing is stored, which is the
@@ -70,7 +88,10 @@ class NvsPersist final : public lran::config::Persist {
   bool write_blob(const PhyBlob& b);
 
   mutable Preferences prefs_;
-  bool                open_ = false;
+  bool                open_       = false;
+  bool                global_     = false;
+  bool                ack_staged_ = false;
+  uint16_t            ack_rows_   = 0;
 };
 
 // Replays every stored value of a scope back through the store at boot.

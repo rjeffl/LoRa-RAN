@@ -92,6 +92,23 @@ struct ConfigJob {
   bool readback_only = false;
 };
 
+// spec 16.7.5 - a committed PHY change's answer, as it survives a reset in the NVS blob
+// (phy_blob.h, `ack_rows`). Two bits per group row in PhyIndex order: 0 the set did not
+// name it, 1 `ok`, 2 `clamped`, 3 `invalid_value`, the only outcomes a committed change's
+// PHY entries can carry (ConfigStore::phy_request()).
+//
+// The rows alone, and on purpose. The non-PHY entries of the same set are not in the
+// blob, so an answer rebuilt after a reset leaves them out; the bridge's `config/state`,
+// republished on connect, carries their values. A partial answer is truer than none, and
+// an answer inventing their statuses would be neither.
+uint16_t phy_ack_rows(const bool named[kPhyGroupSize],
+                      const ResultStatus status[kPhyGroupSize]);
+
+// The entries phy_ack_rows() recorded, each carrying its value in `committed`, the group
+// the boot restored. Returns how many it wrote.
+size_t phy_owed_ack_results(uint16_t rows, const PhyGroup& committed, ConfigResult* out,
+                            size_t cap);
+
 // spec 8.7, D69 - true when a STATUS carries `status_reason` CONFIG_CHANGE. Schema 0xFE
 // mirrors 0x10's layout, so a bench node reports it the same way; any other schema, or
 // a payload that does not decode, is false.

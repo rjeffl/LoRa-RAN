@@ -93,10 +93,24 @@ inline bool bench_publication_allowed(const NodeInfo& info, bool simnode_diag_en
 
 // What row's retained availability topic should carry, or nullptr for nothing. Unknown
 // publishes nothing. A bench node with the flag clear publishes nothing either, except
-// `offline` on the tick that clears it (`clearing`). Its discovery entities stay in HA's
-// registry, and `offline` is how they say that nothing updates them. Spec 16.6 allows that
-// one publication and no other while the flag is clear.
+// `offline` when the flag clears (`clearing`), whatever the row's state: the caller sets
+// `clearing` only for a topic that may hold an `online` (bench_withdrawal_owed()). Its
+// discovery entities stay in HA's registry, and `offline` is how they say that nothing
+// updates them. Spec 16.6 allows that one publication and no other while the flag is
+// clear.
 const char* availability_publication(const NodeInfo& info, Availability state,
                                      bool simnode_diag_enable, bool clearing);
+
+// One bit per bench address from 0xF0 (spec 5.3), or 0 for any other address. The
+// bridge's NVS keeps a mask of these (nvs_persist.h).
+uint16_t bench_bit(lran::NodeId id);
+
+// spec 16.6 - whether clearing the flag owes this row an `offline`: a bench row this boot
+// has judged, or one whose `online` the last boot left retained (`retained_online`, the
+// NVS mask). A flag set `applied_not_persisted` comes back clear after a reboot, with every
+// state Unknown, and the mask is the only record of what the broker still holds. A bench
+// row in neither gets nothing, because nothing on its topic needs withdrawing.
+bool bench_withdrawal_owed(const NodeInfo& info, Availability state,
+                           uint16_t retained_online);
 
 }  // namespace bridge

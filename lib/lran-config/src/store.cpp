@@ -264,15 +264,7 @@ bool Store::restore_defaults() {
   for (size_t i = 0; i < nkept; ++i) (void)set_override(kept[i].id, kept[i].value);
 
   if (persist_ == nullptr || !persist_->usable()) return false;
-  if (!persist_->clear_all()) return false;
-  if (nkept == 0) return true;
-  uint16_t ids[kPhyGroupSize]    = {};
-  Value    values[kPhyGroupSize] = {};
-  for (size_t i = 0; i < nkept; ++i) {
-    ids[i]    = kept[i].id;
-    values[i] = kept[i].value;
-  }
-  return persist_->save_group(ids, values, nkept);
+  return persist_->clear_all();
 }
 
 PersistStatus Store::read_persist_status() const {

@@ -32,6 +32,11 @@ class Persist {
   virtual ~Persist()                           = default;
   virtual bool usable() const                  = 0;
   virtual bool save(uint16_t id, Value v)      = 0;
+
+  // Clears every value save() wrote, and nothing save_group() wrote. The group, and
+  // whatever an implementation keeps beside it, stays exactly as it was. Erasing it and
+  // writing it back cleared a PHY trial's marker and left a window with no group on
+  // flash (bridge engineering log, 2026-09-26).
   virtual bool clear_all()                     = 0;
 
   // spec 12.4 - the PHY group written as one. A reboot between two save() calls would
@@ -94,8 +99,8 @@ class Store {
   bool restore(uint16_t id, Value v);
 
   // D52 - RESTORE_DEFAULTS clears every override and is answered as GET_ALL is. It leaves
-  // the PHY group and any trial alone and writes the committed group back after clearing
-  // the store: a PHY row set to its default would take this node off the fleet's settings,
+  // the PHY group and any trial alone, in RAM and in the store, which clear_all() never
+  // touches: a PHY row set to its default would take this node off the fleet's settings,
   // and spec 12.4 lets no node-level operation do that.
   bool restore_defaults();
 

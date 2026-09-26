@@ -17,7 +17,8 @@ namespace {
 inline constexpr size_t kNvsNameMax = 16;  // 15 plus the terminator
 
 // The PHY group's key. Not of the form `p%04x`, so no row id can collide with it.
-inline constexpr const char* kPhyBlobKey = "phy";
+inline constexpr const char* kPhyBlobKey     = "phy";
+inline constexpr const char* kBenchOnlineKey = "bench_on";
 
 }  // namespace
 
@@ -48,7 +49,8 @@ bool NvsPersist::begin(bool global, lran::NodeId node) {
     open_ = false;
     return false;
   }
-  open_ = prefs_.begin(ns, /*readOnly=*/false);
+  global_ = global;
+  open_   = prefs_.begin(ns, /*readOnly=*/false);
   return open_;
 }
 
@@ -63,7 +65,17 @@ bool NvsPersist::save(uint16_t id, lran::config::Value v) {
 
 bool NvsPersist::clear_all() {
   if (!open_) return false;
-  return prefs_.clear();
+  const lran::config::ParamDef* rows[lran::config::kMaxTableParams];
+  const size_t total = scope_rows(global_ ? ConfigScope::Bridge : ConfigScope::Node, rows,
+                                  lran::config::kMaxTableParams);
+  bool ok = true;
+  for (size_t i = 0; i < total; ++i) {
+    if (phy_index_of(rows[i]->id) != kPhyGroupSize) continue;  // in the blob
+    char key[kNvsNameMax];
+    if (nvs_key_for(rows[i]->id, key, sizeof(key)) == 0) continue;
+    if (prefs_.isKey(key) && !prefs_.remove(key)) ok = false;
+  }
+  return ok;
 }
 
 bool NvsPersist::read_blob(PhyBlob* out) const {
@@ -85,12 +97,46 @@ bool NvsPersist::save_group(const uint16_t* ids, const lran::config::Value* valu
   if (ids == nullptr || values == nullptr || n > kPhyGroupSize) return false;
   PhyBlob b;
   b.trial_open = false;
+  b.ack_owed   = ack_staged_;
+  b.ack_rows   = ack_staged_ ? ack_rows_ : 0;
+  ack_staged_  = false;
   b.n          = n;
   for (size_t i = 0; i < n; ++i) {
     b.ids[i]    = ids[i];
     b.values[i] = values[i];
   }
   return write_blob(b);
+}
+
+void NvsPersist::stage_owed_ack(uint16_t rows) {
+  ack_staged_ = true;
+  ack_rows_   = rows;
+}
+
+bool NvsPersist::owed_ack(uint16_t* rows) const {
+  PhyBlob b;
+  if (!read_blob(&b) || !b.ack_owed) return false;
+  if (rows != nullptr) *rows = b.ack_rows;
+  return true;
+}
+
+bool NvsPersist::clear_owed_ack() {
+  PhyBlob b;
+  if (!read_blob(&b)) return false;
+  if (!b.ack_owed) return true;
+  b.ack_owed = false;
+  b.ack_rows = 0;
+  return write_blob(b);
+}
+
+uint16_t NvsPersist::bench_online() const {
+  if (!open_ || !prefs_.isKey(kBenchOnlineKey)) return 0;
+  return prefs_.getUShort(kBenchOnlineKey, 0);
+}
+
+bool NvsPersist::save_bench_online(uint16_t mask) {
+  if (!open_) return false;
+  return prefs_.putUShort(kBenchOnlineKey, mask) == sizeof(uint16_t);
 }
 
 bool NvsPersist::mark_trial(bool open) {

@@ -158,6 +158,8 @@ void test_the_set_carries_the_whole_group_under_the_nodes_ids() {
 void test_the_blob_round_trips_and_refuses_another_version() {
   PhyBlob b;
   b.trial_open = true;
+  b.ack_owed   = true;
+  b.ack_rows   = 0x0231;
   b.n          = 2;
   b.ids[0]     = 0x0010;
   b.values[0]  = 917400000;
@@ -165,19 +167,37 @@ void test_the_blob_round_trips_and_refuses_another_version() {
   b.values[1]  = -4;
   uint8_t buf[kPhyBlobMax];
   const size_t n = phy_blob_encode(b, buf, sizeof(buf));
-  TEST_ASSERT_EQUAL_UINT32(15, n);
-  TEST_ASSERT_EQUAL_HEX8(0x10, buf[3]);  // little-endian, field by field (root rule 1)
+  TEST_ASSERT_EQUAL_UINT32(17, n);
+  TEST_ASSERT_EQUAL_HEX8(0x03, buf[1]);  // both flags
+  TEST_ASSERT_EQUAL_HEX8(0x31, buf[2]);  // little-endian, field by field (root rule 1)
+  TEST_ASSERT_EQUAL_HEX8(0x10, buf[5]);
 
   PhyBlob out;
   TEST_ASSERT_TRUE(phy_blob_decode(buf, n, &out));
   TEST_ASSERT_TRUE(out.trial_open);
+  TEST_ASSERT_TRUE(out.ack_owed);
+  TEST_ASSERT_EQUAL_HEX16(0x0231, out.ack_rows);
   TEST_ASSERT_EQUAL_INT32(917400000, out.values[0]);
   TEST_ASSERT_EQUAL_INT32(-4, out.values[1]);
 
-  buf[0] = 2;
+  buf[0] = 3;
   TEST_ASSERT_FALSE(phy_blob_decode(buf, n, &out));
   buf[0] = kPhyBlobVersion;
   TEST_ASSERT_FALSE(phy_blob_decode(buf, n - 1, &out));
+}
+
+// A bridge flashed over a committed group must boot on it, so the version 1 blob the
+// previous image wrote still reads, with nothing owed.
+void test_a_version_1_blob_still_reads() {
+  const uint8_t v1[] = {1, 0x01, 1, 0x10, 0x00, 0xC0, 0x69, 0xAE, 0x36};
+  PhyBlob out;
+  TEST_ASSERT_TRUE(phy_blob_decode(v1, sizeof(v1), &out));
+  TEST_ASSERT_TRUE(out.trial_open);
+  TEST_ASSERT_FALSE(out.ack_owed);
+  TEST_ASSERT_EQUAL_UINT32(1, out.n);
+  TEST_ASSERT_EQUAL_HEX16(0x0010, out.ids[0]);
+  TEST_ASSERT_EQUAL_INT32(917400000, out.values[0]);
+  TEST_ASSERT_FALSE(phy_blob_decode(v1, sizeof(v1) - 1, &out));
 }
 
 // ---------------------------------------------------------------------------
@@ -416,6 +436,7 @@ int main(int, char**) {
   RUN_TEST(test_a_group_above_the_eirp_ceiling_is_refused);
   RUN_TEST(test_the_set_carries_the_whole_group_under_the_nodes_ids);
   RUN_TEST(test_the_blob_round_trips_and_refuses_another_version);
+  RUN_TEST(test_a_version_1_blob_still_reads);
   RUN_TEST(test_an_equal_group_starts_nothing);
   RUN_TEST(test_a_change_that_works_commits_once_every_node_is_heard);
   RUN_TEST(test_a_refusal_abandons_before_the_bridge_moves);

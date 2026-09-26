@@ -33,29 +33,42 @@ int32_t get_i32(const uint8_t* p) {
 
 size_t phy_blob_encode(const PhyBlob& b, uint8_t* out, size_t cap) {
   if (out == nullptr || b.n > kPhyGroupSize) return 0;
-  const size_t len = 3 + b.n * 6;
+  const size_t len = 5 + b.n * 6;
   if (cap < len) return 0;
   out[0] = kPhyBlobVersion;
-  out[1] = b.trial_open ? 0x01 : 0x00;
-  out[2] = static_cast<uint8_t>(b.n);
+  out[1] = static_cast<uint8_t>((b.trial_open ? 0x01 : 0x00) | (b.ack_owed ? 0x02 : 0x00));
+  put_u16(&out[2], b.ack_rows);
+  out[4] = static_cast<uint8_t>(b.n);
   for (size_t i = 0; i < b.n; ++i) {
-    put_u16(&out[3 + i * 6], b.ids[i]);
-    put_i32(&out[5 + i * 6], b.values[i]);
+    put_u16(&out[5 + i * 6], b.ids[i]);
+    put_i32(&out[7 + i * 6], b.values[i]);
   }
   return len;
 }
 
 bool phy_blob_decode(const uint8_t* in, size_t len, PhyBlob* out) {
   if (in == nullptr || out == nullptr || len < 3) return false;
-  if (in[0] != kPhyBlobVersion || in[2] > kPhyGroupSize) return false;
-  const size_t n = in[2];
-  if (len != 3 + n * 6) return false;
+  // Version 1 has no ack_rows, so its entries start two bytes earlier.
+  size_t hdr = 0;
+  if (in[0] == 1) {
+    hdr = 3;
+  } else if (in[0] == kPhyBlobVersion && len >= 5) {
+    hdr = 5;
+  } else {
+    return false;
+  }
+  const size_t n = in[hdr - 1];
+  if (n > kPhyGroupSize || len != hdr + n * 6) return false;
   PhyBlob b;
   b.trial_open = (in[1] & 0x01) != 0;
-  b.n          = n;
+  if (hdr == 5) {
+    b.ack_owed = (in[1] & 0x02) != 0;
+    b.ack_rows = get_u16(&in[2]);
+  }
+  b.n = n;
   for (size_t i = 0; i < n; ++i) {
-    b.ids[i]    = get_u16(&in[3 + i * 6]);
-    b.values[i] = get_i32(&in[5 + i * 6]);
+    b.ids[i]    = get_u16(&in[hdr + i * 6]);
+    b.values[i] = get_i32(&in[hdr + 2 + i * 6]);
   }
   *out = b;
   return true;

@@ -8,9 +8,9 @@
 // is the other half of the key. It costs one NVS write per boot, where persisting the
 // event counter would have cost one per event.
 //
-// ITS OWN NAMESPACE, NOT THE CONFIGURATION'S. A restore_defaults clears `cfg` whole, and
-// nvs_restore() replays every key in it as a parameter. A counter there would be reset by
-// the one and misread by the other.
+// ITS OWN NAMESPACE, NOT THE CONFIGURATION'S. A restore_defaults cleared `cfg` whole until
+// 2026-09-26, and now removes the table's keys one at a time (nvs_persist.h). A counter in
+// its own namespace depends on neither behavior.
 
 #pragma once
 

@@ -264,6 +264,17 @@ PhyConfig g_boot_phy = kPhy;
 // A trial was open when the bridge last stopped (spec 12.4.1). sched_task reports it once.
 bool g_phy_restart_pending = false;
 
+// spec 16.7.5 - a committed change's config/ack, owed until mqtt_task has sent it, and
+// recorded in the NVS blob until then (nvs_persist.h). sched_task queues it and moves
+// Owed to Queued; mqtt_task moves Queued to None once the transport has sent everything
+// queued, or back to Owed when it refuses a publication, since the refused one may be
+// this. A duplicate answer is the price, and it beats a lost one.
+enum PhyAckState : uint8_t { kPhyAckNone, kPhyAckOwed, kPhyAckQueued };
+std::atomic<uint8_t> g_phy_ack_state{kPhyAckNone};
+// The owed answer's rows, phy_ack_rows()'s encoding. Written before the tasks start or
+// by sched_task, and read by sched_task alone.
+uint16_t g_phy_ack_rows = 0;
+
 // g_config is used from two tasks. mqtt_task writes the stores and reads the mirror;
 // sched_task writes the mirror when a node transaction resolves and reads it to publish.
 // Neither ConfigStore nor Store takes a lock, so without this one a set arriving while a
@@ -1098,8 +1109,8 @@ bool publish_phy_reverted(const char* reason, lran::NodeId node) {
 
 // lran/bridge/config/ack for the whole set, then lran/bridge/config/state when a value
 // changed. `committed` false is an abandon or a revert: the PHY entries read `reverted`
-// with the setting the bridge returned to (spec 16.7.3).
-void publish_phy_resolution(bool committed, bool persisted) {
+// with the setting the bridge returned to (spec 16.7.3). True when the ack was queued.
+bool publish_phy_resolution(bool committed, bool persisted) {
   size_t n = 0;
   for (size_t i = 0; i < g_phy_job.bridge_result_count && n < kMaxScopeRows; ++i) {
     g_sched_cfg_results[n++] = g_phy_job.bridge_results[i];
@@ -1123,16 +1134,17 @@ void publish_phy_resolution(bool committed, bool persisted) {
                                  : phy_persist;
 
   char topic[kMaxTopicLen];
+  bool queued = false;
   if (topic_config(kTopicBridgeToken, "ack", topic, sizeof(topic)) > 0 &&
       build_config_ack(lran::ConfigOp::Set, persist, g_sched_cfg_results, n, nullptr,
                        g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
       make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
-    (void)send_publish(g_sched_msg);
+    queued = send_publish(g_sched_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
 
-  if (!committed && !g_phy_job.bridge_changed) return;
+  if (!committed && !g_phy_job.bridge_changed) return queued;
   size_t rows = 0;
   {
     ConfigLock lock;
@@ -1145,6 +1157,29 @@ void publish_phy_resolution(bool committed, bool persisted) {
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
+  return queued;
+}
+
+// spec 16.7.5 - the answer a commit still owes, rebuilt from the blob's rows and the
+// committed group. Only after a reset or a refused publication; a commit that queues its
+// own answer never reaches this. True when queued.
+bool publish_owed_phy_ack() {
+  PhyGroup committed;
+  {
+    ConfigLock lock;
+    committed = g_config.phy_group();
+  }
+  const size_t n =
+      phy_owed_ack_results(g_phy_ack_rows, committed, g_sched_cfg_results, kMaxScopeRows);
+  char topic[kMaxTopicLen];
+  if (topic_config(kTopicBridgeToken, "ack", topic, sizeof(topic)) == 0 ||
+      build_config_ack(lran::ConfigOp::Set, AckPersist::Persisted, g_sched_cfg_results, n,
+                       nullptr, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) == 0 ||
+      !make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+    g_accounting.record_dropped(QueueId::Publish);
+    return false;
+  }
+  return send_publish(g_sched_msg);
 }
 
 // spec 16.7.5 - each node's config/state, from its answer to the confirming GET.
@@ -1225,6 +1260,11 @@ void sched_phy(uint32_t now_ms) {
   if (g_phy_restart_pending && publish_phy_reverted("restart", 0)) {
     g_phy_restart_pending = false;
   }
+  // spec 16.7.5 - a commit's answer the last boot, or a refused publication, did not send.
+  if (g_phy_ack_state == kPhyAckOwed && publish_owed_phy_ack()) {
+    uint8_t owed = kPhyAckOwed;
+    (void)g_phy_ack_state.compare_exchange_strong(owed, kPhyAckQueued);
+  }
 
   sched_phy_start(now_ms);
 
@@ -1300,9 +1340,13 @@ void sched_phy(uint32_t now_ms) {
       }
 
       case PhyAction::Commit: {
-        bool ok = false;
+        // The answer is staged first, so it lands in the commit's own NVS write and a
+        // reset before mqtt_task sends it cannot lose it (nvs_persist.h).
+        const uint16_t rows = phy_ack_rows(g_phy_job.phy_named, g_phy_job.phy_status);
+        bool           ok   = false;
         {
           ConfigLock lock;
+          g_cfg_global_persist.stage_owed_ack(rows);
           ok = g_config.commit_phy_trial();
         }
         if (!ok) {
@@ -1312,7 +1356,10 @@ void sched_phy(uint32_t now_ms) {
           continue;
         }
         Serial.println(F("phy: every node heard - committed"));
-        publish_phy_resolution(/*committed=*/true, /*persisted=*/true);
+        g_phy_ack_rows = rows;
+        g_phy_ack_state =
+            publish_phy_resolution(/*committed=*/true, /*persisted=*/true) ? kPhyAckQueued
+                                                                           : kPhyAckOwed;
         continue;
       }
 
@@ -1383,9 +1430,32 @@ std::atomic<uint8_t> g_nodes_watched{kNodesUnknown};
 // whichever way it is set; the flag decides only what reaches its topics.
 bool g_simnode_diag_enable = false;
 
-// Set for every known bench row on the tick the flag clears, and cleared once that row's
-// `offline` is queued. A queue that refuses it leaves the row set for the next tick.
+// Set for each bench row owed an `offline` on the tick the flag clears, or at boot for a
+// row the last boot left `online` (config_begin()). Cleared once that `offline` is queued;
+// a queue that refuses it leaves the row set for the next tick.
 bool g_bench_clearing[kNodeCount] = {};
+
+// spec 16.6 - the bench rows whose topic holds a retained `online`, bench_bit() per
+// address, mirrored in NVS so a reboot knows it. sched_task's after config_begin().
+uint16_t g_bench_retained = 0;
+
+// Records what a bench row's topic now holds. NVS is written only when the mask changes,
+// which is once per switch of the flag, not once per availability change.
+void note_bench_published(const NodeInfo& info, const char* payload) {
+  if (!info.is_bench) return;
+  const uint16_t bit  = bench_bit(info.id);
+  const uint16_t next = std::strcmp(payload, kPayloadOnline) == 0
+                            ? static_cast<uint16_t>(g_bench_retained | bit)
+                            : static_cast<uint16_t>(g_bench_retained & ~bit);
+  if (next == g_bench_retained) return;
+  bool saved = false;
+  {
+    ConfigLock lock;
+    saved = g_cfg_global_persist.save_bench_online(next);
+  }
+  // Unsaved, the mask stays as it was, and the next publication for this row tries again.
+  if (saved) g_bench_retained = next;
+}
 
 void sched_availability() {
   if (g_availability_republish.exchange(false)) g_availability.mark_known_pending();
@@ -1423,6 +1493,7 @@ void sched_availability() {
     if (topic_availability(name, topic, sizeof(topic)) > 0 && sched_publish(topic, payload)) {
       g_availability.clear_pending(i);
       g_bench_clearing[i] = false;
+      note_bench_published(info, payload);
     }
   }
 
@@ -1798,7 +1869,8 @@ void sched_levers() {
       g_diag_republish = true;
     } else {
       for (size_t i = 0; i < kNodeCount; ++i) {
-        g_bench_clearing[i] = registry_info_at(i).is_bench;
+        g_bench_clearing[i] = bench_withdrawal_owed(registry_info_at(i),
+                                                    g_availability.state(i), g_bench_retained);
       }
     }
   }
@@ -1916,8 +1988,23 @@ void drain_publish_queue() {
   while (transport_has_room() && xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
     if (!g_mqtt.publish(msg)) {
       g_accounting.record_dropped(QueueId::Publish);
+      // The refused one may be an owed PHY answer, so sched_task queues it again.
+      uint8_t queued = kPhyAckQueued;
+      (void)g_phy_ack_state.compare_exchange_strong(queued, kPhyAckOwed);
       return;
     }
+  }
+  // spec 16.7.5 - the queue is empty and the transport has sent all it held, so an answer
+  // queued before now has left the bridge. Only then does the blob stop owing it.
+  if (g_phy_ack_state == kPhyAckQueued && uxQueueMessagesWaiting(g_publish_queue) == 0 &&
+      g_mqtt.pending() == 0) {
+    bool cleared = false;
+    {
+      ConfigLock lock;
+      cleared = g_cfg_global_persist.clear_owed_ack();
+    }
+    uint8_t queued = kPhyAckQueued;
+    if (cleared) (void)g_phy_ack_state.compare_exchange_strong(queued, kPhyAckNone);
   }
 }
 
@@ -3114,6 +3201,11 @@ size_t config_begin() {
     g_phy_restart_pending = true;
     (void)g_cfg_global_persist.mark_trial(false);
   }
+  // spec 16.7.5 - a commit whose answer never left. sched_task sends it once the broker
+  // is reached.
+  if (global_ok && g_cfg_global_persist.owed_ack(&g_phy_ack_rows)) {
+    g_phy_ack_state = kPhyAckOwed;
+  }
 
   // BF-23 - AFTER the restore, so each task's first pass applies what NVS held. Published
   // before a restore, the levers would run their defaults until the first set, and a
@@ -3121,6 +3213,18 @@ size_t config_begin() {
   const Levers v = levers_from(g_config);
   g_levers.publish(v);
   discovery_take_simnode_diag(v.simnode_diag_enable);
+
+  // spec 16.6 - an `online` the last boot left retained, with the flag now clear, is
+  // withdrawn as the flag clearing would have withdrawn it. A flag set
+  // `applied_not_persisted` comes back clear, and this is the only record of what the
+  // broker still holds (Impl Plan 4.2a.1).
+  g_bench_retained = global_ok ? g_cfg_global_persist.bench_online() : 0;
+  if (!v.simnode_diag_enable) {
+    for (size_t i = 0; i < kNodeCount; ++i) {
+      g_bench_clearing[i] = bench_withdrawal_owed(registry_info_at(i), Availability::Unknown,
+                                                  g_bench_retained);
+    }
+  }
   return restored;
 }
 

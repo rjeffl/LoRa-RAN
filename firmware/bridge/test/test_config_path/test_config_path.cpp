@@ -483,6 +483,41 @@ void test_the_ack_window_counts_from_when_the_config_aired() {
   TEST_ASSERT_TRUE(path.next(3500).action == ConfigAction::Resolve);
 }
 
+// spec 16.7.5 - a commit's answer survives a reset as two bits per PHY row. Rebuilt, it
+// names the rows the set named, with their statuses, and each value is the committed
+// group's, never the one requested.
+void test_an_owed_phy_ack_is_rebuilt_from_its_rows() {
+  bool         named[kPhyGroupSize]  = {};
+  ResultStatus status[kPhyGroupSize] = {};
+  named[kPhyFreq]     = true;
+  status[kPhyFreq]    = ResultStatus::Ok;
+  named[kPhyTxPower]  = true;
+  status[kPhyTxPower] = ResultStatus::Clamped;
+  named[kPhyBw]       = true;
+  status[kPhyBw]      = ResultStatus::InvalidValue;
+  const uint16_t rows = phy_ack_rows(named, status);
+  TEST_ASSERT_EQUAL_HEX16(0x0231, rows);  // freq 1, bw 3 at bits 4-5, tx power 2 at 8-9
+
+  PhyGroup g;
+  g.v[kPhyFreq]    = 917000000;
+  g.v[kPhyBw]      = 125;
+  g.v[kPhyTxPower] = -4;
+  ConfigResult r[kPhyGroupSize];
+  TEST_ASSERT_EQUAL_UINT32(3, phy_owed_ack_results(rows, g, r, kPhyGroupSize));
+  TEST_ASSERT_EQUAL_STRING(bridge_phy_row(kPhyFreq)->name, r[0].name);
+  TEST_ASSERT_TRUE(r[0].status == ResultStatus::Ok);
+  TEST_ASSERT_TRUE(r[0].has_value);
+  TEST_ASSERT_EQUAL_INT32(917000000, r[0].value);
+  TEST_ASSERT_EQUAL_STRING(bridge_phy_row(kPhyBw)->name, r[1].name);
+  TEST_ASSERT_TRUE(r[1].status == ResultStatus::InvalidValue);
+  TEST_ASSERT_EQUAL_STRING(bridge_phy_row(kPhyTxPower)->name, r[2].name);
+  TEST_ASSERT_TRUE(r[2].status == ResultStatus::Clamped);
+  TEST_ASSERT_EQUAL_INT32(-4, r[2].value);
+
+  TEST_ASSERT_EQUAL_UINT32(1, phy_owed_ack_results(rows, g, r, 1));  // bounded by cap
+  TEST_ASSERT_EQUAL_UINT32(0, phy_owed_ack_results(0, g, r, kPhyGroupSize));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
 
@@ -514,5 +549,6 @@ int main(int, char**) {
   RUN_TEST(test_boot_count_change_is_a_reboot);
   RUN_TEST(test_node_health_uptime_is_read);
   RUN_TEST(test_reboot_watch_reads_only_what_it_should);
+  RUN_TEST(test_an_owed_phy_ack_is_rebuilt_from_its_rows);
   return UNITY_END();
 }
