@@ -259,16 +259,13 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge board and the XIAO run `71e9173`, the lost `BOOT` event's fix, flashed on
-2026-09-26.** The bridge lacks the OTA gap's fix. The bridge's version topic reads `71e9173-dirty`, because the branch's
-document edits were uncommitted at the build; its code is the commit's. **The Heltec
-simnode runs `75a3ed0`**, spec v0.15's code, and lacks the fix.
-The broker retains `simnode1`'s `vedirect/charge/state`, `hex/audit` and
-`write_enable/state` from V-B6, and no `write_enable/set`. The bridge holds `cmd_retries` 3, its default, as an
-override from D68's check; `restore_defaults` clears it. All three were on USB when this session ended: the bridge as
-`/dev/cu.usbserial-0001` and the XIAO as `/dev/cu.usbmodem2101`. The third port read
-`/dev/cu.usbserial-4`, which should be the Heltec simnode; this session did not open it
-to check. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
+**All three boards run `be5c7c8`, flashed over USB on 2026-09-26**, which carries the lost
+`BOOT` event's fix and the OTA gap's fix (engineering log, *owed PHY `config/ack` on the
+bench*). The broker retains `simnode1`'s `vedirect/charge/state`, `hex/audit` and
+`write_enable/state` from V-B6, and no `write_enable/set`. The bridge holds `cmd_retries` 3,
+its default, as an override from D68's check; `restore_defaults` clears it. On that run the
+bridge was `/dev/cu.usbserial-0001`, the Heltec simnode `/dev/cu.usbserial-4` and the XIAO
+`/dev/cu.usbmodem2101`, and each board's MAC matched the table below. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
 their committed group in NVS, with `phy_trial_s` 120. **`simnode_diag_enable` is 0**, and `deployed` reads 0 and
 `poll_interval_s` 60 as overrides on `simnode0` to `simnode2`, so the bridge polls no node
 from boot. It reaches
