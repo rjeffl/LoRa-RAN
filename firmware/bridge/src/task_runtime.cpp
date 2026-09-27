@@ -250,6 +250,8 @@ WriteArm       g_arm[kNodeCount];
 uint32_t       g_arm_timeout_s = kWriteArmTimeoutDefaultS;  // sched_levers(), under the lock
 ChargeReadback g_charge[kNodeCount];                        // sched_task alone
 bool           g_charge_started[kNodeCount] = {};           // sched_task alone
+uint32_t       g_charge_at_ms[kNodeCount]   = {};           // when the last pass began
+uint16_t       g_charge_interval_h          = 0;            // sched_levers(), under the lock
 HexRequest     g_hex_job;                                   // the request in flight; sched_task
 std::atomic<uint32_t> g_arm_owed{0};         // node bits whose write_enable/state is owed
 std::atomic<bool>     g_hex_republish{false};  // every arm state and readback, on connect
@@ -1721,6 +1723,7 @@ void resolve_hex(const HexStep& st) {
   // now holds rather than what was asked for (R-3.5d).
   if (st.write && (st.outcome == HexOutcome::Answered || st.outcome == HexOutcome::Unknown)) {
     g_charge[i].request_all();
+    g_charge_at_ms[i] = millis();
   }
 }
 
@@ -1772,16 +1775,27 @@ void sched_hex(uint32_t now_ms) {
 
   // BF-30 - a node is read back once it has been heard, the first time this boot. A bench
   // node waits for simnode_diag_enable, which spares airtime on a bench where most
-  // identities have no MPPT behind them.
+  // identities have no MPPT behind them. After that, charge_readback_interval_h repeats the
+  // pass, so a setting changed behind the bridge reaches HA before the next boot.
+  uint16_t interval_h = 0;
+  {
+    SchedLock lock;
+    interval_h = g_charge_interval_h;
+  }
   for (size_t i = 0; i < kNodeCount; ++i) {
-    if (g_charge_started[i] || !hex_allowed(kNodeTable[i].type) ||
-        !charge_publication_allowed(i)) {
+    if (!hex_allowed(kNodeTable[i].type) || !charge_publication_allowed(i)) continue;
+    if (g_charge_started[i]) {
+      if (periodic_pass_due(now_ms, g_charge_at_ms[i], interval_h, g_charge[i].pending())) {
+        g_charge[i].request_all();
+        g_charge_at_ms[i] = now_ms;
+      }
       continue;
     }
     NodeState ns;
     if (!registry_state(kNodeTable[i].id, &ns) || ns.frames_heard == 0) continue;
     g_charge_started[i] = true;
     g_charge[i].request_all();
+    g_charge_at_ms[i] = now_ms;
   }
 
   // Admit one request: an operator's first, then the next readback register.
@@ -1878,6 +1892,7 @@ void sched_levers() {
     g_phy_change.set_ack_timeout_ms(v.config_ack_timeout_ms);
     g_hex.set_rsp_timeout_ms(v.hex_rsp_timeout_ms);
     g_arm_timeout_s = v.mppt_write_arm_timeout_s;
+    g_charge_interval_h = v.charge_readback_interval_h;
   }
   g_availability.set_threshold(v.missed_poll_threshold);
   g_diag_interval_s = v.diag_interval_s;
@@ -1925,7 +1940,8 @@ void sched_levers() {
 
   // The bench record that a set reached its consumer, not just the store.
   log_printf(LogLevel::Info, "levers: gen %u - diag %u s, poll reply %u ms, missed %u, cmd ack %u ms x%u, "
-                "config ack %u ms, readback %u ms, hex rsp %u ms, arm %u s, simnode diag %s\n",
+                "config ack %u ms, readback %u ms, hex rsp %u ms, arm %u s, charge readback %u h, "
+                "simnode diag %s\n",
                 static_cast<unsigned>(g_sched_levers_seen),
                 static_cast<unsigned>(v.diag_interval_s),
                 static_cast<unsigned>(v.poll_reply_timeout_ms),
@@ -1936,6 +1952,7 @@ void sched_levers() {
                 static_cast<unsigned>(v.config_readback_timeout_ms),
                 static_cast<unsigned>(v.hex_rsp_timeout_ms),
                 static_cast<unsigned>(v.mppt_write_arm_timeout_s),
+                static_cast<unsigned>(v.charge_readback_interval_h),
                 v.simnode_diag_enable ? "on" : "off");
 }
 

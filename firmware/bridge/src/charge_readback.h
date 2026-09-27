@@ -76,6 +76,15 @@ inline constexpr const char* kChargeItem = "charge";
 
 // One node's readback. A pass reads every register once, in table order, and the document
 // is published after each answer so a slow pass still shows what it has.
+// Whether a periodic pass is owed: `interval_h` hours since the last pass began, and none
+// running. 0 turns it off. uint32_t arithmetic, so a millis() wrap between the two times
+// is harmless while the interval stays under 49 days, which the row's maximum keeps it.
+inline bool periodic_pass_due(uint32_t now_ms, uint32_t last_ms, uint16_t interval_h,
+                              bool pending) {
+  if (interval_h == 0 || pending) return false;
+  return now_ms - last_ms >= static_cast<uint32_t>(interval_h) * 3600000u;
+}
+
 class ChargeReadback {
  public:
   // Schedules a full pass: on first hearing the node, and after any write it answered, so

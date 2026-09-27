@@ -178,9 +178,9 @@ void test_cell_jitter_is_not_republished() {
   PublicationPolicy p;
   Recorder          r;
   auto              s = healthy();
-  s.uptime_s = 0;  // hold the node document still too; it has its own jitter
   offer(p, gatelink(), s, 1000, r);
   r.clear();
+  s.uptime_s += 60;  // Impl Plan 6.6.2 - outside the node document's hash
   s.cell_mv[0] += 2;
   s.cell_mv[2] -= 1;
   s.last_traversal_age_s += 60;  // the same traversal, a minute older
@@ -190,6 +190,66 @@ void test_cell_jitter_is_not_republished() {
 }
 
 // The deadband is measured from the PUBLISHED value, so a slow drift still crosses it.
+// Impl Plan 6.6.2 - uptime rides along on the heartbeat, and a reboot still publishes
+// because boot_count moves with it.
+void test_uptime_alone_is_not_a_change() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  offer(p, gatelink(), s, 1000, r);
+  r.clear();
+  s.uptime_s += 60;
+  offer(p, gatelink(), s, 61000, r);
+  TEST_ASSERT_EQUAL(0, r.n);
+
+  s.uptime_s   = 5;
+  s.boot_count = 8;
+  offer(p, gatelink(), s, 62000, r);
+  TEST_ASSERT_EQUAL(1, r.n);
+  expect(r.find("lran/gatelink/node/state"), "uptime_s", "5");
+}
+
+void test_health_uptime_alone_is_not_a_change() {
+  PublicationPolicy    p;
+  Recorder             r;
+  schema::NodeHealthV1 h;
+  h.uptime_s   = 42;
+  h.boot_count = 3;
+  const NodeInfo well{kNodeWellLink, NodeType::WellLink, false};
+  for (uint32_t t : {1000u, 61000u}) {
+    uint8_t buf[schema::kNodeHealthV1Len];
+    size_t  n = 0;
+    TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(h, buf, sizeof(buf), &n));
+    p.on_status(well, status_hdr(kNodeWellLink, kSchemaNodeHealthV1), buf, n, t, kNow, r);
+    h.uptime_s += 60;
+  }
+  TEST_ASSERT_EQUAL(1, r.n);
+}
+
+// Victron's CS and ERR codes are named beside the raw code; an unlisted one is null.
+void test_mppt_codes_are_named() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.charge_state = 3;
+  s.mppt_err     = 2;
+  offer(p, gatelink(), s, 1000, r);
+  const char* solar = r.find("lran/gatelink/solar/state");
+  expect(solar, "charge_state", "3");
+  expect(solar, "charge_state_name", "\"bulk\"");
+  expect(solar, "error", "2");
+  expect(solar, "error_name", "\"battery_voltage_high\"");
+
+  r.clear();
+  s.charge_state = 9;
+  s.mppt_err     = 99;
+  offer(p, gatelink(), s, 2000, r);
+  solar = r.find("lran/gatelink/solar/state");
+  expect(solar, "charge_state", "9");
+  expect(solar, "charge_state_name", "null");
+  expect(solar, "error_name", "null");
+}
+
 void test_cell_drift_crosses_the_deadband() {
   PublicationPolicy p;
   Recorder          r;
@@ -472,6 +532,9 @@ int main(int, char**) {
   RUN_TEST(test_units_are_converted_exactly);
   RUN_TEST(test_cell_jitter_is_not_republished);
   RUN_TEST(test_cell_drift_crosses_the_deadband);
+  RUN_TEST(test_uptime_alone_is_not_a_change);
+  RUN_TEST(test_health_uptime_alone_is_not_a_change);
+  RUN_TEST(test_mppt_codes_are_named);
   RUN_TEST(test_deadband_zero_publishes_every_change);
   RUN_TEST(test_heartbeat_republishes_unchanged_state);
   RUN_TEST(test_stale_mppt_is_unavailable_with_no_reading);

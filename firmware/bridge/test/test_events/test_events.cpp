@@ -308,6 +308,29 @@ void test_phy_reverted_has_its_own_topic() {
   TEST_ASSERT_EQUAL_STRING("lran/gatelink/event/phy_reverted", r.items[0].topic);
 }
 
+// Spec 8.14 - a BOOT names its reset cause beside the raw detail, reading the low byte
+// only. No other type gains the key.
+void test_boot_names_its_reset_cause() {
+  PublicationPolicy       p;
+  Recorder                r;
+  schema::GateLinkEventV1 e = vehicle(3);
+  e.event_type = static_cast<uint8_t>(lran::EventType::Boot);
+  e.detail     = 0xAB04;  // a reserved high byte over WATCHDOG
+  send(p, gatelink(), e, r);
+  TEST_ASSERT_EQUAL(1, r.n);
+  TEST_ASSERT_EQUAL_STRING("lran/gatelink/event/boot", r.items[0].topic);
+  expect(r.items[0].payload, "detail", "43780");
+  expect(r.items[0].payload, "reset_cause", "\"watchdog\"");
+
+  e.event_id = 4;
+  e.detail   = 0x0042;  // spec 8.14 - a value this bridge does not know reads as UNKNOWN
+  send(p, gatelink(), e, r);
+  expect(r.items[1].payload, "reset_cause", "\"unknown\"");
+
+  send(p, gatelink(), vehicle(5), r);
+  TEST_ASSERT_NULL(std::strstr(r.items[2].payload, "reset_cause"));
+}
+
 // A type spec 8.9 does not list is published, not dropped: a newer node's event may be an
 // alert. Its name is null and its raw value is kept, as BF-24 treats an unknown enum.
 void test_unknown_type_goes_to_event_unknown() {
@@ -384,6 +407,7 @@ int main(int, char**) {
   RUN_TEST(test_bench_event_publishes_nothing);
   RUN_TEST(test_unknown_type_goes_to_event_unknown);
   RUN_TEST(test_phy_reverted_has_its_own_topic);
+  RUN_TEST(test_boot_names_its_reset_cause);
   RUN_TEST(test_wrong_schema_or_length_is_undecodable);
   RUN_TEST(test_status_is_not_an_event);
   RUN_TEST(test_stats_carry_the_event_counts);
