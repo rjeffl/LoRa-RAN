@@ -122,11 +122,18 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
     out->payload_len  = f.payload_len;
     out->fragments    = 1;
     out->mac_verified = f.mac_verified;
+    out->frag_chunk   = 0;
     return true;
   }
 
   Slot* slot = slot_for(f.hdr.src, now_ms);
-  last_      = slot->reassembler.accept(f, now_ms);  // stage 10
+  // A set that begins with this fragment starts its chunk afresh, and so does one that
+  // displaces a set left incomplete, whose larger chunk would otherwise carry over.
+  if (!slot->reassembler.active() || slot->reassembler.seq() != f.hdr.seq) slot->chunk = 0;
+  last_ = slot->reassembler.accept(f, now_ms);  // stage 10
+  if (last_ == lran::Status::Ok && f.payload_len > slot->chunk) {
+    slot->chunk = static_cast<uint8_t>(f.payload_len);
+  }
   if (last_ != lran::Status::Ok || !slot->reassembler.complete()) return false;
 
   out->hdr          = f.hdr;
@@ -134,6 +141,7 @@ bool RxLadder::accept(const uint8_t* buf, size_t len, uint32_t now_ms, RxDeliver
   out->payload_len  = slot->reassembler.len();
   out->fragments    = f.hdr.frag_total();
   out->mac_verified = f.mac_verified;
+  out->frag_chunk   = slot->chunk;
   return true;
 }
 

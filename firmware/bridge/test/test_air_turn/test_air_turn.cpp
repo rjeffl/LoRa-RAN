@@ -40,7 +40,7 @@ void test_an_outstanding_poll_holds_every_other_exchange() {
 void test_each_other_exchange_holds_a_scheduled_poll() {
   bool AirTurn::*const busy[] = {&AirTurn::command_busy, &AirTurn::roll_busy,
                                  &AirTurn::config_busy, &AirTurn::phy_blocks_traffic,
-                                 &AirTurn::hex_busy};
+                                 &AirTurn::hex_busy, &AirTurn::echo_busy};
   for (bool AirTurn::*const field : busy) {
     AirTurn a;
     a.*field = true;
@@ -60,7 +60,7 @@ void test_a_waiting_request_goes_before_a_due_poll() {
 void test_each_exchange_holds_every_other() {
   bool AirTurn::*const busy[] = {&AirTurn::command_busy, &AirTurn::roll_busy,
                                  &AirTurn::config_busy, &AirTurn::phy_blocks_traffic,
-                                 &AirTurn::hex_busy};
+                                 &AirTurn::hex_busy, &AirTurn::echo_busy};
   for (bool AirTurn::*const field : busy) {
     AirTurn a;
     a.*field = true;
@@ -82,7 +82,7 @@ void test_every_exchange_and_waiting_request_holds_ota() {
   bool AirTurn::*const busy[] = {&AirTurn::poll_outstanding, &AirTurn::command_busy,
                                  &AirTurn::roll_busy,        &AirTurn::config_busy,
                                  &AirTurn::phy_blocks_traffic, &AirTurn::hex_busy,
-                                 &AirTurn::request_waiting};
+                                 &AirTurn::echo_busy,          &AirTurn::request_waiting};
   for (bool AirTurn::*const field : busy) {
     AirTurn a;
     a.*field = true;

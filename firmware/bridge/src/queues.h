@@ -41,6 +41,9 @@ struct RxMessage {
   // How many frames the payload arrived in. `hdr.frag` describes only the last one.
   uint8_t fragments = 1;
 
+  // RxDelivery::frag_chunk: the sender's chunk for a reassembled set, 0 for one frame.
+  uint8_t frag_chunk = 0;
+
   // spec 9.4 step 3 passed. Always false today: every authenticated type is
   // bridge -> node (spec 9.2), and the ladder refuses one it cannot verify.
   bool mac_verified = false;

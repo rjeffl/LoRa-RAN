@@ -84,6 +84,7 @@ bool Loopback::pass(RxMessage* inout, uint32_t now_ms, char* reply, size_t cap) 
   }
   inout->hdr          = d.hdr;
   inout->fragments    = d.fragments;
+  inout->frag_chunk   = d.frag_chunk;
   inout->mac_verified = d.mac_verified;
   // payload bytes already equal; `dummy` and `rx_millis` are the tool's and stay.
   last_ = lran::Status::Ok;
