@@ -1469,3 +1469,47 @@ Whether that run is worth a reflash is the operator's call. The broker-outage co
 did not run either; group 3's WiFi and broker outages will exercise it.
 
 **Verified:** bridge 515 host tests, the `heltec` build and `run_ci_local.py`.
+
+## 2026-09-26 — BF-27's RF echo, built and run on the bench
+
+Group 2's last item. The bridge neither sent nor answered `PING`, so PRD R-5.4a's RF half
+and spec §17.3's RF loopback had no bridge side. Impl Plan §6.6.4 has the design.
+
+**The echo goes out from `sched_task`, not from `app_task` where the `PING` arrives.** An
+echo is airtime, and an echo sent from `app_task` would land in some poll's answer window.
+`app_task` offers the `PING` to `PingEcho`. `sched_task` sends the first frame when
+`exchange_may_start()` allows, and `echo_busy` holds every other exchange until a ticket
+on the last frame reports it sent.
+
+**The ladder did not know the initiator's chunk.** Spec §6.6.2 has the responder
+re-fragment at it, and `RxDelivery` carried only the fragment count, which a chunk cannot
+be recovered from. The ladder now records the largest fragment payload in each set, as the
+simnode does. Unlike the simnode's, the ladder resets it when a new `seq` displaces an
+incomplete set, where the displaced set's chunk would otherwise carry over.
+
+**A 15-frame set meets a 4-deep TX queue.** Each tick queues what fits, checking for room
+first, because `send_tx()` counts a refused frame as a `q_tx` drop. At a chunk of 14 a
+fragment is about 190 ms at SF9, so four frames drain inside a tick. That estimate is
+computed, not measured, and the bench run below came in inside it.
+
+**Bench, 2026-09-26.** The bridge was flashed with `27ac7c7`. One harness held both
+Heltecs' ports; opening them reset both boards, so the bridge rolled `f0`'s context on
+first hearing (BF-34), as designed. The simnode sent five `PING`s from `f0` to `00`:
+
+| Command | Frames each way | Result | Round trip |
+|---|---|---|---|
+| `ping f0 40` | 1 | `echo ok` | 984 ms |
+| `ping f0 202` | 1, 222 bytes | `echo ok` | 2685 ms |
+| `ping f0 202 pattern frag 14` | 15 | `echo ok` | 10 804 ms |
+| `ping f0 60 pattern frag 20` | 4 | `echo ok` | 2830 ms |
+| `ping f0 202 pattern frag 14` | 15 | `echo ok` | 8971 ms |
+
+The bridge logged one `echo:` line per `PING` with the matching frame count, and no
+warning, drop or reset. RSSI was −18 dBm and SNR +10.8 to +11.3 dB. The capture is
+[`data/rf-echo-bench-2026-09-26.log`](./data/rf-echo-bench-2026-09-26.log).
+
+**Not shown:** a `PING` refused because an echo was still going out, and any echo counter
+on a diagnostic topic. `EchoStats` reaches the serial log only.
+
+**Verified:** bridge 521 host tests, including `test_echo`'s six; the `heltec` build;
+`run_ci_local.py`.

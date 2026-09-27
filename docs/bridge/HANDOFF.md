@@ -1,10 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-26 by the session that widened the task watchdog** (group 2). The
-bridge runs `442899a`, flashed over USB, and the watchdog now watches `lora_task`,
-`sched_task`, `mqtt_task` and `app_task`. A 7-minute bench run showed no false trip. No run
-has starved a task to show it trips; the engineering log's *task watchdog widened* entry
-has both.
+**Written 2026-09-26 by the session that finished group 2**: the task watchdog widened to
+four tasks, and BF-27's RF echo. The bridge runs `27ac7c7`, flashed over USB. Five `PING`s
+from the simnode Heltec came back `echo ok`, two of them as 15-fragment sets. No run has
+starved a task to show the watchdog trips. The engineering log's two latest entries have
+both runs.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,7 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Groups 1
-and 2 are done, apart from BF-27's RF echo, which gates nothing. Groups 3 to 5 remain.
+and 2 are done. Groups 3 to 5 remain.
 **Group 3 waits on the operator**: its section lists what they prepare before it can run.
 
 **Nothing is owed on the bench.** `sched_task`'s PHY-change low of 1352 bytes is still not
@@ -74,14 +74,14 @@ trial's restore and the other a flag set while NVS refuses the write.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
-**Done, apart from the RF echo.** One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
+**Done.** One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
 on 2026-09-26, and so was the simnode's reset (spec §10.1, §10.7, §8.14). **BF-27's
 GateLink simulator and internal loopback were built and run on the bench the same day**
 (Impl Plan §6.6.3).
 
-- **BF-27's RF echo is not built.** The bridge neither sends nor answers `PING` (spec
-  §6.6), so R-5.4a's RF half needs a responder in `app_task`, fragmented echoes included.
-  It gates nothing. A WellLink simulator waits for schema `0x20`.
+- **BF-27's RF echo is built and ran on the bench** on 2026-09-26 (Impl Plan §6.6.4). A
+  `PING` refused during an echo is not shown, and `EchoStats` reaches the serial log only.
+  A WellLink simulator waits for schema `0x20`.
 - **The task watchdog watches `lora_task`, `mqtt_task` and `app_task` too**, from
   2026-09-26 (Impl Plan §5.2.2). A bench run showed no false trip, and no run has starved a
   task. `mqtt_task`'s failed connect, about 8 s, is the pass closest to the 10 s timeout.
@@ -261,8 +261,9 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `442899a`, flashed over USB on 2026-09-26**, which widens the task
-watchdog to four tasks. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
+**The bridge runs `27ac7c7`, flashed over USB on 2026-09-26**, which adds the RF echo to
+the widened task watchdog. On that run the simnode Heltec was `/dev/cu.usbserial-4`, and
+opening its port reset it. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
 carries the lost `BOOT` event's fix and the OTA gap's fix (engineering log, *owed PHY
 `config/ack` on the bench*). The broker retains GateLink's documents from the last dummy
 `STATUS` of the simulator run, all marked synthetic, and `offline` on its availability. The broker retains `simnode1`'s `vedirect/charge/state`, `hex/audit` and

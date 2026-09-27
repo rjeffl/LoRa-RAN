@@ -155,6 +155,11 @@ choices. **Three things to keep:**
   Nothing refuses a node that has not been heard, so a dummy event on a deployed bridge
   reaches that node's event topics, marked.
 
+**The RF echo, built 2026-09-26**, is `echo.{h,cpp}`. The bridge answers a `PING`
+addressed to it and never sends one; Impl Plan §6.6.4 records the choices. **The echo is an
+exchange to `air_turn.h`.** Its frames go from `sched_task`, never from `app_task`, and
+`echo_busy` holds every other exchange until its last frame has gone.
+
 **The simulator and the loopback, built 2026-09-26**, are `gatelink_sim.{h,cpp}` and
 `loopback.{h,cpp}`, driven by `sim` and `loopback` lines on the same console. Impl Plan
 §6.6.3 records the choices. **Three things to keep:**

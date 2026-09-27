@@ -1,0 +1,210 @@
+1790479858.26 B ESP-ROM:esp32s3-20210327
+1790479858.26 B Build:Mar 27 2021
+1790479858.26 B rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+1790479858.26 B SPIWP:0xee
+1790479858.26 B mode:DIO, clock div:1
+1790479858.26 B load:0x3fce3808,len:0x4bc
+1790479858.26 B load:0x403c9700,len:0xbd8
+1790479858.26 B load:0x403cc700,len:0x2a0c
+1790479858.26 B entry 0x403c98d0
+1790479858.26 B ESP-ROM:esp32s3-20210327
+1790479858.26 B Build:Mar 27 2021
+1790479858.26 B rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+1790479858.26 B SPIWP:0xee
+1790479858.26 B mode:DIO, clock div:1
+1790479858.26 B load:0x3fce3808,len:0x4bc
+1790479858.26 B load:0x403c9700,len:0xbd8
+1790479858.26 B load:0x403cc700,len:0x2a0c
+1790479858.26 B entry 0x403c98d0
+1790479858.32 N ESP-ROM:esp32s3-20210327
+1790479858.32 N Build:Mar 27 2021
+1790479858.32 N rst:0x1 (POWERON),boot:0x29 (SPI_FAST_FLASH_BOOT)
+1790479858.32 N SPIWP:0xee
+1790479858.32 N mode:DIO, clock div:1
+1790479858.32 N load:0x3fce3808,len:0x4bc
+1790479858.32 N load:0x403c9700,len:0xbd8
+1790479858.32 N load:0x403cc700,len:0x2a0c
+1790479858.32 N entry 0x403c98d0
+1790479858.72 B LRAN Bridge Node - node 0x00
+1790479858.72 B Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+1790479858.72 B PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+1790479858.72 B Version: 0.1.0 (27ac7c7)
+1790479858.72 B Slot: app0
+1790479858.72 B Image state: not_pending
+1790479858.72 B Reset: power_on
+1790479858.72 B CHAN-BOOT,27ac7c7,917400000,9,1250,1000,-1100,10
+1790479858.82 B WiFi SSID: McLeeNet
+1790479858.82 B MQTT broker: 192.168.2.52:1883
+1790479858.82 B Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+1790479858.82 B boot: count 34
+1790479858.82 B Config: 17 stored value(s) restored
+1790479858.82 B Tasks started: 7
+1790479858.82 B WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+1790479858.82 B [   573][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+1790479858.82 B [   597][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+1790479858.82 B levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex
+1790479858.93 B  rsp 300[   607][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+1790479858.93 B 0 ms, arm 300 s, simnode diag off
+1790479858.93 B mqtt: stack high-water 4616 bytes free of 6144
+1790479858.93 B LoRa: radio up - 917400000 Hz,
+1790479859.04 B  SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+1790479859.04 B LoRa: stack high-water 6060 bytes free
+1790479859.04 B [   742][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+1790479859.04 B [   751][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+1790479859.62 N LRAN simnode - bench nodes 0xF0-0xF3
+1790479859.62 N Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+1790479859.62 N Board: heltec_wifi_lora_32_V3
+1790479859.62 N Reset ca
+1790479859.73 N use: POWER_ON (esp_reset_reason 1), boot_count 2
+1790479859.73 N id f0 ROLE_RANGE ctx 0x790c545c
+1790479859.73 N id f2 ROLE_HEALTH ctx 0x4fcb3470
+1790479859.83 N [  1800][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+1790479859.83 N OLED: up
+1790479859.94 N radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+1790479859.94 N B0: identities, console, faults, OLED; all four roles. Type 'help'.
+1790479861.58 B [  3287][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+1790479861.58 B OTA: listening as lran-bridge
+1790479861.58 B mqtt: connected, heap free 59512, lowest 50712
+1790479867.04 B CHAN,7,7647,1000,100,0,22,0,-940,-1150,-1116
+1790479868.03 B CHAN,8,8647,1000,100,0,28,0,-940,-1160,-1098
+1790479868.20 > mac
+1790479868.31 N ERR unknown command 'mac' - try help
+1790479868.93 B mqtt: stack high-water 2552 bytes free of 6144
+1790479869.05 B CHANSUM,0,9,10,10001,999,1,50,0,2,0,-940,-1160,-1150,-1158
+1790479870.21 > ping f0 40
+1790479870.33 N OK ping f0 -> 00 seq 1, n 40, 1 frame(s)
+1790479870.72 B FRAME #0 rx t=12403 peer=0xf0 type=7 schema=0 frag=0x01 seq=1 rssi=-18 snr=11 st=0 rx=0 deaf=0
+1790479870.94 B availability: simnode0 online (missed_polls 0, threshold 3)
+1790479870.94 B FRAME #1 tx t=12605 peer=0xf0 type=7 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+1790479871.06 B CHAN,11,11647,1005,95,5,38,1,-160,-1160,-765
+1790479871.21 N ping f0 -> 00 seq 1: echo ok, n 40, 1 frame(s) out, 1 back, rssi -18 dBm, snr 11.0 dB, 984 ms
+1790479871.94 B echo: f0 seq 1, 42 byte(s) in 1 frame(s)
+1790479872.85 B FRAME #2 tx t=14599 peer=0xf
+1790479872.96 B 0 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=419
+1790479873.51 B poll: f0 answered in 700 ms (window 10000 ms)
+1790479873.62 B FRAME #3 rx t=15268 peer=0xf0 type=4 schema=240 frag=0x01 seq=2 rssi=-18 snr=11 st=0 rx=0 deaf=611
+1790479873.95 B FRAME #4 tx t=15590 peer=0xf0 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=632
+1790479873.95 B C
+1790479874.06 B HAN,14,14666,1001,78,22,28,1,-160,-1160,-807
+1790479874.11 N roll f0 <- 00 seq 1: ctx 0x790c545c -> 0x8fb64666, ACCEPTED
+1790479874.51 B FRAME #5 rx t=16239 peer=0xf0 type=2 schema=0 frag=0x01 seq=1 rssi=-18 snr=11 st=0 rx=0 deaf=865
+1790479874.85 B r
+1790479874.96 B oll: f0 rolled to ctx 0x8fb64666 after 1 attempt(s)
+1790479874.96 B CHAN,15,15667,1003,83,17,21,1,-160,-1160,-904
+1790479875.24 > ping f0 202
+1790479875.35 N OK ping f0 -> 00 seq 2, n 202, 1 frame(s)
+1790479875.95 B C
+1790479876.05 B HAN,16,16670,1000,58,42,18,0,-160,-1160,-842
+1790479876.52 B FRAME #6 rx t=18172 peer=0xf0 type=7 schema=0 frag=0x01 seq=2 rssi=-17 snr=11 st=0 rx=0 deaf=865
+1790479876.85 B FRAME #7 tx t=18599 peer=0xf
+1790479876.96 B 0 type=7 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=890
+1790479877.99 N ping f0 -> 00 seq 2: echo ok, n 202, 1 frame(s) out, 1 back, rssi -18 dBm, snr 10.8 dB, 2685 ms
+1790479878.86 B echo: f0 seq 2, 204 byte(s) in 1 frame(s)
+1790479881.26 > ping f0 202 pattern frag 14
+1790479881.37 N OK ping f0 -> 00 seq 3, n 202, 15 frame(s)
+1790479881.65 B FRAME #8 rx t=23331 peer=0xf0 type=7 schema=0 frag=0x0f seq=3 rssi=-18 snr=12 st=0 rx=0 deaf=2005
+1790479881.88 B FRAME #9 rx t=23617 peer=0xf0 type=7 schema=0 frag=0x1f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479881.99 B CHAN,22,22680,1008,102,0,55,2,-160,-1150,-632
+1790479882.20 B FRAME #10 rx t=23903 peer=0xf0 type=7 schema=0 frag=0x2f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479882.55 B FRAME #11 rx t=24189 peer=0xf0 type=7 schema=0 frag=0x3f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479882.78 B FRAME #12 rx t=24475 peer=0xf0 type=7 schema=0 frag=0x4f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479883.00 B CHAN,23,23688,1008,102,0,93,3,-160,-1150,-268
+1790479883.12 B FRAME #13 rx t=24761 peer=0xf0 type=7 schema=0 frag=0x5f seq=3 rssi=-17 snr=11 st=0 rx=0 deaf=2005
+1790479883.35 B F
+1790479883.46 B RAME #14 rx t=25047 peer=0xf0 type=7 schema=0 frag=0x6f seq=3 rssi=-17 snr=11 st=0 rx=0 deaf=2005
+1790479883.56 B FRAME #15 rx t=25333 peer=0xf0 type=7 schema=0 frag=0x7f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479883.89 B FRAME #16 rx t=25619 peer=0xf0 type=7 schema=0 frag=0x8f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479884.00 B CHAN,24,24696,1004,102,0,90,4,-160,-1160,-303
+1790479884.24 B FRAME #17 rx t=25905 peer=0xf0 type=7 schema=0 frag=0x9f seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479884.45 B FRAME #18 rx t=26191 peer=0xf0 type=7 s
+1790479884.57 B chema=0 frag=0xaf seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479884.80 B FRAME #19 rx t=26477 peer=0xf0 type=7 schema=0 frag=0xbf seq=3 rssi=-18 snr=11 st=0 rx=0 deaf=2005
+1790479885.01 B CHAN,25,25700,1008,102,0,93,3,-160,-1150,-275
+1790479885.12 B FRAME #20 rx t=26763 peer=0xf0 type=7 schema=0 frag=0xcf seq=3 rssi=-17 snr=11 st=0 rx=0 deaf=2005
+1790479885.45 B FRAME #21 rx t=27049 peer=0xf0 type=7 schema=0 frag=0xdf seq=3 rssi=-17 snr=11 st=0 rx=0 deaf=2005
+1790479885.56 B FRAME #22 rx t=27294 peer=0xf0 type=7 schema=0 frag=0xef seq=3 rssi=-18 snr=11 st=0 r
+1790479885.67 B x=0 deaf=2005
+1790479886.01 B CHAN,26,26708,1003,99,2,55,3,-160,-1160,-617
+1790479887.34 B FRAME #23 tx t=29027 peer=0xf0 type=7 schema=0 frag=0x0f seq=3 rssi=- snr=- st=0 rx=5 deaf=2076
+1790479887.57 B FRAME #24 tx t=29318 peer=0xf0 type=7 schema=0 frag=0x1f seq=3 rssi=- snr=- st=0 rx=5 deaf=2351
+1790479887.90 B FRAME #25 tx t=29609 peer=0xf0 type=7 schema=0 frag=0x2f seq=3 rssi=- snr=- st=0 rx=5 deaf=2626
+1790479888.24 B FRAME #26 tx t=29900 peer=0xf0 type=7 schema=0 frag=0x3f seq=3 rssi=- snr=- st=0 rx=5 deaf=2901
+1790479888.45 B F
+1790479888.55 B RAME #27 tx t=30191 peer=0xf0 type=7 schema=0 frag=0x4f seq=3 rssi=- snr=- st=0 rx=5 deaf=3176
+1790479888.77 B FRAME #28 tx t=30486 peer=0xf0 type=7 schema=0 frag=0x5f seq=3 rssi=- snr=- st=0 rx=5 deaf=3455
+1790479889.11 B FRAME #29 tx t=30781 peer=0xf0 type=7 schema=0 frag=0x6f seq=3 rssi=- snr=- st=0 rx=5 deaf=3734
+1790479889.46 B FRAME #30 tx t=31072 peer=0xf0 type=7 schema=0 frag=0x7f seq=3 rssi=- snr=- st=0 rx=5 deaf=4009
+1790479889.69 B FRAME #31 tx t=31363 peer=0xf0 type=7 schema=0 frag=0x8f seq=3 rssi=- snr=- st=0 rx=5 deaf=4284
+1790479890.47 B FRAME #32 tx t=32181 peer=0xf0 type=7 schema=0 frag=0x9f seq=3 rssi=- snr=- st=0 rx=5 deaf=4580
+1790479890.81 B FRAME #33 tx t=32472 peer=0xf0 type=7 schema=0 frag=0xaf seq=3 rssi=- snr=- st=0 rx=5 deaf=4855
+1790479891.15 B FRAME #34 tx t=32767 peer=0xf0 type=7 schema=0 frag=0xbf seq=3 rssi=- snr=- st=0 rx=5 deaf=5134
+1790479891.39 B FRAME #35 tx t=33058 peer=0xf0 type=7 schema=0 frag=0xcf seq=3 rssi=- snr=- st=0 rx=5 deaf=5409
+1790479891.75 B FRAME #36 tx t=33349 peer=0xf0 type=7 schema=0 frag=0xdf seq=3 rssi=- snr=- st=0 rx=5 deaf=5684
+1790479891.97 B FRAME #37 tx t=33640 peer=0xf0 type=7 schema=0 frag=0xef seq=3 rssi=- snr=- st=0 rx=5 deaf=5959
+1790479892.13 N ping f0 -> 00 seq 3: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.8 dB, 10804 ms
+1790479892.87 B echo: f0 seq 3, 204 byte(s) in 15 frame(s)
+1790479893.26 > ping f0 60 pattern frag 20
+1790479893.37 N OK ping f0 -> 00 seq 4, n 60, 4 frame(s)
+1790479893.65 B F
+1790479893.76 B RAME #38 rx t=35353 peer=0xf0 type=7 schema=0 frag=0x04 seq=4 rssi=-17 snr=11 st=0 rx=0 deaf=6172
+1790479893.99 B FRAME #39 rx t=35659 peer=0xf0 type=7 schema=0 frag=0x14 seq=4 rssi=-18 snr=11 st=0 rx=0 deaf=6172
+1790479894.11 B CHAN,34,34749,1001,101,0,61,2,-160,-1150,-573
+1790479894.33 B FRAME #40 rx t=35965 peer=0xf0 type=7 schema=0 frag=0x24 seq=4 rssi=-17 snr=12 st=0 rx=0 deaf=6172
+1790479894.55 B FRAME #41 rx t=36189 peer=0xf0 type=7 schema=0 frag=0x34 seq=4 rssi=-17 snr=11 st=0 rx=0 deaf=6172
+1790479894.88 B FRAME #42 tx t=36595 peer=0xf0 type=7 schema=0 frag=0x04 seq=4 rssi=- snr=- st=0 rx=5 deaf=6197
+1790479895.11 B CHAN,35,35750,1002,84,16,44,2,-160,-1160,-657
+1790479895.22 B FRAME #43 tx t=36906 peer=0xf0 type=7 schema=0 frag=0x14 seq=4 rssi=- snr=- st=0 rx=5 deaf=6492
+1790479895.45 B F
+1790479895.55 B RAME #44 tx t=37217 peer=0xf0 type=7 schema=0 frag=0x24 seq=4 rssi=- snr=- st=0 rx=5 deaf=6787
+1790479895.99 B FRAME #45 tx t=37689 peer=0xf0 type=7 schema=0 frag=0x34 seq=4 rssi=- snr=- st=0 rx=5 deaf=7107
+1790479896.16 N ping f0 -> 00 seq 4: echo ok, n 60, 4 frame(s) out, 4 back, rssi -18 dBm, snr 11.3 dB, 2830 ms
+1790479896.91 B echo: f0 seq 4, 62 byte(s) in 4 frame(s)
+1790479901.33 > ping f0 202 pattern frag 14
+1790479901.44 N OK ping f0 -> 00 seq 5, n 202, 15 frame(s)
+1790479901.71 B FRAME #46 rx t=43404 peer=0xf0 type=7 schema=0 frag=0x0f seq=5 rssi=-17 snr=11 st=0 rx=0 deaf=7299
+1790479902.05 B FRAME #47 rx t=43690 peer=0xf0 type=7 schema=0 frag=0x1f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479902.05 B CHAN,42,42757,1004,93,8,50,2
+1790479902.16 B ,-160,-1160,-655
+1790479902.28 B FRAME #48 rx t=43976 peer=0xf0 type=7 schema=0 frag=0x2f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479902.61 B FRAME #49 rx t=44262 peer=0xf0 type=7 schema=0 frag=0x3f seq=5 rssi=-17 snr=11 st=0 rx=0 deaf=7299
+1790479902.95 B FRAME #50 rx t=44548 peer=0xf0 type=7 schema=0 frag=0x4f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479903.05 B FRAME #51 rx t=44834 peer=0x
+1790479903.17 B f0 type=7 schema=0 frag=0x5f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479903.17 B CHAN,43,43761,1008,102,0,96,3,-160,-1150,-263
+1790479903.39 B FRAME #52 rx t=45120 peer=0xf0 type=7 schema=0 frag=0x6f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479903.73 B FRAME #53 rx t=45406 peer=0xf0 type=7 schema=0 frag=0x7f seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479904.05 B FRAME #54 rx t=45692 peer=0xf0 type=7 schema=0 frag=0x8f seq=5 rssi=-17 snr=12 st=0 rx=0 deaf=7299
+1790479904.16 B CHAN,44,44769,1004,102,0,90,4,-160,-1150,-304
+1790479904.27 B FRAME #55 rx t=45978 peer=0xf0 type=7 schema=0 frag=0x9f seq=5 rssi=-17 snr=11 st=0 rx=0 deaf=7299
+1790479904.62 B FRAME #56 rx t=46264 peer=0xf0 type=7 schema=0 frag=0xaf seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479904.96 B FRAME #57 rx t=46550 peer=0xf0 type=7 schema=0 frag=0xbf seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479905.06 B FRAME #58 rx t=46836 peer=0xf0 type=7 schema=0 frag
+1790479905.18 B =0xcf seq=5 rssi=-17 snr=11 st=0 rx=0 deaf=7299
+1790479905.18 B CHAN,45,45773,1008,102,0,93,3,-160,-1160,-268
+1790479905.41 B FRAME #59 rx t=47122 peer=0xf0 type=7 schema=0 frag=0xdf seq=5 rssi=-17 snr=11 st=0 rx=0 deaf=7299
+1790479905.75 B FRAME #60 rx t=47367 peer=0xf0 type=7 schema=0 frag=0xef seq=5 rssi=-18 snr=11 st=0 rx=0 deaf=7299
+1790479905.97 B FRAME #61 tx t=47599 peer=0xf0 type=7 schema=0 frag=0x0f seq=5 rssi=- snr=- st=0 rx=5 deaf=7320
+1790479906.08 B CHAN,46,46781,1005,82,19,55,3,-160,-1150,-509
+1790479906.20 B FRAME #62 tx t=47890 peer=0xf0 type=7 schema=0 frag=0x1f seq=5 rssi=- snr=- st=0 rx=5 deaf=7595
+1790479906.76 B FRAME #63 tx t=48368 peer=0xf0 type=7 schema=0 frag=0x2f seq=5 rssi=- snr=- st=0 rx=5 deaf=7891
+1790479906.97 B FRAME #64 tx t=48663 peer=0xf0 type=7 schema=0 frag=0x3f seq=5
+1790479907.08 B  rssi=- snr=- st=0 rx=5 deaf=8170
+1790479907.08 B CHAN,47,47786,1004,19,77,1,0,-950,-1150,-1135
+1790479907.30 B FRAME #65 tx t=48954 peer=0xf0 type=7 schema=0 frag=0x4f seq=5 rssi=- snr=- st=0 rx=5 deaf=8445
+1790479907.52 B FRAME #66 tx t=49245 peer=0xf0 type=7 schema=0 frag=0x5f seq=5 rssi=- snr=- st=0 rx=5 deaf=8720
+1790479907.86 B FRAME #67 tx t=49540 peer=0xf0 type=7 schema=0 frag=0x6f seq=5 rssi=- snr=- st=0 rx=5 deaf=8999
+1790479908.07 B FRAME #68 tx t=49835 peer=0x
+1790479908.18 B f0 type=7 schema=0 frag=0x7f seq=5 rssi=- snr=- st=0 rx=5 deaf=9278
+1790479908.18 B CHAN,48,48790,1004,3,94,1,0,-950,-1150,-1083
+1790479908.40 B FRAME #69 tx t=50126 peer=0xf0 type=7 schema=0 frag=0x8f seq=5 rssi=- snr=- st=0 rx=5 deaf=9553
+1790479908.74 B FRAME #70 tx t=50421 peer=0xf0 type=7 schema=0 frag=0x9f seq=5 rssi=- snr=- st=0 rx=5 deaf=9832
+1790479909.08 B FRAME #71 tx t=50712 peer=0xf0 type=7 schema=0 frag=0xaf seq=5 rssi=- snr=- st=0 rx=5 deaf=10107
+1790479909.08 B C
+1790479909.20 B HAN,49,49794,1004,4,91,2,0,-950,-1150,-1085
+1790479909.31 B FRAME #72 tx t=51007 peer=0xf0 type=7 schema=0 frag=0xbf seq=5 rssi=- snr=- st=0 rx=5 deaf=10386
+1790479909.65 B FRAME #73 tx t=51298 peer=0xf0 type=7 schema=0 frag=0xcf seq=5 rssi=- snr=- st=0 rx=5 deaf=10661
+1790479909.88 B FRAME #74 tx t=5
+1790479909.99 B 1589 peer=0xf0 type=7 schema=0 frag=0xdf seq=5 rssi=- snr=- st=0 rx=5 deaf=10936
+1790479910.22 B FRAME #75 tx t=51880 peer=0xf0 type=7 schema=0 frag=0xef seq=5 rssi=- snr=- st=0 rx=5 deaf=11211
+1790479910.38 N ping f0 -> 00 seq 5: echo ok, n 202, 15 frame(s) out, 15 back, rssi -18 dBm, snr 10.8 dB, 8971 ms
+1790479910.88 B echo: f0 seq 5, 204 byte(s) in 15 frame(s)
