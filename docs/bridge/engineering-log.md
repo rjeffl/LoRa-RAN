@@ -1401,3 +1401,35 @@ ladder has no lock, and its counters are what HA charts as the radio's.
 **Verified:** bridge 513 host tests, `test_sim` 9 and `test_loopback` 5 among them; the
 `heltec` build; and `run_ci_local.py`. No bench run: nobody has started the simulator or
 turned the loopback on against the sandbox HA.
+
+## 2026-09-26 — BF-27's simulator and loopback on the bench: HA follows the simulated day
+
+The bridge was flashed over USB with `ffaf22b`. It ran against the sandbox broker and HA
+2026.9.3. One harness held the bridge's port for the whole run, and it published GateLink's
+availability `online`, retained, as Impl Plan §6.6.2 describes. Afterwards it restored
+`offline`, the value the broker held before. The capture is
+[`data/bf27-sim-bench-2026-09-26.log`](./data/bf27-sim-bench-2026-09-26.log).
+
+**The run was `loopback on`, then `sim start gatelink period=10 day=300 gate=90`, for
+205 s.** At 288 times real speed, simulated time ran from 09:00 to 01:21. `sim show` read
+`pv_w=58 soc=78% cs=3` at 11:04, `pv_w=13 cs=4` at 17:11, and `pv_w=0 batt_ma=-150 cs=0`
+from 19:14 on.
+
+**Home Assistant followed it.** `sensor.gatelink_pv_power` recorded 20, 42, 50, 56, 59,
+60, 58, 53, 47, 38, 27, 16, 3 and 0. `sensor.gatelink_mppt_charge_state` went 3, 4, 0,
+still as raw codes (group 4's open item).
+
+**The two gate cycles came 90 s apart, as five edges each.** The broker carried 8 events
+before `sim stop`: `event_id` 1 to 8 under one `ctx_id`, each published once, none
+retained. HA's gate sensor read `moving`, `open_countdown`, `moving` and `closed` in turn.
+`last_direction` went `entry`, then `exit`, and `movement_cause` followed it.
+
+**Every document and event from the run carried `synthetic: true`.**
+
+**The loopback passed all 29 simulated frames**, 96-byte `STATUS` and 34-byte `EVENT` frames
+alike. After `sim stop`, `loopback corrupt` and a `dummy status gatelink` drew `the ladder
+refused it: BadCrc`. The next dummy frame passed, and `loopback show` read `passed=30
+refused=1`.
+
+**Nothing new was found.** `node/state` republished on every `STATUS`, as group 4 already
+records.

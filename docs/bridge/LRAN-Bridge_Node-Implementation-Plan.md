@@ -1654,8 +1654,19 @@ answers `PING` (spec 6.6). A responder, fragmented echoes included, changes `lor
 **The cost, measured on the `heltec` build.** Static RAM rose 4856 bytes, to 76.8 %, and
 flash rose 10 016 bytes. Most of the RAM is the loopback ladder's reassembly pool (§5.2).
 
-**What is not shown.** No bench run has started the simulator or turned the loopback on.
-Whether HA's graphs follow the simulated day is the bench's question.
+**On the bench, 2026-09-26**, against the sandbox broker and HA, with the bridge on
+`ffaf22b`. The run was `sim start gatelink period=10 day=300 gate=90` with the loopback on,
+for 205 s, with GateLink's availability set `online` by hand and restored to `offline`
+after. The engineering log has the run, and
+[`data/bf27-sim-bench-2026-09-26.log`](./data/bf27-sim-bench-2026-09-26.log) the capture.
+
+| Property | Shown by |
+|---|---|
+| The model moves | Simulated time ran 09:00 to 01:21. HA's `pv_power` rose from 20 to 60 W and fell to 0; `mppt_charge_state` went 3, 4, 0 |
+| Events only on request, in order | Two cycles, 90 s apart: 8 events, `event_id` 1 to 8 under one `ctx_id`, each published once and unretained. HA's gate sensor read `moving`, `open_countdown`, `moving`, `closed`, and `last_direction` alternated |
+| Marked | Every document and event from the run carried `synthetic: true` |
+| Loopback passes | 29 simulated frames and one dummy frame passed the ladder, 96-byte `STATUS` and 34-byte `EVENT` frames alike |
+| Loopback refuses | After `loopback corrupt`, the next dummy frame was refused as `BadCrc`, and the one after it passed |
 
 ### 6.7 The configuration path — BF-32, built 2026-09-21
 
@@ -2991,7 +3002,7 @@ that drifts is the one that gets followed.
 ## 12. Changelog
 
 - **v0.75** — **New §6.6.3**: BF-27's GateLink simulator and internal loopback, built and
-  host-tested. RF echo is not built. §7.1's V-B11 row names the simulator.
+  run on the bench. RF echo is not built. §7.1's V-B11 row names the simulator.
 - **v0.74** — **§6.7.8's first restart edge ran on the bench.** A reset after a PHY commit
   drew the rebuilt `config/ack` after the reboot, as a second copy of an answer already
   sent. The other two edges stay host-tested.
