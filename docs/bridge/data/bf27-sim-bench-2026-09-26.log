@@ -1,0 +1,213 @@
+# bridge /dev/cu.usbserial-0001 (MAC 44:1b:f6:f9:70:14), ffaf22b; BF-27 simulator and loopback, 2026-09-26
+# columns: seconds since start, source (SER bridge serial, MQTT lran/gatelink/#, CMD console line sent, NOTE harness)
+    0.03 MQTT lran/gatelink/diag/state r=1 {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+    0.03 MQTT lran/gatelink/availability r=1 offline
+    0.03 MQTT lran/gatelink/config/state r=1 {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+    0.03 MQTT lran/gatelink/gate/state r=1 {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"entry","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":true}
+    0.03 MQTT lran/gatelink/detect/state r=1 {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-09-25T13:10:57Z","traversal_persisted":true,"synthetic":true}
+    0.03 MQTT lran/gatelink/solar/state r=1 {"available":true,"batt_mv":13250,"batt_ma":1200,"pv_mv":18500,"pv_w":20,"load_ma":150,"yield_today_kwh":0.12,"yield_yesterday_kwh":0.34,"pmax_today_w":45,"yield_total_kwh":123.45,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":25.0,"hex_pending":false,"synthetic":true}
+    0.03 MQTT lran/gatelink/battery/state r=1 {"available":true,"soc":80,"soc_source":"bms_ble","pack_mv":13240,"pack_ma":1100,"cell_count":4,"cell1_mv":3310,"cell2_mv":3310,"cell3_mv":3310,"cell4_mv":3310,"cell1_temp_c":22,"cell2_temp_c":22,"cell3_temp_c":22,"cell4_temp_c":22,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+    0.03 MQTT lran/gatelink/node/state r=1 {"uptime_s":3610,"boot_count":1,"node_mv":13200,"node_ma":45,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+    0.03 MQTT lran/gatelink/vedirect/write_enable/state r=1 OFF
+    0.03 MQTT lran/gatelink/vedirect/charge/state r=1 {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    2.02 NOTE prior availability: ('offline', True)
+    2.20 SER ESP-ROM:esp32s3-20210327
+    2.20 SER Build:Mar 27 2021
+    2.20 SER rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+    2.20 SER SPIWP:0xee
+    2.20 SER mode:DIO, clock div:1
+    2.20 SER load:0x3fce3808,len:0x4bc
+    2.20 SER load:0x403c9700,len:0xbd8
+    2.20 SER load:0x403cc700,len:0x2a0c
+    2.20 SER entry 0x403c98d0
+    2.61 SER LRAN Bridge Node - node 0x00
+    2.62 SER Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+    2.62 SER PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+    2.62 SER Version: 0.1.0 (ffaf22b)
+    2.62 SER Slot: app0
+    2.62 SER Image state: not_pending
+    2.62 SER Reset: power_on
+    2.62 SER CHAN-BOOT,ffaf22b,917400000,9,1250,1000,-1100,10
+    2.72 SER WiFi SSID: McLeeNet
+    2.72 SER MQTT broker: 192.168.2.52:1883
+    2.72 SER Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+    2.72 SER boot: count 30
+    2.72 SER Config: 17 stored value(s) restored
+    2.72 SER Tasks started: 7
+    2.72 SER WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+    2.72 SER [   576][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+    2.72 SER [   599][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+    2.82 SER levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag off
+    2.82 SER mqtt: stack high-water 4608 bytes free of 6144
+    2.92 SER LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    2.92 SER LoRa: stack high-water 6052 bytes free
+    2.92 SER [   745][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+    2.92 SER [   755][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+    2.92 SER [   795][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+    2.92 SER OTA: listening as lran-bridge
+    3.02 SER mqtt: connected, heap free 60112, lowest 54984
+    3.20 MQTT lran/gatelink/config/state r=0 {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+    3.89 MQTT lran/gatelink/vedirect/write_enable/state r=0 OFF
+    3.89 MQTT lran/gatelink/vedirect/charge/state r=0 {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    4.88 SER CHAN,1,1629,1000,100,0,1,0,-1100,-1160,-1145
+    6.86 SER CHAN,3,3629,1000,100,0,1,0,-1100,-1160,-1146
+   12.88 SER mqtt: stack high-water 2544 bytes free of 6144
+   12.88 SER CHANSUM,0,9,10,10001,999,1,2,0,2,0,-1100,-1160,-1150,-1158
+   27.10 NOTE published retained online to lran/gatelink/availability
+   27.12 MQTT lran/gatelink/availability r=0 online
+   29.10 CMD loopback on
+   29.21 SER loopback: on passed=0 refused=0 last=Ok
+   30.11 CMD sim start gatelink period=10 day=300 gate=90
+   30.24 SER sim: gatelink every 10s, day 300s, gate events on; synthetic
+   30.24 SER loopback: 96-byte frame passed
+   30.31 MQTT lran/gatelink/gate/state r=0 {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"exit","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":true}
+   30.31 MQTT lran/gatelink/detect/state r=0 {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":null,"traversal_persisted":true,"synthetic":true}
+   30.31 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13425,"batt_ma":3026,"pv_mv":18770,"pv_w":42,"load_ma":150,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":42,"yield_total_kwh":0.00,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":27.7,"hex_pending":false,"synthetic":true}
+   30.31 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":70,"soc_source":"bms_ble","pack_mv":13420,"pack_ma":2981,"cell_count":4,"cell1_mv":3351,"cell2_mv":3357,"cell3_mv":3360,"cell4_mv":3352,"cell1_temp_c":24,"cell2_temp_c":24,"cell3_temp_c":24,"cell4_temp_c":24,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   30.31 MQTT lran/gatelink/node/state r=0 {"uptime_s":0,"boot_count":1,"node_mv":13370,"node_ma":45,"enclosure_temp_c":25.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   40.24 SER loopback: 96-byte frame passed
+   40.34 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13457,"batt_ma":3611,"pv_mv":19100,"pv_w":50,"load_ma":150,"yield_today_kwh":0.04,"yield_yesterday_kwh":0.00,"pmax_today_w":50,"yield_total_kwh":0.03,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":30.1,"hex_pending":false,"synthetic":true}
+   40.35 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":73,"soc_source":"bms_ble","pack_mv":13452,"pack_ma":3566,"cell_count":4,"cell1_mv":3359,"cell2_mv":3365,"cell3_mv":3368,"cell4_mv":3360,"cell1_temp_c":25,"cell2_temp_c":25,"cell3_temp_c":25,"cell4_temp_c":25,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   40.35 MQTT lran/gatelink/node/state r=0 {"uptime_s":10,"boot_count":1,"node_mv":13402,"node_ma":45,"enclosure_temp_c":27.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   40.87 SER CHAN,37,37629,1000,100,0,1,0,-670,-1160,-1140
+   45.85 SER CHAN,42,42629,1000,100,0,1,0,-1100,-1160,-1146
+   50.20 SER loopback: 96-byte frame passed
+   50.28 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13490,"batt_ma":4029,"pv_mv":19330,"pv_w":56,"load_ma":150,"yield_today_kwh":0.08,"yield_yesterday_kwh":0.00,"pmax_today_w":56,"yield_total_kwh":0.07,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":31.8,"hex_pending":false,"synthetic":true}
+   50.29 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":76,"soc_source":"bms_ble","pack_mv":13485,"pack_ma":3984,"cell_count":4,"cell1_mv":3367,"cell2_mv":3373,"cell3_mv":3376,"cell4_mv":3368,"cell1_temp_c":26,"cell2_temp_c":26,"cell3_temp_c":26,"cell4_temp_c":26,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   50.29 MQTT lran/gatelink/node/state r=0 {"uptime_s":20,"boot_count":1,"node_mv":13435,"node_ma":45,"enclosure_temp_c":29.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   56.11 CMD sim show
+   56.22 SER sim: running node 01 period=10 day=300 gate=90 | 11:04 pv_w=58 batt_ma=4191 soc=78% cs=3 gate_state=1 seq=3 events=0
+   60.27 SER loopback: 96-byte frame passed
+   60.31 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13521,"batt_ma":4262,"pv_mv":19470,"pv_w":59,"load_ma":150,"yield_today_kwh":0.13,"yield_yesterday_kwh":0.00,"pmax_today_w":59,"yield_total_kwh":0.12,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":32.8,"hex_pending":false,"synthetic":true}
+   60.31 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":79,"soc_source":"bms_ble","pack_mv":13516,"pack_ma":4217,"cell_count":4,"cell1_mv":3375,"cell2_mv":3381,"cell3_mv":3384,"cell4_mv":3376,"cell1_temp_c":27,"cell2_temp_c":27,"cell3_temp_c":27,"cell4_temp_c":27,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   60.31 MQTT lran/gatelink/node/state r=0 {"uptime_s":30,"boot_count":1,"node_mv":13466,"node_ma":45,"enclosure_temp_c":29.8,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   70.24 SER loopback: 96-byte frame passed
+   70.28 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13549,"batt_ma":4302,"pv_mv":19500,"pv_w":60,"load_ma":150,"yield_today_kwh":0.17,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.17,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":33.0,"hex_pending":false,"synthetic":true}
+   70.28 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":82,"soc_source":"bms_ble","pack_mv":13544,"pack_ma":4257,"cell_count":4,"cell1_mv":3382,"cell2_mv":3388,"cell3_mv":3391,"cell4_mv":3383,"cell1_temp_c":27,"cell2_temp_c":27,"cell3_temp_c":27,"cell4_temp_c":27,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   70.29 MQTT lran/gatelink/node/state r=0 {"uptime_s":40,"boot_count":1,"node_mv":13494,"node_ma":45,"enclosure_temp_c":30.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   72.84 SER CHANSUM,10,69,60,60000,6000,0,2,0,2,0,-670,-1160,-1150,-1159
+   80.24 SER loopback: 96-byte frame passed
+   80.38 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13573,"batt_ma":4147,"pv_mv":19410,"pv_w":58,"load_ma":150,"yield_today_kwh":0.22,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.22,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":32.4,"hex_pending":false,"synthetic":true}
+   80.38 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":86,"soc_source":"bms_ble","pack_mv":13568,"pack_ma":4102,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":27,"cell2_temp_c":27,"cell3_temp_c":27,"cell4_temp_c":27,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   80.38 MQTT lran/gatelink/node/state r=0 {"uptime_s":50,"boot_count":1,"node_mv":13518,"node_ma":45,"enclosure_temp_c":29.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+   81.62 CMD sim show
+   81.69 SER sim: running node 01 period=10 day=300 gate=90 | 13:07 pv_w=57 batt_ma=4109 soc=86% cs=3 gate_state=1 seq=6 events=0
+   83.88 SER CHAN,80,80629,1000,100,0,1,0,-970,-1160,-1144
+   90.22 SER loopback: 96-byte frame passed
+   90.31 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13591,"batt_ma":3807,"pv_mv":19230,"pv_w":53,"load_ma":150,"yield_today_kwh":0.27,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.26,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":31.0,"hex_pending":false,"synthetic":true}
+   90.32 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":89,"soc_source":"bms_ble","pack_mv":13586,"pack_ma":3762,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":26,"cell2_temp_c":26,"cell3_temp_c":26,"cell4_temp_c":26,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+   90.32 MQTT lran/gatelink/node/state r=0 {"uptime_s":60,"boot_count":1,"node_mv":13536,"node_ma":45,"enclosure_temp_c":28.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  100.28 SER loopback: 96-byte frame passed
+  100.28 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13603,"batt_ma":3295,"pv_mv":18940,"pv_w":47,"load_ma":150,"yield_today_kwh":0.31,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.30,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":29.0,"hex_pending":false,"synthetic":true}
+  100.38 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":92,"soc_source":"bms_ble","pack_mv":13598,"pack_ma":3250,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":25,"cell2_temp_c":25,"cell3_temp_c":25,"cell4_temp_c":25,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  100.38 MQTT lran/gatelink/node/state r=0 {"uptime_s":70,"boot_count":1,"node_mv":13548,"node_ma":45,"enclosure_temp_c":26.7,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  107.13 CMD sim show
+  107.25 SER sim: running node 01 period=10 day=300 gate=90 | 15:09 pv_w=41 batt_ma=2850 soc=93% cs=3 gate_state=1 seq=8 events=0
+  110.27 SER loopback: 96-byte frame passed
+  110.48 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13609,"batt_ma":2635,"pv_mv":18570,"pv_w":38,"load_ma":150,"yield_today_kwh":0.34,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.34,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":26.3,"hex_pending":false,"synthetic":true}
+  110.49 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":94,"soc_source":"bms_ble","pack_mv":13604,"pack_ma":2590,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":23,"cell2_temp_c":23,"cell3_temp_c":23,"cell4_temp_c":23,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  110.49 MQTT lran/gatelink/node/state r=0 {"uptime_s":80,"boot_count":1,"node_mv":13554,"node_ma":45,"enclosure_temp_c":24.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  120.24 SER loopback: 34-byte frame passed
+  120.34 SER loopback: 34-byte frame passed
+  120.34 SER loopback: 96-byte frame passed
+  120.42 MQTT lran/gatelink/event/vehicle_detected r=0 {"event_id":1,"ctx_id":293365251,"event_type":"vehicle_detected","event_code":4,"follow_up":false,"hold_source":"none","direction":"entry","gate_state":"closed","input_bits":0,"detail":0,"uptime_s":90,"synthetic":true}
+  120.42 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":2,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"entry","gate_state":"moving","input_bits":2,"detail":0,"uptime_s":90,"synthetic":true}
+  120.48 MQTT lran/gatelink/gate/state r=0 {"state":"moving","held_open":false,"hold_source":"none","movement_cause":"external_momentary","last_direction":"entry","in_open":false,"in_moving":true,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":2,"synthetic":true}
+  120.48 MQTT lran/gatelink/detect/state r=0 {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-09-27T02:58:22Z","traversal_persisted":true,"synthetic":true}
+  120.48 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13608,"batt_ma":1848,"pv_mv":18130,"pv_w":27,"load_ma":150,"yield_today_kwh":0.37,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.36,"charge_state":4,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":23.1,"hex_pending":false,"synthetic":true}
+  120.49 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":96,"soc_source":"bms_ble","pack_mv":13603,"pack_ma":1803,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":22,"cell2_temp_c":22,"cell3_temp_c":22,"cell4_temp_c":22,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  120.49 MQTT lran/gatelink/node/state r=0 {"uptime_s":90,"boot_count":1,"node_mv":13553,"node_ma":45,"enclosure_temp_c":21.8,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  130.29 SER loopback: 96-byte frame passed
+  130.45 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13599,"batt_ma":992,"pv_mv":17650,"pv_w":16,"load_ma":150,"yield_today_kwh":0.38,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.38,"charge_state":4,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":19.7,"hex_pending":false,"synthetic":true}
+  130.46 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13594,"pack_ma":947,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":20,"cell2_temp_c":20,"cell3_temp_c":20,"cell4_temp_c":20,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  130.46 MQTT lran/gatelink/node/state r=0 {"uptime_s":100,"boot_count":1,"node_mv":13544,"node_ma":45,"enclosure_temp_c":18.9,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  132.64 CMD sim show
+  132.79 SER sim: running node 01 period=10 day=300 gate=90 | 17:11 pv_w=13 batt_ma=772 soc=97% cs=4 gate_state=2 seq=13 events=2
+  132.89 SER CHANSUM,70,129,60,60000,6000,0,1,0,1,0,-970,-1170,-1150,-1159
+  135.28 SER loopback: 34-byte frame passed
+  135.47 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":3,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"entry","gate_state":"open_countdown","input_bits":3,"detail":0,"uptime_s":105,"synthetic":true}
+  140.27 SER loopback: 96-byte frame passed
+  140.49 MQTT lran/gatelink/gate/state r=0 {"state":"open_countdown","held_open":false,"hold_source":"none","movement_cause":"external_momentary","last_direction":"entry","in_open":true,"in_moving":true,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":3,"synthetic":true}
+  140.49 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13584,"batt_ma":79,"pv_mv":17130,"pv_w":3,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":4,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.9,"hex_pending":false,"synthetic":true}
+  140.49 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13579,"pack_ma":34,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":18,"cell2_temp_c":18,"cell3_temp_c":18,"cell4_temp_c":18,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  140.49 MQTT lran/gatelink/node/state r=0 {"uptime_s":110,"boot_count":1,"node_mv":13529,"node_ma":45,"enclosure_temp_c":15.8,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  150.27 SER loopback: 96-byte frame passed
+  150.42 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13578,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  150.43 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13573,"pack_ma":-195,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  150.43 MQTT lran/gatelink/node/state r=0 {"uptime_s":120,"boot_count":1,"node_mv":13523,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  158.15 CMD sim show
+  158.29 SER sim: running node 01 period=10 day=300 gate=90 | 19:14 pv_w=0 batt_ma=-150 soc=97% cs=0 gate_state=3 seq=16 events=3
+  160.27 SER loopback: 96-byte frame passed
+  160.38 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13577,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  160.39 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13572,"pack_ma":-195,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  160.39 MQTT lran/gatelink/node/state r=0 {"uptime_s":130,"boot_count":1,"node_mv":13522,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  165.27 SER loopback: 34-byte frame passed
+  165.47 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":4,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"entry","gate_state":"moving","input_bits":2,"detail":0,"uptime_s":135,"synthetic":true}
+  170.26 SER loopback: 96-byte frame passed
+  170.49 MQTT lran/gatelink/gate/state r=0 {"state":"moving","held_open":false,"hold_source":"none","movement_cause":"external_momentary","last_direction":"entry","in_open":false,"in_moving":true,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":2,"synthetic":true}
+  170.49 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13576,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  170.49 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13571,"pack_ma":-195,"cell_count":4,"cell1_mv":3393,"cell2_mv":3399,"cell3_mv":3402,"cell4_mv":3394,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  170.49 MQTT lran/gatelink/node/state r=0 {"uptime_s":140,"boot_count":1,"node_mv":13521,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  171.91 SER CHAN,168,168629,1000,100,0,1,0,-660,-1160,-1142
+  180.21 SER loopback: 34-byte frame passed
+  180.32 SER loopback: 96-byte frame passed
+  180.42 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":5,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"entry","gate_state":"closed","input_bits":0,"detail":0,"uptime_s":150,"synthetic":true}
+  180.43 MQTT lran/gatelink/gate/state r=0 {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"external_momentary","last_direction":"entry","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":true}
+  180.43 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13575,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  180.43 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13570,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  180.43 MQTT lran/gatelink/node/state r=0 {"uptime_s":150,"boot_count":1,"node_mv":13520,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  183.66 CMD sim show
+  183.75 SER sim: running node 01 period=10 day=300 gate=90 | 21:16 pv_w=0 batt_ma=-150 soc=97% cs=0 gate_state=1 seq=21 events=5
+  190.28 SER loopback: 96-byte frame passed
+  190.38 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13573,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  190.38 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":97,"soc_source":"bms_ble","pack_mv":13568,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  190.38 MQTT lran/gatelink/node/state r=0 {"uptime_s":160,"boot_count":1,"node_mv":13518,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  192.86 SER CHANSUM,130,189,60,60000,6000,0,1,0,1,0,-660,-1160,-1150,-1158
+  200.22 SER loopback: 96-byte frame passed
+  200.39 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13572,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  200.40 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":96,"soc_source":"bms_ble","pack_mv":13567,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  200.40 MQTT lran/gatelink/node/state r=0 {"uptime_s":170,"boot_count":1,"node_mv":13517,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  209.16 CMD sim show
+  209.26 SER sim: running node 01 period=10 day=300 gate=90 | 23:19 pv_w=0 batt_ma=-150 soc=96% cs=0 gate_state=1 seq=23 events=5
+  210.19 SER loopback: 34-byte frame passed
+  210.28 MQTT lran/gatelink/event/vehicle_detected r=0 {"event_id":6,"ctx_id":293365251,"event_type":"vehicle_detected","event_code":4,"follow_up":false,"hold_source":"none","direction":"exit","gate_state":"closed","input_bits":0,"detail":0,"uptime_s":180,"synthetic":true}
+  210.29 SER loopback: 34-byte frame passed
+  210.29 SER loopback: 96-byte frame passed
+  210.38 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":7,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"exit","gate_state":"moving","input_bits":2,"detail":0,"uptime_s":180,"synthetic":true}
+  210.39 MQTT lran/gatelink/gate/state r=0 {"state":"moving","held_open":false,"hold_source":"none","movement_cause":"exit_wand","last_direction":"exit","in_open":false,"in_moving":true,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":2,"synthetic":true}
+  210.39 MQTT lran/gatelink/detect/state r=0 {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-09-27T02:59:52Z","traversal_persisted":true,"synthetic":true}
+  210.39 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13571,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.39,"yield_yesterday_kwh":0.00,"pmax_today_w":60,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  210.39 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":96,"soc_source":"bms_ble","pack_mv":13566,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  210.39 MQTT lran/gatelink/node/state r=0 {"uptime_s":180,"boot_count":1,"node_mv":13516,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  220.27 SER loopback: 96-byte frame passed
+  220.36 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13570,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.39,"pmax_today_w":0,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  220.36 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":96,"soc_source":"bms_ble","pack_mv":13565,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  220.36 MQTT lran/gatelink/node/state r=0 {"uptime_s":190,"boot_count":1,"node_mv":13515,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  225.25 SER loopback: 34-byte frame passed
+  225.38 MQTT lran/gatelink/event/gate_state_change r=0 {"event_id":8,"ctx_id":293365251,"event_type":"gate_state_change","event_code":5,"follow_up":false,"hold_source":"none","direction":"exit","gate_state":"open_countdown","input_bits":3,"detail":0,"uptime_s":195,"synthetic":true}
+  230.24 SER loopback: 96-byte frame passed
+  230.29 MQTT lran/gatelink/gate/state r=0 {"state":"open_countdown","held_open":false,"hold_source":"none","movement_cause":"exit_wand","last_direction":"exit","in_open":true,"in_moving":true,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":3,"synthetic":true}
+  230.30 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13568,"batt_ma":-150,"pv_mv":300,"pv_w":0,"load_ma":150,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.39,"pmax_today_w":0,"yield_total_kwh":0.39,"charge_state":0,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":15.0,"hex_pending":false,"synthetic":true}
+  230.30 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":96,"soc_source":"bms_ble","pack_mv":13563,"pack_ma":-195,"cell_count":4,"cell1_mv":3388,"cell2_mv":3394,"cell3_mv":3397,"cell4_mv":3389,"cell1_temp_c":17,"cell2_temp_c":17,"cell3_temp_c":17,"cell4_temp_c":17,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  230.30 MQTT lran/gatelink/node/state r=0 {"uptime_s":200,"boot_count":1,"node_mv":13513,"node_ma":45,"enclosure_temp_c":15.0,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  234.67 CMD sim show
+  234.75 SER sim: running node 01 period=10 day=300 gate=90 | 01:21 pv_w=0 batt_ma=-150 soc=96% cs=0 gate_state=3 seq=29 events=8
+  235.17 CMD sim stop
+  235.29 SER sim: stopped
+  236.18 CMD loopback corrupt
+  236.25 SER loopback: on, next frame corrupt, passed=29 refused=0 last=Ok
+  237.19 CMD dummy status gatelink
+  237.33 SER loopback: the ladder refused it: BadCrc
+  239.19 CMD dummy status gatelink
+  239.26 SER loopback: 96-byte frame passed
+  239.26 SER dummy: STATUS from gatelink, DEBUG_SYNTHETIC
+  239.38 MQTT lran/gatelink/gate/state r=0 {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"entry","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":true}
+  239.39 MQTT lran/gatelink/detect/state r=0 {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-09-27T02:00:19Z","traversal_persisted":true,"synthetic":true}
+  239.40 MQTT lran/gatelink/solar/state r=0 {"available":true,"batt_mv":13250,"batt_ma":1200,"pv_mv":18500,"pv_w":20,"load_ma":150,"yield_today_kwh":0.12,"yield_yesterday_kwh":0.34,"pmax_today_w":45,"yield_total_kwh":123.45,"charge_state":3,"error":0,"tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":25.0,"hex_pending":false,"synthetic":true}
+  239.40 MQTT lran/gatelink/battery/state r=0 {"available":true,"soc":80,"soc_source":"bms_ble","pack_mv":13240,"pack_ma":1100,"cell_count":4,"cell1_mv":3310,"cell2_mv":3310,"cell3_mv":3310,"cell4_mv":3310,"cell1_temp_c":22,"cell2_temp_c":22,"cell3_temp_c":22,"cell4_temp_c":22,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+  239.40 MQTT lran/gatelink/node/state r=0 {"uptime_s":3602,"boot_count":1,"node_mv":13200,"node_ma":45,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true}
+  241.20 CMD loopback show
+  241.28 SER loopback: on passed=30 refused=1 last=Ok
+  242.21 CMD loopback off
+  242.25 SER loopback: off passed=30 refused=1 last=Ok
+  246.46 NOTE done

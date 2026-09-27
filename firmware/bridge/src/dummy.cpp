@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "lran/schema/gatelink_event_v1.h"
 #include "net_policy.h"
 #include "publish.h"
 #include "registry.h"
@@ -115,42 +114,6 @@ const Field* find_field(const char* name) {
   return nullptr;
 }
 
-bool parse_int(const char* s, int64_t* out) {
-  if (s == nullptr || *s == '\0') return false;
-  char*           end = nullptr;
-  const long long v   = std::strtoll(s, &end, 0);  // base 0: `0x1F` for a flag byte
-  if (end == s || *end != '\0') return false;
-  *out = static_cast<int64_t>(v);
-  return true;
-}
-
-// The node a console names by its spec 16.1 token. Only a registered node: a frame from any
-// other address would have been refused at spec 14 stage 9a.
-bool find_node(const char* token, lran::NodeId* out) {
-  for (const NodeProvision& p : kNodeTable) {
-    char name[16];
-    if (node_topic_name(p.id, name, sizeof(name)) != 0 && std::strcmp(name, token) == 0) {
-      *out = p.id;
-      return true;
-    }
-  }
-  return false;
-}
-
-// Splits `line` in place on spaces. Returns the word count, at most `max`.
-size_t split(char* line, char* words[], size_t max) {
-  size_t n = 0;
-  char*  p = line;
-  while (*p != '\0' && n < max) {
-    while (*p == ' ' || *p == '\t') ++p;
-    if (*p == '\0') break;
-    words[n++] = p;
-    while (*p != '\0' && *p != ' ' && *p != '\t') ++p;
-    if (*p != '\0') *p++ = '\0';
-  }
-  return n;
-}
-
 constexpr const char* kUsage =
     "dummy: help | show | set <field>=<value>|na ... | status <node> | "
     "event <node> <type> [follow]";
@@ -214,25 +177,8 @@ void DummyPublisher::advance(uint32_t now_ms) {
 
 bool DummyPublisher::build_status(lran::NodeId node, lran::CtxId ctx_id, uint32_t now_ms,
                                   RxMessage* out) {
-  // R-5.2d. Set here as well as in the constructor, so no path to the wire skips it.
-  status_.status_reason = static_cast<uint8_t>(lran::StatusReason::DebugSynthetic);
   advance(now_ms);
-  *out = RxMessage{};
-  size_t n = 0;
-  if (lran::schema::serialize(status_, out->payload, sizeof(out->payload), &n) !=
-      lran::Status::Ok) {
-    return false;
-  }
-  out->payload_len = n;
-  out->hdr.type    = lran::MsgType::Status;
-  out->hdr.src     = node;
-  out->hdr.dst     = lran::kNodeBridge;
-  out->hdr.seq     = ++seq_;
-  out->hdr.ctx_id  = ctx_id;
-  out->hdr.schema  = lran::kSchemaGateLinkStatusV1;
-  out->rx_millis   = now_ms;
-  out->dummy       = true;
-  return true;
+  return synthetic_status(status_, node, ctx_id, ++seq_, now_ms, out);
 }
 
 bool DummyPublisher::build_event(lran::NodeId node, uint8_t event_type, bool follow_up,
@@ -248,21 +194,7 @@ bool DummyPublisher::build_event(lran::NodeId node, uint8_t event_type, bool fol
   // spec 7.3 - a follow-up reuses its first edge's event_id; a new event takes the next.
   e.event_id = follow_up ? event_id_ : ++event_id_;
   e.uptime_s = status_.uptime_s;
-  *out = RxMessage{};
-  size_t n = 0;
-  if (lran::schema::serialize(e, out->payload, sizeof(out->payload), &n) != lran::Status::Ok) {
-    return false;
-  }
-  out->payload_len = n;
-  out->hdr.type    = lran::MsgType::Event;
-  out->hdr.src     = node;
-  out->hdr.dst     = lran::kNodeBridge;
-  out->hdr.seq     = ++seq_;
-  out->hdr.ctx_id  = ctx_id;
-  out->hdr.schema  = lran::kSchemaGateLinkEventV1;
-  out->rx_millis   = now_ms;
-  out->dummy       = true;
-  return true;
+  return synthetic_event(e, node, ctx_id, ++seq_, now_ms, out);
 }
 
 DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32_t now_ms,
@@ -270,7 +202,7 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
   char buf[160];
   std::snprintf(buf, sizeof(buf), "%s", line != nullptr ? line : "");
   char*        w[24];
-  const size_t n = split(buf, w, sizeof(w) / sizeof(w[0]));
+  const size_t n = console_split(buf, w, sizeof(w) / sizeof(w[0]));
   if (n == 0 || std::strcmp(w[0], "dummy") != 0) {
     if (cap > 0) reply[0] = '\0';
     return DummyOutcome::NotMine;
@@ -328,7 +260,7 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
         int64_t v = 0;
         const int64_t lo = temp ? INT8_MIN : 0;
         const int64_t hi = temp ? INT8_MAX : kU16;
-        if (!parse_int(value, &v) || v < lo || v > hi) {
+        if (!console_int(value, &v) || v < lo || v > hi) {
           std::snprintf(reply, cap, "dummy: %s takes %lld..%lld", name,
                         static_cast<long long>(lo), static_cast<long long>(hi));
           return DummyOutcome::Refused;
@@ -352,7 +284,7 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
           return DummyOutcome::Refused;
         }
         v = f->na;
-      } else if (!parse_int(value, &v) || v < f->min || v > f->max) {
+      } else if (!console_int(value, &v) || v < f->min || v > f->max) {
         std::snprintf(reply, cap, "dummy: %s takes %lld..%lld", name,
                       static_cast<long long>(f->min), static_cast<long long>(f->max));
         return DummyOutcome::Refused;
@@ -371,7 +303,7 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
     return DummyOutcome::Refused;
   }
   lran::NodeId node = 0;
-  if (n < 3 || !find_node(w[2], &node)) {
+  if (n < 3 || !console_node(w[2], &node)) {
     std::snprintf(reply, cap, "dummy: name a registered node, e.g. gatelink");
     return DummyOutcome::Refused;
   }
@@ -395,7 +327,7 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
     return DummyOutcome::Refused;
   }
   int64_t type = -1;
-  if (!parse_int(w[3], &type)) {
+  if (!console_int(w[3], &type)) {
     for (int v = 0; v <= UINT8_MAX; ++v) {
       const char* name = event_type_name(static_cast<uint8_t>(v));
       if (name != nullptr && std::strcmp(name, w[3]) == 0) {
@@ -420,6 +352,85 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
   std::snprintf(reply, cap, "dummy: EVENT %s id %lu%s from %s", w[3],
                 static_cast<unsigned long>(event_id_), follow ? " follow-up" : "", w[2]);
   return DummyOutcome::Inject;
+}
+
+// ---------------------------------------------------------------------------
+// Shared with the simulator. dummy.h has the reasoning.
+
+bool synthetic_status(lran::schema::GateLinkStatusV1 s, lran::NodeId node, lran::CtxId ctx_id,
+                      lran::Seq seq, uint32_t now_ms, RxMessage* out) {
+  // R-5.2d. Forced here, on a copy, so no caller can hand over an unmarked template.
+  s.status_reason = static_cast<uint8_t>(lran::StatusReason::DebugSynthetic);
+  *out = RxMessage{};
+  size_t n = 0;
+  if (lran::schema::serialize(s, out->payload, sizeof(out->payload), &n) != lran::Status::Ok) {
+    return false;
+  }
+  out->payload_len = n;
+  out->hdr.type    = lran::MsgType::Status;
+  out->hdr.src     = node;
+  out->hdr.dst     = lran::kNodeBridge;
+  out->hdr.seq     = seq;
+  out->hdr.ctx_id  = ctx_id;
+  out->hdr.schema  = lran::kSchemaGateLinkStatusV1;
+  out->rx_millis   = now_ms;
+  out->dummy       = true;
+  return true;
+}
+
+bool synthetic_event(const lran::schema::GateLinkEventV1& e, lran::NodeId node,
+                     lran::CtxId ctx_id, lran::Seq seq, uint32_t now_ms, RxMessage* out) {
+  *out = RxMessage{};
+  size_t n = 0;
+  if (lran::schema::serialize(e, out->payload, sizeof(out->payload), &n) != lran::Status::Ok) {
+    return false;
+  }
+  out->payload_len = n;
+  out->hdr.type    = lran::MsgType::Event;
+  out->hdr.src     = node;
+  out->hdr.dst     = lran::kNodeBridge;
+  out->hdr.seq     = seq;
+  out->hdr.ctx_id  = ctx_id;
+  out->hdr.schema  = lran::kSchemaGateLinkEventV1;
+  out->rx_millis   = now_ms;
+  out->dummy       = true;
+  return true;
+}
+
+bool console_int(const char* s, int64_t* out) {
+  if (s == nullptr || *s == '\0') return false;
+  char*           end = nullptr;
+  const long long v   = std::strtoll(s, &end, 0);  // base 0: `0x1F` for a flag byte
+  if (end == s || *end != '\0') return false;
+  *out = static_cast<int64_t>(v);
+  return true;
+}
+
+// The node a console names by its spec 16.1 token. Only a registered node: a frame from any
+// other address would have been refused at spec 14 stage 9a.
+bool console_node(const char* token, lran::NodeId* out) {
+  for (const NodeProvision& p : kNodeTable) {
+    char name[16];
+    if (node_topic_name(p.id, name, sizeof(name)) != 0 && std::strcmp(name, token) == 0) {
+      *out = p.id;
+      return true;
+    }
+  }
+  return false;
+}
+
+// Splits `line` in place on spaces. Returns the word count, at most `max`.
+size_t console_split(char* line, char* words[], size_t max) {
+  size_t n = 0;
+  char*  p = line;
+  while (*p != '\0' && n < max) {
+    while (*p == ' ' || *p == '\t') ++p;
+    if (*p == '\0') break;
+    words[n++] = p;
+    while (*p != '\0' && *p != ' ' && *p != '\t') ++p;
+    if (*p != '\0') *p++ = '\0';
+  }
+  return n;
 }
 
 }  // namespace bridge

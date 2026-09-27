@@ -35,9 +35,11 @@
 #include "context_roll.h"
 #include "diag_json.h"
 #include "dummy.h"
+#include "gatelink_sim.h"
 #include "hex_proxy.h"
 #include "discovery.h"
 #include "levers.h"
+#include "loopback.h"
 #include "lora_link.h"
 #include "mqtt_esp.h"
 #include "mqtt_transport.h"
@@ -3182,38 +3184,81 @@ bool send_rx(const RxMessage& msg) {
   return true;
 }
 
-// BF-27. The generator and its per-boot context live here, touched only by loop().
+// BF-27. The console's tools and their per-boot contexts live here, touched only by loop().
 namespace {
 DummyPublisher g_dummy;
 lran::CtxId    g_dummy_ctx = 0;
 RxMessage      g_dummy_msg;  // static: an RxMessage is ~240 bytes and loop()'s stack is small
+GateLinkSim    g_sim;
+RxMessage      g_sim_msg;
+Loopback       g_loopback;  // its own ladder, ~4 KB; loopback.h says why not lora_task's
+
+// Zero is the value a node has before it is heard (spec 10.1).
+lran::CtxId fresh_ctx() {
+  lran::CtxId c = 0;
+  while (c == 0) c = esp_random();
+  return c;
+}
+
+// Hands a dummy or simulated frame to app_task. False, with the reason printed, when it
+// did not go.
+bool inject_synthetic(RxMessage& msg, const char* tool) {
+  // R-5.2d's other half. A node heard this boot is real, and synthetic history
+  // interleaved with its own is what the marking exists to prevent. A registry
+  // question, so it is asked here rather than in dummy.cpp (dummy.h).
+  NodeState st;
+  if (registry_state(msg.hdr.src, &st) && st.frames_heard > 0) {
+    Serial.printf("%s: refused - node %02x has been heard this boot\n", tool,
+                  static_cast<unsigned>(msg.hdr.src));
+    return false;
+  }
+  if (g_loopback.enabled()) {
+    static char reply[96];
+    const bool  ok = g_loopback.pass(&msg, millis(), reply, sizeof(reply));
+    Serial.println(reply);
+    if (!ok) return false;
+  }
+  if (!send_rx(msg)) {
+    Serial.printf("%s: refused - the RX queue is full (counted)\n", tool);
+    return false;
+  }
+  return true;
+}
 }  // namespace
 
 void console_line(const char* line) {
   // A fresh context per boot, so spec 7.3's (ctx_id, event_id) does not repeat when the
-  // dummy's event_id restarts. Zero is the value a node has before it is heard (spec 10.1).
-  while (g_dummy_ctx == 0) g_dummy_ctx = esp_random();
+  // dummy's event_id restarts.
+  if (g_dummy_ctx == 0) g_dummy_ctx = fresh_ctx();
   static char        reply[1024];  // `dummy show` is ~800 bytes; static for loop()'s stack
   const DummyOutcome o =
-      g_dummy.handle(line, g_dummy_ctx, millis(), &g_dummy_msg, reply,
-                     sizeof(reply));
-  if (o == DummyOutcome::NotMine) return;
+      g_dummy.handle(line, g_dummy_ctx, millis(), &g_dummy_msg, reply, sizeof(reply));
   if (o == DummyOutcome::Inject) {
-    // R-5.2d's other half. A node heard this boot is real, and synthetic history
-    // interleaved with its own is what the marking exists to prevent. A registry
-    // question, so it is asked here rather than in dummy.cpp (dummy.h).
-    NodeState st;
-    if (registry_state(g_dummy_msg.hdr.src, &st) && st.frames_heard > 0) {
-      Serial.printf("dummy: refused - node %02x has been heard this boot\n",
-                    static_cast<unsigned>(g_dummy_msg.hdr.src));
-      return;
-    }
-    if (!send_rx(g_dummy_msg)) {
-      Serial.println(F("dummy: refused - the RX queue is full (counted)"));
-      return;
-    }
+    if (!inject_synthetic(g_dummy_msg, "dummy")) return;
   }
-  Serial.println(reply);
+  if (o != DummyOutcome::NotMine) {
+    Serial.println(reply);
+    return;
+  }
+  // A context per start, never the dummy's: the two keep separate event_id counters.
+  if (g_sim.handle(line, fresh_ctx(), millis(), reply, sizeof(reply)) != SimOutcome::NotMine) {
+    Serial.println(reply);
+    return;
+  }
+  g_loopback.set_keys(&registry_keys());
+  if (g_loopback.handle(line, reply, sizeof(reply)) != LoopbackOutcome::NotMine) {
+    Serial.println(reply);
+  }
+}
+
+void console_tick() {
+  if (!g_sim.poll(millis(), &g_sim_msg)) return;
+  if (!inject_synthetic(g_sim_msg, "sim")) {
+    // A node heard, a loopback refusal or a full queue. Stopping says so once rather than
+    // every period; `sim start` resumes.
+    g_sim.stop();
+    Serial.println(F("sim: stopped"));
+  }
 }
 
 bool send_tx(const TxMessage& msg) {

@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.74
+**Version:** 0.75
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1621,6 +1621,53 @@ has the sequence.
 **What is not shown.** `node/state` republishes on every frame, because `uptime_s` is in
 it and changes every poll. A real GateLink will do the same. Whether uptime belongs in the change hash is an open question (`HANDOFF.md`).
 
+#### 6.6.3 The simulator and internal loopback, 2026-09-26
+
+**Two more `loop()` console tools, both feeding the dummy's injection.** `sim` is an
+unattended, time-varying GateLink that sends a `STATUS` every period and, if asked, a gate
+cycle's events. `loopback` routes the dummy's and the simulator's frames through wire bytes
+and a receive ladder before `app_task` sees them. `gatelink_sim.{h,cpp}` and
+`loopback.{h,cpp}` are Arduino-free; `test_sim` and `test_loopback` carry them on the host.
+The operator chose both scopes at the start of the session.
+
+```text
+sim start <node> [period=<s>] [day=<s>] [gate=<s>]   defaults 30, 1800 and 0
+sim stop | show
+loopback on | off | corrupt | show
+```
+
+| Decision | What was built | Why not the obvious alternative |
+|---|---|---|
+| Where the values come from | The simulator's own model: a sine sun over a 60 W panel, a coulomb-counted 100 Ah pack, temperatures that follow the sun, yield rolled at simulated midnight | §6.6 forbids sharing simnode's generator. A decoder fed its own encoder's idea of a plausible node tests nothing |
+| How fast a day passes | `day` sets the length of a simulated day, 1800 s by default. `uptime_s` and the traversal age run in real seconds | A real day leaves the graphs flat for a bench session. The node's own clocks stay real, because the policy computes absolute times from them (spec 7.2.9) |
+| Whether it sends events | Only with `gate` set, at least 90 s. One cycle is `VEHICLE_DETECTED`, then `GATE_STATE_CHANGE` to `MOVING`, `OPEN_COUNTDOWN`, `MOVING` and `CLOSED` over 60 s | Events drive email and SMS. An unattended source of them is what an automation that forgot to filter on `synthetic` would send |
+| How it is marked and refused | As the dummy is: `synthetic_status()` forces `DEBUG_SYNTHETIC`, and every frame is `RxMessage::dummy`. A bench node is refused at `start`. A node heard this boot is refused per frame, and that refusal stops the simulator | R-5.2d. The refusal stops the run rather than repeating every period |
+| Its context | A fresh `ctx_id` per `start`, apart from the dummy's | The two keep separate `event_id` counters, and one context would repeat spec 7.3's key |
+| A late `loop()` | One `STATUS`, then the cadence resumes | A burst to catch up publishes the same document several times in a second |
+| Which ladder the loopback uses | Its own `RxLadder`, reading the registry's `PeerKeys` | `lora_task`'s ladder is unlocked, and its counters are what HA charts as the radio's. The cost is the second ladder's reassembly pool |
+| What the loopback proves | The codec's output passes spec 14's stages to `app_task` in the shipped image. A payload that comes back different is refused and counted. `loopback corrupt` flips one bit of the next frame, and the reply names the status | A self-test that prints a verdict and publishes nothing would not show the policy the ladder's copy |
+
+**RF echo is not built.** PRD R-5.4a asks for one, and the bridge neither sends nor
+answers `PING` (spec 6.6). A responder, fragmented echoes included, changes `lora_task` and
+`app_task`, and the operator left it for later (`HANDOFF.md`).
+
+**The cost, measured on the `heltec` build.** Static RAM rose 4856 bytes, to 76.8 %, and
+flash rose 10 016 bytes. Most of the RAM is the loopback ladder's reassembly pool (§5.2).
+
+**On the bench, 2026-09-26**, against the sandbox broker and HA, with the bridge on
+`ffaf22b`. The run was `sim start gatelink period=10 day=300 gate=90` with the loopback on,
+for 205 s, with GateLink's availability set `online` by hand and restored to `offline`
+after. The engineering log has the run, and
+[`data/bf27-sim-bench-2026-09-26.log`](./data/bf27-sim-bench-2026-09-26.log) the capture.
+
+| Property | Shown by |
+|---|---|
+| The model moves | Simulated time ran 09:00 to 01:21. HA's `pv_power` rose from 20 to 60 W and fell to 0; `mppt_charge_state` went 3, 4, 0 |
+| Events only on request, in order | Two cycles, 90 s apart: 8 events, `event_id` 1 to 8 under one `ctx_id`, each published once and unretained. HA's gate sensor read `moving`, `open_countdown`, `moving`, `closed`, and `last_direction` alternated |
+| Marked | Every document and event from the run carried `synthetic: true` |
+| Loopback passes | 29 simulated frames and one dummy frame passed the ladder, 96-byte `STATUS` and 34-byte `EVENT` frames alike |
+| Loopback refuses | After `loopback corrupt`, the next dummy frame was refused as `BadCrc`, and the one after it passed |
+
 ### 6.7 The configuration path — BF-32, built 2026-09-21
 
 **Spec §16.7 from Home Assistant to the node and back, in four files.** `config_json` reads
@@ -1836,7 +1883,7 @@ are host-tested only.
 | V-B8 events fire once | HA restart + discovery refresh with an event in history | B4. **Met 2026-09-24** on synthetic events, §6.6.2 |
 | V-B9 OTA + rollback | Deliberately bad image | B2 |
 | V-B10 version tolerance | simnode announcing N−1, then N−2 | B3b |
-| V-B11 fleet with no node hardware | Dummy publish + simulators | B4. **Met 2026-09-24 for GateLink**, by dummy publish, with the operator. WellLink waits for its schema, and BF-27's bridge-side simulators do not gate it, §8.2 |
+| V-B11 fleet with no node hardware | Dummy publish + simulators | B4. **Met 2026-09-24 for GateLink**, by dummy publish, with the operator. WellLink waits for its schema. BF-27's GateLink simulator was built 2026-09-26 and did not gate it, §6.6.3 |
 | V-B12 LoRa PER, WiFi idle vs. saturated | A UDP blaster loading the bridge's WiFi, against a known frame sequence (**M22**, §8.1.2) | **B4** — moved from B3b 2026-09-17, §8.1. **Met 2026-09-23**, §8.1.3 |
 | §14 discard ladder, stages 2–9 | `simnode` `ROLE_FAULT`, §10.5 catalogue | B3a by hand; B3b scripted |
 | §14 stage 1 (PHY CRC) | **Not injectable** — collect at the far edge of the B1 range walk (§10.5) | B1 |
@@ -2954,6 +3001,8 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.75** — **New §6.6.3**: BF-27's GateLink simulator and internal loopback, built and
+  run on the bench. RF echo is not built. §7.1's V-B11 row names the simulator.
 - **v0.74** — **§6.7.8's first restart edge ran on the bench.** A reset after a PHY commit
   drew the rebuilt `config/ack` after the reboot, as a second copy of an answer already
   sent. The other two edges stay host-tested.

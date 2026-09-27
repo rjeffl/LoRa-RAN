@@ -236,7 +236,7 @@ void loop() {
   bridge::blaster_poll();
   vTaskDelay(1);
 #else
-  // BF-27's serial console (dummy.h). Lines are read here and handed over whole; a line
+  // BF-27's serial console (dummy.h, gatelink_sim.h, loopback.h). Lines are read here and handed over whole; a line
   // longer than the buffer is dropped with a note rather than acted on in part. 50 ms is
   // quick enough for a person typing and costs nothing at this priority.
   static char   line[160];
@@ -259,6 +259,7 @@ void loop() {
       overflow = true;
     }
   }
+  bridge::console_tick();  // the simulator (gatelink_sim.h); 50 ms is ample for a period in s
   vTaskDelay(pdMS_TO_TICKS(50));
 #endif
 }
