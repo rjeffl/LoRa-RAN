@@ -1071,7 +1071,7 @@ entry argues each choice.
 | Next due | One `poll_interval_s` after the send. A zero interval is held to 1 s |
 | Order | The most overdue enrolled row; a never-polled row first; ties in `kNodeTable` order |
 | `POLL` | `poll_flags` bit 0, the node's learned `ctx_id` (0 until heard), no MAC, `seq` from the scheduler's own counter |
-| OTA | **An upload in progress holds every exchange**, a scheduled poll included. **Any exchange awaiting its answer, or a command or configuration job waiting in its queue, keeps `lora_task_idle()` false** (R-5.3d). `air_turn.h` states both halves, and `air_idle()` is the OTA side. Until 2026-09-26 only an outstanding poll held an upload, so one could start between a command's retries |
+| OTA | **An upload in progress holds every exchange**, a scheduled poll included. **An upload waits while any exchange awaits its answer or any command or configuration job waits in its queue** (R-5.3d); espota's invitations last about 100 s, so it starts in the next idle gap. `ota_task` claims the air under the scheduler's lock before each `ArduinoOTA.handle()`, so no exchange starts while an upload may be starting. `air_turn.h` states both halves, and `air_idle()` is the OTA side. Until 2026-09-26 only an outstanding poll held an upload, so one could start between a command's retries |
 | One exchange on the air | **An outstanding poll holds every other exchange**: a command, a roll, a `CONFIG`, a HEX request and the start of a PHY change. **Each of those holds the others too**, which until 2026-09-25 a command and a `CONFIG` did not: both could be in flight to one node, each with a seq from the same command space. **No scheduled poll starts** while one of those waits for its answer, while a PHY change blocks traffic, or while a command or configuration job waits in its queue. `air_turn.h` states the rule, and `exchange_may_start()` is the only place it is checked. **A PHY change's step-6 `POLL`s go one at a time**, each held until the last is answered or its `config_ack_timeout_ms` has passed. The engineering log's *poll clash* entry, 2026-09-24, has the defect it closes |
 | Reply windows | **A command's, a roll's, a `CONFIG`'s, a HEX request's and a PHY change's window opens when the frame leaves `lora_task`**, not when `sched_task` queues it, because media access can hold a frame for seconds (spec §12.3). `lora_tx_finished()` reports each ticketed frame, sent or not, and the path's `next()` waits for that report, for 10 s at most. **The scheduled poll is the exception**: its window and its answer time count from the queue, and `poll_reply_timeout_ms` above is sized for that. The engineering log's 2026-09-25 *air-timing defects* entry has the defect this closes |
 
@@ -2953,7 +2953,7 @@ that drifts is the one that gets followed.
 
 - **v0.73** — **An OTA upload waits for every exchange, not only a scheduled poll.**
   §6.1.1's OTA row now says an upload waits for any exchange awaiting its answer and for
-  any job queued, and holds every exchange while it runs. Before, an upload could start
+  any job queued, and holds every exchange while one may be starting or running. Before, an upload could start
   between a command's retries and reboot the bridge (R-5.3d).
 
 - **v0.72** — **§2.2 no longer calls the modules' powers certified.** They are the

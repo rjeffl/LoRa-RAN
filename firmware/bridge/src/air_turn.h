@@ -63,9 +63,10 @@ inline bool exchange_may_start(const AirTurn& a) {
 }
 
 // An OTA upload may start: no exchange in flight, and none waiting to start. A waiting
-// request counts because the reboot would drop it from its queue unanswered. A PHY change
-// holds OTA for as long as it blocks traffic, up to phy_trial_s; espota retries its
-// invitation for several seconds and then gives up, so an upload refused here is retried by the operator.
+// request counts because the reboot would drop it from its queue unanswered. espota sends
+// its invitation up to 10 times, 10 s apart by default, so an upload waits out a command
+// and starts in the next idle gap. A PHY change blocks traffic for up to phy_trial_s,
+// which can outlast that; the upload then fails and the operator retries it.
 inline bool air_idle(const AirTurn& a) {
   return !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
          !a.phy_blocks_traffic && !a.hex_busy && !a.request_waiting;

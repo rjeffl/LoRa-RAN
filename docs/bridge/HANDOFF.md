@@ -2,9 +2,10 @@
 
 **Written 2026-09-26 by the session that closed group 1's OTA gap.** An OTA upload now
 waits for every exchange and every queued job, not only a scheduled poll, and no exchange
-starts during an upload (R-5.3d, Impl Plan §6.1.1). It is host-tested and not flashed.
-The engineering log's *OTA upload could start between a command's retries* entry has the
-one window left open.
+starts during an upload (R-5.3d, Impl Plan §6.1.1). `ota_task` claims the air before each
+`ArduinoOTA.handle()`, so a command always wins. It is host-tested and not flashed. The
+engineering log's *OTA upload could start between a command's retries* entry has the
+reasoning.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering

@@ -1306,22 +1306,35 @@ request and a PHY change had the same gap.
 **The rule already existed for the air, so OTA now reads it.** `air_turn.h` gains
 `air_idle()`: no exchange awaiting its answer, and no command or configuration job
 waiting in its queue. A waiting job counts because the reboot drops it from its queue
-unanswered. `lora_task_idle()` takes the scheduler's lock and asks it. `AirTurn` also gains
+unanswered. `ota_task` asks it under the scheduler's lock. `AirTurn` also gains
 `ota_in_progress`, which `poll_may_start()` and `exchange_may_start()` both refuse on.
 Before, only the scheduled poll checked it, so a command could start during an upload.
-`g_poll_outstanding`, the atomic that carried the old answer, is gone.
+`g_poll_outstanding`, the atomic that carried the old answer, is gone, and so is
+`lora_task_idle()`, which `ota_claim_air()` replaces.
 
-**A PHY change now holds OTA for as long as it blocks traffic**, up to `phy_trial_s`.
-espota retries its invitation for several seconds and then gives up, so an upload
-attempted during a change fails and the operator retries it. That is R-5.3d as written.
+**An upload waits; it is not refused.** espota sends its invitation up to 10 times, 10 s
+apart by default, so it keeps asking for about 100 s. A command at the defaults spends at
+most four 3000 ms ACK windows, plus media access, so the upload starts in the idle gap
+after it. **A PHY change can outlast espota**: it holds OTA for as long as it blocks
+traffic, up to `phy_trial_s`. An upload attempted during one fails and the operator
+retries it. That is R-5.3d as written.
 
-**One window stays open.** `ota_task` reads `lora_task_idle()` and then calls
-`ArduinoOTA.handle()`, which sets `ota_in_progress()` only when its start callback runs.
-An exchange that starts between the two reads is not held. With a password set, an
-invitation takes two `handle()` calls, and the second is not made once an exchange has
-started, so most of that gap closes itself. What remains is the part of one `handle()`
-call before the start callback. Closing it needs a hook ArduinoOTA does not expose.
+**The claim closes the gap at the start of an upload.** `ota_in_progress()` turns true
+only when ArduinoOTA's start callback runs, inside the `handle()` call that begins the
+upload. A command started before that callback would be cut off by the reboot. So
+`ota_claim_air()` sets `g_ota_claim` under the scheduler's lock when it finds the air
+idle, `AirTurn` reads the claim as an upload in progress, and `ota_task` clears it when
+`ota_service()` returns. **The command always wins.** With a password set, an invitation
+takes two `handle()` calls, and the claim is released between them. A command that
+starts in that gap stops the second call, so espota reports no answer to its
+authentication and the operator retries.
 
-**Verified:** bridge 499 host tests, two of them new in `test_air_turn`, and the `heltec`
-build. No bench run: the defect needs an upload started inside a command's retry window,
+**A deferred upload may cost one of espota's retries**, from reading ArduinoOTA's source,
+not a bench run. espota opens a new socket for each invitation. The invitations that
+arrived while `handle()` was held wait in the UDP buffer, and the first one answered is
+the oldest, whose socket is closed. The live invitation may then arrive while ArduinoOTA
+expects an `AUTH` and be dropped; espota's next invitation, 10 s later, succeeds.
+
+**Verified:** bridge host tests, two of them new in `test_air_turn`, and the `heltec`
+build. The claim itself is in `task_runtime.cpp`, which builds for the target only. No bench run: the defect needs an upload started inside a command's retry window,
 and V-B9's procedure does not time one.

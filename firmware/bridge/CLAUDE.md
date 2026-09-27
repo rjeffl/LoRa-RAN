@@ -52,8 +52,8 @@ and exists nowhere now.
 `scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Four things to
 keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a registry call or
 a queue send**, so it never nests with the registry's; a bench row is polled only after it
-has been heard; `lora_task_idle()` is false while any exchange awaits its answer or any
-job waits in its queue, and an OTA upload in progress holds every exchange (R-5.3d); and
+has been heard; an OTA upload waits while any exchange awaits its answer or any job waits
+in its queue, and `ota_task`'s claim holds every exchange while one may start (R-5.3d); and
 **one exchange is on the air at a time** (`air_turn.h`): an outstanding poll holds every other exchange, every exchange holds every other, and any exchange holds
 the next scheduled poll. A second frame 211 ms after a `POLL` lost both frames on
 2026-09-24. **A new path that transmits asks `exchange_may_start()` before it starts**, and

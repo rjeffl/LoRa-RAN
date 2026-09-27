@@ -229,6 +229,11 @@ std::atomic<bool> g_phy_busy{false};
 // whose readback has not yet started. app_task sets a bit; sched_config() takes it when
 // the path is free.
 std::atomic<uint32_t> g_config_change_pending{0};
+
+// R-5.3d. Set by ota_task, under the scheduler's lock, for as long as it is inside
+// ota_service() having found the air idle. Read as an upload in progress, so no exchange
+// starts while ArduinoOTA may be answering an invitation (ota_claim_air()).
+std::atomic<bool> g_ota_claim{false};
 RebootWatch           g_reboot_watch;  // app_task alone
 
 // BF-28, BF-29, BF-30 - the HEX proxy, each node's write arm and its charge readback, under
@@ -490,13 +495,24 @@ AirTurn air_turn_locked() {
   a.config_busy        = g_config_path.busy();
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
   a.hex_busy           = g_hex.busy();
-  a.ota_in_progress    = ota_in_progress();
+  a.ota_in_progress    = ota_in_progress() || g_ota_claim.load();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
                       (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
                       (g_hex_queue != nullptr && uxQueueMessagesWaiting(g_hex_queue) > 0) ||
                       g_config_change_pending.load() != 0;  // D69
   return a;
+}
+
+// R-5.3d, for ota_task. True, with the air claimed, when lora_task is idle and nothing is
+// in flight or waiting: no frame waiting or on the air, the radio receiving, no
+// reassembly set incomplete (BF-16), and air_idle(). The caller clears g_ota_claim once
+// ota_service() returns.
+bool ota_claim_air() {
+  SchedLock lock;
+  const bool idle = lora_idle() && air_idle(air_turn_locked());
+  g_ota_claim     = idle;
+  return idle;
 }
 
 // ---------------------------------------------------------------------------
@@ -2925,10 +2941,19 @@ void app_task(void*) {
 // That is correct at this priority. What it costs is flash writes, which stall both
 // cores briefly while the cache is disabled; lora_task can miss a frame during an
 // upload, and R-5.3d's deferral is what keeps an upload from starting mid-transaction.
+//
+// THE CLAIM CLOSES THE LAST GAP. ota_in_progress() turns true only when ArduinoOTA's start
+// callback runs, inside the handle() call that begins the upload. An exchange that
+// sched_task started before that callback would be cut off by the reboot. So ota_task
+// claims the air, under the same lock sched_task decides under, before it calls handle(),
+// and releases it after. A command therefore always wins: once it has started, handle()
+// is not called until it finishes.
 void ota_task(void*) {
   for (;;) {
-    ota_service(wifi_connected(), lora_task_idle(), g_mqtt_up, g_tasks_started,
-                lora_radio_ready(), millis());
+    const bool idle = ota_claim_air();
+    ota_service(wifi_connected(), idle, g_mqtt_up, g_tasks_started, lora_radio_ready(),
+                millis());
+    g_ota_claim = false;
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -3331,10 +3356,6 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() {
-  SchedLock lock;
-  return lora_idle() && air_idle(air_turn_locked());
-}
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 
