@@ -116,7 +116,7 @@ const Field* find_field(const char* name) {
 
 constexpr const char* kUsage =
     "dummy: help | show | set <field>=<value>|na ... | status <node> | "
-    "event <node> <type> [follow]";
+    "event <node> <type> [follow] [detail=<n>]";
 
 }  // namespace
 
@@ -182,6 +182,7 @@ bool DummyPublisher::build_status(lran::NodeId node, lran::CtxId ctx_id, uint32_
 }
 
 bool DummyPublisher::build_event(lran::NodeId node, uint8_t event_type, bool follow_up,
+                                 uint16_t detail,
                                  lran::CtxId ctx_id, uint32_t now_ms, RxMessage* out) {
   advance(now_ms);
   lran::schema::GateLinkEventV1 e;
@@ -191,6 +192,7 @@ bool DummyPublisher::build_event(lran::NodeId node, uint8_t event_type, bool fol
   e.direction   = status_.last_direction;
   e.gate_state  = status_.gate_state;
   e.input_bits  = status_.input_bits;
+  e.detail      = detail;
   // spec 7.3 - a follow-up reuses its first edge's event_id; a new event takes the next.
   e.event_id = follow_up ? event_id_ : ++event_id_;
   e.uptime_s = status_.uptime_s;
@@ -321,9 +323,21 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
     return DummyOutcome::Inject;
   }
 
-  // event <node> <type> [follow]
-  if (n < 4 || n > 5 || (n == 5 && std::strcmp(w[4], "follow") != 0)) {
-    std::snprintf(reply, cap, "dummy: event <node> <type> [follow]");
+  // event <node> <type> [follow] [detail=<n>]. `detail` is what a BOOT's reset cause
+  // travels in (spec 8.14), so the bench can show one named.
+  bool    follow = false;
+  int64_t detail = 0;
+  bool    usage  = n < 4 || n > 6;
+  for (size_t i = 4; !usage && i < n; ++i) {
+    if (std::strcmp(w[i], "follow") == 0 && !follow) {
+      follow = true;
+    } else if (std::strncmp(w[i], "detail=", 7) != 0 || !console_int(w[i] + 7, &detail) ||
+               detail < 0 || detail > UINT16_MAX) {
+      usage = true;
+    }
+  }
+  if (usage) {
+    std::snprintf(reply, cap, "dummy: event <node> <type> [follow] [detail=<n>]");
     return DummyOutcome::Refused;
   }
   int64_t type = -1;
@@ -340,12 +354,12 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
     std::snprintf(reply, cap, "dummy: no event type '%s' (spec 8.9, lower case)", w[3]);
     return DummyOutcome::Refused;
   }
-  const bool follow = n == 5;
   if (follow && event_id_ == 0) {
     std::snprintf(reply, cap, "dummy: a follow-up needs an event before it");
     return DummyOutcome::Refused;
   }
-  if (!build_event(node, static_cast<uint8_t>(type), follow, ctx_id, now_ms, out)) {
+  if (!build_event(node, static_cast<uint8_t>(type), follow, static_cast<uint16_t>(detail),
+                   ctx_id, now_ms, out)) {
     std::snprintf(reply, cap, "dummy: event did not encode");
     return DummyOutcome::Refused;
   }

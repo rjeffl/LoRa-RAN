@@ -182,8 +182,9 @@ class PublicationPolicy {
     UtcSeconds traversal       = 0;
   };
 
+  // `hashed` is how much of the document decides whether it changed; 0 means all of it.
   void offer(size_t node_index, Domain d, const char* node_token, size_t len,
-             uint32_t now_ms, PublishSink& sink);
+             uint32_t now_ms, PublishSink& sink, size_t hashed = 0);
 
   // The events published, per node, most recent kEventMemory of them. A retransmission
   // follows its original by one CAD backoff, at most backoff_max_ms (1500 ms on Envelope A,

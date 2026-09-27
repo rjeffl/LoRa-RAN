@@ -130,6 +130,66 @@ const char* status_reason_name(uint8_t v) {
 }
 
 // spec 7.2.7 bits 7:6.
+// Victron's CS and ERR codes, spec 7.2.2's pass-through fields, named from osh-labs'
+// VeDirect_Arduino_Spec.md sections 3.3 and 3.5, the VE.Direct reference of record. The
+// bridge names them because it holds the MPPT's semantics (spec 7.6), and HA showed `3`
+// for bulk. The raw code stays beside the name, so an unlisted code reads null here and
+// its number is still on the topic.
+const char* mppt_charge_state_name(uint8_t v) {
+  switch (v) {
+    case 0:   return "off";
+    case 2:   return "fault";
+    case 3:   return "bulk";
+    case 4:   return "absorption";
+    case 5:   return "float";
+    case 7:   return "equalize";
+    case 245: return "starting";
+    case 247: return "auto_equalize";
+    case 252: return "external_control";
+  }
+  return nullptr;
+}
+
+const char* mppt_error_name(uint8_t v) {
+  switch (v) {
+    case 0:   return "no_error";
+    case 2:   return "battery_voltage_high";
+    case 17:  return "charger_temperature_high";
+    case 18:  return "charger_over_current";
+    case 19:  return "charger_current_reversed";
+    case 20:  return "bulk_time_limit";
+    case 21:  return "current_sensor";
+    case 26:  return "terminals_overheated";
+    case 33:  return "input_voltage_high";
+    case 34:  return "input_current_high";
+    case 38:  return "input_shutdown_battery_voltage";
+    case 39:  return "input_shutdown_current_while_off";
+    case 65:  return "lost_communication";
+    case 67:  return "sync_charging_config";
+    case 68:  return "bms_connection_lost";
+    case 116: return "calibration_data_lost";
+    case 117: return "invalid_firmware";
+    case 119: return "user_settings_invalid";
+  }
+  return nullptr;
+}
+
+// Spec 8.14's names, lowercased. Only the low byte is the cause; the high byte is reserved
+// and ignored (root rule 5).
+const char* reset_cause_name(uint16_t detail) {
+  switch (static_cast<lran::ResetCause>(detail & 0xFFu)) {
+    case lran::ResetCause::Unknown:       return "unknown";
+    case lran::ResetCause::PowerOn:       return "power_on";
+    case lran::ResetCause::RebootCommand: return "reboot_command";
+    case lran::ResetCause::Software:      return "software";
+    case lran::ResetCause::Watchdog:      return "watchdog";
+    case lran::ResetCause::Panic:         return "panic";
+    case lran::ResetCause::Brownout:      return "brownout";
+    case lran::ResetCause::External:      return "external";
+  }
+  return "unknown";  // spec 8.14 - a receiver treats a value it does not know as UNKNOWN
+}
+
 const char* soc_source_name(uint8_t bms_flags) {
   switch (bms_flags >> 6) {
     case 0: return "bms_ble";
@@ -276,10 +336,10 @@ void PublicationPolicy::forget_published() {
 }
 
 void PublicationPolicy::offer(size_t ni, Domain d, const char* node_token, size_t len,
-                              uint32_t now_ms, PublishSink& sink) {
+                              uint32_t now_ms, PublishSink& sink, size_t hashed) {
   if (len == 0) return;  // did not fit; JsonObject left it empty rather than truncated
   Slot&          slot = slots_[ni][static_cast<size_t>(d)];
-  const uint32_t h    = fnv1a(doc_, len);
+  const uint32_t h    = fnv1a(doc_, hashed == 0 || hashed > len ? len : hashed);
 
   // Impl Plan 6.3 - publish on change, with a heartbeat. The hash stands in for the last
   // document, which would cost a kilobyte per node and domain to keep. Two documents that
@@ -353,6 +413,10 @@ void PublicationPolicy::on_event(const NodeInfo& info, const lran::Header& hdr,
   str_or_null(j, "gate_state", gate_state_name(e.gate_state));
   j.u32("input_bits", e.input_bits);
   j.u32("detail", e.detail);  // spec 7.3 - event-specific, passed through
+  // Only BOOT's detail has a name. It is what shows a boot loop in HA (spec 8.14).
+  if (e.event_type == static_cast<uint8_t>(lran::EventType::Boot)) {
+    j.str("reset_cause", reset_cause_name(e.detail));
+  }
   j.u32("uptime_s", e.uptime_s);
   j.boolean("synthetic", synthetic);  // R-5.2d - see on_event() in publish.h
   const size_t len = j.finish();
@@ -401,7 +465,6 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       return;
     }
     JsonObject j(doc_, sizeof(doc_));
-    j.u32("uptime_s", h.uptime_s);
     // spec 7.5 carries no sentinel for boot_count; spec 7.2.4's `0 if unavailable` is the
     // same field's rule in the node block, and a node restarting from zero boots is 1.
     if (h.boot_count == 0) j.null("boot_count"); else j.u32("boot_count", h.boot_count);
@@ -413,7 +476,10 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     tenths_or_null(j, "last_snr_db", h.last_snr_db10);
     j.u32("proto_ver", h.proto_ver);
     j.boolean("debug", (h.health_flags & lran::schema::kHealthFlagDebugActive) != 0);
-    offer(ni, Domain::Health, token, j.finish(), now_ms, sink);
+    // Last and outside the hash: see the node document below.
+    const size_t hashed = j.length();
+    j.u32("uptime_s", h.uptime_s);
+    offer(ni, Domain::Health, token, j.finish(), now_ms, sink, hashed);
     return;
   }
 
@@ -509,7 +575,9 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       j.u32("pmax_today_w", s.pmax_today);
       j.decimal("yield_total_kwh", s.yield_total, 2);
       j.u32("charge_state", s.charge_state);  // spec 7.2.2 - Victron's, passed through
+      str_or_null(j, "charge_state_name", mppt_charge_state_name(s.charge_state));
       j.u32("error", s.mppt_err);
+      str_or_null(j, "error_name", mppt_error_name(s.mppt_err));
       j.u32("tracker", s.mppt_tracker);
       j.boolean("load_on", (s.mppt_flags & kMpptLoadOn) != 0);
       j.boolean("charge_inhibited", (s.mppt_flags & kMpptChargeInhibited) != 0);
@@ -517,7 +585,7 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     } else {
       static const char* const kKeys[] = {
           "batt_mv", "batt_ma", "pv_mv", "pv_w", "load_ma", "yield_today_kwh",
-          "yield_yesterday_kwh", "pmax_today_w", "yield_total_kwh", "charge_state", "error",
+          "yield_yesterday_kwh", "pmax_today_w", "yield_total_kwh", "charge_state", "charge_state_name", "error", "error_name",
           "tracker", "load_on", "charge_inhibited", "temp_c"};
       for (const char* k : kKeys) j.null(k);
     }
@@ -598,7 +666,6 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
   // --- node, spec 7.2.4 and 7.2.8 ---
   {
     JsonObject j(doc_, sizeof(doc_));
-    j.u32("uptime_s", s.uptime_s);
     if (s.boot_count == 0) j.null("boot_count"); else j.u32("boot_count", s.boot_count);
     j.u32("node_mv", s.node_mv);
     j.i32("node_ma", s.node_ma);
@@ -611,7 +678,13 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     j.boolean("shutdown_latch", (s.node_flags & kNodeShutdownLatch) != 0);
     str_or_null(j, "reason", status_reason_name(s.status_reason));
     j.boolean("synthetic", synthetic);
-    offer(ni, Domain::Node, token, j.finish(), now_ms, sink);
+    // Impl Plan 6.6.2 - uptime_s moves on every poll, so hashing it published this document
+    // on every frame. It is written last and left out of the hash, chosen with the operator
+    // on 2026-09-27. The heartbeat keeps it current to republish_interval_s, and a reboot
+    // still publishes, because boot_count changes with it.
+    const size_t hashed = j.length();
+    j.u32("uptime_s", s.uptime_s);
+    offer(ni, Domain::Node, token, j.finish(), now_ms, sink, hashed);
   }
 }
 

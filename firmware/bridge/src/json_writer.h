@@ -99,6 +99,10 @@ class JsonObject {
     first_ = false;
   }
 
+  // The bytes written so far. BF-24's publish-on-change hashes a document up to a mark,
+  // so a key written after it does not count as a change.
+  size_t length() const { return len_; }
+
   size_t finish() {
     append("}");
     if (!ok_) {

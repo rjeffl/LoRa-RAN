@@ -1,0 +1,87 @@
+09:34:51 levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+09:34:51 [   751][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+09:35:53 levers: gen 4 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 1 h, simnode diag on
+09:35:54 levers: gen 6 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 1 h, simnode diag on
+09:35:55 poll: f1 answered in 964 ms (window 10000 ms)
+09:35:56 roll: f1 rolled to ctx 0x69ecb2de after 1 attempt(s)
+09:35:57 hex: f1 seq 1 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:35:59 hex: f1 seq 2 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:01 hex: f1 seq 3 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:04 hex: f1 seq 4 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:06 hex: f1 seq 5 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:09 hex: f1 seq 6 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:13 hex: f1 seq 7 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:15 hex: f1 seq 8 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:17 hex: f1 seq 9 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:19 hex: f1 seq 10 read -> answered status 0 result 0, sched stack 2448 bytes free
+09:36:56 poll: f1 answered in 968 ms (window 10000 ms)
+09:37:56 poll: f1 answered in 966 ms (window 10000 ms)
+09:39:00 poll: f1 answered in 3250 ms (window 10000 ms)
+09:39:58 poll: f1 answered in 1790 ms (window 10000 ms)
+09:40:57 poll: f1 answered in 962 ms (window 10000 ms)
+09:41:57 poll: f1 answered in 1128 ms (window 10000 ms)
+09:42:57 poll: f1 answered in 966 ms (window 10000 ms)
+09:43:57 poll: f1 answered in 964 ms (window 10000 ms)
+09:44:57 poll: f1 answered in 966 ms (window 10000 ms)
+09:45:57 poll: f1 answered in 968 ms (window 10000 ms)
+09:46:57 poll: f1 answered in 966 ms (window 10000 ms)
+09:47:58 poll: f1 answered in 967 ms (window 10000 ms)
+09:48:58 poll: f1 answered in 970 ms (window 10000 ms)
+09:49:58 poll: f1 answered in 962 ms (window 10000 ms)
+09:50:58 poll: f1 answered in 965 ms (window 10000 ms)
+09:51:58 poll: f1 answered in 963 ms (window 10000 ms)
+09:52:58 poll: f1 answered in 961 ms (window 10000 ms)
+09:53:58 poll: f1 answered in 959 ms (window 10000 ms)
+09:54:59 poll: f1 answered in 1317 ms (window 10000 ms)
+09:55:59 poll: f1 answered in 2001 ms (window 10000 ms)
+09:56:59 poll: f1 answered in 966 ms (window 10000 ms)
+09:57:59 poll: f1 answered in 964 ms (window 10000 ms)
+09:58:59 poll: f1 answered in 962 ms (window 10000 ms)
+10:00:01 poll: f1 answered in 2994 ms (window 10000 ms)
+10:00:59 poll: f1 answered in 962 ms (window 10000 ms)
+10:01:59 poll: f1 answered in 960 ms (window 10000 ms)
+10:02:59 poll: f1 answered in 958 ms (window 10000 ms)
+10:03:59 poll: f1 answered in 970 ms (window 10000 ms)
+10:04:59 poll: f1 answered in 966 ms (window 10000 ms)
+10:05:59 poll: f1 answered in 966 ms (window 10000 ms)
+10:06:59 poll: f1 answered in 964 ms (window 10000 ms)
+10:07:59 poll: f1 answered in 1019 ms (window 10000 ms)
+10:08:59 poll: f1 answered in 971 ms (window 10000 ms)
+10:10:00 poll: f1 answered in 965 ms (window 10000 ms)
+10:11:00 poll: f1 answered in 963 ms (window 10000 ms)
+10:12:00 poll: f1 answered in 961 ms (window 10000 ms)
+10:13:00 poll: f1 answered in 959 ms (window 10000 ms)
+10:14:01 poll: f1 answered in 1306 ms (window 10000 ms)
+10:15:02 poll: f1 answered in 1762 ms (window 10000 ms)
+10:16:01 poll: f1 answered in 983 ms (window 10000 ms)
+10:17:01 poll: f1 answered in 962 ms (window 10000 ms)
+10:18:01 poll: f1 answered in 965 ms (window 10000 ms)
+10:19:01 poll: f1 answered in 963 ms (window 10000 ms)
+10:20:01 poll: f1 answered in 966 ms (window 10000 ms)
+10:21:01 poll: f1 answered in 964 ms (window 10000 ms)
+10:22:02 poll: f1 answered in 1339 ms (window 10000 ms)
+10:23:01 poll: f1 answered in 970 ms (window 10000 ms)
+10:24:02 poll: f1 answered in 960 ms (window 10000 ms)
+10:25:02 poll: f1 answered in 960 ms (window 10000 ms)
+10:26:02 poll: f1 answered in 963 ms (window 10000 ms)
+10:27:02 poll: f1 answered in 962 ms (window 10000 ms)
+10:28:02 poll: f1 answered in 965 ms (window 10000 ms)
+10:29:02 poll: f1 answered in 963 ms (window 10000 ms)
+10:30:02 poll: f1 answered in 966 ms (window 10000 ms)
+10:31:02 poll: f1 answered in 964 ms (window 10000 ms)
+10:32:04 poll: f1 answered in 3077 ms (window 10000 ms)
+10:33:03 poll: f1 answered in 2148 ms (window 10000 ms)
+10:34:02 poll: f1 answered in 966 ms (window 10000 ms)
+10:35:03 poll: f1 answered in 967 ms (window 10000 ms)
+10:35:56 hex: f1 seq 11 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:35:59 hex: f1 seq 12 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:01 hex: f1 seq 13 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:03 poll: f1 answered in 962 ms (window 10000 ms)
+10:36:06 hex: f1 seq 14 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:09 hex: f1 seq 15 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:11 hex: f1 seq 16 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:14 hex: f1 seq 17 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:16 hex: f1 seq 18 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:19 hex: f1 seq 19 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:21 hex: f1 seq 20 read -> answered status 0 result 0, sched stack 2368 bytes free
+10:36:33 levers: gen 10 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off

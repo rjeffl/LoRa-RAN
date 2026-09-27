@@ -117,6 +117,11 @@ inline constexpr ParamDef kBridgeParams[] = {
      30, 3600, 300, "s", "MPPT write-enable auto-expiry, PRD R-3.5b"},
     {0x0021, "hex_rsp_timeout_ms", Owner::BridgeGlobal, Access::ReadWrite, PType::U16, 1500,
      30000, 3000, "ms", "HEX_RSP wait before a read is retried, PRD R-3.5a"},
+    // A setting changed behind the bridge, with VictronConnect say, shows in HA only after
+    // a pass. Off by default, because a pass is ten HEX exchanges on the air; chosen with
+    // the operator on 2026-09-27. 720 h keeps the interval inside millis()'s 49-day wrap.
+    {0x0022, "charge_readback_interval_h", Owner::BridgeGlobal, Access::ReadWrite, PType::U16,
+     0, 720, 0, "h", "Periodic MPPT charge readback, Impl Plan 6.4; 0 = boot and writes only"},
     {0x0080, "poll_interval_s", Owner::BridgePerNode, Access::ReadWrite, PType::U16, 10,
      3600, 60, "s", "Poll period for this node, BG-4"},
     // D61 - 1 polls and watches the node from boot, so it counts toward spec 12.4.1's fleet

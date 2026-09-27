@@ -70,8 +70,8 @@ class DummyPublisher {
   // frame (spec 7.2.9) and the detect document never looks unchanged.
   void advance(uint32_t now_ms);
   bool build_status(lran::NodeId node, lran::CtxId ctx_id, uint32_t now_ms, RxMessage* out);
-  bool build_event(lran::NodeId node, uint8_t event_type, bool follow_up, lran::CtxId ctx_id,
-                   uint32_t now_ms, RxMessage* out);
+  bool build_event(lran::NodeId node, uint8_t event_type, bool follow_up, uint16_t detail,
+                   lran::CtxId ctx_id, uint32_t now_ms, RxMessage* out);
 
   lran::schema::GateLinkStatusV1 status_;
   bool                           clock_valid_ = false;

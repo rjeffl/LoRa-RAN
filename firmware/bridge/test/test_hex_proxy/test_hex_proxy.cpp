@@ -435,6 +435,20 @@ void test_the_window_counts_from_when_the_request_aired() {
   TEST_ASSERT_EQUAL(HexAction::Send, p.next(2500 + p.rsp_timeout_ms(), false).action);
 }
 
+// charge_readback_interval_h - off at 0, never over a running pass, and whole across a
+// millis() wrap.
+void test_periodic_pass_is_due_after_its_interval() {
+  constexpr uint32_t kHour = 3600000u;
+  TEST_ASSERT_FALSE(periodic_pass_due(100u * kHour, 0, 0, false));
+  TEST_ASSERT_FALSE(periodic_pass_due(24u * kHour - 1u, 0, 24, false));
+  TEST_ASSERT_TRUE(periodic_pass_due(24u * kHour, 0, 24, false));
+  TEST_ASSERT_FALSE(periodic_pass_due(24u * kHour, 0, 24, true));
+  const uint32_t before_wrap = UINT32_MAX - kHour;
+  TEST_ASSERT_FALSE(periodic_pass_due(before_wrap + 23u * kHour, before_wrap, 24, false));
+  TEST_ASSERT_TRUE(periodic_pass_due(before_wrap + 24u * kHour, before_wrap, 24, false));
+  TEST_ASSERT_TRUE(periodic_pass_due(720u * kHour, 0, 720, false));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_classify_follows_the_command_nibble);
@@ -467,5 +481,6 @@ int main(int, char**) {
   RUN_TEST(test_readback_reports_a_change_only_when_the_value_moves);
   RUN_TEST(test_readback_abandon_stops_the_pass);
   RUN_TEST(test_the_window_counts_from_when_the_request_aired);
+  RUN_TEST(test_periodic_pass_is_due_after_its_interval);
   return UNITY_END();
 }

@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.77
+**Version:** 0.78
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1244,17 +1244,19 @@ Assistant's value templates read them, so a key published is a key frozen:
 |---|---|
 | `lran/<node>/gate/state` | `state`, `held_open`, `hold_source`, `movement_cause`, `last_direction`, `in_open`, `in_moving`, `in_safety`, `in_exit`, `in_fire`, `in_alarm`, `input_bits`, `synthetic` |
 | `lran/<node>/detect/state` | `safety`, `exit`, `classifying`, `vehicle_while_held`, `suppressed`, `last_traversal`, `traversal_persisted`, `synthetic` |
-| `lran/<node>/solar/state` | `available`, `batt_mv`, `batt_ma`, `pv_mv`, `pv_w`, `load_ma`, `yield_today_kwh`, `yield_yesterday_kwh`, `pmax_today_w`, `yield_total_kwh`, `charge_state`, `error`, `tracker`, `load_on`, `charge_inhibited`, `temp_c`, `hex_pending`, `synthetic` |
+| `lran/<node>/solar/state` | `available`, `batt_mv`, `batt_ma`, `pv_mv`, `pv_w`, `load_ma`, `yield_today_kwh`, `yield_yesterday_kwh`, `pmax_today_w`, `yield_total_kwh`, `charge_state`, `charge_state_name`, `error`, `error_name`, `tracker`, `load_on`, `charge_inhibited`, `temp_c`, `hex_pending`, `synthetic` |
 | `lran/<node>/battery/state` | `available`, `soc`, `soc_source`, `pack_mv`, `pack_ma`, `cell_count`, `cell1_mv`–`cell4_mv`, `cell1_temp_c`–`cell4_temp_c`, `cycles`, `capacity_ah`, `alarms`, `charge_fet`, `discharge_fet`, `charge_inhibited`, `protection`, `balancing`, `ble_rssi_dbm`, `age_s`, `synthetic` |
-| `lran/<node>/node/state` | `uptime_s`, `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `reason`, `synthetic` |
-| `lran/<node>/node/health/state` | Schema `0xF0`: `uptime_s`, `boot_count`, `rx_frames`, `tx_frames`, `rx_dropped`, `cad_backoffs`, `last_rssi_dbm`, `last_snr_db`, `proto_ver`, `debug` |
+| `lran/<node>/node/state` | `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `reason`, `synthetic`, `uptime_s` |
+| `lran/<node>/node/health/state` | Schema `0xF0`: `boot_count`, `rx_frames`, `tx_frames`, `rx_dropped`, `cad_backoffs`, `last_rssi_dbm`, `last_snr_db`, `proto_ver`, `debug`, `uptime_s` |
 
 | Choice | Why |
 |---|---|
 | **Enumerations are spec §8's names in lower case**; a value the table does not list is `null` | One term names one concept from HA to the wire, as the command tokens do. A newer node's value reads as unknown rather than as a guess, and `input_bits` keeps the raw evidence |
+| **Victron's `CS` and `ERR` codes are named too**, as `charge_state_name` and `error_name` beside the raw codes. The names come from osh-labs' `VeDirect_Arduino_Spec.md` §3.3 and §3.5. Chosen with the operator on 2026-09-27 | The bridge holds the MPPT's semantics (spec §7.6), and HA showed `3` for bulk. The raw code stays, so an unlisted code reads `null` by name and keeps its number |
 | **Units are converted exactly**: 10 mV to mV, 10 Wh to kWh with two decimals, 0.1 °C and 0.1 Ah to one decimal | Integer arithmetic, so no float round trip reaches HA's history |
 | **R-5.2b: a stale block publishes `available: false` with every reading `null`** | `mppt_flags` bit 1 stales `solar`. `battery` is stale when `bms_flags` bit 0 is clear, `bms_age_s` is the sentinel, or it exceeds `bms_stale_s`. The entities list that document as a second availability topic with `avty_mode: all`, so HA shows them unavailable while the node is online. `ble_rssi_dbm`, `age_s` and `hex_pending` stay readable, because they say why |
 | **R-5.2a: publish on change compares whole documents**, by an FNV-1a hash | A document is queued when any value in it changes, or when `republish_interval_s` has passed since it was last queued. HA records an entity's state only when its own value changes, so the deadband is what keeps jitter out of history. The hash replaces a kilobyte per node and domain; a collision delays one change to the heartbeat, once in 2³² |
+| **`uptime_s` is outside the hash.** `node/state` and `node/health/state` write it last and hash only what comes before it. Chosen with the operator on 2026-09-27 | It changes on every poll, so hashing it published both documents on every frame. The heartbeat keeps it current to `republish_interval_s`. A reboot still publishes, because `boot_count` changes with it. `node/health/state` still moves with its frame counters and RSSI |
 | **Cell voltages move only by `cell_mv_deadband`**, measured from the value last published | Measured from the published value, a drift of 1 mV a poll still crosses the band. Measured from the last reading, it never would |
 | **A heartbeat needs a frame.** The interval is checked when a node's `STATUS` arrives | A silent node republishes nothing, which is R-5.2b from the other side. Its availability goes `offline` through BF-20 |
 | **`last_traversal` is an ISO 8601 UTC time, from SNTP** (spec §7.2.9) | `mqtt_task` starts SNTP against `pool.ntp.org` when WiFi first connects. Until it answers, the value is `null`. A move of 2 s or less is the age's rounding and is not republished |
@@ -1304,6 +1306,7 @@ keys, so these keys are frozen:
 | `follow_up` | `event_flags` bit 0 |
 | `hold_source`, `direction`, `gate_state` | §8's names, `null` when unlisted, as in §6.3.1 |
 | `input_bits`, `detail`, `uptime_s` | Passed through. `detail` is event-specific (§7.3) |
+| `reset_cause` | `BOOT` only: spec §8.14's name for `detail`'s low byte, lower case. A value §8.14 does not list reads `unknown`, as §8.14 directs. It lets an automation catch a boot loop without a lookup table. Added 2026-09-27, chosen with the operator |
 | `synthetic` | `true` for BF-27's dummy publish, `false` for a frame from the radio. Spec §7.3 gives an `EVENT` no `status_reason`, so the mark is the caller's, not the frame's (§6.6.2). Added 2026-09-23 |
 
 | Choice | Why |
@@ -1385,14 +1388,17 @@ from the command nibble alone, Set (`0x8`) or Restart (`0x6`), as spec §7.6 doe
 | **A retained `write_enable/set` is ignored and cleared** | Spec §16.2 marks the topic retained. A retained `ON` would re-arm writes on every broker reconnect. Decided with the operator on 2026-09-25, and raised for spec v0.16. The broker marks a message retained only when it replays it on a subscribe, so the rule acts on a reconnect; a retained `ON` published while the bridge is connected arms it, as any `ON` does |
 | **A request that is not a VE.Direct HEX frame is refused before any airtime** | `classify_hex()` uses `lib/vedirect`'s parser. A frame the MPPT would answer with a frame error would otherwise cost a solar node a transmission. The refusal answers on `hex/response` as `malformed`; `busy` and `context_roll_pending` answer the same way |
 | **`hex/response` is not retained** | An answer replayed on an HA restart would report a request nobody had just made, as `config/ack`'s would (spec §16.7.3) |
-| **Two bridge rows**: `hex_rsp_timeout_ms` (3000) and `mppt_write_arm_timeout_s` (300) | Root rule 8. The read retry count is a count, not a time, and stays a constant |
+| **Three bridge rows**: `hex_rsp_timeout_ms` (3000), `mppt_write_arm_timeout_s` (300) and `charge_readback_interval_h` (0) | Root rule 8. The read retry count is a count, not a time, and stays a constant |
 | **A bench node's answers publish whatever `simnode_diag_enable` says; its readback follows the flag** | D65's reason: gated, a request on a bench node's own topic would go unanswered. The readback is data the node did not report in answer to anyone. The VE.Direct discovery entities are GateLink's alone (spec §16.6) |
 
 **The readback is `charge_readback.{h,cpp}`** (BF-30, R-3.5d). It reads ten charge registers
 in one pass and publishes them retained on `lran/<node>/vedirect/charge/state`, where
 Home Assistant shows them as diagnostic sensors. A pass runs when the bridge first hears a
-node after boot, and again after any write the node answered. A setting changed behind
-the bridge, with VictronConnect for example, shows at the next boot. A register the node refuses
+node after boot, and again after any write the node answered. **`charge_readback_interval_h`
+repeats it**, 0 to 720 h, so a setting changed behind the bridge, with VictronConnect for
+example, shows within the interval. The default is 0, which leaves such a change to the
+next boot: a pass is ten HEX exchanges on the air, and the operator chose on 2026-09-27 to
+spend them only when asked. A register the node refuses
 or cannot read is `null`, never 0 V. A read that fails outright abandons the rest of the
 pass, because a node with no MPPT behind it would otherwise spend a timeout on every
 register. `hex_allowed()` limits the proxy and the readback to GateLink and simnode rows.
@@ -1632,8 +1638,10 @@ same in HA: the synthetic sensor was `on`, and 20 solar and battery entities wen
 integration reload and a broker restart that republished discovery. The engineering log
 has the sequence.
 
-**What is not shown.** `node/state` republishes on every frame, because `uptime_s` is in
-it and changes every poll. A real GateLink will do the same. Whether uptime belongs in the change hash is an open question (`HANDOFF.md`).
+**What is not shown.** `node/state` republished on every frame, because `uptime_s` was in
+its change hash. Since 2026-09-27 it is not (§6.3.1), and the engineering log's *Group 4*
+entry has the bench run. **The dummy's `event` line takes `detail=<n>`**, added the same
+day, so a `BOOT` can show a named reset cause.
 
 #### 6.6.3 The simulator and internal loopback, 2026-09-26
 
@@ -3040,6 +3048,10 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.78** — **Handoff Group 4, HA before GateLink.** §6.3.1: `solar/state` names the
+  MPPT's `CS` and `ERR` codes, and `uptime_s` is outside the change hash. §6.3.2: a `BOOT`
+  event carries `reset_cause`. §6.4: new row `charge_readback_interval_h` repeats the
+  charge readback. §6.6.2: the dummy's `event` line takes `detail=<n>`.
 - **v0.77** — **New §6.6.4: BF-27's RF echo.** The bridge answers a `PING`, fragmented
   echoes included, through `sched_task` and `air_turn.h`. Run on the bench. §6.6.3's
   "not built" paragraph points to it.
