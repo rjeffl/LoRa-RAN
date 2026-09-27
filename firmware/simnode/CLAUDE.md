@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to the simnode.
 
-**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.73 §10.
+**Primary document:** `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.74 §10.
 **Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.60 §4 (BF-2 to BF-9). The simnode
 halves of later tasks are in their rows: §7's BF-34 for the context roll, §8's BF-33 for a
 PHY change and §9's BF-36 for the simulated MPPT.
