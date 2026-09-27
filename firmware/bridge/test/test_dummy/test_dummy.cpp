@@ -189,6 +189,16 @@ void test_event_and_follow_up() {
   TEST_ASSERT_EQUAL_STRING("lran/gatelink/event/fire_asserted", r.items[2].topic);
   TEST_ASSERT_TRUE(has(r.items[2].payload, "\"event_id\":2,"));
   TEST_ASSERT_EQUAL(DummyOutcome::Refused, run(d, "dummy event gatelink no_such_event", &m));
+
+  // spec 8.14 - a BOOT's reset cause rides in detail, and the policy names it.
+  TEST_ASSERT_EQUAL(DummyOutcome::Inject, run(d, "dummy event gatelink boot detail=6", &m));
+  deliver(p, m, r);
+  TEST_ASSERT_EQUAL(4, r.n);
+  TEST_ASSERT_TRUE(has(r.items[3].payload, "\"detail\":6,"));
+  TEST_ASSERT_TRUE(has(r.items[3].payload, "\"reset_cause\":\"brownout\""));
+  TEST_ASSERT_EQUAL(DummyOutcome::Refused, run(d, "dummy event gatelink boot detail=x", &m));
+  TEST_ASSERT_EQUAL(DummyOutcome::Refused, run(d, "dummy event gatelink boot detail=65536", &m));
+  TEST_ASSERT_EQUAL(DummyOutcome::Refused, run(d, "dummy event gatelink boot follow follow", &m));
 }
 
 // A repeated STATUS goes through the policy's deadband like a node's does: unchanged is
