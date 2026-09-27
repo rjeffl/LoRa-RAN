@@ -18,8 +18,8 @@ both runs.
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: nothing.** The operator picks the next task from *Work before GateLink*. Groups 1
-and 2 are done. Groups 3 to 5 remain.
+**Queued: nothing.** The operator picks the next task from *Work before GateLink*. Groups
+1, 2 and 4 are done. Groups 3 and 5 remain.
 **Group 3 waits on the operator**: its section lists what they prepare before it can run.
 
 **Nothing is owed on the bench.** `sched_task`'s PHY-change low of 1352 bytes is still not
@@ -121,19 +121,21 @@ stack rather than at the access point, so it is the operator's call.
 
 ### 4. HA, before GateLink deploys
 
-- **`mppt_charge_state` and `mppt_error` show raw VE.Direct codes in HA**, such as `3`, not
-  names. Whether discovery maps them to names is BF-24's question, and GateLink's data
-  will need it. The dummy publish can show either answer.
-- **`charge/state` does not follow a setting changed behind the bridge**, with
-  VictronConnect for example. A readback pass runs only on first hearing and after a write
-  the bridge sent, so the next boot corrects it. Whether a periodic pass is worth the
-  airtime is the operator's call. Found on the bench 2026-09-25.
-- **A `BOOT` event's `reset_cause` reaches HA as a number** in `detail` (spec §8.14).
-  Whether the bridge names it, as the event topics name nothing else today, is the
-  operator's call.
-- **`node/state` republishes on every frame**, because `uptime_s` is in it and changes
-  every poll; `node/health/state` is the same. Publish-on-change never withholds either.
-  Whether uptime belongs in the change hash is the operator's call. Impl Plan §6.6.2.
+**Done** on 2026-09-27, each answer chosen with the operator (Impl Plan v0.78, §6.3 and
+§6.4). The engineering log's *Group 4* entry has the bench run. A periodic pass ran on
+the XIAO an hour after the first. A setting changed behind the bridge and picked up by one
+is not shown, because the simulated MPPT has no path for making that change.
+
+- **`solar/state` names the MPPT's codes** as `charge_state_name` and `error_name`, from
+  osh-labs' §3.3 and §3.5. The two entities read the names. HA showed `bulk` and
+  `no_error` from a dummy `STATUS`.
+- **`charge_readback_interval_h` repeats the charge readback**, 0 to 720 h, default 0.
+  At 0 the readback runs on first hearing and after a write, as before.
+- **A `BOOT` event carries `reset_cause`**, spec §8.14's name. The dummy's `event` line
+  takes `detail=<n>` to show one.
+- **`uptime_s` is outside the change hash** of `node/state` and `node/health/state`. The
+  health document still changes on every frame, through its frame counters and RSSI.
+  Whether those belong behind a deadband is the operator's call.
 
 ### 5. Documents and tools
 
@@ -261,9 +263,10 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `27ac7c7`, flashed over USB on 2026-09-26**, which adds the RF echo to
-the widened task watchdog. On that run the simnode Heltec was `/dev/cu.usbserial-4`, and
-opening its port reset it. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
+**The bridge runs `d8e45c3`, flashed over USB on 2026-09-27**, which adds Group 4's named
+codes, the periodic charge readback and the dummy's `detail=`. It holds
+`charge_readback_interval_h` 0 as an override from that run; `restore_defaults` clears it.
+On that run the XIAO was `/dev/cu.usbmodem1101`, and opening the bridge's port reset it. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
 carries the lost `BOOT` event's fix and the OTA gap's fix (engineering log, *owed PHY
 `config/ack` on the bench*). The broker retains GateLink's documents from the last dummy
 `STATUS` of the simulator run, all marked synthetic, and `offline` on its availability. The broker retains `simnode1`'s `vedirect/charge/state`, `hex/audit` and
@@ -282,7 +285,7 @@ range-test handoff owns them in its own roles.
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
 | Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3` on 2026-09-25. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its port name moves across replug |
-| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem2101`**. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
+| XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem1101`** on 2026-09-27. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17
 sessions, because the bridge board moved to its production position for the D1 capture and

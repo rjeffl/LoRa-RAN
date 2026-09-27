@@ -1513,3 +1513,53 @@ on a diagnostic topic. `EchoStats` reaches the serial log only.
 
 **Verified:** bridge 521 host tests, including `test_echo`'s six; the `heltec` build;
 `run_ci_local.py`.
+
+## 2026-09-27 — Group 4, HA before GateLink: named codes, uptime outside the hash, a periodic readback
+
+**The handoff's four Group 4 items were each the operator's call, and each took the
+recommended answer.** Impl Plan v0.78 §6.3.1, §6.3.2 and §6.4 record them:
+
+- `solar/state` carries `charge_state_name` and `error_name` beside the raw codes, from
+  osh-labs' `VeDirect_Arduino_Spec.md` §3.3 and §3.5. The two MPPT entities read the names.
+  An unlisted code is `null` by name, as every other name in `publish.cpp` is.
+- A `BOOT` event carries `reset_cause`, spec §8.14's name for `detail`'s low byte.
+- `node/state` and `node/health/state` write `uptime_s` last, and the change hash stops
+  before it.
+- New bridge row `0x0022`, `charge_readback_interval_h`, 0 to 720 h, default 0. The 720 h
+  ceiling keeps the interval inside `millis()`'s 49-day wrap.
+
+**The dummy's `event` line takes `detail=<n>`.** Without it a dummy `BOOT` always said
+`unknown`, because the dummy sent `detail` 0.
+
+**Bench, 2026-09-27.** The bridge was flashed with `d8e45c3`, and the banner showed MAC
+`44:1b:f6:f9:70:14`. Opening its port reset it each time, so the dummy's settings from one
+script did not survive into the next.
+
+| Check | Result |
+|---|---|
+| Dummy `STATUS` with `charge_state=3`, `mppt_err=2` | `"charge_state_name":"bulk"`, `"error_name":"battery_voltage_high"` on `solar/state` |
+| HA's two MPPT entities | `bulk` and `no_error` after the next dummy `STATUS` |
+| Three more dummy `STATUS` frames over about 25 s, uptime advancing | No `node/state` publish after the first |
+| `event gatelink boot detail=4` | `"reset_cause":"watchdog"` |
+| `event gatelink boot detail=0x0106` | `"detail":262`, `"reset_cause":"brownout"`: the high byte is ignored |
+| `charge_readback_interval_h` 1, `simnode1` deployed, XIAO `f1` behind BF-36's simulated MPPT | First pass 09:35:57 to 09:36:19, second pass 10:35:56 to 10:36:21, ten registers answered each time |
+
+**HA showed the MPPT entities `unavailable` at first**, because GateLink's retained
+availability is `offline`: no GateLink has been heard. One non-retained `online` on
+`lran/gatelink/availability` let HA show their values, and a non-retained `offline`
+restored it. The retained message was never replaced.
+
+**The second pass published nothing**, and that was expected: `on_answer()` reports a change
+only when a value moves, and the simulated MPPT's values did not. The serial log is the
+evidence for the pass, in
+[`data/charge-readback-periodic-bench-2026-09-27.log`](./data/charge-readback-periodic-bench-2026-09-27.log).
+`sched_task` had 2368 bytes free during the second pass, and 2448 during the first.
+
+**Not shown:** a setting changed behind the bridge and then picked up by a periodic pass.
+The simulated MPPT has no path for changing a register that does not go through the
+bridge. `node/health/state` still changes on every frame, through `rx_frames`,
+`tx_frames` and RSSI, so leaving `uptime_s` out of its hash does not yet stop it
+republishing.
+
+**Verified:** bridge 526 host tests, the `lran-config` and simnode suites, the `heltec`
+build and `run_ci_local.py`.
