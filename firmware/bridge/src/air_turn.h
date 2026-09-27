@@ -23,6 +23,12 @@
 // queue holds the next scheduled poll, so a gate OPEN waits for at most the poll already
 // in flight. Holding a poll is cheap: it is sent late rather than missed, and BF-20 counts
 // only missed polls.
+//
+// OTA IS THE OTHER SIDE OF THE SAME RULE (R-5.3d). An upload reboots the bridge, so it
+// starts only when air_idle() says nothing is in flight or waiting, and once it has
+// started no exchange does. Until 2026-09-26 ota_task asked about the scheduled poll
+// alone, so an upload could start between a command's retries and reboot the bridge with
+// the command unresolved; task_runtime.h had carried that as TODO(BF-18) since BF-18.
 
 #pragma once
 
@@ -36,12 +42,13 @@ struct AirTurn {
   bool phy_blocks_traffic = false;  // PhyChange::blocks_traffic()
   bool hex_busy           = false;  // HexProxy::busy() - BF-28
   bool request_waiting    = false;  // a command or configuration job queued, not yet admitted
+  bool ota_in_progress    = false;  // ota_in_progress() - an upload ends in a reboot
 };
 
 // A scheduled POLL may start. PhyChange::busy() is deliberately not asked: its cooldown
 // after an abandon lasts up to phy_trial_s, and no frame of the change is in flight then.
 inline bool poll_may_start(const AirTurn& a) {
-  return !a.command_busy && !a.roll_busy && !a.config_busy && !a.phy_blocks_traffic &&
+  return !a.ota_in_progress && !a.command_busy && !a.roll_busy && !a.config_busy && !a.phy_blocks_traffic &&
          !a.hex_busy && !a.request_waiting;
 }
 
@@ -51,8 +58,18 @@ inline bool poll_may_start(const AirTurn& a) {
 // roll while those two left out the CONFIG. A command and a CONFIG to one node could then
 // be in flight together, each with a seq from the same command space.
 inline bool exchange_may_start(const AirTurn& a) {
-  return !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
+  return !a.ota_in_progress && !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
          !a.phy_blocks_traffic && !a.hex_busy;
+}
+
+// An OTA upload may start: no exchange in flight, and none waiting to start. A waiting
+// request counts because the reboot would drop it from its queue unanswered. espota sends
+// its invitation up to 10 times, 10 s apart by default, so an upload waits out a command
+// and starts in the next idle gap. A PHY change blocks traffic for up to phy_trial_s,
+// which can outlast that; the upload then fails and the operator retries it.
+inline bool air_idle(const AirTurn& a) {
+  return !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
+         !a.phy_blocks_traffic && !a.hex_busy && !a.request_waiting;
 }
 
 }  // namespace bridge

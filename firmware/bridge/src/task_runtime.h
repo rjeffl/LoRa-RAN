@@ -75,13 +75,6 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 // nothing outside task_runtime.cpp should know which implementation D5 chose.
 MqttTransport& mqtt();
 
-// Whether lora_task is idle. ota_task defers until it is (R-5.3d).
-//
-// BF-16: no frame waiting or on the air, the radio receiving, and no reassembly set
-// incomplete. BF-17: no poll awaiting its reply. TODO(BF-18): no command awaiting its
-// COMMAND_ACK either.
-bool lora_task_idle();
-
 // BF-27's dummy publish. One line from the USB serial console, without its line ending; a
 // `dummy` line is answered on the console and may queue a STATUS or EVENT for app_task
 // (dummy.h). Any other line is ignored. Called from loop(), the lowest priority there is.

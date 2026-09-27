@@ -229,6 +229,11 @@ std::atomic<bool> g_phy_busy{false};
 // whose readback has not yet started. app_task sets a bit; sched_config() takes it when
 // the path is free.
 std::atomic<uint32_t> g_config_change_pending{0};
+
+// R-5.3d. Set by ota_task, under the scheduler's lock, for as long as it is inside
+// ota_service() having found the air idle. Read as an upload in progress, so no exchange
+// starts while ArduinoOTA may be answering an invitation (ota_claim_air()).
+std::atomic<bool> g_ota_claim{false};
 RebootWatch           g_reboot_watch;  // app_task alone
 
 // BF-28, BF-29, BF-30 - the HEX proxy, each node's write arm and its charge readback, under
@@ -385,9 +390,6 @@ struct ConfigInboundStats {
 
 ConfigInboundStats g_cfg_inbound;
 
-// Read by lora_task_idle() from ota_task without the lock; written under it.
-std::atomic<bool> g_poll_outstanding{false};
-
 class SchedLock {
  public:
   SchedLock() { xSemaphoreTake(g_sched_lock, portMAX_DELAY); }
@@ -452,7 +454,6 @@ void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
     SchedLock lock;
     answer_ms          = g_scheduler.on_heard(src, now_ms);
     window_ms          = g_scheduler.reply_timeout_ms();
-    g_poll_outstanding = g_scheduler.outstanding();
     // spec 10.6 bridge step 2 - a pending node is rolled when it is first heard. Its
     // ctx_id is already in the registry: app_task observed the frame before this.
     g_roll.on_heard(src);
@@ -494,12 +495,24 @@ AirTurn air_turn_locked() {
   a.config_busy        = g_config_path.busy();
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
   a.hex_busy           = g_hex.busy();
+  a.ota_in_progress    = ota_in_progress() || g_ota_claim.load();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
                       (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
                       (g_hex_queue != nullptr && uxQueueMessagesWaiting(g_hex_queue) > 0) ||
                       g_config_change_pending.load() != 0;  // D69
   return a;
+}
+
+// R-5.3d, for ota_task. True, with the air claimed, when lora_task is idle and nothing is
+// in flight or waiting: no frame waiting or on the air, the radio receiving, no
+// reassembly set incomplete (BF-16), and air_idle(). The caller clears g_ota_claim once
+// ota_service() returns.
+bool ota_claim_air() {
+  SchedLock lock;
+  const bool idle = lora_idle() && air_idle(air_turn_locked());
+  g_ota_claim     = idle;
+  return idle;
 }
 
 // ---------------------------------------------------------------------------
@@ -577,14 +590,13 @@ void sched_polls(uint32_t now_ms) {
     {
       SchedLock lock;
       // An exchange in flight or waiting holds new polls, and still lets a window close.
-      st = g_scheduler.next(now_ms, !ota_in_progress() && poll_may_start(air_turn_locked()));
+      st = g_scheduler.next(now_ms, poll_may_start(air_turn_locked()));
       if (st.action == PollAction::Poll) seq = g_scheduler.take_poll_seq();
     }
     switch (st.action) {
       case PollAction::None:
         return;
       case PollAction::Missed:
-        g_poll_outstanding = false;
         registry_note_poll_missed(st.node);
         continue;
       case PollAction::Poll:
@@ -601,7 +613,6 @@ void sched_polls(uint32_t now_ms) {
 
     SchedLock lock;
     g_scheduler.on_sent(st.node, ns.poll_interval_s, now_ms);
-    g_poll_outstanding = true;
     return;
   }
 }
@@ -2930,10 +2941,19 @@ void app_task(void*) {
 // That is correct at this priority. What it costs is flash writes, which stall both
 // cores briefly while the cache is disabled; lora_task can miss a frame during an
 // upload, and R-5.3d's deferral is what keeps an upload from starting mid-transaction.
+//
+// THE CLAIM CLOSES THE LAST GAP. ota_in_progress() turns true only when ArduinoOTA's start
+// callback runs, inside the handle() call that begins the upload. An exchange that
+// sched_task started before that callback would be cut off by the reboot. So ota_task
+// claims the air, under the same lock sched_task decides under, before it calls handle(),
+// and releases it after. A command therefore always wins: once it has started, handle()
+// is not called until it finishes.
 void ota_task(void*) {
   for (;;) {
-    ota_service(wifi_connected(), lora_task_idle(), g_mqtt_up, g_tasks_started,
-                lora_radio_ready(), millis());
+    const bool idle = ota_claim_air();
+    ota_service(wifi_connected(), idle, g_mqtt_up, g_tasks_started, lora_radio_ready(),
+                millis());
+    g_ota_claim = false;
     vTaskDelay(pdMS_TO_TICKS(100));
   }
 }
@@ -3336,7 +3356,6 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() { return lora_idle() && !g_poll_outstanding.load(); }
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 
