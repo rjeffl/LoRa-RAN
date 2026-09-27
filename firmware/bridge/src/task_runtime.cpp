@@ -1941,16 +1941,38 @@ void sched_levers() {
 // ---------------------------------------------------------------------------
 
 
+// Whether start_tasks() armed the task watchdog. Written once, before any task starts.
+bool g_wdt_armed = false;
+
+// Subscribes the calling task to the task watchdog if its row says `watched` (Impl Plan
+// 5.2.2). A task that cannot subscribe logs it and runs unwatched, as a watchdog that
+// fails to arm does: a bridge that stops for want of a watchdog protects nothing.
+bool watch_this_task(TaskId id) {
+  const TaskSpec& spec = task_spec(id);
+  if (!spec.watched || !g_wdt_armed) return false;
+  if (esp_task_wdt_add(nullptr) == ESP_OK) return true;
+  log_printf(LogLevel::Error, "wdt: %s not subscribed - runs unwatched", spec.name);
+  return false;
+}
+
+void feed_watchdog(bool watched) {
+  if (watched) (void)esp_task_wdt_reset();
+}
+
 // Highest priority, and it never blocks on the network or on a queue. Its outputs are
 // the zero-tick queue sends; its one wait is lora_wait(), bounded and on the radio's
 // own interrupt (lora_link.h). BF-16.
 void lora_task(void*) {
   lora_start(kHeltecV3Radio, g_boot_phy);
+  // Subscribed after bring-up, so RadioLib's begin() is not timed against the watchdog.
+  const bool watched = watch_this_task(TaskId::Lora);
   // BF-23 - this task's own three levers. The board is lock-free, so reading it here
   // waits on nothing; a publish caught mid-copy is taken on the next pass.
   uint32_t levers_seen = 0;
   Levers   levers;
   for (;;) {
+    // Fed at the top of the pass: a pass that hangs never comes back round to feed.
+    feed_watchdog(watched);
     if (g_levers.take_if_changed(&levers_seen, &levers)) {
       MediaAccessConfig access;
       access.cad_retries    = levers.cad_retries;
@@ -1963,17 +1985,12 @@ void lora_task(void*) {
   }
 }
 
-// 1 s tick. Also feeds the hardware watchdog (Impl Plan 5.2).
+// 1 s tick. Feeds the task watchdog once a tick (Impl Plan 5.2.2).
 void sched_task(void*) {
   const TickType_t period = pdMS_TO_TICKS(task_spec(TaskId::Sched).period_ms);
   TickType_t       last   = xTaskGetTickCount();
 
-  // BF-11b - the one feed point, in the task that would notice a stall (Impl Plan 5.2).
-  // A watchdog that fails to arm is logged and the bridge runs on unwatched, because a
-  // bridge that refuses to boot for want of a watchdog protects nothing.
-  const bool watched = esp_task_wdt_init(kWatchdogTimeoutS, /*panic=*/true) == ESP_OK &&
-                       esp_task_wdt_add(nullptr) == ESP_OK;
-  if (!watched) log_printf(LogLevel::Error, "wdt: not armed - sched_task runs unwatched");
+  const bool watched = watch_this_task(TaskId::Sched);
 
   for (;;) {
     sched_levers();            // BF-23 - root rule 8
@@ -1988,7 +2005,7 @@ void sched_task(void*) {
     sched_diag(millis());      // BF-19 - spec 14.1, 16.2
     // Fed after the whole tick rather than before it, so a tick that hangs part way
     // through is the one that starves the watchdog.
-    if (watched) (void)esp_task_wdt_reset();
+    feed_watchdog(watched);
     vTaskDelayUntil(&last, period);
   }
 }
@@ -2792,6 +2809,7 @@ void mqtt_task(void*) {
   TickType_t       last   = xTaskGetTickCount();
   uint32_t         mqtt_attempt = 0;
   uint32_t         mqtt_next_ms = 0;
+  const bool       watched      = watch_this_task(TaskId::Mqtt);
 
   for (;;) {
     const uint32_t now = millis();
@@ -2834,6 +2852,9 @@ void mqtt_task(void*) {
     }
 
     mqtt_stack_check(now);
+    // After the pass, as sched_task feeds. A failed broker connect is its longest pass,
+    // and tasks.h sizes the timeout against it.
+    feed_watchdog(watched);
     vTaskDelayUntil(&last, period);
   }
 }
@@ -2844,8 +2865,13 @@ void app_task(void*) {
   QueueSink sink;
   uint32_t  levers_seen = 0;
   Levers    levers;
+  const bool watched = watch_this_task(TaskId::App);
   for (;;) {
-    if (xQueueReceive(g_rx_queue, &msg, portMAX_DELAY) != pdTRUE) {
+    // Fed at the top of the pass, so a message whose handling hangs starves it. The wait
+    // is bounded for the same reason: a quiet fleet sends nothing for a whole poll
+    // interval, and an idle app_task must still come round to feed.
+    feed_watchdog(watched);
+    if (xQueueReceive(g_rx_queue, &msg, pdMS_TO_TICKS(kAppIdleWaitMs)) != pdTRUE) {
       continue;
     }
     // BF-24 - the policy's three levers, from the board every other task reads.
@@ -2872,9 +2898,6 @@ void app_task(void*) {
       }
       continue;
     }
-    // A blocking receive is correct HERE and wrong in lora_task: app_task waiting
-    // costs nothing, and it is the consumer rather than the producer.
-    //
     // BF-15. The ladder refuses a source the registry does not know, so every message
     // here names a registered node. This learns its ctx_id (spec 10.1) and resets its
     // command seq on a new one (spec 10.2).
@@ -3149,6 +3172,13 @@ bool start_tasks() {
       g_config_queue == nullptr || g_log_queue == nullptr) {
     return false;
   }
+
+  // BF-11b - armed before any task starts, so each watched task subscribes at the right
+  // timeout. Arduino-ESP32 already runs the TWDT at 5 s over core 0's idle task, and this
+  // reconfigures it (engineering log, 2026-09-26). A watchdog that fails to arm is logged
+  // and the bridge runs unwatched.
+  g_wdt_armed = esp_task_wdt_init(kWatchdogTimeoutS, /*panic=*/true) == ESP_OK;
+  if (!g_wdt_armed) log_printf(LogLevel::Error, "wdt: not armed - every task runs unwatched");
 
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];

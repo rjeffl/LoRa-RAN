@@ -75,6 +75,11 @@ struct TaskSpec {
   // "Trigger" column, made explicit: a period and a queue wait are different
   // shapes, and a task with both is usually a task doing two jobs.
   uint32_t period_ms;
+
+  // Whether the task subscribes to the task watchdog and feeds it once a pass (Impl Plan
+  // 5.2.2). A watched task must come round its loop well inside kWatchdogTimeoutS, idle or
+  // busy, so a queue-driven one waits on its queue for a bounded time.
+  bool watched;
 };
 
 // The table. Definition in tasks.cpp; kTaskCount entries, indexed by TaskId.
@@ -101,19 +106,31 @@ bool all_priorities_above_arduino_loop();
 // Names are unique - they are what a panic backtrace prints.
 bool task_names_are_unique();
 
-// BF-11b - the task watchdog's timeout, in seconds. sched_task is the one task it
-// watches (Impl Plan 5.2), fed once a tick.
+// BF-11b - the task watchdog's timeout, in seconds. Every task whose row says `watched`
+// subscribes and feeds it once a pass (Impl Plan 5.2.2).
 //
-// TEN TICKS, NOT ESP-IDF'S FIVE SECONDS. A tick can wait behind the scheduler's and the
-// configuration store's locks, and an NVS commit under the second one can run long
-// while the flash erases a page. Ten seconds keeps a slow tick from resetting the bridge
-// and still reboots a hung one before a single poll interval has passed. The same
-// timeout applies to the idle task ESP-IDF already watches on core 0.
+// TEN SECONDS, NOT ESP-IDF'S FIVE. A pass can wait behind the scheduler's and the
+// configuration store's locks, and an NVS commit under the second one can run long while
+// the flash erases a page. mqtt_task's longest pass is a failed broker connect: 5 s for
+// the CONNACK wait in mqtt_esp.cpp, plus one loop() that can sit in WiFiClient's 3 s TCP
+// connect. Ten seconds covers both and still reboots a hung task before a single poll
+// interval has passed. The same timeout applies to the idle task ESP-IDF already watches
+// on core 0.
 //
 // COMPILE-TIME, AGAINST ROOT RULE 8's LETTER. The rule protects a node that cannot be
 // reflashed without a walk to the gate. The bridge takes OTA, and a watchdog timeout
 // that Home Assistant could set to one second is a way to put it in a reset loop.
 inline constexpr uint32_t kWatchdogTimeoutS = 10;
+
+// How long app_task waits on the RX queue before it comes round to feed the watchdog with
+// nothing received. A quiet fleet sends nothing for a whole poll interval, so an unbounded
+// wait would starve the watchdog on an idle bridge.
+inline constexpr uint32_t kAppIdleWaitMs = 1000;
+
+// Every watched task comes round its loop in under half the watchdog timeout when nothing
+// is wrong: a tick task by its period, app_task by kAppIdleWaitMs. lora_task's bound is
+// kLoraMaxWaitMs, in task_runtime.h, which the native build does not reach.
+bool watched_tasks_come_round_in_time();
 
 // ---------------------------------------------------------------------------
 // Queues. Depths are here rather than at the creation site so the sizing argument
