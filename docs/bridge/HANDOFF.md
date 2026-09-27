@@ -18,7 +18,7 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
-keeps one bench confirmation. Group 2's two items and groups 3 to 5 remain.
+keeps one bench confirmation and one defect found in the code. Group 2's two items and groups 3 to 5 remain.
 
 **Nothing is owed on the bench.** The engineering log's second 2026-09-26 entry has the
 four readings. `sched_task`'s PHY-change low of 1352 bytes is not re-measured; the next PHY
@@ -66,6 +66,12 @@ lost `BOOT` event was fixed on 2026-09-26.
 - **The three restart edges were closed on 2026-09-26**, host-tested (Impl Plan §6.7.8).
   A bench run would confirm the owed PHY `config/ack`: reset the bridge within 150 ms of
   a commit, and watch `lran/bridge/config/ack` for the answer after the reboot.
+- **An OTA upload can start while a command waits for its `COMMAND_ACK`** (R-5.3d).
+  `lora_task_idle()` checks the radio and an outstanding poll, and nothing else. Between
+  a command's retries the radio is idle, so an upload can reboot the bridge with the
+  command unresolved. `task_runtime.h` has carried `TODO(BF-18)` for this since BF-18
+  was built. Whether a `CONFIG` in flight should hold OTA too is the same question.
+  Found reading the code 2026-09-26.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
@@ -111,6 +117,10 @@ the node is on a desk rather than at the gate.
   verdict is what the documents cite when they attribute an occupant.
 - **No counter tells a preamble deferral from a header deferral**, as `cad_deferred` counts
   both. A split would say which window each deferral closed.
+- **Two `TODO` markers name work that is done.** `rx_ladder.h`'s `TODO(BF-19a)` waits on
+  ERROR replies, which BF-19a built. `tools/simctl/per_measure.py`'s header says nothing
+  reaches `g_diag_interval_s` at runtime; BF-23's `diag_interval_s` lever does. Check
+  whether the tool's saturated arm can now run before rewriting that header.
 
 ## Waits on GateLink or the operator
 
