@@ -155,6 +155,11 @@ choices. **Three things to keep:**
   Nothing refuses a node that has not been heard, so a dummy event on a deployed bridge
   reaches that node's event topics, marked.
 
+**The RF echo, built 2026-09-26**, is `echo.{h,cpp}`. The bridge answers a `PING`
+addressed to it and never sends one; Impl Plan §6.6.4 records the choices. **The echo is an
+exchange to `air_turn.h`.** Its frames go from `sched_task`, never from `app_task`, and
+`echo_busy` holds every other exchange until its last frame has gone.
+
 **The simulator and the loopback, built 2026-09-26**, are `gatelink_sim.{h,cpp}` and
 `loopback.{h,cpp}`, driven by `sim` and `loopback` lines on the same console. Impl Plan
 §6.6.3 records the choices. **Three things to keep:**
@@ -326,8 +331,10 @@ decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
   write blocks while the UART buffer is full. Other tasks may still print directly.
 - **An info line prints exactly as its caller wrote it.** Tools and bench notes match on
   the text, so a prefix belongs on `WARN` and `ERROR` lines only.
-- **The watchdog is fed at the end of `sched_task`'s tick, and nowhere else.** A second
-  feed point is a task that keeps a hung bridge alive.
+- **Each watched task feeds the watchdog once a pass, from its own loop, and nowhere
+  else** (`TaskSpec::watched`, Impl Plan §5.2.2). A feed inside a wait loop, such as
+  `connect_once()`'s, keeps a hung task alive. A pass that outgrows the 10 s timeout is
+  a reason to shorten the pass, not to add a feed.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by

@@ -60,6 +60,11 @@ struct RxDelivery {
 
   uint8_t fragments    = 1;
   bool    mac_verified = false;
+
+  // The largest payload any fragment of the set carried, which is the sender's chunk
+  // (spec 11.1: every fragment but the last carries the same length). 0 for a single
+  // frame. The bridge's PING echo re-fragments at it (spec 6.6.2).
+  uint8_t frag_chunk = 0;
 };
 
 // spec 11.3 - at least one reassembly set per peer the bridge can receive from. Six
@@ -153,6 +158,7 @@ class RxLadder {
     lran::NodeId      src     = 0;
     bool              used    = false;
     uint32_t          last_ms = 0;
+    uint8_t           chunk   = 0;  // RxDelivery::frag_chunk, for the set in progress
   };
 
   Slot* slot_for(lran::NodeId src, uint32_t now_ms);

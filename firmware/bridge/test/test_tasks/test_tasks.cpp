@@ -157,11 +157,30 @@ void test_high_water_holds_the_deepest_occupancy() {
   TEST_ASSERT_EQUAL_UINT32(5, a.stat(QueueId::Rx).high_water);
 }
 
-// BF-11b - the watchdog is fed once per sched_task tick, so its timeout must span
-// several ticks, or one slow tick resets the bridge. tasks.h argues for ten.
+// BF-11b - sched_task feeds the watchdog once a tick, so its timeout must span several
+// ticks, or one slow tick resets the bridge. tasks.h argues for ten.
 void test_watchdog_spans_several_sched_ticks() {
   const uint32_t tick_ms = task_spec(TaskId::Sched).period_ms;
   TEST_ASSERT_TRUE(kWatchdogTimeoutS * 1000u >= 5u * tick_ms);
+}
+
+// Group 2 - the watchdog sees every task a received frame passes through on its way to
+// HA, and none whose normal work can hold it past the timeout (Impl Plan 5.2.2).
+void test_watchdog_watches_the_frame_path() {
+  TEST_ASSERT_TRUE(task_spec(TaskId::Lora).watched);
+  TEST_ASSERT_TRUE(task_spec(TaskId::Sched).watched);
+  TEST_ASSERT_TRUE(task_spec(TaskId::Mqtt).watched);
+  TEST_ASSERT_TRUE(task_spec(TaskId::App).watched);
+  TEST_ASSERT_FALSE(task_spec(TaskId::Ota).watched);
+  TEST_ASSERT_FALSE(task_spec(TaskId::Ui).watched);
+  TEST_ASSERT_FALSE(task_spec(TaskId::Log).watched);
+}
+
+// An idle watched task still comes round to feed. app_task's queue wait is the one that
+// was unbounded before.
+void test_watched_tasks_come_round_in_time() {
+  TEST_ASSERT_TRUE(watched_tasks_come_round_in_time());
+  TEST_ASSERT_TRUE(kAppIdleWaitMs > 0);
 }
 
 int main() {
@@ -181,5 +200,7 @@ int main() {
   RUN_TEST(test_high_water_holds_the_deepest_occupancy);
   RUN_TEST(test_events_have_their_own_queue_and_count);
   RUN_TEST(test_watchdog_spans_several_sched_ticks);
+  RUN_TEST(test_watchdog_watches_the_frame_path);
+  RUN_TEST(test_watched_tasks_come_round_in_time);
   return UNITY_END();
 }

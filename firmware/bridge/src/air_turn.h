@@ -41,6 +41,7 @@ struct AirTurn {
   bool config_busy        = false;  // ConfigPath::busy()
   bool phy_blocks_traffic = false;  // PhyChange::blocks_traffic()
   bool hex_busy           = false;  // HexProxy::busy() - BF-28
+  bool echo_busy          = false;  // PingEcho::busy() - BF-27's RF echo, until its last frame is sent
   bool request_waiting    = false;  // a command or configuration job queued, not yet admitted
   bool ota_in_progress    = false;  // ota_in_progress() - an upload ends in a reboot
 };
@@ -49,7 +50,7 @@ struct AirTurn {
 // after an abandon lasts up to phy_trial_s, and no frame of the change is in flight then.
 inline bool poll_may_start(const AirTurn& a) {
   return !a.ota_in_progress && !a.command_busy && !a.roll_busy && !a.config_busy && !a.phy_blocks_traffic &&
-         !a.hex_busy && !a.request_waiting;
+         !a.hex_busy && !a.echo_busy && !a.request_waiting;
 }
 
 // A command, a roll, a CONFIG, a HEX request or a PHY change may start. Every exchange in
@@ -59,7 +60,7 @@ inline bool poll_may_start(const AirTurn& a) {
 // be in flight together, each with a seq from the same command space.
 inline bool exchange_may_start(const AirTurn& a) {
   return !a.ota_in_progress && !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
-         !a.phy_blocks_traffic && !a.hex_busy;
+         !a.phy_blocks_traffic && !a.hex_busy && !a.echo_busy;
 }
 
 // An OTA upload may start: no exchange in flight, and none waiting to start. A waiting
@@ -69,7 +70,7 @@ inline bool exchange_may_start(const AirTurn& a) {
 // which can outlast that; the upload then fails and the operator retries it.
 inline bool air_idle(const AirTurn& a) {
   return !a.poll_outstanding && !a.command_busy && !a.roll_busy && !a.config_busy &&
-         !a.phy_blocks_traffic && !a.hex_busy && !a.request_waiting;
+         !a.phy_blocks_traffic && !a.hex_busy && !a.echo_busy && !a.request_waiting;
 }
 
 }  // namespace bridge

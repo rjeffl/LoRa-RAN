@@ -330,6 +330,7 @@ void queue_delivery(const RxDelivery& d, float rssi, float snr, uint32_t now_ms)
   for (size_t i = 0; i < d.payload_len; ++i) g_rx_msg.payload[i] = d.payload[i];
   g_rx_msg.payload_len  = d.payload_len;
   g_rx_msg.fragments    = d.fragments;
+  g_rx_msg.frag_chunk   = d.frag_chunk;
   g_rx_msg.mac_verified = d.mac_verified;
   g_rx_msg.rssi_dbm     = static_cast<int16_t>(std::lround(rssi));
   g_rx_msg.snr_db       = snr_to_i8(snr);

@@ -28,11 +28,11 @@ constexpr TaskSpec kTable[kTaskCount] = {
     // Serial.printf of the configured PHY, and 4096 was a quarter of what BF-11
     // intended. lora_link.cpp logs the high-water mark after bring-up; that number,
     // not this comment, is what says whether 8192 is enough.
-    {TaskId::Lora, "lora", kPriorityLora, 8192, kCore1, 0},
+    {TaskId::Lora, "lora", kPriorityLora, 8192, kCore1, 0, true},
 
     // 1 s tick: per-node poll scheduling, retry and backoff, the availability
-    // watchdog, and BF-32's configuration transaction. Feeds the hardware watchdog
-    // (Impl Plan 5.2).
+    // watchdog, and BF-32's configuration transaction. One of the four tasks the task
+    // watchdog watches (Impl Plan 5.2.2).
     //
     // 5120, RAISED FROM 3072 IN BF-32, AND FROM A MEASUREMENT RATHER THAN A CRASH. The
     // configuration path made this the deepest task in the firmware: a ConfigStep
@@ -44,24 +44,27 @@ constexpr TaskSpec kTable[kTaskCount] = {
     // free at 3072, so the size is wrong as well as the allocation was. 5120 leaves
     // about 2 KB. That figure, not this comment, is what says whether it is enough:
     // task_runtime.cpp logs it on every configuration resolution.
-    {TaskId::Sched, "sched", kPriorityHigh, 5120, kCore1, 1000},
+    {TaskId::Sched, "sched", kPriorityHigh, 5120, kCore1, 1000, true},
 
     // 100 ms tick plus its queue: broker connection, publish queue, subscription
     // dispatch, discovery. Core 0, with the WiFi and lwIP stacks it talks to.
-    {TaskId::Mqtt, "mqtt", kPriorityNormal, 6144, kCore0, 100},
+    {TaskId::Mqtt, "mqtt", kPriorityNormal, 6144, kCore0, 100, true},
 
     // Queue-driven: decode per schema, publication policy, event dedup, HEX proxy
     // authorization.
-    {TaskId::App, "app", kPriorityNormal, 6144, kAnyCore, 0},
+    {TaskId::App, "app", kPriorityNormal, 6144, kAnyCore, 0, true},
 
-    // On request, and deferred until lora_task reports idle (R-5.3d).
-    {TaskId::Ota, "ota", kPriorityLow, 4096, kAnyCore, 0},
+    // On request, and deferred until lora_task reports idle (R-5.3d). Unwatched, because
+    // an upload runs inside ArduinoOTA.handle() and holds this task for its whole length.
+    {TaskId::Ota, "ota", kPriorityLow, 4096, kAnyCore, 0, false},
 
-    // 500 ms tick: the OLED status page.
-    {TaskId::Ui, "ui", kPriorityLow, 3072, kAnyCore, 500},
+    // 500 ms tick: the OLED status page. Unwatched: a hung panel costs the page and
+    // nothing else, and a reset would not fix a display that stopped answering.
+    {TaskId::Ui, "ui", kPriorityLow, 3072, kAnyCore, 500, false},
 
-    // Lowest: leveled serial log and the raw frame log.
-    {TaskId::Log, "log", kPriorityLog, 3072, kAnyCore, 0},
+    // Lowest: leveled serial log and the raw frame log. Unwatched, because every other
+    // task outranks it, and a busy bridge may starve it for longer than any timeout.
+    {TaskId::Log, "log", kPriorityLog, 3072, kAnyCore, 0, false},
 };
 
 static_assert(sizeof(kTable) / sizeof(kTable[0]) == kTaskCount,
@@ -117,6 +120,16 @@ bool task_names_are_unique() {
         return false;
       }
     }
+  }
+  return true;
+}
+
+bool watched_tasks_come_round_in_time() {
+  const uint32_t half_timeout_ms = kWatchdogTimeoutS * 1000u / 2u;
+  for (size_t i = 0; i < kTaskCount; ++i) {
+    if (!kTable[i].watched) continue;
+    const uint32_t pass_ms = kTable[i].id == TaskId::App ? kAppIdleWaitMs : kTable[i].period_ms;
+    if (pass_ms >= half_timeout_ms) return false;
   }
   return true;
 }

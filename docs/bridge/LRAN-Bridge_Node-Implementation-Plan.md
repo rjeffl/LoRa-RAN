@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.75
+**Version:** 0.77
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -811,7 +811,7 @@ properties matter:
 - **Publication is queued, not inline.** A blocking publish on a reconnecting broker must
   not stall frame reception or the poll schedule.
 - `ota_task` defers until `lora_task` reports idle (**R-5.3d**).
-- Watchdog fed from `sched_task`.
+- The task watchdog watches `lora_task`, `sched_task`, `mqtt_task` and `app_task` (§5.2.2).
 
 #### 5.2.1 The numbers, chosen by BF-11 on 2026-09-10
 
@@ -877,7 +877,7 @@ if `portMAX_DELAY`, `delay()`, a WiFi or publish call, or a queue call with a
 non-zero timeout appears in the code `lora_task` owns. It reads one function's text —
 a tripwire on the shape of the mistake, not a proof.
 
-#### 5.2.2 The leveled log and the watchdog, built by BF-11a and BF-11b on 2026-09-26
+#### 5.2.2 The leveled log and the watchdog, built by BF-11a and BF-11b on 2026-09-26, widened by group 2
 
 **`log_printf()` formats a line on the caller's stack and queues it without waiting.**
 `log_task` prints it. A full queue drops the newest line and counts it as
@@ -894,20 +894,33 @@ path still print directly, by operator choice, until a reason to move them appea
 | Before `start_tasks()` | Straight to `Serial` | There is no queue yet and no task to protect |
 | Cost | ~3.1 KB static, ~200 bytes of the caller's stack | The stack cost replaces `Serial.printf`'s 64-byte buffer. Read `sched_task`'s high-water mark on the bench |
 
-**The task watchdog watches `sched_task` alone**, fed once at the end of each tick, so a
-tick that hangs part way through is the one that starves it. Its timeout is **10 s**,
-`kWatchdogTimeoutS` in `tasks.h`: ten ticks, against ESP-IDF's default of 5 s, because a
-tick can wait behind the configuration lock while NVS erases a page. The value is
-compile-time on purpose. Root rule 8 protects a node that cannot be reflashed, the bridge
-takes OTA, and a timeout that Home Assistant could set to 1 s is a way into a reset loop.
-**A watchdog that fails to arm is logged, and the bridge runs unwatched.** The boot banner
-prints `Reset:` with `esp_reset_reason()`, because a watchdog reset leaves no other trace
-on a bridge nobody watches over serial.
+**The task watchdog watches `lora_task`, `sched_task`, `mqtt_task` and `app_task`.** Each
+subscribes itself and feeds once a pass, so a panic names the task that starved it. The
+`watched` column of the task table in `tasks.cpp` says which. `sched_task` and `mqtt_task`
+feed at the end of a pass and `lora_task` and `app_task` at the top, so a pass that hangs
+part way through is the one that starves it. `start_tasks()` arms the watchdog before any
+task starts.
 
-**What the watchdog does not see.** It catches a hung `sched_task`, and with it a lock
-that some other task never releases. It does not catch a hung `lora_task`, `mqtt_task` or
-`app_task` whose locks stay free. Making the feed conditional on those tasks' progress is
-a separate decision, not taken here.
+| Task | Watched | Longest pass, when nothing is wrong |
+|---|---|---|
+| `lora` | Yes | `kLoraMaxWaitMs`, 10 ms, plus one radio operation |
+| `sched` | Yes | One 1 s tick, which can wait behind the configuration lock while NVS erases a page |
+| `mqtt` | Yes | About 8 s: a failed broker connect waits 5 s for the CONNACK, plus one `loop()` that can sit in `WiFiClient`'s 3 s TCP connect |
+| `app` | Yes | `kAppIdleWaitMs`, 1 s. The RX queue wait was unbounded until group 2, and a quiet fleet leaves it idle for a whole poll interval |
+| `ota` | No | An upload runs inside `ArduinoOTA.handle()` and holds the task for its whole length |
+| `ui` | No | A hung panel costs the page alone, and a reset would not fix a display that stopped answering |
+| `log` | No | Every task outranks it, and a busy bridge may starve it for longer than any timeout |
+
+Its timeout is **10 s**, `kWatchdogTimeoutS` in `tasks.h`, against ESP-IDF's default of 5 s,
+because of `mqtt_task`'s 8 s pass and `sched_task`'s NVS wait. **The margin over
+`mqtt_task` is about 2 s.** A slower connect path, such as a broker named by hostname
+rather than by address, adds a DNS lookup to that pass; read the `Reset:` banner line
+after the first outage it meets. The value is compile-time on purpose. Root rule 8
+protects a node that cannot be reflashed, the bridge takes OTA, and a timeout that Home
+Assistant could set to 1 s is a way into a reset loop. **A watchdog that fails to arm, or
+a task that fails to subscribe, is logged, and the bridge runs with that task unwatched.**
+The boot banner prints `Reset:` with `esp_reset_reason()`, because a watchdog reset
+leaves no other trace on a bridge nobody watches over serial.
 
 `mqtt_task` logs its own high-water mark each time the mark reaches a new low, checked
 every 10 s. No single call site is its deepest, the way the configuration resolution is
@@ -933,6 +946,7 @@ every 10 s. No single call site is its deepest, the way the configuration resolu
     publish.cpp         publication policy: on-change, staleness,      [app_task]
                         bench-node publication gate (§4.2a)
     hex_proxy.cpp       HEX wrap/unwrap, arm state, audit trail        [app_task]
+    echo.cpp            PING responder, spec 6.6 (§6.6.4)       [app_task, sched_task]
     decode/
       gatelink.cpp      schema 0x10 / 0x11 / 0x12 decoders
       health.cpp        schema 0xF0 decoder, all node types
@@ -1647,9 +1661,7 @@ loopback on | off | corrupt | show
 | Which ladder the loopback uses | Its own `RxLadder`, reading the registry's `PeerKeys` | `lora_task`'s ladder is unlocked, and its counters are what HA charts as the radio's. The cost is the second ladder's reassembly pool |
 | What the loopback proves | The codec's output passes spec 14's stages to `app_task` in the shipped image. A payload that comes back different is refused and counted. `loopback corrupt` flips one bit of the next frame, and the reply names the status | A self-test that prints a verdict and publishes nothing would not show the policy the ladder's copy |
 
-**RF echo is not built.** PRD R-5.4a asks for one, and the bridge neither sends nor
-answers `PING` (spec 6.6). A responder, fragmented echoes included, changes `lora_task` and
-`app_task`, and the operator left it for later (`HANDOFF.md`).
+**RF echo is §6.6.4's.**
 
 **The cost, measured on the `heltec` build.** Static RAM rose 4856 bytes, to 76.8 %, and
 flash rose 10 016 bytes. Most of the RAM is the loopback ladder's reassembly pool (§5.2).
@@ -1667,6 +1679,33 @@ after. The engineering log has the run, and
 | Marked | Every document and event from the run carried `synthetic: true` |
 | Loopback passes | 29 simulated frames and one dummy frame passed the ladder, 96-byte `STATUS` and 34-byte `EVENT` frames alike |
 | Loopback refuses | After `loopback corrupt`, the next dummy frame was refused as `BadCrc`, and the one after it passed |
+
+#### 6.6.4 The RF echo, 2026-09-26
+
+**The bridge answers a `PING` addressed to it**, which is R-5.4a's RF half and spec §17.3's
+RF loopback. The echo is the `PING` turned round: `src` and `dst` swap, and `seq`,
+`ctx_id`, `ver`, `ping_flags` and the echo bytes stay as received (spec §6.6). The bridge
+never sends a `PING` of its own; the simnode's `ping` command is the initiator (§10.4).
+
+| Choice | Value | Why |
+|---|---|---|
+| Who handles it | `app_task` offers the `PING` to `PingEcho` (`echo.h`), and `sched_task` sends the echo | Every airtime decision is `sched_task`'s. An echo from `app_task` would go out in the middle of a poll's answer window |
+| A fragmented `PING` | Re-fragmented at the initiator's chunk, which the ladder records as `RxDelivery::frag_chunk`: the largest fragment in the set | Spec §6.6.2. Both directions then exercise the same split. A set that displaces an incomplete one starts its chunk afresh |
+| Its turn on the air | The first frame waits for `exchange_may_start()`. `echo_busy` then holds every other exchange until a ticket on the last frame reports it sent | `air_turn.h`'s rule. A `POLL` between two fragments would reach a node that is still reassembling |
+| A 15-frame set against a 4-deep TX queue | Each tick queues what fits, and checks for room first | `send_tx()` counts a refused frame as a drop, and an echo waiting its turn has dropped nothing |
+| A second `PING` during an echo | Refused, and logged as `echo: ping from ... not answered` | No node can hold the bridge's air for more than one echo. The initiator reports its own timeout |
+| A `PING` that does not deserialize | Refused and logged the same way | The ladder passed the frame, so no §14 stage applies; `EchoStats` counts it |
+
+**On the bench, 2026-09-26**, with the bridge on `27ac7c7`, the simnode Heltec sent five
+`PING`s from `f0` and each came back `echo ok`: 40 bytes in one frame, 202 in one 222-byte
+frame, and 202 with `PATTERN_FILL` in 15 fragments at a chunk of 14, twice, with a 4-fragment
+set between. The 15-fragment round trips took 10.8 s and 9.0 s. The engineering log has
+the run, and [`data/rf-echo-bench-2026-09-26.log`](./data/rf-echo-bench-2026-09-26.log) the
+capture.
+
+**Not shown.** `EchoStats` reaches no diagnostic topic; the serial log is the only place a
+refused echo shows. No run sent a second `PING` during an echo. Whether a production
+GateLink should ever send one is the GateLink plan's question.
 
 ### 6.7 The configuration path — BF-32, built 2026-09-21
 
@@ -3001,6 +3040,12 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.77** — **New §6.6.4: BF-27's RF echo.** The bridge answers a `PING`, fragmented
+  echoes included, through `sched_task` and `air_turn.h`. Run on the bench. §6.6.3's
+  "not built" paragraph points to it.
+- **v0.76** — **§5.2.2: the task watchdog watches `lora_task`, `mqtt_task` and `app_task`
+  as well as `sched_task`**, each subscribing itself. `app_task`'s RX wait is bounded at
+  1 s. A table gives each task's longest pass and why three tasks stay unwatched.
 - **v0.75** — **New §6.6.3**: BF-27's GateLink simulator and internal loopback, built and
   run on the bench. RF echo is not built. §7.1's V-B11 row names the simulator.
 - **v0.74** — **§6.7.8's first restart edge ran on the bench.** A reset after a PHY commit

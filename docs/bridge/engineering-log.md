@@ -1433,3 +1433,83 @@ refused=1`.
 
 **Nothing new was found.** `node/state` republished on every `STATUS`, as group 4 already
 records.
+
+## 2026-09-26 — The task watchdog widened to four tasks, and a bench run with no false trip
+
+Group 2's last watchdog item: the watchdog saw a hung `sched_task` and nothing else. The
+operator directed that it watch the other tasks on the frame path. Impl Plan §5.2.2 has the
+design.
+
+**Each watched task subscribes itself, rather than `sched_task` feeding on their
+progress.** ESP-IDF's panic then names the task that starved it, and no shared progress
+counter has to be read correctly. `lora_task`, `sched_task`, `mqtt_task` and `app_task` are
+watched. `ota_task`, `ui_task` and `log_task` are not, and §5.2.2's table says why for each.
+
+**`app_task` waited on its RX queue forever**, so an idle bridge would have starved its own
+watchdog within 10 s. The wait is bounded at `kAppIdleWaitMs`, 1 s.
+
+**`mqtt_task`'s failed broker connect is the pass nearest the timeout, at about 8 s.**
+`connect_once()` waits 5 s for the CONNACK, and one `loop()` inside it can sit in
+`WiFiClient`'s 3 s TCP connect (`WIFI_CLIENT_DEF_CONN_TIMEOUT_MS`, Arduino-ESP32 2.x). The
+10 s timeout stands. A broker named by hostname would add a DNS lookup to that pass.
+
+**`start_tasks()` now arms the watchdog.** `sched_task` armed it before, so a task started
+ahead of it could subscribe while Arduino's 5 s default still held.
+
+**Bench, 2026-09-26.** The bridge was flashed over USB with `442899a` and reset once at
+the start of a 420 s capture:
+[`data/wdt-widened-bench-2026-09-26.log`](./data/wdt-widened-bench-2026-09-26.log). The
+banner read `Reset: power_on`, no `wdt:` line appeared, `mqtt_task` connected, and the
+bridge did not reset again. No node was polled, as the handoff's hardware state records, so
+`app_task` sat idle for the whole run.
+
+**Not shown on the bench: a starved task resetting the bridge.** No console command hangs
+a task. A temporary image with a deliberate hang in each watched task would show it.
+Whether that run is worth a reflash is the operator's call. The broker-outage connect path
+did not run either; group 3's WiFi and broker outages will exercise it.
+
+**Verified:** bridge 515 host tests, the `heltec` build and `run_ci_local.py`.
+
+## 2026-09-26 — BF-27's RF echo, built and run on the bench
+
+Group 2's last item. The bridge neither sent nor answered `PING`, so PRD R-5.4a's RF half
+and spec §17.3's RF loopback had no bridge side. Impl Plan §6.6.4 has the design.
+
+**The echo goes out from `sched_task`, not from `app_task` where the `PING` arrives.** An
+echo is airtime, and an echo sent from `app_task` would land in some poll's answer window.
+`app_task` offers the `PING` to `PingEcho`. `sched_task` sends the first frame when
+`exchange_may_start()` allows, and `echo_busy` holds every other exchange until a ticket
+on the last frame reports it sent.
+
+**The ladder did not know the initiator's chunk.** Spec §6.6.2 has the responder
+re-fragment at it, and `RxDelivery` carried only the fragment count, which a chunk cannot
+be recovered from. The ladder now records the largest fragment payload in each set, as the
+simnode does. Unlike the simnode's, the ladder resets it when a new `seq` displaces an
+incomplete set, where the displaced set's chunk would otherwise carry over.
+
+**A 15-frame set meets a 4-deep TX queue.** Each tick queues what fits, checking for room
+first, because `send_tx()` counts a refused frame as a `q_tx` drop. At a chunk of 14 a
+fragment is about 190 ms at SF9, so four frames drain inside a tick. That estimate is
+computed, not measured, and the bench run below came in inside it.
+
+**Bench, 2026-09-26.** The bridge was flashed with `27ac7c7`. One harness held both
+Heltecs' ports; opening them reset both boards, so the bridge rolled `f0`'s context on
+first hearing (BF-34), as designed. The simnode sent five `PING`s from `f0` to `00`:
+
+| Command | Frames each way | Result | Round trip |
+|---|---|---|---|
+| `ping f0 40` | 1 | `echo ok` | 984 ms |
+| `ping f0 202` | 1, 222 bytes | `echo ok` | 2685 ms |
+| `ping f0 202 pattern frag 14` | 15 | `echo ok` | 10 804 ms |
+| `ping f0 60 pattern frag 20` | 4 | `echo ok` | 2830 ms |
+| `ping f0 202 pattern frag 14` | 15 | `echo ok` | 8971 ms |
+
+The bridge logged one `echo:` line per `PING` with the matching frame count, and no
+warning, drop or reset. RSSI was −18 dBm and SNR +10.8 to +11.3 dB. The capture is
+[`data/rf-echo-bench-2026-09-26.log`](./data/rf-echo-bench-2026-09-26.log).
+
+**Not shown:** a `PING` refused because an echo was still going out, and any echo counter
+on a diagnostic topic. `EchoStats` reaches the serial log only.
+
+**Verified:** bridge 521 host tests, including `test_echo`'s six; the `heltec` build;
+`run_ci_local.py`.
