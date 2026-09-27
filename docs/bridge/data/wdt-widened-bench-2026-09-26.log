@@ -1,0 +1,48 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce3808,len:0x4bc
+load:0x403c9700,len:0xbd8
+load:0x403cc700,len:0x2a0c
+entry 0x403c98d0
+LRAN Bridge Node - node 0x00
+Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+Version: 0.1.0 (442899a)
+Slot: app0
+Image state: not_pending
+Reset: power_on
+CHAN-BOOT,442899a,917400000,9,1250,1000,-1100,10
+WiFi SSID: McLeeNet
+MQTT broker: 192.168.2.52:1883
+Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+boot: count 32
+Config: 17 stored value(s) restored
+Tasks started: 7
+WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+[   574][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, simnode diag off
+mqtt: stack high-water 4604 bytes free of 6144
+[   613][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+LoRa: stack high-water 5740 bytes free
+[   743][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+[   753][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+[  1673][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+[  1785][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+OTA: listening as lran-bridge
+mqtt: connected, heap free 60116, lowest 51324
+mqtt: stack high-water 2508 bytes free of 6144
+CHANSUM,0,9,10,10009,999,1,0,0,0,0,-1110,-1160,-1150,-1158
+CHANSUM,10,69,60,60000,6000,0,0,0,0,0,-1130,-1160,-1150,-1158
+CHAN,70,70652,1000,100,0,1,0,-790,-1160,-1143
+CHANSUM,70,129,60,60000,6000,0,1,0,1,0,-790,-1160,-1150,-1159
+CHANSUM,130,189,60,60000,6000,0,0,0,0,0,-1130,-1160,-1150,-1157
+CHAN,201,201652,1000,100,0,1,0,-960,-1160,-1144
+CHANSUM,190,249,60,60000,6000,0,1,0,1,0,-960,-1170,-1150,-1159
+CHAN,296,296652,1000,100,0,9,0,-940,-1160,-1129
+CHANSUM,250,309,60,60000,6000,0,9,0,1,0,-940,-1160,-1150,-1158
+CHAN,331,331652,1000,100,0,1,0,-650,-1160,-1141
+CHANSUM,310,369,60,60000,6000,0,1,0,1,0,-650,-1160,-1150,-1159

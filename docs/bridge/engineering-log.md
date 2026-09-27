@@ -1433,3 +1433,39 @@ refused=1`.
 
 **Nothing new was found.** `node/state` republished on every `STATUS`, as group 4 already
 records.
+
+## 2026-09-26 — The task watchdog widened to four tasks, and a bench run with no false trip
+
+Group 2's last watchdog item: the watchdog saw a hung `sched_task` and nothing else. The
+operator directed that it watch the other tasks on the frame path. Impl Plan §5.2.2 has the
+design.
+
+**Each watched task subscribes itself, rather than `sched_task` feeding on their
+progress.** ESP-IDF's panic then names the task that starved it, and no shared progress
+counter has to be read correctly. `lora_task`, `sched_task`, `mqtt_task` and `app_task` are
+watched. `ota_task`, `ui_task` and `log_task` are not, and §5.2.2's table says why for each.
+
+**`app_task` waited on its RX queue forever**, so an idle bridge would have starved its own
+watchdog within 10 s. The wait is bounded at `kAppIdleWaitMs`, 1 s.
+
+**`mqtt_task`'s failed broker connect is the pass nearest the timeout, at about 8 s.**
+`connect_once()` waits 5 s for the CONNACK, and one `loop()` inside it can sit in
+`WiFiClient`'s 3 s TCP connect (`WIFI_CLIENT_DEF_CONN_TIMEOUT_MS`, Arduino-ESP32 2.x). The
+10 s timeout stands. A broker named by hostname would add a DNS lookup to that pass.
+
+**`start_tasks()` now arms the watchdog.** `sched_task` armed it before, so a task started
+ahead of it could subscribe while Arduino's 5 s default still held.
+
+**Bench, 2026-09-26.** The bridge was flashed over USB with `442899a` and reset once at
+the start of a 420 s capture:
+[`data/wdt-widened-bench-2026-09-26.log`](./data/wdt-widened-bench-2026-09-26.log). The
+banner read `Reset: power_on`, no `wdt:` line appeared, `mqtt_task` connected, and the
+bridge did not reset again. No node was polled, as the handoff's hardware state records, so
+`app_task` sat idle for the whole run.
+
+**Not shown on the bench: a starved task resetting the bridge.** No console command hangs
+a task. A temporary image with a deliberate hang in each watched task would show it.
+Whether that run is worth a reflash is the operator's call. The broker-outage connect path
+did not run either; group 3's WiFi and broker outages will exercise it.
+
+**Verified:** bridge 515 host tests, the `heltec` build and `run_ci_local.py`.

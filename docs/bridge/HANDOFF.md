@@ -1,10 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-26 by the session that ran group 1's bench confirmation.** All three
-boards run `be5c7c8`, flashed over USB. A bridge reset just after a PHY commit drew the
-rebuilt `config/ack` after the reboot (Impl Plan §6.7.8). The first copy had already left,
-so the answer arrived twice, which §6.7.8 allows. The engineering log's *owed PHY
-`config/ack` on the bench* entry has the run.
+**Written 2026-09-26 by the session that widened the task watchdog** (group 2). The
+bridge runs `442899a`, flashed over USB, and the watchdog now watches `lora_task`,
+`sched_task`, `mqtt_task` and `app_task`. A 7-minute bench run showed no false trip. No run
+has starved a task to show it trips; the engineering log's *task watchdog widened* entry
+has both.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,10 +18,9 @@ so the answer arrived twice, which §6.7.8 allows. The engineering log's *owed P
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
-is done. Group 2's watchdog item and groups 3 to 5 remain; BF-27's simulator and internal loopback
-were built on 2026-09-26. **Group 3 waits on the operator**:
-its section lists what they prepare before it can run.
+**Queued: nothing.** The operator picks the next task from *Work before GateLink*. Groups 1
+and 2 are done, apart from BF-27's RF echo, which gates nothing. Groups 3 to 5 remain.
+**Group 3 waits on the operator**: its section lists what they prepare before it can run.
 
 **Nothing is owed on the bench.** `sched_task`'s PHY-change low of 1352 bytes is still not
 re-measured: its high-water line prints only on a per-node `CONFIG` outcome. The OTA gap's
@@ -75,7 +74,7 @@ trial's restore and the other a flag set while NVS refuses the write.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
-One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
+**Done, apart from the RF echo.** One session each. BF-11a, BF-11b, `mqtt_task`'s high-water mark and `phy reset` were done
 on 2026-09-26, and so was the simnode's reset (spec §10.1, §10.7, §8.14). **BF-27's
 GateLink simulator and internal loopback were built and run on the bench the same day**
 (Impl Plan §6.6.3).
@@ -83,9 +82,9 @@ GateLink simulator and internal loopback were built and run on the bench the sam
 - **BF-27's RF echo is not built.** The bridge neither sends nor answers `PING` (spec
   §6.6), so R-5.4a's RF half needs a responder in `app_task`, fragmented echoes included.
   It gates nothing. A WellLink simulator waits for schema `0x20`.
-- **The watchdog does not see a hung `lora_task`, `mqtt_task` or `app_task`** whose locks
-  stay free (Impl Plan §5.2.2). Whether the feed should wait on their progress is the
-  operator's call.
+- **The task watchdog watches `lora_task`, `mqtt_task` and `app_task` too**, from
+  2026-09-26 (Impl Plan §5.2.2). A bench run showed no false trip, and no run has starved a
+  task. `mqtt_task`'s failed connect, about 8 s, is the pass closest to the 10 s timeout.
 
 ### 3. A B7 rehearsal on the bench
 
@@ -262,8 +261,8 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `ffaf22b`, flashed over USB on 2026-09-26**, which adds BF-27's
-simulator and loopback. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
+**The bridge runs `442899a`, flashed over USB on 2026-09-26**, which widens the task
+watchdog to four tasks. **Both simnodes run `be5c7c8`**, flashed over USB the same day, which
 carries the lost `BOOT` event's fix and the OTA gap's fix (engineering log, *owed PHY
 `config/ack` on the bench*). The broker retains GateLink's documents from the last dummy
 `STATUS` of the simulator run, all marked synthetic, and `offline` on its availability. The broker retains `simnode1`'s `vedirect/charge/state`, `hex/audit` and

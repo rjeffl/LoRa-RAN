@@ -326,8 +326,10 @@ decide and `sched_task` acts; Impl Plan §6.4.1. **Four things to keep:**
   write blocks while the UART buffer is full. Other tasks may still print directly.
 - **An info line prints exactly as its caller wrote it.** Tools and bench notes match on
   the text, so a prefix belongs on `WARN` and `ERROR` lines only.
-- **The watchdog is fed at the end of `sched_task`'s tick, and nowhere else.** A second
-  feed point is a task that keeps a hung bridge alive.
+- **Each watched task feeds the watchdog once a pass, from its own loop, and nowhere
+  else** (`TaskSpec::watched`, Impl Plan §5.2.2). A feed inside a wait loop, such as
+  `connect_once()`'s, keeps a hung task alive. A pass that outgrows the 10 s timeout is
+  a reason to shorten the pass, not to add a feed.
 
 **Stack sizes are bytes.** `TaskSpec::stack_bytes` was `stack_words` until BF-16 found
 that ESP-IDF counts bytes. Correct a size from `uxTaskGetStackHighWaterMark`, not by
