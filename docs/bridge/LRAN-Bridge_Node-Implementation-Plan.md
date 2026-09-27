@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.73
+**Version:** 0.74
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -1811,9 +1811,12 @@ which is safer than never seeing it.
 decodes, as a blob owing nothing, so a bridge flashed over a committed group boots on it.
 The simnode shares the layout and writes the new field as zero.
 
-**Host-tested only.** `test_phy_change`, `test_config_path`, `test_availability` and
-lran-config's `test_table` cover the blob, the rebuilt answer, the withdrawal rule and the
-restore. None of the three edges has been run on the bench.
+`test_phy_change`, `test_config_path`, `test_availability` and lran-config's
+`test_table` cover the blob, the rebuilt answer, the withdrawal rule and the restore.
+**The first edge ran on the bench on 2026-09-26.** A reset 150 ms after the commit drew the
+rebuilt `config/ack` 1.0 s after boot. The first copy had already reached the broker, so
+Home Assistant saw the answer twice. The engineering log has the run. The other two edges
+are host-tested only.
 
 ---
 
@@ -2951,6 +2954,9 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
+- **v0.74** — **§6.7.8's first restart edge ran on the bench.** A reset after a PHY commit
+  drew the rebuilt `config/ack` after the reboot, as a second copy of an answer already
+  sent. The other two edges stay host-tested.
 - **v0.73** — **An OTA upload waits for every exchange, not only a scheduled poll.**
   §6.1.1's OTA row now says an upload waits for any exchange awaiting its answer and for
   any job queued, and holds every exchange while one may be starting or running. Before, an upload could start

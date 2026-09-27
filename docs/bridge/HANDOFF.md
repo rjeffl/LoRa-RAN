@@ -1,11 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-09-26 by the session that closed group 1's OTA gap.** An OTA upload now
-waits for every exchange and every queued job, not only a scheduled poll, and no exchange
-starts during an upload (R-5.3d, Impl Plan §6.1.1). `ota_task` claims the air before each
-`ArduinoOTA.handle()`, so a command always wins. It is host-tested and not flashed. The
-engineering log's *OTA upload could start between a command's retries* entry has the
-reasoning.
+**Written 2026-09-26 by the session that ran group 1's bench confirmation.** All three
+boards run `be5c7c8`, flashed over USB. A bridge reset just after a PHY commit drew the
+rebuilt `config/ack` after the reboot (Impl Plan §6.7.8). The first copy had already left,
+so the answer arrived twice, which §6.7.8 allows. The engineering log's *owed PHY
+`config/ack` on the bench* entry has the run.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,11 +19,11 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next task from *Work before GateLink*. Group 1
-keeps one bench confirmation. Group 2's two items and groups 3 to 5 remain.
+is done. Group 2's two items and groups 3 to 5 remain.
 
-**Nothing is owed on the bench.** The engineering log's second 2026-09-26 entry has the
-four readings. `sched_task`'s PHY-change low of 1352 bytes is not re-measured; the next PHY
-run should read it.
+**Nothing is owed on the bench.** `sched_task`'s PHY-change low of 1352 bytes is still not
+re-measured: its high-water line prints only on a per-node `CONFIG` outcome. The OTA gap's
+fix is flashed, and no upload has exercised it.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -61,13 +60,16 @@ Each group is one session unless its line says otherwise.
 
 ### 1. Bridge defects the bench can reach
 
-These came from B4b's bench runs. None blocks GateLink. The three air-timing defects that
-sat on the command path, and the state mirror's readback, were fixed on 2026-09-25. The
-lost `BOOT` event and the OTA gap were fixed on 2026-09-26.
+**Done.** These came from B4b's bench runs. The three air-timing defects and the state
+mirror's readback were fixed on 2026-09-25. The lost `BOOT` event, the OTA gap and the
+three restart edges were fixed on 2026-09-26. The first restart edge ran on the bench the
+same day. The other two stay host-tested, because one needs a reset timed inside a PHY
+trial's restore and the other a flag set while NVS refuses the write.
 
-- **The three restart edges were closed on 2026-09-26**, host-tested (Impl Plan §6.7.8).
-  A bench run would confirm the owed PHY `config/ack`: reset the bridge within 150 ms of
-  a commit, and watch `lran/bridge/config/ack` for the answer after the reboot.
+- **An answer lost before the reset was not reproduced.** The `config/ack` left 20 ms
+  after the commit, so the 150 ms reset only showed the rebuilt copy. A reset fired the
+  instant the commit line appears would come closer. Whether that run is worth a PHY
+  change is the operator's call.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
@@ -180,7 +182,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D58**. **Protocol Spec v0.13** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **B6**, **B7**. **BF-27's** bridge-side simulators and packet loopback. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 

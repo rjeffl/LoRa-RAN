@@ -1338,3 +1338,40 @@ expects an `AUTH` and be dropped; espota's next invitation, 10 s later, succeeds
 **Verified:** bridge host tests, two of them new in `test_air_turn`, and the `heltec`
 build. The claim itself is in `task_runtime.cpp`, which builds for the target only. No bench run: the defect needs an upload started inside a command's retry window,
 and V-B9's procedure does not time one.
+
+## 2026-09-26 — The owed PHY `config/ack` on the bench: the rebuilt answer arrives after a reset
+
+**A bridge reset just after a PHY commit now leaves Home Assistant with an answer.** After
+the reboot, the bridge rebuilt the committed change's `config/ack` from NVS and published
+it 1.0 s after boot. This is the first of Impl Plan §6.7.8's three restart edges to run on
+a board. The other two stay host-tested.
+
+All three boards ran `be5c7c8`, flashed over USB: the bridge on `/dev/cu.usbserial-0001`,
+the Heltec simnode (f0 and f2) on `/dev/cu.usbserial-4`, and the XIAO (f1) on
+`/dev/cu.usbmodem2101`. The MACs matched the previous entries. The trace is
+[`data/phy-ack-restart-bench-2026-09-26.log`](./data/phy-ack-restart-bench-2026-09-26.log).
+Its times are seconds from the start of the run.
+
+| Run | What was done | What happened |
+|---|---|---|
+| Reset after the commit | 917.4 → 917.0 MHz. The harness raised RTS 150 ms after it read `phy: every node heard - committed` | The first `config/ack` reached the broker 20 ms after the commit line, before the reset. The bridge came back on 917.0 and published the same answer again at 122.47. Its §10.6 roll reached f0, f1 and f2 in one attempt each |
+| Back to Envelope A | 917.4 MHz, no reset | The change committed, and one `config/ack` arrived 110 ms after the commit line |
+
+**The run did not reproduce 2026-09-24's lost answer.** On 2026-09-24 a reset 150 ms after
+the commit beat `mqtt_task` to the broker. Here the answer left within 20 ms. So this run
+shows the rebuild after a reset, but not an answer that was lost before one. A reset fired
+the instant the commit line appears would come closer to that case.
+
+**The answer arrived twice, as §6.7.8 allows.** The reset came about 140 ms after the first
+copy reached the broker, and the bridge still held the answer as owed. The drain clears the
+record only once the publish queue is empty and the transport's `pending()` is 0. This run
+does not show which of those had not happened yet. Both copies carry the same row,
+`freq_hz` `ok` 917000000, `persisted`.
+
+**Stack readings:** `mqtt_task` fell to 2012 bytes free of 6144, below the 2124 of the
+previous entry, and `lora_task` to 5740. `sched_task`'s PHY-change low is still not
+re-measured, because its high-water line prints only on a per-node `CONFIG` outcome, and
+no such outcome ran here.
+
+The bench was left as it was found: `simnode_diag_enable` 0, and `deployed` 0 on
+`simnode0` to `simnode2`. The fleet is back on 917.4 MHz.
