@@ -75,10 +75,14 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 // nothing outside task_runtime.cpp should know which implementation D5 chose.
 MqttTransport& mqtt();
 
-// BF-27's dummy publish. One line from the USB serial console, without its line ending; a
-// `dummy` line is answered on the console and may queue a STATUS or EVENT for app_task
-// (dummy.h). Any other line is ignored. Called from loop(), the lowest priority there is.
+// BF-27's serial console. One line, without its line ending: a `dummy` line may queue a
+// STATUS or EVENT for app_task (dummy.h), a `sim` line starts or stops the simulator
+// (gatelink_sim.h), and a `loopback` line routes both through a receive ladder
+// (loopback.h). Any other line is ignored. Called from loop(), the lowest priority there is.
 void console_line(const char* line);
+
+// Runs the simulator: injects a frame when one is due. Called from loop() on every pass.
+void console_tick();
 
 // The per-queue counters, for the diagnostic topics and the OLED page.
 const QueueAccounting& queue_accounting();

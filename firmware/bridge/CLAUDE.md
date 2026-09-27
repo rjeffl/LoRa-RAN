@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.17 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.74
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.60 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.75
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.61 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -151,9 +151,21 @@ choices. **Three things to keep:**
 - **The mark cannot be cleared from the console.** `status_reason` is `DEBUG_SYNTHETIC`
   in every dummy `STATUS`, and `app_task` passes `synthetic = true` to `on_event()`, whose
   payload carries it. A radio frame's event passes `false`.
-- **A node heard this boot is refused**, in `console_line()`, because it is real. Nothing
-  refuses a node that has not been heard, so a dummy event on a deployed bridge reaches that
-  node's event topics, marked.
+- **A node heard this boot is refused**, in `inject_synthetic()`, because it is real.
+  Nothing refuses a node that has not been heard, so a dummy event on a deployed bridge
+  reaches that node's event topics, marked.
+
+**The simulator and the loopback, built 2026-09-26**, are `gatelink_sim.{h,cpp}` and
+`loopback.{h,cpp}`, driven by `sim` and `loopback` lines on the same console. Impl Plan
+§6.6.3 records the choices. **Three things to keep:**
+
+- **The simulator's model is its own.** It must never call simnode's generator or share
+  one with it (Impl Plan §6.6). Its frames go through `synthetic_status()` and
+  `synthetic_event()` in `dummy.cpp`, which carry the mark.
+- **It sends no event unless `gate` is set.** Events drive email and SMS, and an
+  unattended source should not produce them by default.
+- **The loopback has its own `RxLadder`.** Never pass it `lora_task`'s: that ladder is
+  unlocked, and its counters are the radio's.
 
 **`M25` — the channel monitor, built 2026-09-17.** `chan_monitor.{h,cpp}` has lived in
 `lib/lran-link/` since 2026-09-19, shared with the listen-only `firmware/chan-capture/`. The
@@ -471,7 +483,8 @@ log. Never commit, echo or log the real values.
 `lib/lran-link`'s `media_access`) · `mqtt_transport` · `discovery` (with `json_writer`) ·
 `publish` (which renders from the library's schema structs, so `decode/` was not built,
 Impl Plan §6.3.1) · `hex_proxy` · `ui` ·
-`debug` (BF-27 built its frame log as `frame_log` and its dummy publish as `dummy`).
+`debug` (BF-27 built its frame log as `frame_log`, its dummy publish as `dummy`, its
+simulator as `gatelink_sim` and its loopback as `loopback`).
 Task ownership is in Impl Plan §5.2/§5.3.
 
 `MqttTransport` is an interface. PubSubClient was the first implementation, and espMqttClient,

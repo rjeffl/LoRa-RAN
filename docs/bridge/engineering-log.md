@@ -1375,3 +1375,29 @@ no such outcome ran here.
 
 The bench was left as it was found: `simnode_diag_enable` 0, and `deployed` 0 on
 `simnode0` to `simnode2`. The fleet is back on 917.4 MHz.
+
+## 2026-09-26 — BF-27's simulator and internal loopback, host-tested
+
+Group 2's first item, scoped with the operator at the start: a console-driven GateLink
+simulator with gate events on request, and the internal half of the loopback. Impl Plan
+§6.6.3 has the design.
+
+**R-5.4a's RF echo turned out to be protocol work, not a debug tool.** The bridge neither
+sends nor answers `PING`. The simnode starts one, and nothing on the bridge echoes it. An
+echo therefore needs a spec §6.6 responder in `app_task`, fragmented echoes included, and a
+bench run. The operator left it for later.
+
+**The dummy's encoder is now shared.** `synthetic_status()` and `synthetic_event()` in
+`dummy.cpp` build the `RxMessage` for both tools. `synthetic_status()` forces
+`DEBUG_SYNTHETIC` on its own copy of the template, so a caller cannot hand it an unmarked
+one. `test_dummy`'s ten cases pass unchanged.
+
+**The loopback costs about 4 KB of RAM, and that was chosen.** Built from `main` and from
+this branch, the `heltec` image's static RAM went from 246 916 to 251 772 bytes, from
+75.4 % to 76.8 %. Flash went from 979 289 to 989 305 bytes. Most of the RAM is the second
+`RxLadder`'s reassembly pool. Borrowing `lora_task`'s ladder would have saved it, but that
+ladder has no lock, and its counters are what HA charts as the radio's.
+
+**Verified:** bridge 513 host tests, `test_sim` 9 and `test_loopback` 5 among them; the
+`heltec` build; and `run_ci_local.py`. No bench run: nobody has started the simulator or
+turned the loopback on against the sandbox HA.

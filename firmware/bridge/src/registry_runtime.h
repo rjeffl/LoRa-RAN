@@ -24,6 +24,10 @@ namespace bridge {
 // only if they are complete before it runs. False if the mutex could not be created.
 bool registry_begin(const uint8_t master[lran::kMasterKeyLen]);
 
+// The keys lora_task's ladder reads, for a second ladder (loopback.h). Fixed once
+// registry_begin() has run.
+const PeerKeys& registry_keys();
+
 // What a node is. Lock-free, any task.
 const NodeInfo* registry_find(lran::NodeId id);
 size_t          registry_size();

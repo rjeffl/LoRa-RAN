@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "lran/types.h"
 #include "queues.h"
@@ -79,5 +80,27 @@ class DummyPublisher {
   lran::Seq                      seq_      = 0;
   uint32_t                       event_id_ = 0;  // the last one sent; 0 until the first
 };
+
+// --- Shared with the simulator (gatelink_sim.h) -------------------------------------------
+//
+// Both tools inject a GateLink frame that no node sent, so both mark it the same way and
+// encode it with the library's serializer. What they share ends there: the values each
+// sends are its own, and neither is simnode's generator (Impl Plan 6.6).
+
+// One STATUS as app_task receives it, marked `dummy`. status_reason is forced to
+// DEBUG_SYNTHETIC here, whatever `s` holds, so no path to the policy skips R-5.2d.
+bool synthetic_status(lran::schema::GateLinkStatusV1 s, lran::NodeId node, lran::CtxId ctx_id,
+                      lran::Seq seq, uint32_t now_ms, RxMessage* out);
+
+// One EVENT as app_task receives it, marked `dummy`. app_task marks the published event
+// through on_event()'s own flag, because spec 7.3 gives an EVENT no status_reason.
+bool synthetic_event(const lran::schema::GateLinkEventV1& e, lran::NodeId node,
+                     lran::CtxId ctx_id, lran::Seq seq, uint32_t now_ms, RxMessage* out);
+
+// The console's parsing, for every tool that reads a line.
+size_t console_split(char* line, char* words[], size_t max);  // in place, on spaces
+bool   console_int(const char* s, int64_t* out);              // base 0, whole string
+// A registered node by its spec 16.1 token, such as `gatelink`.
+bool   console_node(const char* token, lran::NodeId* out);
 
 }  // namespace bridge

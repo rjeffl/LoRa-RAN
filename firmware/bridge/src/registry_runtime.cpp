@@ -49,6 +49,8 @@ bool registry_begin(const uint8_t master[lran::kMasterKeyLen]) {
   return true;
 }
 
+const PeerKeys& registry_keys() { return g_registry; }
+
 const NodeInfo* registry_find(lran::NodeId id) { return g_registry.find(id); }
 
 size_t registry_size() { return g_registry.size(); }
