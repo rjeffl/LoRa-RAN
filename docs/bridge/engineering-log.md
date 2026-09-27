@@ -1292,3 +1292,36 @@ covers only a burst whose second frame starts within 176 ms of the first.
 
 **No counter tells a preamble deferral from a header deferral.** `cad_deferred` counts
 both. The figures above cannot say which window each deferral closed.
+
+## 2026-09-26 — An OTA upload could start between a command's retries
+
+Found reading the code while syncing the handoff; `task_runtime.h` had carried it as
+`TODO(BF-18)` since BF-18. **R-5.3d holds an upload during a LoRa transaction**, and
+`lora_task_idle()` asked two things: whether the radio was idle, and whether a scheduled
+poll was outstanding. Between a command's retries the radio is idle and no poll is
+outstanding, so `ota_task` would answer an upload invitation. The upload ends in a reboot,
+which leaves the command unresolved and its ACK unpublished. A roll, a `CONFIG`, a HEX
+request and a PHY change had the same gap.
+
+**The rule already existed for the air, so OTA now reads it.** `air_turn.h` gains
+`air_idle()`: no exchange awaiting its answer, and no command or configuration job
+waiting in its queue. A waiting job counts because the reboot drops it from its queue
+unanswered. `lora_task_idle()` takes the scheduler's lock and asks it. `AirTurn` also gains
+`ota_in_progress`, which `poll_may_start()` and `exchange_may_start()` both refuse on.
+Before, only the scheduled poll checked it, so a command could start during an upload.
+`g_poll_outstanding`, the atomic that carried the old answer, is gone.
+
+**A PHY change now holds OTA for as long as it blocks traffic**, up to `phy_trial_s`.
+espota retries its invitation for several seconds and then gives up, so an upload
+attempted during a change fails and the operator retries it. That is R-5.3d as written.
+
+**One window stays open.** `ota_task` reads `lora_task_idle()` and then calls
+`ArduinoOTA.handle()`, which sets `ota_in_progress()` only when its start callback runs.
+An exchange that starts between the two reads is not held. With a password set, an
+invitation takes two `handle()` calls, and the second is not made once an exchange has
+started, so most of that gap closes itself. What remains is the part of one `handle()`
+call before the start callback. Closing it needs a hook ArduinoOTA does not expose.
+
+**Verified:** bridge 499 host tests, two of them new in `test_air_turn`, and the `heltec`
+build. No bench run: the defect needs an upload started inside a command's retry window,
+and V-B9's procedure does not time one.

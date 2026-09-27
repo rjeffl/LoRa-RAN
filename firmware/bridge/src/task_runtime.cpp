@@ -385,9 +385,6 @@ struct ConfigInboundStats {
 
 ConfigInboundStats g_cfg_inbound;
 
-// Read by lora_task_idle() from ota_task without the lock; written under it.
-std::atomic<bool> g_poll_outstanding{false};
-
 class SchedLock {
  public:
   SchedLock() { xSemaphoreTake(g_sched_lock, portMAX_DELAY); }
@@ -452,7 +449,6 @@ void sched_on_heard(lran::NodeId src, uint32_t now_ms) {
     SchedLock lock;
     answer_ms          = g_scheduler.on_heard(src, now_ms);
     window_ms          = g_scheduler.reply_timeout_ms();
-    g_poll_outstanding = g_scheduler.outstanding();
     // spec 10.6 bridge step 2 - a pending node is rolled when it is first heard. Its
     // ctx_id is already in the registry: app_task observed the frame before this.
     g_roll.on_heard(src);
@@ -494,6 +490,7 @@ AirTurn air_turn_locked() {
   a.config_busy        = g_config_path.busy();
   a.phy_blocks_traffic = g_phy_change.blocks_traffic();
   a.hex_busy           = g_hex.busy();
+  a.ota_in_progress    = ota_in_progress();
   a.request_waiting    = g_phy_job_waiting ||
                       (g_command_queue != nullptr && uxQueueMessagesWaiting(g_command_queue) > 0) ||
                       (g_config_queue != nullptr && uxQueueMessagesWaiting(g_config_queue) > 0) ||
@@ -577,14 +574,13 @@ void sched_polls(uint32_t now_ms) {
     {
       SchedLock lock;
       // An exchange in flight or waiting holds new polls, and still lets a window close.
-      st = g_scheduler.next(now_ms, !ota_in_progress() && poll_may_start(air_turn_locked()));
+      st = g_scheduler.next(now_ms, poll_may_start(air_turn_locked()));
       if (st.action == PollAction::Poll) seq = g_scheduler.take_poll_seq();
     }
     switch (st.action) {
       case PollAction::None:
         return;
       case PollAction::Missed:
-        g_poll_outstanding = false;
         registry_note_poll_missed(st.node);
         continue;
       case PollAction::Poll:
@@ -601,7 +597,6 @@ void sched_polls(uint32_t now_ms) {
 
     SchedLock lock;
     g_scheduler.on_sent(st.node, ns.poll_interval_s, now_ms);
-    g_poll_outstanding = true;
     return;
   }
 }
@@ -3336,7 +3331,10 @@ bool net_begin(const char* ssid, const char* wifi_password, const char* mqtt_hos
 
 MqttTransport& mqtt() { return g_mqtt; }
 
-bool lora_task_idle() { return lora_idle() && !g_poll_outstanding.load(); }
+bool lora_task_idle() {
+  SchedLock lock;
+  return lora_idle() && air_idle(air_turn_locked());
+}
 
 const QueueAccounting& queue_accounting() { return g_accounting; }
 

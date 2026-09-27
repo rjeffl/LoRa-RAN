@@ -138,9 +138,11 @@ void ota_service(bool wifi_connected, bool lora_idle, bool mqtt_connected,
 
   // R-5.3d. handle() is where ArduinoOTA answers an upload invitation, so not
   // calling it while a LoRa transaction is outstanding is what defers the upload.
-  // espota retries its invitation for several seconds, and a transaction at SF9 is
-  // well under that. An upload already in progress runs inside handle() to
-  // completion and is not interrupted by this check.
+  // espota retries its invitation for several seconds. A poll at SF9 is well under
+  // that; a command's retries or a PHY change can outlast it, and the upload then
+  // fails and is retried. An upload already in progress runs inside handle() to
+  // completion and is not interrupted by this check; sched_task starts no exchange
+  // while it runs (air_turn.h).
   if (ota_may_start(wifi_connected, lora_idle) || g_in_progress) {
     ArduinoOTA.handle();
   }

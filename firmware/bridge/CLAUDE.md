@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.17 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.72
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.59 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.73
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.60 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting
@@ -52,9 +52,9 @@ and exists nowhere now.
 `scheduler.{h,cpp}` decides and `sched_task` sends; Impl Plan §6.1.1. **Four things to
 keep:** the scheduler's mutex in `task_runtime.cpp` is **never held across a registry call or
 a queue send**, so it never nests with the registry's; a bench row is polled only after it
-has been heard; `lora_task_idle()` is false while a poll is outstanding, which an OTA
-upload waits on; and **one exchange is on the air at a time** (`air_turn.h`): an outstanding
-poll holds every other exchange, every exchange holds every other, and any exchange holds
+has been heard; `lora_task_idle()` is false while any exchange awaits its answer or any
+job waits in its queue, and an OTA upload in progress holds every exchange (R-5.3d); and
+**one exchange is on the air at a time** (`air_turn.h`): an outstanding poll holds every other exchange, every exchange holds every other, and any exchange holds
 the next scheduled poll. A second frame 211 ms after a `POLL` lost both frames on
 2026-09-24. **A new path that transmits asks `exchange_may_start()` before it starts**, and
 is added to `AirTurn`. **It also queues with `send_tx_awaited()` and holds its `next()` on
