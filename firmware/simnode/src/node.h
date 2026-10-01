@@ -7,6 +7,13 @@
 // ARDUINO-FREE. Frames come in as bytes and go out as encoded frames in an Outbox;
 // radio.cpp moves them to and from the SX1262, and applies spec 12.3 on the way out.
 //
+// THE PROTOCOL IS LRAN-NODE'S since GateLink task L1. Node runs lran::node::Engine once per
+// identity, and its Application (App, below) is what makes each role different: which
+// types it answers, what its status and events hold, its RAM parameter store, the
+// simulated MPPT and the fault hooks. What stays here is what only a bench board has:
+// several identities on one radio, PING initiation, schema 0xF0 answers and the console's
+// emitters.
+//
 // EACH IDENTITY HEARS EVERY FRAME, as a physical node would. A frame for 0xF2 is counted
 // rx_not_addressed by 0xF0, exactly as a board at 0xF0 across the room would count it.
 //
@@ -35,45 +42,22 @@
 #include "lran/frame.h"
 #include "lran/mac.h"
 #include "lran/messages.h"
-#include "lran/schema/node_config_v1.h"
+#include "lran/node/application.h"
+#include "lran/node/engine.h"
+#include "lran/node/outbox.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "phy_trial.h"
 #include "sink.h"
 
 namespace simnode {
 
-// A fragmented PING's full set is 15 frames (spec 6.6.2). One more for a health answer.
-inline constexpr size_t kOutboxDepth = 16;
-
-// Not LRAN_MAX_FRAME: the SX1262 transmits up to 255 bytes, and the `oversize` fault (Impl
-// Plan 10.5) exists to put one on the air. fault.cpp asserts this equals lran-sim's
-// kPhyMaxFrame.
-inline constexpr size_t kOutFrameMax = 255;
-
-struct OutFrame {
-  uint8_t bytes[kOutFrameMax] = {0};
-  size_t  len                 = 0;
-};
-
-// Encoded frames waiting for the radio. Fixed storage (root rule 3). A frame that does not
-// fit is refused and counted by the caller's check, never half-queued: a set missing its
-// last fragments would time out at the far end and read as an RF loss.
-class Outbox {
- public:
-  size_t free_slots() const { return kOutboxDepth - count_; }
-  size_t size() const { return count_; }
-  bool   push(const uint8_t* bytes, size_t len);
-  bool   pop(OutFrame* out);
-
- private:
-  OutFrame frames_[kOutboxDepth];
-  size_t   head_  = 0;
-  size_t   count_ = 0;
-};
-
-enum class LogLevel : uint8_t { Quiet, Info, Debug };
-const char* log_level_name(LogLevel l);
-bool        parse_log_level(const char* token, LogLevel* out);
+using lran::node::kOutboxDepth;
+using lran::node::kOutFrameMax;
+using lran::node::LogLevel;
+using lran::node::log_level_name;
+using lran::node::OutFrame;
+using lran::node::Outbox;
+using lran::node::parse_log_level;
 
 enum class PingResult : uint8_t {
   Ok,
@@ -144,6 +128,9 @@ class Node {
  public:
   Node(IdentityTable* ids, Outbox* outbox, lran::IMac* mac, Sink* log);
 
+  Node(const Node&)            = delete;
+  Node& operator=(const Node&) = delete;
+
   // One frame the radio received with a good PHY CRC.
   void on_rx(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_db10,
              uint32_t now_ms);
@@ -184,22 +171,22 @@ class Node {
   // spec 8.1 - an accepted REBOOT resets the BOARD, once its ACK is on the air. main.cpp
   // reads this, waits for the radio to drain, and calls esp_restart(). The simnode's four
   // identities share one chip, so a REBOOT to one restarts them all.
-  bool restart_owed() const { return restart_owed_; }
+  bool restart_owed() const { return engine_.restart_owed(); }
 
   // The radio's spec 12.3 instrument. Shared, because the channel is: every identity reports
   // it in 0xF0.
   lran::Counters* radio_counters() { return &radio_counters_; }
 
-  void     set_log_level(LogLevel l) { level_ = l; }
-  LogLevel log_level() const { return level_; }
+  void     set_log_level(LogLevel l) { engine_.set_log_level(l); }
+  LogLevel log_level() const { return engine_.log_level(); }
 
   // A bench instrument, but root rule 8 still holds: no timing constant is fixed.
   void set_ping_timeout_ms(uint32_t ms) { ping_timeout_ms_ = ms; }
 
   // spec 12.4.2 - the board's PHY group. Without one the node holds its own, with no
   // store, and answers every PHY row READ_ONLY (step 2).
-  void      set_phy(PhyTrial* phy) { phy_ = phy != nullptr ? phy : &no_store_; }
-  PhyTrial* phy() { return phy_; }
+  void      set_phy(PhyTrial* phy) { engine_.set_phy(phy); }
+  PhyTrial* phy() { return engine_.phy(); }
 
   // The identities that must accept a PHY group before the board retunes: every enabled
   // one whose role answers CONFIG, which is every role but ROLE_FAULT (phy_trial.h).
@@ -210,98 +197,79 @@ class Node {
   void on_phy_revert(RevertCause cause);
 
   // Answers dropped because the outbox had no room. Local; the frames they answered were valid.
-  uint32_t answers_dropped() const { return answers_dropped_; }
+  uint32_t answers_dropped() const { return engine_.answers_dropped(); }
 
  private:
-  void deliver(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-               uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
+  // Each role's half of the engine. Every Context the engine hands it is an Identity,
+  // because Node passes nothing else.
+  class App final : public lran::node::Application {
+   public:
+    explicit App(Node* node) : node_(node) {}
+    uint8_t              capabilities(const lran::node::Context& c) const override;
+    lran::node::RandomFn random() const override;
+    bool on_poll(lran::node::Engine&, lran::node::Context& c, const lran::Header& hdr,
+                 const uint8_t* payload, size_t len, uint32_t now_ms) override;
+    bool on_ping(lran::node::Engine&, lran::node::Context& c, const lran::Header& hdr,
+                 const uint8_t* payload, size_t len, uint8_t fragments, int16_t rssi_dbm,
+                 int16_t snr_db10, uint32_t now_ms) override;
+    lran::node::CommandOutcome execute(lran::node::Context& c, const lran::msg::Command& cmd,
+                                       uint32_t now_ms) override;
+    size_t build_status(const lran::node::Context& c, lran::StatusReason reason,
+                        uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) override;
+    size_t build_event(lran::node::Context& c, lran::EventType type, uint16_t detail,
+                       uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) override;
+    bool   config_set(lran::node::Context& c, const lran::schema::ConfigEntry& in,
+                      lran::schema::ConfigAckEntry* out) override;
+    bool   config_get(const lran::node::Context& c, uint16_t id,
+                      lran::schema::ConfigAckEntry* out) override;
+    void   config_list(const lran::node::Context& c, lran::node::ConfigSink* sink) override;
+    void   config_restore_defaults(lran::node::Context& c) override;
+    bool   config_unpersisted(const lran::node::Context& c) const override;
+    size_t  phy_slot(const lran::node::Context& c) const override;
+    uint8_t phy_members() const override { return node_->phy_members(); }
+    lran::node::HexReply hex_forward(lran::node::Context& c, const char* req, size_t n,
+                                     char* rsp, size_t cap, size_t* rsp_n,
+                                     uint32_t now_ms) override;
+    uint32_t hex_timeout_ms(const lran::node::Context& c) const override;
+    bool     withhold(lran::node::Context& c, const char* what, const lran::Header& hdr) override;
+    bool     force_reject_ctx(lran::node::Context& c, const lran::Header& hdr) override;
+    lran::node::AckDelivery fresh_ack(lran::node::Context& c, lran::Seq seq) override;
+
+   private:
+    Node* node_;
+  };
+
+  static Identity&       as_identity(lran::node::Context& c) { return static_cast<Identity&>(c); }
+  static const Identity& as_identity(const lran::node::Context& c) {
+    return static_cast<const Identity&>(c);
+  }
+
   void answer_poll(Identity& e, const lran::Header& hdr, uint32_t now_ms);
+  void answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                            size_t len, uint32_t now_ms);
+  bool on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
+               uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
 
   // The `silent` fault (Impl Plan 10.5): true when this answer is to be withheld, which uses
   // one of the armed count.
   bool silenced(Identity& e, const char* what, const lran::Header& hdr);
 
-  // spec 10.6 - EVERY role answers ROLL_CONTEXT, although only ROLE_GATELINK takes other
-  // commands. A bridge rolls every node it hears after its own boot, and a role that
-  // stayed silent would fail each roll and draw another on every frame the bridge heard,
-  // which puts roll traffic inside a sweep's measurement. Decided 2026-09-23.
-  void on_roll(Identity& e, const lran::Header& hdr, const lran::msg::Command& c);
-  // A COMMAND to a role without a command path. True when it was a roll and was answered;
-  // false leaves the caller to count it unhandled.
-  bool answer_roll_only(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                        size_t len);
-  void on_ping(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-               uint8_t fragments, int16_t rssi_dbm, int16_t snr_db10, uint32_t now_ms);
-
-  // BF-19a - logs the bridge's spec 14.2 ERROR and acts on none of it. The err_code is the
-  // catalogue's only on-air evidence of which spec 14 stage fired.
-  void on_error(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len);
-
-  // Encodes `payload` from identity `e`, fragmenting at `chunk` when it is non-zero and
-  // smaller than the payload, and queues every frame or none.
-  bool send(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-            uint8_t chunk);
-
-  // ROLE_GATELINK - gatelink.cpp.
-  void            on_command(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                             size_t len, uint32_t now_ms);
-  void            on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                            size_t len, uint32_t now_ms);
-  void            answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                                       size_t len, uint32_t now_ms);
-  void            refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why);
-  // BF-36 - spec 7.6's transport, with the simulated MPPT on the far side (sim_mppt.h).
-  void            on_hex_req(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                             size_t len, uint32_t now_ms);
-  bool            send_hex_rsp(Identity& e, lran::NodeId dst, lran::Seq seq,
-                               lran::HexStatus status, const char* hex, size_t n);
-  lran::AckResult execute(Identity& e, const lran::msg::Command& c, AfterAck* after);
-  void            finish_command(Identity& e, const PendingAck& p, uint32_t now_ms);
-  void            tick_gatelink(Identity& e, uint32_t now_ms);
-  bool            send_ack(Identity& e, lran::NodeId peer, lran::Seq ack_seq,
-                           lran::AckResult result, uint8_t detail);
-  void            send_fresh_ack(Identity& e, lran::NodeId peer, lran::Seq seq,
-                                 lran::AckResult result, uint8_t detail);
-  bool            send_status(Identity& e, lran::NodeId dst, lran::StatusReason reason,
-                              uint32_t now_ms);
-  bool            send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLinkEventV1& ev);
-  // spec 7.4.1 - a SOLICITED answer repeats the request's `seq`, because correlation is
-  // by `seq` (spec 9.2). An UNSOLICITED readback takes one from this identity's own
-  // status space (D45), because it answers no request. `reply_seq` carries the first and
-  // kUseStatusSeq asks for the second, so the difference is stated at every call site
-  // rather than implied by which function was reached.
-  static constexpr uint32_t kUseStatusSeq = 0x10000;  // outside the uint16 seq space
-  bool            send_config_ack(Identity& e, lran::NodeId dst,
-                                  const lran::schema::NodeConfigAckV1& ack,
-                                  uint32_t reply_seq);
-  bool            send_config_readback(Identity& e, lran::NodeId dst);
-  void            apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
-                               lran::schema::NodeConfigAckV1* out, uint32_t now_ms);
-  size_t          slot_of(const Identity& e) const;
-  void            send_phy_reverted(Identity& e, lran::NodeId dst, uint32_t now_ms);
+  bool   send_event(Identity& e, const lran::schema::GateLinkEventV1& ev);
+  size_t slot_of(const Identity& e) const;
   // spec 10.7 - STATUS with BOOT, then the BOOT event. False when either was not queued.
-  bool            announce_boot(Identity& e, lran::ResetCause cause, uint32_t now_ms);
+  bool   announce_boot(Identity& e, lran::ResetCause cause, uint32_t now_ms);
 
   IdentityTable* ids_;
   Outbox*        out_;
-  lran::IMac*    mac_;
   Sink*          log_;
 
+  lran::node::Engine engine_;
+  App                app_{this};
+
   lran::Counters radio_counters_;
-  LogLevel       level_           = LogLevel::Info;
   uint32_t       ping_timeout_ms_ = kDefaultPingTimeoutMs;
-  uint32_t       answers_dropped_ = 0;
   uint16_t       boot_count_      = 0;  // 0 is unavailable (spec 7.2.4)
-  bool           restart_owed_    = false;
   LastRx         last_rx_;
-
-  // A full CONFIG and CONFIG_ACK are several hundred bytes each; held here rather than on
-  // the loop task's stack. Only one config is ever in progress, because the node is one loop.
-  lran::schema::NodeConfigV1    cfg_rx_;
-  lran::schema::NodeConfigAckV1 cfg_ack_;
-
-  PhyTrial  no_store_{nullptr};
-  PhyTrial* phy_ = &no_store_;
 };
 
 }  // namespace simnode

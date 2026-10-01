@@ -61,8 +61,8 @@ the gate and `tx_seq` only, where `new_context()` also clears what a reboot lose
 `ACCEPTED` ACK goes out under the new `ctx_id` through `send_fresh_ack()`, so
 `ack_suppress` can lose it and the bridge's retry draws `REJECTED_CTX`.
 
-**Spec §12.4.2's PHY change (BF-33 slice 3) is `phy_trial.{h,cpp}`, and it ran on the
-bench on 2026-09-24.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS. The
+**Spec §12.4.2's PHY change (BF-33 slice 3) is `lib/lran-node/`'s `phy_trial.{h,cpp}`
+since L1, and it ran on the bench on 2026-09-24.** The board holds one PHY group, and `nvs_blob.cpp` keeps it in NVS. The
 PHY group and the boot count are all a simnode persists. The board retunes once every enabled identity that is not
 `ROLE_FAULT` has accepted the same group, because the identities share one radio. **An enabled
 identity the bridge does not watch therefore holds the board on its old settings**; disable
@@ -99,6 +99,16 @@ pio test -d firmware/simnode -e native              # host, no secrets
 pio run  -d firmware/simnode -e simnode-heltec      # NEEDS secrets.h
 pio run  -d firmware/simnode -e simnode-xiao-wio
 ```
+
+**The protocol engine is `lib/lran-node/`'s since GateLink task L1 (2026-10-01).** The
+receive ladder, the context and its roll, `CommandGate`'s two calls, the `BOOT`
+announcement, the `CONFIG` path, the PHY trial and the HEX transport run in
+`lran::node::Engine`, which GateLink runs too. `Identity` extends `lran::node::Context`, and
+`Node::App` in `gatelink.cpp` is the simnode's `Application`: each role's capabilities, the
+synthetic `0xFE` status, the RAM parameter store, the simulated MPPT and the fault hooks.
+**A rule the specification decides belongs in the engine**, with a test in
+`lib/lran-node/test/`; a rule only a bench board has stays here. `phy_trial.h` and `sink.h`
+here are name shims. Change the engine, and run both suites.
 
 **Spec §12.3 media access and the PHY constants are `lib/lran-link/`'s**, shared with the
 bridge. Change them there, and run both firmwares' tests.

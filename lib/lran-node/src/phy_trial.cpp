@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Task BF-33, slice 3; see phy_trial.h.
+// Task BF-33 slice 3, moved by GateLink task L1; see phy_trial.h.
 
-#include "phy_trial.h"
+#include "lran/node/phy_trial.h"
 
-namespace simnode {
+namespace lran::node {
 namespace {
 
 using lran::config::Access;
@@ -276,4 +276,4 @@ uint32_t PhyTrial::window_left_ms(uint32_t now_ms) const {
   return used >= window_ms_ ? 0 : window_ms_ - used;
 }
 
-}  // namespace simnode
+}  // namespace lran::node

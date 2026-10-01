@@ -57,6 +57,12 @@ void IdentityTable::clear(Identity& e) {
   e.last_rssi_dbm = lran::kI16NotAvailable;
   e.last_snr_db10 = lran::kI16NotAvailable;
   e.unhandled     = 0;
+  e.executions    = 0;
+  e.hex_requests  = 0;
+  e.pending       = lran::node::PendingCommand{};
+  e.hex_pending   = lran::node::HexPending{};
+  e.phy_revert_detail  = 0;
+  e.config_change_owed = false;
   e.ping          = PendingPing{};
   e.silent_left        = 0;
   e.answers_suppressed = 0;
@@ -68,16 +74,6 @@ bool IdentityTable::derive_simnode_key(lran::NodeId id, uint8_t out[lran::kNodeK
   if (kdf_ == nullptr || !is_simnode_id(id)) return false;
   kdf_->derive_node_key(master_, id, out);
   return true;
-}
-
-lran::CtxId IdentityTable::random_ctx() {
-  // spec 10.1 - non-zero; 0 means "unknown" on the wire. Bounded, so an RNG that returns
-  // zero forever produces a fixed context rather than a hung board.
-  for (int i = 0; i < 16; ++i) {
-    const lran::CtxId v = random_ != nullptr ? random_() : 0;
-    if (v != 0) return v;
-  }
-  return 1;
 }
 
 AddResult IdentityTable::add(lran::NodeId id, Role role) {
@@ -92,8 +88,7 @@ AddResult IdentityTable::add(lran::NodeId id, Role role) {
     e.id   = id;
     e.role = role;
     kdf_->derive_node_key(master_, id, e.key);
-    e.ctx_id = random_ctx();
-    e.gate.reset_context(e.ctx_id);
+    lran::node::reset_context(e, random_);
     return AddResult::Ok;
   }
   return AddResult::Full;
@@ -131,21 +126,16 @@ size_t IdentityTable::count() const {
 bool IdentityTable::new_context(lran::NodeId id) {
   Identity* e = find(id);
   if (e == nullptr) return false;
-  e->ctx_id = random_ctx();
-  e->gate.reset_context(e->ctx_id);
-  e->tx_seq = 1;
-  e->reassembler.reset();
-  e->reassembler.forget_completed();
-  e->rx_chunk = 0;
-  e->ping     = PendingPing{};
+  // The context, the reassembly and a command or HEX transaction mid-execution: what any
+  // node's reboot loses (lran-node's reset_context()).
+  lran::node::reset_context(*e, random_);
+  e->ping = PendingPing{};
 
-  // What a GateLink reboot loses: RAM-only config, event ids, a command or HEX transaction
-  // mid-execution. The synthetic telemetry and the ack settings are the operator's bench
-  // setup and survive, and so does the MPPT, which a node reboot does not touch.
+  // What a GateLink reboot loses beyond that: RAM-only config and event ids. The synthetic
+  // telemetry and the ack settings are the operator's bench setup and survive, and so does
+  // the MPPT, which a node reboot does not touch.
   e->gl.next_event_id  = 1;
   e->gl.has_last_event = false;
-  e->gl.pending        = PendingAck{};
-  e->gl.hex_pending    = GateLinkState::HexPending{};
   for (StoredParam& p : e->gl.params) p = StoredParam{};
   if (e->gl.status.boot_count < 0xFFFF) ++e->gl.status.boot_count;
   return true;
@@ -154,15 +144,7 @@ bool IdentityTable::new_context(lran::NodeId id) {
 bool IdentityTable::roll_context(lran::NodeId id) {
   Identity* e = find(id);
   if (e == nullptr) return false;
-  // spec 10.6 node step 2 - DIFFERENT from the current one, not merely random. A roll that
-  // drew the same value would leave a replayed ROLL_CONTEXT valid at spec 9.4 step 2, and
-  // the replay bound in spec 10.6 rests on the ctx_id changing.
-  lran::CtxId next = random_ctx();
-  for (int i = 0; i < 16 && next == e->ctx_id; ++i) next = random_ctx();
-  if (next == e->ctx_id) next = e->ctx_id == 0xFFFFFFFFu ? 1u : e->ctx_id + 1u;
-  e->ctx_id = next;
-  e->gate.reset_context(next);
-  e->tx_seq = 1;
+  lran::node::roll_context(*e, random_);  // spec 10.6 - a ctx_id different from this one
   return true;
 }
 

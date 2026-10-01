@@ -307,6 +307,13 @@ jobs:
       - name: Configuration library
         run: pio test -d lib/lran-config -e native
 
+      # GateLink task L1. The node-side engine the simnode and GateLink both run: the
+      # receive ladder, the context and its roll, CommandGate's two calls, CONFIG and the
+      # PHY trial. Its suite covers what the simnode's does not: a command held in flight
+      # until the application finishes it.
+      - name: Node engine library
+        run: pio test -d lib/lran-node -e native
+
       # VE.Direct HEX frames, checked against Victron's worked examples. The simnode's
       # simulated MPPT answers with it (BF-36) and the bridge reads registers with it
       # (BF-30), so a checksum rule the two disagreed on would never reach the air.

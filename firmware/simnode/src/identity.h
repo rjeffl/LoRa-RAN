@@ -9,7 +9,7 @@
 // FROM THE BRIDGE'S SIDE THIS MUST BE INDISTINGUISHABLE FROM FOUR PHYSICAL NODES. So
 // everything a physical node owns, an identity owns separately: its key, its context, its
 // sequence space, its counters, its command gate and its reassembly state. Only the radio
-// is shared. If the bridge behaves differently towards four identities on one radio than
+// is shared. Since GateLink task L1 those are lran-node's Context, which Identity extends. If the bridge behaves differently towards four identities on one radio than
 // towards four radios, the bridge is keyed on the wrong thing - report it, do not
 // compensate here.
 
@@ -18,14 +18,13 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "lran/command_gate.h"
 #include "lran/config.h"
 #include "lran/counters.h"
 #include "lran/mac.h"
-#include "lran/reassembly.h"
 #include "lran/schema/node_config_v1.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/node/context.h"
 #include "lran/types.h"
 #include "sim_mppt.h"
 
@@ -66,23 +65,6 @@ struct StoredParam {
   uint8_t     value[lran::schema::kMaxParamValueLen] = {0, 0, 0, 0};
 };
 
-// What follows a command's COMMAND_ACK.
-enum class AfterAck : uint8_t { None, Status, ConfigReadback, Reboot };
-
-// A command dispatched and not yet acknowledged - `ack <hex> delay <ms>` stretches this into
-// the spec 9.4 execution window, where a retry is in flight and receives nothing.
-struct PendingAck {
-  bool            active   = false;
-  lran::NodeId    peer     = 0;
-  lran::Seq       seq      = 0;
-  uint8_t         cmd      = 0;
-  lran::AckResult result   = lran::AckResult::Accepted;
-  uint8_t         detail   = 0;
-  AfterAck        after    = AfterAck::None;
-  uint32_t        start_ms = 0;
-  uint32_t        delay_ms = 0;
-};
-
 struct GateLinkState {
   // Synthetic telemetry for schema 0xFE, edited by `field`. uptime_s is generated unless set;
   // node_flags bits 2-4 are generated from the three settings below.
@@ -102,7 +84,9 @@ struct GateLinkState {
   // context has not looked at the sequence space.
   uint16_t   ctx_reject_left   = 0;
   uint16_t   ack_dup_left      = 0;  // the ack_dup fault: ACKs still to send twice
-  PendingAck pending;
+  // `ack <hex> delay <ms>` stretches a command's spec 9.4 execution window, where a retry is
+  // in flight and receives nothing. The delay in force when the pending command started.
+  uint32_t   pending_delay_ms  = 0;
 
   bool     dry_run     = false;  // SET_RELAY_DRY_RUN
   bool     bms_polling = true;   // SET_BMS_POLLING
@@ -110,22 +94,14 @@ struct GateLinkState {
 
   // Local diagnostics, not spec 14.1 counters. `actuations` is what a relay would have
   // pulsed: cmd_replay's assertion is that a replay leaves it unchanged.
-  uint32_t executions      = 0;
   uint32_t actuations      = 0;
   uint32_t acks_suppressed = 0;
   uint32_t ctx_rejects_forced = 0;  // ctx_reject fault, spec 10.3
 
   StoredParam params[kConfigStoreDepth];
 
-  // spec 12.4.2 step 8 - the PHY_REVERTED detail still owed to the bridge, 0 when none.
-  // Sent with the next frame from the bridge, then cleared.
-  uint16_t phy_revert_detail = 0;
-
-  // spec 8.7, D69 - a revert changed the effective configuration and no CONFIG_ACK said
-  // so. Carried by the next STATUS with no other reason to carry, then cleared.
-  bool config_change_owed = false;
-
-  // BF-36 - the MPPT on the far side of the UART, and the node's one HEX transaction.
+  // BF-36 - the MPPT on the far side of the UART. The node's one HEX transaction is the
+  // Context's hex_pending.
   SimMppt  mppt;
   // GateLink Impl Plan's hex_timeout_ms, default 1000: how long the node waits for the MPPT
   // before answering TIMEOUT (spec 8.13). Root rule 8, so the console sets it.
@@ -133,14 +109,6 @@ struct GateLinkState {
   // `mppt <hex> timeout [count]` - requests still to leave unanswered by the MPPT. Bounded
   // and self-disarming, as every fault here is (simnode rule 3).
   uint16_t hex_timeout_left = 0;
-  // A TIMEOUT still owed. While it is, the node is mid-transaction and answers BUSY.
-  struct HexPending {
-    bool         active = false;
-    uint32_t     due_ms = 0;
-    lran::NodeId peer   = 0;
-    lran::Seq    seq    = 0;
-  } hex_pending;
-  uint32_t hex_requests = 0;  // local: HEX_REQs this identity forwarded or refused
 };
 
 // Plausible, not physical, values: a charged 4-cell LiFePO4 pack, a closed gate, sentinels
@@ -158,41 +126,14 @@ struct PendingPing {
   uint32_t     sent_ms   = 0;
 };
 
-struct Identity {
-  Identity() = default;
-
-  // The gate and the reassembler hold a pointer to `counters` below. A copy would point
-  // them at another identity's counters.
-  Identity(const Identity&)            = delete;
-  Identity& operator=(const Identity&) = delete;
-
-  bool         used      = false;
-  lran::NodeId id        = 0;
-  Role         role      = Role::Range;
-  bool         enabled   = true;  // a disabled identity neither hears nor answers
-  uint8_t      proto_ver = lran::kProtoVer;  // V-B10: N and N-1 on air at once
-
-  uint8_t key[lran::kNodeKeyLen] = {0};  // spec 9.1, derived exactly as the bridge does
-
-  lran::CtxId ctx_id = 0;  // spec 10.1 - random, non-zero, per identity
-  lran::Seq   tx_seq = 1;  // spec 10.2 - this node's status seq space
-
-  lran::Counters    counters;
-  lran::CommandGate gate{&counters};         // spec 9.4 steps 4-5; its high-water is cmd_seq
-  lran::Reassembler reassembler{&counters};  // one peer: whoever addresses this identity
-
-  // The chunk the peer fragmented its current set with, inferred from the longest
-  // fragment: spec 11.1 fixes every non-final fragment to one length. A fragmented PING is
-  // echoed with the same chunk (spec 6.6.2).
-  uint8_t rx_chunk = 0;
-
-  bool    heard         = false;
-  int16_t last_rssi_dbm = lran::kI16NotAvailable;
-  int16_t last_snr_db10 = lran::kI16NotAvailable;
-
-  // Frames that decoded but that this identity's role does not answer. A local diagnostic,
-  // not a spec 14.1 counter: the frame was valid.
-  uint32_t unhandled = 0;
+// The protocol state - id, key, ctx_id, seq spaces, counters, gate, reassembler, pending
+// command and HEX transaction - is the Context. Copying is deleted there, because the gate
+// and the reassembler point at the counters. proto_ver is per identity, so V-B10 can put
+// N and N-1 on air at once.
+struct Identity : lran::node::Context {
+  bool used    = false;
+  Role role    = Role::Range;
+  bool enabled = true;  // a disabled identity neither hears nor answers
 
   PendingPing ping;
 
@@ -206,8 +147,7 @@ struct Identity {
 
 enum class AddResult : uint8_t { Ok, BadId, Exists, Full, NotReady };
 
-// Any uniformly distributed uint32. esp_random() on the board.
-using RandomFn = uint32_t (*)();
+using lran::node::RandomFn;
 
 class IdentityTable {
  public:
@@ -242,8 +182,9 @@ class IdentityTable {
   // id: this is a bench tool, and it signs for no production node.
   bool derive_simnode_key(lran::NodeId id, uint8_t out[lran::kNodeKeyLen]) const;
 
+  RandomFn random_fn() const { return random_; }
+
  private:
-  lran::CtxId random_ctx();
   void        clear(Identity& e);
 
   uint8_t     master_[lran::kMasterKeyLen] = {0};

@@ -4,29 +4,23 @@
 // ROLE_GATELINK - schema 0xFE status, 0x11 events, COMMAND and COMMAND_ACK, 0x12 config.
 // Task BF-6; Impl Plan 10.2; spec 6.2-6.4, 7.2-7.4, 9.4, 10.1-10.4.
 //
-// THE COMMAND PATH follows D34 as amended: CommandGate::check() before dispatch, record()
-// before the COMMAND_ACK, and nothing sent for a retry found in flight (spec 9.4, v0.11).
+// THE PROTOCOL IS LRAN-NODE'S since GateLink task L1: the command path (D34 as amended),
+// the CONFIG path, the HEX transport and the BOOT announcement run in lran::node::Engine.
+// This file is ROLE_GATELINK's application - what a command does to a simnode, the
+// synthetic 0xFE status, the RAM parameter store, the simulated MPPT and the faults.
 //
 // THE SYNTHETIC MARKER IS THE SCHEMA. Every status this role sends is schema 0xFE, never
 // 0x10 (spec 7.1, bench only), so a status_reason can be a real one and the bridge's
 // handling of it can be tested (decided with the operator 2026-09-14).
 //
-// A DUPLICATE_CACHED ACK carries the cached result in `detail`. Spec 9.4 step 4 says
-// "COMMAND_ACK(DUPLICATE_CACHED) with the cached result" and spec 6.3 has one result byte, so
-// the cached result can only ride in `detail`, and the cached detail is lost. Raised for
-// spec v0.12 rather than settled here.
-
 #include "gatelink.h"
 
 #include <climits>
 #include <cstdlib>
 #include <cstring>
 
-#include "lran/codec.h"
 #include "lran/messages.h"
-#include "lran/wire.h"
 #include "node.h"
-#include "vedirect/hex.h"
 
 namespace simnode {
 namespace {
@@ -39,60 +33,6 @@ using lran::schema::GateLinkStatusV1;
 // a default member initializer. Clang and the Xtensa GCC compile it; the copy is the
 // same bytes either way.
 const GateLinkStatusV1                  kEmptyStatus{};
-const lran::schema::NodeConfigV1    kEmptyConfig{};
-const lran::schema::NodeConfigAckV1 kEmptyConfigAck{};
-
-struct ReasonName {
-  const char*        name;
-  lran::StatusReason value;
-};
-constexpr ReasonName kReasons[] = {
-    {"POLL_RESPONSE", lran::StatusReason::PollResponse},
-    {"GATE_STATE_CHANGE", lran::StatusReason::GateStateChange},
-    {"HOLD_STATE_CHANGE", lran::StatusReason::HoldStateChange},
-    {"MPPT_ERROR", lran::StatusReason::MpptError},
-    {"VEHICLE_DETECTED", lran::StatusReason::VehicleDetected},
-    {"BMS_ALARM", lran::StatusReason::BmsAlarm},
-    {"HARD_SHUTDOWN", lran::StatusReason::HardShutdown},
-    {"FIRE", lran::StatusReason::Fire},
-    {"CONFIG_CHANGE", lran::StatusReason::ConfigChange},
-    {"BOOT", lran::StatusReason::Boot},
-    {"CHARGE_INHIBITED", lran::StatusReason::ChargeInhibited},
-    {"DEBUG_SYNTHETIC", lran::StatusReason::DebugSynthetic},
-};
-
-struct EventName {
-  const char*     name;
-  lran::EventType value;
-};
-constexpr EventName kEvents[] = {
-    {"VEHICLE_WHILE_HELD_OPEN", lran::EventType::VehicleWhileHeldOpen},
-    {"FIRE_ASSERTED", lran::EventType::FireAsserted},
-    {"HARD_SHUTDOWN", lran::EventType::HardShutdown},
-    {"VEHICLE_DETECTED", lran::EventType::VehicleDetected},
-    {"GATE_STATE_CHANGE", lran::EventType::GateStateChange},
-    {"HOLD_STATE_CHANGE", lran::EventType::HoldStateChange},
-    {"BMS_ALARM", lran::EventType::BmsAlarm},
-    {"MPPT_ERROR", lran::EventType::MpptError},
-    {"CHARGE_INHIBITED", lran::EventType::ChargeInhibited},
-    {"BOOT", lran::EventType::Boot},
-    {"PHY_REVERTED", lran::EventType::PhyReverted},
-};
-
-struct ResetCauseName {
-  const char*      name;
-  lran::ResetCause value;
-};
-constexpr ResetCauseName kResetCauses[] = {
-    {"UNKNOWN", lran::ResetCause::Unknown},
-    {"POWER_ON", lran::ResetCause::PowerOn},
-    {"REBOOT_COMMAND", lran::ResetCause::RebootCommand},
-    {"SOFTWARE", lran::ResetCause::Software},
-    {"WATCHDOG", lran::ResetCause::Watchdog},
-    {"PANIC", lran::ResetCause::Panic},
-    {"BROWNOUT", lran::ResetCause::Brownout},
-    {"EXTERNAL", lran::ResetCause::External},
-};
 
 // ---------------------------------------------------------------------------
 // The field table - every GateLinkStatusV1 member but status_reason, which `push` owns.
@@ -245,96 +185,6 @@ lran::schema::ConfigAckEntry set_param(GateLinkState& gl, const lran::schema::Co
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// Tokens
-// ---------------------------------------------------------------------------
-
-const char* status_reason_name(lran::StatusReason r) {
-  for (const ReasonName& n : kReasons) {
-    if (n.value == r) return n.name;
-  }
-  return "?";
-}
-
-bool parse_status_reason(const char* token, lran::StatusReason* out) {
-  for (const ReasonName& n : kReasons) {
-    if (std::strcmp(token, n.name) == 0) {
-      *out = n.value;
-      return true;
-    }
-  }
-  return false;
-}
-
-const char* event_type_name(lran::EventType t) {
-  for (const EventName& n : kEvents) {
-    if (n.value == t) return n.name;
-  }
-  return "?";
-}
-
-bool parse_event_type(const char* token, lran::EventType* out) {
-  for (const EventName& n : kEvents) {
-    if (std::strcmp(token, n.name) == 0) {
-      *out = n.value;
-      return true;
-    }
-  }
-  return false;
-}
-
-const char* reset_cause_name(lran::ResetCause c) {
-  for (const ResetCauseName& n : kResetCauses) {
-    if (n.value == c) return n.name;
-  }
-  return "?";
-}
-
-bool parse_reset_cause(const char* token, lran::ResetCause* out) {
-  for (const ResetCauseName& n : kResetCauses) {
-    if (std::strcmp(token, n.name) == 0) {
-      *out = n.value;
-      return true;
-    }
-  }
-  return false;
-}
-
-const char* ack_result_name(lran::AckResult r) {
-  switch (r) {
-    case lran::AckResult::Accepted:             return "ACCEPTED";
-    case lran::AckResult::RejectedMac:          return "REJECTED_MAC";
-    case lran::AckResult::RejectedSeq:          return "REJECTED_SEQ";
-    case lran::AckResult::RejectedCtx:          return "REJECTED_CTX";
-    case lran::AckResult::RejectedUnknownCmd:   return "REJECTED_UNKNOWN_CMD";
-    case lran::AckResult::RejectedArg:          return "REJECTED_ARG";
-    case lran::AckResult::RejectedNotSupported: return "REJECTED_NOT_SUPPORTED";
-    case lran::AckResult::DuplicateCached:      return "DUPLICATE_CACHED";
-    case lran::AckResult::DryRun:               return "DRY_RUN";
-    case lran::AckResult::ActuatorBusy:         return "ACTUATOR_BUSY";
-    case lran::AckResult::RejectedUnsafe:       return "REJECTED_UNSAFE";
-  }
-  return "?";
-}
-
-const char* cmd_name(uint8_t cmd) {
-  switch (static_cast<lran::Cmd>(cmd)) {
-    case lran::Cmd::Nop:            return "NOP";
-    case lran::Cmd::Open:           return "OPEN";
-    case lran::Cmd::Close:          return "CLOSE";
-    case lran::Cmd::HoldOpen:       return "HOLD_OPEN";
-    case lran::Cmd::ReleaseHold:    return "RELEASE_HOLD";
-    case lran::Cmd::RequestStatus:  return "REQUEST_STATUS";
-    case lran::Cmd::RequestConfig:  return "REQUEST_CONFIG";
-    case lran::Cmd::RollContext:    return "ROLL_CONTEXT";
-    case lran::Cmd::SetDebugMode:   return "SET_DEBUG_MODE";
-    case lran::Cmd::SetRelayDryRun: return "SET_RELAY_DRY_RUN";
-    case lran::Cmd::SetBmsPolling:  return "SET_BMS_POLLING";
-    case lran::Cmd::Reboot:         return "REBOOT";
-  }
-  return "?";
-}
-
-// ---------------------------------------------------------------------------
 // Telemetry
 // ---------------------------------------------------------------------------
 
@@ -382,7 +232,7 @@ size_t build_gatelink_status(const Identity& e, lran::StatusReason reason, uint3
       (e.gl.dry_run ? kNodeFlagDryRun : 0) | (e.gl.bms_polling ? kNodeFlagBmsPolling : 0) |
       (e.gl.debug_modes != 0 ? kNodeFlagDebug : 0));
   s.mppt_flags = static_cast<uint8_t>((s.mppt_flags & ~kMpptFlagHexOutstanding) |
-                                      (e.gl.hex_pending.active ? kMpptFlagHexOutstanding : 0));
+                                      (e.hex_pending.active ? kMpptFlagHexOutstanding : 0));
   s.status_reason = static_cast<uint8_t>(reason);
   size_t n = 0;
   return lran::schema::serialize(s, out, cap, &n) == lran::Status::Ok ? n : 0;
@@ -497,286 +347,270 @@ FieldResult field_set(GateLinkState* gl, const char* name, const char* value) {
   return FieldResult::Ok;
 }
 
+
 // ---------------------------------------------------------------------------
-// Node - ROLE_GATELINK's receive and send paths
+// Node::App - each role's half of lran-node's engine
 // ---------------------------------------------------------------------------
 
-void Node::refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Status why) {
-  // spec 9.4 steps 2-3 - answered with COMMAND_ACK carrying this node's own ctx_id (spec
-  // 10.3), for every authenticated type. Only a frame addressed to this identity.
-  if (hdr.dst != e.id) return;
-  if (hdr.type == lran::MsgType::HexReq) {
-    // A write-class HEX_REQ whose MAC failed or is absent answers HEX_RSP
-    // (REJECTED_UNAUTHENTICATED), as spec 8.13 names it. A context mismatch still answers
-    // COMMAND_ACK(REJECTED_CTX), because that ACK is what carries this node's ctx_id back
-    // for the bridge's resync (spec 10.3). Spec 7.6 states the split from v0.17 (D73).
-    ++e.gl.hex_requests;
-    if (why == lran::Status::RejectedMac) {
-      sink_printf(log_, "hex %02x <- %02x seq %u: write-class, MAC failed, REJECTED_UNAUTHENTICATED",
-                  e.id, hdr.src, static_cast<unsigned>(hdr.seq));
-      send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::RejectedUnauthenticated, nullptr, 0);
-      return;
-    }
-  } else if (hdr.type != lran::MsgType::Command && hdr.type != lran::MsgType::Config) {
-    return;
+uint8_t Node::App::capabilities(const lran::node::Context& c) const {
+  using namespace lran::node;
+  switch (as_identity(c).role) {
+    case Role::GateLink:
+      return kAnswersCommands | kAnswersConfig | kAnswersHex | kRefusesAuthenticated;
+    case Role::Range:
+    case Role::Health:
+      // BF-33 - a CONFIG, for the PHY group only (config_set() holds nothing for them),
+      // because the bridge moves every node it polls (spec 12.4.1).
+      return kAnswersConfig;
+    case Role::Fault:
+      return 0;
   }
-  const lran::AckResult r =
-      why == lran::Status::RejectedCtx ? lran::AckResult::RejectedCtx : lran::AckResult::RejectedMac;
-  sink_printf(log_, "cmd %02x <- %02x seq %u: %s (frame ctx 0x%08lx, own 0x%08lx)", e.id, hdr.src,
-              static_cast<unsigned>(hdr.seq), ack_result_name(r),
-              static_cast<unsigned long>(hdr.ctx_id), static_cast<unsigned long>(e.ctx_id));
-  send_ack(e, hdr.src, hdr.seq, r, 0);
+  return 0;
 }
 
-bool Node::send_ack(Identity& e, lran::NodeId peer, lran::Seq ack_seq, lran::AckResult result,
-                    uint8_t detail) {
-  const lran::msg::CommandAck ack{ack_seq, static_cast<uint8_t>(result), detail};
-  uint8_t                     payload[lran::msg::kCommandAckLen];
-  size_t                      n = 0;
-  if (lran::msg::serialize(ack, payload, sizeof(payload), &n) != lran::Status::Ok) return false;
+lran::node::RandomFn Node::App::random() const { return node_->ids_->random_fn(); }
 
-  lran::Header h;
-  h.ver    = e.proto_ver;
-  h.type   = lran::MsgType::CommandAck;
-  h.src    = e.id;
-  h.dst    = peer;
-  h.seq    = e.tx_seq++;
-  h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaNone;
-  if (!send(e, h, payload, n, 0)) {
-    ++answers_dropped_;
-    sink_printf(log_, "cmd %02x seq %u: COMMAND_ACK not queued", e.id, static_cast<unsigned>(ack_seq));
-    return false;
+bool Node::App::on_poll(lran::node::Engine&, lran::node::Context& c, const lran::Header& hdr,
+                        const uint8_t* payload, size_t len, uint32_t now_ms) {
+  Identity& e = as_identity(c);
+  switch (e.role) {
+    case Role::Range:
+    case Role::Health:
+      node_->answer_poll(e, hdr, now_ms);
+      return true;
+    case Role::GateLink:
+      node_->answer_poll_gatelink(e, hdr, payload, len, now_ms);
+      return true;
+    case Role::Fault:
+      return false;
+  }
+  return false;
+}
+
+bool Node::App::on_ping(lran::node::Engine&, lran::node::Context& c, const lran::Header& hdr,
+                        const uint8_t* payload, size_t len, uint8_t fragments, int16_t rssi_dbm,
+                        int16_t snr_db10, uint32_t now_ms) {
+  return node_->on_ping(as_identity(c), hdr, payload, len, fragments, rssi_dbm, snr_db10, now_ms);
+}
+
+lran::node::CommandOutcome Node::App::execute(lran::node::Context& c,
+                                              const lran::msg::Command& cmd, uint32_t) {
+  using lran::node::AfterAck;
+  GateLinkState& gl = as_identity(c).gl;
+  // `ack <hex> delay <ms>` stretches the execution window: the engine holds the command in
+  // flight and Node::tick() finishes it.
+  gl.pending_delay_ms = gl.ack_delay_ms;
+  lran::node::CommandOutcome o;
+  o.deferred = gl.ack_delay_ms != 0;
+
+  // A simnode has no relay. An actuation command is dispatched to nothing, and counted, so
+  // cmd_replay can assert a replay did not dispatch a second time.
+  switch (static_cast<lran::Cmd>(cmd.cmd)) {
+    case lran::Cmd::Nop:
+      break;
+    case lran::Cmd::Close:
+      if (cmd.arg > 1) {  // spec 8.1 - 0 or 1
+        o.result = lran::AckResult::RejectedArg;
+        break;
+      }
+      ++gl.actuations;
+      o.result = gl.dry_run ? lran::AckResult::DryRun : lran::AckResult::Accepted;
+      break;
+    case lran::Cmd::Open:
+    case lran::Cmd::HoldOpen:
+    case lran::Cmd::ReleaseHold:
+      ++gl.actuations;
+      o.result = gl.dry_run ? lran::AckResult::DryRun : lran::AckResult::Accepted;
+      break;
+    case lran::Cmd::RequestStatus:
+      o.after = AfterAck::Status;
+      break;
+    case lran::Cmd::RequestConfig:
+      o.after = AfterAck::ConfigReadback;
+      break;
+    case lran::Cmd::SetDebugMode:
+      gl.debug_modes = cmd.arg2;
+      break;
+    case lran::Cmd::SetRelayDryRun:
+      if (cmd.arg > 1) {
+        o.result = lran::AckResult::RejectedArg;
+        break;
+      }
+      gl.dry_run = cmd.arg == 1;
+      break;
+    case lran::Cmd::SetBmsPolling:
+      if (cmd.arg > 1) {
+        o.result = lran::AckResult::RejectedArg;
+        break;
+      }
+      gl.bms_polling = cmd.arg == 1;
+      break;
+    case lran::Cmd::RollContext:
+      // spec 9.4 - a roll skips steps 4-6, so the engine answers it before the gate and it
+      // never reaches here. Refused rather than executed if that ever changes.
+      o.result = lran::AckResult::RejectedUnknownCmd;
+      break;
+    case lran::Cmd::Reboot:
+      if (cmd.arg != lran::kRebootGuard) {
+        o.result = lran::AckResult::RejectedArg;
+        break;
+      }
+      o.after = AfterAck::Reboot;
+      break;
+    default:
+      o.result = lran::AckResult::RejectedUnknownCmd;
+      break;
+  }
+  return o;
+}
+
+size_t Node::App::build_status(const lran::node::Context& c, lran::StatusReason reason,
+                               uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) {
+  // The synthetic marker is the schema: 0xFE, never 0x10 (spec 7.1).
+  *schema = lran::kSchemaSimnodeStatusV1;
+  return build_gatelink_status(as_identity(c), reason, now_ms, out, cap);
+}
+
+size_t Node::App::build_event(lran::node::Context& c, lran::EventType type, uint16_t detail,
+                              uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) {
+  Identity&                     e  = as_identity(c);
+  lran::schema::GateLinkEventV1 ev = make_event(e, type, now_ms);
+  ev.detail                        = detail;
+  e.gl.last_event                  = ev;
+  e.gl.has_last_event              = true;
+  *schema                          = lran::kSchemaGateLinkEventV1;
+  size_t n                         = 0;
+  return lran::schema::serialize(ev, out, cap, &n) == lran::Status::Ok ? n : 0;
+}
+
+// The generic RAM store is ROLE_GATELINK's alone; the other roles hold the PHY group and
+// nothing else, so every other row is UNKNOWN_PARAM to them (spec 7.4).
+bool Node::App::config_set(lran::node::Context& c, const lran::schema::ConfigEntry& in,
+                           lran::schema::ConfigAckEntry* out) {
+  Identity& e = as_identity(c);
+  if (e.role != Role::GateLink) return false;
+  *out = set_param(e.gl, in);
+  if (out->status == lran::ParamStatus::UnknownParam) {
+    sink_printf(node_->log_, "config %02x: param 0x%04x refused - RAM store full (%u)", e.id,
+                static_cast<unsigned>(out->param_id), static_cast<unsigned>(kConfigStoreDepth));
   }
   return true;
 }
 
-// The ACK for a result this identity just produced. ack_suppress and ack_dup act here and
-// nowhere else: a retry answered from the cache is the path they exist to exercise.
-void Node::send_fresh_ack(Identity& e, lran::NodeId peer, lran::Seq seq, lran::AckResult result,
-                          uint8_t detail) {
-  GateLinkState& gl = e.gl;
+bool Node::App::config_get(const lran::node::Context& c, uint16_t id,
+                           lran::schema::ConfigAckEntry* out) {
+  const Identity& e = as_identity(c);
+  if (e.role != Role::GateLink) return false;
+  for (const StoredParam& p : e.gl.params) {
+    if (p.used && p.param_id == id) {
+      *out = result_of(p, lran::ParamStatus::Ok);
+      return true;
+    }
+  }
+  return false;
+}
+
+void Node::App::config_list(const lran::node::Context& c, lran::node::ConfigSink* sink) {
+  const Identity& e = as_identity(c);
+  if (e.role != Role::GateLink) return;
+  for (const StoredParam& p : e.gl.params) {
+    if (p.used) sink->add(result_of(p, lran::ParamStatus::Ok));
+  }
+}
+
+// The generic store has no defaults; restoring them empties it.
+void Node::App::config_restore_defaults(lran::node::Context& c) {
+  Identity& e = as_identity(c);
+  if (e.role != Role::GateLink) return;
+  for (StoredParam& p : e.gl.params) p = StoredParam{};
+}
+
+// The generic store is RAM, so an override in it is never persisted (D53).
+bool Node::App::config_unpersisted(const lran::node::Context& c) const {
+  const Identity& e = as_identity(c);
+  if (e.role != Role::GateLink) return false;
+  for (const StoredParam& p : e.gl.params) {
+    if (p.used) return true;
+  }
+  return false;
+}
+
+size_t Node::App::phy_slot(const lran::node::Context& c) const {
+  return node_->slot_of(as_identity(c));
+}
+
+// BF-36 - the simulated MPPT answers at once, or stays silent, which the engine turns into
+// TIMEOUT after hex_timeout_ms.
+lran::node::HexReply Node::App::hex_forward(lran::node::Context& c, const char* req, size_t n,
+                                            char* rsp, size_t cap, size_t* rsp_n, uint32_t) {
+  Identity& e = as_identity(c);
+  if (e.gl.hex_timeout_left > 0) {
+    --e.gl.hex_timeout_left;
+    sink_printf(node_->log_, "hex %02x: timeout fault, MPPT does not answer, %u left", e.id,
+                static_cast<unsigned>(e.gl.hex_timeout_left));
+    return lran::node::HexReply::Pending;
+  }
+  return e.gl.mppt.answer(req, n, rsp, cap, rsp_n) == MpptReply::Silent
+             ? lran::node::HexReply::Pending
+             : lran::node::HexReply::Answered;
+}
+
+uint32_t Node::App::hex_timeout_ms(const lran::node::Context& c) const {
+  return as_identity(c).gl.hex_timeout_ms;
+}
+
+bool Node::App::withhold(lran::node::Context& c, const char* what, const lran::Header& hdr) {
+  return node_->silenced(as_identity(c), what, hdr);
+}
+
+// The ctx_reject fault (BF-21). The engine asks BEFORE the gate, so a rejected command
+// consumes no seq and caches nothing, and the bridge's resync retry meets a second
+// rejection rather than a dedup hit - the path this fault exists to reach (spec 10.3 step 3).
+bool Node::App::force_reject_ctx(lran::node::Context& c, const lran::Header& hdr) {
+  Identity& e = as_identity(c);
+  if (e.gl.ctx_reject_left == 0) return false;
+  --e.gl.ctx_reject_left;
+  ++e.gl.ctx_rejects_forced;
+  sink_printf(node_->log_,
+              "fault %02x ctx_reject: seq %u answered REJECTED_CTX (own ctx 0x%08lx), %u left",
+              e.id, static_cast<unsigned>(hdr.seq), static_cast<unsigned long>(e.ctx_id),
+              static_cast<unsigned>(e.gl.ctx_reject_left));
+  return true;
+}
+
+// ack_suppress and ack_dup act on a fresh result and nowhere else: a retry answered from
+// the cache is the path they exist to exercise.
+lran::node::AckDelivery Node::App::fresh_ack(lran::node::Context& c, lran::Seq seq) {
+  GateLinkState& gl = as_identity(c).gl;
   if (gl.ack_suppress_left > 0) {
     --gl.ack_suppress_left;
     ++gl.acks_suppressed;
-    sink_printf(log_, "fault %02x ack_suppress: ACK for seq %u withheld, %u left", e.id,
+    sink_printf(node_->log_, "fault %02x ack_suppress: ACK for seq %u withheld, %u left", c.id,
                 static_cast<unsigned>(seq), static_cast<unsigned>(gl.ack_suppress_left));
-    return;
+    return lran::node::AckDelivery::Suppress;
   }
-  send_ack(e, peer, seq, result, detail);
   if (gl.ack_dup_left > 0) {
     --gl.ack_dup_left;
-    sink_printf(log_, "fault %02x ack_dup: ACK for seq %u sent twice, %u left", e.id,
+    sink_printf(node_->log_, "fault %02x ack_dup: ACK for seq %u sent twice, %u left", c.id,
                 static_cast<unsigned>(seq), static_cast<unsigned>(gl.ack_dup_left));
-    send_ack(e, peer, seq, result, detail);
+    return lran::node::AckDelivery::Twice;
   }
+  return lran::node::AckDelivery::Send;
 }
 
-bool Node::send_status(Identity& e, lran::NodeId dst, lran::StatusReason reason, uint32_t now_ms) {
-  // spec 8.7, D69 - a poll's answer has no reason of its own, so it carries an owed
-  // CONFIG_CHANGE. Any other reason is kept, and the report waits for the next poll.
-  const bool report_change = e.gl.config_change_owed && reason == lran::StatusReason::PollResponse;
-  if (report_change) reason = lran::StatusReason::ConfigChange;
-  uint8_t      payload[lran::schema::kGateLinkStatusV1Len];
-  const size_t n = build_gatelink_status(e, reason, now_ms, payload, sizeof(payload));
-  lran::Header h;
-  h.ver    = e.proto_ver;
-  h.type   = lran::MsgType::Status;
-  h.src    = e.id;
-  h.dst    = dst;
-  h.seq    = e.tx_seq++;
-  h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaSimnodeStatusV1;
-  if (n == 0 || !send(e, h, payload, n, 0)) {
-    ++answers_dropped_;
-    sink_printf(log_, "status %02x: 0xFE %s not queued", e.id, status_reason_name(reason));
-    return false;
-  }
-  if (report_change) e.gl.config_change_owed = false;
-  return true;
-}
+// ---------------------------------------------------------------------------
+// Node - ROLE_GATELINK's emitters and board-wide state
+// ---------------------------------------------------------------------------
 
-bool Node::send_event(Identity& e, lran::NodeId dst, const lran::schema::GateLinkEventV1& ev) {
-  uint8_t payload[lran::schema::kGateLinkEventV1Len];
-  size_t  n = 0;
-  if (lran::schema::serialize(ev, payload, sizeof(payload), &n) != lran::Status::Ok) return false;
-  lran::Header h;
-  h.ver    = e.proto_ver;
-  h.type   = lran::MsgType::Event;
-  h.src    = e.id;
-  h.dst    = dst;
-  h.seq    = e.tx_seq++;
-  h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaGateLinkEventV1;
-  return send(e, h, payload, n, 0);
-}
-
-bool Node::send_config_ack(Identity& e, lran::NodeId dst,
-                           const lran::schema::NodeConfigAckV1& ack, uint32_t reply_seq) {
-  uint8_t payload[lran::kMaxSchemaPayload];
-  size_t  n = 0;
-  if (lran::schema::serialize(ack, payload, sizeof(payload), &n) != lran::Status::Ok) {
-    sink_printf(log_, "config %02x: CONFIG_ACK did not serialize", e.id);
-    return false;
-  }
-  lran::Header h;
-  h.ver    = e.proto_ver;
-  h.type   = lran::MsgType::ConfigAck;
-  h.src    = e.id;
-  h.dst    = dst;
-  // spec 7.4.1 - the request's `seq` when this answers one, the status space when it
-  // answers nothing. A solicited answer carrying a status seq cannot be correlated at
-  // all: the bridge is waiting on the seq it sent, and an answer under another number
-  // reads as an ACK for something else. Found on the bench on 2026-09-21, when the
-  // bridge's BF-32 path reported `unknown` for a CONFIG the simnode had already applied
-  // and answered.
-  h.seq    = reply_seq == kUseStatusSeq ? e.tx_seq++ : static_cast<lran::Seq>(reply_seq);
-  h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaNodeConfigV1;
-  if (!send(e, h, payload, n, 0)) {
-    ++answers_dropped_;
-    sink_printf(log_, "config %02x: CONFIG_ACK not queued", e.id);
-    return false;
-  }
-  return true;
-}
-
-void Node::apply_config(Identity& e, const lran::schema::NodeConfigV1& in,
-                        lran::schema::NodeConfigAckV1* out, uint32_t now_ms) {
-  namespace sc = lran::schema;
-  *out    = kEmptyConfigAck;
-  out->op = in.op;
-
-  // Results are added while they fit one CONFIG_ACK (spec 11.4 - single-frame). The RAM
-  // store and the PHY group together can outgrow one; spec 7.4.1's split is not built
-  // here, so the overflow is logged, never silent.
-  size_t used    = sc::kConfigAckHdrLen;
-  size_t dropped = 0;
-  auto   add     = [&](const sc::ConfigAckEntry& a) {
-    const size_t need = sc::kConfigAckEntryHdrLen + a.len;
-    if (out->count >= sc::kMaxConfigAckEntries || used + need > lran::kMaxSchemaPayload) {
-      ++dropped;
-      return;
-    }
-    out->entries[out->count++] = a;
-    used += need;
-  };
-
-  // BF-33 - every role but ROLE_FAULT holds the board's PHY group; only ROLE_GATELINK
-  // holds the generic RAM store as well. A row outside both is UNKNOWN_PARAM (spec 7.4).
-  const bool generic = e.role == Role::GateLink;
-  auto unknown = [](uint16_t id, lran::PType t) {
-    sc::ConfigAckEntry a;
-    a.param_id = id;
-    a.status   = lran::ParamStatus::UnknownParam;
-    a.ptype    = t;
-    a.len      = 0;
-    return a;
-  };
-
-  // spec 7.4, D53 - persist_status after a write says what was applied; after a read,
-  // whether the current overrides are persisted. The generic store is RAM, so its
-  // overrides never are; the PHY group reports its own, which a trial makes
-  // APPLIED_NOT_PERSISTED (D60).
-  auto current = [&]() {
-    if (generic) {
-      for (const StoredParam& p : e.gl.params) {
-        if (p.used) return lran::PersistStatus::AppliedNotPersisted;
-      }
-    }
-    return phy_->read_persist_status();
-  };
-  auto list_all = [&]() {
-    if (generic) {
-      for (const StoredParam& p : e.gl.params) {
-        if (p.used) add(result_of(p, lran::ParamStatus::Ok));
-      }
-    }
-    for (const lran::config::ParamDef& d : lran::config::kNodeCommonParams) {
-      if (PhyTrial::is_phy(d.id)) add(phy_->get(d.id));
-    }
-  };
-
-  switch (in.op) {
-    case lran::ConfigOp::Set: {
-      bool applied   = false;
-      bool phy_named = false;
-      bool phy_ok    = true;
-      for (uint8_t i = 0; i < in.count; ++i) {
-        const sc::ConfigEntry& entry = in.entries[i];
-        sc::ConfigAckEntry     a;
-        if (PhyTrial::is_phy(entry.param_id)) {
-          bool took = false;
-          a         = phy_->set(entry, &took);
-          phy_named = true;
-          // spec 12.4.1 step 4 - the bridge abandons on a refusal or a clamp, so only an
-          // OK entry counts toward the board's retune.
-          phy_ok    = phy_ok && a.status == lran::ParamStatus::Ok;
-        } else if (generic) {
-          a = set_param(e.gl, entry);
-          if (a.status == lran::ParamStatus::UnknownParam) {
-            sink_printf(log_, "config %02x: param 0x%04x refused - RAM store full (%u)", e.id,
-                        static_cast<unsigned>(a.param_id),
-                        static_cast<unsigned>(kConfigStoreDepth));
-          }
-        } else {
-          a = unknown(entry.param_id, entry.ptype);
-        }
-        applied = applied || a.status == lran::ParamStatus::Ok ||
-                  a.status == lran::ParamStatus::Clamped;
-        add(a);
-      }
-      if (phy_named) {
-        phy_->on_set(slot_of(e), phy_ok, phy_members(), now_ms);
-        sink_printf(log_, "phy %02x: SET %s, board %s, accepted 0x%02x of 0x%02x", e.id,
-                    phy_ok ? "accepted" : "NOT accepted", phy_state_name(phy_->state()),
-                    static_cast<unsigned>(phy_->accepted_mask()),
-                    static_cast<unsigned>(phy_members()));
-      }
-      // D53 - NOT_APPLIED only when nothing in the set took effect.
-      out->persist_status =
-          applied ? lran::PersistStatus::AppliedNotPersisted : lran::PersistStatus::NotApplied;
-      break;
-    }
-    case lran::ConfigOp::Get:
-      for (uint8_t i = 0; i < in.count; ++i) {
-        const uint16_t id = in.entries[i].param_id;
-        if (PhyTrial::is_phy(id)) {
-          add(phy_->get(id));
-          continue;
-        }
-        const StoredParam* p = generic ? find_param(e.gl, id) : nullptr;
-        add(p != nullptr ? result_of(*p, lran::ParamStatus::Ok)
-                         : unknown(id, in.entries[i].ptype));
-      }
-      out->persist_status = current();
-      break;
-    case lran::ConfigOp::GetAll:
-      list_all();
-      out->persist_status = current();
-      break;
-    case lran::ConfigOp::RestoreDefaults:
-      // The generic store has no defaults; restoring them empties it. The PHY group is
-      // kept, as lran-config's Store::restore_defaults() keeps it (D60). D52 - answered
-      // with the full effective configuration, as GET_ALL is.
-      if (generic) {
-        for (StoredParam& p : e.gl.params) p = StoredParam{};
-      }
-      list_all();
-      out->persist_status = current();
-      break;
-    default:
-      out->persist_status = lran::PersistStatus::NotApplied;
-      sink_printf(log_, "config %02x: unknown op 0x%02x, not applied", e.id,
-                  static_cast<unsigned>(in.op));
-      break;
-  }
-  if (dropped > 0) {
-    sink_printf(log_, "config %02x: CONFIG_ACK holds %u result(s); %u more did not fit %u B "
-                      "(spec 3.1) - resolve by readback",
-                e.id, static_cast<unsigned>(out->count), static_cast<unsigned>(dropped),
-                static_cast<unsigned>(lran::kMaxSchemaPayload));
-  }
+void Node::answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
+                                size_t len, uint32_t now_ms) {
+  if (silenced(e, "poll", hdr)) return;
+  lran::msg::Poll p;
+  const uint8_t flags =
+      lran::msg::deserialize(payload, len, &p) == lran::Status::Ok ? p.poll_flags : 0;
+  engine_.send_status(e, app_, hdr.src, lran::StatusReason::PollResponse, now_ms);
+  // spec 6.4 bit 1 - config readback, the recovery path for a lost CONFIG_ACK (spec 7.4).
+  if ((flags & lran::kPollFlagConfigReadback) != 0) engine_.send_config_readback(e, app_, hdr.src);
 }
 
 size_t Node::slot_of(const Identity& e) const {
@@ -800,383 +634,15 @@ void Node::on_phy_revert(RevertCause cause) {
               cause == RevertCause::Reboot ? "reboot during trial" : "window expired");
   for (size_t i = 0; i < kMaxIdentities; ++i) {
     Identity& e = ids_->slot(i);
-    if (e.used && e.role == Role::GateLink) {
-      e.gl.phy_revert_detail  = static_cast<uint16_t>(cause);
-      e.gl.config_change_owed = true;
-    }
+    if (e.used && e.role == Role::GateLink) lran::node::Engine::note_phy_revert(e, cause);
   }
 }
 
-void Node::send_phy_reverted(Identity& e, lran::NodeId dst, uint32_t now_ms) {
-  lran::schema::GateLinkEventV1 ev = make_event(e, lran::EventType::PhyReverted, now_ms);
-  ev.detail                        = e.gl.phy_revert_detail;
-  e.gl.phy_revert_detail           = 0;
-  e.gl.last_event                  = ev;
-  e.gl.has_last_event              = true;
-  if (!send_event(e, dst, ev)) {
-    ++answers_dropped_;
-    sink_printf(log_, "phy %02x: PHY_REVERTED not queued", e.id);
-    return;
-  }
-  sink_printf(log_, "phy %02x: EVENT PHY_REVERTED detail 0x%04x, event_id %lu", e.id,
-              static_cast<unsigned>(ev.detail), static_cast<unsigned long>(ev.event_id));
-}
-
-bool Node::send_config_readback(Identity& e, lran::NodeId dst) {
-  cfg_rx_    = kEmptyConfig;
-  cfg_rx_.op = lran::ConfigOp::GetAll;
-  apply_config(e, cfg_rx_, &cfg_ack_, 0);
-  // Unsolicited: it answers a POLL bit 1 or a REQUEST_CONFIG and correlates to no
-  // request at all (D45).
-  return send_config_ack(e, dst, cfg_ack_, kUseStatusSeq);
-}
-
-void Node::answer_poll_gatelink(Identity& e, const lran::Header& hdr, const uint8_t* payload,
-                                size_t len, uint32_t now_ms) {
-  if (silenced(e, "poll", hdr)) return;
-  lran::msg::Poll p;
-  const uint8_t flags =
-      lran::msg::deserialize(payload, len, &p) == lran::Status::Ok ? p.poll_flags : 0;
-  send_status(e, hdr.src, lran::StatusReason::PollResponse, now_ms);
-  // spec 6.4 bit 1 - config readback, the recovery path for a lost CONFIG_ACK (spec 7.4).
-  if ((flags & lran::kPollFlagConfigReadback) != 0) send_config_readback(e, hdr.src);
-}
-
-lran::AckResult Node::execute(Identity& e, const lran::msg::Command& c, AfterAck* after) {
-  GateLinkState& gl = e.gl;
-  *after            = AfterAck::None;
-  ++gl.executions;
-
-  // A simnode has no relay. An actuation command is dispatched to nothing, and counted, so
-  // cmd_replay can assert a replay did not dispatch a second time.
-  switch (static_cast<lran::Cmd>(c.cmd)) {
-    case lran::Cmd::Nop:
-      return lran::AckResult::Accepted;
-    case lran::Cmd::Close:
-      if (c.arg > 1) return lran::AckResult::RejectedArg;  // spec 8.1 - 0 or 1
-      ++gl.actuations;
-      return gl.dry_run ? lran::AckResult::DryRun : lran::AckResult::Accepted;
-    case lran::Cmd::Open:
-    case lran::Cmd::HoldOpen:
-    case lran::Cmd::ReleaseHold:
-      ++gl.actuations;
-      return gl.dry_run ? lran::AckResult::DryRun : lran::AckResult::Accepted;
-    case lran::Cmd::RequestStatus:
-      *after = AfterAck::Status;
-      return lran::AckResult::Accepted;
-    case lran::Cmd::RequestConfig:
-      *after = AfterAck::ConfigReadback;
-      return lran::AckResult::Accepted;
-    case lran::Cmd::SetDebugMode:
-      gl.debug_modes = c.arg2;
-      return lran::AckResult::Accepted;
-    case lran::Cmd::SetRelayDryRun:
-      if (c.arg > 1) return lran::AckResult::RejectedArg;
-      gl.dry_run = c.arg == 1;
-      return lran::AckResult::Accepted;
-    case lran::Cmd::SetBmsPolling:
-      if (c.arg > 1) return lran::AckResult::RejectedArg;
-      gl.bms_polling = c.arg == 1;
-      return lran::AckResult::Accepted;
-    case lran::Cmd::RollContext:
-      // spec 9.4 - a roll skips steps 4-6, so on_command() answers it before the gate and
-      // it never reaches here. Refused rather than executed if that ever changes.
-      return lran::AckResult::RejectedUnknownCmd;
-    case lran::Cmd::Reboot:
-      if (c.arg != lran::kRebootGuard) return lran::AckResult::RejectedArg;
-      *after = AfterAck::Reboot;
-      return lran::AckResult::Accepted;
-  }
-  return lran::AckResult::RejectedUnknownCmd;
-}
-
-void Node::finish_command(Identity& e, const PendingAck& p, uint32_t now_ms) {
-  if (!e.gate.record(p.seq, p.result, p.detail)) {
-    // Evicted while in flight (command_gate.h). A retry will read REJECTED_SEQ for a command
-    // that ran, so say so here.
-    sink_printf(log_, "cmd %02x seq %u: record() refused - evicted in flight", e.id,
-                static_cast<unsigned>(p.seq));
-  }
-  sink_printf(log_, "cmd %02x <- %02x seq %u: %s %s", e.id, p.peer, static_cast<unsigned>(p.seq),
-              cmd_name(p.cmd), ack_result_name(p.result));
-  send_fresh_ack(e, p.peer, p.seq, p.result, p.detail);
-
-  switch (p.after) {
-    case AfterAck::None:
-      break;
-    case AfterAck::Status:
-      send_status(e, p.peer, lran::StatusReason::PollResponse, now_ms);
-      break;
-    case AfterAck::ConfigReadback:
-      send_config_readback(e, p.peer);
-      break;
-    case AfterAck::Reboot:
-      // spec 8.1 - the ACK above goes out under the current ctx_id, and the board resets
-      // once it is on the air. The new context, the BOOT status and the BOOT event come from
-      // the next boot's on_boot(), as after any other reset (spec 10.7).
-      restart_owed_ = true;
-      sink_printf(log_, "id %02x REBOOT accepted: board restarts once the ACK is on the air", e.id);
-      break;
-  }
-}
-
-void Node::on_command(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-                      uint32_t now_ms) {
-  if (silenced(e, "command", hdr)) return;
-  lran::msg::Command c;
-  if (lran::msg::deserialize(payload, len, &c) != lran::Status::Ok) {
-    // The codec checked the 4-byte length at stage 8, so this cannot happen; logged anyway.
-    ++e.unhandled;
-    sink_printf(log_, "cmd %02x <- %02x seq %u: payload did not deserialize", e.id, hdr.src,
-                static_cast<unsigned>(hdr.seq));
-    return;
-  }
-
-  // The ctx_reject fault (BF-21), and it acts BEFORE the gate. Spec 9.4 puts the context
-  // check at step 2 and the dedup gate at steps 4-6, so a node that refuses on context has
-  // not looked at the sequence space: the seq is not consumed, nothing is cached, and the
-  // command is never executed. Answering after the gate would cache a result the node never
-  // produced, and the bridge's resync retry would then meet a dedup hit instead of a second
-  // rejection - which is the very path this fault exists to reach (spec 10.3 step 3).
-  if (e.gl.ctx_reject_left > 0) {
-    --e.gl.ctx_reject_left;
-    ++e.gl.ctx_rejects_forced;
-    sink_printf(log_,
-                "fault %02x ctx_reject: seq %u answered REJECTED_CTX (own ctx 0x%08lx), %u left",
-                e.id, static_cast<unsigned>(hdr.seq), static_cast<unsigned long>(e.ctx_id),
-                static_cast<unsigned>(e.gl.ctx_reject_left));
-    send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedCtx, 0);
-    return;
-  }
-
-  // spec 9.4, 10.6 - a roll skips steps 4-6. The bridge sends it because its own seq
-  // cannot be trusted after a restart, so the gate must not judge that seq.
-  if (c.cmd == static_cast<uint8_t>(lran::Cmd::RollContext)) {
-    on_roll(e, hdr, c);
-    return;
-  }
-
-  const lran::GateResult g = e.gate.check(hdr.seq);  // spec 9.4 steps 4-6, D34
-  switch (g.verdict) {
-    case lran::Verdict::Execute: {
-      phy_->on_authenticated();  // spec 12.4.2 step 5, as in on_config()
-      if (e.gl.pending.active) {
-        // One execution at a time, as one relay board. The seq is consumed either way.
-        e.gate.record(hdr.seq, lran::AckResult::ActuatorBusy, 0);
-        sink_printf(log_, "cmd %02x <- %02x seq %u: %s ACTUATOR_BUSY (seq %u executing)", e.id,
-                    hdr.src, static_cast<unsigned>(hdr.seq), cmd_name(c.cmd),
-                    static_cast<unsigned>(e.gl.pending.seq));
-        send_fresh_ack(e, hdr.src, hdr.seq, lran::AckResult::ActuatorBusy, 0);
-        return;
-      }
-      PendingAck p;
-      p.active   = true;
-      p.peer     = hdr.src;
-      p.seq      = hdr.seq;
-      p.cmd      = c.cmd;
-      p.start_ms = now_ms;
-      p.delay_ms = e.gl.ack_delay_ms;
-      p.result   = execute(e, c, &p.after);
-      if (p.delay_ms == 0) {
-        finish_command(e, p, now_ms);
-      } else {
-        e.gl.pending = p;
-        sink_printf(log_, "cmd %02x <- %02x seq %u: %s executing, ACK in %lu ms", e.id, hdr.src,
-                    static_cast<unsigned>(hdr.seq), cmd_name(c.cmd),
-                    static_cast<unsigned long>(p.delay_ms));
-      }
-      return;
-    }
-    case lran::Verdict::ReturnCached:
-      sink_printf(log_, "cmd %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED (%s), not executed",
-                  e.id, hdr.src, static_cast<unsigned>(hdr.seq), ack_result_name(g.cached_result));
-      send_ack(e, hdr.src, hdr.seq, lran::AckResult::DuplicateCached,
-               static_cast<uint8_t>(g.cached_result));
-      return;
-    case lran::Verdict::InFlight:
-      sink_printf(log_, "cmd %02x <- %02x seq %u: retry in flight, not answered (spec 9.4)", e.id,
-                  hdr.src, static_cast<unsigned>(hdr.seq));
-      return;
-    case lran::Verdict::Reject:
-      sink_printf(log_, "cmd %02x <- %02x seq %u: REJECTED_SEQ, high water %u", e.id, hdr.src,
-                  static_cast<unsigned>(hdr.seq), static_cast<unsigned>(e.gate.high_water()));
-      send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedSeq, 0);
-      return;
-  }
-}
-
-void Node::on_config(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-                     uint32_t now_ms) {
-  if (silenced(e, "config", hdr)) return;
-
-  // spec 9.4 applies steps 4-6 to every authenticated type, so a CONFIG shares the command
-  // seq space and the gate. The step 4 and 5 answers are COMMAND_ACK, as 9.4 words them.
-  const lran::GateResult g = e.gate.check(hdr.seq);
-  switch (g.verdict) {
-    case lran::Verdict::Execute:
-      // spec 12.4.2 step 5 - through stage 11, so this CONFIG confirms a PHY trial. First,
-      // so a confirming GET answers with the group committed.
-      phy_->on_authenticated();
-      break;
-    case lran::Verdict::ReturnCached:
-      sink_printf(log_, "config %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED, not applied",
-                  e.id, hdr.src, static_cast<unsigned>(hdr.seq));
-      send_ack(e, hdr.src, hdr.seq, lran::AckResult::DuplicateCached,
-               static_cast<uint8_t>(g.cached_result));
-      return;
-    case lran::Verdict::InFlight:
-      sink_printf(log_, "config %02x <- %02x seq %u: in flight, not answered", e.id, hdr.src,
-                  static_cast<unsigned>(hdr.seq));
-      return;
-    case lran::Verdict::Reject:
-      send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedSeq, 0);
-      return;
-  }
-
-  if (lran::schema::deserialize(payload, len, &cfg_rx_) != lran::Status::Ok) {
-    e.gate.record(hdr.seq, lran::AckResult::RejectedArg, 0);
-    cfg_ack_                = kEmptyConfigAck;
-    cfg_ack_.op             = static_cast<lran::ConfigOp>(len > 0 ? payload[0] : 0);
-    cfg_ack_.persist_status = lran::PersistStatus::NotApplied;
-    sink_printf(log_, "config %02x <- %02x seq %u: body did not parse, NOT_APPLIED", e.id, hdr.src,
-                static_cast<unsigned>(hdr.seq));
-    send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
-    return;
-  }
-
-  ++e.gl.executions;
-  apply_config(e, cfg_rx_, &cfg_ack_, now_ms);
-  e.gate.record(hdr.seq, lran::AckResult::Accepted, 0);
-  sink_printf(log_, "config %02x <- %02x seq %u: op %u, %u entr%s, %u result(s)", e.id, hdr.src,
-              static_cast<unsigned>(hdr.seq), static_cast<unsigned>(cfg_rx_.op),
-              static_cast<unsigned>(cfg_rx_.count), cfg_rx_.count == 1 ? "y" : "ies",
-              static_cast<unsigned>(cfg_ack_.count));
-  send_config_ack(e, hdr.src, cfg_ack_, hdr.seq);
-}
-
-bool Node::send_hex_rsp(Identity& e, lran::NodeId dst, lran::Seq seq, lran::HexStatus status,
-                        const char* hex, size_t n) {
-  const lran::msg::HexRsp rsp{static_cast<uint8_t>(status), static_cast<uint8_t>(n),
-                              reinterpret_cast<const uint8_t*>(hex)};
-  uint8_t payload[lran::kMaxPayloadPlain];
-  size_t  len = 0;
-  if (n > 0xFF || lran::msg::serialize(rsp, payload, sizeof(payload), &len) != lran::Status::Ok) {
-    sink_printf(log_, "hex %02x seq %u: HEX_RSP did not serialize", e.id, static_cast<unsigned>(seq));
-    return false;
-  }
-  lran::Header h;
-  h.ver    = e.proto_ver;
-  h.type   = lran::MsgType::HexRsp;
-  h.src    = e.id;
-  h.dst    = dst;
-  // The request's seq, as a solicited CONFIG_ACK carries its request's (spec 7.4.1): the
-  // bridge correlates by seq (spec 9.2), and HEX_RSP has no field of its own for it.
-  h.seq    = seq;
-  h.ctx_id = e.ctx_id;
-  h.schema = lran::kSchemaNone;
-  if (!send(e, h, payload, len, 0)) {
-    ++answers_dropped_;
-    sink_printf(log_, "hex %02x seq %u: HEX_RSP not queued", e.id, static_cast<unsigned>(seq));
-    return false;
-  }
-  return true;
-}
-
-void Node::on_hex_req(Identity& e, const lran::Header& hdr, const uint8_t* payload, size_t len,
-                      uint32_t now_ms) {
-  if (silenced(e, "HEX_REQ", hdr)) return;
-  ++e.gl.hex_requests;
-
-  // The codec has already checked the MAC of a write-class request (spec 9.4 step 3). The
-  // class comes from the command nibble, never from `flags` bit 0, which is declared by the
-  // sender and not trusted (spec 7.6).
-  const bool write = lran::hex_req_is_write_class(payload, len);
-  if (write) {
-    // spec 9.4 applies steps 4-6 to every authenticated type, so a write-class HEX_REQ
-    // shares the command seq space and the gate, as a CONFIG does. Without it a captured
-    // Set could be replayed for as long as the ctx_id lasts.
-    const lran::GateResult g = e.gate.check(hdr.seq);
-    switch (g.verdict) {
-      case lran::Verdict::Execute:
-        phy_->on_authenticated();  // spec 12.4.2 step 5, as on_config()
-        break;
-      case lran::Verdict::ReturnCached:
-        sink_printf(log_, "hex %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED, not forwarded",
-                    e.id, hdr.src, static_cast<unsigned>(hdr.seq));
-        send_ack(e, hdr.src, hdr.seq, lran::AckResult::DuplicateCached,
-                 static_cast<uint8_t>(g.cached_result));
-        return;
-      case lran::Verdict::InFlight:
-        return;
-      case lran::Verdict::Reject:
-        sink_printf(log_, "hex %02x <- %02x seq %u: REJECTED_SEQ, high water %u", e.id, hdr.src,
-                    static_cast<unsigned>(hdr.seq), static_cast<unsigned>(e.gate.high_water()));
-        send_ack(e, hdr.src, hdr.seq, lran::AckResult::RejectedSeq, 0);
-        return;
-    }
-    // Recorded before the MPPT is asked: spec 9.4 step 6 moves the state before dispatch,
-    // and a write the node forwarded has consumed its seq whatever the MPPT answers.
-    e.gate.record(hdr.seq, lran::AckResult::Accepted, 0);
-  }
-
-  lran::msg::HexReq req;
-  // The node's own shape check, the same one lran::hex_req_is_write_class() makes: a colon
-  // and a hex command nibble. Nothing else in the string is the node's to judge (spec 6.7);
-  // a bad checksum goes to the MPPT, which answers it with a frame error.
-  const bool shaped = lran::msg::deserialize(payload, len, &req) == lran::Status::Ok &&
-                      req.n >= 2 && req.hex[0] == ':' &&
-                      std::strchr("0123456789ABCDEFabcdef", req.hex[1]) != nullptr &&
-                      req.hex[1] != '\0';
-  if (!shaped) {
-    sink_printf(log_, "hex %02x <- %02x seq %u: MALFORMED_REQUEST", e.id, hdr.src,
-                static_cast<unsigned>(hdr.seq));
-    send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::MalformedRequest, nullptr, 0);
-    return;
-  }
-  if (e.gl.hex_pending.active) {
-    sink_printf(log_, "hex %02x <- %02x seq %u: transaction outstanding, BUSY", e.id, hdr.src,
-                static_cast<unsigned>(hdr.seq));
-    send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::Busy, nullptr, 0);
-    return;
-  }
-
-  char   rsp[vedirect::kMaxChars];
-  size_t rsp_n = 0;
-  bool   quiet = false;
-  if (e.gl.hex_timeout_left > 0) {
-    --e.gl.hex_timeout_left;
-    quiet = true;
-    sink_printf(log_, "hex %02x: timeout fault, MPPT does not answer, %u left", e.id,
-                static_cast<unsigned>(e.gl.hex_timeout_left));
-  } else {
-    quiet = e.gl.mppt.answer(reinterpret_cast<const char*>(req.hex), req.n, rsp, sizeof(rsp),
-                             &rsp_n) == MpptReply::Silent;
-  }
-  if (quiet) {
-    // spec 8.13 - TIMEOUT rather than silence, after the node's own wait.
-    e.gl.hex_pending = {true, now_ms + e.gl.hex_timeout_ms, hdr.src, hdr.seq};
-    return;
-  }
-  sink_printf(log_, "hex %02x <- %02x seq %u: %s %.*s -> %.*s", e.id, hdr.src,
-              static_cast<unsigned>(hdr.seq), write ? "write" : "read", static_cast<int>(req.n),
-              reinterpret_cast<const char*>(req.hex), static_cast<int>(rsp_n), rsp);
-  send_hex_rsp(e, hdr.src, hdr.seq, lran::HexStatus::Ok, rsp, rsp_n);
-}
-
-void Node::tick_gatelink(Identity& e, uint32_t now_ms) {
-  GateLinkState::HexPending& h = e.gl.hex_pending;
-  if (h.active && e.enabled && static_cast<int32_t>(now_ms - h.due_ms) >= 0) {
-    h.active = false;
-    sink_printf(log_, "hex %02x -> %02x seq %u: no MPPT answer in %lu ms, TIMEOUT", e.id, h.peer,
-                static_cast<unsigned>(h.seq), static_cast<unsigned long>(e.gl.hex_timeout_ms));
-    send_hex_rsp(e, h.peer, h.seq, lran::HexStatus::Timeout, nullptr, 0);
-  }
-
-  PendingAck& p = e.gl.pending;
-  if (!p.active || !e.enabled || now_ms - p.start_ms < p.delay_ms) return;
-  const PendingAck done = p;
-  p.active              = false;
-  finish_command(e, done, now_ms);
+bool Node::send_event(Identity& e, const lran::schema::GateLinkEventV1& ev) {
+  uint8_t payload[lran::schema::kGateLinkEventV1Len];
+  size_t  n = 0;
+  if (lran::schema::serialize(ev, payload, sizeof(payload), &n) != lran::Status::Ok) return false;
+  return engine_.send_event(e, lran::kNodeBridge, payload, n, lran::kSchemaGateLinkEventV1);
 }
 
 const char* emit_result_name(EmitResult r) {
@@ -1193,20 +659,11 @@ const char* emit_result_name(EmitResult r) {
 }
 
 bool Node::announce_boot(Identity& e, lran::ResetCause cause, uint32_t now_ms) {
-  // spec 10.7 - the first STATUS carries BOOT, and the event follows it. The event is what
-  // says why: without the cause a watchdog reset and a directed reboot look alike (8.14).
-  const bool status_queued = send_status(e, lran::kNodeBridge, lran::StatusReason::Boot, now_ms);
-  lran::schema::GateLinkEventV1 ev = make_event(e, lran::EventType::Boot, now_ms);
-  ev.detail                        = static_cast<uint16_t>(cause);  // high byte reserved, 0
-  e.gl.last_event                  = ev;
-  e.gl.has_last_event              = true;
-  const bool event_queued          = send_event(e, lran::kNodeBridge, ev);
-  if (!event_queued) ++answers_dropped_;
+  const bool ok = engine_.announce_boot(e, app_, cause, now_ms);  // spec 10.7
   sink_printf(log_, "id %02x boot: ctx 0x%08lx, reset cause %s, boot_count %u%s", e.id,
               static_cast<unsigned long>(e.ctx_id), reset_cause_name(cause),
-              static_cast<unsigned>(e.gl.status.boot_count),
-              status_queued && event_queued ? "" : " - NOT ALL QUEUED");
-  return status_queued && event_queued;
+              static_cast<unsigned>(e.gl.status.boot_count), ok ? "" : " - NOT ALL QUEUED");
+  return ok;
 }
 
 void Node::on_boot(lran::ResetCause cause, uint16_t boot_count, uint32_t now_ms) {
@@ -1235,8 +692,9 @@ EmitResult Node::push(lran::NodeId id, lran::StatusReason reason, uint32_t now_m
   if (!e->enabled) return EmitResult::Disabled;
   if (e->role != Role::GateLink) return EmitResult::WrongRole;
   if (out_->free_slots() < 1) return EmitResult::OutboxFull;
-  return send_status(*e, lran::kNodeBridge, reason, now_ms) ? EmitResult::Ok
-                                                            : EmitResult::EncodeFailed;
+  return engine_.send_status(*e, app_, lran::kNodeBridge, reason, now_ms)
+             ? EmitResult::Ok
+             : EmitResult::EncodeFailed;
 }
 
 EmitResult Node::event(lran::NodeId id, lran::EventType type, EventMode mode, uint32_t now_ms,
@@ -1266,7 +724,7 @@ EmitResult Node::event(lran::NodeId id, lran::EventType type, EventMode mode, ui
   e->gl.last_event     = ev;
   e->gl.has_last_event = true;
   if (event_id != nullptr) *event_id = ev.event_id;
-  return send_event(*e, lran::kNodeBridge, ev) ? EmitResult::Ok : EmitResult::EncodeFailed;
+  return send_event(*e, ev) ? EmitResult::Ok : EmitResult::EncodeFailed;
 }
 
 }  // namespace simnode
