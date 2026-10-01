@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that ran L1's bench checks.** It replaces
-the file the session that built L1 on the host wrote.
+**Written 2026-10-01, at the end of the session that built L3.** It replaces the file the
+session that ran L1's bench checks wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,7 +20,6 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
-| **L3** — VE.Direct text parser | Plan §4.2.4, §8.1. `lib/vedirect/include/vedirect/hex.h`. The osh-labs repository is the reference of record |
 | **L4** — GateLink's parameter block | Plan §4.4, §6.4, §8.1. `lib/lran-config/include/lran/config/table.h`. PRD §5.3. `doc-findings` finding 2 first |
 | **L5** — node key provisioning | Plan §6.8. Spec §9.1. `secrets.h.example`. `tools/vectors/` for the HKDF |
 | **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
@@ -32,23 +31,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L1 is done once its PR merges.** All four of plan §8.1's bench checks passed on
-2026-10-01, and the engineering log's entry of that date records each one. The operator
-picks the next task from the table above. L3, L4 and L5 are independent of each other,
-and any of them suits a short session.
+**L3 is done once its PR merges**, with one criterion left open: its test block is
+synthesized, not captured from the MPPT. The first capture at GL4 replaces it. L1 merged
+on 2026-10-01. The operator picks the next task from the table above. L4 and L5 are
+independent of each other, and either suits a short session.
 
 ## What the last session established
 
-- **`lib/lran-node/` exists and the simnode runs on it.** 144 simnode host tests pass, as
-  before; the library adds 12; both simnode targets build; CI runs the new suite.
-- **The plan §5.2 split is real.** An application may defer a command, and
-  `Engine::finish_command()` records and ACKs it later. GateLink's `io_task` will use it.
-- **The engine is on air.** The XIAO Kit passed all four L1 bench checks against the
-  bridge: commands, the BF-34 roll, the §10.7 reboot and the §12.4.2 commit and revert.
-  The engineering log's second 2026-10-01 entry has the evidence, and the first lists what
-  changed beyond the move.
-- **The deferred-command path and `Engine::complete_hex()` have run on the host only.**
-  No bench check exercised either.
+- **`lib/vedirect/` parses text blocks.** `include/vedirect/text.h` holds `TextParser`,
+  which takes one UART byte at a time, and `decode_mppt()`. 12 tests join the HEX suite's
+  12. The bridge's `heltec` and both simnode targets compile it under `-Werror`.
+- **The parser has met no real MPPT output.** Its test block is assembled from osh-labs'
+  sample, spec §7.2.2 and labels osh-labs names. `OR` and `H23` are absent from it.
+- **A HEX line inside a text block resumes the block**, as osh-labs' specification says
+  and its code does not. The `interrupted` counter is the check that would show it wrong.
+  The engineering log's L3 entry has the reasoning.
+- **osh-labs is not proven on a 75/15**, by its own specification. Plan v0.19 says so.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -75,9 +73,9 @@ and any of them suits a short session.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.18. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L1: bench checks passed, PR awaiting acceptance |
-| Not started | L2–L6. GL0–GL9. `firmware/gatelink/` does not exist |
+| Done | Plan v0.19. L1. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | L3: built and host-tested, PR awaiting acceptance |
+| Not started | L2, L4–L6. GL0–GL9. `firmware/gatelink/` does not exist |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -85,7 +83,7 @@ pio test -d firmware/simnode -e native        # L1's regression suite; must stay
 pio test -d lib/lran-node -e native           # the node engine (L1)
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
-pio test -d lib/vedirect -e native            # HEX codec (L3 adds the text parser)
+pio test -d lib/vedirect -e native            # HEX codec and text parser (L3)
 cd wattcycle-reader && pio test -e native     # 21 TDT protocol tests (L2 moves them)
 python3 tools/checks/run_ci_local.py          # CI's checks job
 ```
@@ -142,6 +140,9 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **L3's captured block.** Capture a raw text block, with a HEX exchange inside it if
+  one can be provoked, at GL4, and replace `kMppt7515` in `lib/vedirect/test/test_text/`.
+  Check `interrupted` against `bad_checksum` on the same run.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
   Due before GL3.
 - **`doc-findings` 2–6, 8 and 9**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
