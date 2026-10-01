@@ -30,9 +30,9 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L5 is on its branch, a draft PR until the operator accepts it.** The node key has a
-template field, a tool that derives it and a library check for the placeholder, and CI
-fails any node firmware that names the master. GateLink's own boot check waits for L6,
+**L5 merged on 2026-10-01.** The node key has a template field, a tool that derives it
+and a library check for the placeholder, and CI fails any node firmware that names the
+master. GateLink's own boot check waits for L6,
 whose acceptance row now carries it. The operator picks the next task from the table
 above. The split readback must land before GateLink answers `GET_ALL`.
 
