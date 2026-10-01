@@ -3,7 +3,7 @@
 //
 // The parameter table. One hand-written C++ table per owner, and every other copy derived
 // from it by code (D44): firmware defaults, Home Assistant `number` discovery and
-// /docs/gatelink-config.md all read this. No generator, no YAML.
+// docs/gatelink/gatelink-config.md all read this. No generator, no YAML.
 //
 // A NAME HERE IS PERMANENT. It becomes a Home Assistant object_id (spec 16.7), and an
 // entity renamed after it has history is a new entity with none. Changing a name is a

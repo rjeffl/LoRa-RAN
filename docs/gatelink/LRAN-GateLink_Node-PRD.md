@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.13
+**Version:** 0.14
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -491,7 +491,7 @@ voltage-sense.** This is the requirement that drives platform selection.
   link. **See the Bridge PRD for why the bridge deliberately does not do this** — the
   asymmetry is a decision, not an oversight.
 - **R-4.3i.** TX power SHALL be configured as **two runtime parameters**,
-  `tx_conducted_dbm` and `antenna_gain_dbi`, never one combined EIRP figure, and the
+  `tx_power_dbm` and `antenna_gain_dbi`, never one combined EIRP figure, and the
   firmware SHALL compute EIRP from them and **refuse to transmit above the configured
   envelope ceiling**. The envelope itself (Protocol Spec §18.2) is a runtime parameter, and
   a bandwidth/power combination valid in one envelope and not the other SHALL be rejected.
@@ -997,6 +997,15 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.14** — **R-4.3i calls the conducted transmit power `tx_power_dbm`**, the name
+  Protocol Library Plan §4 declares at `0x0114`, where this document said
+  `tx_conducted_dbm`. The table's name becomes a permanent Home Assistant `object_id`;
+  this one had no other consumer. This closes `doc-findings` finding 2. The rest of
+  R-4.3i is unchanged and not yet met: the table holds no `antenna_gain_dbi` row and no
+  envelope row (operator, 2026-10-01). GateLink's own parameters are declared in
+  `lib/lran-config/` and listed in [`gatelink-config.md`](./gatelink-config.md), which is
+  generated from the table (task L4).
 
 - **v0.13** — **Protocol specification v0.16 → v0.17.** R-3.3e takes **D73** and **D74**:
   a refused write-class `HEX_REQ` is answered at the step that refused it, and a `HEX_RSP`

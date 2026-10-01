@@ -1,7 +1,7 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.23
+**Version:** 0.24
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
@@ -584,7 +584,7 @@ result that a retry could still receive.
 
 **One hand-written C++ table per owner, and every other copy derived from it by code**
 (**D44**). Firmware defaults and HA `number` discovery read the table directly. A host tool,
-built the way `tools/ha/dump_discovery.cpp` is, writes `/docs/gatelink-config.md`, and a
+built the way `tools/ha/dump_discovery.cpp` is, writes `docs/gatelink/gatelink-config.md`, and a
 check diffs it, so the document cannot drift from the header. No generator, no YAML.
 
 > **Changed in v0.10.** v0.1 through v0.9 chose hand-written headers and accepted that HA
@@ -662,8 +662,8 @@ inline constexpr ParamDef kNodeCommonParams[] = {
   {0x0115, "phy_trial_s",             Owner::Node, Access::ReadOnly, PType::U16,   30,   900,   120, "s",  "Revert window after a PHY change, spec 12.4"},
 };
 
-// 0x1000-0x1FFF GateLink and 0x2000-0x2FFF WellLink are declared by their own
-// milestones, counted against spec 7.4's ceilings first (W10).
+// 0x1000-0x1FFF GateLink is declared (L4, below); 0x2000-0x2FFF WellLink is declared by
+// its own milestone, counted against spec 7.4's ceilings first (W10).
 
 constexpr const ParamDef* find(uint16_t id);   // constexpr - no runtime table build
 
@@ -738,8 +738,11 @@ is later work, so no firmware behaves differently yet. Six things changed:
   `RESTORE_DEFAULTS` would take that node off the fleet's settings. **D60** accepted
   this on 2026-09-24, and spec v0.15's §8.10 says it.
 
-**GateLink's block, `0x1000`–`0x1FFF`, is not written yet.** It waits for the GateLink
-milestone. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
+**GateLink's block, `0x1000`–`0x1FFF`, is `kGateLinkParams`**, declared by GateLink task
+L4 on 2026-10-01. `node_block()` returns a node's own block by address, which is how the
+bridge names, clamps and discovers GateLink's rows without a list of its own.
+[`docs/gatelink/gatelink-config.md`](../gatelink/gatelink-config.md) is generated from it,
+as below. **W10's count was run on 2026-09-20 and W10 is closed** (**D57**).
 
 **What a readback costs, counted against spec §7.4's budget.** A `CONFIG_ACK` has 193
 bytes for results, and a result entry is `5 + len`. Every node carries the node-common and
@@ -767,6 +770,13 @@ stands as it was made; GateLink's implied rows are now five, at about 204 bytes.
 **GateLink fits one frame today, with three `uint16` rows to spare**, and R-5.3a requires
 *every* interval, window, threshold and debounce to be configurable. Spec §7.4.1 is what a
 node does when the margin runs out: several `CONFIG_ACK` messages, marked `MORE_FOLLOWS`.
+
+**The margin ran out at L4.** GateLink's declared block is 19 rows and 131 bytes: the 15
+named above, plus `relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms` and
+`buzzer_enable`, and `detect_sequence_window_ms` is a `u32`. With node-common and the PHY
+group, a readback is 199 of 193 bytes and takes two messages. `readback_bytes()` counts it,
+and `test_table` pins the figure, so a row added later moves a test rather than a
+frame.
 
 **Two findings from the count belong to GateLink's documents, not to this one**, and are
 tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
@@ -923,6 +933,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.24** — **GateLink's block is declared** (GateLink task L4). §4 records its 19 rows,
+  `node_block()`, and a GateLink readback that now needs spec §7.4.1's two messages. The
+  generated `gatelink-config.md` and its CI check exist, as §4's opening paragraph planned.
 
 - **v0.23** — **Protocol specification v0.16 → v0.17.** Nothing reaches the library. D73
   and D74 bind a node's answers to a `HEX_REQ`, D75 and D76 bind the bridge's topics, and no

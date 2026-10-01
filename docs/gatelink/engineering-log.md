@@ -138,3 +138,34 @@ osh-labs folds that case into an invalid frame.
 **Checksum bytes that look like delimiters are tested.** A checksum byte of `:`, `\t`,
 `\r` or `\n` is read as the checksum and nothing else. The test finds each one by varying
 `H19`, which reaches all four by 1029.
+
+---
+
+## 2026-10-01 — L4: GateLink's parameter block, and the two places it did not fit
+
+`lib/lran-config/` now declares `kGateLinkParams`, 19 rows at `0x1000`–`0x1052`. Fifteen
+are the parameters the PRD and plan §4.4 name. The operator chose four more, all rows the
+PRD requires without naming: `relay_min_spacing_ms` (R-3.1.2b), `vedirect_stale_s`
+(R-3.3f), `inject_spacing_ms` (R-5.4b) and `buzzer_enable`. Every default is a document's.
+Every range is a proposal. The bridge discovers the rows from the table, and
+`docs/gatelink/gatelink-config.md` is generated from it and checked in CI.
+
+**Finding 2 is settled by renaming the PRD's term.** R-4.3i now says `tx_power_dbm`. Its
+other half asks for `antenna_gain_dbi` and the envelope as runtime parameters. M21's handoff
+lists the same obligation for every firmware. The operator kept those rows out of L4,
+because they belong to every node and to the bridge, not to GateLink's block.
+
+**The block does not fit one `CONFIG_ACK`.** A full readback is 131 bytes of GateLink rows
+plus 68 of node-common and PHY, 199 against 193. Library Plan §4 had predicted a fit with
+three `uint16` rows to spare. The four added rows and a `u32` for
+`detect_sequence_window_ms` used that margin and six bytes more. A `u16` of milliseconds
+stops at 65.5 s, against a 60 s default. The `Store`'s readback already splits into two
+messages marked `MORE_FOLLOWS`, and a test shows it. **`lib/lran-node`'s engine does not
+split.** Its `AckBuilder` drops the entries past one message and counts them. GateLink's
+firmware needs the split before it answers `GET_ALL`.
+
+**It did not fit one MQTT publication either.** `test_config` builds the widest document
+a node topic can produce. With GateLink's block, `config/state` counts to about 1.9 KB
+with every value at its widest. That is over the bridge's 1536-byte `kMaxPayloadLen`, and
+a publication over the cap is refused. The operator chose to raise the cap to 2048. The
+bridge log's entry for today has the RAM cost.

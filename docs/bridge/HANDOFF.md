@@ -176,6 +176,9 @@ Each line is code that is built and host-tested, or a question the bench left op
   the commit, so the 150 ms reset only showed the rebuilt copy. A reset fired the instant
   the commit line appears would come closer. Whether that run is worth a PHY change is the
   operator's call.
+- **`kMaxPayloadLen` is 2048 since GateLink's L4, and no board has run it.** Static RAM
+  is 85.0 %. Read `mqtt_task`'s high-water line and the connect banner's lowest free heap
+  at the next flash (engineering log, 2026-10-01).
 - **`node/health/state` republishes on every frame**, through its frame counters and RSSI.
   Whether those belong behind a deadband is the operator's call, and a deadband is a
   firmware change with its own bench check.

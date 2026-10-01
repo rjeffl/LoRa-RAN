@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.19
+**Version:** 0.20
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.13
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.14
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -652,12 +652,15 @@ failure that would not announce itself.
 | `input_poll_ms` | 100 | 20–500 | Poll the input expander |
 | `input_debounce_samples` | 2 | 1–10 | Two consecutive agreeing reads ⇒ ~200 ms at the default |
 | `relay_pulse_ms` | 500 | 100–2000 | Raised from 300; the controller's internal debounce is undocumented |
-| `post_wake_settle_ms` | 500 | — | After a pulse, before evaluating state |
-| `command_confirm_timeout_s` | 5 | — | Before declaring a command failed |
-| `unlock_settle_ms` | 500 | — | Between K2 and K4 on an immediate close |
-| `hold_confirm_ms` | 2000 | — | Stable 1/0 before declaring a hold |
+| `relay_min_spacing_ms` | 500 | 100–5000 | Least gap between two pulses (R-3.1.2b) |
+| `post_wake_settle_ms` | 500 | 0–5000 | After a pulse, before evaluating state |
+| `command_confirm_timeout_s` | 5 | 2–60 | Before declaring a command failed |
+| `unlock_settle_ms` | 500 | 100–5000 | Between K2 and K4 on an immediate close |
+| `hold_confirm_ms` | 2000 | 500–10000 | Stable 1/0 before declaring a hold |
 
-All runtime-configurable (§6.4).
+All runtime-configurable (§6.4). **The table in `lib/lran-config/` is the authority** for
+every range and default; [`gatelink-config.md`](./gatelink-config.md) is generated from it.
+The ranges are proposals, not measurements.
 
 ---
 
@@ -948,13 +951,22 @@ every node holds from `0x0100`–`0x01FF` (Protocol Spec §7.4, **D46**). Three 
 copies drift, silently: HA offers a range the firmware clamps, or documentation describes
 a default that changed two revisions ago.
 
-**GateLink's block is not declared yet.** `lib/lran-config/include/lran/config/table.h`
-holds the bridge's rows and the rows every node holds, and leaves `0x1000`–`0x1FFF` to this
-milestone. Task **L4** (§8.1) declares it from the PRD's parameter list and this plan's
-§4.4, with the bridge's discovery output and the documentation check following. **A name
-in that table is permanent** once HA publishes it (spec §16.7). Settle `doc-findings`
-finding 2 first: the PRD's `tx_conducted_dbm` and the library plan's `tx_power_dbm` are one
-parameter.
+**GateLink's block is `kGateLinkParams`**, 19 rows in
+`lib/lran-config/include/lran/config/table.h`, declared by task **L4** (§8.1). Fifteen are
+the parameters the PRD and §4.4 name. Four more are rows the PRD requires without naming:
+`relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms` and `buzzer_enable`. The
+bridge discovers them from the table, and
+[`gatelink-config.md`](./gatelink-config.md) is generated from it and checked in CI.
+**A name in that table is permanent** once HA publishes it (spec §16.7).
+
+**A full GateLink readback is 199 bytes**, six over one `CONFIG_ACK`'s 193, so it arrives
+as two messages marked `MORE_FOLLOWS` (spec §7.4.1). The `Store` already splits it.
+`lib/lran-node`'s engine does not: it drops the entries past one message and counts them.
+GateLink's firmware needs the split before it answers `GET_ALL`.
+
+**R-4.3i is not met yet.** The table holds no `antenna_gain_dbi` row and no envelope row,
+and `tx_power_dbm`'s maximum stands in for the EIRP ceiling. Both are fleet-wide rows, not
+GateLink's, and are left for their own task (operator, 2026-10-01).
 
 **The `Persist` implementation is microSD** (**D49**, **R-4.2c**). `lran-config`'s `Store`
 takes a `Persist*` that may be null, and answers `APPLIED_NOT_PERSISTED` when it is
@@ -1428,6 +1440,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.20** — **L4 built.** §6.4 describes GateLink's declared block: 19 rows, a readback
+  that needs two messages, and R-4.3i's gain and envelope rows still missing. §4.4 gains
+  `relay_min_spacing_ms` and gives every row the table's range. The requirements source
+  moves to PRD v0.14, which settles `doc-findings` finding 2.
 
 - **v0.19** — **L3 built.** §4.2.4 describes the multiplexer as the built parser runs it:
   byte-level, with a `:` anywhere but the checksum byte starting a HEX frame, where v0.18

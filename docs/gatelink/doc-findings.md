@@ -15,19 +15,6 @@ rather than a rewrite.
 
 ## Open
 
-### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
-
-**Found 2026-09-20**, in the W10 parameter count that found finding 1.
-
-The PRD calls the transmit power `tx_conducted_dbm`. Protocol Library Plan §4 declares it as
-`tx_power_dbm`, at `param_id` `0x0114`.
-
-**Root `CLAUDE.md` asks for one term per concept**, and this one is not only a term: a
-parameter's name in that table becomes its Home Assistant `object_id`, which is permanent
-once published (Protocol Spec §16.7).
-
-**Correct statement:** Protocol Library Plan §4. The PRD's name has no other consumer.
-
 ### 3. PRD R-4.3b forbids the RF-switch line the chosen module needs
 
 **Found 2026-10-01**, reconciling the Implementation Plan with
@@ -98,6 +85,24 @@ for one SX1262 driver; the fleet has three, each with injected pins.
 own project should hear of it.
 
 ## Fixed
+
+### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
+
+**Found 2026-09-20**, in the W10 parameter count that found finding 1.
+
+The PRD calls the transmit power `tx_conducted_dbm`. Protocol Library Plan §4 declares it as
+`tx_power_dbm`, at `param_id` `0x0114`.
+
+**Root `CLAUDE.md` asks for one term per concept**, and this one is not only a term: a
+parameter's name in that table becomes its Home Assistant `object_id`, which is permanent
+once published (Protocol Spec §16.7).
+
+**Correct statement:** Protocol Library Plan §4. The PRD's name has no other consumer.
+
+**Fixed 2026-10-01** in GateLink PRD v0.14, on branch `l4-gatelink-params`. R-4.3i now
+says `tx_power_dbm`. Its other half, `antenna_gain_dbi` and the envelope as runtime
+parameters, is not in the table yet and stays open in the GateLink handoff, by operator
+decision.
 
 ### 7. Milestone numbers collide with measurement numbers
 

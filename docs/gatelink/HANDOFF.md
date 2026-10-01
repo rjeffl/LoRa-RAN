@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that built L3.** It replaces the file the
-session that ran L1's bench checks wrote.
+**Written 2026-10-01, at the end of the session that built L4.** It replaces the file the
+session that built L3 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,10 +20,10 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
-| **L4** — GateLink's parameter block | Plan §4.4, §6.4, §8.1. `lib/lran-config/include/lran/config/table.h`. PRD §5.3. `doc-findings` finding 2 first |
 | **L5** — node key provisioning | Plan §6.8. Spec §9.1. `secrets.h.example`. `tools/vectors/` for the HKDF |
 | **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8 and 9. Each names where the correct statement lives |
+| **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -31,23 +31,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L3 is done once its PR merges**, with one criterion left open: its test block is
-synthesized, not captured from the MPPT. The first capture at GL4 replaces it. L1 merged
-on 2026-10-01. The operator picks the next task from the table above. L4 and L5 are
-independent of each other, and either suits a short session.
+**L4 is done once its PR merges.** GateLink's 19 rows are declared, discovered and
+documented. Two things it found are left open below: `lran-node` cannot split a readback,
+and R-4.3i's gain and envelope rows do not exist. L3 merged on 2026-10-01. The operator
+picks the next task from the table above. L5 and the split readback are independent, and
+either suits a short session. The split must land before GateLink answers `GET_ALL`.
 
 ## What the last session established
 
-- **`lib/vedirect/` parses text blocks.** `include/vedirect/text.h` holds `TextParser`,
-  which takes one UART byte at a time, and `decode_mppt()`. 12 tests join the HEX suite's
-  12. The bridge's `heltec` and both simnode targets compile it under `-Werror`.
-- **The parser has met no real MPPT output.** Its test block is assembled from osh-labs'
-  sample, spec §7.2.2 and labels osh-labs names. `OR` and `H23` are absent from it.
-- **A HEX line inside a text block resumes the block**, as osh-labs' specification says
-  and its code does not. The `interrupted` counter is the check that would show it wrong.
-  The engineering log's L3 entry has the reasoning, and
-  `lib/vedirect/osh-labs-deviations.md` lists every departure from upstream.
-- **osh-labs is not proven on a 75/15**, by its own specification. Plan v0.19 says so.
+- **GateLink's block is `kGateLinkParams`**, 19 rows at `0x1000`–`0x1052`, in
+  `lib/lran-config/include/lran/config/table.h`. `node_block()` hands it to the bridge.
+  `gatelink-config.md` is generated from it; `tools/checks/config_doc.py` checks it in CI.
+- **A full GateLink readback is 199 bytes, six over one `CONFIG_ACK`.** The `Store`
+  splits it into two messages. `lran-node`'s engine drops what does not fit.
+- **The bridge's `kMaxPayloadLen` is 2048**, because GateLink's `config/state` is about
+  1.9 KB at its widest. Bridge RAM rose from 77.0 % to 85.0 %. No board has run it.
+- **`doc-findings` finding 2 is fixed**: PRD R-4.3i says `tx_power_dbm`.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -58,6 +57,9 @@ independent of each other, and either suits a short session.
 | A firmware-local board layer, not `/lib/lran-platform/` | Plan §5.3. **Contradicts System PRD §3.5's SHALL** — `doc-findings` 9 |
 | Move `bms_ble` to `lib/bms-ble/` under repo conventions | Plan §4.3, L2 |
 | GateLink milestones are `GL0`–`GL9`, renamed from `M0`–`M9` | Plan §8.2. Dated records still say "GateLink M*n*" and mean `GL`*n* |
+| L4 declares four unnamed rows: `relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms`, `buzzer_enable` | Plan §6.4, the table |
+| R-4.3i's gain and envelope rows stay out of L4; finding 2 is settled by renaming | PRD v0.14 changelog |
+| The bridge's `kMaxPayloadLen` rises to 2048 | Bridge engineering log, 2026-10-01 |
 
 ## Read these, in this order
 
@@ -74,9 +76,9 @@ independent of each other, and either suits a short session.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.19. L1. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L3: built and host-tested, PR awaiting acceptance |
-| Not started | L2, L4–L6. GL0–GL9. `firmware/gatelink/` does not exist |
+| Done | Plan v0.20. L1, L3. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | L4: built and host-tested, PR awaiting acceptance |
+| Not started | L2, L5, L6. GL0–GL9. `firmware/gatelink/` does not exist |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -84,6 +86,7 @@ pio test -d firmware/simnode -e native        # L1's regression suite; must stay
 pio test -d lib/lran-node -e native           # the node engine (L1)
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
+python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
 pio test -d lib/vedirect -e native            # HEX codec and text parser (L3)
 cd wattcycle-reader && pio test -e native     # 21 TDT protocol tests (L2 moves them)
 python3 tools/checks/run_ci_local.py          # CI's checks job
@@ -141,6 +144,17 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **`lran-node` cannot split a readback** (spec §7.4.1). Its `AckBuilder` drops entries
+  past one `CONFIG_ACK` and counts them. GateLink's readback needs two messages. A task
+  row above covers it.
+- **PRD R-4.3i's `antenna_gain_dbi` and envelope rows**, M21 handoff items 1–3. They are
+  fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
+  of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
+  ceiling.
+- **GateLink's 19 ranges are proposals.** None is measured. The operator reviews them
+  before HA first publishes the names, which are permanent.
+- **The bridge's 2048-byte payload has not run on a board.** The bridge handoff's §7 owns
+  the reading.
 - **L3's captured block.** Capture a raw text block, with a HEX exchange inside it if
   one can be provoked, at GL4, and replace `kMppt7515` in `lib/vedirect/test/test_text/`.
   Check `interrupted` against `bad_checksum` on the same run.
@@ -150,7 +164,7 @@ board's are its D-pads (expansion board §6.1).
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
   Due before GL3.
-- **`doc-findings` 2–6, 8 and 9**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
+- **`doc-findings` 3–6, 8 and 9**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
   3.25 V, the INA226's two readings, System PRD §3.5. Each needs the operator or a
   measurement.
 - **Measurements** M1–M4, M8–M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
