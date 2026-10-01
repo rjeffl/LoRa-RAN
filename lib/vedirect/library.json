@@ -1,12 +1,12 @@
 {
   "name": "vedirect",
-  "version": "0.1.0",
-  "description": "VE.Direct HEX frames for LRAN - build, check and read Get and Set replies. Victron's BlueSolar HEX protocol document is the source; LRAN transports these strings verbatim (LRAN-Protocol-Specification v0.15, 7.6). Arduino-free.",
+  "version": "0.2.0",
+  "description": "VE.Direct for LRAN - HEX frames (build, check, read Get and Set replies) and the text parser that separates them from the 1 Hz text blocks on one UART. osh-labs/VE.Direct_mppt_arduino is the reference of record; LRAN transports HEX strings verbatim (LRAN-Protocol-Specification 7.6). Arduino-free.",
   "keywords": ["vedirect", "victron", "lran"],
   "license": "MIT",
   "frameworks": "*",
   "platforms": "*",
-  "headers": "vedirect/hex.h",
+  "headers": ["vedirect/hex.h", "vedirect/text.h"],
   "build": {
     "srcDir": "src",
     "includeDir": "include",
