@@ -51,13 +51,14 @@ ConfigResult unknown_result(const char* name) {
 
 }  // namespace
 
-bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req) {
+bool config_set_reaches_node(ConfigScope scope, lran::NodeId node,
+                             const ConfigSetRequest& req) {
   if (scope != ConfigScope::Node) return false;
   if (req.op == lran::ConfigOp::GetAll || req.op == lran::ConfigOp::RestoreDefaults) {
     return true;
   }
   for (size_t i = 0; i < req.count; ++i) {
-    const ParamDef* d = find_param(scope, req.entries[i].name);
+    const ParamDef* d = find_param(scope, node, req.entries[i].name);
     // A node's PHY row is answered read_only here and never sent (spec 16.7.1).
     if (d != nullptr && d->owner == Owner::Node && d->access != lran::config::Access::Phy &&
         req.entries[i].value_readable) {
@@ -67,7 +68,7 @@ bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req) {
   return false;
 }
 
-const ParamDef* find_param(ConfigScope scope, const char* name) {
+const ParamDef* find_param(ConfigScope scope, lran::NodeId node, const char* name) {
   if (name == nullptr) return nullptr;
   if (scope == ConfigScope::Bridge) {
     for (size_t i = 0; i < lran::config::kBridgeParamCount; ++i) {
@@ -87,19 +88,23 @@ const ParamDef* find_param(ConfigScope scope, const char* name) {
     const ParamDef& d = lran::config::kNodeCommonParams[i];
     if (name_is(d, name)) return &d;
   }
+  const lran::config::ParamBlock own = lran::config::node_block(node);
+  for (size_t i = 0; i < own.n; ++i) {
+    if (name_is(own.rows[i], name)) return &own.rows[i];
+  }
   return nullptr;
 }
 
-const ParamDef* find_param_by_id(ConfigScope scope, uint16_t id) {
+const ParamDef* find_param_by_id(ConfigScope scope, lran::NodeId node, uint16_t id) {
   const ParamDef* rows[lran::config::kMaxTableParams];
-  const size_t    n = scope_rows(scope, rows, lran::config::kMaxTableParams);
+  const size_t    n = scope_rows(scope, node, rows, lran::config::kMaxTableParams);
   for (size_t i = 0; i < n; ++i) {
     if (rows[i]->id == id) return rows[i];
   }
   return nullptr;
 }
 
-size_t scope_rows(ConfigScope scope, const ParamDef** out, size_t cap) {
+size_t scope_rows(ConfigScope scope, lran::NodeId node, const ParamDef** out, size_t cap) {
   size_t n = 0;
   if (scope == ConfigScope::Bridge) {
     for (size_t i = 0; i < lran::config::kBridgeParamCount && n < cap; ++i) {
@@ -115,6 +120,8 @@ size_t scope_rows(ConfigScope scope, const ParamDef** out, size_t cap) {
   for (size_t i = 0; i < lran::config::kNodeCommonParamCount && n < cap; ++i) {
     out[n++] = &lran::config::kNodeCommonParams[i];
   }
+  const lran::config::ParamBlock own = lran::config::node_block(node);
+  for (size_t i = 0; i < own.n && n < cap; ++i) out[n++] = &own.rows[i];
   return n;
 }
 
@@ -174,7 +181,7 @@ size_t ConfigStore::apply(ConfigScope scope, lran::NodeId node, const ConfigSetR
 
   for (size_t i = 0; i < req.count && n < cap; ++i) {
     const ConfigSetEntry& in = req.entries[i];
-    const ParamDef*       d  = find_param(scope, in.name);
+    const ParamDef*       d  = find_param(scope, node, in.name);
 
     if (d == nullptr) {
       results[n++] = unknown_result(in.name);
@@ -279,7 +286,7 @@ size_t ConfigStore::restore_defaults(ConfigScope scope, lran::NodeId node,
 size_t ConfigStore::read_all(ConfigScope scope, lran::NodeId node, ConfigResult* results,
                              size_t cap, AckPersist* persist) const {
   const ParamDef* rows[lran::config::kMaxTableParams];
-  const size_t    total = scope_rows(scope, rows, lran::config::kMaxTableParams);
+  const size_t    total = scope_rows(scope, node, rows, lran::config::kMaxTableParams);
 
   size_t n = 0;
   for (size_t i = 0; i < total && n < cap; ++i) {
@@ -313,7 +320,7 @@ size_t ConfigStore::read_all(ConfigScope scope, lran::NodeId node, ConfigResult*
 size_t ConfigStore::state(ConfigScope scope, lran::NodeId node, ConfigStateEntry* out,
                           size_t cap) const {
   const ParamDef* rows[lran::config::kMaxTableParams];
-  const size_t    total = scope_rows(scope, rows, lran::config::kMaxTableParams);
+  const size_t    total = scope_rows(scope, node, rows, lran::config::kMaxTableParams);
 
   size_t n = 0;
   for (size_t i = 0; i < total && n < cap; ++i) {
@@ -414,7 +421,7 @@ bool ConfigStore::mirror_value(lran::NodeId node, uint16_t id, lran::config::Val
 
 bool ConfigStore::restore(ConfigScope scope, lran::NodeId node, uint16_t id,
                           lran::config::Value v) {
-  const ParamDef* d = find_param_by_id(scope, id);
+  const ParamDef* d = find_param_by_id(scope, node, id);
   if (d == nullptr || d->owner == Owner::Node) return false;
   lran::config::Store* store = d->owner == Owner::BridgeGlobal ? bridge_store_ : store_for(node);
   return store != nullptr && store->restore(id, v);
@@ -445,7 +452,7 @@ bool ConfigStore::phy_request(const ConfigSetRequest& req, PhyRequest* out) cons
   out->target = phy_group();
   if (!phy_trial_enabled_) return false;
   for (size_t i = 0; i < req.count; ++i) {
-    const ParamDef* d = find_param(ConfigScope::Bridge, req.entries[i].name);
+    const ParamDef* d = find_param(ConfigScope::Bridge, lran::kNodeBridge, req.entries[i].name);
     if (d == nullptr || d->access != lran::config::Access::Phy || !req.entries[i].value_readable) {
       continue;
     }

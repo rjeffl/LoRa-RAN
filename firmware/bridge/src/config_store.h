@@ -42,7 +42,12 @@ enum class ConfigScope : uint8_t {
 
 // The row a name resolves to on a scope, or nullptr. Node scope answers rows of both
 // owners, and the caller tells them apart by `owner` to decide which half applies it.
-const lran::config::ParamDef* find_param(ConfigScope scope, const char* name);
+//
+// `node` names the topic's node, because a node's own block is its alone: GateLink's rows
+// resolve on lran/gatelink and nowhere else (lran::config::node_block). Bridge scope
+// ignores it.
+const lran::config::ParamDef* find_param(ConfigScope scope, lran::NodeId node,
+                                         const char* name);
 
 // spec 10.6 bridge step 7 - whether a `config/set` on `scope` would send its node a
 // CONFIG: a GET_ALL or RESTORE_DEFAULTS on a node's topic, or a set naming at least one
@@ -52,7 +57,8 @@ const lran::config::ParamDef* find_param(ConfigScope scope, const char* name);
 // It must agree with handle_config_set()'s own split, which queues a job exactly when
 // ConfigStore::apply() hands back a non-empty node half. test_config_store checks both
 // against the same requests.
-bool config_set_reaches_node(ConfigScope scope, const ConfigSetRequest& req);
+bool config_set_reaches_node(ConfigScope scope, lran::NodeId node,
+                             const ConfigSetRequest& req);
 
 // spec 12.4.1 steps 1 and 2 - what a set on the bridge's topic asks of the PHY group,
 // before anything applies. Each named row is clamped against the bridge's own row, so
@@ -72,12 +78,15 @@ struct PhyRequest {
 AckPersist phy_unchanged_persist(const PhyRequest& req, bool other_rows,
                                  AckPersist rows_persist);
 
-// One of the two documents' worth of rows, in table order.
-size_t scope_rows(ConfigScope scope, const lran::config::ParamDef** out, size_t cap);
+// One topic's document's worth of rows, in table order: the bridge's global rows, or a
+// node's per-node rows, node-common and that node's own block.
+size_t scope_rows(ConfigScope scope, lran::NodeId node, const lran::config::ParamDef** out,
+                  size_t cap);
 
 // The row an id resolves to on a scope, or nullptr. A readback carries ids and
 // `config/ack` is published by NAME (spec 16.7), so this is the way back.
-const lran::config::ParamDef* find_param_by_id(ConfigScope scope, uint16_t id);
+const lran::config::ParamDef* find_param_by_id(ConfigScope scope, lran::NodeId node,
+                                               uint16_t id);
 
 // ---------------------------------------------------------------------------
 // THE PREMISE THE TABLES ARE BUILT ON, AND THE CHECK THAT WOULD FALSIFY IT.

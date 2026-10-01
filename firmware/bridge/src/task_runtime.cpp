@@ -267,8 +267,9 @@ bool g_sched_deployed[kNodeCount] = {};
 inline constexpr size_t kMaxScopeRows = 32;
 static_assert(kMaxScopeRows >= kMaxConfigSetEntries, "a set's answer must fit");
 static_assert(kMaxScopeRows >= kBridgeGlobalCount, "the bridge's own block must fit");
-static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount,
-              "a node's block must fit");
+static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount +
+                                   lran::config::kGateLinkParamCount,
+              "a node's block must fit, GateLink's own rows included");
 
 ConfigStore g_config;
 NvsPersist  g_cfg_global_persist;
@@ -929,7 +930,7 @@ void publish_config_resolution(const ConfigStep& step) {
   // why the way back is the table rather than the job's own list.
   for (size_t i = 0; i < step.result_count && n < kMaxScopeRows; ++i) {
     const lran::schema::ConfigAckEntry& e = step.results[i];
-    const lran::config::ParamDef* d = find_param_by_id(ConfigScope::Node, e.param_id);
+    const lran::config::ParamDef* d = find_param_by_id(ConfigScope::Node, step.dst, e.param_id);
     if (d == nullptr) continue;  // a row this bridge's table does not carry
     ConfigResult r;
     std::snprintf(r.name, sizeof(r.name), "%s", d->name);
@@ -2227,7 +2228,7 @@ class CommandInbound final : public MqttInbound {
 // both, and it is not here yet.
 //
 // THE DOCUMENTS ARE STATIC, for the reason BF-19 gives for sched_task's PublishMessage.
-// A PublishMessage is ~880 bytes and a config/ack is up to 768 more; mqtt_task's stack
+// A PublishMessage is ~2.2 KB and a config/ack is up to 2 KB more; mqtt_task's stack
 // is 6144 and the transport's callback already sits inside it. mqtt_task is the only task
 // that touches any of these.
 // ---------------------------------------------------------------------------
@@ -2315,7 +2316,8 @@ void fill_node_config(ConfigJob* job, const ConfigSetRequest& node_half) {
   job->name_count = 0;
 
   for (size_t i = 0; i < node_half.count; ++i) {
-    const lran::config::ParamDef* d = find_param(ConfigScope::Node, node_half.entries[i].name);
+    const lran::config::ParamDef* d =
+        find_param(ConfigScope::Node, job->dst, node_half.entries[i].name);
     if (d == nullptr) continue;
     if (job->config.count >= lran::schema::kMaxConfigEntries) break;
 
@@ -2357,7 +2359,7 @@ void handle_config_set(const ConfigTopic& target, const InboundMessage& msg) {
   // spec 10.6 bridge step 7 - refused WHOLE while the node's roll is pending, before
   // either half applies. Applying the bridge's half and refusing the node's would leave a
   // set half-done, which spec 16.7.1's one-answer rule has no way to say.
-  if (!is_bridge && roll_pending_for(node) && config_set_reaches_node(scope, g_cfg_req)) {
+  if (!is_bridge && roll_pending_for(node) && config_set_reaches_node(scope, node, g_cfg_req)) {
     ++g_cfg_inbound.refused_roll_pending;
     publish_config_ack(is_bridge, node, g_cfg_req.op, AckPersist::NotApplied, nullptr, 0,
                        "context_roll_pending");
@@ -2840,7 +2842,7 @@ void on_mqtt_connected() {
   // image state as well, which is how V-B9 is read from Home Assistant rather than
   // from a serial cable: after a rollback, `slot` and `git` both change.
   // Static, and mqtt_task is its only user: beside `msg` it would put two payloads on
-  // this task's stack at once, 3 KB since kMaxPayloadLen rose to 1536 for BF-33.
+  // this task's stack at once, 4 KB since kMaxPayloadLen rose to 2048 for L4.
   static char version[kMaxPayloadLen];
   if (topic_bridge_version(topic, sizeof(topic)) > 0 &&
       ota_version_json(version, sizeof(version)) > 0 &&

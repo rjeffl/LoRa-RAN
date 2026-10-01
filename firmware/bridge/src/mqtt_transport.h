@@ -25,11 +25,11 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 1536 bytes of payload. The largest thing this firmware builds is a discovery
+// SIZES. 2048 bytes of payload. The largest thing this firmware builds is a discovery
 // config, and discovery does NOT pass
 // through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
 // from there, so the queue is sized for state and diagnostics rather than for the one
-// payload that dwarfs them. 32 slots x ~1640 bytes is ~52 KB of static RAM, which is
+// payload that dwarfs them. 32 slots x ~2150 bytes is ~69 KB of static RAM, which is
 // the cost of never blocking a producer.
 //
 // IT HAS MOVED THREE TIMES AND EACH MOVE HAD A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
@@ -41,7 +41,9 @@ namespace bridge {
 // have crossed it, and the failure is a DROPPED publication, so the entity keeps a stale
 // value and nothing says why. 1024 to 1536 at BF-33, when D59 gave the bridge the six
 // PHY rows: test_config failed on the bridge's get_all answer, which an offline count put
-// at about 1.2 KB for 21 rows, and config/state close behind it.
+// at about 1.2 KB for 21 rows, and config/state close behind it. 1536 to 2048 at L4, when
+// GateLink's block put 31 rows on lran/gatelink: config/state counts to about 1.9 KB with
+// every value at its widest, and the get_all answer to about 1.8 KB.
 //
 // test_diag and test_config are the checks. Each builds the worst document its table can
 // produce and fails here rather than at the broker.
@@ -52,7 +54,7 @@ namespace bridge {
 // ---------------------------------------------------------------------------
 
 inline constexpr size_t kMaxTopicLen   = 96;
-inline constexpr size_t kMaxPayloadLen = 1536;
+inline constexpr size_t kMaxPayloadLen = 2048;
 
 // How many publications the transport may hold unfinished before mqtt_task stops handing
 // it more (MqttTransport::pending()). Eight covers the events in flight at QoS 1 and one

@@ -90,6 +90,7 @@ class NvsPersist final : public lran::config::Persist {
   mutable Preferences prefs_;
   bool                open_       = false;
   bool                global_     = false;
+  lran::NodeId        node_       = lran::kNodeBridge;
   bool                ack_staged_ = false;
   uint16_t            ack_rows_   = 0;
 };

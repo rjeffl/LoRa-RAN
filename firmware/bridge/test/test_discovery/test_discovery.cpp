@@ -607,6 +607,13 @@ void test_every_table_row_has_an_entity_on_the_device_that_sets_it() {
     TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeGateLink, d.name, nullptr), d.name);
     TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeWellLink, d.name, nullptr), d.name);
   }
+  // L4 - a node's own block is on that node's device and no other.
+  for (size_t i = 0; i < lran::config::kGateLinkParamCount; ++i) {
+    const auto& d = lran::config::kGateLinkParams[i];
+    TEST_ASSERT_NOT_NULL_MESSAGE(find_param(w, kNodeGateLink, d.name, nullptr), d.name);
+    TEST_ASSERT_NULL_MESSAGE(find_param(w, kNodeWellLink, d.name, nullptr), d.name);
+    TEST_ASSERT_NULL_MESSAGE(find_param(w, kNodeBridge, d.name, nullptr), d.name);
+  }
 }
 
 // Spec 16.7 - the table name IS the object id, and a published one is permanent.

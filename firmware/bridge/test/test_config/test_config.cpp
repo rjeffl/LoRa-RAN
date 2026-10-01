@@ -475,13 +475,16 @@ void test_the_largest_refusable_set_still_fits_its_answer() {
 }
 
 void test_a_nodes_block_fits_one_publication() {
-  // A node's topic carries node-common AND the bridge's per-node rows for it (16.7.1),
-  // so the worst case is both together rather than either alone.
+  // A node's topic carries node-common, the node's own block AND the bridge's per-node
+  // rows for it (16.7.1), so the worst case is all three together. GateLink's block (L4)
+  // is the largest a node has.
   static config::ParamDef rows[config::kMaxTableParams];
   size_t                  n = 0;
   for (size_t i = 0; i < config::kNodeCommonParamCount; ++i) {
     rows[n++] = config::kNodeCommonParams[i];
   }
+  const config::ParamBlock own = config::node_block(kNodeGateLink);
+  for (size_t i = 0; i < own.n; ++i) rows[n++] = own.rows[i];
   for (size_t i = 0; i < config::kBridgeParamCount; ++i) {
     if (config::kBridgeParams[i].owner == config::Owner::BridgePerNode) {
       rows[n++] = config::kBridgeParams[i];
