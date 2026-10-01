@@ -31,9 +31,9 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L4 is done once its PR merges.** GateLink's 19 rows are declared, discovered and
+**L4 merged on 2026-10-01.** GateLink's 19 rows are declared, discovered and
 documented. Two things it found are left open below: `lran-node` cannot split a readback,
-and R-4.3i's gain and envelope rows do not exist. L3 merged on 2026-10-01. The operator
+and R-4.3i's gain and envelope rows do not exist. The operator
 picks the next task from the table above. L5 and the split readback are independent, and
 either suits a short session. The split must land before GateLink answers `GET_ALL`.
 
@@ -76,8 +76,8 @@ either suits a short session. The split must land before GateLink answers `GET_A
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.20. L1, L3. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L4: built and host-tested, PR awaiting acceptance |
+| Done | Plan v0.20. L1, L3, L4. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | Nothing |
 | Not started | L2, L5, L6. GL0–GL9. `firmware/gatelink/` does not exist |
 | Queue | The rest of §8.1, in any order |
 
