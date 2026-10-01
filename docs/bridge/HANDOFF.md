@@ -1,10 +1,12 @@
 # Bridge Node — session handoff
 
-**Written 2026-10-01 by a status review that changed no code.** Groups 1, 2 and 4 are
-done, and B0 to B5 are accepted. B6 and B7 wait on GateLink's hardware, so this file now
-lists the bridge work that can still run without it. The engineering log's latest entry is
-2026-09-27's *Group 4*. The bridge runs `d8e45c3` and both simnodes run `be5c7c8`, as
-*Hardware state* says.
+**Written 2026-10-01 by the session that did group 6.** Spec v0.17 states the four B5
+readings as D73–D76, each as the code already built it, so no firmware was flashed. B0 to
+B5 are accepted. B6 and B7 wait on GateLink's hardware, so this file lists the bridge work
+that can still run without it. The engineering log's latest entry is 2026-10-01's *Spec
+v0.17*. The bridge runs `d8e45c3` and both simnodes run `be5c7c8`, as *Hardware state*
+says. Both images still print v0.16 in their boot banners. v0.17 changed those banner strings
+and three comments, and nothing else in the firmware, so no reflash is owed for it.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,13 +21,12 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next group from *Work before GateLink*.
-Groups 1, 2 and 4 are done; groups 3, 5, 6 and 7 remain, and none of them needs GateLink.
+Groups 1, 2, 4 and 6 are done; groups 3, 5 and 7 remain, and none of them needs GateLink.
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
 | **3. A B7 rehearsal** | The operator's four preparations, listed in its section | Bench, three boards |
 | **5. Documents and tools** | Nothing | Host only |
-| **6. The four B5 readings, into the spec** | The operator's ruling on each of the four | Spec revision, its own branch |
 | **7. Bench evidence the bridge still owes** | Nothing for two items; the operator's call for the other three | Bench, bridge and one simnode |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -154,21 +155,9 @@ is not shown, because the simulated MPPT has no path for making that change.
 
 ### 6. The four B5 readings, into the specification
 
-**Spec v0.16 did not settle the four readings B5's code chose.** Its revision was D70 to
-D72, the node reset. The engineering log's 2026-09-25 *B5's spec readings* entry lists
-the four:
-
-- (a) which frame refuses a write-class `HEX_REQ`, `HEX_RSP` or `COMMAND_ACK`, at each
-  step of §9.4;
-- (b) that a `HEX_RSP` repeats its request's `seq` (§7.6);
-- (c) that `write_enable/set` is not retained (§16.2);
-- (d) the VE.Direct topics §16.2 and §16.6 do not list.
-
-The operator chose each reading on 2026-09-25, and the bridge and simnode build it. **The
-revision is spec work, not bridge work**, and needs no hardware. GateLink will answer (a)
-and (b) on air, so settling them before its firmware starts spares GateLink's plan a
-reconciliation later. A spec revision goes on its own branch, with its citation sweep and
-without a style pass.
+**Done** on 2026-10-01, as spec v0.17 and **D73–D76**. The operator took the code's
+reading on each of the four, so no code changed. The engineering log's *Spec v0.17* entry
+has the sweep.
 
 ### 7. Bench evidence the bridge still owes
 
@@ -235,7 +224,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | # | Document | Why |
 |---|---|---|
 | 1 | **this file** | where things stand, and what to do next |
-| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-09-27 Group 4** entry, then the **2026-09-26 RF echo** and **watchdog widened** entries, then the two **2026-09-26 BF-27's simulator** entries, then the **2026-09-26 OTA upload** entry, then the **2026-09-26 lost BOOT event** entry, then the **2026-09-26 simnode's resets** entry, then the **2026-09-25 mirror readback** entry, then the two **2026-09-25 air-timing** entries, then the **2026-09-25 events at QoS 1** entry, then the **2026-09-25 Spec v0.15's code on air** entry, then the **code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then, in [`engineering-log-2026-09-17_2026-09-23.md`](./engineering-log-2026-09-17_2026-09-23.md), the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
+| 2 | [`engineering-log.md`](./engineering-log.md) | the **2026-10-01 Spec v0.17** entry, then the **2026-09-27 Group 4** entry, then the **2026-09-26 RF echo** and **watchdog widened** entries, then the two **2026-09-26 BF-27's simulator** entries, then the **2026-09-26 OTA upload** entry, then the **2026-09-26 lost BOOT event** entry, then the **2026-09-26 simnode's resets** entry, then the **2026-09-25 mirror readback** entry, then the two **2026-09-25 air-timing** entries, then the **2026-09-25 events at QoS 1** entry, then the **2026-09-25 Spec v0.15's code on air** entry, then the **code spec v0.15 owed** entry, then the **2026-09-25 pre-GateLink survey** and **BF-35** entries, then the **2026-09-24 entries**, the four **BF-33** entries and **D61**, last first, then **V-B4 passes**, **B4's acceptance tally** and then **V-B8 in Home Assistant**, first. Then, in [`engineering-log-2026-09-17_2026-09-23.md`](./engineering-log-2026-09-17_2026-09-23.md), the **twelve 2026-09-23 entries**, last one first: **BF-27's dummy publish**, **BF-25 built**, then **BF-24 built**, then **BF-26 on air**, then **V-B12 measured**, then **V-B12's blaster**, then its deferral, then **BF-34 on air**, then **BF-34 built** and its bench steps, then the configuration lock with the `seq` gap it closes, then BF-23's lever half and its bench run. Then the **2026-09-21 entries** — BF-32's bench session and the interleaved sweep — then 2026-09-20 and 2026-09-19. Entries from 2026-09-10 to 2026-09-16 are in [`engineering-log-2026-09-10_2026-09-16.md`](./engineering-log-2026-09-10_2026-09-16.md) |
 | 3 | [`traps.md`](./traps.md) | the section for the work you are about to do |
 | 4 | [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) | **§6.7.7** the readback a node reboot owes; **§4.3.3** BF-37's transport and BF-38's event queue; **§6.7.2a** spec v0.15's code; **§4.4.3** BF-35's controls; **§8.2** B4's tally; **§6.6.3** BF-27's simulator and loopback; **§6.6.2** BF-27's dummy publish; **§6.3.2** BF-25's events; **§6.3.1** BF-24's publication policy; **§4.2a.1** BF-26's bench gate; **§6.2.2** BF-34's context roll; **§4.4.2** BF-23's lever half; **§6.7** BF-32's configuration path and **§6.7.6** its lock; **§8.1** V-B12, **§8.1.1** what the interleaved sweep found and **§8.1.3** V-B12's result; **§6.6.1** BF-27's frame log; **§10.5** the fault catalogue; **§4.4.1** BF-23's discovery |
 | 5 | [`LRAN-Bridge-Firmware-Tasks`](./LRAN-Bridge-Firmware-Tasks.md) | **§9** is B5–B7, where the work goes next |
@@ -251,8 +240,8 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D72**. **Protocol Spec v0.16** and its citation sweep, merged. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
-| Not done | **B6**, **B7**, which wait on GateLink. **M26**. The four B5 readings in the specification. The whole-document style passes |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D76**. **Protocol Spec v0.17** and its citation sweep. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Not done | **B6**, **B7**, which wait on GateLink. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 
 ```bash

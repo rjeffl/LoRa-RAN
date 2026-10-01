@@ -1,8 +1,10 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.16 (`ver = 2`)
-**Vectors last regenerated against:** v0.16, on 2026-09-25. Every vector kept its bytes;
-only each file's `spec` field changed. v0.16 adds §8.14's `reset_cause`, which travels in
+**Binding specification:** `LRAN-Protocol-Specification` v0.17 (`ver = 2`)
+**Vectors last regenerated against:** v0.17, on 2026-10-01. Every vector kept its bytes;
+only each file's `spec` field changed. v0.17 moves no byte on the wire: D73–D76 settle
+which frame refuses a write-class `HEX_REQ`, `HEX_RSP`'s `seq`, and three MQTT topics.
+**At v0.16**, on 2026-09-25, likewise only the `spec` field changed. v0.16 adds §8.14's `reset_cause`, which travels in
 an event's `detail`, a field the codec carries opaque, so no vector was added for it.
 **At v0.15**, likewise on 2026-09-25: **D68 makes bit 7 of a `CONFIG_ACK` result's
 `status` `OVERRIDE`, and D64 adds `INVALID_VALUE` (`0x05`)**. Two vectors added on
