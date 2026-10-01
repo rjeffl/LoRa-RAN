@@ -1563,3 +1563,32 @@ republishing.
 
 **Verified:** bridge 526 host tests, the `lran-config` and simnode suites, the `heltec`
 build and `run_ci_local.py`.
+
+## 2026-10-01 — Spec v0.17: the four B5 readings become the specification, as built
+
+**The operator ruled on handoff group 6's four readings, and each one follows the code as
+built.** The readings date from 2026-09-25's *B5's spec readings* entry. Spec v0.16 did
+not take them up, because its revision was D70–D72. The Decision Register records them as
+**D73–D76**, §3.13:
+
+- **D73.** At §9.4 step 3, a refused write-class `HEX_REQ` draws
+  `HEX_RSP(REJECTED_UNAUTHENTICATED)`. Steps 2, 4 and 5 draw the `COMMAND_ACK` §9.4 names.
+  Spec §7.6 now has the table.
+- **D74.** A `HEX_RSP` repeats its request's `seq`, whatever its `status`.
+- **D75.** `write_enable/set` is not retained. §16.2 splits the row it shared with `state`.
+- **D76.** §16.2 lists `vedirect/charge/state`. §16.6 adds `hex/response`, `hex/audit` and
+  `write_enable/state` to the bench answers that publish whatever `simnode_diag_enable`
+  says.
+
+**No code changed beyond three comments that said "raised for v0.16".** `ver` stays at
+`2`. The W4 vectors were regenerated, and every vector kept its bytes; only the `spec`
+field moved. The citation sweep reached 26 citations. Three documents took a requirement
+or rule as well as a number:
+
+- GateLink PRD R-3.3e takes D73 and D74.
+- GateLink Impl Plan §4.2.4 takes the same two, pointing at the simnode's `ROLE_GATELINK`
+  as the reference.
+- Bridge PRD R-3.5c takes D75.
+
+**Not shown on air:** a write-class `HEX_REQ` with a bad MAC. No bench tool sends one, so
+D73's step 3 answer is host-tested only, as gate 1 was at V-B6.
