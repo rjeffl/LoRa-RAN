@@ -603,6 +603,96 @@ void test_a_trial_value_is_marked_override() {
   TEST_ASSERT_FALSE(s.marked_override(0x0111));
 }
 
+// ---------------------------------------------------------------------------
+// L4 - GateLink's block.
+// ---------------------------------------------------------------------------
+
+Table gatelink_table() {
+  Table t;
+  t.add_block(kNodeCommonParams, kNodeCommonParamCount);
+  t.add_block(kGateLinkParams, kGateLinkParamCount);
+  return t;
+}
+
+// GateLink's block follows node-common in id order, so a GateLink table is the two
+// blocks added in that order and nothing else.
+void test_the_gatelink_block_follows_node_common() {
+  Table t = gatelink_table();
+  TEST_ASSERT_EQUAL_UINT32(kNodeCommonParamCount + kGateLinkParamCount, t.size());
+  TEST_ASSERT_EQUAL_UINT32(19, kGateLinkParamCount);
+  TEST_ASSERT_NOT_NULL(t.find(0x1000));
+}
+
+// Only GateLink's address carries the block. A bench node playing ROLE_GATELINK does not,
+// because spec 16.6 keeps bench nodes out of discovery.
+void test_only_gatelink_has_its_own_block() {
+  TEST_ASSERT_EQUAL_PTR(kGateLinkParams, node_block(kNodeGateLink).rows);
+  TEST_ASSERT_EQUAL_UINT32(kGateLinkParamCount, node_block(kNodeGateLink).n);
+  TEST_ASSERT_EQUAL_UINT32(0, node_block(kNodeWellLink).n);
+  TEST_ASSERT_EQUAL_UINT32(0, node_block(kNodeSim0).n);
+}
+
+// The bridge resolves a node topic's names across its per-node rows, node-common and the
+// node's own block (spec 16.7.1). A name in two of them would make one unreachable.
+void test_gatelink_names_are_unique_on_its_topic() {
+  const ParamDef* all[kMaxTableParams];
+  size_t          n = 0;
+  for (const ParamDef& d : kBridgeParams) {
+    if (d.owner == Owner::BridgePerNode) all[n++] = &d;
+  }
+  for (const ParamDef& d : kNodeCommonParams) all[n++] = &d;
+  for (const ParamDef& d : kGateLinkParams) all[n++] = &d;
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = i + 1; j < n; ++j) {
+      TEST_ASSERT_FALSE_MESSAGE(same_text(all[i]->name, all[j]->name), all[i]->name);
+    }
+  }
+}
+
+// R-5.3f - out of range clamps, on GateLink's rows as on every other.
+void test_a_gatelink_relay_pulse_below_range_is_clamped() {
+  Table t = gatelink_table();
+  Store s(t, nullptr);
+  TEST_ASSERT_EQUAL_INT32(500, s.effective(0x1000));
+  schema::ConfigAckEntry r = s.apply(set_entry(0x1000, PType::U16, 50), nullptr, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Clamped, r.status);
+  TEST_ASSERT_EQUAL_INT32(100, s.effective(0x1000));
+}
+
+// The u32 row: 60 s is a legal value of detect_sequence_window_ms only because it is
+// wider than a u16.
+void test_the_detection_window_takes_values_past_a_u16() {
+  Table t = gatelink_table();
+  Store s(t, nullptr);
+  schema::ConfigAckEntry r =
+      s.apply(set_entry(0x1020, PType::U32, 120000), nullptr, nullptr);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, r.status);
+  TEST_ASSERT_EQUAL_INT32(120000, s.effective(0x1020));
+}
+
+// spec 7.4, 7.4.1 - THE COUNT THAT PUTS GATELINK OVER ONE CONFIG_ACK. Results have 193
+// bytes; node-common and the PHY group take 68 and GateLink's block 131. A change to the
+// block moves this number, and Library Plan 4's table has to move with it.
+void test_a_gatelink_readback_needs_two_messages() {
+  const size_t budget = kMaxSchemaPayload - schema::kConfigAckHdrLen;
+  TEST_ASSERT_EQUAL_UINT32(193, budget);
+  TEST_ASSERT_EQUAL_UINT32(68, readback_bytes(kNodeCommonParams, kNodeCommonParamCount));
+  TEST_ASSERT_EQUAL_UINT32(131, readback_bytes(kGateLinkParams, kGateLinkParamCount));
+
+  Table t = gatelink_table();
+  Store s(t, nullptr);
+  ReadbackCursor          c;
+  schema::NodeConfigAckV1 msg;
+  int                     messages = 0;
+  size_t                  rows     = 0;
+  while (s.next_readback_message(&c, ConfigOp::GetAll, &msg)) {
+    ++messages;
+    rows += msg.count;
+  }
+  TEST_ASSERT_EQUAL_INT(2, messages);
+  TEST_ASSERT_EQUAL_UINT32(t.size(), rows);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_a_block_is_walked_in_ascending_id_order);
@@ -635,5 +725,11 @@ int main(int, char**) {
   RUN_TEST(test_restore_refuses_a_bandwidth_off_the_list);
   RUN_TEST(test_override_is_marked_on_the_set_and_on_the_readback);
   RUN_TEST(test_a_trial_value_is_marked_override);
+  RUN_TEST(test_the_gatelink_block_follows_node_common);
+  RUN_TEST(test_only_gatelink_has_its_own_block);
+  RUN_TEST(test_gatelink_names_are_unique_on_its_topic);
+  RUN_TEST(test_a_gatelink_relay_pulse_below_range_is_clamped);
+  RUN_TEST(test_the_detection_window_takes_values_past_a_u16);
+  RUN_TEST(test_a_gatelink_readback_needs_two_messages);
   return UNITY_END();
 }
