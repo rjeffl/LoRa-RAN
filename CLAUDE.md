@@ -83,7 +83,7 @@ produced — `docs/<node>/HANDOFF.md` and the engineering logs. **Do not assume 
 ```
 lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
             lran-node - node-side engine, from the simnode  [built]
-            vedirect — HEX frames [built]; its text parser  [planned]
+            vedirect — HEX frames and text parser           [built]
             VE.Direct reference: osh-labs/VE.Direct_mppt_arduino, not Victron's PDFs
             bms-ble                                         [planned]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]

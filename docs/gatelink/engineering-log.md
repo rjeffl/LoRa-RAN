@@ -98,3 +98,41 @@ with `Connection reset by peer`. Both cleared once the operator brought the brok
 
 The bench was left as it was found. The fleet is back on 917.4 MHz, committed on the bridge
 and on the XIAO, and `simnode_diag_enable` and f1's `deployed` are 0.
+
+---
+
+## 2026-10-01 — L3: the VE.Direct text parser, ported from osh-labs, host-proven on a synthesized block
+
+`lib/vedirect/` now holds `include/vedirect/text.h` beside `hex.h`. `TextParser::feed()`
+takes one UART byte and reports a delivered block, a dropped one or a finished HEX line.
+`decode_mppt()` reads the 75/15's labels from a block. The suite has 12 new tests beside
+the 12 for HEX, and the bridge's `heltec` and both simnode targets compile the new file
+under `-Werror`. The port follows osh-labs at `fadcc4e` (2026-07-08).
+
+**No real MPPT output has passed through it.** The repository holds no capture, and the
+operator chose a synthesized block over waiting for one. That block takes osh-labs' sample
+fields, adds `H19` and `H21` from spec §7.2.2, and adds the `FW` and `SER#` labels that
+osh-labs names but does not decode. `OR` and `H23` are left out because neither source
+defines them. L3's "captured block" criterion is therefore not met. GL4's first capture
+should replace the block in `test_text.cpp`.
+
+**osh-labs' specification and code disagree on a HEX frame inside a text block.** Its
+specification (§6.4) says the text state is preserved across the interruption. Its code
+abandons the block. This port follows the specification. The text checksum still guards
+every block delivered, so resuming cannot deliver a corrupt one; at worst it fails one that
+abandoning would also have lost. Each interrupted block that fails counts in `interrupted`,
+apart from `bad_checksum`. **If `interrupted` grows while `bad_checksum` stays at zero, the
+MPPT counts HEX bytes in its text checksum, and resuming is wrong.**
+
+**osh-labs' specification shows the frame wrongly.** Its §3.1 shows the frame as `:Label\t<value>\r\n` lines. The
+code reads `\r\n`-opened records and a bare checksum byte, and this port follows the code.
+
+**Two changes to osh-labs' behaviour, both for root rule 4.** A block that fails its
+checksum before the parser has seen a block boundary counts as `unsynced`, not
+`bad_checksum`, so a reboot mid-block does not look like line noise. A block whose label,
+value or field count overflows is dropped as `overflow` even when its checksum passes;
+osh-labs folds that case into an invalid frame.
+
+**Checksum bytes that look like delimiters are tested.** A checksum byte of `:`, `\t`,
+`\r` or `\n` is read as the checksum and nothing else. The test finds each one by varying
+`H19`, which reaches all four by 1029.

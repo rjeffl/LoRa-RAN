@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.18
+**Version:** 0.19
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -515,12 +515,13 @@ is acceptable and is the expected outcome if the measurement goes badly.**
 #### 4.2.4 On-node protocol multiplexing
 
 The MPPT emits ~1 Hz text frames and HEX responses **on the same UART**, interleaved.
-The parser is a **line-oriented state machine**:
+The parser is a **byte-level state machine**:
 
-- A line beginning with `:` is a **HEX** frame — hex nibbles, checksummed,
-  newline-terminated.
-- Anything else belongs to the **text** protocol (`LABEL\tVALUE\r\n`, blocks terminated
-  by a `Checksum` field).
+- A `:` anywhere except the text block's checksum byte starts a **HEX** frame — hex
+  nibbles, checksummed, newline-terminated. A HEX frame can arrive inside a text record,
+  so the parser does not wait for a line start.
+- Everything else belongs to the **text** protocol (`\r\nLABEL\tVALUE` records, blocks
+  terminated by a `Checksum` record whose value is one raw byte).
 
 Rules:
 
@@ -538,12 +539,13 @@ Rules:
   and `on_hex_req()` in `firmware/simnode/src/gatelink.cpp`.
 
 **What is built, and what is not.** `lib/vedirect/` holds the HEX frame codec
-(`include/vedirect/hex.h`), Arduino-free and host-tested. The bridge's HEX proxy and the
-simnode's simulated MPPT both run it. **The text parser is not built**, and the
-line-oriented multiplexer above needs it. Task **L3** (§8.1) adds it to `lib/vedirect/`,
-ported from `osh-labs/VE.Direct_mppt_arduino` (MIT) under the repo's conventions: no
-`String`, no heap, Arduino-free, fixed buffers. The library's register map and
-encode/decode helpers come with the same port where `hex.h` lacks them.
+(`include/vedirect/hex.h`) and, since L3, the text parser with the multiplexer above
+(`include/vedirect/text.h`). Both are Arduino-free and host-tested. The bridge's HEX proxy
+and the simnode's simulated MPPT run the codec; nothing runs the text parser until GateLink
+does. It is ported from `osh-labs/VE.Direct_mppt_arduino` (MIT) with no heap and fixed
+buffers. **It has parsed no real MPPT output**: its test block is synthesized, and GL4's
+capture replaces it. osh-labs' register map is not ported, because `hex.h` reads any
+register by number and GateLink inspects only the command nibble.
 
 **That library is the reference of record for VE.Direct, not Victron's PDFs.** It has
 already decoded both protocols, and it is proven in the field. Take frame layout, register
@@ -668,7 +670,7 @@ All runtime-configurable (§6.4).
 | Board support | **`m5stack/M5StamPLC`**, pulling in M5Unified and M5GFX, **pinned exactly**. Wrapped by a firmware-local board layer (§5.3), not a shared library | MIT |
 | LCD | M5GFX via M5StamPLC | MIT |
 | LoRa | **RadioLib 7.7.1**, pinned (**D32**). CAD for media access | MIT |
-| VE.Direct | **`lib/vedirect/`**: the HEX codec is built; the text parser is task **L3** | MIT |
+| VE.Direct | **`lib/vedirect/`**: the HEX codec and the text parser (L3) are built | MIT |
 | BLE | **NimBLE-Arduino**, pinned exactly at the version `wattcycle-reader` proved | Apache-2.0 |
 | BMS protocol | **`lib/bms-ble/`**, moved from `wattcycle-reader/lib/bms_ble/` by task **L2** | MIT |
 | Node protocol | **`lib/lran-node/`**, extracted from the simnode by task **L1** (§5.4) | MIT |
@@ -1426,6 +1428,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 ## 10. Changelog
 
+- **v0.19** — **L3 built.** §4.2.4 describes the multiplexer as the built parser runs it:
+  byte-level, with a `:` anywhere but the checksum byte starting a HEX frame, where v0.18
+  said line-oriented. §5.1's library row says the text parser is
+  built. The parser has met no real MPPT output; GL4's capture is its first.
 - **v0.18** — **Reconciled with the fleet as built**, which earlier revisions never were:
   their citations moved with the specification while their architecture stayed where v0.1
   left it. **The carrier is now `gatelink-expansion-board` rev 0.3**, which this plan had
