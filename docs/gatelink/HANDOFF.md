@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that built L4.** It replaces the file the
-session that built L3 wrote.
+**Written 2026-10-01, at the end of the session that built L5.** It replaces the file the
+session that built L4 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,8 +20,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
-| **L5** — node key provisioning | Plan §6.8. Spec §9.1. `secrets.h.example`. `tools/vectors/` for the HKDF |
-| **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
+| **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §6.8, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8 and 9. Each names where the correct statement lives |
 | **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
@@ -31,22 +30,23 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L4 merged on 2026-10-01.** GateLink's 19 rows are declared, discovered and
-documented. Two things it found are left open below: `lran-node` cannot split a readback,
-and R-4.3i's gain and envelope rows do not exist. The operator
-picks the next task from the table above. L5 and the split readback are independent, and
-either suits a short session. The split must land before GateLink answers `GET_ALL`.
+**L5 is on its branch, a draft PR until the operator accepts it.** The node key has a
+template field, a tool that derives it and a library check for the placeholder, and CI
+fails any node firmware that names the master. GateLink's own boot check waits for L6,
+whose acceptance row now carries it. The operator picks the next task from the table
+above. The split readback must land before GateLink answers `GET_ALL`.
 
 ## What the last session established
 
-- **GateLink's block is `kGateLinkParams`**, 19 rows at `0x1000`–`0x1052`, in
-  `lib/lran-config/include/lran/config/table.h`. `node_block()` hands it to the bridge.
-  `gatelink-config.md` is generated from it; `tools/checks/config_doc.py` checks it in CI.
-- **A full GateLink readback is 199 bytes, six over one `CONFIG_ACK`.** The `Store`
-  splits it into two messages. `lran-node`'s engine drops what does not fit.
-- **The bridge's `kMaxPayloadLen` is 2048**, because GateLink's `config/state` is about
-  1.9 KB at its widest. Bridge RAM rose from 77.0 % to 85.0 %. No board has run it.
-- **`doc-findings` finding 2 is fixed**: PRD R-4.3i says `tx_power_dbm`.
+- **Provision GateLink with `python3 tools/provision/node_key.py`.** It reads the master
+  from the root `secrets.h` and prints `LRAN_GATELINK_NODE_KEY` to paste there. It refuses
+  the all-zero and the W4 test masters. Its self-test reproduces the W4 `kdf` vectors.
+- **`lran::key_is_placeholder()`** in `lib/lran-protocol/` is the boot check. The bridge
+  and the simnode call it; GateLink's banner and display call it at L6.
+- **`tools/checks/node_holds_no_master.py`** fails a firmware other than the bridge and
+  the simnode that names `LRAN_MASTER_KEY`. It runs in CI's `checks` job.
+- **An existing `secrets.h` lacks the new field.** Add it before L6's first target build.
+  The bridge and the simnode build without it.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -76,9 +76,9 @@ either suits a short session. The split must land before GateLink answers `GET_A
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.20. L1, L3, L4. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.21. L1, L3, L4, L5. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | Nothing |
-| Not started | L2, L5, L6. GL0–GL9. `firmware/gatelink/` does not exist |
+| Not started | L2, L6. GL0–GL9. `firmware/gatelink/` does not exist |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -87,6 +87,7 @@ pio test -d lib/lran-node -e native           # the node engine (L1)
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
+python3 tools/provision/node_key.py --self-test   # node key derivation (L5)
 pio test -d lib/vedirect -e native            # HEX codec and text parser (L3)
 cd wattcycle-reader && pio test -e native     # 21 TDT protocol tests (L2 moves them)
 python3 tools/checks/run_ci_local.py          # CI's checks job
@@ -144,6 +145,12 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **GateLink's boot check on the board** (plan §6.8, L6's row): `main.cpp` requires
+  `LRAN_GATELINK_NODE_KEY`, and the banner and display report a placeholder.
+- **A leaked node key costs the whole fleet.** Spec §9.1 derives each key from the master
+  and the node ID alone, so replacing GateLink's key means a new master and a reflash of
+  every node. A per-node key generation would contain it. That is a protocol question,
+  not a GateLink one.
 - **`lran-node` cannot split a readback** (spec §7.4.1). Its `AckBuilder` drops entries
   past one `CONFIG_ACK` and counts them. GateLink's readback needs two messages. A task
   row above covers it.
