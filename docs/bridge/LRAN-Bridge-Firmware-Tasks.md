@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.64
+**Version:** 0.65
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.17
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.78
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-26
+**Last updated:** 2026-10-01
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -57,6 +57,8 @@ pio test -d lib/lran-protocol -e native
 | Range test **pass 1 and pass 2** | Complete. **B1a and B1b are done** — the gate closed 0 % PER at the D33 ceiling on the deployed pairing |
 | **M6** (both bearings), **M20** (ambient survey), **M21** (grant conditions) | **Closed** |
 | **D1** (SF / BW / CR / TX power / frequency) | **Closed 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted. **D33 closed with it**, on Envelope A |
+| Bridge **B0–B5** | **Done.** B4 and B4b were accepted on 2026-09-24, B5 on 2026-09-25 against BF-36's simulated MPPT; Impl Plan §8 has each criterion |
+| Bridge **B6**, **B7** (BF-31) | **Wait on GateLink**, and GateLink M6 gates B6. The bridge work that can run before then is listed in [`HANDOFF.md`](./HANDOFF.md)'s *Work before GateLink* |
 
 ### 1.1 D1 is closed — what the firmware inherits
 
@@ -326,6 +328,9 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.65** — **§1's table reaches B7.** It records B0 to B5 as done, and that B6 and
+  B7 wait on GateLink. No task row changes.
 
 - **v0.64** — **Handoff Group 4.** BF-30's row names `charge_readback_interval_h`. The Impl
   Plan citation moves to v0.78, whose §6.3.1, §6.3.2, §6.4 and §6.6.2 describe the group:

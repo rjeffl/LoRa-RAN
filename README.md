@@ -120,7 +120,7 @@ authoritative statement.
 
 ## Status
 
-**As of 2026-09-23.** Each node's implementation plan lists its milestones and their
+**As of 2026-10-01.** Each node's implementation plan lists its milestones and their
 acceptance criteria.
 
 **Built and tested:**
@@ -134,22 +134,24 @@ acceptance criteria.
 - **The bridge's radio link, polling, availability tracking and command path**, tested on
   the bench against the simulated node. The command tests cover retries, lost
   acknowledgments and a scripted catalogue of injected faults.
+- **Radio settings changed from Home Assistant.** The bridge moves every node to new radio
+  settings together, and each end returns to the old settings if the new ones go silent.
 - **The bridge's over-the-air updates**, including rollback from a bad firmware image.
-- **Home Assistant discovery.** The bridge publishes each node as a device, and the
-  example discovery messages in `ha/` are generated from the firmware.
+- **Home Assistant integration.** The bridge publishes each node as a device, with
+  controls for its settings, and delivers each gate event once. The example discovery
+  messages in `ha/` are generated from the firmware.
+- **The solar charger proxy.** The bridge reads the charger's settings through the node,
+  and writes them only while an operator has armed writes from Home Assistant. It has run
+  against a simulated charger, not the real one.
 - **The simulated node**, its scripting tool, and a listen-only receiver that records
   other traffic on the radio channel.
-
-**In progress:** the rules that decide what the bridge publishes to Home Assistant and
-when. For example, a gate event is delivered once and isn't replayed after Home Assistant
-restarts. The rules are built and pass their host tests, and they haven't yet been shown
-working in Home Assistant.
 
 **Not started:** the GateLink firmware and hardware build, the WellLink design, and field
 installation.
 
-**Next:** finish the bridge's Home Assistant integration, then build GateLink and connect
-it to the bridge, then run a long soak test in the field.
+**Next:** build GateLink and connect it to the bridge, then run a long soak test. Until
+GateLink exists, the bridge has a bench rehearsal of that soak test, a protocol
+specification revision, and tool fixes left.
 
 Four design decisions are open: WellLink's power source, and three GateLink hardware
 questions about the charger's serial interface, Bluetooth signal strength at the mounting
