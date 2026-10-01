@@ -45,7 +45,8 @@ independent of each other, and either suits a short session.
   sample, spec §7.2.2 and labels osh-labs names. `OR` and `H23` are absent from it.
 - **A HEX line inside a text block resumes the block**, as osh-labs' specification says
   and its code does not. The `interrupted` counter is the check that would show it wrong.
-  The engineering log's L3 entry has the reasoning.
+  The engineering log's L3 entry has the reasoning, and
+  `lib/vedirect/osh-labs-deviations.md` lists every departure from upstream.
 - **osh-labs is not proven on a 75/15**, by its own specification. Plan v0.19 says so.
 
 ## Decisions taken 2026-10-01, by the operator
@@ -143,6 +144,10 @@ board's are its D-pads (expansion board §6.1).
 - **L3's captured block.** Capture a raw text block, with a HEX exchange inside it if
   one can be provoked, at GL4, and replace `kMppt7515` in `lib/vedirect/test/test_text/`.
   Check `interrupted` against `bad_checksum` on the same run.
+- **Reporting osh-labs deviations upstream is owed**, by operator decision 2026-10-01; the
+  timing is the operator's. [`lib/vedirect/osh-labs-deviations.md`](../../lib/vedirect/osh-labs-deviations.md)
+  lists them. Re-check each row against upstream's latest commit first, report rows 1, 4
+  and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
   Due before GL3.
 - **`doc-findings` 2–6, 8 and 9**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs

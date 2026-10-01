@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
+// Derived from osh-labs/VE.Direct_mppt_arduino, Copyright (c) 2026 Christopher E. Lee /
+// United Consulting, MIT. Its notice is in lib/vedirect/LICENSE-osh-labs, and where this
+// port departs from it is in lib/vedirect/osh-labs-deviations.md.
 //
 // VE.Direct text blocks, and the HEX lines interleaved with them on one UART. GateLink Impl
 // Plan 4.2.4 and task L3. Ported from osh-labs/VE.Direct_mppt_arduino's

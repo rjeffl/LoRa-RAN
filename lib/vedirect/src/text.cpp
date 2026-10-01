@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
+// Derived from osh-labs/VE.Direct_mppt_arduino, Copyright (c) 2026 Christopher E. Lee /
+// United Consulting, MIT. Its notice is in lib/vedirect/LICENSE-osh-labs, and where this
+// port departs from it is in lib/vedirect/osh-labs-deviations.md.
 
 #include "vedirect/text.h"
 
