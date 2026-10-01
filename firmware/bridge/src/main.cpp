@@ -17,6 +17,7 @@
 #include <esp_system.h>
 
 #include "lran/link/chan_monitor.h"
+#include "lran/mac.h"
 #include "blaster.h"
 #include "ota.h"
 #include "radio_config.h"
@@ -47,15 +48,10 @@ namespace {
 //
 // Not a compile-time check, because the value is a brace-enclosed initializer and
 // the preprocessor cannot see into it. Not a build failure either - that would make
-// the CI copy pointless.
+// the CI copy pointless. lran::key_is_placeholder() is the test GateLink shares.
 bool master_key_is_placeholder() {
   const uint8_t key[] = LRAN_MASTER_KEY;
-  for (size_t i = 0; i < sizeof(key); ++i) {
-    if (key[i] != 0x00) {
-      return false;
-    }
-  }
-  return true;
+  return lran::key_is_placeholder(key, sizeof(key));
 }
 
 // BF-11b - why the last boot ended. A watchdog reset leaves no other trace: the panic it

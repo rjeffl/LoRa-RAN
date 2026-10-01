@@ -154,6 +154,16 @@ jobs:
       - name: No mbedtls_hkdf dependency
         run: python3 tools/checks/no_mbedtls_hkdf.py
 
+      # GateLink Impl Plan 6.8: a node holds its own derived key, never the master, and
+      # the root secrets file defines both for every firmware, so only this stops a node
+      # reading the master. The provisioning tool derives node keys through the W4
+      # generator's HKDF, and its self-test reproduces the kdf vectors from its own path.
+      - name: Node keys, and no node holding the master
+        run: |
+          python3 tools/checks/node_holds_no_master.py --self-test
+          python3 tools/checks/node_holds_no_master.py
+          python3 tools/provision/node_key.py --self-test
+
       # W4. The generator is written from the specification with the codec off
       # limits, and that independence is the whole value. A failure here is never
       # fixed by editing a vector — find out which side is wrong.

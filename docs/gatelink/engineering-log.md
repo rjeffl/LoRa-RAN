@@ -169,3 +169,36 @@ a node topic can produce. With GateLink's block, `config/state` counts to about 
 with every value at its widest. That is over the bridge's 1536-byte `kMaxPayloadLen`, and
 a publication over the cap is refused. The operator chose to raise the cap to 2048. The
 bridge log's entry for today has the RAM cost.
+
+---
+
+## 2026-10-01 — L5: node key provisioning, and the half that waits for L6
+
+GateLink is the first firmware flashed with a derived key and not the master (plan §6.8).
+`secrets.h.example` now carries `LRAN_GATELINK_NODE_KEY`, 32 zero bytes, and
+`tools/provision/node_key.py` derives the real value from the master in the root
+`secrets.h`. The tool imports `generate.py`'s HKDF, and its self-test reproduces all six
+W4 `kdf` vectors through the tool's own parser and derivation.
+
+**The tool refuses an all-zero master.** HKDF of 32 zero bytes is not zeros, so a key
+derived from the template's master would pass the placeholder check on GateLink's banner.
+The node would announce itself provisioned with a key no bridge holds, and every command
+would fail its MAC with nothing pointing at the cause. The W4 test master is refused for
+the fixture's own reason: it is never flashed.
+
+**The boot check is half built.** `lran::key_is_placeholder()` is in `lib/lran-protocol/`
+and host-tested, and the bridge and the simnode now call it in place of their own copies.
+GateLink's banner and display cannot call it until `firmware/gatelink/` exists, so that
+half is now an L6 acceptance criterion.
+
+**Nothing in the build stops a node reading the master.** Every firmware includes the
+one root `secrets.h`, which defines `LRAN_MASTER_KEY`. `tools/checks/node_holds_no_master.py`
+fails when a firmware other than the bridge and the simnode names it, in code or in a
+build flag, and runs in CI's `checks` job. It reads text, so it is a tripwire and not a
+proof that the image is clean.
+
+**An existing `secrets.h` does not get the new field.** The template's completeness block
+requires it, but each copy carries its own block, so a copy made before today has no
+check for it. The bridge and the simnode do not read the field and build unchanged.
+GateLink's `main.cpp` must test for the field itself (L6).
+

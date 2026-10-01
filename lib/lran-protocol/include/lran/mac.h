@@ -59,4 +59,10 @@ static_assert(kMasterKeyLen == 32, "spec 9.1 - master key is 32 bytes");
 // constant time; a short-circuiting memcmp leaks the length of the matching prefix.
 bool ct_equal(const uint8_t* a, const uint8_t* b, size_t len);
 
+// True when every byte of `key` is zero: the value secrets.h.example ships for
+// LRAN_MASTER_KEY and LRAN_GATELINK_NODE_KEY. That template compiles, so CI builds
+// with no secret, and a board flashed from it cannot authenticate. Every firmware
+// calls this at boot and says so on its banner (GateLink Impl Plan 6.8).
+bool key_is_placeholder(const uint8_t* key, size_t len);
+
 }  // namespace lran

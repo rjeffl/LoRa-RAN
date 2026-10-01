@@ -88,7 +88,7 @@ lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
             bms-ble                                         [planned]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/, welllink/                            [planned]
-tools/      vectors/, checks/, simctl/, rangetest/, ha/               [built]
+tools/      vectors/, checks/, simctl/, rangetest/, ha/, provision/   [built]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
 ha/         discovery payloads, GENERATED from the firmware   [built]

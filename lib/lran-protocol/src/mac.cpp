@@ -14,4 +14,13 @@ bool ct_equal(const uint8_t* a, const uint8_t* b, size_t len) {
   return diff == 0;
 }
 
+// Not constant time, and it needs no such property: the value is compiled into the
+// image, and the answer is printed on the banner.
+bool key_is_placeholder(const uint8_t* key, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    if (key[i] != 0) return false;
+  }
+  return true;
+}
+
 }  // namespace lran

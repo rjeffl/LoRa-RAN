@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.20
+**Version:** 0.21
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -1060,17 +1060,27 @@ holds `LRAN_MASTER_KEY` and derives on demand. The simnode holds it too, for ben
 convenience, and Bridge Impl Plan §10.3 says a real node never does. GateLink
 holds only `node_key` for `0x01`, so a GateLink in the wrong hands yields that key alone.
 
-**Nothing provisions that key yet.** `secrets.h.example` documents `LRAN_MASTER_KEY` and has
-no field for a node's derived key. Before GL3, three things are needed:
+**L5 built the provisioning; GateLink's firmware applies it at L6.** Three pieces:
 
-1. A field in `secrets.h.example` for GateLink's derived key, documented as the template's
-   other fields are, so CI builds against the committed template unchanged.
-2. A host tool that derives the key from the master per spec §9.1. It reuses the HKDF that
-   `tools/vectors/` already cross-checks, and prints the value for the operator to paste.
-   The tool never writes the key into a tracked file, and it never prints the master.
-3. A boot check, as the simnode's: a build carrying the template's value says so on the
-   banner and the display, so a node that cannot authenticate is never mistaken for a
-   provisioned one.
+1. **`LRAN_GATELINK_NODE_KEY` in `secrets.h.example`**, 32 zero bytes, documented as the
+   template's other fields are, so CI builds against the committed template unchanged.
+   The template's completeness block requires it. An existing `secrets.h` carries its own
+   copy of that block and will not, so GateLink's `main.cpp` checks for the field itself.
+2. **`tools/provision/node_key.py`** derives the key from the master in the root
+   `secrets.h` per spec §9.1 and prints the `#define` to paste. It imports the HKDF from
+   `tools/vectors/generate.py`, and its self-test reproduces the W4 `kdf` vectors through
+   its own path. It never prints the master and never writes a file. **It refuses the
+   all-zero master**, because the key derived from zeros is not zeros and would pass the
+   boot check below. It refuses the W4 test master too.
+3. **`lran::key_is_placeholder()`** in `lib/lran-protocol/`, host-tested. The bridge and
+   the simnode call it on their master. **GateLink's banner and display call it on
+   `LRAN_GATELINK_NODE_KEY` at L6**, so a node that cannot authenticate is never mistaken
+   for a provisioned one.
+
+**`tools/checks/node_holds_no_master.py` fails when a firmware other than the bridge and
+the simnode names `LRAN_MASTER_KEY`.** Every firmware includes the one root `secrets.h`,
+so nothing in the build stops GateLink reading the master. The check runs in CI's
+`checks` job.
 
 Root *Secrets* governs all three: the key is never committed, echoed into a log or pasted
 into a document.
@@ -1174,8 +1184,8 @@ one branch and one session, and each leaves every existing suite passing.
 | **L2** | **Move `bms_ble` to `lib/bms-ble/`**, and write `docs/gatelink/bms-protocol.md` | Repo conventions applied: `snake_case` files, license headers, `-Werror`, NimBLE pinned exactly. The 21 host tests pass in a `native` env of the library's own, and CI runs them. `wattcycle-reader` builds against the moved library, or is frozen with a note that says so. The protocol write-up keeps every known-unverified item, including the `pack_ma` sign (**M7**, **W6**) and `0x8D` |
 | **L3** | **VE.Direct text parser** in `lib/vedirect/`, ported from osh-labs | Parses every field of a captured MPPT 75/15 text block, checksum included. Rejects a bad checksum and counts it. Interleaved HEX lines pass through to the HEX codec. No heap, Arduino-free |
 | **L4** | **GateLink's parameter block** in `lib/lran-config/` | `0x1000`–`0x1FFF` rows declared from the PRD and §4.4, `doc-findings` finding 2 settled first. The bridge's discovery output and `docs/gatelink/gatelink-config.md` derived from the table and checked |
-| **L5** | **Node key provisioning** (§6.8) | The `secrets.h.example` field, the host tool and the boot check. CI builds against the template |
-| **L6** | **`firmware/gatelink/` skeleton** | §5.1's `platformio.ini`, partition table and version stamp; §5.3's layout; the `native` env and its CI rows (§7.5). Boots on a bare StamPLC, prints its banner and starts its tasks with stub bodies |
+| **L5** | **Node key provisioning** (§6.8) | The `secrets.h.example` field, the host tool and the boot check's library half. CI builds against the template, and CI fails a firmware outside the bridge and the simnode that names the master |
+| **L6** | **`firmware/gatelink/` skeleton** | §5.1's `platformio.ini`, partition table and version stamp; §5.3's layout; the `native` env and its CI rows (§7.5). Boots on a bare StamPLC, prints its banner and starts its tasks with stub bodies. `main.cpp` requires `LRAN_GATELINK_NODE_KEY`, and the banner says when `lran::key_is_placeholder()` finds it unprovisioned (§6.8) |
 
 L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of L1.
 
@@ -1440,6 +1450,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.21** — **L5 built.** §6.8 describes the provisioning as built: the template field,
+  `tools/provision/node_key.py`, `lran::key_is_placeholder()` and the check that no node
+  reads the master. The boot check on GateLink's own banner and display moves to L6,
+  because `firmware/gatelink/` does not exist yet. §8.1's L5 and L6 rows say so.
 
 - **v0.20** — **L4 built.** §6.4 describes GateLink's declared block: 19 rows, a readback
   that needs two messages, and R-4.3i's gain and envelope rows still missing. §4.4 gains
