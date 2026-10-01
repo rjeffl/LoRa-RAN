@@ -467,7 +467,7 @@ void test_cmd_stale_seq_is_refused_below_the_high_water_mark() {
 
   const Identity* t = s.ids.find(kNodeSim1);
   TEST_ASSERT_EQUAL_UINT32(1, t->counters.rx_rejected_seq);
-  TEST_ASSERT_EQUAL_UINT32(1, t->gl.executions);
+  TEST_ASSERT_EQUAL_UINT32(1, t->executions);
 
   Header          h;
   msg::CommandAck a;

@@ -4,8 +4,8 @@
 // ROLE_GATELINK's tokens and telemetry fields. Task BF-6; Impl Plan 10.2, 10.4; spec 7.2-7.4,
 // 8.1-8.14.
 //
-// ARDUINO-FREE. The protocol behaviour lives in gatelink.cpp as Node members (node.h); this
-// header holds what the console needs to name things.
+// ARDUINO-FREE. The protocol behaviour lives in lran-node, and ROLE_GATELINK's application in
+// gatelink.cpp as Node::App (node.h); this header holds what the console needs to name things.
 //
 // EXACT TOKENS. Status reasons, event types and reset causes are the spec 8.7, 8.9 and 8.14
 // names, and field
@@ -18,19 +18,20 @@
 #include <cstdint>
 
 #include "identity.h"
+#include "lran/node/names.h"
 #include "lran/types.h"
 
 namespace simnode {
 
-const char* status_reason_name(lran::StatusReason r);
-bool        parse_status_reason(const char* token, lran::StatusReason* out);
-const char* event_type_name(lran::EventType t);
-bool        parse_event_type(const char* token, lran::EventType* out);
-// spec 8.14 - a BOOT event's reset cause, by its spec name.
-const char* reset_cause_name(lran::ResetCause c);
-bool        parse_reset_cause(const char* token, lran::ResetCause* out);
-const char* ack_result_name(lran::AckResult r);
-const char* cmd_name(uint8_t cmd);
+// The spec's names, lran-node's since GateLink task L1 (lran/node/names.h).
+using lran::node::ack_result_name;
+using lran::node::cmd_name;
+using lran::node::event_type_name;
+using lran::node::parse_event_type;
+using lran::node::parse_reset_cause;
+using lran::node::parse_status_reason;
+using lran::node::reset_cause_name;
+using lran::node::status_reason_name;
 
 // `field <hex> <name> <value|na>` - Impl Plan 10.4. `na` writes the root rule 6 sentinel for
 // the field's width where one exists.

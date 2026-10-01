@@ -157,7 +157,7 @@ void Console::list_identity(const Identity& e) {
   if (e.role == Role::GateLink) {
     sink_printf(out_, "   gatelink ack_delay %lu ms, executions %lu, actuations %lu, next event_id %lu%s",
                 static_cast<unsigned long>(e.gl.ack_delay_ms),
-                static_cast<unsigned long>(e.gl.executions),
+                static_cast<unsigned long>(e.executions),
                 static_cast<unsigned long>(e.gl.actuations),
                 static_cast<unsigned long>(e.gl.next_event_id), e.gl.dry_run ? ", DRY RUN" : "");
   }
@@ -607,10 +607,10 @@ void Console::cmd_mppt(char** argv, int argc) {
 
   if (std::strcmp(mode, "list") == 0 && argc == 3) {
     sink_printf(out_, "OK mppt %02x: %u requests, %u writes accepted, hex_timeout %lu ms, "
-                "timeout fault %u left%s", id, static_cast<unsigned>(e->gl.hex_requests),
+                "timeout fault %u left%s", id, static_cast<unsigned>(e->hex_requests),
                 static_cast<unsigned>(m.writes()), static_cast<unsigned long>(e->gl.hex_timeout_ms),
                 static_cast<unsigned>(e->gl.hex_timeout_left),
-                e->gl.hex_pending.active ? ", transaction outstanding" : "");
+                e->hex_pending.active ? ", transaction outstanding" : "");
     for (size_t i = 0; i < m.count(); ++i) {
       const SimRegister& r = m.reg(i);
       sink_printf(out_, "  0x%04X %s %lu (0x%0*lX)", static_cast<unsigned>(r.id),

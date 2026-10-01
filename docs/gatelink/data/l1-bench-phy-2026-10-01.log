@@ -1,0 +1,615 @@
+     0.08 MQTT <connected rc=Success>
+     0.11 MQTT lran/bridge/availability online
+     0.11 MQTT lran/bridge/version {"version":"0.1.0","git":"d8e45c3","slot":"app0","ota_state":"verified_or_usb"}
+     0.11 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":20,"ctx_rolls":1,"ctx_roll_failed":0}
+     0.11 MQTT lran/bridge/diag/radio/state {"tx_frames":16,"cad_backoffs":1,"errors_suppressed":0,"cad_deferred":0,"cad_free":16,"rx_deaf_ms":3996,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":9,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":1,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+     0.11 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":2,"cmd_refused_busy":0,"cmd_sent":2,"cmd_retries":0,"cmd_acked":2,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     0.11 MQTT lran/bridge/diag/publish/state {"status_frames":5,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":1,"events":0,"event_repeats":0,"bench_withheld":6,"queue_refused":0,"undecodable":0}
+     0.11 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":1,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+     0.11 MQTT lran/gatelink/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     0.11 MQTT lran/gatelink/availability offline
+     0.11 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.11 MQTT lran/gatelink/gate/state {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"entry","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":true}
+     0.11 MQTT lran/gatelink/detect/state {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-09-27T12:33:42Z","traversal_persisted":true,"synthetic":true}
+     0.11 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13250,"batt_ma":1200,"pv_mv":18500,"pv_w":20,"load_ma":150,"yield_today_kwh":0.12,"yield_yesterday_kwh":0.34,"pmax_today_w":45,"yield_total_kwh":123.45,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"charge_inhibited":false,"temp_c":25.0,"hex_pending":false,"synthetic":true}
+     0.11 MQTT lran/gatelink/battery/state {"available":true,"soc":80,"soc_source":"bms_ble","pack_mv":13240,"pack_ma":1100,"cell_count":4,"cell1_mv":3310,"cell2_mv":3310,"cell3_mv":3310,"cell4_mv":3310,"cell1_temp_c":22,"cell2_temp_c":22,"cell3_temp_c":22,"cell4_temp_c":22,"cycles":12,"capacity_ah":100.0,"alarms":0,"charge_fet":true,"discharge_fet":true,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-70,"age_s":5,"synthetic":true}
+     0.11 MQTT lran/gatelink/node/state {"boot_count":1,"node_mv":13200,"node_ma":45,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"debug_synthetic","synthetic":true,"uptime_s":3600}
+     0.11 MQTT lran/gatelink/vedirect/write_enable/state OFF
+     0.11 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.11 MQTT lran/welllink/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     0.11 MQTT lran/welllink/availability offline
+     0.11 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.11 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.11 MQTT lran/simnode0/diag/state {"rssi_dbm":-18,"snr_db":11,"last_seen_s":4,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+     0.11 MQTT lran/simnode0/availability offline
+     0.11 MQTT lran/simnode0/vedirect/write_enable/state OFF
+     0.11 MQTT lran/simnode0/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.11 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+     0.11 MQTT lran/simnode1/availability online
+     0.11 MQTT lran/simnode1/diag/state {"rssi_dbm":-27,"snr_db":11,"last_seen_s":12,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+     0.11 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":5.00}
+     0.11 MQTT lran/simnode1/vedirect/hex/audit {"request":":8F7ED007805EC","seq":4,"outcome":"refused_disarmed","status":null,"response":null,"authorization":"disarmed","at":"2026-09-26T00:46:35Z"}
+     0.11 MQTT lran/simnode1/vedirect/write_enable/state OFF
+     0.11 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.11 MQTT lran/simnode2/diag/state {"rssi_dbm":-18,"snr_db":12,"last_seen_s":1,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+     0.11 MQTT lran/simnode2/availability offline
+     0.11 MQTT lran/simnode2/vedirect/write_enable/state OFF
+     0.11 MQTT lran/simnode2/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.11 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.11 MQTT lran/simnode3/vedirect/write_enable/state OFF
+     0.11 MQTT lran/simnode3/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.28 BRG ESP-ROM:esp32s3-20210327
+     0.28 BRG Build:Mar 27 2021
+     0.28 SIM ESP-ROM:esp32s3-20210327
+     0.28 SIM Build:Mar 27 2021
+     0.28 SIM rst:0x15 (USB_UART_CHIP_RESET),boot:0x28 (SPI_FAST_FLASH_BOOT)
+     0.28 SIM Saved PC:0x4203764e
+     0.28 SIM SPIWP:0xee
+     0.28 SIM mode:DIO, clock div:1
+     0.28 SIM load:0x3fce3808,len:0x4bc
+     0.28 SIM load:0x403c9700,len:0xbd8
+     0.28 SIM load:0x403cc700,len:0x2a0c
+     0.28 SIM entry 0x403c98d0
+     0.28 BRG rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.28 BRG SPIWP:0xee
+     0.28 BRG mode:DIO, clock div:1
+     0.28 BRG load:0x3fce3808,len:0x4bc
+     0.28 BRG load:0x403c9700,len:0xbd8
+     0.28 BRG load:0x403cc700,len:0x2a0c
+     0.28 BRG entry 0x403c98d0
+     0.65 BRG LRAN Bridge Node - node 0x00
+     0.65 BRG Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+     0.65 BRG PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+     0.65 BRG Version: 0.1.0 (d8e45c3)
+     0.65 BRG Slot: app0
+     0.65 BRG Image state: not_pending
+     0.65 BRG Reset: power_on
+     0.65 BRG CHAN-BOOT,d8e45c3,917400000,9,1250,1000,-1100,10
+     0.65 BRG WiFi SSID: McLeeNet
+     0.65 BRG MQTT broker: 192.168.2.52:1883
+     0.65 BRG Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+     0.65 BRG boot: count 44
+     0.65 BRG Config: 18 stored value(s) restored
+     0.65 BRG Tasks started: 7
+     0.80 BRG WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+     0.80 BRG [   574][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+     0.80 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag on
+     0.80 BRG mqtt: stack high-water 4608 bytes free of 6144
+     0.80 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+     0.80 BRG LoRa: stack high-water 6036 bytes free
+     1.00 BRG FRAME #0 tx t=650 peer=0xf1 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=25
+     1.00 BRG [   744][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+     1.00 BRG [   753][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+     1.38 MQTT lran/bridge/availability offline
+     1.41 BRG [  1287][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+     1.41 BRG OTA: listening as lran-bridge
+     1.41 BRG mqtt: connected, heap free 59476, lowest 50652
+     1.45 MQTT lran/bridge/availability online
+     1.45 MQTT lran/bridge/version {"version":"0.1.0","git":"d8e45c3","slot":"app0","ota_state":"verified_or_usb"}
+     1.55 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+     1.55 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":0,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":1,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+     1.56 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     1.56 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+     1.56 MQTT lran/simnode1/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     1.56 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":0,"ms":650,"deaf":25,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     1.66 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":1,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+     1.66 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.75 MQTT lran/gatelink/vedirect/write_enable/state OFF
+     1.76 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.76 MQTT lran/simnode0/vedirect/write_enable/state OFF
+     1.76 MQTT lran/simnode0/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.76 MQTT lran/simnode1/vedirect/write_enable/state OFF
+     1.76 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.76 MQTT lran/simnode2/vedirect/write_enable/state OFF
+     1.76 MQTT lran/simnode2/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.78 SIM LRAN simnode - bench nodes 0xF0-0xF3
+     1.78 SIM Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+     1.78 SIM Board: xiao_esp32s3+wio_sx1262_kit
+     1.78 SIM Reset cause: EXTERNAL (esp_reset_reason 0), boot_count 155
+     1.78 SIM [  1635][W][Wire.cpp:301] begin(): Bus already started in Masterid f1 ROLE_GATELINK ctx 0x62a9a589
+     1.78 SIM  Mode.
+     1.78 SIM OLED: up
+     1.78 SIM radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+     1.78 SIM id f1 boot: ctx 0x62a9a589, reset cause EXTERNAL, boot_count 155
+     1.86 MQTT lran/simnode3/vedirect/write_enable/state OFF
+     1.86 MQTT lran/simnode3/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.86 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+     1.86 MQTT lran/bridge/diag/radio/state {"tx_frames":1,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":1,"rx_deaf_ms":217,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":10,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+     1.86 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     1.86 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+     1.86 MQTT lran/simnode1/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     1.96 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.96 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.98 SIM B0: identities, console, faults, OLED; all four roles. Type 'help'.
+     2.06 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     2.06 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     2.16 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     2.43 BRG poll: f1 answered in 1705 ms (window 10000 ms)
+     2.43 BRG config: f1 rebooted, readback owed
+     2.43 BRG FRAME #1 rx t=2275 peer=0xf1 type=4 schema=254 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=217
+     2.55 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":1,"ms":2275,"deaf":217,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     2.75 MQTT lran/simnode1/availability online
+     2.84 BRG availability: simnode1 online (missed_polls 0, threshold 3)
+     2.84 BRG FRAME #2 rx t=2560 peer=0xf1 type=5 schema=17 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=217
+     2.84 BRG CHAN,1,1628,1003,74,27,54,2,-250,-1130,-515
+     2.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":2,"ms":2560,"deaf":217,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     3.04 BRG FRAME #3 tx t=2762 peer=0xf1 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=238
+     3.12 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":3,"ms":2762,"deaf":238,"d":"tx","peer":241,"type":1,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     3.20 SIM roll f1 <- 00 seq 1: ctx 0x62a9a589 -> 0x4abb55b8, ACCEPTED
+     3.65 BRG FRAME #4 rx t=3411 peer=0xf1 type=2 schema=0 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=471
+     3.65 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":4,"ms":3411,"deaf":471,"d":"rx","peer":241,"type":2,"schema":0,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     3.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":5,"ms":3613,"deaf":492,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     3.85 BRG roll: f1 rolled to ctx 0x4abb55b8 after 1 attempt(s)
+     3.85 BRG FRAME #5 tx t=3613 peer=0xf1 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=492
+     3.85 BRG CHAN,2,2631,1009,72,28,22,1,-250,-1140,-876
+     4.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":6,"ms":4550,"deaf":684,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     4.87 BRG FRAME #6 rx t=4550 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=684
+     4.87 BRG CHAN,3,3640,1001,68,32,45,1,-250,-1130,-557
+     5.25 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":7,"ms":4979,"deaf":684,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":3,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     5.27 BRG FRAME #7 rx t=4979 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-27 snr=11 st=0 rx=0 deaf=684
+     5.75 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+     5.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":8,"ms":5606,"deaf":710,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     5.88 BRG config: f1 outcome 3, sched stack high-water 2480 bytes free
+     5.88 BRG FRAME #8 tx t=5606 peer=0xf1 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=710
+     5.88 BRG CHAN,4,4641,1001,95,4,35,1,-250,-1140,-815
+     6.04 SIM hex f1 <- 00 seq 1: read :7F7ED006A -> :7F7ED008C05D9
+     6.49 BRG FRAME #9 rx t=6295 peer=0xf1 type=9 schema=0 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=943
+     6.55 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":9,"ms":6295,"deaf":943,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     6.75 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     6.90 BRG hex: f1 seq 1 read -> answered status 0 result 0, sched stack 1844 bytes free
+     6.90 BRG CHAN,5,5642,1004,80,21,26,1,-250,-1130,-856
+     7.91 BRG FRAME #10 tx t=7597 peer=0xf1 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=964
+     7.94 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":10,"ms":7597,"deaf":964,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     8.07 SIM hex f1 <- 00 seq 2: read :7F6ED006B -> :7F6ED00460520
+     8.53 BRG FRAME #11 rx t=8291 peer=0xf1 type=9 schema=0 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=1197
+     8.55 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":11,"ms":8291,"deaf":1197,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+     8.75 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     8.93 BRG hex: f1 seq 2 read -> answered status 0 result 0, sched stack 1844 bytes free
+     8.93 BRG CHAN,7,7653,1009,82,19,27,1,-250,-1150,-860
+     9.75 BRG FRAME #12 tx t=9598 peer=0xf1 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1223
+     9.88 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":12,"ms":9598,"deaf":1223,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     9.91 SIM hex f1 <- 00 seq 3: read :7F4ED006D -> :7F4ED008C05DC
+    10.56 BRG FRAME #13 rx t=10287 peer=0xf1 type=9 schema=0 frag=0x01 seq=3 rssi=-27 snr=11 st=0 rx=0 deaf=1456
+    10.59 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":13,"ms":10287,"deaf":1456,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":3,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    10.75 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    10.76 BRG hex: f1 seq 3 read -> answered status 0 result 0, sched stack 1844 bytes free
+    10.76 BRG mqtt: stack high-water 2544 bytes free of 6144
+    10.96 BRG CHAN,9,9664,1004,83,18,26,1,-250,-1140,-869
+    10.96 BRG CHANSUM,0,9,10,10043,817,184,235,8,7,0,-250,-1150,-1130,-1138
+    11.78 BRG FRAME #14 tx t=11599 peer=0xf1 type=8 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=1477
+    11.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":14,"ms":11599,"deaf":1477,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    11.94 SIM hex f1 <- 00 seq 4: read :7FDED0064 -> :7FDED000064
+    13.41 BRG FRAME #15 rx t=13219 peer=0xf1 type=9 schema=0 frag=0x01 seq=4 rssi=-27 snr=11 st=0 rx=0 deaf=1711
+    13.47 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":15,"ms":13219,"deaf":1711,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":4,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    13.75 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    13.82 BRG hex: f1 seq 4 read -> answered status 0 result 0, sched stack 1844 bytes free
+    14.02 BRG CHAN,12,12678,1002,101,0,26,1,-250,-1140,-916
+    14.83 BRG FRAME #16 tx t=14595 peer=0xf1 type=8 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=1736
+    14.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":16,"ms":14595,"deaf":1736,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":5,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    15.01 SIM hex f1 <- 00 seq 5: read :7F2ED006F -> :7F2ED0000006F
+    15.56 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":17,"ms":15285,"deaf":1969,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":5,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    15.64 BRG FRAME #17 rx t=15285 peer=0xf1 type=9 schema=0 frag=0x01 seq=5 rssi=-27 snr=11 st=0 rx=0 deaf=1969
+    15.75 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    15.85 BRG hex: f1 seq 5 read -> answered status 0 result 0, sched stack 1844 bytes free
+    15.85 BRG CHAN,14,14681,1005,78,23,19,1,-250,-1140,-921
+    16.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":18,"ms":16597,"deaf":1990,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":6,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    16.87 BRG FRAME #18 tx t=16597 peer=0xf1 type=8 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=1990
+    17.05 SIM hex f1 <- 00 seq 6: read :7F1ED0070 -> :7F1ED00FF71
+    17.48 BRG FRAME #19 rx t=17287 peer=0xf1 type=9 schema=0 frag=0x01 seq=6 rssi=-27 snr=11 st=0 rx=0 deaf=2224
+    17.56 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":19,"ms":17287,"deaf":2224,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":6,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    17.77 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    17.88 BRG hex: f1 seq 6 read -> answered status 0 result 0, sched stack 1844 bytes free
+    17.88 BRG CHAN,16,16694,1004,85,16,25,1,-250,-1140,-881
+    18.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":20,"ms":18599,"deaf":2245,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":7,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    18.90 BRG FRAME #20 tx t=18599 peer=0xf1 type=8 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=2245
+    19.08 SIM hex f1 <- 00 seq 7: read :7F0ED0071 -> :7F0ED009600DB
+    19.51 BRG FRAME #21 rx t=19289 peer=0xf1 type=9 schema=0 frag=0x01 seq=7 rssi=-27 snr=11 st=0 rx=0 deaf=2479
+    19.56 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":21,"ms":19289,"deaf":2479,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":7,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    19.76 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    19.92 BRG hex: f1 seq 7 read -> answered status 0 result 0, sched stack 1844 bytes free
+    19.92 BRG CHAN,18,18706,1004,86,15,25,1,-250,-1140,-884
+    20.91 SIM hex f1 <- 00 seq 8: read :7FBED0066 -> :7FBED00C8009E
+    20.94 BRG FRAME #22 tx t=20595 peer=0xf1 type=8 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=2504
+    20.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":22,"ms":20595,"deaf":2504,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":8,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    21.55 BRG FRAME #23 rx t=21285 peer=0xf1 type=9 schema=0 frag=0x01 seq=8 rssi=-27 snr=11 st=0 rx=0 deaf=2737
+    21.59 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":23,"ms":21285,"deaf":2737,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":8,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    21.76 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+    21.95 BRG hex: f1 seq 8 read -> answered status 0 result 0, sched stack 1844 bytes free
+    21.95 BRG CHAN,20,20711,1005,88,13,26,1,-250,-1140,-883
+    22.76 BRG FRAME #24 tx t=22597 peer=0xf1 type=8 schema=0 frag=0x01 seq=9 rssi=- snr=- st=0 rx=5 deaf=2758
+    22.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":24,"ms":22597,"deaf":2758,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":9,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    22.95 SIM hex f1 <- 00 seq 9: read :7EAED0077 -> :7EAED000C6B
+    24.80 BRG FRAME #25 rx t=24659 peer=0xf1 type=9 schema=0 frag=0x01 seq=9 rssi=-27 snr=11 st=0 rx=0 deaf=2991
+    24.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":25,"ms":24659,"deaf":2991,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":9,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    25.00 BRG CHAN,23,23726,1004,101,0,26,1,-250,-1140,-913
+    25.77 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":null}
+    25.82 BRG hex: f1 seq 9 read -> answered status 0 result 0, sched stack 1844 bytes free
+    26.84 BRG FRAME #26 tx t=26591 peer=0xf1 type=8 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=3012
+    26.89 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":26,"ms":26591,"deaf":3012,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":10,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    27.03 SIM hex f1 <- 00 seq 10: read :7E0ED0081 -> :7E0ED00F4018C
+    27.58 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":27,"ms":27281,"deaf":3245,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":10,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    27.65 BRG FRAME #27 rx t=27281 peer=0xf1 type=9 schema=0 frag=0x01 seq=10 rssi=-27 snr=11 st=0 rx=0 deaf=3245
+    27.76 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":5.00}
+    27.85 BRG hex: f1 seq 10 read -> answered status 0 result 0, sched stack 1844 bytes free
+    28.06 BRG CHAN,26,26738,1004,91,10,26,1,-250,-1140,-891
+    32.92 BRG CHAN,31,31742,1000,100,0,5,0,-1090,-1140,-1127
+    37.00 BRG CHAN,35,35742,1000,100,0,13,0,-900,-1140,-1110
+    38.01 BRG CHAN,36,36742,1000,100,0,46,0,-900,-1140,-1077
+    39.03 BRG CHAN,37,37742,1000,100,0,10,0,-890,-1140,-1110
+    40.52 CMD mark CHECK4a: 917.4 -> 917.0, should commit
+    40.52 CMD pub lran/bridge/config/set {"set":{"freq_hz":917000000}}
+    40.53 MQTT lran/bridge/config/set {"set":{"freq_hz":917000000}}
+    41.88 BRG phy: change started across 1 node(s)
+    41.88 BRG FRAME #28 tx t=41598 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=3271
+    41.97 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":28,"ms":41598,"deaf":3271,"d":"tx","peer":241,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    42.09 SIM phy f1: SET accepted, board pending, accepted 0x01 of 0x01
+    42.09 SIM config f1 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+    42.90 BRG FRAME #29 rx t=42599 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=3667
+    42.90 BRG CHAN,41,41744,1006,66,35,32,1,-250,-1140,-715
+    42.91 SIM radio: up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    42.91 SIM phy: retuned, board trial
+    42.97 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":29,"ms":42599,"deaf":3667,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    43.71 BRG phy: every node accepted - retuning
+    43.92 BRG LoRa: radio up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    43.92 BRG LoRa: stack high-water 5972 bytes free
+    43.92 BRG CHAN,42,42750,1008,96,1,13,0,-1080,-1140,-1123
+    44.94 BRG CHAN,43,43758,1007,98,2,98,0,-1080,-1100,-1089
+    45.96 BRG CHAN,44,44765,1000,100,0,100,0,-1080,-1100,-1089
+    46.36 BRG FRAME #30 tx t=46006 peer=0xf1 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=3709
+    46.37 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":30,"ms":46006,"deaf":3709,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    46.97 BRG CHAN,45,45765,1009,79,21,79,0,-1080,-1100,-1089
+    47.99 BRG CHAN,46,46774,1000,92,8,92,0,-250,-1100,-999
+    48.39 BRG FRAME #31 rx t=48123 peer=0xf1 type=4 schema=254 frag=0x01 seq=4 rssi=-27 snr=11 st=0 rx=0 deaf=3901
+    48.51 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":31,"ms":48123,"deaf":3901,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":4,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    48.80 BRG phy: every node heard - committed
+    48.88 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"freq_hz":{"status":"ok","value":917000000}}}
+    48.89 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":1,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+    49.00 BRG CHAN,47,47774,1007,98,2,98,1,-250,-1100,-790
+    50.02 BRG FRAME #32 tx t=49729 peer=0xf1 type=10 schema=18 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=4010
+    50.02 BRG CHAN,48,48781,1005,85,12,85,0,-1080,-1100,-1088
+    50.07 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":32,"ms":49729,"deaf":4010,"d":"tx","peer":241,"type":10,"schema":18,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    50.23 SIM config f1 <- 00 seq 2: op 2, 6 entries, 6 result(s)
+    50.83 BRG mqtt: stack high-water 2480 bytes free of 6144
+    50.83 BRG FRAME #33 rx t=50665 peer=0xf1 type=11 schema=18 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=4346
+    50.97 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":33,"ms":50665,"deaf":4346,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    51.04 BRG CHAN,49,49786,1000,71,29,71,1,-250,-1090,-630
+    51.79 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+    52.04 BRG CHAN,50,50786,1000,100,0,100,0,-1080,-1090,-1089
+    53.06 BRG CHAN,51,51786,1000,100,0,100,0,-1080,-1100,-1089
+    54.08 BRG CHAN,52,52786,1000,100,0,100,0,-1080,-1100,-1089
+    55.10 BRG CHAN,53,53786,1000,100,0,100,0,-1080,-1100,-1088
+    55.91 BRG CHAN,54,54786,1000,100,0,100,0,-1080,-1100,-1089
+    56.93 BRG CHAN,55,55786,1000,100,0,100,0,-1080,-1100,-1088
+    57.96 BRG CHAN,56,56786,1000,100,0,100,0,-1080,-1100,-1088
+    58.98 BRG CHAN,57,57786,1000,100,0,100,0,-1080,-1090,-1088
+    59.99 BRG CHAN,58,58786,1000,100,0,100,0,-1080,-1100,-1087
+    61.01 BRG CHAN,59,59786,1000,100,0,100,0,-1080,-1100,-1086
+    61.82 BRG FRAME #34 tx t=61602 peer=0xf1 type=3 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=4372
+    61.97 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":34,"ms":61602,"deaf":4372,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    62.03 BRG CHAN,60,60786,1002,80,19,80,0,-1080,-1090,-1087
+    62.77 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":18,"ctx_rolls":1,"ctx_roll_failed":0}
+    62.78 MQTT lran/bridge/diag/radio/state {"tx_frames":17,"cad_backoffs":5,"errors_suppressed":0,"cad_deferred":0,"cad_free":17,"rx_deaf_ms":4564,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":15,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+    62.78 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+    62.78 MQTT lran/bridge/diag/publish/state {"status_frames":4,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":1,"events":0,"event_repeats":0,"bench_withheld":5,"queue_refused":0,"undecodable":0}
+    62.78 MQTT lran/simnode1/diag/state {"rssi_dbm":-27,"snr_db":11,"last_seen_s":0,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+    62.84 BRG poll: f1 answered in 969 ms (window 10000 ms)
+    62.84 BRG FRAME #35 rx t=62538 peer=0xf1 type=4 schema=254 frag=0x01 seq=5 rssi=-27 snr=11 st=0 rx=0 deaf=4564
+    62.87 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":35,"ms":62538,"deaf":4564,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    63.04 BRG CHAN,61,61788,1001,98,2,98,1,-260,-1090,-639
+    64.06 BRG CHAN,62,62789,1000,100,0,100,0,-1080,-1090,-1087
+    65.08 BRG CHAN,63,63789,1000,100,0,100,0,-1080,-1100,-1087
+    66.10 BRG CHAN,64,64789,1000,100,0,100,0,-1080,-1090,-1087
+    66.91 BRG CHAN,65,65789,1000,100,0,100,0,-1080,-1090,-1086
+    67.93 BRG CHAN,66,66789,1000,100,0,100,0,-1080,-1090,-1086
+    68.94 BRG CHAN,67,67789,1000,100,0,100,0,-1080,-1090,-1087
+    69.96 BRG CHAN,68,68789,1000,100,0,100,0,-1070,-1090,-1087
+    70.98 BRG CHAN,69,69789,1000,100,0,100,0,-1080,-1100,-1087
+    70.98 BRG CHANSUM,10,69,60,60121,5668,330,2893,11,40,0,-250,-1140,-1090,-1120
+    72.00 BRG CHAN,70,70789,1000,100,0,100,0,-1070,-1100,-1089
+    73.02 BRG CHAN,71,71789,1000,100,0,100,0,-1080,-1100,-1089
+    74.04 BRG CHAN,72,72789,1000,100,0,100,0,-1080,-1100,-1089
+    74.80 CMD sim phy
+    74.85 SIM OK phy idle, store nvs, window 0 ms, accepted 0x00
+    74.85 SIM   effective 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+    74.85 SIM   committed 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+    74.85 SIM   trials 1 committed 1 reverted 0 abandoned 0 commit_failed 0
+    75.06 BRG CHAN,73,73789,1000,100,0,100,0,-1080,-1100,-1088
+    76.08 BRG CHAN,74,74789,1000,100,0,100,0,-1080,-1100,-1088
+    77.09 BRG CHAN,75,75789,1000,100,0,100,0,-1080,-1100,-1088
+    77.90 BRG CHAN,76,76789,1000,100,0,100,0,-1080,-1090,-1088
+    78.92 BRG CHAN,77,77789,1000,100,0,100,0,-1080,-1100,-1089
+    79.93 BRG CHAN,78,78789,1000,100,0,100,0,-1080,-1100,-1088
+    80.95 BRG CHAN,79,79789,1000,100,0,100,0,-1080,-1100,-1089
+    81.97 BRG CHAN,80,80789,1000,100,0,100,0,-1080,-1090,-1089
+    82.99 BRG CHAN,81,81789,1000,100,0,100,0,-1080,-1100,-1089
+    84.01 BRG CHAN,82,82789,1000,100,0,100,0,-1080,-1100,-1088
+    85.03 BRG CHAN,83,83789,1000,100,0,100,0,-1080,-1090,-1088
+    85.69 CMD mark CHECK4b: 917.0 -> 917.4, bridge held off after retune
+    85.69 CMD arm_hold phy: every node accepted - retuning
+    85.69 CMD pub lran/bridge/config/set {"set":{"freq_hz":917400000}}
+    85.69 MQTT lran/bridge/config/set {"set":{"freq_hz":917400000}}
+    86.04 BRG CHAN,84,84789,1000,100,0,100,0,-1080,-1100,-1088
+    86.85 BRG phy: change started across 1 node(s)
+    86.85 BRG FRAME #36 tx t=86600 peer=0xf1 type=10 schema=18 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=4585
+    86.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":36,"ms":86600,"deaf":4585,"d":"tx","peer":241,"type":10,"schema":18,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    87.06 BRG CHAN,85,85789,1008,80,20,80,0,-1080,-1100,-1088
+    87.27 SIM phy f1: SET accepted, board pending, accepted 0x01 of 0x01
+    87.27 SIM config f1 <- 00 seq 3: op 1, 6 entries, 6 result(s)
+    88.08 BRG CHAN,86,86797,1006,79,22,79,0,-1080,-1090,-1088
+    89.10 BRG FRAME #37 rx t=88829 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-27 snr=11 st=0 rx=0 deaf=4982
+    89.10 SIM radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    89.10 SIM phy: retuned, board trial
+    89.10 BRG CHAN,87,87803,1000,75,25,75,0,-260,-1090,-968
+    89.27 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":37,"ms":88829,"deaf":4982,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":3,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+    89.91 BRG phy: every node accepted - retuning
+    90.07 CMD <bridge held in reset>
+    90.07 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    90.07 BRG LoRa: stack high-water 5972 bytes free
+    90.27 BRG CHAN,88,88803,1005,92,5,74,1,-1080,-1140,-1096
+   135.16 MQTT lran/bridge/availability offline
+   208.98 SIM phy: REVERTED (window expired) to the committed group
+   209.18 SIM radio: up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   209.18 SIM phy: retuned, board idle
+   235.64 CMD brg_release
+   235.70 BRG ESP-ROM:esp32s3-20210327
+   235.70 BRG Build:Mar 27 2021
+   235.70 BRG rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+   235.70 BRG SPIWP:0xee
+   235.70 BRG mode:DIO, clock div:1
+   235.70 BRG load:0x3fce3808,len:0x4bc
+   235.70 BRG load:0x403c9700,len:0xbd8
+   235.70 BRG load:0x403cc700,len:0x2a0c
+   235.70 BRG entry 0x403c98d0
+   236.10 BRG LRAN Bridge Node - node 0x00
+   236.24 BRG Binding spec: LRAN-Protocol-Specification v0.16 (ver = 2)
+   236.24 BRG PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+   236.24 BRG Version: 0.1.0 (d8e45c3)
+   236.24 BRG Slot: app0
+   236.24 BRG Image state: not_pending
+   236.24 BRG Reset: power_on
+   236.24 BRG CHAN-BOOT,d8e45c3,917400000,9,1250,1000,-1100,10
+   236.24 BRG WiFi SSID: McLeeNet
+   236.24 BRG MQTT broker: 192.168.2.52:1883
+   236.24 BRG Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+   236.24 BRG boot: count 45
+   236.24 BRG Config: 18 stored value(s) restored
+   236.24 BRG Tasks started: 7
+   236.24 BRG WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+   236.37 BRG [   583][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 202 - AUTH_FAIL
+   236.37 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag on
+   236.37 BRG mqtt: stack high-water 4608 bytes free of 6144
+   236.37 BRG [   626][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+   236.37 BRG LoRa: radio up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   236.37 BRG LoRa: stack high-water 6036 bytes free
+   236.57 BRG FRAME #0 tx t=680 peer=0xf1 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=25
+   236.57 BRG [   752][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+   236.57 BRG [   761][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   236.66 SIM phy f1: EVENT PHY_REVERTED detail 0x0001
+   236.98 BRG [  1295][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+   236.98 BRG OTA: listening as lran-bridge
+   237.26 MQTT lran/bridge/availability online
+   237.26 MQTT lran/bridge/version {"version":"0.1.0","git":"d8e45c3","slot":"app0","ota_state":"verified_or_usb"}
+   237.27 MQTT lran/bridge/event/phy_reverted {"boot":45,"event_id":1,"reason":"restart","node":null}
+   237.27 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   237.28 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":0,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":1,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   237.28 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   237.28 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   237.28 MQTT lran/simnode1/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+   237.29 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":0,"ms":680,"deaf":25,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   237.30 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":1,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+   237.31 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   237.34 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   237.34 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   237.39 BRG mqtt: connected, heap free 59224, lowest 55516
+   237.39 BRG CHAN,0,655,1003,77,22,77,0,-1070,-1100,-1089
+   237.44 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   237.44 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   237.54 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   238.20 BRG poll: f1 answered in 1959 ms (window 10000 ms)
+   238.33 MQTT lran/gatelink/vedirect/write_enable/state OFF
+   238.33 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   238.33 MQTT lran/simnode0/vedirect/write_enable/state OFF
+   238.33 MQTT lran/simnode0/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   238.34 MQTT lran/simnode1/vedirect/write_enable/state OFF
+   238.34 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   238.34 MQTT lran/simnode2/vedirect/write_enable/state OFF
+   238.34 MQTT lran/simnode2/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   238.40 BRG availability: simnode1 online (missed_polls 0, threshold 3)
+   238.40 BRG FRAME #1 rx t=2537 peer=0xf1 type=5 schema=17 frag=0x01 seq=6 rssi=-27 snr=11 st=0 rx=0 deaf=217
+   238.40 BRG CHAN,1,1658,1000,100,0,100,1,-250,-1100,-815
+   238.43 MQTT lran/simnode3/vedirect/write_enable/state OFF
+   238.43 MQTT lran/simnode3/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   238.43 MQTT lran/simnode1/availability online
+   238.44 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   238.44 MQTT lran/bridge/diag/radio/state {"tx_frames":1,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":1,"rx_deaf_ms":217,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":11,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   238.44 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   238.44 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":1,"events":0,"event_repeats":0,"bench_withheld":1,"queue_refused":0,"undecodable":0}
+   238.44 MQTT lran/simnode1/diag/state {"rssi_dbm":-27,"snr_db":11,"last_seen_s":0,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   238.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":1,"ms":2537,"deaf":217,"d":"rx","peer":241,"type":5,"schema":17,"frag":1,"seq":6,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   238.81 BRG FRAME #2 rx t=3110 peer=0xf1 type=4 schema=254 frag=0x01 seq=7 rssi=-27 snr=11 st=0 rx=0 deaf=217
+   238.98 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":2,"ms":3110,"deaf":217,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":7,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   239.42 BRG CHAN,2,2658,1004,61,40,61,1,-250,-1090,-993
+   240.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":3,"ms":4333,"deaf":238,"d":"tx","peer":241,"type":1,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   240.23 BRG FRAME #3 tx t=4333 peer=0xf1 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=238
+   240.31 SIM roll f1 <- 00 seq 1: ctx 0x4abb55b8 -> 0x8182d0bd, ACCEPTED
+   240.44 BRG CHAN,3,3662,1000,74,25,74,0,-1070,-1100,-1089
+   241.45 BRG CHAN,4,4662,1000,100,0,100,0,-1080,-1100,-1089
+   242.05 BRG FRAME #4 rx t=6258 peer=0xf1 type=2 schema=0 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=471
+   242.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":4,"ms":6258,"deaf":471,"d":"rx","peer":241,"type":2,"schema":0,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   242.46 BRG roll: f1 rolled to ctx 0x8182d0bd after 1 attempt(s)
+   242.46 BRG CHAN,5,5662,1004,90,10,90,1,-250,-1100,-964
+   242.87 BRG FRAME #5 tx t=7047 peer=0xf1 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=513
+   242.93 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":5,"ms":7047,"deaf":513,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   243.48 BRG CHAN,6,6666,1009,79,21,79,0,-1080,-1100,-1088
+   244.50 BRG CHAN,7,7675,1000,100,0,100,0,-250,-1100,-850
+   244.70 BRG FRAME #6 rx t=8911 peer=0xf1 type=4 schema=254 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=705
+   244.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":6,"ms":8911,"deaf":705,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   245.11 BRG FRAME #7 rx t=9341 peer=0xf1 type=11 schema=18 frag=0x01 seq=3 rssi=-27 snr=11 st=0 rx=0 deaf=705
+   245.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":7,"ms":9341,"deaf":705,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":3,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   245.32 BRG config: f1 outcome 3, sched stack high-water 1332 bytes free
+   245.33 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+   245.52 BRG CHAN,8,8675,1008,98,2,98,2,-250,-1100,-549
+   246.33 BRG mqtt: stack high-water 2560 bytes free of 6144
+   246.53 BRG CHAN,9,9683,1001,97,2,97,0,-1070,-1100,-1088
+   246.53 BRG CHANSUM,0,9,10,10029,876,122,876,5,10,0,-250,-1100,-1090,-1099
+   247.54 BRG CHAN,10,10684,1001,97,2,97,0,-1080,-1090,-1089
+   247.54 BRG FRAME #8 tx t=11726 peer=0xf1 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=802
+   247.64 SIM hex f1 <- 00 seq 1: read :7F7ED006A -> :7F7ED008C05D9
+   247.68 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":8,"ms":11726,"deaf":802,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   248.57 BRG CHAN,11,11685,1000,74,25,74,0,-1080,-1100,-1089
+   249.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":9,"ms":13455,"deaf":1035,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   249.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   249.38 BRG FRAME #9 rx t=13455 peer=0xf1 type=9 schema=0 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=1035
+   249.38 BRG hex: f1 seq 1 read -> answered status 0 result 0, sched stack 1332 bytes free
+   249.58 BRG CHAN,12,12685,1001,89,11,89,1,-250,-1100,-958
+   250.39 BRG CHAN,13,13686,1007,98,2,98,0,-1080,-1100,-1089
+   251.41 BRG CHAN,14,14693,1000,100,0,100,0,-1080,-1100,-1089
+   251.82 BRG FRAME #10 tx t=15954 peer=0xf1 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1077
+   251.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":10,"ms":15954,"deaf":1077,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   251.90 SIM hex f1 <- 00 seq 2: read :7F6ED006B -> :7F6ED00460520
+   252.43 BRG FRAME #11 rx t=16644 peer=0xf1 type=9 schema=0 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=1310
+   252.43 BRG CHAN,15,15693,1002,67,33,67,1,-250,-1100,-878
+   252.60 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":11,"ms":16644,"deaf":1310,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   253.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   253.44 BRG hex: f1 seq 2 read -> answered status 0 result 0, sched stack 1332 bytes free
+   253.44 BRG CHAN,16,16695,1000,100,0,100,0,-1080,-1100,-1090
+   254.44 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":12,"ms":18611,"deaf":1336,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   254.46 BRG FRAME #12 tx t=18611 peer=0xf1 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1336
+   254.46 BRG CHAN,17,17695,1002,90,9,90,0,-1080,-1100,-1089
+   254.55 SIM hex f1 <- 00 seq 3: read :7F4ED006D -> :7F4ED008C05DC
+   255.08 BRG FRAME #13 rx t=19305 peer=0xf1 type=9 schema=0 frag=0x01 seq=3 rssi=-27 snr=11 st=0 rx=0 deaf=1569
+   255.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":13,"ms":19305,"deaf":1569,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":3,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   255.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   255.48 BRG hex: f1 seq 3 read -> answered status 0 result 0, sched stack 1332 bytes free
+   255.48 BRG CHAN,18,18697,1009,85,16,85,1,-250,-1100,-841
+   255.63 CMD sim phy
+   255.77 SIM OK phy idle, store nvs, window 0 ms, accepted 0x00
+   255.77 SIM   effective 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+   255.77 SIM   committed 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+   255.77 SIM   trials 2 committed 1 reverted 1 abandoned 0 commit_failed 0
+   256.50 BRG CHAN,19,19706,1001,97,2,97,0,-1080,-1100,-1089
+   257.31 BRG FRAME #14 tx t=21522 peer=0xf1 type=8 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=1619
+   257.33 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":14,"ms":21522,"deaf":1619,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   257.52 BRG CHAN,20,20707,1002,80,19,80,0,-1080,-1100,-1090
+   257.60 SIM hex f1 <- 00 seq 4: read :7FDED0064 -> :7FDED000064
+   257.92 BRG FRAME #15 rx t=22217 peer=0xf1 type=9 schema=0 frag=0x01 seq=4 rssi=-27 snr=11 st=0 rx=0 deaf=1852
+   258.04 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":15,"ms":22217,"deaf":1852,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":4,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   258.33 BRG hex: f1 seq 4 read -> answered status 0 result 0, sched stack 1332 bytes free
+   258.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   258.53 BRG CHAN,21,21709,1009,95,6,95,1,-250,-1100,-867
+   259.34 BRG FRAME #16 tx t=23599 peer=0xf1 type=8 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=1873
+   259.46 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":16,"ms":23599,"deaf":1873,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":5,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   259.54 BRG CHAN,22,22718,1007,87,13,87,0,-1080,-1100,-1089
+   259.64 SIM hex f1 <- 00 seq 5: read :7F2ED006F -> :7F2ED0000006F
+   260.56 BRG CHAN,23,23725,1003,88,12,88,0,-1080,-1100,-1089
+   261.17 BRG FRAME #17 rx t=25341 peer=0xf1 type=9 schema=0 frag=0x01 seq=5 rssi=-27 snr=11 st=0 rx=0 deaf=2106
+   261.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":17,"ms":25341,"deaf":2106,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":5,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   261.34 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   261.38 BRG hex: f1 seq 5 read -> answered status 0 result 0, sched stack 1332 bytes free
+   261.58 BRG CHAN,24,24728,1004,88,13,88,1,-250,-1100,-967
+   262.39 BRG FRAME #18 tx t=26604 peer=0xf1 type=8 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=2128
+   262.39 BRG CHAN,25,25732,1008,86,14,86,0,-1080,-1100,-1089
+   262.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":18,"ms":26604,"deaf":2128,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":6,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   262.48 SIM hex f1 <- 00 seq 6: read :7F1ED0070 -> :7F1ED00FF71
+   263.60 BRG CHAN,26,26740,1003,89,11,89,0,-250,-1100,-1034
+   263.60 BRG FRAME #19 rx t=27932 peer=0xf1 type=9 schema=0 frag=0x01 seq=6 rssi=-27 snr=11 st=0 rx=0 deaf=2361
+   263.76 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":19,"ms":27932,"deaf":2361,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":6,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   264.34 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   264.42 BRG hex: f1 seq 6 read -> answered status 0 result 0, sched stack 1332 bytes free
+   264.62 BRG CHAN,27,27743,1000,100,0,100,1,-250,-1100,-927
+   265.64 BRG CHAN,28,28743,1007,98,2,98,0,-1080,-1100,-1088
+   265.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":20,"ms":29945,"deaf":2407,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":7,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   265.85 BRG FRAME #20 tx t=29945 peer=0xf1 type=8 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=2407
+   265.94 SIM hex f1 <- 00 seq 7: read :7F0ED0071 -> :7F0ED009600DB
+   266.46 BRG FRAME #21 rx t=30642 peer=0xf1 type=9 schema=0 frag=0x01 seq=7 rssi=-27 snr=11 st=0 rx=0 deaf=2641
+   266.47 CMD mark RESTORE: back to Envelope A
+   266.47 CMD pub lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   266.48 MQTT lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   266.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":21,"ms":30642,"deaf":2641,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":7,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   266.66 BRG CHAN,29,29750,1003,74,25,74,1,-250,-1100,-804
+   267.34 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   267.47 BRG hex: f1 seq 7 read -> answered status 0 result 0, sched stack 1332 bytes free
+   267.68 BRG CHAN,30,30753,1000,100,0,100,0,-1080,-1100,-1089
+   268.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":22,"ms":32609,"deaf":2667,"d":"tx","peer":241,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   268.49 BRG phy: change started across 1 node(s)
+   268.49 BRG FRAME #22 tx t=32609 peer=0xf1 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=2667
+   268.70 BRG CHAN,31,31753,1002,84,15,84,0,-1080,-1100,-1089
+   268.79 SIM phy f1: SET accepted, board pending, accepted 0x01 of 0x01
+   268.79 SIM config f1 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+   269.30 BRG FRAME #23 rx t=33611 peer=0xf1 type=11 schema=18 frag=0x01 seq=1 rssi=-27 snr=11 st=0 rx=0 deaf=3064
+   269.40 SIM radio: up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   269.40 SIM phy: retuned, board trial
+   269.49 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":23,"ms":33611,"deaf":3064,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   269.51 BRG CHAN,32,32755,1007,74,27,74,1,-250,-1100,-648
+   270.32 BRG phy: every node accepted - retuning
+   270.32 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   270.32 BRG LoRa: stack high-water 5972 bytes free
+   270.52 BRG CHAN,33,33762,1008,96,1,83,0,-1080,-1140,-1095
+   271.33 BRG FRAME #24 tx t=35601 peer=0xf1 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=3085
+   271.54 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":24,"ms":35601,"deaf":3085,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   273.57 BRG CHAN,36,36779,1000,100,0,33,0,-250,-1140,-845
+   273.77 BRG FRAME #25 rx t=37984 peer=0xf1 type=4 schema=254 frag=0x01 seq=4 rssi=-27 snr=11 st=0 rx=0 deaf=3278
+   273.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":25,"ms":37984,"deaf":3278,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":4,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   274.39 BRG phy: every node heard - committed
+   274.43 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"freq_hz":{"status":"ok","value":917400000}}}
+   274.43 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":1,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+   274.59 BRG CHAN,37,37779,1003,80,20,4,1,-260,-1140,-1086
+   275.20 BRG FRAME #26 tx t=39408 peer=0xf1 type=10 schema=18 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=3324
+   275.26 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":26,"ms":39408,"deaf":3324,"d":"tx","peer":241,"type":10,"schema":18,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   275.51 SIM config f1 <- 00 seq 2: op 2, 6 entries, 6 result(s)
+   276.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":27,"ms":40344,"deaf":3660,"d":"rx","peer":241,"type":11,"schema":18,"frag":1,"seq":2,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   276.21 BRG FRAME #27 rx t=40344 peer=0xf1 type=11 schema=18 frag=0x01 seq=2 rssi=-27 snr=11 st=0 rx=0 deaf=3660
+   276.35 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":1,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+   276.42 BRG mqtt: stack high-water 2480 bytes free of 6144
+   276.42 BRG FRAME #28 tx t=40611 peer=0xf1 type=8 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=3686
+   276.46 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":28,"ms":40611,"deaf":3686,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":8,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   276.53 SIM hex f1 <- 00 seq 8: read :7FBED0066 -> :7FBED00C8009E
+   276.62 BRG CHAN,39,39790,1007,73,27,32,1,-250,-1140,-756
+   277.03 BRG FRAME #29 rx t=41301 peer=0xf1 type=9 schema=0 frag=0x01 seq=8 rssi=-27 snr=11 st=0 rx=0 deaf=3919
+   277.14 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":29,"ms":41301,"deaf":3919,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":8,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   277.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   277.43 BRG hex: f1 seq 8 read -> answered status 0 result 0, sched stack 1216 bytes free
+   277.64 BRG CHAN,40,40797,1005,95,6,26,1,-250,-1140,-900
+   278.46 BRG FRAME #30 tx t=42608 peer=0xf1 type=8 schema=0 frag=0x01 seq=9 rssi=- snr=- st=0 rx=5 deaf=3945
+   278.50 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":30,"ms":42608,"deaf":3945,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":9,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   278.56 SIM hex f1 <- 00 seq 9: read :7EAED0077 -> :7EAED000C6B
+   279.06 BRG FRAME #31 rx t=43298 peer=0xf1 type=9 schema=0 frag=0x01 seq=9 rssi=-27 snr=11 st=0 rx=0 deaf=4178
+   279.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":31,"ms":43298,"deaf":4178,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":9,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   279.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":null}
+   279.47 BRG hex: f1 seq 9 read -> answered status 0 result 0, sched stack 1216 bytes free
+   279.67 BRG CHAN,42,42804,1004,96,5,26,1,-250,-1150,-903
+   280.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":32,"ms":44599,"deaf":4199,"d":"tx","peer":241,"type":8,"schema":0,"frag":1,"seq":10,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   280.48 BRG FRAME #32 tx t=44599 peer=0xf1 type=8 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=4199
+   280.58 SIM hex f1 <- 00 seq 10: read :7E0ED0081 -> :7E0ED00F4018C
+   281.10 BRG FRAME #33 rx t=45294 peer=0xf1 type=9 schema=0 frag=0x01 seq=10 rssi=-27 snr=11 st=0 rx=0 deaf=4432
+   281.13 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":33,"ms":45294,"deaf":4432,"d":"rx","peer":241,"type":9,"schema":0,"frag":1,"seq":10,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   281.33 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":14.20,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":5.00}
+   281.50 BRG hex: f1 seq 10 read -> answered status 0 result 0, sched stack 1216 bytes free
+   281.71 BRG CHAN,44,44815,1009,98,3,26,1,-250,-1140,-904
+   291.40 CMD pub lran/simnode1/config/set {"set":{"deployed":0}}
+   291.40 CMD pub lran/bridge/config/set {"set":{"simnode_diag_enable":0}}
+   291.40 CMD sim phy
+   291.41 MQTT lran/simnode1/config/set {"set":{"deployed":0}}
+   291.41 MQTT lran/bridge/config/set {"set":{"simnode_diag_enable":0}}
+   291.55 SIM OK phy idle, store nvs, window 0 ms, accepted 0x00
+   291.55 SIM   effective 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+   291.55 SIM   committed 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s
+   291.55 SIM   trials 3 committed 2 reverted 1 abandoned 0 commit_failed 0
+   291.71 MQTT lran/simnode1/config/ack {"op":"set","persist":"persisted","results":{"deployed":{"status":"ok","value":0}}}
+   291.72 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"}}
+   291.83 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"simnode_diag_enable":{"status":"ok","value":0}}}
+   291.83 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"default"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+   292.33 MQTT lran/simnode1/availability offline
+   292.49 BRG levers: gen 6 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+   296.36 BRG mqtt: stack high-water 1956 bytes free of 6144
+   297.38 BRG FRAME #34 tx t=61606 peer=0xf1 type=3 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=4453
+   297.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":34,"ms":61606,"deaf":4453,"d":"tx","peer":241,"type":3,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   299.33 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":18,"ctx_rolls":1,"ctx_roll_failed":0}
+   299.33 MQTT lran/bridge/diag/radio/state {"tx_frames":17,"cad_backoffs":10,"errors_suppressed":0,"cad_deferred":2,"cad_free":17,"rx_deaf_ms":4646,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":16,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":3,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   299.34 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   299.34 MQTT lran/bridge/diag/publish/state {"status_frames":3,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":1,"events":0,"event_repeats":0,"bench_withheld":4,"queue_refused":0,"undecodable":0}
+   299.61 BRG poll: f1 answered in 2287 ms (window 10000 ms)
+   299.61 BRG FRAME #35 rx t=63864 peer=0xf1 type=4 schema=254 frag=0x01 seq=5 rssi=-27 snr=11 st=0 rx=0 deaf=4646
+   299.61 BRG CHAN,62,62834,1000,100,0,50,0,-250,-1140,-701
+   299.73 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":35,"ms":63864,"deaf":4646,"d":"rx","peer":241,"type":4,"schema":254,"frag":1,"seq":5,"rssi":-27,"snr":11,"st":0,"rx":0}]}
+   300.63 BRG CHAN,63,63834,1002,101,0,5,1,-260,-1140,-1094

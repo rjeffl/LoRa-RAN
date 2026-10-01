@@ -309,7 +309,7 @@ void test_a_wrong_context_is_refused_with_the_nodes_own_ctx() {
   expect_ack(next_ack(b, &h), 1, AckResult::RejectedCtx);
   TEST_ASSERT_EQUAL_UINT32(own, h.ctx_id);
   TEST_ASSERT_EQUAL_UINT32(1, b.f1().counters.rx_rejected_ctx);
-  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.executions);
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().executions);
   TEST_ASSERT_EQUAL_UINT16(0, b.f1().gate.high_water());  // an unauthenticated seq moves nothing
 }
 
@@ -320,7 +320,7 @@ void test_a_bad_mac_is_refused_and_not_executed() {
   command(b, 1, Cmd::Open, 0, o);
   expect_ack(next_ack(b), 1, AckResult::RejectedMac);
   TEST_ASSERT_EQUAL_UINT32(1, b.f1().counters.rx_rejected_mac);
-  TEST_ASSERT_EQUAL_UINT32(0, b.f1().gl.executions);
+  TEST_ASSERT_EQUAL_UINT32(0, b.f1().executions);
 }
 
 // spec 9.4 (v0.11) - the retry that lands while the first copy executes gets NOTHING. Then the
@@ -752,7 +752,7 @@ void test_a_repeated_config_is_answered_from_the_cache() {
   next_config_ack(b);
   send_config(b, 1, set);
   expect_ack(next_ack(b), 1, AckResult::DuplicateCached);
-  TEST_ASSERT_EQUAL_UINT32(1, b.f1().gl.executions);
+  TEST_ASSERT_EQUAL_UINT32(1, b.f1().executions);
 }
 
 void test_the_config_store_is_bounded() {
@@ -1094,7 +1094,7 @@ void test_phy_a_pending_group_is_abandoned() {
   TEST_ASSERT_FALSE(b.phy.retune_due());
   TEST_ASSERT_EQUAL_UINT32(1, b.phy.stats().abandoned);
   TEST_ASSERT_EQUAL_INT32(917400000, b.phy.group().v[0]);
-  TEST_ASSERT_EQUAL_UINT16(0, b.f1().gl.phy_revert_detail);
+  TEST_ASSERT_EQUAL_UINT16(0, b.f1().phy_revert_detail);
 }
 
 // `phy reset` - back to D1's group, blob erased, a retune owed.

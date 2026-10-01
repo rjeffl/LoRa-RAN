@@ -1,14 +1,12 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that reconciled the Implementation Plan with
-the built fleet (plan v0.18) and created this file.** It replaces the previous file
-wholesale. There was no previous file: this is GateLink's first handoff.
+**Written 2026-10-01, at the end of the session that ran L1's bench checks.** It replaces
+the file the session that built L1 on the host wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
-> the documents below, they win. GateLink has no engineering log yet; the first firmware
-> session creates `docs/gatelink/engineering-log.md`.
+> the documents below, they win. GateLink's is [`engineering-log.md`](./engineering-log.md).
 
 ## Start here
 
@@ -16,12 +14,11 @@ wholesale. There was no previous file: this is GateLink's first handoff.
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/gatelink/HANDOFF.md: task L1, extract lib/lran-node/ from the simnode.
+Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
 | Task | Read |
 |---|---|
-| **L1** — extract `lib/lran-node/` | Plan §5.2 (the `CommandGate` and `ROLL_CONTEXT` rules), §5.4 (L1's boundary), §8.1. `firmware/simnode/CLAUDE.md`, then `node.h`, `node.cpp`, `gatelink.cpp`, `phy_trial.cpp` |
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
 | **L3** — VE.Direct text parser | Plan §4.2.4, §8.1. `lib/vedirect/include/vedirect/hex.h`. The osh-labs repository is the reference of record |
 | **L4** — GateLink's parameter block | Plan §4.4, §6.4, §8.1. `lib/lran-config/include/lran/config/table.h`. PRD §5.3. `doc-findings` finding 2 first |
@@ -35,35 +32,23 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L1, extracting `lib/lran-node/`.** It is the longest library task and it is on the
-critical path: nothing on the node's protocol side starts without it (plan §8.2). Its
-acceptance criteria are plan §8.1's L1 row. The proof that the extraction changed nothing is
-the simnode passing every suite it passes today, and `ROLE_GATELINK` back on air against
-the bridge.
-
-L3, L4 and L5 are independent of L1 and of each other. Any of them suits a short session.
+**L1 is done once its PR merges.** All four of plan §8.1's bench checks passed on
+2026-10-01, and the engineering log's entry of that date records each one. The operator
+picks the next task from the table above. L3, L4 and L5 are independent of each other,
+and any of them suits a short session.
 
 ## What the last session established
 
-- **The plan's citations were current, and its design was not.** Plan v0.17 cited spec
-  v0.17 and PRD v0.13, but §2–§5 still described v0.1. Plan v0.18 reconciles them.
-  Its changelog lists every change.
-- **`gatelink-expansion-board` rev 0.3 is the carrier design**, and the plan had never
-  cited it. It changes the radio module (a Wio-SX1262 that needs an RF-switch GPIO, G40),
-  the power path (buck plus AMS1117 from Bus pin 1, `EXT_5V` unused), the pin map and the
-  spare capacity (none).
-- **About 2,000 lines of node-side protocol code already run in the simnode**
-  (`node.cpp`, `gatelink.cpp`, `phy_trial.cpp`), on air as `ROLE_GATELINK`. Plan §5.4 maps
-  every concern GateLink needs to the code that already does it.
-- **`wattcycle-reader/lib/bms_ble/` has run on a StamPLC**, unchanged from its Heltec build.
-  Its environment is the starting point for GateLink's, with four changes (plan §5.1). What
-  it does not cover is the connect, read, disconnect and de-init cycle R-3.4a/b require.
-- **Gaps no document had assigned**, now tasks L1–L6 or written into the plan: the node
-  key (§6.8), CI rows for a new firmware (§7.5), the SPI bus shared by three drivers
-  (§5.2), the ACK delay the R-4.3h interlock causes (§5.2), an `io_task` never-blocks check
-  (§5.2), and the absence of a VE.Direct or BMS simulator (§6.6).
-- **None of this was run.** The session read and wrote documents. No build, test or bench
-  result stands behind any statement above beyond `run_ci_local.py` passing on documents.
+- **`lib/lran-node/` exists and the simnode runs on it.** 144 simnode host tests pass, as
+  before; the library adds 12; both simnode targets build; CI runs the new suite.
+- **The plan §5.2 split is real.** An application may defer a command, and
+  `Engine::finish_command()` records and ACKs it later. GateLink's `io_task` will use it.
+- **The engine is on air.** The XIAO Kit passed all four L1 bench checks against the
+  bridge: commands, the BF-34 roll, the §10.7 reboot and the §12.4.2 commit and revert.
+  The engineering log's second 2026-10-01 entry has the evidence, and the first lists what
+  changed beyond the move.
+- **The deferred-command path and `Engine::complete_hex()` have run on the host only.**
+  No bench check exercised either.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -91,11 +76,13 @@ L3, L4 and L5 are independent of L1 and of each other. Any of them suits a short
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.18. `wattcycle-reader` M0–M8 (its own milestones) |
-| Not started | L1–L6. GL0–GL9. `firmware/gatelink/` does not exist |
-| Queue | L1, then the rest of §8.1 in any order |
+| In progress | L1: bench checks passed, PR awaiting acceptance |
+| Not started | L2–L6. GL0–GL9. `firmware/gatelink/` does not exist |
+| Queue | The rest of §8.1, in any order |
 
 ```bash
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
+pio test -d lib/lran-node -e native           # the node engine (L1)
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 pio test -d lib/vedirect -e native            # HEX codec (L3 adds the text parser)
