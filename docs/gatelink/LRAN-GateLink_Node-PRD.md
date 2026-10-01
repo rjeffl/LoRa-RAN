@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.12
+**Version:** 0.13
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -341,7 +341,10 @@ hold the gate open understates it.
   rather than silence.
 - **R-3.3e.** GateLink SHALL enforce the write-authentication rule: HEX Set and Restart
   commands require a valid MAC (Protocol Spec §7.6). This is one of three independent
-  gates on charge-controller writes; the other two are enforced on the bridge.
+  gates on charge-controller writes; the other two are enforced on the bridge. GateLink
+  SHALL answer a refused write-class request with the frame spec §7.6 names for the step
+  that refused it (**D73**), and every `HEX_RSP` SHALL repeat its request's `seq`
+  (**D74**).
 - **R-3.3f.** GateLink SHALL publish an explicit **staleness flag** when no complete
   text frame has arrived within timeout.
 
@@ -994,6 +997,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.13** — **Protocol specification v0.16 → v0.17.** R-3.3e takes **D73** and **D74**:
+  a refused write-class `HEX_REQ` is answered at the step that refused it, and a `HEX_RSP`
+  repeats its request's `seq`. The simnode's `ROLE_GATELINK` already answers both ways.
+  D75 and D76 bind the bridge's topics, not this node.
 
 - **v0.12** — **Protocol specification v0.15 → v0.16.** New **R-3.5f–R-3.5k** cover a
   reset, directed or not (spec §10.7): `REBOOT` acknowledged before the reset, a `BOOT`

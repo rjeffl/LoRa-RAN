@@ -71,7 +71,7 @@ inline constexpr size_t kChargeRegisterCount = sizeof(kChargeRegisters) / sizeof
 static_assert(kChargeRegisterCount <= 16, "the pending set is a 16-bit mask");
 
 // `lran/<node>/vedirect/charge/state`, retained. Spec 16.1's grammar with `charge` as the
-// item; spec 16.2 does not list the topic, which is raised for v0.16.
+// item; spec 16.2 lists it from v0.17 (D76).
 inline constexpr const char* kChargeItem = "charge";
 
 // One node's readback. A pass reads every register once, in table order, and the document

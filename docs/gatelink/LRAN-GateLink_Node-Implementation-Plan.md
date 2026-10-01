@@ -1,14 +1,14 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.16
+**Version:** 0.17
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `lran-gatelink`
 **Status:** Ready for build. Four measurements outstanding before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.12
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.13
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -488,6 +488,11 @@ Rules:
 - **Do not disable the text protocol.** The 1 Hz stream is the primary telemetry source.
 - HEX requests are transported **verbatim.** GateLink inspects only the command nibble,
   to enforce the write-authentication rule.
+- **A refused write answers as spec §7.6's table says** (**D73**):
+  `HEX_RSP(REJECTED_UNAUTHENTICATED)` for a bad or missing MAC, and a `COMMAND_ACK` for
+  the context, deduplication and `seq` steps. **Every `HEX_RSP` repeats its request's
+  `seq`** (**D74**). The simnode's `ROLE_GATELINK` builds both, in `refuse_authenticated()`
+  and `on_hex_req()` in `firmware/simnode/src/gatelink.cpp`.
 
 Use / port **`osh-labs/VE.Direct_mppt_arduino`** (MIT) for both the text parser and the
 HEX protocol definitions, register map and encode/decode helpers.
@@ -1161,6 +1166,9 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.17** — **Protocol specification v0.16 → v0.17, and PRD v0.12 → v0.13.** §4.2.4's
+  HEX rules take **D73** and **D74**, PRD R-3.3e's two additions. No milestone changes.
 
 - **v0.16** — **Protocol specification v0.15 → v0.16, and PRD v0.11 → v0.12.** M1's
   acceptance gains the relays held off through a reset (PRD R-3.5j). M3's gains the reset

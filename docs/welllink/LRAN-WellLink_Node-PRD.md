@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.12
+**Version:** 0.13
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
-**Last updated:** 2026-09-25
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Last updated:** 2026-10-01
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -228,6 +228,10 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.13** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.16 → v0.17**. D73–D76 settle the VE.Direct HEX proxy's refusals, its `seq` and its
+  topics. They reach WellLink only if it carries a VE.Direct charger, which D19 decides.
 
 - **v0.12** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.15 → v0.16**. What reaches this node when it is designed: spec §10.7's reset

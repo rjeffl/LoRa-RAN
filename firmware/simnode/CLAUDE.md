@@ -7,7 +7,7 @@ specific to the simnode.
 **Tasks:** `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.61 §4 (BF-2 to BF-9). The simnode
 halves of later tasks are in their rows: §7's BF-34 for the context roll, §8's BF-33 for a
 PHY change and §9's BF-36 for the simulated MPPT.
-**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.16** (`ver = 2`).
+**Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
 **Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
 trap: **console commands, fault names, role names and schema IDs are exact tokens.**

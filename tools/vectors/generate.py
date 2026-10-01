@@ -47,7 +47,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.16"
+SPEC = "LRAN-Protocol-Specification v0.17"
 WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
 
 DERIVED = "derived"

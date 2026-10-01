@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.17
+**Version:** 0.18
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -198,6 +198,8 @@ live.**
 | 3 | **A retained audit trail** of every write attempt: request payload, authorization outcome, and the MPPT's response | **The bridge** |
 
 - **R-3.5c.** Gate 2 SHALL be deliberately a **two-step operation** — arm, then write.
+  A retained arm request SHALL NOT arm it: spec §16.2 makes `write_enable/set` not
+  retained (**D75**), and the bridge clears a retained one.
 - **R-3.5d.** The bridge SHALL interpret register semantics for readback and publish
   charge-parameter readback as diagnostic sensors, **so that a wrong charge profile is
   visible in HA rather than latent.**
@@ -503,6 +505,10 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.18** — **Protocol specification v0.16 → v0.17.** R-3.5c takes **D75**: a retained
+  `write_enable/set` does not arm writes. The bridge already ignores and clears one. D76's
+  topics and D73–D74's answers need no new requirement here.
 
 - **v0.17** — **Protocol specification v0.15 → v0.16.** New **R-3.1i**: the bridge does
   not resync a request that may have executed before a node reset, and reports it

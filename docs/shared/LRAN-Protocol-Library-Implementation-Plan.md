@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.22
+**Version:** 0.23
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.16**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -923,6 +923,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.23** — **Protocol specification v0.16 → v0.17.** Nothing reaches the library. D73
+  and D74 bind a node's answers to a `HEX_REQ`, D75 and D76 bind the bridge's topics, and no
+  frame layout, enumeration value or vector moves.
 
 - **v0.22** — **Protocol specification v0.15 → v0.16.** `types.h` gains `ResetCause`,
   spec §8.14's values for a `BOOT` event's `detail` (D71). The codec carries `detail` as an

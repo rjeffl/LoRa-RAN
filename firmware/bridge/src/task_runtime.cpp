@@ -2598,10 +2598,10 @@ class VedirectRequests final : public MqttInbound {
     const int i = node_table_index(node);
     if (i < 0) return;
     if (msg.retained) {
-      // Spec 16.2 marks this topic retained, and a retained `ON` would re-arm writes at
-      // every connect - after a bridge reboot above all, which is when nobody is watching.
-      // It is never applied, and it is cleared so it cannot come back. Raised for spec
-      // v0.16; decided with the operator on 2026-09-25.
+      // Spec 16.2 makes this topic not retained (D75): a retained `ON` would re-arm writes
+      // at every connect - after a bridge reboot above all, which is when nobody is
+      // watching. One retained anyway is never applied, and is cleared so it cannot come
+      // back.
       ++g_vedirect_inbound.retained_refused;
       Serial.printf("hex: %02x retained write_enable/set ignored and cleared\n",
                     static_cast<unsigned>(node));

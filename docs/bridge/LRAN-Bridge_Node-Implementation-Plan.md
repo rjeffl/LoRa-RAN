@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.78
+**Version:** 0.79
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.17
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.16**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.22 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.23 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-09-26
+**Last updated:** 2026-10-01
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1385,7 +1385,7 @@ from the command nibble alone, Set (`0x8`) or Restart (`0x6`), as spec §7.6 doe
 | **A Restart refused with `REJECTED_CTX` is not resynced.** It resolves `unknown`, and the node's context is adopted (spec §10.7, **D70**) | The node may have reset after the MPPT restarted. A Set keeps the resync, because writing a register twice writes one value. `test_hex_proxy` has the case |
 | **A write is never retried.** One with no answer resolves `unknown` | The node's deduplication cache holds an ACK result, not the MPPT's answer, so a retried write would draw `COMMAND_ACK(DUPLICATE_CACHED)` and never the register value. A Get settles an `unknown` write, as a readback settles a lost `CONFIG_ACK` (§6.7.3). Spec §10.3's resync is the one exception: it retries once, because the node refused the first at step 2 and never forwarded it. Decided with the operator on 2026-09-25 |
 | **A read is retried under the same `seq`**, twice by default | A read changes nothing, and its `seq` is in neither sequence space (spec §10.2). A read with no answer resolves `no_response` |
-| **A retained `write_enable/set` is ignored and cleared** | Spec §16.2 marks the topic retained. A retained `ON` would re-arm writes on every broker reconnect. Decided with the operator on 2026-09-25, and raised for spec v0.16. The broker marks a message retained only when it replays it on a subscribe, so the rule acts on a reconnect; a retained `ON` published while the bridge is connected arms it, as any `ON` does |
+| **A retained `write_enable/set` is ignored and cleared** | A retained `ON` would re-arm writes on every broker reconnect. Decided with the operator on 2026-09-25; spec v0.17's §16.2 makes `set` not retained (**D75**). The broker marks a message retained only when it replays it on a subscribe, so the rule acts on a reconnect; a retained `ON` published while the bridge is connected arms it, as any `ON` does |
 | **A request that is not a VE.Direct HEX frame is refused before any airtime** | `classify_hex()` uses `lib/vedirect`'s parser. A frame the MPPT would answer with a frame error would otherwise cost a solar node a transmission. The refusal answers on `hex/response` as `malformed`; `busy` and `context_roll_pending` answer the same way |
 | **`hex/response` is not retained** | An answer replayed on an HA restart would report a request nobody had just made, as `config/ack`'s would (spec §16.7.3) |
 | **Three bridge rows**: `hex_rsp_timeout_ms` (3000), `mppt_write_arm_timeout_s` (300) and `charge_readback_interval_h` (0) | Root rule 8. The read retry count is a count, not a time, and stays a constant |
@@ -1415,9 +1415,10 @@ B6's readback against the real MPPT is what confirms them. A wrong scale publish
 plausible wrong voltage, which is the failure R-3.5d exists to expose. A disagreement at B6
 is a finding to record, not a number to adjust.
 
-**Four spec readings were raised for v0.16** in the engineering log's *B5's spec readings*
-entry: the answer to a refused write, `HEX_RSP`'s `seq`, the retained `write_enable/set`,
-and the `charge/state` topic that §16.2 does not list.
+**Four spec readings raised in the engineering log's *B5's spec readings* entry are settled
+in spec v0.17** as **D73–D76**: the answer to a refused write, `HEX_RSP`'s `seq`, the
+retained `write_enable/set`, and the `charge/state` topic §16.2 did not list. Each matches
+the code as built.
 
 ### 6.5 OTA
 
@@ -2871,7 +2872,7 @@ only evidence V-B6 has that a write reached anything. The values are plausible, 
 GateLink's pack specification.
 
 **Four answers follow a reading of the specification decided with the operator on
-2026-09-25**, and raised for spec v0.16 because the text does not settle them:
+2026-09-25**, and spec v0.17 states them as **D73** and **D74** (§7.6):
 
 | Case | Answer | Why |
 |---|---|---|
@@ -3047,6 +3048,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.79** — **Protocol specification v0.16 → v0.17, and PRD v0.17 → v0.18.** §6.4.1 and
+  §10.9.3 cite **D73–D76** where they had said the readings were raised for v0.16. No code
+  changes: v0.17 states the readings the code already builds.
 
 - **v0.78** — **Handoff Group 4, HA before GateLink.** §6.3.1: `solar/state` names the
   MPPT's `CS` and `ERR` codes, and `uptime_s` is outside the change hash. §6.3.2: a `BOOT`

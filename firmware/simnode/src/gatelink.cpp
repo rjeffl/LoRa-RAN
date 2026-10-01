@@ -509,8 +509,7 @@ void Node::refuse_authenticated(Identity& e, const lran::Header& hdr, lran::Stat
     // A write-class HEX_REQ whose MAC failed or is absent answers HEX_RSP
     // (REJECTED_UNAUTHENTICATED), as spec 8.13 names it. A context mismatch still answers
     // COMMAND_ACK(REJECTED_CTX), because that ACK is what carries this node's ctx_id back
-    // for the bridge's resync (spec 10.3). The split is the reading decided with the
-    // operator on 2026-09-25 and raised for spec v0.16.
+    // for the bridge's resync (spec 10.3). Spec 7.6 states the split from v0.17 (D73).
     ++e.gl.hex_requests;
     if (why == lran::Status::RejectedMac) {
       sink_printf(log_, "hex %02x <- %02x seq %u: write-class, MAC failed, REJECTED_UNAUTHENTICATED",
