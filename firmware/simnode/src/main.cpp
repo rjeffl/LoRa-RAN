@@ -200,15 +200,6 @@ void ui_service(uint32_t now) {
   simnode::ui_render(page);
 }
 
-// The template's key is 32 zero bytes and builds, so CI needs no secret. A board flashed
-// with it derives keys no bridge holding a real key shares, and says so.
-bool master_key_is_placeholder(const uint8_t* key) {
-  for (size_t i = 0; i < lran::kMasterKeyLen; ++i) {
-    if (key[i] != 0) return false;
-  }
-  return true;
-}
-
 void add_default(uint8_t id, simnode::Role role) {
   if (g_ids.add(id, role) == simnode::AddResult::Ok) {
     const simnode::Identity* e = g_ids.find(id);
@@ -279,7 +270,9 @@ void setup() {
     const uint8_t master[] = LRAN_MASTER_KEY;
     static_assert(sizeof(master) == lran::kMasterKeyLen,
                   "secrets.h: LRAN_MASTER_KEY must be 32 bytes (spec 9.1)");
-    if (master_key_is_placeholder(master)) {
+    // The template's key is 32 zero bytes and builds, so CI needs no secret. A board
+    // flashed with it derives keys no bridge holding a real key shares, and says so.
+    if (lran::key_is_placeholder(master, sizeof(master))) {
       Serial.println(F("*** LRAN_MASTER_KEY IS THE ALL-ZERO PLACEHOLDER ***"));
       Serial.println(F("*** Keys will not match a provisioned bridge. Fill in secrets.h. ***"));
     }

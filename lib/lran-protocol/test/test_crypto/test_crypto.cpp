@@ -144,6 +144,19 @@ void test_ct_equal() {
   TEST_ASSERT_FALSE(ct_equal(a, b, 8));
 }
 
+// GateLink Impl Plan 6.8 - the template's all-zero key is reported, and a key with
+// one nonzero byte anywhere, first or last, is not.
+void test_key_is_placeholder() {
+  uint8_t key[kNodeKeyLen] = {};
+  TEST_ASSERT_TRUE(key_is_placeholder(key, sizeof(key)));
+  key[0] = 0x01;
+  TEST_ASSERT_FALSE(key_is_placeholder(key, sizeof(key)));
+  key[0]               = 0x00;
+  key[kNodeKeyLen - 1] = 0x80;
+  TEST_ASSERT_FALSE(key_is_placeholder(key, sizeof(key)));
+  TEST_ASSERT_FALSE(key_is_placeholder(kMaster, kMasterKeyLen));
+}
+
 // spec 9.3 - the MAC covers the entire header and payload, and nothing else.
 void test_command_mac_roundtrip_and_tamper() {
   refimpl::RefKdf kdf;
@@ -642,6 +655,7 @@ int run_all() {
   RUN_TEST(test_node_keys_differ_per_node);
   RUN_TEST(test_kdf_salt_and_info_are_pinned);
   RUN_TEST(test_ct_equal);
+  RUN_TEST(test_key_is_placeholder);
   RUN_TEST(test_command_mac_roundtrip_and_tamper);
   RUN_TEST(test_ctx_mismatch_precedes_mac_check);
   RUN_TEST(test_bridge_does_not_check_ctx);
