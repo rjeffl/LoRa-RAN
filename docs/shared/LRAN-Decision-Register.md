@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.23
+**Version:** 0.24
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -423,6 +423,10 @@ Frames from a node that is not deployed are processed as they are now.
 | **D70** | What the bridge does when a retry draws `REJECTED_CTX` and the node may have executed the request | **An actuation command (`0x00`–`0x0F`), a `REBOOT` or a VE.Direct Restart ends unconfirmed, without §10.3's retry.** The bridge adopts the node's context and reports the request unconfirmed. Every other request keeps the retry. Operator, 2026-09-25, §3.12 | Protocol Spec §10.3, §10.7; Bridge Impl Plan |
 | **D71** | How a node reports why it reset | **A `BOOT` event's `detail` carries `reset_cause`**, a new §8.14 enumeration. No layout changes. Operator, 2026-09-25, §3.12 | Protocol Spec §8.9, §8.14; GateLink PRD |
 | **D72** | What a node does about an alarm event lost to a reset | **It sends `FIRE_ASSERTED` or `HARD_SHUTDOWN` again at boot while the condition is still present.** A duplicate alert is accepted. Operator, 2026-09-25, §3.12 | Protocol Spec §10.7; GateLink PRD |
+| **D73** | Which frame refuses a write-class `HEX_REQ` | **`HEX_RSP(REJECTED_UNAUTHENTICATED)` at §9.4 step 3, and the `COMMAND_ACK` §9.4 names at steps 2, 4 and 5.** Operator, 2026-10-01, §3.13 | Protocol Spec §7.6, §9.4; GateLink PRD R-3.3e |
+| **D74** | Whether a `HEX_RSP` repeats its request's `seq` | **Yes, whatever its `status`.** Operator, 2026-10-01, §3.13 | Protocol Spec §7.6; GateLink PRD R-3.3e |
+| **D75** | Whether `write_enable/set` is retained | **No.** A bridge ignores a retained one and clears it. Operator, 2026-10-01, §3.13 | Protocol Spec §16.2; Bridge PRD R-3.5c |
+| **D76** | Where the VE.Direct topics the spec did not list belong | **§16.2 lists `vedirect/charge/state`. §16.6 publishes a bench node's `hex/response`, `hex/audit` and `write_enable/state` whatever `simnode_diag_enable` says.** Operator, 2026-10-01, §3.13 | Protocol Spec §16.2, §16.6 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1114,6 +1118,32 @@ on 2026-09-25. Spec v0.16's §10.7 carries the text.
 clarification, not a decision. A repeated `ctx_id` would have let a retried `REBOOT` loop
 and reopened replay, which is why it came up here.
 
+### 3.13 D73–D76 — four readings B5's code chose, 2026-10-01
+
+**B5's code met four places where spec v0.15 was silent or read two ways.** The operator
+chose a reading for each on 2026-09-25, the bridge and simnode built it, and the bridge
+engineering log's *B5's spec readings* entry raised them. Spec v0.16 did not take them up.
+On 2026-10-01 the operator ruled that each reading, as built, becomes the specification.
+Spec v0.17 carries the text, and no code changes.
+
+- **D73.** At §9.4 step 3, a bad or missing MAC draws `HEX_RSP(REJECTED_UNAUTHENTICATED)`,
+  the status §8.13 names for that case. Steps 2, 4 and 5 answer with the `COMMAND_ACK`
+  §9.4 names. Step 2 keeps the `COMMAND_ACK` because §10.3's resync starts from
+  `REJECTED_CTX`. **Rejected:** `COMMAND_ACK(REJECTED_MAC)` at step 3, which would leave
+  §8.13's status with no case and change both the bridge and the simnode.
+- **D74.** §9.2 already correlated a `HEX_RSP` to its request by `seq`, but §7.6 never said
+  the node repeats it. **Rejected:** correlating some other way, which nothing builds.
+- **D75.** v0.16 marked `write_enable/{state,set}` retained together. A retained `ON` on
+  `set` would re-arm writes at every broker reconnect, which defeats the bridge's second
+  gate. The bridge's ignore-and-clear stays, against a client that retains it anyway.
+  **Rejected:** keeping `set` retained.
+- **D76.** A bench node's `hex/response`, `hex/audit` and `write_enable/state` each answer
+  a request an operator made, which is D65's reason for publishing a bench node's answers
+  whatever `simnode_diag_enable` says. The bench charge readback is data the bridge asks
+  for on its own schedule, so it stays behind the flag. **Rejected:** gating every bench
+  VE.Direct topic on the flag, which would leave a bench HEX request unanswered while the
+  flag is clear.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1272,6 +1302,11 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.24** — **D73–D76 resolved on 2026-10-01**: four readings B5's code chose become the
+  specification. They settle which frame refuses a write-class `HEX_REQ`, that a `HEX_RSP`
+  repeats its request's `seq`, that `write_enable/set` is not retained, and which VE.Direct
+  topics §16.2 and §16.6 list. §3.13 has the reasoning, and spec v0.17 carries the text.
 
 - **v0.23** — **D70–D72 resolved on 2026-09-25**: a request that may have executed before
   a node reset is not retried under §10.3, a `BOOT` event reports the reset cause, and a

@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.16
+**Version:** 0.17
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -1124,6 +1124,27 @@ none (§9.2). The node inspects **only the command nibble** for this purpose and
 otherwise treats the string as opaque. It does not hold a register cache, replay
 writes, or interpret register semantics.
 
+**A refused write-class request is answered at the step that refused it** (**D73**,
+v0.17). The node verifies a write-class `HEX_REQ` as §9.4 verifies every authenticated
+frame, and forwards none of these to the MPPT:
+
+| §9.4 step | Failure | Answer |
+|---|---|---|
+| 2 | `ctx_id` is not the node's own | `COMMAND_ACK(REJECTED_CTX)` |
+| 3 | MAC missing or wrong | `HEX_RSP(REJECTED_UNAUTHENTICATED)` (§8.13) |
+| 4 | `(ctx_id, seq)` is in the dedup cache | `COMMAND_ACK(DUPLICATE_CACHED)` |
+| 5 | `seq` is not above `rx_high_water` | `COMMAND_ACK(REJECTED_SEQ)` |
+
+Step 3 answers with a `HEX_RSP` because §8.13 names its status for this case. Step 2
+answers with a `COMMAND_ACK` because §10.3's resync starts from `REJECTED_CTX`, whatever
+the authenticated type. Steps 4 and 5 answer as they do for a `CONFIG`: a write-class
+request shares the command `seq` space, and without that a captured Set could be replayed
+for as long as the `ctx_id` lasts.
+
+**A `HEX_RSP` repeats its request's `seq`** (**D74**, v0.17), whatever its `status`. §9.2
+correlates a `HEX_RSP` to its request by `seq`, and the bridge matches an answer on the
+node and that `seq`.
+
 This is the first of three independent gates on MPPT writes. The other two — an armed
 write-enable switch with auto-expiry, and a retained audit trail — are enforced on the
 bridge and specified in [`LRAN-Bridge_Node-PRD`](../bridge/LRAN-Bridge_Node-PRD.md).
@@ -1372,7 +1393,7 @@ not. **A node without a usable nonvolatile store also answers a PHY entry `READ_
 |---|---|
 | `0x00` | `OK` |
 | `0x01` | `TIMEOUT` — no response within `hex_timeout_ms` |
-| `0x02` | `REJECTED_UNAUTHENTICATED` — a write-class request with no valid MAC |
+| `0x02` | `REJECTED_UNAUTHENTICATED` — a write-class request with no valid MAC (§7.6, §9.4 step 3) |
 | `0x03` | `BUSY` — a transaction was already outstanding |
 | `0x04` | `UART_ERROR` |
 | `0x05` | `MALFORMED_REQUEST` |
@@ -1533,7 +1554,8 @@ to back and the order is exactly v0.3's.
    application CRC16 (§14 stages 1–8a). Reject → `ERROR`.
 2. Check `ctx_id` equals its own. Mismatch → `COMMAND_ACK(REJECTED_CTX)`.
 3. Verify the MAC **in constant time**, over that fragment's own 16-byte header and
-   its own payload chunk. Failure → `COMMAND_ACK(REJECTED_MAC)`.
+   its own payload chunk. Failure → `COMMAND_ACK(REJECTED_MAC)`, except for a
+   write-class `HEX_REQ`, which §7.6 answers with `HEX_RSP(REJECTED_UNAUTHENTICATED)`.
 
 **Per set, once, on completion of reassembly:**
 
@@ -2791,12 +2813,19 @@ stable and non-colliding as the fleet grows.
 | `lran/<node>/vedirect/hex/request` | HA → bridge | No | Raw HEX request string |
 | `lran/<node>/vedirect/hex/response` | bridge → HA | No | Raw HEX response + status |
 | `lran/<node>/vedirect/hex/audit` | bridge → HA | **Yes** | Every write attempt: payload, authorization outcome, MPPT response |
-| `lran/<node>/vedirect/write_enable/{state,set}` | both | **Yes** | Armed write-enable, default off, auto-expiry |
+| `lran/<node>/vedirect/write_enable/state` | bridge → HA | **Yes** | Armed write-enable, default off, auto-expiry |
+| `lran/<node>/vedirect/write_enable/set` | HA → bridge | **No** | Arms or disarms MPPT writes (**D75**) |
+| `lran/<node>/vedirect/charge/state` | bridge → HA | **Yes** | The charge-parameter readback, decoded (**D76**) |
 | `lran/<node>/diag/state` | bridge → HA | **Yes** | RSSI/SNR, missed polls, counters, protocol version |
 | `lran/<node>/node/health/state` | bridge → HA | **Yes** | A node's schema `0xF0` health (§7.5), decoded (**D62**) |
 | `lran/bridge/diag/publish/state` | bridge → HA | **Yes** | The bridge's publication counts (**D62**) |
 | `lran/bridge/diag/rxlog/log` | bridge → HA | **No** | The bridge's raw frame log, a rolling window of receive outcomes (§16.1, **D66**) |
 | `lran/bridge/version` | bridge → HA | **Yes** | Bridge firmware version |
+
+**`write_enable/set` is not retained** (**D75**, v0.17). v0.16 marked it retained with
+`state`. A retained `ON` would re-arm MPPT writes at every broker reconnect, after a bridge
+reboot above all, and that defeats §7.6's second gate. A bridge that receives a retained
+`set` does not apply it, and publishes an empty retained message on the topic to clear it.
 
 #### 16.2.1 Payloads, where one is defined
 
@@ -2908,13 +2937,17 @@ lran/simnode<N>/diag/state
 lran/simnode<N>/availability
 ```
 
-and **never** under `gate`, `detect`, `battery`, `solar` or `event`. A simnode cannot
+and **never** under `gate`, `detect`, `battery`, `solar` or `event`. The one addition is
+a bench node's `vedirect/charge/state`, published only with the flag below set
+(**D76**): it is the bench path for testing the charge-parameter readback, and Home
+Assistant discovers its sensors for GateLink only. A simnode cannot
 appear as a gate entity, cannot enter battery history, and — most importantly —
 **cannot fire a `lran/*/event/*` topic**, so no bench activity can reach the email and
 SMS path §16.3 exists to protect.
 
 **A bench node's answers publish whatever `simnode_diag_enable` says** (**D65**, v0.15):
-its `config/ack`, `config/state` and `cmd/ack`. Each answers a request an operator made on
+its `config/ack`, `config/state` and `cmd/ack`, and from v0.17 its `vedirect/hex/response`,
+`vedirect/hex/audit` and `vedirect/write_enable/state` (**D76**). Each answers a request an operator made on
 that node's own `config/set` or `cmd/<action>/set`, and none is data the node reported
 unasked. Gated by the flag, a bench `config/set` would go unanswered whenever the flag is
 clear.
@@ -3401,6 +3434,17 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.17 (2026-10-01)** — **D73–D76: four readings B5's code chose, made normative.**
+  `ver` stays at `2`; **no frame layout, header field, schema, enumeration value or
+  authentication scope changes.** The bridge and simnode already build each one, and the
+  operator ruled on all four on 2026-10-01. **§7.6 says which frame refuses a write-class
+  `HEX_REQ`** at each §9.4 step (D73), and §9.4 step 3 and §8.13 point to it. **§7.6
+  requires a `HEX_RSP` to repeat its request's `seq`** (D74). **§16.2 splits
+  `write_enable/{state,set}`**, and `set` is not retained (D75). §16.2 lists
+  `vedirect/charge/state`, and §16.6 lists a bench node's three VE.Direct answers among
+  those that publish whatever `simnode_diag_enable` says (D76). **The W4 vectors are
+  unchanged**, because no byte on the wire moved.
 
 - **v0.16 (2026-09-25)** — **D70–D72: a node reset, directed or not.** `ver` stays at
   `2`; **no frame layout, header field, schema or authentication scope changes.** New
