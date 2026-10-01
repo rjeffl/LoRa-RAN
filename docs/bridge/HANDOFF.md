@@ -49,7 +49,7 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 `CONFIG` in flight to any node, for its ACK and its readback. The engineering log's two
 2026-09-25 *air-timing* entries have the rule and the bench run.
 
-**B6 and B7 need GateLink**, and GateLink M6 gates B6. GateLink's firmware is not
+**B6 and B7 need GateLink**, and GateLink GL6 gates B6. GateLink's firmware is not
 started, so every group left here is preparation for B6, not a step toward it.
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench

@@ -1,18 +1,28 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.17
+**Version:** 0.18
 **Node:** `GateLink`, node ID `0x01`
-**Firmware target:** `lran-gatelink`
-**Status:** Ready for build. Four measurements outstanding before the carrier is populated.
+**Firmware target:** `firmware/gatelink/`
+**Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
+firmware starts, and four measurements come before the carrier is populated.
 **Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.13
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
+**Open document defects:** [`doc-findings`](./doc-findings.md)
 **Last updated:** 2026-10-01
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
 > `S-*`, `V-*`) refer to the GateLink PRD.
+>
+> **The carrier's electrical design lives in `gatelink-expansion-board`, not here.** That
+> document owns the carrier's parts, nets, pin map, regulators and bring-up order. This
+> plan cites it and does not restate it. Where the two disagreed before v0.18, the
+> expansion board was right: it is the later design, and it was revised against the real
+> enclosure. Three PRD requirements still state the earlier design, and
+> [`doc-findings`](./doc-findings.md) lists them.
 
 ---
 
@@ -35,10 +45,12 @@
 
 ### 1.1 What is being built
 
-An M5Stack StamPLC running custom firmware, with a perfboard carrier board carrying an
-SX1262 radio module, a 3.3 V regulator and a VE.Direct level-shifter front end. It
-mounts on DIN rail inside the existing gate controller enclosure, powered directly from
-the 12 V LiFePO4 pack, and connects to:
+An M5Stack StamPLC running custom firmware, with a perfboard carrier board mated to its
+expansion bus. The carrier holds a Seeed Wio-SX1262 radio module, a 12 V → 5 V buck
+followed by a 3.3 V LDO, and a VE.Direct level-shifter front end
+([`gatelink-expansion-board`](./gatelink-expansion-board.md) §1). The StamPLC mounts on
+DIN rail inside the existing gate controller enclosure, powered directly from the 12 V
+LiFePO4 pack, and connects to:
 
 - the gate controller, via four relay outputs and six opto-isolated inputs on screw
   terminals;
@@ -49,8 +61,12 @@ the 12 V LiFePO4 pack, and connects to:
 ### 1.2 Build sequence at a glance
 
 ```
+                                                Shared libraries (§8.1)
+                                                L1 lran-node · L2 bms-ble
+                                                L3 vedirect text · L4 params
+                                                        |
   Carrier board        1050 rewiring +          Firmware, on the bench
-  (M2 → M9)            reprogramming            with simulated peripherals
+  (expansion board)    reprogramming            with simulated peripherals
        |                     |                          |
        +---------+-----------+                          |
                  |                                      |
@@ -66,7 +82,13 @@ the 12 V LiFePO4 pack, and connects to:
 ```
 
 Carrier work, controller rewiring and firmware development are **independent** and run
-in parallel. Everything from bench integration onward is sequential.
+in parallel. The library tasks come first on the firmware side, because each one moves
+code that the simnode or the bridge already runs. Everything from bench integration
+onward is sequential.
+
+The firmware column needs no carrier until GL0. The XIAO ESP32S3 + Wio-SX1262 Kit on the
+bench carries the same SX1262, TCXO voltage and RF-switch arrangement as the carrier's
+module, on different pins (§4.1). A StamPLC with no carrier runs everything else.
 
 ### 1.3 Non-obvious properties to preserve
 
@@ -80,7 +102,12 @@ discover late:
    through the pack-BMS-disconnect case, in which the node loses power entirely with no
    warning (**R-4.4c**).
 3. **Relays and inputs consume no GPIO.** They sit behind I²C expanders. The radio pin
-   budget (§3.3) depends on that, and it has no spare pins.
+   budget (§3.3) depends on that, and after the carrier is built the StamPLC has **no
+   uncommitted GPIO**.
+4. **One implementation of each protocol rule.** The node side of the protocol already
+   runs in the simnode, the frame codec in `lib/lran-protocol/`, and media access in
+   `lib/lran-link/`. GateLink consumes them (§5.4). A second implementation would drift
+   from the first, and the drift would surface at the gate, where a fix is a USB reflash.
 
 ---
 
@@ -91,29 +118,30 @@ discover late:
 | Qty | Item | Notes |
 |----:|------|-------|
 | 1 | **M5Stack StamPLC (K141)** | Host platform. 4 relays, 8 opto-isolated inputs, 6–36 V in, DIN, screw terminals. ~$43 |
-| 1 | **SX1262 module, 915 MHz, SPI** | Must satisfy the §2.2 checklist. **A WIN-SX1262-class module is the current candidate** |
-| 1 | SMA bulkhead pigtail + 915 MHz antenna | LoRa antenna **outside** the enclosure |
-| 1 | **3.3 V LDO, ≥300 mA, dropout ≤300 mV** | AP2112K-3.3 breakout or equivalent. **Required — D26.** **An AMS1117-3.3 will not do** (~1.1 V dropout against a 4.76 V source) |
-| 1 | **Perfboard + 2×8 2.54 mm header, in a DIN-rail carrier** | Carries the radio module, the LDO and the VE.Direct front end. **D27.** Pick the DIN carrier first (**M15**) and cut the board to it |
-| 1 | **BSS138 4-channel bidirectional level shifter module** | Adafruit #757 / SparkFun BOB-12009 or equivalent. **VE.Direct only** — 2 channels used, 2 spare. Retained, but the TX direction is contingent on **D25** |
+| 1 | **Carrier board, complete** | **[`gatelink-expansion-board`](./gatelink-expansion-board.md) §2 is the carrier's bill of materials**: the Seeed Wio-SX1262 for XIAO header board (p-6379), a SparkFun BabyBuck AP63357, an AMS1117-3.3 module, a 4-channel BSS138 converter, connectors J1–J4 and the discretes. **D27.** Not repeated here, so that one list changes when the design does |
+| 1 | IPEX → SMA bulkhead pigtail + 915 MHz antenna | LoRa antenna **outside** the steel enclosure (**R-4.3e**). The expansion board lists the pigtail; PRD §4.3.1 gives the full RF path across both bulkheads |
 | *0–1* | *ADuM1201 breakout **or** 74LVC1G17 buffer* | **Only if M4 shows a weak symmetric low-side driver** on the MPPT TX line (§4.2.2) |
 | 1 | VE.Direct cable / JST-PH 2.0 4-pin pigtail | **Both data lines used.** Buying a genuine Victron cable and cutting it is the easiest sourcing path |
 | 1 | **microSD card** — small, industrial-grade if available | Configuration overrides, retained counters and on-node logging. **Not required for the node to run** (**R-4.2d**) |
 | — | Mounting, strain relief, **inline fuse on the battery tap** | Inside the existing enclosure. **S-10** |
 
-### 2.2 SX1262 module selection checklist
+### 2.2 The radio module — chosen
 
-The pin allocation in §3.3 has **no spare pins for RF-path control**, which rules out a
-whole class of otherwise attractive modules. Before ordering, confirm against the
-vendor's own schematic — **not a marketplace listing**:
+**The module is the Seeed Wio-SX1262 for XIAO, header board (p-6379)**
+([`gatelink-expansion-board`](./gatelink-expansion-board.md) §2, §6.1). Its FCC grant is
+recorded in `LRAN-M21-FCC-Grant-Findings` §2. It meets three of the four points the
+earlier selection checklist asked for: it runs from 3.3 V, it states its TCXO voltage
+(1.8 V, from DIO3), and it is a 915 MHz part with an IPEX connection.
 
-1. **Uses DIO2 for RF switching and requires no TXEN/RXEN lines.** This **excludes the
-   Waveshare Core1262** and most PA/LNA "long range" variants.
-2. Runs from **3.3 V** and **states its TCXO voltage.** The radio library must be given
-   the correct value or the radio will not calibrate.
-3. Breaks out SCK, MOSI, MISO, NSS, BUSY, DIO1, NRESET, 3V3 and GND. Nothing else is
-   needed, and anything else is a pin the budget does not have.
-4. Is a **915 MHz** part with an SMA or IPEX antenna connection.
+**It does not meet the fourth.** Seeed does not tie DIO2 to the RF switch inside the
+module, so the switch needs a GPIO as well as DIO2-as-RF-switch (expansion board §7.3,
+confirmed 2026-09-05). The carrier spends G40 on it. **PRD R-4.3b still says the module
+SHALL NOT need that line**, and is listed in `doc-findings`.
+
+**Do not confuse it with the Kit.** The Wio-SX1262 **with** XIAO ESP32S3 (p-5982) joins its
+module over a B2B connector on GPIO 38–42 and uses none of the header board's pads. It is
+the board the range test and the simnode's `simnode-xiao-wio` env run on. It proves the
+module's radio configuration, and it **does not** validate the carrier's wiring.
 
 ### 2.3 Existing installed hardware — not purchased
 
@@ -131,6 +159,8 @@ enclosure.
 | Qty | Item | Notes |
 |----:|------|-------|
 | 1 | USB-TTL serial adapter (5 V / 3.3 V selectable) | VE.Direct bring-up and observation |
+| 1 | **XIAO ESP32S3 + Wio-SX1262 Kit** — in hand | Radio-side firmware development before the carrier exists (§1.2). It is already the bench's target-radio simnode (`docs/bridge/HANDOFF.md`, *Hardware state*); GateLink's development borrows it |
+| *1* | *A second StamPLC* | *Optional.* A bench host for everything that does not need the carrier: relays, inputs, display, microSD, BLE. It keeps bench work off the unit destined for the gate once that unit is installed. The StamPLC in hand ran `wattcycle-reader`'s M7a |
 | 1 | DVM, and a **current clamp or inline mA meter** | **M1 needs the inline meter**; see §9.3 |
 | *1* | *8-channel USB logic analyzer (sigrok/PulseView)* | Optional. Useful for VE.Direct HEX timing |
 | — | Jumper leads, breadboard | |
@@ -233,109 +263,93 @@ AW9523B). Eight are available; six are used.
 
 ### 3.3 Radio carrier — pin budget
 
-Documented StamPLC-Bus pinout:
+**The carrier's nets are [`gatelink-expansion-board`](./gatelink-expansion-board.md) §6,
+and its firmware constants are §9.** The table below is the firmware's view of rev 0.3.
+After this build the StamPLC has no uncommitted GPIO.
 
-| Pin | Signal | Pin | Signal |
+| Function | GPIO | StamPLC pin | Note |
 |---|---|---|---|
-| 1 | VIN | 2 | GND |
-| 3 | GND | 4 | GND |
-| 5 | GND | 6 | **EXT_5V** |
-| 7 | G15 (SCL) | 8 | G13 (SDA) |
-| 9 | G3 (PHY_RST) | 10 | G14 (INT) |
-| 11 | G9 (SPI MISO) | 12 | G7 (SPI SCK) |
-| 13 | G8 (SPI MOSI) | 14 | G11 (SPI CS) |
-| 15 | **G40 (custom)** | 16 | **G41 (custom)** |
+| SX1262 MISO, SCK, MOSI | G9, G7, G8 | Bus 11, 12, 13 | **Shared with the LCD and the microSD** (§5.2) |
+| SX1262 NSS | G41 | Bus 16 | R3 pulls it up, so the radio is deselected from power-on |
+| SX1262 BUSY | G11 | Bus 14 | The vendor's pin table calls Bus 14 `CS`. It carries BUSY |
+| RF switch | G40 | Bus 15 | The **RX enable** in `setRfSwitchPins(rf_sw, RADIOLIB_NC)`, alongside DIO2-as-RF-switch (§2.2) |
+| SX1262 DIO1 | G1 | PORT.A white | On a Grove cable. Set `INPUT_PULLDOWN` before `radio.begin()` (§4.1) |
+| SX1262 NRESET | G2 | PORT.A yellow | On a Grove cable. R4 holds the radio in reset if the line floats |
+| VE.Direct TX (to the MPPT) | G5 | PORT.C yellow | Through BSS138 channel 3 |
+| VE.Direct RX (from the MPPT) | G4 | PORT.C white | Through BSS138 channel 4 and R2 |
+| I²C, onboard | G15, G13 | Bus 7, 8 | The relay and input expanders. **Land nothing on Bus 7–10** |
 
-HY2.0-4P: **PORT.A** = GND / 5 V / G2 / G1; **PORT.C** = GND / 5 V / G5 / G4.
-
-**Allocation:**
-
-| Function | Signals |
-|---|---|
-| SX1262 SPI | G7 SCK, G8 MOSI, G9 MISO, G11 NSS |
-| SX1262 BUSY | G41 |
-| SX1262 DIO1 | G40 |
-| SX1262 NRESET | **G14**, freed by the decision to poll inputs rather than use the expander interrupt |
-| VE.Direct UART | PORT.A — G1, G2 |
-| I²C (onboard peripherals) | G15 / G13, already in use |
-| **Spare** | PORT.C (G4, G5) — reserved for a second VE.Direct pair if a SmartShunt is added |
+**The firmware takes the radio pins as a `lran::link::RadioPins` value**
+(`lib/lran-link/include/lran/link/radio_config.h`), declared once in the board profile and
+injected into the driver (root rule 10, spec §12.2). The expansion board's `#define`s are
+where the values come from, not how the firmware spells them. Its `LORA_TCXO_V 1.8f`
+becomes `tcxo_mv = 1800`, because every firmware here keeps the TCXO voltage in
+millivolts.
 
 **Reserved — do not use:**
 
 | Signal | Reason |
 |---|---|
-| **G3** | Common RST for the LCD, the PI4IOE expander **and** any bus expansion module. A radio driver pulsing reset here also resets the display and an expander — **and therefore risks disturbing relay state** (**R-4.3g**). The vendor's own PoE module documentation flags this same hazard and recommends passing `-1` for the reset pin |
+| **G3** | Common RST for the LCD, the PI4IOE expander **and** any bus expansion module. A radio driver pulsing reset here also resets the display and an expander, **and therefore risks disturbing relay state** (**R-4.3g**). The radio's reset is on G2, which satisfies R-4.3g |
 | **G0** | RS485_TX and the ESP32-S3 BOOT strap. Unused; if the RS485 port is ever used, keep the bus idle-high |
+| G10, G12, G6 | microSD CS, LCD CS, LCD RS. The radio shares their bus, not their pins |
+| G14 | Bus 10, the expanders' shared INT. On the internal I²C side of the header |
 | G42 / G43 | PWR-CAN. Unused in v1 |
 
-*Fallback if G14 is later needed:* pull SX1262 NRESET to 3.3 V and pass the
-no-connect sentinel, accepting software-reset-only. **Not preferred for an outdoor
-node.**
-
-**The interrupt line is deliberately spent on the radio.** The AW9523B's INT line is
-shared with the other onboard I²C peripherals; polling the input expander at 100 ms
-(**R-3.1.4d**) frees G14 for the radio reset, and the detection logic has three orders
-of magnitude of timing margin (§9.2).
+**Inputs are still polled at `input_poll_ms`** (**R-3.1.4d**). Earlier revisions spent G14
+on the radio's reset and polled the inputs to free it. Rev 0.3 put the reset on G2, so the
+radio no longer needs G14. Polling stays, because R-3.1.4d requires it and §9.2 gives it
+three orders of magnitude of timing margin.
 
 ### 3.4 Power rails
 
-Confirmed across current vendor documentation, and **D26 closes on that basis: no 3.3 V
-rail is exposed.**
-
-- Bus power pins are **VIN, GND and EXT_5V only**.
-- The PoE accessory documentation independently republishes the same bus map, naming
-  pin 6 `EXT_5V`.
-- Both HY2.0-4P ports are GND / 5 V / GPIO / GPIO.
-- The vendor's own SPI expansion module carries a W5500 — a 3.3 V part — and
-  **regulates its own 3.3 V locally.**
-
-Rail capacity, vendor-specified under load: **expansion port 4.76 V @ 700 mA**,
-HY2.0-4P **4.81 V @ 700 mA**. **Note the rail sits near 4.8 V, not 5.0 V** — which is
-what excludes an AMS1117.
+**[`gatelink-expansion-board`](./gatelink-expansion-board.md) §4 is the power design.**
+The carrier draws from Bus pin 1, which is the 12 V bank, through a polyfuse and a TVS
+diode into a buck converter. The buck feeds an LDO. **Bus pin 6 (`EXT_5V`) is not used**,
+which keeps the radio off the rail that drives the relays and the opto inputs.
 
 | Rail | Source | Serves |
 |---|---|---|
-| 12 V | Battery tap, inline fuse → VIN terminal block | Host |
-| ~4.76 V | EXT_5V, bus pin 6 | Carrier LDO input; VE.Direct **HV** rail |
-| 3.3 V | **Carrier LDO** | SX1262; VE.Direct **LV** rail |
+| 12 V | Battery tap, inline fuse → StamPLC VIN; Bus pin 1 → carrier F1 | Host; carrier buck |
+| 5 V | SparkFun BabyBuck AP63357 | AMS1117 input; BSS138 HV rail |
+| 3.3 V | AMS1117-3.3 module | Wio-SX1262; BSS138 LV rail |
 
-**Load on the LDO.** This line read *"~120 mA peak SX1262 TX at +22 dBm"*, a power
-**neither envelope permits**: Envelope A caps conducted power at **−4 dBm** with the fitted
-3.0 dBi antenna, and Envelope B's ceiling is the Wio module's own tested **19.6 dBm**
-(`LRAN-M21-FCC-Grant-Findings` §6). **Size the rail against 19.6 dBm**, the highest power
-any permitted configuration reaches; the node operates at −4 dBm, in the PA's low-power
-path, so the working draw sits well below that.
+**D26 is half overtaken.** Its finding stands: the StamPLC exposes no 3.3 V rail. Its
+consequence does not. D26 excluded the AMS1117 on dropout against `EXT_5V`, which sits near
+4.76 V under load. The expansion board feeds the AMS1117 from its own buck instead, so that
+comparison no longer describes the build. PRD **R-4.3d**'s ≤300 mV dropout requirement
+comes from the same premise. Both are listed in `doc-findings`, and the Decision Register
+needs an amendment to D26 before this plan can cite it as closed.
 
-**700 mA of headroom is ample, by a wider margin than this section originally claimed.**
-No rail, part or layout decision moves. **M0 accepts at the operating point only** — if
-Envelope B is ever triggered, the rail is sized for it but has not been tested there.
+**Load on the 3.3 V rail.** The expansion board budgets the radio at ~125 mA TX peak. That
+figure sits above anything either envelope lets this node transmit. Envelope A caps
+conducted power at **−4 dBm** with the fitted 3.0 dBi antenna. Envelope B's ceiling is the
+Wio module's own tested 19.6 dBm (`LRAN-M21-FCC-Grant-Findings` §6). **GL0 accepts at
+the operating point only.** If Envelope B is ever triggered, the rail is sized for it but
+has not been tested there.
 
-> A netlist-level check against the vendor IO schematic (**M16**) is still worth doing
-> when the carrier is laid out, but it can no longer change the design — only confirm
-> it.
+**Undervoltage.** The BabyBuck's floor is 6 V. The expansion board estimates the motors'
+10.5 A peak sags the bank by under 1 V, against a nominal 12.8 V (§4, *Measured supply
+behaviour*).
+
+**What the INA226 measures is unverified.** Expansion board §7.7 reads the StamPLC's INA226
+as the **bank's** voltage and current. This plan's §9.8 and V-11 read it as the **node's**
+supply. Which current passes through its shunt decides which reading is right, and whether
+the carrier's draw through Bus pin 1 passes through it. **M12 settles it**, at GL1, before
+V-11 depends on the answer.
 
 ### 3.5 Carrier board layout
 
-The board seats on the StamPLC-Bus header and carries:
+**The expansion board owns the layout**: §3 for the mechanical mate, §7.6 for the socketed
+module, §8 for installation practice, §10 for the checks before soldering and §11 for the
+bring-up order. Two of its choices reach the firmware: the shared SPI bus (§5.2) and DIO1 on
+a Grove cable (§4.1).
 
-1. **3.3 V LDO breakout** from EXT_5V
-2. **SX1262 module** meeting the §2.2 checklist, plus an SMA bulkhead to the enclosure
-   exterior
-3. **BSS138 level-shifter module** for the VE.Direct front end, plus D25's outcome
-4. Screw or JST landing for the VE.Direct cable
-
-The regulator and any discretes mount directly to the perfboard; everything else arrives
-as a module on headers.
-
-**Mounting.** Source a **DIN-rail PCB carrier or DIN module enclosure** (**M15**) and cut
-the perfboard to fit it, rather than free-mounting the assembly. The SMA bulkhead and
-the VE.Direct cable both pull on the board, and an outdoor enclosure that sees a seasonal
-thermal cycle is no place for something floating on its header.
-
-**Layout.** Keep the SPI run short and away from the relay terminals — the relays are dry
-contacts carrying only low-voltage accessory signalling, so coupling risk is low, but
-layout should not invite it. Keep the antenna feed short and give the SX1262 module a
-solid ground return to the header.
+**Mounting does not yet meet R-4.3f.** The PRD requires the carrier to be DIN-mounted, and
+D27's remaining sub-item (**M15**) is to pick a DIN carrier and cut the board to it. The
+expansion board instead mates the carrier directly to the StamPLC on a right-angle header,
+cantilevered, with a standoff at the far end (§3). Either R-4.3f changes or the carrier
+gains a DIN mount; `doc-findings` lists it.
 
 ### 3.6 Spare capacity
 
@@ -349,9 +363,13 @@ Deliberately unspent, recorded so future revisions know what is available.
 | SHADOW / LOOP1 (24), ENTRAPMENT / LOOP2 (26) | Likely free — **M11** | Additional detection inputs |
 | EDGE (28) | In use or free — **M11** | — |
 | Host inputs 7 and 8 | Free | Two spare opto-isolated channels |
-| BSS138 channels 3–4 | Free | Second VE.Direct pair if a SmartShunt is added |
-| PORT.C (G4, G5) | Free | Third hardware UART for the same |
+| BSS138 channels 1–2 | Free, but no GPIO reaches them | — |
+| Host GPIO | **None free** after the carrier | — |
 | Controller protocol bus port | Untouched | Research-archive Phase 2 |
+
+**A SmartShunt now needs a carrier revision.** Earlier revisions held PORT.C and two
+converter channels for its VE.Direct port. Rev 0.3 spends PORT.C on the MPPT, so a second
+VE.Direct port has no UART pins to land on.
 
 **Stop is not implemented.** Guard Station Stop is **normally-closed** and asserting it
 disables all other inputs for the duration. If added later, wire the relay's **NC**
@@ -377,7 +395,7 @@ without GateLink:
    Available from a vehicle, **which is where the problem is usually noticed.**
 2. **The control-panel pushbutton**, rewired to AUX2 = UNLOCK (§3.1.1).
 
-Record both in `/docs/1050-config.md`. The keyswitch is deliberately *not* part of the
+Record both in `docs/gatelink/1050-config.md`. The keyswitch is deliberately *not* part of the
 unlock path — it moves to OPEN+LOCK, which is the operation that should require a key.
 
 ---
@@ -394,10 +412,25 @@ restated. Implementation obligations for this node:
 |---|---|
 | Node ID | `0x01` |
 | Schemas emitted | `0x10` status, `0x11` event, `0x12` config, `0xF0` health |
-| Driver | RadioLib, SX1262 |
-| Pin map / TCXO / RF switch | **Injected by configuration**, never compiled in (System PRD §3.5) |
-| Media access | CAD before TX; `random(0, backoff_max_ms)` on busy, `cad_retries` attempts, then transmit regardless |
+| Driver | RadioLib, SX1262, **pinned at the fleet's version** (`jgromes/RadioLib@7.7.1`, **D32**, root rule 9) |
+| Pin map / TCXO / RF switch | **Injected by configuration**, never compiled in (spec §12.2). A `lran::link::RadioPins` value: §3.3's pins, `tcxo_mv` 1800, `dio2_as_rf_switch` true, `rf_sw` G40 |
+| PHY | `lran::link::kPhy` is the default (spec §12.1, Envelope A). The committed group replaces it at boot and at each retune (spec §12.4, **D56**) |
+| EIRP ceiling | `lran::link::within_eirp_ceiling()` runs at compile time on `kPhy`. **R-4.3i also requires it at runtime**, on every configured group, before the radio transmits |
+| Media access | `lran::link::MediaAccess` (spec §12.3), the bridge's and the simnode's implementation. CAD before TX; `random(0, backoff_max_ms)` on busy, `cad_retries` attempts, then transmit regardless |
 | Address filtering | **None — unavailable in LoRa mode** (spec §12.1, corrected v0.12). `dst` is checked in software at §14 stage 5 |
+| Node key | **This node's derived key only** (spec §9.1). It never holds `LRAN_MASTER_KEY`. §6.8 covers how the key reaches the build |
+
+**DIO1 rides a Grove cable** (expansion board §7.1.1). An open conductor does not fail at
+`radio.begin()`. It fails later, as transmits that never report completion. The driver
+therefore treats a transmit timeout as a counted fault and reads `getIrqStatus()` over SPI
+to tell a dead DIO1 line from a dead link. It sets `INPUT_PULLDOWN` on G1 before
+`radio.begin()`.
+
+**The driver starts from the simnode's** (`firmware/simnode/src/radio.cpp`). That file
+already drives a Wio-SX1262 through the same `RadioPins` shape on the `simnode-xiao-wio`
+env. It keeps the RadioLib objects in static storage (root rule 3) and names the RadioLib
+traps the bridge's `lora_link.cpp` found. It is a polled loop. GateLink's is a FreeRTOS task
+(§5.2), so the bridge's task notification on DIO1 is the pattern for the task side.
 
 ### 4.2 VE.Direct — electrical
 
@@ -410,9 +443,19 @@ vendor-documented, with signal names given from the **device's** perspective:
 | Pin | Signal (device POV) | Connection |
 |---|---|---|
 | 1 | GND | GateLink GND |
-| 2 | RX (into MPPT) | BSS138 ch 1 → GateLink TX — **required** for HEX |
-| 3 | TX (out of MPPT) | BSS138 ch 2 → GateLink RX — **required** |
+| 2 | RX (into MPPT) | BSS138 ch 3 → G5, GateLink TX — **required** for HEX |
+| 3 | TX (out of MPPT) | R2 100 Ω → BSS138 ch 4 → G4, GateLink RX — **required** |
 | 4 | V+ | **Do not connect** |
+
+Channels and nets are expansion board §6. Firmware names them from the ESP32's side:
+`VED_UART_TX` is G5, `VED_UART_RX` is G4.
+
+> **Two statements here disagree, and neither has been withdrawn.** The correction above
+> says all Victron MPPTs are 5 V devices. Expansion board §7.4 measured this unit's pin 3
+> (TX) idling at **3.25 V** and pin 2 (RX) pulled up to **5.25 V**, and concludes pin 3
+> "needs no translation". An idle level does not answer D25's question, which is about the
+> **low** level against a 10 kΩ load. **M4 is still the check**, and §4.2.2 stands until it
+> runs. `doc-findings` lists the disagreement.
 
 **Both data lines are mandatory:** HEX is a request/response protocol and cannot function
 without the MPPT RX line.
@@ -494,8 +537,13 @@ Rules:
   `seq`** (**D74**). The simnode's `ROLE_GATELINK` builds both, in `refuse_authenticated()`
   and `on_hex_req()` in `firmware/simnode/src/gatelink.cpp`.
 
-Use / port **`osh-labs/VE.Direct_mppt_arduino`** (MIT) for both the text parser and the
-HEX protocol definitions, register map and encode/decode helpers.
+**What is built, and what is not.** `lib/vedirect/` holds the HEX frame codec
+(`include/vedirect/hex.h`), Arduino-free and host-tested. The bridge's HEX proxy and the
+simnode's simulated MPPT both run it. **The text parser is not built**, and the
+line-oriented multiplexer above needs it. Task **L3** (§8.1) adds it to `lib/vedirect/`,
+ported from `osh-labs/VE.Direct_mppt_arduino` (MIT) under the repo's conventions: no
+`String`, no heap, Arduino-free, fixed buffers. The library's register map and
+encode/decode helpers come with the same port where `hex.h` lacks them.
 
 **That library is the reference of record for VE.Direct, not Victron's PDFs.** It has
 already decoded both protocols, and it is proven in the field. Take frame layout, register
@@ -506,14 +554,17 @@ work already paid for, and yields an interpretation no field unit has run.
 
 #### 4.2.5 If a SmartShunt is added
 
-It presents a second VE.Direct port requiring BSS138 channels 3–4 and a third hardware
-UART on PORT.C. The ESP32-S3 has three UARTs; two are free.
+It presents a second VE.Direct port. The ESP32-S3 has a free UART for it, and the BSS138
+has two free channels (1 and 2), but rev 0.3 leaves no GPIO to connect them (§3.6). It is a
+carrier revision.
 
 ### 4.3 BLE BMS
 
 The pack is a **TDT** BMS advertising as `XDZN_001_xxxx`. **Frame formats, the register
-decode and a reference capture live in `/docs/bms-protocol.md`** and are not duplicated
-here.
+decode and a reference capture are to live in `docs/gatelink/bms-protocol.md`** and are
+not duplicated here. **That file does not exist yet.** The write-up is in
+`wattcycle-reader/docs/wattcycle-reader-poc_3.md`, and task **L2** (§8.1) lifts it out with
+its known-unverified items intact.
 
 **The access sequence — the part nothing else documents:**
 
@@ -525,7 +576,7 @@ here.
 
 Without step 1, writes to `FFF2` are ATT-acknowledged and then ignored, and the pack drops
 the link at ~4 s — **which is exactly what made every earlier probe look like a wrong
-protocol** (§9.5).
+protocol** (§9.6).
 
 **Implementation notes:**
 
@@ -534,17 +585,24 @@ protocol** (§9.5).
 - **MTU.** Reference decodes were obtained at a negotiated MTU of **512**, with responses
   arriving unfragmented. **NimBLE defaults lower**; the client must either request a
   larger MTU or implement reassembly.
-- **Driver portability is a recompile, not a port.** The Stamp-S3A and the Heltec V3 are
-  both ESP32-S3FN8 — same core, same flash, no PSRAM on either — so the client developed
-  during the BLE proof of concept builds unchanged.
+- **The protocol layer exists, and has run on this host.** `wattcycle-reader/lib/bms_ble/`
+  holds `TdtProtocol` (CRC, frame build, reassembly, decode into `BmsData`), the abstract
+  `BmsTransport` and its one NimBLE implementation. Its 21 host tests run against captured
+  frames, and its M7 poll loop ran on a StamPLC with no change under `lib/bms_ble/`
+  (`wattcycle-reader/README.md`). Task **L2** moves it to `lib/bms-ble/`.
+- **The client around it is new work.** The PoC holds one connection open and polls on an
+  interval. **R-3.4a/R-3.4b** require connect, read, disconnect and BLE controller de-init
+  on every `bms_poll_s`. The PoC's `src/main.cpp` is its wiring, not GateLink's. GateLink's
+  `bms_task` (§5.2) is written against the PRD and reuses only `lib/bms-ble/`.
+- **`0x8D` (alarms) is not decoded**, deliberately. Mapping its bitmaps needs a capture
+  taken during a real protection event. **M7** (the `pack_ma` sign) is the protocol's
+  other open item.
 - **Cell-voltage jitter.** Readings move 1–2 mV between polls from ADC noise. **The
   bridge** rounds or publishes on change; the node transmits what it read.
-- **Testable offline.** The C++ client is a port of a validated implementation and can be
-  unit-tested against the same captured frames.
 
 **Antenna (D28).** The Stamp-S3A's 2.4 GHz antenna is **internal to the DIN case with no
 external option**, unlike the LoRa side. **Measure RSSI at the final mounting position
-before committing — now M23, which supersedes M5.** §9.5 records why this was a live
+before committing — now M23, which supersedes M5.** §9.6 records why this was a live
 concern; the paragraph below records what changed on 2026-09-06.
 
 > **Updated 2026-09-06 — the geometry is better than this section assumed, and the
@@ -606,17 +664,44 @@ All runtime-configurable (§6.4).
 
 | Concern | Choice | License |
 |---|---|---|
-| Build | **PlatformIO**, ESP32-S3 target | — |
-| Platform HAL | **`M5StamPLC` + `M5Unified`**, wrapped behind `/lib/lran-platform/` | MIT |
-| LCD | LovyanGFX via M5Unified | BSD-2-Clause |
-| LoRa | **RadioLib** driving the SX1262, CAD for media access | MIT |
-| VE.Direct | port of **`osh-labs/VE.Direct_mppt_arduino`**, text **and** HEX | MIT |
-| BLE | **NimBLE-Arduino** | Apache-2.0 |
-| HMAC / HKDF | mbedTLS via ESP-IDF | Apache-2.0 |
+| Build | **PlatformIO**, `espressif32@6.13.0` (the fleet's pin), board `esp32-s3-devkitc-1` | — |
+| Board support | **`m5stack/M5StamPLC`**, pulling in M5Unified and M5GFX, **pinned exactly**. Wrapped by a firmware-local board layer (§5.3), not a shared library | MIT |
+| LCD | M5GFX via M5StamPLC | MIT |
+| LoRa | **RadioLib 7.7.1**, pinned (**D32**). CAD for media access | MIT |
+| VE.Direct | **`lib/vedirect/`**: the HEX codec is built; the text parser is task **L3** | MIT |
+| BLE | **NimBLE-Arduino**, pinned exactly at the version `wattcycle-reader` proved | Apache-2.0 |
+| BMS protocol | **`lib/bms-ble/`**, moved from `wattcycle-reader/lib/bms_ble/` by task **L2** | MIT |
+| Node protocol | **`lib/lran-node/`**, extracted from the simnode by task **L1** (§5.4) | MIT |
+| Codec, MAC, `CommandGate` | **`lib/lran-protocol/`**, with `platform/esp32/` for the mbedTLS HMAC | MIT; mbedTLS Apache-2.0 |
+| Media access, PHY, pins | **`lib/lran-link/`** | MIT |
+| Parameters | **`lib/lran-config/`**; GateLink's block is task **L4** | MIT |
 | Gate controller | **No protocol library.** Debounced reads from the input expander, timed pulses to the relay expander | — |
 
-`/lib/lran-platform/` abstracts the host so GateLink and AquaLink compile against one
-HAL and the Heltec targets keep building.
+**Start the environment from `wattcycle-reader`'s `m5stack_stamplc`**, which has run on this
+board, and bring it to the fleet's rules. Four changes are needed:
+
+1. **Pin every version exactly.** The PoC floats `espressif32@^6.9.0`, `NimBLE-Arduino@^1.4.2`
+   and `M5StamPLC@^1.2.0`. Root rule 9 pins RadioLib, and the bridge's `platformio.ini`
+   gives the reason for pinning everything else. The PoC also found the published
+   M5StamPLC package drifting from its GitHub `main`. Read the **installed** headers.
+2. **Keep `-DARDUINO_USB_CDC_ON_BOOT=1`.** The StamPLC has no USB-UART bridge. Without the
+   flag, `Serial` binds to unconnected UART0 pins and every print is lost while boot ROM
+   lines still appear. Under that flag RadioLib 7.7.1 emits an unconditional `#warning`.
+   **Add `-Wno-error=cpp` in this one environment**, with the reason written at the flag,
+   as the simnode's `simnode-xiao-wio` env does (root *Style*).
+3. **Add `-std=gnu++17 -Wall -Wextra -Werror`**, the `lib_extra_dirs = ../../lib` reach, and
+   the `platform/esp32/` source filter, as the simnode does.
+4. **Add a `native` environment** whose `build_src_filter` lists the Arduino-free
+   translation units by name, as the bridge's and the simnode's do. That list is the seam:
+   a file crossing it is a visible edit in review.
+
+**Commit a partition table**, as the bridge does. GateLink has no OTA, so it needs one app
+partition and no `otadata`. A platform bump that changed the board definition's default
+would otherwise change the layout with no commit to blame.
+
+**Stamp the build into the boot banner.** The bridge's `scripts/version.py` writes the
+release and the git commit into the image. At the gate, that banner is how anyone tells
+which image is running, and a `-dirty` field means it matches no commit.
 
 ### 5.2 Task structure
 
@@ -627,64 +712,150 @@ must never be starved.**
 |---|---|---|---|
 | **`io_task`** | `input_poll_ms` (100) | **Highest** | Input expander polling, debounce, relay pulse timing. **The only task that touches the AW9523B** |
 | `vedirect_task` | UART RX event | High | Line-oriented parser; text cache; HEX transaction state machine |
-| `lora_task` | RX interrupt / TX queue | High | RadioLib, CAD, backoff, frame serialize/deserialize, MAC |
+| `lora_task` | DIO1 notification / TX queue | High | The radio driver, CAD, backoff, frame serialize/deserialize, MAC, and `lran-node`'s receive path |
 | `app_task` | 100 ms tick | Normal | State derivation, hold tracking, direction classifier, trigger logic, status assembly |
 | `bms_task` | `bms_poll_s` (300) | Low | NimBLE connect / read / disconnect, then **de-init the controller** |
 | `ui_task` | 100 ms tick | Low | LCD pages, buttons, backlight timeout, buzzer |
 | `log_task` | queue | Lowest | Leveled serial + rotating microSD log |
 
+NimBLE also runs its own host task while the controller is up. Its notify callback runs
+there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
+`BmsNotifyHandler` guards it.
+
 **Rules:**
 
 - `io_task` owns the I²C bus for relay and input access. Any other task needing the
-  expander goes through a HAL call that queues to `io_task`. **A relay pulse whose
-  trailing edge is late is a command of the wrong length.**
+  expander goes through a call that queues to `io_task`. **A relay pulse whose trailing
+  edge is late is a command of the wrong length.**
+- **`io_task` never blocks on anything but its own period.** The bridge enforces the same
+  property for its `lora_task` with `tools/checks/lora_task_never_blocks.py`. GateLink
+  needs the equivalent check for `io_task`.
+- **One lock guards the SPI bus.** The radio, the LCD (CS G12) and the microSD (CS G10)
+  share G7/G8/G9 (expansion board §7.2). `lora_task`, `ui_task` and `log_task` all reach
+  it. Every access takes the lock, and DIO1 only notifies `lora_task`; it never does SPI
+  work in the interrupt. **The three drivers may not share a bus host cleanly.** RadioLib
+  takes an Arduino `SPIClass`, the SD library another, and M5GFX may drive the bus through
+  ESP-IDF directly. Proving they coexist is GL1's first item, before any task design
+  depends on it.
+- **One interlock serializes LoRa transmit and BLE activity** (**R-4.3h**). `bms_task`
+  holds it from connect to controller de-init, and `lora_task` takes it before each
+  transmit. **The interlock delays answers.** A `COMMAND_ACK` due during a BLE window waits
+  for it, and the bridge's ACK timeout is 3 s. The BLE window therefore needs a bound, or a
+  pending transmit must cut it short. Decide which at GL3, with the window measured at GL5.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
   masked by a healthy I/O loop.
 - **`CommandGate::check()` runs in the receive path, before dispatch; `record()` runs
-  after execution, and `app_task` sends the `COMMAND_ACK` after `record()`.** This task
-  split puts an execution window between the two — `lora_task` keeps receiving while
-  `io_task` pulses — and a bridge retry landing in it gets `InFlight` and no answer
-  (Protocol Spec §9.4, D34 amended 2026-09-11). The gate holds no lock, so the two calls
-  are serialized: post the result back to the task that owns the gate, or guard it.
-  **Open:** whether the ACK waits for the pulse to complete or for the gate to confirm
-  movement (`command_confirm_timeout_s`, 5 s). It sets how often the window is hit against
-  the bridge's 3 s ACK timeout. **Decide it before M3.**
+  after execution, and the `COMMAND_ACK` goes out after `record()`.** In the simnode both
+  calls run on one loop. Here the task split puts an execution window between them:
+  `lora_task` keeps receiving while `io_task` pulses, and a bridge retry landing in it gets
+  `InFlight` and no answer (Protocol Spec §9.4, D34 amended 2026-09-11). The gate holds no
+  lock, so the two calls are serialized: post the result back to the task that owns the
+  gate, or guard it. `lran-node` (L1) must expose `check()` and `record()` as separate
+  steps for this reason. **Open:** whether the ACK waits for the pulse to complete or for
+  the gate to confirm movement (`command_confirm_timeout_s`, 5 s). It sets how often the
+  window is hit against the bridge's 3 s ACK timeout. **Decide it before GL3.**
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls
   `reset_context()`, resets its status `seq`, and ACKs under the new `ctx_id`. The
-  in-flight check runs on the task that owns the gate, for the reason `record()` does.
+  in-flight check runs on the task that owns the gate, for the reason `record()` does. The
+  simnode built this as BF-34 (`firmware/simnode/CLAUDE.md`), and L1 moves it.
 
 ### 5.3 Module map
 
 ```
-/firmware/gatelink/
-  src/
-    main.cpp              task creation, HAL init, boot sequence
-    gate_io.cpp           input debounce, relay pulse driver          [io_task]
-    gate_state.cpp        IN1/IN2 -> state; hold derivation + source  [app_task]
-    detect.cpp            direction classifier state machine          [app_task]
-    cause.cpp             movement-cause inference                    [app_task]
-    triggers.cpp          when to push status / event                 [app_task]
-    status.cpp            schema 0x10 / 0x11 / 0xF0 assembly          [app_task]
-    commands.cpp          COMMAND dispatch, dedup cache, ACK          [app_task]
-    ui.cpp                LCD pages, buttons, backlight               [ui_task]
-    debug.cpp             dry-run, injection, loopback, dummy push
-  lib deps ->
-    /lib/lran-platform/   relays, inputs, LCD, buttons, INA226, LM75, RTC, SD
-    /lib/lran-protocol/   framing, addressing, HMAC, CRC, fragmentation
-    /lib/lran-config/     parameter table, SD persistence, CONFIG handling
-    /lib/vedirect/        text + HEX
-    /lib/bms-ble/         TDT client
+firmware/gatelink/
+  platformio.ini          gatelink (StamPLC + carrier), native              §5.1
+  partitions.csv          committed; one app partition, no OTA
+  scripts/version.py      release + git commit into the boot banner (from the bridge)
   CLAUDE.md               subproject context for Claude Code
+  src/
+    main.cpp              boot sequence, task creation; the ONLY file that includes secrets.h
+    board_profile.h       RadioPins, VE.Direct pins, chip selects - data only    §3.3
+    board_stamplc.cpp     relays, inputs, backlight, buttons, buzzer,
+                          INA226, LM75, RTC, SD - over M5StamPLC            [Arduino]
+    radio.cpp             RadioLib driver, from the simnode's; the ONLY
+                          file that includes RadioLib                       [Arduino]
+    spi_bus.cpp           the one SPI lock                                  [Arduino]
+    sd_persist.cpp        lran::config::Persist on microSD (D49)            [Arduino]
+    bms_client.cpp        connect / read / disconnect / de-init             [Arduino]
+    task_runtime.cpp      FreeRTOS tasks, queues, watchdog                  [Arduino]
+    --- Arduino-free, listed in the native env's build_src_filter ---
+    tasks.cpp             task table, priorities, queue depths
+    gate_io.cpp           debounce, pulse sequencing; time passed in        [io_task]
+    gate_state.cpp        IN1/IN2 -> state; hold derivation + source        [app_task]
+    detect.cpp            direction classifier state machine                [app_task]
+    cause.cpp             movement-cause inference                          [app_task]
+    triggers.cpp          when to push status / event                       [app_task]
+    status.cpp            fills lran-protocol's schema 0x10 / 0x11 / 0xF0   [app_task]
+    commands.cpp          GateLink's lran-node application: command ->
+                          relay sequence, dry-run                           [app_task]
+    interlock.cpp         R-4.3h LoRa/BLE interlock policy
+    vedirect_mux.cpp      line multiplexer, one HEX transaction at a time   [vedirect_task]
+    ui_pages.cpp          page text, as the simnode's oled_page             [ui_task]
+    debug.cpp             dry-run, injection, loopback, dummy push
+  test/                   one Unity suite per Arduino-free unit
+  lib deps ->
+    /lib/lran-protocol/   framing, addressing, HMAC, CRC, fragmentation, CommandGate, schemas
+    /lib/lran-link/       media access, PHY config, radio pin shape
+    /lib/lran-config/     parameter table, Store, PHY blob
+    /lib/lran-node/       node-side protocol engine                         L1
+    /lib/vedirect/        HEX (built) + text (L3)
+    /lib/bms-ble/         TDT protocol and transport seam                   L2
 ```
 
-`/docs/gatelink/engineering-log.md` carries the dated running record — what was tried,
+**There is no `/lib/lran-platform/` yet, and System PRD §3.5 requires one.** §3.5 says the
+library SHALL abstract the StamPLC so that GateLink and AquaLink, a water-system controller
+project outside this repository, compile against one HAL. No firmware in this repository
+uses such a library: the bridge and the simnode were built on Heltec and XIAO boards without
+one, and AquaLink's code is not here to share it. **The operator chose a firmware-local
+board layer on 2026-10-01**, with §5.3's `board_stamplc.cpp` written so it can move to
+`/lib/` unchanged when a second StamPLC firmware is built here. That choice contradicts
+§3.5's SHALL, and `doc-findings` lists it for the System PRD.
+
+§3.5's other SHALL, one SX1262 driver injected with its pins, holds for the injection and
+not for the driver. `RadioPins` is injected everywhere, but the bridge, the simnode and the
+range test each wrap RadioLib in their own driver, and the simnode's `radio.cpp` says why.
+GateLink adds a fourth (§4.1).
+
+`docs/gatelink/engineering-log.md` carries the dated running record — what was tried,
 measured, decided and why. Neither this plan nor the PRD is the right place for "tried X
 on the bench, it did not work because Y," and that is exactly the information most
-expensive to lose.
+expensive to lose. It does not exist yet; the first GateLink session creates it, along
+with `docs/gatelink/HANDOFF.md` (root *Workflow*).
+
+### 5.4 What GateLink reuses
+
+**Most of the protocol this node speaks is already built and running.** This table is the
+starting point for each concern, so a session reads the existing code before writing new
+code.
+
+| Concern | Built in | State |
+|---|---|---|
+| Frame codec, MAC, CRC, reassembly, counters, `CommandGate` | `lib/lran-protocol/` | Built (Library P1–P8); 72 W4 vectors pass on host and target |
+| Schemas `0x10`, `0x11`, `0x12`, `0xF0` | `lib/lran-protocol/include/lran/schema/` | Built: `gatelink_status_v1`, `gatelink_event_v1`, `node_config_v1`, `node_health_v1` |
+| HMAC on target | `lib/lran-protocol/platform/esp32/` | Built. GateLink uses HMAC only; it never derives a key (spec §9.1) |
+| Media access, `PhyConfig`, `RadioPins`, RX arrival | `lib/lran-link/` | Built, shared by the bridge and the simnode |
+| Parameter table, `Store`, PHY blob | `lib/lran-config/` | Built. **GateLink's `0x1000` block is not declared** (L4) |
+| Node receive path, context, roll, reboot and `BOOT`, config readback, PHY trial, HEX gating | `firmware/simnode/src/node.cpp`, `gatelink.cpp`, `phy_trial.cpp` | Built and on air in `ROLE_GATELINK`. **Simnode-only until L1** |
+| SX1262 driver, Wio-SX1262 configuration | `firmware/simnode/src/radio.cpp`; bridge `lora_link.cpp` | Reference to copy and adapt (§4.1) |
+| VE.Direct HEX codec | `lib/vedirect/` | Built. Text parser is L3 |
+| TDT BMS protocol | `wattcycle-reader/lib/bms_ble/` | Built and run on a StamPLC. Moves in L2 |
+| StamPLC build environment and TFT page | `wattcycle-reader/platformio.ini`, `src/TftDisplay.cpp` | Reference (§5.1, §6.5) |
+| GateLink's HA entities | the bridge's `discovery.cpp`, `tools/ha/`, `ha/discovery/` | Built on the bridge side. GateLink's configuration `number` entities follow L4 |
+| A peer to test against | simnode `ROLE_GATELINK`, the bridge's GateLink simulator, `tools/simctl/` | Built. The bridge is the far end of every GateLink bench test |
+
+**Task L1's boundary.** `lran-node` takes everything in the simnode's `Node` that the
+specification decides: the receive ladder after the codec, the context and its roll,
+`CommandGate`'s two calls, the reboot and `BOOT` announcement, the `CONFIG` path through
+`lran-config`'s `Store`, §12.4.2's PHY trial and the HEX write gate. The simnode keeps its
+identity table, faults, console and invented telemetry. GateLink supplies an application
+interface: execute a command and report when it finishes, produce a status snapshot, and
+carry a HEX request to the MPPT. **The simnode must keep passing every test it passes
+today**, and it is on air with `ROLE_GATELINK` again before L1 closes. That is the evidence
+the extraction changed nothing.
 
 ---
 
@@ -768,11 +939,24 @@ authenticated `CONFIG`/`CONFIG_ACK` pair (Protocol Spec §7.4).
 
 **Parameters are declared once in `/lib/lran-config/`** — name, type, unit, range,
 default — in a hand-written C++ table, and the firmware defaults, the HA `number`
-discovery payloads and `/docs/gatelink-config.md` are all **derived from it by code**
+discovery payloads and `docs/gatelink/gatelink-config.md` are all **derived from it by code**
 (**D44**). GateLink's parameters take `param_id`s from `0x1000`–`0x1FFF`, and the ones
 every node holds from `0x0100`–`0x01FF` (Protocol Spec §7.4, **D46**). Three hand-maintained
 copies drift, silently: HA offers a range the firmware clamps, or documentation describes
 a default that changed two revisions ago.
+
+**GateLink's block is not declared yet.** `lib/lran-config/include/lran/config/table.h`
+holds the bridge's rows and the rows every node holds, and leaves `0x1000`–`0x1FFF` to this
+milestone. Task **L4** (§8.1) declares it from the PRD's parameter list and this plan's
+§4.4, with the bridge's discovery output and the documentation check following. **A name
+in that table is permanent** once HA publishes it (spec §16.7). Settle `doc-findings`
+finding 2 first: the PRD's `tx_conducted_dbm` and the library plan's `tx_power_dbm` are one
+parameter.
+
+**The `Persist` implementation is microSD** (**D49**, **R-4.2c**). `lran-config`'s `Store`
+takes a `Persist*` that may be null, and answers `APPLIED_NOT_PERSISTED` when it is
+unusable (spec §8.11). The bridge's `Persist` is NVS and is the pattern to follow;
+GateLink's writes files.
 
 **A full readback may span several `CONFIG_ACK` messages** (Protocol Spec §7.4.1, **D57**),
 and the six PHY rows change only through §12.4's commit-and-revert (**D56**), `READ_ONLY`
@@ -799,8 +983,13 @@ an explicit not-persisted status, and the condition is published as a diagnostic
 - **Three dedicated user buttons**, none of them strapping pins: **A = next page,
   B = previous, C = off.**
 - Multi-page cycling is needed — one page will not fit gate state + hold state + detector
-  state + MPPT + battery SOC + link quality. The 135×240 colour panel fits materially
-  more per page than a small monochrome OLED would.
+  state + MPPT + battery SOC + link quality. The colour panel fits materially more per
+  page than a small monochrome OLED would.
+- **The panel is landscape, 240×135**, as M5GFX sets it up (`rotation = 1`), not the
+  135×240 its datasheet name suggests. `wattcycle-reader`'s `TftDisplay` lays rows out as
+  fractions of `Display.height()` for this reason, and it is the starting point.
+- **Page text is Arduino-free and host-tested**, drawing is not. The simnode splits its OLED
+  the same way (`oled_page.cpp` and `ui.cpp`).
 - **Buzzer: default off.** Candidate use is audible confirmation during bring-up, when
   the operator is at the gate and not looking at the screen. **A gate that beeps of its
   own accord is not wanted.**
@@ -813,7 +1002,8 @@ an explicit not-persisted status, and the condition is published as a diagnostic
 | **Input injection** | Synthetic assertions on IN1–IN6 in configurable order and spacing, injected *below* the debounce layer so debounce is exercised too. Must cover 30 s gaps and partial traversals |
 | **Packet loopback** | RF echo, and internal loopback feeding serialized frames back into the receive parser with no radio — the path with **no PHY CRC**, hence the application CRC16 |
 | **Dummy status push** | Synthetic VE.Direct and gate-state data, marked synthetic all the way into HA history |
-| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral |
+| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
+| **The bridge as the far end** | Every bench test of the LoRa side runs against the real bridge. Its frame log, counters and `config/ack` topics are the instruments. The simnode's `ROLE_GATELINK` gives a known-good node to compare GateLink's behaviour against, frame for frame |
 | **MQTT as bench harness** | `mosquitto_sub -t 'lran/#'` to watch every decoded payload live; `mosquitto_pub` to inject commands or fake status, decoupled from HA and the RF link |
 | **microSD logging** | Leveled and rotating, so a fault occurring while the LoRa link is down is still recoverable afterwards |
 
@@ -842,10 +1032,33 @@ is precisely the open problem in **D28**.
 
 **Revisit if any of these occur:**
 
-1. Carrier bring-up (§8, M0) fails or proves fragile.
+1. Carrier bring-up (§8, GL0) fails or proves fragile.
 2. **D28** measures inadequate BLE margin from the final mounting position *and* the
-   SmartShunt route is unattractive.
+   SmartShunt route is unattractive. Under rev 0.3 a SmartShunt also needs a carrier
+   revision (§3.6).
 3. The pin budget breaks — a future requirement needs pins §3.3 has already spent.
+
+### 6.8 The node key
+
+**GateLink is the first firmware that holds a derived key and not the master.** The bridge
+holds `LRAN_MASTER_KEY` and derives on demand. The simnode holds it too, for bench
+convenience, and Bridge Impl Plan §10.3 says a real node never does. GateLink
+holds only `node_key` for `0x01`, so a GateLink in the wrong hands yields that key alone.
+
+**Nothing provisions that key yet.** `secrets.h.example` documents `LRAN_MASTER_KEY` and has
+no field for a node's derived key. Before GL3, three things are needed:
+
+1. A field in `secrets.h.example` for GateLink's derived key, documented as the template's
+   other fields are, so CI builds against the committed template unchanged.
+2. A host tool that derives the key from the master per spec §9.1. It reuses the HKDF that
+   `tools/vectors/` already cross-checks, and prints the value for the operator to paste.
+   The tool never writes the key into a tracked file, and it never prints the master.
+3. A boot check, as the simnode's: a build carrying the template's value says so on the
+   banner and the display, so a node that cannot authenticate is never mistaken for a
+   provisioned one.
+
+Root *Secrets* governs all three: the key is never committed, echoed into a log or pasted
+into a document.
 
 ---
 
@@ -855,18 +1068,18 @@ is precisely the open problem in **D28**.
 
 | Requirement | Verified by | Stage |
 |---|---|---|
-| V-1 radio on carrier | Bench, LDO under TX load + RadioLib link | M0 |
-| V-2 state table | Real gate cycles, DVM + logged frames | M2, M6 |
-| V-3 direction classification | **Input injection**, then real vehicle | M3, M6 |
-| V-4 held-open alert | Injection across all four hold sources | M3, M6 |
-| V-5 events fire once | HA restart + discovery refresh with an event in history | M8 |
-| V-6 VE.Direct | Bench MPPT, text parse + HEX round-trip + write rejection | M4 |
-| V-7 BMS | Live pack vs. reference decode; RSSI from mounting position | M5 |
-| V-8 command paths | **Dry-run first**, then live | M7 |
-| V-9 manual unlock | Physical test, **before the first real hold-open** | M7 |
-| V-10 config round-trip | With card, then **with the card removed** | M3 |
-| V-11 consumption vs. budget | Onboard INA226 over a soak period | M9 |
-| V-12 thermal | Seasonal log, three sensors | M9 |
+| V-1 radio on carrier | Bench, expansion board §11 steps 1–4, then a RadioLib link to the bridge | GL0 |
+| V-2 state table | Real gate cycles, DVM + logged frames | GL2, GL6 |
+| V-3 direction classification | **Input injection**, then real vehicle | GL3, GL6 |
+| V-4 held-open alert | Injection across all four hold sources | GL3, GL6 |
+| V-5 events fire once | HA restart + discovery refresh with an event in history | GL8 |
+| V-6 VE.Direct | Bench MPPT, text parse + HEX round-trip + write rejection | GL4 |
+| V-7 BMS | Live pack vs. reference decode; RSSI from mounting position | GL5 |
+| V-8 command paths | **Dry-run first**, then live | GL7 |
+| V-9 manual unlock | Physical test, **before the first real hold-open** | GL7 |
+| V-10 config round-trip | With card, then **with the card removed** | GL3 |
+| V-11 consumption vs. budget | Onboard INA226 over a soak period | GL9 |
+| V-12 thermal | Seasonal log, three sensors | GL9 |
 
 ### 7.2 Staged safety gating
 
@@ -887,6 +1100,24 @@ installation**, using injection, dry-run, loopback, dummy status and simulated p
 (**R-9.3a**). Development that requires an ~87 m walk and a moving gate for every
 iteration will not get the iteration count it needs.
 
+### 7.5 Host tests and CI
+
+**Every Arduino-free unit has a Unity suite**, and the `native` environment builds the
+shared libraries from this project as well as its own units. The bridge's `native` env
+states why: a library that compiles only for the ESP32-S3 has acquired a platform
+dependency, and the host build is where that shows.
+
+**CI does not see a new firmware until ci.yml names it.** Its `changes` filter already
+covers `lib/` and `firmware/`, but each suite and each target is a named step:
+
+- a `pio test -d firmware/gatelink -e native` step in the `native` job;
+- a `firmware/gatelink` row in the `firmware` job's matrix;
+- one `pio test -d lib/<lib> -e native` step for each new library: `lran-node` and
+  `bms-ble`. Each needs its own `platformio.ini`, as `lib/vedirect/` has.
+
+`python3 tools/checks/run_ci_local.py` reads ci.yml, so it picks these up with no change of
+its own. The new `io_task` check (§5.2) joins the `checks` job.
+
 ### 7.4 Controller bring-up procedure
 
 Ordered, and safe to perform incrementally. **No LRAN hardware is required for steps
@@ -897,7 +1128,7 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
    is no window in which an unsecured pushbutton can assert OPEN+LOCK.
 2. **Reprogram the controller.** AUX1 → OPEN and LOCK; AUX2 → UNLOCK; OUT1 → OPEN;
    OUT2 → MOVING. Record all settings, including the 60 s auto-close and standby timeouts,
-   in `/docs/1050-config.md`.
+   in `docs/gatelink/1050-config.md`.
 3. **Verify by hand.** With no GateLink connected, operate each control and confirm the
    expected behaviour. Meter OUT1/OUT2 through a full open/close cycle and confirm the
    state table — in particular that **MOVING stays asserted through the auto-close
@@ -917,21 +1148,49 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 
 ## 8. Milestones and acceptance criteria
 
+### 8.1 Library and provisioning tasks — before GL1
+
+These move code the fleet already runs, or add what no document has assigned. Each is
+one branch and one session, and each leaves every existing suite passing.
+
+| # | Task | Acceptance criteria |
+|---|---|---|
+| **L1** | **Extract `lib/lran-node/`** from the simnode (§5.4) | The library builds and tests in `native`, Arduino-free. The simnode consumes it and passes every suite it passes today. `ROLE_GATELINK` is back on air against the bridge, and the BF-34 roll, the §10.7 reboot and the §12.4.2 PHY trial each pass their bench check again. `check()` and `record()` are separate calls (§5.2) |
+| **L2** | **Move `bms_ble` to `lib/bms-ble/`**, and write `docs/gatelink/bms-protocol.md` | Repo conventions applied: `snake_case` files, license headers, `-Werror`, NimBLE pinned exactly. The 21 host tests pass in a `native` env of the library's own, and CI runs them. `wattcycle-reader` builds against the moved library, or is frozen with a note that says so. The protocol write-up keeps every known-unverified item, including the `pack_ma` sign (**M7**, **W6**) and `0x8D` |
+| **L3** | **VE.Direct text parser** in `lib/vedirect/`, ported from osh-labs | Parses every field of a captured MPPT 75/15 text block, checksum included. Rejects a bad checksum and counts it. Interleaved HEX lines pass through to the HEX codec. No heap, Arduino-free |
+| **L4** | **GateLink's parameter block** in `lib/lran-config/` | `0x1000`–`0x1FFF` rows declared from the PRD and §4.4, `doc-findings` finding 2 settled first. The bridge's discovery output and `docs/gatelink/gatelink-config.md` derived from the table and checked |
+| **L5** | **Node key provisioning** (§6.8) | The `secrets.h.example` field, the host tool and the boot check. CI builds against the template |
+| **L6** | **`firmware/gatelink/` skeleton** | §5.1's `platformio.ini`, partition table and version stamp; §5.3's layout; the `native` env and its CI rows (§7.5). Boots on a bare StamPLC, prints its banner and starts its tasks with stub bodies |
+
+L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of L1.
+
+### 8.2 Node milestones
+
+> **Milestones are `GL0`–`GL9`, renamed from `M0`–`M9` in v0.18** so they no longer collide
+> with the Decision Register's measurements `M1`–`M26`. `GL`*n* is the old `M`*n*. Dated
+> records written before v0.18, this plan's changelog included, still say "GateLink M*n*",
+> and they mean `GL`*n*. Every other `M`*n* in this plan is a measurement.
+
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **M0** | **Carrier board bring-up** | BOM in hand; **M4** settled | LDO holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. *Previously read "+22 dBm", which neither envelope permits.* **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio on the §3.3 pin map with the correct TCXO voltage and DIO2 RF-switch mode. Module confirmed to need no TXEN/RXEN. Ping/loopback to a Heltec succeeds on the bench. **Failure here is D30 trigger 1** |
-| **M1** | **Platform HAL** | Host in hand | Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through `/lib/lran-platform/`. **The same HAL compiles for the Heltec bridge target**. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j) |
-| **M2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `/docs/1050-config.md` written. **M1, M2, M3, M8 measurements captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
-| **M3** | **Protocol, framing and configuration on the bench** | M0, M1 | Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
-| **M4** | **VE.Direct** | M0, **M4 measurement** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. §9.6 baseline log started |
-| **M5** | **Battery and BMS** | M1 | TDT client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (M7)**, settling the sign convention |
-| **M6** | **Inputs live, read-only** | M2, M3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
-| **M7** | **Relays live** | M6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
-| **M8** | **HA integration** | M3–M7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
-| **M9** | **Field soak** | M8 | Installed. Measured daily consumption from the INA226 compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
+| **GL0** | **Carrier board bring-up** | Carrier BOM in hand; **measurement M4** settled; expansion board §10's checks ticked | Expansion board §11 steps 1–4 pass in order: power with no module seated, radio, DIO1 continuity, shared bus. The 3.3 V rail holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio from §3.3's `RadioPins`: TCXO 1.8 V, DIO2-as-RF-switch **and** `setRfSwitchPins(G40, NC)`. The IRQ is seen to fire on the first transmit, not inferred. Ping and loopback with the bridge succeed on the bench. **Failure here is D30 trigger 1** |
+| **GL1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
+| **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
+| **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
+| **GL4** | **VE.Direct** | GL0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
+| **GL5** | **Battery and BMS** | GL1, L2 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
+| **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
+| **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
+| **GL8** | **HA integration** | GL3–GL7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
+| **GL9** | **Field soak** | GL8 | Installed. Measured daily consumption from the INA226 compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
 
-**Critical path:** M0 → M3 → M6 → M7 → M8 → M9. M2 runs in parallel from the start; M4 and
-M5 are parallel to M6 once M0 and M1 land.
+**Critical path:** L1 → GL3 → GL6 → GL7 → GL8 → GL9, with GL0 and GL1 joining at GL3. L1 is the
+longest library task and nothing on the node's protocol side starts without it. GL2 runs in
+parallel from the start. GL4 and GL5 are parallel to GL6 once GL0 and GL1 land.
+
+**The bridge waits on this table.** Its B6 needs GateLink GL6, and its B7 follows
+(`docs/bridge/HANDOFF.md`). Both are the bridge's acceptance, not GateLink's, and the bridge
+tasks them.
 
 ---
 
@@ -1166,6 +1425,26 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.18** — **Reconciled with the fleet as built**, which earlier revisions never were:
+  their citations moved with the specification while their architecture stayed where v0.1
+  left it. **The carrier is now `gatelink-expansion-board` rev 0.3**, which this plan had
+  never cited. §2–§3 defer to it: a Wio-SX1262 that needs an RF-switch GPIO, a buck and
+  an AMS1117 fed from Bus pin 1 instead of an LDO on `EXT_5V`, VE.Direct on PORT.C, and no
+  free GPIO. §4.2 keeps the 5 V statement and the expansion board's 3.25 V measurement side
+  by side, unresolved, with M4 as the check. **§5 is rewritten against the built code**:
+  the fleet's pinned versions, a StamPLC environment taken from `wattcycle-reader`, a shared
+  SPI lock, the R-4.3h interlock and the delay it puts on an ACK, a firmware-local board
+  layer in place of `/lib/lran-platform/`, and §5.4's map of what each concern reuses.
+  **New work no document had assigned**: L1 extracts `lib/lran-node/` from the simnode, L2
+  moves `bms_ble` to `lib/bms-ble/` and writes `bms-protocol.md`, L3 builds the VE.Direct
+  text parser, L4 declares GateLink's parameter block, L5 provisions the node key (§6.8) and
+  L6 creates the firmware skeleton (§8.1). M0, M1, M3, M4 and M5 take the new dependencies.
+  **The milestones are renamed `GL0`–`GL9`** (§8.2), so they no longer collide with the
+  register's measurements; dated records that say "GateLink M*n*" mean `GL`*n*.
+  Eight defects found on the way are listed in `doc-findings` rather than
+  fixed here. Paths for `bms-protocol.md`, `1050-config.md` and `gatelink-config.md` move
+  under `docs/gatelink/`, and two references to §9.5 that meant §9.6 are corrected.
 
 - **v0.17** — **Protocol specification v0.16 → v0.17, and PRD v0.12 → v0.13.** §4.2.4's
   HEX rules take **D73** and **D74**, PRD R-3.3e's two additions. No milestone changes.
