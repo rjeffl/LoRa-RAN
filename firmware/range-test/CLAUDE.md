@@ -47,7 +47,7 @@ authenticated type is bridge → node, and `PING` is not one), so W9 needs no ke
 and is correct in this one.
 
 **D34 does not apply.** `CommandGate` binds the first firmware that accepts a `COMMAND`
-(simnode B0, GateLink M3). This one echoes unauthenticated `PING`.
+(simnode B0, GateLink GL3). This one echoes unauthenticated `PING`.
 
 ## Board gotchas
 

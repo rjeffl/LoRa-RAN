@@ -86,7 +86,7 @@ in parallel. The library tasks come first on the firmware side, because each one
 code that the simnode or the bridge already runs. Everything from bench integration
 onward is sequential.
 
-The firmware column needs no carrier until M0. The XIAO ESP32S3 + Wio-SX1262 Kit on the
+The firmware column needs no carrier until GL0. The XIAO ESP32S3 + Wio-SX1262 Kit on the
 bench carries the same SX1262, TCXO voltage and RF-switch arrangement as the carrier's
 module, on different pins (§4.1). A StamPLC with no carrier runs everything else.
 
@@ -324,7 +324,7 @@ needs an amendment to D26 before this plan can cite it as closed.
 **Load on the 3.3 V rail.** The expansion board budgets the radio at ~125 mA TX peak. That
 figure sits above anything either envelope lets this node transmit. Envelope A caps
 conducted power at **−4 dBm** with the fitted 3.0 dBi antenna. Envelope B's ceiling is the
-Wio module's own tested 19.6 dBm (`LRAN-M21-FCC-Grant-Findings` §6). **M0 accepts at
+Wio module's own tested 19.6 dBm (`LRAN-M21-FCC-Grant-Findings` §6). **GL0 accepts at
 the operating point only.** If Envelope B is ever triggered, the rail is sized for it but
 has not been tested there.
 
@@ -335,7 +335,7 @@ behaviour*).
 **What the INA226 measures is unverified.** Expansion board §7.7 reads the StamPLC's INA226
 as the **bank's** voltage and current. This plan's §9.8 and V-11 read it as the **node's**
 supply. Which current passes through its shunt decides which reading is right, and whether
-the carrier's draw through Bus pin 1 passes through it. **M12 settles it**, at M1, before
+the carrier's draw through Bus pin 1 passes through it. **M12 settles it**, at GL1, before
 V-11 depends on the answer.
 
 ### 3.5 Carrier board layout
@@ -735,13 +735,13 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   it. Every access takes the lock, and DIO1 only notifies `lora_task`; it never does SPI
   work in the interrupt. **The three drivers may not share a bus host cleanly.** RadioLib
   takes an Arduino `SPIClass`, the SD library another, and M5GFX may drive the bus through
-  ESP-IDF directly. Proving they coexist is M1's first item, before any task design
+  ESP-IDF directly. Proving they coexist is GL1's first item, before any task design
   depends on it.
 - **One interlock serializes LoRa transmit and BLE activity** (**R-4.3h**). `bms_task`
   holds it from connect to controller de-init, and `lora_task` takes it before each
   transmit. **The interlock delays answers.** A `COMMAND_ACK` due during a BLE window waits
   for it, and the bridge's ACK timeout is 3 s. The BLE window therefore needs a bound, or a
-  pending transmit must cut it short. Decide which at M3, with the window measured at M5.
+  pending transmit must cut it short. Decide which at GL3, with the window measured at GL5.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
@@ -755,7 +755,7 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   gate, or guard it. `lran-node` (L1) must expose `check()` and `record()` as separate
   steps for this reason. **Open:** whether the ACK waits for the pulse to complete or for
   the gate to confirm movement (`command_confirm_timeout_s`, 5 s). It sets how often the
-  window is hit against the bridge's 3 s ACK timeout. **Decide it before M3.**
+  window is hit against the bridge's 3 s ACK timeout. **Decide it before GL3.**
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls
@@ -1032,7 +1032,7 @@ is precisely the open problem in **D28**.
 
 **Revisit if any of these occur:**
 
-1. Carrier bring-up (§8, M0) fails or proves fragile.
+1. Carrier bring-up (§8, GL0) fails or proves fragile.
 2. **D28** measures inadequate BLE margin from the final mounting position *and* the
    SmartShunt route is unattractive. Under rev 0.3 a SmartShunt also needs a carrier
    revision (§3.6).
@@ -1046,7 +1046,7 @@ convenience, and Bridge Impl Plan §10.3 says a real node never does. GateLink
 holds only `node_key` for `0x01`, so a GateLink in the wrong hands yields that key alone.
 
 **Nothing provisions that key yet.** `secrets.h.example` documents `LRAN_MASTER_KEY` and has
-no field for a node's derived key. Before M3, three things are needed:
+no field for a node's derived key. Before GL3, three things are needed:
 
 1. A field in `secrets.h.example` for GateLink's derived key, documented as the template's
    other fields are, so CI builds against the committed template unchanged.
@@ -1068,18 +1068,18 @@ into a document.
 
 | Requirement | Verified by | Stage |
 |---|---|---|
-| V-1 radio on carrier | Bench, expansion board §11 steps 1–4, then a RadioLib link to the bridge | M0 |
-| V-2 state table | Real gate cycles, DVM + logged frames | M2, M6 |
-| V-3 direction classification | **Input injection**, then real vehicle | M3, M6 |
-| V-4 held-open alert | Injection across all four hold sources | M3, M6 |
-| V-5 events fire once | HA restart + discovery refresh with an event in history | M8 |
-| V-6 VE.Direct | Bench MPPT, text parse + HEX round-trip + write rejection | M4 |
-| V-7 BMS | Live pack vs. reference decode; RSSI from mounting position | M5 |
-| V-8 command paths | **Dry-run first**, then live | M7 |
-| V-9 manual unlock | Physical test, **before the first real hold-open** | M7 |
-| V-10 config round-trip | With card, then **with the card removed** | M3 |
-| V-11 consumption vs. budget | Onboard INA226 over a soak period | M9 |
-| V-12 thermal | Seasonal log, three sensors | M9 |
+| V-1 radio on carrier | Bench, expansion board §11 steps 1–4, then a RadioLib link to the bridge | GL0 |
+| V-2 state table | Real gate cycles, DVM + logged frames | GL2, GL6 |
+| V-3 direction classification | **Input injection**, then real vehicle | GL3, GL6 |
+| V-4 held-open alert | Injection across all four hold sources | GL3, GL6 |
+| V-5 events fire once | HA restart + discovery refresh with an event in history | GL8 |
+| V-6 VE.Direct | Bench MPPT, text parse + HEX round-trip + write rejection | GL4 |
+| V-7 BMS | Live pack vs. reference decode; RSSI from mounting position | GL5 |
+| V-8 command paths | **Dry-run first**, then live | GL7 |
+| V-9 manual unlock | Physical test, **before the first real hold-open** | GL7 |
+| V-10 config round-trip | With card, then **with the card removed** | GL3 |
+| V-11 consumption vs. budget | Onboard INA226 over a soak period | GL9 |
+| V-12 thermal | Seasonal log, three sensors | GL9 |
 
 ### 7.2 Staged safety gating
 
@@ -1148,7 +1148,7 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 
 ## 8. Milestones and acceptance criteria
 
-### 8.1 Library and provisioning tasks — before M1
+### 8.1 Library and provisioning tasks — before GL1
 
 These move code the fleet already runs, or add what no document has assigned. Each is
 one branch and one session, and each leaves every existing suite passing.
@@ -1166,29 +1166,29 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 
 ### 8.2 Node milestones
 
-> **These identifiers collide with the Decision Register's measurements.** Milestone M4 is
-> VE.Direct and measurement M4 is the MPPT's TX low level; milestone M0 depends on
-> measurement M4. In this table **"measurement M*n*"** always says so. `doc-findings` lists
-> the collision, because renaming the milestones touches documents that cite them.
+> **Milestones are `GL0`–`GL9`, renamed from `M0`–`M9` in v0.18** so they no longer collide
+> with the Decision Register's measurements `M1`–`M26`. `GL`*n* is the old `M`*n*. Dated
+> records written before v0.18, this plan's changelog included, still say "GateLink M*n*",
+> and they mean `GL`*n*. Every other `M`*n* in this plan is a measurement.
 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
-| **M0** | **Carrier board bring-up** | Carrier BOM in hand; **measurement M4** settled; expansion board §10's checks ticked | Expansion board §11 steps 1–4 pass in order: power with no module seated, radio, DIO1 continuity, shared bus. The 3.3 V rail holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio from §3.3's `RadioPins`: TCXO 1.8 V, DIO2-as-RF-switch **and** `setRfSwitchPins(G40, NC)`. The IRQ is seen to fire on the first transmit, not inferred. Ping and loopback with the bridge succeed on the bench. **Failure here is D30 trigger 1** |
-| **M1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
-| **M2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
-| **M3** | **Protocol, framing and configuration on the bench** | M0, M1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
-| **M4** | **VE.Direct** | M0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
-| **M5** | **Battery and BMS** | M1, L2 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
-| **M6** | **Inputs live, read-only** | M2, M3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
-| **M7** | **Relays live** | M6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
-| **M8** | **HA integration** | M3–M7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
-| **M9** | **Field soak** | M8 | Installed. Measured daily consumption from the INA226 compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
+| **GL0** | **Carrier board bring-up** | Carrier BOM in hand; **measurement M4** settled; expansion board §10's checks ticked | Expansion board §11 steps 1–4 pass in order: power with no module seated, radio, DIO1 continuity, shared bus. The 3.3 V rail holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio from §3.3's `RadioPins`: TCXO 1.8 V, DIO2-as-RF-switch **and** `setRfSwitchPins(G40, NC)`. The IRQ is seen to fire on the first transmit, not inferred. Ping and loopback with the bridge succeed on the bench. **Failure here is D30 trigger 1** |
+| **GL1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
+| **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
+| **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
+| **GL4** | **VE.Direct** | GL0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
+| **GL5** | **Battery and BMS** | GL1, L2 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
+| **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
+| **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
+| **GL8** | **HA integration** | GL3–GL7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
+| **GL9** | **Field soak** | GL8 | Installed. Measured daily consumption from the INA226 compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
 
-**Critical path:** L1 → M3 → M6 → M7 → M8 → M9, with M0 and M1 joining at M3. L1 is the
-longest library task and nothing on the node's protocol side starts without it. M2 runs in
-parallel from the start. M4 and M5 are parallel to M6 once M0 and M1 land.
+**Critical path:** L1 → GL3 → GL6 → GL7 → GL8 → GL9, with GL0 and GL1 joining at GL3. L1 is the
+longest library task and nothing on the node's protocol side starts without it. GL2 runs in
+parallel from the start. GL4 and GL5 are parallel to GL6 once GL0 and GL1 land.
 
-**The bridge waits on this table.** Its B6 needs GateLink M6, and its B7 follows
+**The bridge waits on this table.** Its B6 needs GateLink GL6, and its B7 follows
 (`docs/bridge/HANDOFF.md`). Both are the bridge's acceptance, not GateLink's, and the bridge
 tasks them.
 
@@ -1440,6 +1440,8 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
   moves `bms_ble` to `lib/bms-ble/` and writes `bms-protocol.md`, L3 builds the VE.Direct
   text parser, L4 declares GateLink's parameter block, L5 provisions the node key (§6.8) and
   L6 creates the firmware skeleton (§8.1). M0, M1, M3, M4 and M5 take the new dependencies.
+  **The milestones are renamed `GL0`–`GL9`** (§8.2), so they no longer collide with the
+  register's measurements; dated records that say "GateLink M*n*" mean `GL`*n*.
   Eight defects found on the way are listed in `doc-findings` rather than
   fixed here. Paths for `bms-protocol.md`, `1050-config.md` and `gatelink-config.md` move
   under `docs/gatelink/`, and two references to §9.5 that meant §9.6 are corrected.

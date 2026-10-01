@@ -75,17 +75,6 @@ level does not settle D25, which is about the low level against a 10 kΩ load.
 **Correct statement:** not yet established. **Measurement M4** settles D25. The plan keeps
 both statements until it runs.
 
-### 7. Milestone numbers collide with measurement numbers
-
-**Found 2026-10-01**, in the same reconciliation.
-
-The Implementation Plan's milestones are M0–M9, and the Decision Register's measurements
-are M1–M26. Milestone M0 depends on measurement M4, and milestone M5 settles measurement
-M7. Plan v0.18 writes "measurement M*n*" to tell them apart, which is a workaround.
-
-**Correct statement:** none yet. Renaming the milestones (to `GL0`–`GL9`, say) reaches the
-bridge's documents, which cite "GateLink M6". The operator decides.
-
 ### 8. What the StamPLC's INA226 measures is stated two ways
 
 **Found 2026-10-01**, in the same reconciliation.
@@ -109,6 +98,22 @@ for one SX1262 driver; the fleet has three, each with injected pins.
 own project should hear of it.
 
 ## Fixed
+
+### 7. Milestone numbers collide with measurement numbers
+
+**Found 2026-10-01**, in the same reconciliation.
+
+The Implementation Plan's milestones are M0–M9, and the Decision Register's measurements
+are M1–M26. Milestone M0 depends on measurement M4, and milestone M5 settles measurement
+M7. Plan v0.18 writes "measurement M*n*" to tell them apart, which is a workaround.
+
+**Correct statement:** none yet. Renaming the milestones (to `GL0`–`GL9`, say) reaches the
+bridge's documents, which cite "GateLink M6". The operator decides.
+
+**Fixed 2026-10-01** in Implementation Plan v0.18, by operator direction: the milestones
+are `GL0`–`GL9`. The live bridge documents and the range test's `CLAUDE.md` cite the new
+names. Dated records, the specification and the Decision Register keep "GateLink M*n*", and
+plan §8.2 says what it maps to.
 
 ### 1. PRD §5.3.1 lists the LoRa PHY parameters as not runtime-configurable
 

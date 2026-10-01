@@ -58,7 +58,7 @@ pio test -d lib/lran-protocol -e native
 | **M6** (both bearings), **M20** (ambient survey), **M21** (grant conditions) | **Closed** |
 | **D1** (SF / BW / CR / TX power / frequency) | **Closed 2026-09-10** — 917.4 MHz, SF9, BW 125 kHz, CR 4/5, −4 dBm conducted. **D33 closed with it**, on Envelope A |
 | Bridge **B0–B5** | **Done.** B4 and B4b were accepted on 2026-09-24, B5 on 2026-09-25 against BF-36's simulated MPPT; Impl Plan §8 has each criterion |
-| Bridge **B6**, **B7** (BF-31) | **Wait on GateLink**, and GateLink M6 gates B6. The bridge work that can run before then is listed in [`HANDOFF.md`](./HANDOFF.md)'s *Work before GateLink* |
+| Bridge **B6**, **B7** (BF-31) | **Wait on GateLink**, and GateLink GL6 gates B6. The bridge work that can run before then is listed in [`HANDOFF.md`](./HANDOFF.md)'s *Work before GateLink* |
 
 ### 1.1 D1 is closed — what the firmware inherits
 
