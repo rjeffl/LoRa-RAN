@@ -3,7 +3,7 @@
 //
 // The parameter table. One hand-written C++ table per owner, and every other copy derived
 // from it by code (D44): firmware defaults, Home Assistant `number` discovery and
-// /docs/gatelink-config.md all read this. No generator, no YAML.
+// docs/gatelink/gatelink-config.md all read this. No generator, no YAML.
 //
 // A NAME HERE IS PERMANENT. It becomes a Home Assistant object_id (spec 16.7), and an
 // entity renamed after it has history is a new entity with none. Changing a name is a
@@ -163,16 +163,91 @@ inline constexpr ParamDef kNodeCommonParams[] = {
      "Revert window after a PHY change, spec 12.4"},
 };
 
-// 0x1000-0x1FFF GateLink and 0x2000-0x2FFF WellLink are declared by their own milestones.
-// W10's count is in Protocol Library Plan 4; spec 7.4.1 is what a node does when a
-// readback outgrows one frame.
+// 0x1000-0x1FFF - GateLink, task L4. The rows are GateLink PRD's named parameters and
+// Impl Plan 4.4's, plus four the PRD requires without naming (operator, 2026-10-01).
+// Defaults are the documents'; every range is proposed, none is measured.
+//
+// Grouped by subsystem, a 0x10 stride apart, so a row added later joins its group without
+// renumbering one HA already knows. The readback walks them in id order (spec 7.4.1).
+//
+// THESE ROWS OUTGROW ONE CONFIG_ACK. With node-common and the PHY group, a GateLink
+// readback is 199 bytes against spec 7.4's 193, so it needs spec 7.4.1's MORE_FOLLOWS
+// split. readback_bytes() below counts it, and test_table pins the count.
+inline constexpr ParamDef kGateLinkParams[] = {
+    // Relays. R-3.1.2b's spacing has no name in the PRD; its default equals the pulse.
+    {0x1000, "relay_pulse_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 2000, 500,
+     "ms", "Relay pulse width, PRD R-3.1.2a"},
+    {0x1001, "relay_min_spacing_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 5000,
+     500, "ms", "Least gap between two relay pulses, PRD R-3.1.2b"},
+    {0x1002, "unlock_settle_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 5000, 500,
+     "ms", "K2 to K4 on an immediate close, Impl Plan 6.1"},
+    {0x1003, "post_wake_settle_ms", Owner::Node, Access::ReadWrite, PType::U16, 0, 5000, 500,
+     "ms", "After a pulse, before state is read, PRD R-3.1.3c"},
+    {0x1004, "command_confirm_timeout_s", Owner::Node, Access::ReadWrite, PType::U8, 2, 60, 5,
+     "s", "Movement wait before a command fails, PRD R-3.1.3c"},
+
+    // Inputs.
+    {0x1010, "input_poll_ms", Owner::Node, Access::ReadWrite, PType::U16, 20, 500, 100, "ms",
+     "Input expander poll period, PRD R-3.1.4d"},
+    {0x1011, "input_debounce_samples", Owner::Node, Access::ReadWrite, PType::U8, 1, 10, 2,
+     nullptr, "Agreeing reads before an input changes, PRD R-3.1.4d"},
+    {0x1012, "hold_confirm_ms", Owner::Node, Access::ReadWrite, PType::U16, 500, 10000, 2000,
+     "ms", "Stable OPEN without MOVING before a hold, PRD R-3.1.4b"},
+
+    // Detection. u32 because a u16 of ms stops at 65.5 s, barely above the 60 s default.
+    {0x1020, "detect_sequence_window_ms", Owner::Node, Access::ReadWrite, PType::U32, 5000,
+     300000, 60000, "ms", "Longest EXIT-to-SAFETY traversal, PRD R-3.2.3e"},
+    {0x1021, "detect_sequence_idle_ms", Owner::Node, Access::ReadWrite, PType::U16, 1000,
+     60000, 10000, "ms", "Quiet time that resets classification, PRD R-3.2.3e"},
+    {0x1022, "held_open_alert_repeat_s", Owner::Node, Access::ReadWrite, PType::U16, 0, 3600,
+     0, "s", "Held-open alert repeat, PRD R-3.2.3e; 0 = one per detection"},
+    {0x1023, "cause_window_ms", Owner::Node, Access::ReadWrite, PType::U16, 1000, 60000,
+     10000, "ms", "EXIT edge to gate opening, read as the wand, Impl Plan 6.3"},
+
+    // VE.Direct. hex_timeout_ms stops at 2000 so that it stays under the bridge's
+    // hex_rsp_timeout_ms default of 3000, which assumes GateLink answers first.
+    {0x1030, "hex_timeout_ms", Owner::Node, Access::ReadWrite, PType::U16, 200, 2000, 1000,
+     "ms", "MPPT HEX reply wait before TIMEOUT, PRD R-3.3d"},
+    {0x1031, "vedirect_stale_s", Owner::Node, Access::ReadWrite, PType::U8, 2, 60, 5, "s",
+     "No complete text block for this long is stale, PRD R-3.3f"},
+
+    // Battery. bms_poll_s's floor keeps R-3.4e's phone access between polls.
+    {0x1040, "bms_poll_s", Owner::Node, Access::ReadWrite, PType::U16, 60, 3600, 300, "s",
+     "BLE BMS read period, PRD R-3.4a"},
+    {0x1041, "charge_inhibit_confirm_s", Owner::Node, Access::ReadWrite, PType::U16, 60, 3600,
+     300, "s", "Inferred charge inhibit must hold this long, PRD R-6.4b"},
+
+    // Panel and bench. The buzzer has no requirement yet, so it starts silent.
+    {0x1050, "display_timeout_s", Owner::Node, Access::ReadWrite, PType::U16, 10, 3600, 60,
+     "s", "Backlight inactivity timeout, PRD R-4.7b"},
+    {0x1051, "buzzer_enable", Owner::Node, Access::ReadWrite, PType::Bool, 0, 1, 0, nullptr,
+     "Panel buzzer, Impl Plan 5.2 ui_task"},
+    {0x1052, "inject_spacing_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 60000,
+     1000, "ms", "Gap between injected inputs, PRD R-5.4b"},
+};
+
+// 0x2000-0x2FFF WellLink is declared by its own milestone. W10's count is in Protocol
+// Library Plan 4.
 
 inline constexpr size_t kBridgeParamCount     = sizeof(kBridgeParams) / sizeof(ParamDef);
 inline constexpr size_t kNodeCommonParamCount = sizeof(kNodeCommonParams) / sizeof(ParamDef);
+inline constexpr size_t kGateLinkParamCount   = sizeof(kGateLinkParams) / sizeof(ParamDef);
 
 // One table is at most this many rows across all its blocks. Node-common's 10 plus
-// GateLink's counted 25 leaves room; raising it costs RAM in every Store.
+// GateLink's 19 leaves room; raising it costs RAM in every Store.
 inline constexpr size_t kMaxTableParams = 64;
+
+// A node's own block, by address. The bridge reads it to name, clamp and discover a
+// node's rows; a node's firmware adds it to its Table after node-common. Bench nodes
+// have none, whatever role they play, because spec 16.6 keeps them out of discovery.
+struct ParamBlock {
+  const ParamDef* rows;
+  size_t          n;
+};
+constexpr ParamBlock node_block(NodeId node) {
+  if (node == kNodeGateLink) return {kGateLinkParams, kGateLinkParamCount};
+  return {nullptr, 0};
+}
 
 // spec 12.1 - freq_hz's ceiling is what bounds Value at int32_t. A u32 parameter above
 // 2^31 needs a wider Value before it can be declared.
@@ -191,6 +266,8 @@ static_assert(ids_ascending(kBridgeParams, kBridgeParamCount),
               "bridge param ids must be unique and ascending");
 static_assert(ids_ascending(kNodeCommonParams, kNodeCommonParamCount),
               "node-common param ids must be unique and ascending");
+static_assert(ids_ascending(kGateLinkParams, kGateLinkParamCount),
+              "GateLink param ids must be unique and ascending");
 
 constexpr bool in_block(const ParamDef* p, size_t n, uint16_t lo, uint16_t hi) {
   for (size_t i = 0; i < n; ++i) {
@@ -202,6 +279,8 @@ static_assert(in_block(kBridgeParams, kBridgeParamCount, 0x0001, 0x00FF),
               "D46 - the bridge's block is 0x0000-0x00FF");
 static_assert(in_block(kNodeCommonParams, kNodeCommonParamCount, 0x0100, 0x01FF),
               "D46 - node-common is 0x0100-0x01FF");
+static_assert(in_block(kGateLinkParams, kGateLinkParamCount, 0x1000, 0x1FFF),
+              "D46 - GateLink is 0x1000-0x1FFF");
 
 constexpr bool defaults_in_range(const ParamDef* p, size_t n) {
   for (size_t i = 0; i < n; ++i) {
@@ -213,6 +292,8 @@ constexpr bool defaults_in_range(const ParamDef* p, size_t n) {
 static_assert(defaults_in_range(kBridgeParams, kBridgeParamCount),
               "a default outside its own range would be clamped on first read");
 static_assert(defaults_in_range(kNodeCommonParams, kNodeCommonParamCount),
+              "a default outside its own range would be clamped on first read");
+static_assert(defaults_in_range(kGateLinkParams, kGateLinkParamCount),
               "a default outside its own range would be clamped on first read");
 
 // spec 12.4 - frequency, SF, BW, CR, TX power and phy_trial_s.
@@ -301,6 +382,8 @@ static_assert(points_hold_ends(kBridgeParams, kBridgeParamCount),
               "D64 - a listed row's min, max and default must be on its list");
 static_assert(points_hold_ends(kNodeCommonParams, kNodeCommonParamCount),
               "D64 - a listed row's min, max and default must be on its list");
+static_assert(points_hold_ends(kGateLinkParams, kGateLinkParamCount),
+              "D64 - a listed row's min, max and default must be on its list");
 
 // The wire width of a ptype, in bytes. spec 7.4, D55 - `len` is a multiple of it.
 constexpr size_t ptype_width(PType t) {
@@ -313,6 +396,14 @@ constexpr size_t ptype_width(PType t) {
     case PType::I32: return 4;
   }
   return 0;
+}
+
+// spec 7.4 - the bytes a full readback of these rows takes in CONFIG_ACK results: each
+// entry is a 5-byte header and its value. Library Plan 4 counts readbacks with it.
+constexpr size_t readback_bytes(const ParamDef* p, size_t n) {
+  size_t b = 0;
+  for (size_t i = 0; i < n; ++i) b += 5 + ptype_width(p[i].type);
+  return b;
 }
 
 }  // namespace config

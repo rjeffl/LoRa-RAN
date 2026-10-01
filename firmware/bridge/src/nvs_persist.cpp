@@ -50,6 +50,7 @@ bool NvsPersist::begin(bool global, lran::NodeId node) {
     return false;
   }
   global_ = global;
+  node_   = node;
   open_   = prefs_.begin(ns, /*readOnly=*/false);
   return open_;
 }
@@ -66,8 +67,8 @@ bool NvsPersist::save(uint16_t id, lran::config::Value v) {
 bool NvsPersist::clear_all() {
   if (!open_) return false;
   const lran::config::ParamDef* rows[lran::config::kMaxTableParams];
-  const size_t total = scope_rows(global_ ? ConfigScope::Bridge : ConfigScope::Node, rows,
-                                  lran::config::kMaxTableParams);
+  const size_t total = scope_rows(global_ ? ConfigScope::Bridge : ConfigScope::Node, node_,
+                                  rows, lran::config::kMaxTableParams);
   bool ok = true;
   for (size_t i = 0; i < total; ++i) {
     if (phy_index_of(rows[i]->id) != kPhyGroupSize) continue;  // in the blob
@@ -177,7 +178,7 @@ size_t nvs_restore(ConfigStore& store, ConfigScope scope, lran::NodeId node,
   if (!persist.usable()) return 0;
 
   const lran::config::ParamDef* rows[lran::config::kMaxTableParams];
-  const size_t total = scope_rows(scope, rows, lran::config::kMaxTableParams);
+  const size_t total = scope_rows(scope, node, rows, lran::config::kMaxTableParams);
 
   size_t restored = 0;
   for (size_t i = 0; i < total; ++i) {

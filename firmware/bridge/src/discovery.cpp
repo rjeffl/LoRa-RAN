@@ -326,18 +326,20 @@ const ParamDef* bridge_param(size_t index) {
 }
 
 // A node's rows, in the order its `config/state` carries them: the bridge's per-node rows,
-// then the node's own. GateLink's and WellLink's own blocks join here when their
-// milestones declare them.
-const ParamDef* node_param(size_t index) {
+// node-common, then the node's own block (L4). WellLink's joins when its milestone
+// declares it, through node_block() and without an edit here.
+const ParamDef* node_param(lran::NodeId node, size_t index) {
   size_t k = 0;
   for (size_t i = 0; i < lran::config::kBridgeParamCount; ++i) {
     const ParamDef& d = lran::config::kBridgeParams[i];
     if (d.owner != Owner::BridgePerNode) continue;
     if (k++ == index) return &d;
   }
-  const size_t i = index - k;
-  return i < lran::config::kNodeCommonParamCount ? &lran::config::kNodeCommonParams[i]
-                                                 : nullptr;
+  size_t i = index - k;
+  if (i < lran::config::kNodeCommonParamCount) return &lran::config::kNodeCommonParams[i];
+  i -= lran::config::kNodeCommonParamCount;
+  const lran::config::ParamBlock own = lran::config::node_block(node);
+  return i < own.n ? &own.rows[i] : nullptr;
 }
 
 // spec 12.4, D64 - a row whose legal values are the table's listed points. A select
@@ -567,7 +569,7 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
     const size_t      fixed = node_entity_count(info.type);
     const EntityDesc* d     = cur->entity < fixed ? node_entity(info.type, cur->entity) : nullptr;
     const ParamDef*   p     = nullptr;
-    if (d == nullptr && !info.is_bench) p = node_param(cur->entity - fixed);
+    if (d == nullptr && !info.is_bench) p = node_param(info.id, cur->entity - fixed);
     if (d == nullptr && p == nullptr) {
       ++cur->node;
       cur->entity = 0;

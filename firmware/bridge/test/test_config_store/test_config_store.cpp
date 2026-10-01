@@ -88,8 +88,8 @@ const ConfigStateEntry* state_named(const ConfigStateEntry* e, size_t n, const c
 // searched both would answer the bridge's row for a set aimed at a node, and the write
 // would land on the wrong radio.
 void test_a_shared_name_resolves_by_topic() {
-  const config::ParamDef* on_bridge = find_param(ConfigScope::Bridge, "cad_retries");
-  const config::ParamDef* on_node   = find_param(ConfigScope::Node, "cad_retries");
+  const config::ParamDef* on_bridge = find_param(ConfigScope::Bridge, kNodeBridge, "cad_retries");
+  const config::ParamDef* on_node   = find_param(ConfigScope::Node, kNodeGateLink, "cad_retries");
   TEST_ASSERT_NOT_NULL(on_bridge);
   TEST_ASSERT_NOT_NULL(on_node);
   TEST_ASSERT_EQUAL_UINT16(0x0007, on_bridge->id);
@@ -100,8 +100,8 @@ void test_a_shared_name_resolves_by_topic() {
 
 void test_the_other_two_shared_names_resolve_the_same_way() {
   for (const char* name : {"backoff_max_ms", "frag_reassembly_timeout_ms"}) {
-    const config::ParamDef* b = find_param(ConfigScope::Bridge, name);
-    const config::ParamDef* n = find_param(ConfigScope::Node, name);
+    const config::ParamDef* b = find_param(ConfigScope::Bridge, kNodeBridge, name);
+    const config::ParamDef* n = find_param(ConfigScope::Node, kNodeGateLink, name);
     TEST_ASSERT_NOT_NULL(b);
     TEST_ASSERT_NOT_NULL(n);
     TEST_ASSERT_TRUE(b->id != n->id);
@@ -111,14 +111,32 @@ void test_the_other_two_shared_names_resolve_the_same_way() {
 // A name the topic does not hold is unknown there, never a fall-through to the other
 // block (spec 16.7.1).
 void test_a_name_from_the_other_block_is_not_visible() {
-  TEST_ASSERT_NULL(find_param(ConfigScope::Bridge, "dedup_cache_depth"));
-  TEST_ASSERT_NULL(find_param(ConfigScope::Bridge, "poll_interval_s"));
-  TEST_ASSERT_NULL(find_param(ConfigScope::Node, "diag_interval_s"));
-  TEST_ASSERT_NULL(find_param(ConfigScope::Node, "simnode_diag_enable"));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Bridge, kNodeBridge, "dedup_cache_depth"));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Bridge, kNodeBridge, "poll_interval_s"));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Node, kNodeGateLink, "diag_interval_s"));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Node, kNodeGateLink, "simnode_diag_enable"));
+}
+
+// L4 - a node's own block resolves on that node's topic alone. GateLink's rows are
+// unknown on WellLink's topic and on the bridge's, so a set aimed at the wrong device is
+// answered unknown_param rather than sent to a node that would refuse it.
+void test_a_gatelink_row_resolves_on_gatelink_alone() {
+  const config::ParamDef* d = find_param(ConfigScope::Node, kNodeGateLink, "relay_pulse_ms");
+  TEST_ASSERT_NOT_NULL(d);
+  TEST_ASSERT_EQUAL_HEX16(0x1000, d->id);
+  TEST_ASSERT_TRUE(d->owner == config::Owner::Node);
+  TEST_ASSERT_EQUAL_PTR(d, find_param_by_id(ConfigScope::Node, kNodeGateLink, 0x1000));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Node, kNodeWellLink, "relay_pulse_ms"));
+  TEST_ASSERT_NULL(find_param(ConfigScope::Bridge, kNodeBridge, "relay_pulse_ms"));
+  TEST_ASSERT_NULL(find_param_by_id(ConfigScope::Node, kNodeWellLink, 0x1000));
+  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, kNodeGateLink,
+                                           one("relay_pulse_ms", 300, true)));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Node, kNodeWellLink,
+                                            one("relay_pulse_ms", 300, true)));
 }
 
 void test_a_node_topic_holds_the_bridges_per_node_row() {
-  const config::ParamDef* d = find_param(ConfigScope::Node, "poll_interval_s");
+  const config::ParamDef* d = find_param(ConfigScope::Node, kNodeGateLink, "poll_interval_s");
   TEST_ASSERT_NOT_NULL(d);
   TEST_ASSERT_TRUE(d->owner == config::Owner::BridgePerNode);
 }
@@ -206,7 +224,7 @@ void test_a_phy_row_on_a_node_topic_is_read_only_and_sends_nothing() {
   TEST_ASSERT_TRUE(results[0].status == ResultStatus::ReadOnly);
   TEST_ASSERT_FALSE(results[0].has_value);  // never read back
   TEST_ASSERT_EQUAL_UINT8(0, node_half.count);
-  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Node, one("spreading_factor", 7)));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Node, kNodeGateLink, one("spreading_factor", 7)));
 
   schema::ConfigAckEntry e;
   schema::entry_pack(&e, 0x0111, ParamStatus::Ok, PType::U8, 9);
@@ -408,20 +426,20 @@ void test_the_roll_refusal_matches_the_node_half_apply_produces() {
     const ConfigSetRequest req = one(c.name, 3, c.readable);
     ConfigResult           results[4];
     ConfigSetRequest       node_half;
-    store.apply(c.scope, c.scope == ConfigScope::Node ? lran::kNodeGateLink : 0, req, results,
-                4, nullptr, &node_half);
-    TEST_ASSERT_EQUAL_MESSAGE(node_half.count > 0, config_set_reaches_node(c.scope, req),
+    const lran::NodeId node = c.scope == ConfigScope::Node ? lran::kNodeGateLink : 0;
+    store.apply(c.scope, node, req, results, 4, nullptr, &node_half);
+    TEST_ASSERT_EQUAL_MESSAGE(node_half.count > 0, config_set_reaches_node(c.scope, node, req),
                               c.name);
   }
 
   // GET_ALL and RESTORE_DEFAULTS reach the node from its own topic only.
   ConfigSetRequest req;
   req.op = ConfigOp::GetAll;
-  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, req));
-  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, req));
+  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, kNodeGateLink, req));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, kNodeBridge, req));
   req.op = ConfigOp::RestoreDefaults;
-  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, req));
-  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, req));
+  TEST_ASSERT_TRUE(config_set_reaches_node(ConfigScope::Node, kNodeGateLink, req));
+  TEST_ASSERT_FALSE(config_set_reaches_node(ConfigScope::Bridge, kNodeBridge, req));
 }
 
 // A NAME NEITHER HALF HOLDS COSTS NO FRAME. Spec 16.7.1 makes it unknown_param at the
@@ -710,6 +728,7 @@ int main(int, char**) {
   RUN_TEST(test_the_other_two_shared_names_resolve_the_same_way);
   RUN_TEST(test_a_name_from_the_other_block_is_not_visible);
   RUN_TEST(test_a_node_topic_holds_the_bridges_per_node_row);
+  RUN_TEST(test_a_gatelink_row_resolves_on_gatelink_alone);
 
   RUN_TEST(test_a_global_value_applies_and_answers_its_effective_value);
   RUN_TEST(test_a_value_outside_the_range_is_clamped_and_said_so);

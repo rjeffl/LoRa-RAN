@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.79
+**Version:** 0.80
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.23 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.24 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-10-01
 
@@ -583,7 +583,7 @@ as `lran/bridge/version`'s was (BF-13).
 | Sentinels | `null`, never a number (root rule 6) |
 | `diag_publish_interval_s` | **60**, runtime-settable. No document gave a cadence; one default poll interval |
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
-| `kMaxPayloadLen` | **768**, from 512: the §14.1 document is 681 bytes with every counter at `UINT32_MAX`. The publish queue grows from ~19 KB to ~28 KB |
+| `kMaxPayloadLen` | **2048**. It was 768 from BF-19, when the §14.1 document reached 681 bytes with every counter at `UINT32_MAX`, then 1024 at BF-32 and 1536 at BF-33. GateLink's L4 raised it to 2048 for a GateLink `config/state` of about 1.9 KB. `mqtt_transport.h` records each move and its measurement |
 | A refused publication | Not retried; the next interval carries newer numbers |
 | `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), and confirmed on air the same day**: one reply per §14 stage that names one, read at the simnode. Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
 | Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
@@ -611,7 +611,7 @@ this section left open, and the reasoning for each.
 |---|---|
 | **A boot and a reconnect take the same path** | `on_mqtt_connected()` restarts a cursor and the task loop drains it. R-3.3b's reconnect case is not a branch that can be got wrong, because it is the only branch — there is no "first time" flag |
 | **Drained a few per task iteration, published directly** | The set is a few dozen documents; publishing them back to back would hold `mqtt_task` inside PubSubClient without a `loop()` between them, on a socket that has just reconnected. Direct rather than through `g_publish_queue`, which is sized for state: a reconnect would otherwise put a few dozen configs in front of every node's current reading |
-| **Abbreviated discovery keys and a `~` base topic** | `kMaxPayloadLen` is 768 and the long forms put a node's config within a hundred bytes of it. Growing that buffer costs RAM in every publish queue slot, and §4.3.2 grew it once already |
+| **Abbreviated discovery keys and a `~` base topic** | `kMaxPayloadLen` was 768 when this was chosen, and the long forms put a node's config within a hundred bytes of it. Growing that buffer costs RAM in every publish queue slot, and §4.3.2 grew it once already |
 | **The buttons come from `command_allowed()`** | The same capability filter the command path uses, so a button cannot exist for a command the bridge would refuse to send. WellLink gets no gate buttons and discovery never learns what a gate is (**BG-2**) |
 | **No `reboot` button, and none for the argument-carrying commands** | Spec §8.1 guards `REBOOT` with `0xA5` in `arg` precisely so it cannot be issued by accident, and a dashboard button is that accident. `set_debug_mode` and its neighbours carry a bitmask in `arg2`, which a button cannot express. Both stay reachable from the topic |
 | **A bench node produces no discovery until BF-26** | Spec §16.6 gates publication and discovery is publication. HA's registry remembers a `unique_id` forever and a retained config survives a reflash, so four simnode devices whose entities could never update is a cost paid once and kept. The gate is `bench_publication_allowed()`, already shared with BF-20 |
@@ -1737,7 +1737,9 @@ have their own. §16.7.1 resolves them by where the set arrived:
 **A lookup that searched both blocks would answer the bridge's row for a set aimed at a
 node**, and the write would land on the wrong radio while the ack said `ok`. `find_param`
 takes a scope for that reason, and **a name the scope does not hold is `unknown_param`**,
-never a fall-through to the other block.
+never a fall-through to the other block. It also takes the node. A node's own block, such
+as GateLink's since its task L4, is that node's alone, so GateLink's rows are
+`unknown_param` on any other topic (`lran::config::node_block()`).
 
 #### 6.7.2 One answer for two halves
 
@@ -3048,6 +3050,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.80** — **Library Plan v0.23 → v0.24**, which declares GateLink's block (GateLink
+  task L4). §6.7.1: the node-scope lookups take the node, so a node's own rows resolve on
+  its topic alone. §4.3.2's `kMaxPayloadLen` row says 2048, and the history it had stopped
+  recording at 768.
 
 - **v0.79** — **Protocol specification v0.16 → v0.17, and PRD v0.17 → v0.18.** §6.4.1 and
   §10.9.3 cite **D73–D76** where they had said the readings were raised for v0.16. No code

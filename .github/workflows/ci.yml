@@ -259,6 +259,12 @@ jobs:
       - name: Home Assistant discovery examples
         run: python3 tools/checks/ha_examples.py
 
+      # GateLink Impl Plan §6.4, D44: `docs/gatelink/gatelink-config.md` is printed from
+      # `lib/lran-config/`'s table by a host g++ build, then diffed against the committed
+      # file. A table row changed without a regenerated document fails here.
+      - name: GateLink configuration document
+        run: python3 tools/checks/config_doc.py
+
   native:
     name: Host Unity suites
     needs: changes

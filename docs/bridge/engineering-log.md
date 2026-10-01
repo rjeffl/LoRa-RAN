@@ -1592,3 +1592,26 @@ or rule as well as a number:
 
 **Not shown on air:** a write-class `HEX_REQ` with a bad MAC. No bench tool sends one, so
 D73's step 3 answer is host-tested only, as gate 1 was at V-B6.
+
+---
+
+## 2026-10-01 — GateLink's parameter block raises `kMaxPayloadLen` to 2048
+
+GateLink task L4 declared 19 rows for GateLink in `lib/lran-config/`. A GateLink topic
+now carries 31 rows: the two per-node rows, node-common's ten and GateLink's 19.
+`test_config` failed on the result. At each value's widest, `lran/gatelink/config/state`
+counts to about 1880 bytes and the `get_all` answer to about 1755, against a
+`kMaxPayloadLen` of 1536. The figures come from an offline count, not from a board. A
+publication over the cap is refused and counted, so HA's GateLink config entities would
+never have updated.
+
+**The operator chose to raise `kMaxPayloadLen` to 2048.** The `heltec` image's static RAM
+went from 252,364 bytes on `main` to 278,476, from 77.0 % to 85.0 %. That is about 26 KB,
+for 32 publish slots, 8 event slots and the static documents. `mqtt_task` keeps a
+`PublishMessage` on its 6144-byte stack in two places, now about 2.2 KB each. **Read
+`mqtt_task`'s high-water mark and the connect banner's lowest free heap at the next
+flash.** No board has run this change.
+
+The lookups `find_param()`, `find_param_by_id()`, `scope_rows()` and
+`config_set_reaches_node()` now take the node, because a node's own block is that node's
+alone. GateLink's rows are `unknown_param` on WellLink's topic and on the bridge's.
