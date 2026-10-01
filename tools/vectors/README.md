@@ -23,6 +23,9 @@ vectors are unaffected: §14.1 is enforced by the generator and the checker thro
 registry's names, and no vector carries a counter value.
 **Consumed by:** `/lib/lran-protocol/test/test_vectors/` (C++, Unity, `native`)
 **Produced by:** `generate.py` (Python 3, this directory)
+**HKDF also imported by:** `tools/provision/node_key.py`, which derives real node keys
+with `hkdf_sha256()` and `kdf_info()`. Renaming either breaks it, and its self-test in CI
+says so.
 
 ---
 
