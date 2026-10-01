@@ -548,7 +548,8 @@ capture replaces it. osh-labs' register map is not ported, because `hex.h` reads
 register by number and GateLink inspects only the command nibble.
 
 **That library is the reference of record for VE.Direct, not Victron's PDFs.** It has
-already decoded both protocols, and it is proven in the field. Take frame layout, register
+already decoded both protocols. It is not yet proven on a 75/15: its own specification
+lists that controller's firmware as "TBD at bench test" (checked 2026-10-01). Take frame layout, register
 IDs, scaling and units from its `src/` and `VeDirect_Arduino_Spec.md`. Open Victron's
 "VE.Direct Protocol" or "BlueSolar HEX protocol" documents only where the library is
 silent, and record that gap in the engineering log. Reading the PDFs from scratch repeats
@@ -1430,7 +1431,8 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 - **v0.19** — **L3 built.** §4.2.4 describes the multiplexer as the built parser runs it:
   byte-level, with a `:` anywhere but the checksum byte starting a HEX frame, where v0.18
-  said line-oriented. §5.1's library row says the text parser is
+  said line-oriented. It no longer calls osh-labs proven in the field, which its own
+  specification does not claim for the 75/15. §5.1's library row says the text parser is
   built. The parser has met no real MPPT output; GL4's capture is its first.
 - **v0.18** — **Reconciled with the fleet as built**, which earlier revisions never were:
   their citations moved with the specification while their architecture stayed where v0.1

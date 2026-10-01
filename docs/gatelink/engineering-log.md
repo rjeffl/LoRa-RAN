@@ -124,7 +124,9 @@ abandoning would also have lost. Each interrupted block that fails counts in `in
 apart from `bad_checksum`. **If `interrupted` grows while `bad_checksum` stays at zero, the
 MPPT counts HEX bytes in its text checksum, and resuming is wrong.**
 
-**osh-labs' specification shows the frame wrongly.** Its §3.1 shows the frame as `:Label\t<value>\r\n` lines. The
+**osh-labs is not field-proven on a 75/15.** Its specification lists that controller's
+firmware as "TBD at bench test". Plan v0.18 said the library was "proven in the field";
+v0.19 drops the claim. Its §3.1 also shows the frame as `:Label\t<value>\r\n` lines. The
 code reads `\r\n`-opened records and a bare checksum byte, and this port follows the code.
 
 **Two changes to osh-labs' behaviour, both for root rule 4.** A block that fails its
