@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that built L1 on the host.** It replaces
-the file the plan v0.18 session wrote.
+**Written 2026-10-01, at the end of the session that ran L1's bench checks.** It replaces
+the file the session that built L1 on the host wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -14,12 +14,11 @@ the file the plan v0.18 session wrote.
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/gatelink/HANDOFF.md: task L1's bench checks, on branch l1-lran-node.
+Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
 | Task | Read |
 |---|---|
-| **L1 bench checks** — close L1 | The 2026-10-01 entry in [`engineering-log.md`](./engineering-log.md). The bridge handoff's *Hardware state* for the XIAO Kit. `firmware/simnode/CLAUDE.md` for BF-34, the real reset and the PHY change |
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
 | **L3** — VE.Direct text parser | Plan §4.2.4, §8.1. `lib/vedirect/include/vedirect/hex.h`. The osh-labs repository is the reference of record |
 | **L4** — GateLink's parameter block | Plan §4.4, §6.4, §8.1. `lib/lran-config/include/lran/config/table.h`. PRD §5.3. `doc-findings` finding 2 first |
@@ -33,20 +32,10 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L1's bench checks, on the XIAO Kit against the bridge.** The extraction is built and
-host-proven on branch `l1-lran-node`; the PR stays draft until these pass (plan §8.1, L1):
-
-1. Flash `simnode-xiao-wio` from the branch. `ROLE_GATELINK` at `0xF1` answers the bridge's
-   polls and commands.
-2. **BF-34:** restart the bridge; the simnode answers its `ROLL_CONTEXT` and the bridge logs
-   the roll finished.
-3. **Spec §10.7:** a `REBOOT` from the bridge resets the board, and `BOOT` status then the
-   `BOOT` event reach the bridge.
-4. **Spec §12.4.2:** a PHY change commits; a second, with the bridge held off, reverts and
-   reports `PHY_REVERTED`.
-
-Record each in the engineering log, then mark the PR ready. L3, L4 and L5 are independent
-of L1 and of each other, and any of them suits a short session.
+**L1 is done once its PR merges.** All four of plan §8.1's bench checks passed on
+2026-10-01, and the engineering log's entry of that date records each one. The operator
+picks the next task from the table above. L3, L4 and L5 are independent of each other,
+and any of them suits a short session.
 
 ## What the last session established
 
@@ -54,8 +43,12 @@ of L1 and of each other, and any of them suits a short session.
   before; the library adds 12; both simnode targets build; CI runs the new suite.
 - **The plan §5.2 split is real.** An application may defer a command, and
   `Engine::finish_command()` records and ACKs it later. GateLink's `io_task` will use it.
-- **Nothing has been on air.** The engineering log's 2026-10-01 entry lists what changed
-  beyond the move, including four log lines that read differently.
+- **The engine is on air.** The XIAO Kit passed all four L1 bench checks against the
+  bridge: commands, the BF-34 roll, the §10.7 reboot and the §12.4.2 commit and revert.
+  The engineering log's second 2026-10-01 entry has the evidence, and the first lists what
+  changed beyond the move.
+- **The deferred-command path and `Engine::complete_hex()` have run on the host only.**
+  No bench check exercised either.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -83,9 +76,9 @@ of L1 and of each other, and any of them suits a short session.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.18. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L1: built and host-tested, bench checks owed |
+| In progress | L1: bench checks passed, PR awaiting acceptance |
 | Not started | L2–L6. GL0–GL9. `firmware/gatelink/` does not exist |
-| Queue | L1's bench checks, then the rest of §8.1 in any order |
+| Queue | The rest of §8.1, in any order |
 
 ```bash
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green

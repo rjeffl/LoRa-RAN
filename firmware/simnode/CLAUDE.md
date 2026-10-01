@@ -150,8 +150,11 @@ bridge. Change them there, and run both firmwares' tests.
 - **A `CONFIG_ACK` is cut at 196 bytes and the cut is logged.** 24 `u32` results do not fit,
   and spec §3.1 lets no fragmented set exceed that either. The RAM store holds 21 entries,
   and a `GET_ALL` adds the six PHY rows to them, 42 bytes.
-- **Opening a serial port from pyserial did not reset these boards or the bridge** on
-  2026-09-24. Toggle RTS to capture a boot banner.
+- **Expect a pyserial port open to reset the bridge as well as the XIAO.** On 2026-10-01
+  each open reset the bridge (`rst:0x1 (POWERON)`), though the harness set DTR and RTS
+  false before opening. On 2026-09-24 an open reset neither board. Open every port before
+  the run starts, and toggle RTS when a run needs a boot banner (GateLink engineering log,
+  2026-10-01).
 - **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
   `rx_dropped`, on every other identity on the board. That is what four boards would count.
 

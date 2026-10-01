@@ -58,3 +58,43 @@ answers after `hex_forward()` returns, which is what a real UART does. Only the 
 test calls it: the simulated MPPT always answers at once or not at all. The `BOOT` and
 `PHY_REVERTED` event bodies come from the application, because schema `0x11` is GateLink's.
 WellLink will need its own when it is built.
+
+## 2026-10-01 — L1's bench checks pass: the simnode on `lib/lran-node/` behaves as before on air
+
+**All four of plan §8.1's L1 checks passed against the bridge.** The XIAO Kit ran
+`simnode-xiao-wio` from `f223700`, flashed over USB on `/dev/cu.usbmodem1101`, MAC
+`68:ee:8f:4b:85:f4`. It held `f1` in `ROLE_GATELINK` alone. The bridge ran `d8e45c3` on
+`/dev/cu.usbserial-0001`, and the Heltec simnode was not connected. A harness held both
+ports open and logged them, with `lran/#` from the sandbox broker, to two traces:
+[`l1-bench-roll-reboot-2026-10-01.log`](./data/l1-bench-roll-reboot-2026-10-01.log) and
+[`l1-bench-phy-2026-10-01.log`](./data/l1-bench-phy-2026-10-01.log). Times below are
+seconds from the start of each trace.
+
+| Check | What was done | What happened |
+|---|---|---|
+| `ROLE_GATELINK` on air | `simnode_diag_enable` and f1's `deployed` set to 1, then `PRESS` on `lran/simnode1/cmd/open/set` | f1 answered polls, and the bridge's charge readback drew `HEX_RSP`s. The node logged `OPEN ACCEPTED`. `cmd/ack` read `acked`, one attempt, 1.4 s after the publish |
+| BF-34 roll | The bridge reset alone by RTS, then `push f1` so the bridge heard f1 | The bridge polled f1, then rolled it: `ctx 0xc97be29d -> 0x6bd68373, ACCEPTED`, and `roll: f1 rolled ... after 1 attempt(s)`. The traces hold three more bridge resets, and each rolled f1 in one attempt as well |
+| Spec §10.7 reboot | `165` on `lran/simnode1/cmd/reboot/set` | The node logged `REBOOT ACCEPTED`, then `ACK on the air, restarting` 1.6 s later, then `rst:0xc (RTC_SW_CPU_RST)`. The bridge received the ACK and published `acked`, one attempt. The node booted as `REBOOT_COMMAND`, `boot_count` 154. Its `BOOT` status (`seq` 1) and then its `BOOT` event (`seq` 2) reached the bridge 210 ms apart |
+| Spec §12.4.2, commit | `{"set":{"freq_hz":917000000}}` on `lran/bridge/config/set` | One node in the fleet. The bridge committed 6.9 s after it started the change, and `config/ack` read `ok`, `persisted`. `phy` on the node read 917.0 MHz committed, `trials 1 committed 1` |
+| Spec §12.4.2, revert | 917.0 → 917.4 MHz. The harness held the bridge's EN low from 160 ms after `every node accepted - retuning` until 26.7 s after the node's window closed | f1 retuned at 89.10 and logged `REVERTED (window expired)` at 208.98, 119.9 s later. The bridge came back on 917.0 and published `phy_reverted` `restart`. Its boot `POLL` drew f1's `EVENT PHY_REVERTED detail 0x0001` as `seq` 6, ahead of the status at `seq` 7. The bridge counted the event in `event_frames` and `bench_withheld` |
+
+**What the traces do not show.** No check ran with `ack <hex> delay <ms>`, so the engine's
+deferred-command path has run on the host only. `Engine::complete_hex()` stays untested on
+a board, as the extraction entry says. The `PHY_REVERTED` event reached the bridge's
+`rxlog` and counters, not MQTT, because spec §16.6 withholds a bench node's events.
+
+**Opening the bridge's port with pyserial reset it**, `rst:0x1 (POWERON)`. The harness set
+DTR and RTS false before the open, and it reset the bridge both times it started. This
+contradicts the simnode trap that recorded no reset on 2026-09-24, and that trap now says
+to expect one. The XIAO reset on each open, as its own trap already said.
+
+**The bridge's boot banner prints 917.4 MHz after a commit to 917.0.** The banner prints a
+fixed string. The `LoRa: radio up` line two lines later reads the group the bridge runs on,
+which was 917.0. Read that line, not the banner.
+
+**The bridge logged `AUTH_FAIL` on its first WiFi attempt at every boot**, then joined.
+At the session's start the sandbox broker was down, and the bridge's MQTT connects failed
+with `Connection reset by peer`. Both cleared once the operator brought the broker up.
+
+The bench was left as it was found. The fleet is back on 917.4 MHz, committed on the bridge
+and on the XIAO, and `simnode_diag_enable` and f1's `deployed` are 0.
