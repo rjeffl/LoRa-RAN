@@ -150,8 +150,9 @@ license, and point at Espressif's source. It does not make LRAN's own code copyl
 
 ### TDT BMS protocol client — LRAN's own code
 
-`wattcycle-reader/lib/bms_ble/` is an original implementation written against
-`aiobmsble` as a **behavioural reference**, from captured frames. No code was taken from
+`lib/bms-ble/` is an original implementation written against `aiobmsble` as a
+**behavioural reference**, from captured frames. GateLink task L2 moved it there from
+`wattcycle-reader/lib/bms_ble/`. No code was taken from
 `aiobmsble` or `BMS_BLE-HA`. **If any ever is, verify its license first and add it here** —
 System PRD §11.1 carries the same standing condition.
 

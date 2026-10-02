@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that ran L6's bench check and merged L6.**
-It replaces the file the session that built L6 wrote.
+**Written 2026-10-02, at the end of the session that built L2.**
+It replaces the file the session that merged L6 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,8 +19,8 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
-| **Document amendments** | `doc-findings.md`, findings 3–6, 8 and 9. Each names where the correct statement lives |
+| **L7** — BMS emulator in the simnode, on `simnode-heltec` | Plan §8.1's L7 row and §4.3. [`bms-protocol`](./bms-protocol.md) §2–§9. `lib/bms-ble/test/test_tdt_protocol/`'s fixtures. Bridge Impl Plan §10, which owns the simnode, and the bridge handoff's *Hardware state*. `firmware/simnode/src/identity.h` for what a role is, and `main.cpp`'s `bootloader_random_enable()` |
+| **Document amendments** | `doc-findings.md`, findings 3–6, 8, 9 and 10. Each names where the correct statement lives |
 | **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -29,26 +29,27 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L6 is merged** ([rjeffl/LoRa-RAN#149](https://github.com/rjeffl/LoRa-RAN/pull/149)), and
-it boots on a bare StamPLC. The operator picks the next task from the table. The split
-readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier built and the
-carrier's module confirmed in hand (*Hardware state*).
+**L2 is built, and its PR waits for the operator's acceptance.** `gh pr list` finds it.
+Once it merges, the operator picks the next task from the table. L7 must land before GL5.
+The split readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier
+built and the carrier's module confirmed in hand (*Hardware state*).
 
 ## What the last session established
 
-- **The skeleton boots on a bare StamPLC.** The banner, `Tasks: 7 of 7 started` and an
-  `alive:` line every 30 s appear, and every task count advances at its period. The
-  engineering log's 2026-10-02 bench entry has the counts.
-- **`log_task` writes each line in one `Serial.write()`.** Written as eight calls, every
-  line lost bytes through Arduino-ESP32 2.0.17's USB-serial driver. GL1's leveled log
-  inherits the rule: build the line, then write it once.
-- **The panel is turned 180° and inset 6 pixels**, because GateLink mounts the StamPLC
-  upside down and the case's bezel covers the left edge. A line holds 19 characters.
-- **`Reset: unknown` follows a reset from the USB-serial port.** ESP-IDF 4.4 names no
-  reason for ROM code `0x15`; it is not a fault.
-- **The M5Stack libraries ran on `espressif32@6.13.0`** without a fault.
-- **The watchdog is not armed.** Its timeout waits on a GL3 decision (plan §5.2, v0.22).
-- **`board_profile.h` waits for GL0**, until the carrier's module is known (plan §5.3).
+- **`lib/bms-ble/` holds the TDT protocol layer**, moved from `wattcycle-reader/lib/bms_ble/`.
+  Files, functions and fields are `snake_case`, headers carry the license, and the 21
+  host tests pass under `-Werror` in the library's own `native` env. CI runs them.
+- **[`bms-protocol`](./bms-protocol.md) is the protocol reference.** It keeps every
+  unverified item, in §10, and adds the full `0x92` capture and an open question about
+  which temperature sensor is which.
+- **`wattcycle-reader` builds against the moved library**, both targets. Neither was
+  flashed. Its M5Stack set is now pinned to `firmware/gatelink`'s versions, because
+  re-resolving `^1.2.0` fetched an M5StamPLC that does not compile here (engineering log,
+  2026-10-02).
+- **L7 is in the plan** (v0.23), by operator decision: the simnode Heltec emulates the BMS,
+  switched from the console and outside the identity table. GL5 now depends on it.
+- **`instrument.py` and `scan.py` are in `wattcycle-reader/tools/`**, from the operator's
+  probe-development folder. `bms_probe_v1_0.py` there matched the repository's copy.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -57,7 +58,7 @@ carrier's module confirmed in hand (*Hardware state*).
 | The carrier is `gatelink-expansion-board` rev 0.3; the plan defers to it | Plan header, §2–§3 |
 | Extract `lib/lran-node/` from the simnode; GateLink and the simnode both consume it | Plan §5.4, L1 |
 | A firmware-local board layer, not `/lib/lran-platform/` | Plan §5.3. **Contradicts System PRD §3.5's SHALL** — `doc-findings` 9 |
-| Move `bms_ble` to `lib/bms-ble/` under repo conventions | Plan §4.3, L2 |
+| Move `bms_ble` to `lib/bms-ble/` under repo conventions | Plan §4.3, L2. Built 2026-10-02 |
 | GateLink milestones are `GL0`–`GL9`, renamed from `M0`–`M9` | Plan §8.2. Dated records still say "GateLink M*n*" and mean `GL`*n* |
 | L4 declares four unnamed rows: `relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms`, `buzzer_enable` | Plan §6.4, the table |
 | R-4.3i's gain and envelope rows stay out of L4; finding 2 is settled by renaming | PRD v0.14 changelog |
@@ -78,9 +79,9 @@ carrier's module confirmed in hand (*Hardware state*).
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.22. L1, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | Nothing |
-| Not started | L2. GL0–GL9 |
+| Done | Plan v0.23. L1, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | L2, built and awaiting acceptance |
+| Not started | L7. GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -93,7 +94,7 @@ pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
 python3 tools/provision/node_key.py --self-test   # node key derivation (L5)
 pio test -d lib/vedirect -e native            # HEX codec and text parser (L3)
-cd wattcycle-reader && pio test -e native     # 21 TDT protocol tests (L2 moves them)
+pio test -d lib/bms-ble -e native            # 21 TDT protocol tests (L2)
 python3 tools/checks/run_ci_local.py          # CI's checks job
 ```
 
@@ -116,6 +117,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
+| Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec` | The bridge handoff's *Hardware state* | **L7 runs on it**, by operator decision 2026-10-02. The bridge handoff owns the board; L7's emulator stays off unless the console turns it on |
 | MPPT 75/15, WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | — | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | Installed and running the gate today. **Not yet rewired or reprogrammed (GL2)** |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
@@ -162,6 +164,13 @@ board's are its D-pads (expansion board §6.1).
   and the node ID alone, so replacing GateLink's key means a new master and a reflash of
   every node. A per-node key generation would contain it. That is a protocol question,
   not a GateLink one.
+- **`nimble_transport.cpp` logs through `Serial`**, as the PoC did. GateLink's leveled log
+  (GL1) should carry those lines before `bms_task` uses the file, at GL5.
+- **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It belongs in the
+  next specification revision, not on a GateLink branch.
+- **System PRD §9.1's layout is stale** beyond the `bms-ble` lines L2 fixed: it lists
+  `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written. A System PRD
+  revision, not GateLink's.
 - **`lran-node` cannot split a readback** (spec §7.4.1). Its `AckBuilder` drops entries
   past one `CONFIG_ACK` and counts them. GateLink's readback needs two messages. A task
   row above covers it.
@@ -182,8 +191,9 @@ board's are its D-pads (expansion board §6.1).
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
   Due before GL3.
-- **`doc-findings` 3–6, 8 and 9**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
-  3.25 V, the INA226's two readings, System PRD §3.5. Each needs the operator or a
+- **`doc-findings` 3–6, 8, 9 and 10**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
+  3.25 V, the INA226's two readings, System PRD §3.5, and the specification's path to
+  `bms-protocol`. Each needs the operator or a
   measurement.
 - **Measurements** M1–M4, M8–M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.

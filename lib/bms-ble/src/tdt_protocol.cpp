@@ -1,11 +1,14 @@
-#include "TdtProtocol.h"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Robert J. Lee
+
+#include "bms_ble/tdt_protocol.h"
 
 namespace bms {
 namespace tdt {
 
-const char kHandshakeMagic[] = "HiLink";   // 48 69 4C 69 6E 6B -> FFFA (§5.1)
+const char kHandshakeMagic[] = "HiLink";   // 48 69 4C 69 6E 6B -> FFFA (bms-protocol §3)
 
-// kHandshakeMagicLen (TdtProtocol.h) is hand-maintained separately, since
+// kHandshakeMagicLen (tdt_protocol.h) is hand-maintained separately, since
 // it's declared alongside the `extern` before this definition's array size
 // is visible there. Catch drift at compile time instead of letting an edit
 // to one silently desync from the other.
@@ -20,7 +23,7 @@ inline uint16_t be16(const uint8_t* p) {
 
 // Copy a fixed-width ASCII field, stopping at the first NUL and trimming
 // trailing whitespace. `dst` must hold width + 1 bytes.
-void copyField(char* dst, const uint8_t* src, size_t width) {
+void copy_field(char* dst, const uint8_t* src, size_t width) {
     size_t n = 0;
     while (n < width && src[n] != 0x00) ++n;
     while (n > 0 && (uint8_t)src[n - 1] <= 0x20) --n;
@@ -32,7 +35,7 @@ void copyField(char* dst, const uint8_t* src, size_t width) {
 
 // --- CRC -------------------------------------------------------------------
 
-uint16_t crc16Modbus(const uint8_t* data, size_t len) {
+uint16_t crc16_modbus(const uint8_t* data, size_t len) {
     uint16_t crc = 0xFFFF;
     for (size_t i = 0; i < len; ++i) {
         crc ^= (uint16_t)data[i];
@@ -45,7 +48,7 @@ uint16_t crc16Modbus(const uint8_t* data, size_t len) {
 
 // --- Request building ------------------------------------------------------
 
-size_t buildRequest(uint8_t cmd, uint8_t* out, size_t out_size) {
+size_t build_request(uint8_t cmd, uint8_t* out, size_t out_size) {
     if (out == 0 || out_size < kRequestLen) return 0;
 
     out[0] = kRequestHead;
@@ -57,8 +60,8 @@ size_t buildRequest(uint8_t cmd, uint8_t* out, size_t out_size) {
     out[6] = 0x00;
     out[7] = 0x00;                        // payload length: requests carry none
 
-    const uint16_t crc = crc16Modbus(out, 8);
-    out[8] = (uint8_t)(crc >> 8);         // big-endian — hi byte first (§5.2)
+    const uint16_t crc = crc16_modbus(out, 8);
+    out[8] = (uint8_t)(crc >> 8);         // big-endian — hi byte first (bms-protocol §4)
     out[9] = (uint8_t)(crc & 0xFF);
     out[10] = kTerminator;
 
@@ -85,16 +88,16 @@ FrameReassembler::Status FrameReassembler::validate(size_t total) {
         discarded_ += total;
         len_ = 0;
         timing_ = false;
-        return STATUS_BAD_TERMINATOR;
+        return kBadTerminator;
     }
 
-    const uint16_t calc = crc16Modbus(buf_, body);
+    const uint16_t calc = crc16_modbus(buf_, body);
     const uint16_t got = (uint16_t)((uint16_t)buf_[body] << 8 | buf_[body + 1]);
     if (calc != got) {
         discarded_ += total;
         len_ = 0;
         timing_ = false;
-        return STATUS_CRC_ERROR;
+        return kCrcError;
     }
 
     frame_.cmd = buf_[kOffsetCmd];
@@ -105,11 +108,11 @@ FrameReassembler::Status FrameReassembler::validate(size_t total) {
     // valid until the next feed() or reset().
     len_ = 0;
     timing_ = false;
-    return STATUS_COMPLETE;
+    return kComplete;
 }
 
 size_t FrameReassembler::feed(const uint8_t* data, size_t len, Status& status) {
-    status = STATUS_INCOMPLETE;
+    status = kIncomplete;
     if (data == 0) return 0;
 
     size_t i = 0;
@@ -162,12 +165,12 @@ void FrameReassembler::tick(uint32_t now_ms) {
     }
 }
 
-// --- Decode: command 0x8C (§5.4) -------------------------------------------
+// --- Decode: command 0x8C (bms-protocol §6) -------------------------------------------
 
-bool decodeCellsAndPack(const Frame& frame, BmsData& out) {
+bool decode_cells_and_pack(const Frame& frame, BmsData& out) {
     out.clear();
 
-    if (frame.cmd != CMD_CELLS_PACK || frame.payload == 0) return false;
+    if (frame.cmd != kCmdCellsPack || frame.payload == 0) return false;
 
     const uint8_t* p = frame.payload;
     const size_t n = frame.payload_len;
@@ -195,24 +198,24 @@ bool decodeCellsAndPack(const Frame& frame, BmsData& out) {
 
     out.cell_count = cells;
     for (uint8_t i = 0; i < cells; ++i) {
-        out.cell_mV[i] = be16(p + 1 + (size_t)i * 2);
+        out.cell_mv[i] = be16(p + 1 + (size_t)i * 2);
     }
 
     out.temp_count = temps;
     for (uint8_t i = 0; i < temps; ++i) {
         // 0.1 K raw; °C = (raw - 2731) / 10. Kept as 0.1 °C, signed.
-        out.temp_dC[i] = (int16_t)((int32_t)be16(p + off + (size_t)i * 2) - 2731);
+        out.temp_dc[i] = (int16_t)((int32_t)be16(p + off + (size_t)i * 2) - 2731);
     }
 
     // Current: bit 0x4000 is the discharge flag, magnitude is the low 14 bits
     // in units of 10 mA. A plain signed int16 read here gives 16384 instead of
-    // zero — this is the field worth extra care (§5.4).
+    // zero — this is the field worth extra care (bms-protocol §6).
     const uint16_t raw_i = be16(p + tail);
-    const int32_t magnitude_mA = (int32_t)(raw_i & 0x3FFF) * 10;
+    const int32_t magnitude_ma = (int32_t)(raw_i & 0x3FFF) * 10;
     out.discharging = (raw_i & 0x4000) != 0;
-    out.current_mA = out.discharging ? -magnitude_mA : magnitude_mA;
+    out.current_ma = out.discharging ? -magnitude_ma : magnitude_ma;
 
-    out.pack_mV       = (uint32_t)be16(p + tail + 2) * 10;   // x10 mV
+    out.pack_mv       = (uint32_t)be16(p + tail + 2) * 10;   // x10 mV
     out.remaining_dAh = be16(p + tail + 4);                  // x0.1 Ah
     out.nominal_dAh   = be16(p + tail + 6);                  // x0.1 Ah
     out.cycles        = be16(p + tail + 8);
@@ -223,19 +226,19 @@ bool decodeCellsAndPack(const Frame& frame, BmsData& out) {
     return true;
 }
 
-// --- Decode: command 0x92 (§5.7) -------------------------------------------
+// --- Decode: command 0x92 (bms-protocol §9) -------------------------------------------
 
-bool decodeDeviceInfo(const Frame& frame, DeviceInfo& out) {
+bool decode_device_info(const Frame& frame, DeviceInfo& out) {
     out.clear();
 
-    if (frame.cmd != CMD_DEVICE_INFO || frame.payload == 0) return false;
+    if (frame.cmd != kCmdDeviceInfo || frame.payload == 0) return false;
 
     const size_t w = DeviceInfo::kFieldLen;
     if (frame.payload_len < w * 3) return false;
 
-    copyField(out.sw_version, frame.payload, w);
-    copyField(out.manufacturer, frame.payload + w, w);
-    copyField(out.serial_number, frame.payload + w * 2, w);
+    copy_field(out.sw_version, frame.payload, w);
+    copy_field(out.manufacturer, frame.payload + w, w);
+    copy_field(out.serial_number, frame.payload + w * 2, w);
     return true;
 }
 

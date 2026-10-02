@@ -261,3 +261,61 @@ serial banner never printed one.
 
 **The M5Stack libraries run on `espressif32@6.13.0`.** This was their first run on that
 platform. The display, the backlight and `M5StamPLC.begin()` showed no fault.
+
+## 2026-10-02 — L2: `lib/bms-ble/` and `bms-protocol.md`
+
+**The TDT protocol layer is a repository library now, and its 21 host tests pass under
+`-Werror`.** `wattcycle-reader/lib/bms_ble/` moved to `lib/bms-ble/` with `git mv`, so its
+history follows. Files are `snake_case` under `include/bms_ble/` and `src/`, and so are the
+functions, methods and fields: `crc16_modbus()`, `decode_cells_and_pack()`, `cell_mv`,
+`current_ma`. Enumerators became `kCamelCase`. No logic changed. The suite needed no edit
+beyond the names and the header comment, and CI's `native` job runs it.
+
+**wattcycle-reader builds against the moved library, and it lost its M5StamPLC pin on the
+way.** Both targets now reach `../lib` through `lib_extra_dirs`. Changing `lib_deps` made
+PlatformIO resolve the libraries again, and `m5stack/M5StamPLC@^1.2.0` fetched 1.2.1, with
+M5Unified 0.2.24 and M5GFX 0.2.31. In that release `Display` is a method, so
+`TftDisplay.cpp` stopped compiling. This is the drift the handoff's traps warn about. The
+StamPLC env now pins M5StamPLC 1.2.0, M5Unified 0.2.20 and M5GFX 0.2.27, the set
+`firmware/gatelink` pins, and NimBLE-Arduino is pinned at 1.4.3 in both envs. Both targets
+build. Neither was flashed in this session, so the move is checked by compilation only.
+
+**`bms-protocol.md` adds three things the PoC document did not have.** The full `0x92`
+response is there, from the raw `aiobmsble` log; the PoC document elides it. NimBLE's MTU
+of 512 on both boards is recorded, from the README. And which temperature sensor is which
+is now an open item, because the PoC document labels them while `BmsData::max_temp_dc()`
+says the labels are not established. Every other unverified item kept its wording, the
+`pack_ma` sign (M7, W6) and `0x8D` included.
+
+**`instrument.py` is not in the repository.** The PoC document's §10.2b describes it as
+kept, and `bms-protocol` §12 says it is missing.
+
+**The specification cites `/docs/bms-protocol.md`**, a path that never existed. That is
+`doc-findings` 10, left for a specification revision.
+
+**Task L7 joins the plan**, a Heltec V3 emulating the BMS from the §9 capture, by operator
+decision 2026-10-02. The pack is not on the bench, and the emulator lets `bms_task` meet the
+handshake gate, the 4 s drop and fragmented responses before GL5 reaches the pack. It
+replays the captured bytes rather than encoding them with `lib/bms-ble/`, so a codec defect
+cannot pass on both ends.
+
+## 2026-10-02 — L7 moves into the simnode, and `instrument.py` is found
+
+**L7 is a BMS peripheral inside the simnode, not a separate firmware**, by operator decision.
+It runs on the `simnode-heltec` board. It is not a simnode role: a role is LoRa behaviour
+assigned to one identity at bench addresses `0xF0`–`0xF3` (`identity.h`), and a BLE
+peripheral has no address and is one per board. It is switched from the console instead,
+off at boot, so the bridge bench sees the same simnode until someone turns it on.
+
+**Starting Bluetooth on the simnode has one known interaction.** `main.cpp` keeps
+`bootloader_random_enable()` on for `ctx_id` entropy, because the simnode ran neither WiFi
+nor Bluetooth. That ADC source must be disabled before the radio starts. The L7 row says
+so. Flash is not a constraint: the image is 403 KB in a 3.2 MB app partition
+(`default_8MB.csv`).
+
+**The operator's probe-development folder had the two missing scripts.** `instrument.py`
+and `scan.py` are now in `wattcycle-reader/tools/`, with license headers added and nothing
+else changed. That folder's `bms_probe_v1_0.py` is identical to the repository's copy. It
+also holds `bms_probe_v0_7.py` to `v0_9.py`, which the repository does not have and this
+session did not add.
+

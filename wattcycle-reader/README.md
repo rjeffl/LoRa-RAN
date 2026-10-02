@@ -6,12 +6,18 @@ LoRa 32 V3 this PoC was developed on, and the M5Stack StamPLC — the board
 actually chosen for GateLink after the PoC was already under way (see
 [Second board: M5Stack StamPLC](#second-board-m5stack-stamplc)).
 
-Sub-project of the LoRa Remote Automation Network (LRAN). The `lib/bms_ble/`
-directory is designed to drop into the GateLink node firmware unchanged.
+Sub-project of the LoRa Remote Automation Network (LRAN).
 
-**Full design, protocol reference and milestones:**
-[docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md). That document
-is the source of truth; section references below (§5.4 etc.) point into it.
+> **The BMS library has moved.** On 2026-10-02 GateLink task L2 moved `lib/bms_ble/` to
+> the repository's [`lib/bms-ble/`](../lib/bms-ble/), renamed its files and functions to
+> repo conventions, and moved the 21 host tests with it. Both targets here build against
+> it. The milestone sections below describe the PoC as it was built, so the paths and
+> names they give are the old ones.
+
+**Design and milestones:** [docs/wattcycle-reader-poc_3.md](docs/wattcycle-reader-poc_3.md);
+section references below (§5.4 etc.) point into it. **The protocol reference** is now
+[`docs/gatelink/bms-protocol.md`](../docs/gatelink/bms-protocol.md), lifted out of that
+document's §4–§5.
 
 ## Status: M8
 
@@ -54,25 +60,20 @@ framing and CRC are already covered by tests.
 ## Layout
 
 ```
-platformio.ini                three envs: heltec_wifi_lora_32_V3, m5stack_stamplc, native
-lib/bms_ble/
-  BmsData.h                  decoded record — integers in fixed units, no floats
-  TdtProtocol.h/.cpp         CRC, frame build, reassembly, decode. HOST-COMPILABLE
-  BmsTransport.h             abstract BLE seam (write/read/subscribe/rssi)
-  NimBleTransport.h/.cpp     the only file allowed to touch NimBLE (#ifdef ARDUINO)
+platformio.ini                two envs: heltec_wifi_lora_32_V3, m5stack_stamplc
+../lib/bms-ble/               the BMS library and its 21 host tests (GateLink task L2)
 src/
   main.cpp                   Scanning<->Polling state machine, serial wiring
   LinkState.h                connection-state enum shared by both displays
   DisplayBase.h/.cpp         shared display state/setters (M8)
   BmsDisplay.h/.cpp          Heltec V3: SSD1306 OLED presentation
   TftDisplay.h/.cpp          StamPLC: ST7789 TFT presentation (M7a)
-test/test_tdt_protocol/      21 host tests against the §5.7 captured frames
 tools/                       Python probes and the aiobmsble instrumentation
 ```
 
-The one architectural rule: **`TdtProtocol` must never include `Arduino.h` or
-NimBLE** (§7 rule 1). The `native` env enforces it — if a dependency creeps in,
-`pio test -e native` stops compiling.
+The one architectural rule: **`tdt_protocol` must never include `Arduino.h` or
+NimBLE** (§7 rule 1). The library's `native` env enforces it — if a dependency creeps
+in, its tests stop compiling.
 
 ## Build, test, flash
 
@@ -80,7 +81,7 @@ Tests first — they need no hardware and take about a second:
 
 ```bash
 cd wattcycle-reader
-pio test -e native                        # 21 tests against the captured frames
+pio test -d ../lib/bms-ble -e native      # 21 tests against the captured frames
 pio run                                   # build for the default env (Heltec V3)
 pio run -t upload                         # flash the default env
 pio run -e m5stack_stamplc -t upload      # flash the StamPLC instead

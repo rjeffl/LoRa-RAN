@@ -140,7 +140,7 @@ void TftDisplay::render(uint32_t now_ms) {
     d.setTextColor(TFT_WHITE, TFT_BLACK);
     d.setTextDatum(top_left);
     if (fresh) {
-        snprintf(buf, sizeof(buf), "%.2fV", data_.pack_mV / 1000.0);
+        snprintf(buf, sizeof(buf), "%.2fV", data_.pack_mv / 1000.0);
     } else {
         snprintf(buf, sizeof(buf), "--.--V");
     }
@@ -149,10 +149,10 @@ void TftDisplay::render(uint32_t now_ms) {
     uint16_t current_color = TFT_WHITE;
     const char* fet = "---";
     if (fresh) {
-        if (data_.current_mA < 0) {
+        if (data_.current_ma < 0) {
             current_color = TFT_RED;
             fet = "DSG";
-        } else if (data_.current_mA > 0) {
+        } else if (data_.current_ma > 0) {
             current_color = TFT_GREEN;
             fet = "CHG";
         } else {
@@ -162,7 +162,7 @@ void TftDisplay::render(uint32_t now_ms) {
     d.setTextColor(current_color, TFT_BLACK);
     d.setTextDatum(top_right);
     if (fresh) {
-        snprintf(buf, sizeof(buf), "%.1fA", data_.current_mA / 1000.0);
+        snprintf(buf, sizeof(buf), "%.1fA", data_.current_ma / 1000.0);
     } else {
         snprintf(buf, sizeof(buf), "--.-A");
     }
@@ -173,7 +173,7 @@ void TftDisplay::render(uint32_t now_ms) {
     d.setTextSize(kSizeSmall);
     d.setTextDatum(top_left);
     if (fresh && data_.temp_count > 0) {
-        snprintf(buf, sizeof(buf), "%.1fC", data_.maxTemp_dC() / 10.0);
+        snprintf(buf, sizeof(buf), "%.1fC", data_.max_temp_dc() / 10.0);
     } else {
         snprintf(buf, sizeof(buf), "--.-C");
     }

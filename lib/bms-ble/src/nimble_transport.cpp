@@ -1,4 +1,7 @@
-#include "NimBleTransport.h"
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Robert J. Lee
+
+#include "bms_ble/nimble_transport.h"
 
 #ifdef ARDUINO
 
@@ -34,7 +37,7 @@ bool NimBleTransport::connect(NimBLEAdvertisedDevice* device) {
 
     if (char_rx_ == nullptr || char_tx_ == nullptr || char_hs_ == nullptr) {
         // The FFF0/1/2 triple alone doesn't prove this is the right device
-        // (§4) — a device missing FFFA is not this BMS even if it wears the
+        // (bms-protocol §2) — a device missing FFFA is not this BMS even if it wears the
         // same service/characteristic UUIDs.
         Serial.println(F("  connect: FFF1/FFF2/FFFA incomplete — not this BMS"));
         disconnect();
@@ -44,7 +47,7 @@ bool NimBleTransport::connect(NimBLEAdvertisedDevice* device) {
     return true;
 }
 
-void NimBleTransport::logDiscovery() const {
+void NimBleTransport::log_discovery() const {
     if (client_ == nullptr || !client_->isConnected()) {
         Serial.println(F("  discovery: not connected"));
         return;
@@ -68,11 +71,11 @@ void NimBleTransport::logDiscovery() const {
     }
 }
 
-bool NimBleTransport::isConnected() const {
+bool NimBleTransport::is_connected() const {
     return client_ != nullptr && client_->isConnected();
 }
 
-NimBLERemoteCharacteristic* NimBleTransport::charFor(GattChar ch) const {
+NimBLERemoteCharacteristic* NimBleTransport::char_for(GattChar ch) const {
     switch (ch) {
         case GattChar::Rx:        return char_rx_;
         case GattChar::Tx:        return char_tx_;
@@ -83,19 +86,19 @@ NimBLERemoteCharacteristic* NimBleTransport::charFor(GattChar ch) const {
 
 bool NimBleTransport::write(GattChar ch, const uint8_t* data, size_t len,
                              bool with_response) {
-    NimBLERemoteCharacteristic* c = charFor(ch);
+    NimBLERemoteCharacteristic* c = char_for(ch);
     if (c == nullptr) return false;
     return c->writeValue(data, len, with_response);
 }
 
 int NimBleTransport::read(GattChar ch, uint8_t* out, size_t out_size) {
-    NimBLERemoteCharacteristic* c = charFor(ch);
+    NimBLERemoteCharacteristic* c = char_for(ch);
     if (c == nullptr) return -1;
 
     NimBLEAttValue value = c->readValue();
     // BmsTransport.h documents "-1 on error"; NimBLE's readValue() has no
     // separate error signal, it just returns empty on failure. None of this
-    // transport's characteristics (§5.1's FFFA ack, §5.3's command replies)
+    // transport's characteristics (bms-protocol §3's FFFA ack, bms-protocol §5's command replies)
     // ever legitimately reads back zero bytes, so treat empty as failure
     // too rather than returning 0 and leaving a real failure
     // indistinguishable from "read succeeded with no data."
@@ -110,7 +113,7 @@ bool NimBleTransport::subscribe(NotifyHandler* handler) {
     return char_rx_->subscribe(
         true,
         [this](NimBLERemoteCharacteristic*, uint8_t* data, size_t len, bool) {
-            if (notify_handler_ != nullptr) notify_handler_->onNotify(data, len);
+            if (notify_handler_ != nullptr) notify_handler_->on_notify(data, len);
         });
 }
 

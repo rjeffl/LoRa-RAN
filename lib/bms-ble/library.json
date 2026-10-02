@@ -1,0 +1,15 @@
+{
+  "name": "bms-ble",
+  "version": "0.1.0",
+  "description": "TDT smart BMS over BLE for LRAN GateLink - CRC, request frames, reassembly and decode (Arduino-free), behind an abstract transport with one NimBLE implementation. Protocol: docs/gatelink/bms-protocol.md. Moved from wattcycle-reader/lib/bms_ble/ (GateLink task L2).",
+  "keywords": ["bms", "ble", "tdt", "lran"],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "headers": ["bms_ble/bms_data.h", "bms_ble/tdt_protocol.h", "bms_ble/bms_transport.h", "bms_ble/nimble_transport.h"],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": ["-std=gnu++17"]
+  }
+}

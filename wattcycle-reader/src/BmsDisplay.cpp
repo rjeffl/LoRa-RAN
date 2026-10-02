@@ -135,7 +135,7 @@ void BmsDisplay::render(uint32_t now_ms) {
     display_.setFont(ArialMT_Plain_10);
     display_.setTextAlignment(TEXT_ALIGN_LEFT);
     if (fresh) {
-        snprintf(buf, sizeof(buf), "%.2f V", data_.pack_mV / 1000.0);
+        snprintf(buf, sizeof(buf), "%.2f V", data_.pack_mv / 1000.0);
     } else {
         snprintf(buf, sizeof(buf), "--.-- V");
     }
@@ -143,7 +143,7 @@ void BmsDisplay::render(uint32_t now_ms) {
 
     display_.setTextAlignment(TEXT_ALIGN_RIGHT);
     if (fresh) {
-        snprintf(buf, sizeof(buf), "%.1f A", data_.current_mA / 1000.0);
+        snprintf(buf, sizeof(buf), "%.1f A", data_.current_ma / 1000.0);
     } else {
         snprintf(buf, sizeof(buf), "--.- A");
     }
@@ -152,7 +152,7 @@ void BmsDisplay::render(uint32_t now_ms) {
     // --- temperature / FET state -------------------------------------------
     display_.setTextAlignment(TEXT_ALIGN_LEFT);
     if (fresh && data_.temp_count > 0) {
-        snprintf(buf, sizeof(buf), "%.1f%s", data_.maxTemp_dC() / 10.0, kDegC);
+        snprintf(buf, sizeof(buf), "%.1f%s", data_.max_temp_dc() / 10.0, kDegC);
     } else {
         snprintf(buf, sizeof(buf), "--.-%s", kDegC);
     }
@@ -165,9 +165,9 @@ void BmsDisplay::render(uint32_t now_ms) {
     display_.setTextAlignment(TEXT_ALIGN_RIGHT);
     const char* fet = "---";
     if (fresh) {
-        if (data_.current_mA < 0) {
+        if (data_.current_ma < 0) {
             fet = "DSG";
-        } else if (data_.current_mA > 0) {
+        } else if (data_.current_ma > 0) {
             fet = "CHG";
         } else {
             fet = "IDLE";
