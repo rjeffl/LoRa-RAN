@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.24
+**Version:** 0.25
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -975,9 +975,9 @@ bridge discovers them from the table, and
 **A name in that table is permanent** once HA publishes it (spec §16.7).
 
 **A full GateLink readback is 199 bytes**, six over one `CONFIG_ACK`'s 193, so it arrives
-as two messages marked `MORE_FOLLOWS` (spec §7.4.1). The `Store` already splits it.
-`lib/lran-node`'s engine does not: it drops the entries past one message and counts them.
-GateLink's firmware needs the split before it answers `GET_ALL`.
+as two messages, the first marked `MORE_FOLLOWS` (spec §7.4.1). The `Store` and
+`lib/lran-node`'s engine both split it. The engine collects an answer's results whole,
+sorts a full readback by `param_id`, and queues every message or none.
 
 **R-4.3i is not met yet.** The table holds no `antenna_gain_dbi` row and no envelope row,
 and `tx_power_dbm`'s maximum stands in for the EIRP ceiling. Both are fleet-wide rows, not
@@ -1466,6 +1466,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.25** — **`lib/lran-node` splits a readback** (spec §7.4.1, **D57**). §6.4 no longer
+  says the engine drops the entries past one `CONFIG_ACK`. A repeated `GET` or `GET_ALL`
+  is now answered by walking the table again, as §7.4.1 requires, not `DUPLICATE_CACHED`.
 
 - **v0.24** — **L7 built.** The simnode emulates the BMS over BLE, and Bridge Impl Plan
   §10.9.4 describes it. Its first on-air run found that `lib/bms-ble/`'s reassembler

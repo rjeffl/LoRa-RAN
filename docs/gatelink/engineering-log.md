@@ -370,3 +370,34 @@ The Heltec image with the emulator off differs from the old one by an early retu
 **The StamPLC's USB CDC console drops and splices lines** under this load, so several
 results above were read from the counters on the simnode, not the StamPLC's log.
 
+
+## 2026-10-02 — `lib/lran-node` splits a readback; the bridge cannot yet ask for one
+
+**The engine now answers a read in as many `CONFIG_ACK` messages as spec §7.4.1 allows.**
+It collects an answer's results whole and sorts a full readback by `param_id`. It then
+counts the messages and queues all of them or none. The order matters: the application
+lists its rows in its own order, and the engine added the PHY group after them. For
+GateLink the PHY rows (`0x0110`–`0x0115`) would have followed `0x1xxx`, against the spec's
+ascending walk. A `SET` is still answered in one message. Five host tests cover the
+split, the per-message `seq` rules, the four-message bound and the all-or-nothing queue.
+
+**A repeated `GET` or `GET_ALL` was answered `DUPLICATE_CACHED`.** Spec §7.4.1 says to
+walk the table again. The engine now does so for those two operations, and a repeated
+write keeps the cached answer.
+
+**The split was not shown on air, and it cannot be from this bench yet.** The XIAO Kit
+ran the new image as `f1` in `ROLE_GATELINK`. The bridge's `GET_ALL` came back as one
+`CONFIG_ACK` of 6 results, and the bridge closed it (`config: f1 outcome 1`). That shows
+an answer that fits one frame is unchanged. Two bridge properties stop a larger one:
+
+- The bridge names GateLink's rows only for node `0x01` (`lran::config::node_block()`).
+  A simnode cannot take that ID: `is_simnode_id()` keeps it in `F0`–`F3`. Through
+  `config/set`, `simnode1` takes the 4 non-PHY node-common rows and no more, so its
+  readback stops at 68 bytes.
+- A `config/set` of 512 bytes or more is refused before it is parsed
+  (`kMaxInboundPayloadLen`). It is counted, but `config/ack` is never published, so
+  Home Assistant gets no answer. All 23 of GateLink's non-PHY rows in one set came to
+  about 660 bytes. A one-row set was answered `unknown_param` as expected.
+
+The simnode's `ROLE_GATELINK` store now holds 23 rows, so a bridge that can name
+GateLink's block for a simnode will draw GateLink's own 199-byte, two-message answer.

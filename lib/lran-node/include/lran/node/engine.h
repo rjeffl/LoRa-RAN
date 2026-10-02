@@ -119,8 +119,9 @@ class Engine {
                   size_t len, uint32_t now_ms);
   void on_config(Context& c, Application& app, const Header& hdr, const uint8_t* payload,
                  size_t len, uint32_t now_ms);
+  // Fills results_ and cfg_ack_'s op and persist_status; send_config_answer() packs them.
   void apply_config(Context& c, Application& app, const schema::NodeConfigV1& in,
-                    schema::NodeConfigAckV1* out, uint32_t now_ms);
+                    uint32_t now_ms);
   void on_hex_req(Context& c, Application& app, const Header& hdr, const uint8_t* payload,
                   size_t len, uint32_t now_ms);
   bool send_hex_rsp(Context& c, NodeId dst, Seq seq, HexStatus status, const char* hex,
@@ -134,6 +135,9 @@ class Engine {
   static constexpr uint32_t kUseStatusSeq = 0x10000;  // outside the uint16 seq space
   bool send_config_ack(Context& c, NodeId dst, const schema::NodeConfigAckV1& ack,
                        uint32_t reply_seq);
+  // spec 7.4.1 - packs results_ into as many CONFIG_ACK messages as the answer needs, at
+  // most kMaxConfigAckMessages, or into one for a SET, which the spec never splits.
+  bool send_config_answer(Context& c, NodeId dst, uint32_t reply_seq);
 
   Outbox* out_;
   IMac*   mac_;
@@ -147,6 +151,15 @@ class Engine {
   // the receiving task's stack. One config is in progress at a time.
   schema::NodeConfigV1    cfg_rx_;
   schema::NodeConfigAckV1 cfg_ack_;
+
+  // spec 7.4.1 - one answer's results, collected whole before any message is packed, so a
+  // GET_ALL can be put in ascending param_id whatever order the application and the PHY
+  // group list them in. Four messages of the smallest results bound it.
+  static constexpr size_t kMaxResults =
+      schema::kMaxConfigAckMessages * schema::kMaxConfigAckEntries;
+  schema::ConfigAckEntry results_[kMaxResults];
+  size_t                 nresults_         = 0;
+  size_t                 results_dropped_  = 0;
 
   PhyTrial  no_store_{nullptr};
   PhyTrial* phy_ = &no_store_;
