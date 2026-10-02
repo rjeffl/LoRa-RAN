@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.29
+**Version:** 0.30
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-10-02
@@ -219,7 +219,7 @@ application behaviour.
 
 **Shared:** the platform HAL (relay and input abstraction over the AW9523B, LCD,
 buttons, buzzer, INA226, LM75, RTC, SD logging); the `lran-protocol` library and the
-SX1262 driver; configuration, persistence and logging; the bench debug tooling; the
+injected radio configuration; configuration, persistence and logging; the bench debug tooling; the
 PlatformIO environment and CI.
 
 **Not shared:** AquaLink is mains-powered indoors and publishes MQTT over WiFi
@@ -227,11 +227,15 @@ directly. GateLink publishes over LoRa and is bridged.
 
 **Requirements.**
 
-- `/lib/lran-platform/` SHALL abstract the host so that both node applications compile
-  against the same HAL.
+- A board layer SHALL abstract the host so that both node applications compile against
+  the same HAL. It MAY live in the GateLink firmware until a second StamPLC firmware is
+  built in this repository, written so that it can then move to `/lib/lran-platform/`
+  unchanged. The operator chose the firmware-local layer on 2026-10-01, because no
+  firmware here needs to share it yet (GateLink Impl Plan §5.3).
 - The **radio pin map, TCXO voltage and RF-switch mode SHALL be injected by
-  configuration rather than hardcoded**, so one SX1262 driver serves both the Heltec
-  bridge (fixed internal pins) and the StamPLC carrier.
+  configuration rather than hardcoded**, so no SX1262 driver fixes one board's wiring,
+  whether the Heltec bridge's fixed internal pins or the StamPLC carrier's. Each firmware
+  may wrap RadioLib (**D32**) in its own driver.
 
 > **Useful side effect.** Because the transport is abstracted, GateLink can be
 > bench-exercised over WiFi/MQTT with the radio entirely out of the loop — a strictly
@@ -496,8 +500,9 @@ sequential.
 /firmware/range-test/    # D1 / M6 / M20 / W9 — pass 1 complete;      [built]
                          # pass 2 adds the XIAO + Wio-SX1262 profile
     CLAUDE.md
-/lib/lran-platform/      # host HAL: relays, inputs, display, buttons, INA226,
-                         #   LM75, RTC, SD. Shared with AquaLink
+/lib/lran-platform/      # host HAL, shared with AquaLink. Firmware-local in
+                         #   /firmware/gatelink/ until a second StamPLC
+                         #   firmware needs it (§3.5)               [deferred]
 /lib/lran-protocol/      # shared framing/addressing/HMAC/CRC/fragmentation [built]
     /src/schema/         #   versioned per-node payload schemas
     /test/               #   Unity suites; W4 vectors embedded from /tools/vectors/
@@ -695,9 +700,9 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.28 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.30 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.17** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D76** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.24 |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D76** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.25 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.23 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-P8-CommandGate-Brief`](./shared/LRAN-P8-CommandGate-Brief.md) | **Superseded 2026-09-11 by Decision Register §3.2.1**, which amended D34 on this brief's recommendations. Kept as the reasoning: the `seq` high-water timing that would double-execute a retry, the in-flight window, cache sizing | v0.2 |
@@ -709,8 +714,8 @@ assumed now.
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.79 |
 | [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.66 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-10-01 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.14 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.23 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.15 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.26 |
 | [`bms-protocol`](./gatelink/bms-protocol.md) | The TDT smart BMS's BLE access sequence, frames, decode and reference capture. Not part of the LRAN protocol | v0.1 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
 | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.13 |
@@ -744,6 +749,14 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.30** — **§3.5 allows GateLink's firmware-local board layer.** The operator chose it
+  on 2026-10-01, and §3.5 now says the layer can move to `/lib/lran-platform/` once a
+  second StamPLC firmware is built here. §3.5 also stops asking for one SX1262 driver: the
+  fleet has one per firmware, and the injected configuration is what the requirement
+  protects. §9.1 marks `/lib/lran-platform/` deferred. §12's version column catches up the
+  System PRD, the Decision Register, the GateLink PRD and the GateLink plan. This closes
+  GateLink `doc-findings` finding 9. AquaLink's project has not been told yet.
 
 - **v0.29** — **The BMS protocol write-up is out of the PoC workspace.** GateLink task L2
   wrote [`bms-protocol`](./gatelink/bms-protocol.md) and moved the protocol layer to

@@ -15,42 +15,6 @@ rather than a rewrite.
 
 ## Open
 
-### 3. PRD R-4.3b forbids the RF-switch line the chosen module needs
-
-**Found 2026-10-01**, reconciling the Implementation Plan with
-[`gatelink-expansion-board`](./gatelink-expansion-board.md) for plan v0.18.
-
-R-4.3b says the module *"SHALL NOT require separate TXEN/RXEN lines."* The carrier's module,
-the Wio-SX1262 for XIAO, needs one: Seeed does not tie DIO2 to the RF switch, so the board
-spends G40 on `setRfSwitchPins(rf_sw, RADIOLIB_NC)` alongside DIO2-as-RF-switch.
-
-**Correct statement:** expansion board §6 and §7.3, confirmed 2026-09-05 against both Wio
-products' board support. R-4.3b's reason, a pin budget with no room, was true of the
-earlier pin map and is answered by rev 0.3's.
-
-### 4. PRD R-4.3d and D26 describe a regulator the carrier does not use
-
-**Found 2026-10-01**, in the same reconciliation.
-
-R-4.3d asks for a local 3.3 V regulator with dropout ≤300 mV, because `EXT_5V` sits near
-4.76 V. D26 excludes the AMS1117 for the same reason. The expansion board does not use
-`EXT_5V`: it feeds an AMS1117 from its own 12 V → 5 V buck on Bus pin 1.
-
-**Correct statement:** expansion board §4. D26's finding, that the StamPLC exposes no 3.3 V
-rail, still holds; its consequence needs a register amendment, not an edit to the closed
-row.
-
-### 5. PRD R-4.3f requires a DIN-mounted carrier, and the carrier is cantilevered
-
-**Found 2026-10-01**, in the same reconciliation.
-
-R-4.3f and D27's sub-item **M15** call for a DIN-rail carrier with the perfboard cut to it.
-The expansion board mates the carrier directly to the StamPLC on a right-angle header,
-cantilevered, with a standoff at the far end (§3).
-
-**Correct statement:** not yet decided. Either R-4.3f changes to accept the standoff, or
-the carrier gains a DIN mount. The operator decides.
-
 ### 6. VE.Direct is "5 V" in the plan and 3.3 V in a measurement
 
 **Found 2026-10-01**, in the same reconciliation.
@@ -69,20 +33,8 @@ both statements until it runs.
 Expansion board §7.7 says the INA226 measures the **bank's** voltage and current. PRD R-4.4b,
 Implementation Plan §9.8 and V-11 use it for the **node's** own supply.
 
-**Correct statement:** not yet established. **Measurement M12**, at milestone M1, finds
+**Correct statement:** not yet established. **Measurement M12**, at milestone GL1, finds
 which current passes through its shunt.
-
-### 9. System PRD §3.5 requires `/lib/lran-platform/`, and the plan no longer builds it
-
-**Found 2026-10-01**, in the same reconciliation.
-
-System PRD §3.5 says `/lib/lran-platform/` SHALL abstract the StamPLC for GateLink and
-AquaLink. The operator chose a firmware-local board layer on 2026-10-01 (Implementation Plan
-v0.18 §5.3), because no firmware in this repository needs to share it yet. §3.5 also asks
-for one SX1262 driver; the fleet has three, each with injected pins.
-
-**Correct statement:** Implementation Plan v0.18 §5.3. §3.5 needs amending, and AquaLink's
-own project should hear of it.
 
 ### 10. The protocol specification points at `/docs/bms-protocol.md`, which does not exist
 
@@ -97,7 +49,73 @@ GateLink branch.
 **Correct statement:** [`bms-protocol`](./bms-protocol.md), and System PRD §5's protocol
 table, which links it.
 
+**Deferred 2026-10-02** by operator decision. The path waits for the next specification
+revision made for another reason, rather than a version bump and citation sweep of its own.
+
 ## Fixed
+
+### 3. PRD R-4.3b forbids the RF-switch line the chosen module needs
+
+**Found 2026-10-01**, reconciling the Implementation Plan with
+[`gatelink-expansion-board`](./gatelink-expansion-board.md) for plan v0.18.
+
+R-4.3b says the module *"SHALL NOT require separate TXEN/RXEN lines."* The carrier's module,
+the Wio-SX1262 for XIAO, needs one: Seeed does not tie DIO2 to the RF switch, so the board
+spends G40 on `setRfSwitchPins(rf_sw, RADIOLIB_NC)` alongside DIO2-as-RF-switch.
+
+**Correct statement:** expansion board §6 and §7.3, confirmed 2026-09-05 against both Wio
+products' board support. R-4.3b's reason, a pin budget with no room, was true of the
+earlier pin map and is answered by rev 0.3's.
+
+**Fixed 2026-10-02** in GateLink PRD v0.15, on branch `doc-amendments`. R-4.3b allows DIO2
+and at most one GPIO.
+
+### 4. PRD R-4.3d and D26 describe a regulator the carrier does not use
+
+**Found 2026-10-01**, in the same reconciliation.
+
+R-4.3d asks for a local 3.3 V regulator with dropout ≤300 mV, because `EXT_5V` sits near
+4.76 V. D26 excludes the AMS1117 for the same reason. The expansion board does not use
+`EXT_5V`: it feeds an AMS1117 from its own 12 V → 5 V buck on Bus pin 1.
+
+**Correct statement:** expansion board §4. D26's finding, that the StamPLC exposes no 3.3 V
+rail, still holds; its consequence needs a register amendment, not an edit to the closed
+row.
+
+**Fixed 2026-10-02** in GateLink PRD v0.15 and Decision Register v0.25 (§3.14), on branch
+`doc-amendments`. R-4.3d keeps the dropout limit only for a regulator fed from `EXT_5V`,
+and D26's amendment withdraws the AMS1117 exclusion.
+
+### 5. PRD R-4.3f requires a DIN-mounted carrier, and the carrier is cantilevered
+
+**Found 2026-10-01**, in the same reconciliation.
+
+R-4.3f and D27's sub-item **M15** call for a DIN-rail carrier with the perfboard cut to it.
+The expansion board mates the carrier directly to the StamPLC on a right-angle header,
+cantilevered, with a standoff at the far end (§3).
+
+**Correct statement:** not yet decided. Either R-4.3f changes to accept the standoff, or
+the carrier gains a DIN mount. The operator decides.
+
+**Fixed 2026-10-02** by operator decision: R-4.3f accepts the standoff. GateLink PRD v0.15
+and Decision Register v0.25 (§3.14) carry it, on branch `doc-amendments`. D27's DIN-rail
+sub-item and **M15** are withdrawn.
+
+### 9. System PRD §3.5 requires `/lib/lran-platform/`, and the plan no longer builds it
+
+**Found 2026-10-01**, in the same reconciliation.
+
+System PRD §3.5 says `/lib/lran-platform/` SHALL abstract the StamPLC for GateLink and
+AquaLink. The operator chose a firmware-local board layer on 2026-10-01 (Implementation Plan
+v0.18 §5.3), because no firmware in this repository needs to share it yet. §3.5 also asks
+for one SX1262 driver; the fleet has three, each with injected pins.
+
+**Correct statement:** Implementation Plan v0.18 §5.3. §3.5 needs amending, and AquaLink's
+own project should hear of it.
+
+**Fixed 2026-10-02** in System PRD v0.30, on branch `doc-amendments`. §3.5 allows the
+firmware-local layer and asks for injected radio configuration, not one driver. AquaLink's
+project has not been told; that is the operator's to do.
 
 ### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
 

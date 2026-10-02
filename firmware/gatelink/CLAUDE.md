@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.22, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.26, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.14.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.15.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 

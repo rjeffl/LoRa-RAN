@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.24
+**Version:** 0.25
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -377,8 +377,8 @@ Frames from a node that is not deployed are processed as they are now.
 | **D22** | Hold-open mechanism | **OPEN+LOCK / UNLOCK**, confirmed on the bench. Replicates the mechanism the installation already uses | GateLink PRD |
 | **D23** | OUT1/OUT2 sense polarity | **No inversion.** An energized OUT relay *prevents* the board entering standby, so an asserted output is always valid. Use normally-open contacts, OUT1 = OPEN, OUT2 = MOVING | GateLink PRD |
 | **D24** | Manual UNLOCK path | **Two independent paths**: the handheld remote already programmed with UNLOCK, and the control-panel pushbutton rewired to AUX2 | GateLink PRD |
-| **D26** | StamPLC 3.3 V rail | **No 3.3 V rail is exposed.** Bus power pins are VIN, GND and EXT_5V only, and EXT_5V sits near 4.76 V under load. The carrier LDO stays in the BOM, and an AMS1117 is excluded on dropout | GateLink Impl Plan |
-| **D27** | Carrier board fabrication | **Perfboard populated with prefabricated modules**; regulator and discretes mounted directly. Preserves the "no hand-built discrete circuits" property. Remaining sub-item: pick a DIN-rail carrier and cut the board to it | GateLink Impl Plan |
+| **D26** | StamPLC 3.3 V rail | **No 3.3 V rail is exposed.** Bus power pins are VIN, GND and EXT_5V only, and EXT_5V sits near 4.76 V under load. The carrier LDO stays in the BOM, and an AMS1117 is excluded on dropout. *Amended 2026-10-02:* the finding stands; the dropout exclusion does not. The rev 0.3 carrier feeds an AMS1117 from its own 12 V → 5 V buck and leaves `EXT_5V` unused. See §3.14 | GateLink Impl Plan |
+| **D27** | Carrier board fabrication | **Perfboard populated with prefabricated modules**; regulator and discretes mounted directly. Preserves the "no hand-built discrete circuits" property. Remaining sub-item: pick a DIN-rail carrier and cut the board to it. *Amended 2026-10-02:* the sub-item is withdrawn. The carrier mates directly to the StamPLC on a right-angle header, with a standoff at the far end. **M15** is withdrawn with it. See §3.14 | GateLink Impl Plan |
 | **D31** | Copyright holder name | **Robert J. Lee**, a personal name rather than a project or entity name. `LICENSE` now exists at the repo root carrying the MIT text and `Copyright (c) 2026 Robert J. Lee`, and the 87 source files that carried the `<holder>` placeholder carry the name. **The first public push is no longer blocked by this**; §11.3's separate `THIRD_PARTY_NOTICES.md` obligation was written the same day | System PRD §11.2 |
 | **D30** | LoRa/BLE co-processor | **Not adopted.** A direct SX1262 on the carrier is the plan of record. The Heltec-class co-processor is retained as a documented fallback with three explicit triggers | GateLink Impl Plan |
 | **D32** | SX1262 driver library | **RadioLib**, for every firmware in the repo — bridge, GateLink, WellLink, simnode, range test. One API across the Heltec V3's internal SX1262 and the Wio-SX1262 on the XIAO and GateLink carriers, direct CAD access, no vendor board package. See §3.1 | System PRD §11.1 |
@@ -1144,6 +1144,30 @@ Spec v0.17 carries the text, and no code changes.
   VE.Direct topic on the flag, which would leave a bench HEX request unanswered while the
   flag is clear.
 
+### 3.14 D26 and D27 amended — the rev 0.3 carrier, 2026-10-02
+
+**D26 and D27 are amended, not reopened.** Both were written against an earlier carrier
+design. The operator adopted the expansion board's rev 0.3 on 2026-10-01, and GateLink
+Impl Plan v0.18 defers to it. Two consequences in these rows describe a board that will
+not be built. GateLink's `doc-findings` 4 and 5 raised them.
+
+- **D26.** The finding stands: the StamPLC exposes no 3.3 V rail, and **M16** still
+  confirms it. The consequence changes. D26 excluded the AMS1117 because `EXT_5V` sits near
+  4.76 V under load, too close to 3.3 V for its dropout. Rev 0.3 does not use `EXT_5V`.
+  It takes the 12 V bank from Bus pin 1 through a SparkFun BabyBuck AP63357 to 5 V, and an
+  AMS1117-3.3 regulates from that ([`gatelink-expansion-board`](../gatelink/gatelink-expansion-board.md)
+  §4). The AMS1117 stays in the design, and the dropout comparison no longer applies.
+  GateLink PRD v0.15's R-4.3d drops its ≤300 mV dropout limit for the same reason.
+- **D27.** Perfboard populated with prefabricated modules still holds. The remaining
+  sub-item, a DIN-rail carrier with the perfboard cut to it, is withdrawn by operator
+  decision on 2026-10-02. Rev 0.3 mates the carrier directly to the StamPLC on a
+  right-angle 2×8 header and supports the far end with a standoff (expansion board §3).
+  **M15** is withdrawn with the sub-item. GateLink PRD v0.15's R-4.3f now asks for that
+  support instead of a DIN mount.
+
+**Rejected:** a DIN mount for the carrier. It would keep R-4.3f as written, but it would
+change expansion board §3, the design the operator adopted.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1220,7 +1244,7 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M12 | Node supply current via the onboard INA226 | Budget confidence — the node measures itself, so this closes several rows by construction | GateLink Impl Plan |
 | M13 | Enclosure temperature, seasonal, across LM75 + MPPT + BMS | **D29** | GateLink Impl Plan |
 | M14 | One week of MPPT yield (H19/H20/H21) and battery Vmin baseline before install | Install go/no-go, and the *actual* present margin for free | GateLink Impl Plan |
-| M15 | DIN-rail carrier selection, then cut the perfboard to it | Carrier build (**D27** sub-item) | GateLink Impl Plan |
+| M15 | ~~DIN-rail carrier selection, then cut the perfboard to it~~ | **Withdrawn (2026-10-02)** with D27's sub-item. The carrier is supported by its header and a standoff, not a DIN carrier (§3.14) | GateLink Impl Plan |
 | M16 | StamPLC IO schematic, netlist-level 3.3 V check | Confirms **D26**; cannot change it | GateLink Impl Plan |
 
 ### 5.3 Administrative
@@ -1302,6 +1326,11 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.25** — **D26 and D27 amended on 2026-10-02** to describe the rev 0.3 carrier. D26
+  no longer excludes the AMS1117, because the carrier feeds it from its own 5 V buck
+  rather than from `EXT_5V`. D27's DIN-rail sub-item is withdrawn, and **M15** with it.
+  §3.14 has the reasoning, and GateLink PRD v0.15 carries the requirement changes.
 
 - **v0.24** — **D73–D76 resolved on 2026-10-01**: four readings B5's code chose become the
   specification. They settle which frame refuses a write-class `HEX_REQ`, that a `HEX_RSP`

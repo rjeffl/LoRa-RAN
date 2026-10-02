@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.14
+**Version:** 0.15
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -467,20 +467,23 @@ voltage-sense.** This is the requirement that drives platform selection.
 
 - **R-4.3a.** LoRa SHALL be an **external SX1262 module, 915 MHz, SPI**, on a carrier
   board.
-- **R-4.3b.** The module SHALL use **DIO2 for RF switching and SHALL NOT require
-  separate TXEN/RXEN lines.** The pin budget has no room for RF-path control, which
-  excludes most PA/LNA "long range" variants.
+- **R-4.3b.** The module SHALL switch its RF path with **DIO2 and at most one GPIO**.
+  The chosen module needs that GPIO, because its maker does not tie DIO2 to the RF
+  switch, and the carrier's pin map assigns one to it. A module that requires separate
+  TXEN and RXEN lines is excluded, and so are most PA/LNA "long range" variants.
 - **R-4.3c.** The module SHALL run from 3.3 V and SHALL state its **TCXO voltage** —
   the radio driver must be given the correct value or the radio will not calibrate.
-- **R-4.3d.** The carrier SHALL provide a **local 3.3 V regulator** with dropout
-  ≤300 mV. The host exposes **no 3.3 V rail** and its 5 V expansion rail sits near
-  4.76 V under load (**D26**).
+- **R-4.3d.** The carrier SHALL provide a **local 3.3 V regulator**. The host exposes
+  **no 3.3 V rail** (**D26**). Its 5 V expansion rail sits near 4.76 V under load, so a
+  regulator fed from that rail needs dropout ≤300 mV. A regulator fed from the 12 V pack
+  through a step-down on the carrier does not.
 - **R-4.3e.** The LoRa antenna SHALL be **outside the steel gate-controller enclosure**,
   via an SMA bulkhead on that enclosure. See §4.3.1 for the full RF path, which crosses
   two bulkheads, and for what depends on it.
-- **R-4.3f.** The carrier SHALL be **DIN-mounted**, not free-floating on its header. The
-  SMA bulkhead and the VE.Direct cable both pull on the board, and an outdoor enclosure
-  that sees a seasonal thermal cycle is no place for something hanging on a connector.
+- **R-4.3f.** The carrier SHALL be **supported at the end away from its header**, by a
+  standoff or bracket, not free-floating on the header (**D27**). The SMA bulkhead and
+  the VE.Direct cable both pull on the board, and an outdoor enclosure that sees a
+  seasonal thermal cycle is no place for something hanging on a connector.
 - **R-4.3g.** The SX1262 reset SHALL NOT be wired to the host's shared peripheral reset
   line. A radio driver pulsing that line would also reset the display and an I/O
   expander — **and therefore risks disturbing relay state.**
@@ -997,6 +1000,14 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.15** — **Three radio requirements describe the rev 0.3 carrier**, which the operator
+  adopted on 2026-10-01. R-4.3b allows the one RF-switch GPIO the Wio-SX1262 for XIAO
+  needs, where it forbade any. R-4.3d keeps the ≤300 mV dropout limit only for a regulator
+  fed from the host's 5 V rail, which rev 0.3 does not use. R-4.3f asks for a standoff or
+  bracket at the carrier's far end instead of a DIN mount, by operator decision on
+  2026-10-02. Decision Register v0.25 amends D26 and D27 to match (§3.14). This closes
+  `doc-findings` findings 3, 4 and 5.
 
 - **v0.14** — **R-4.3i calls the conducted transmit power `tx_power_dbm`**, the name
   Protocol Library Plan §4 declares at `0x0114`, where this document said

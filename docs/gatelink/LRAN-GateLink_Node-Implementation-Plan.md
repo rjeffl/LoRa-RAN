@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.25
+**Version:** 0.26
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.14
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.15
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -21,8 +21,8 @@ firmware starts, and four measurements come before the carrier is populated.
 > document owns the carrier's parts, nets, pin map, regulators and bring-up order. This
 > plan cites it and does not restate it. Where the two disagreed before v0.18, the
 > expansion board was right: it is the later design, and it was revised against the real
-> enclosure. Three PRD requirements still state the earlier design, and
-> [`doc-findings`](./doc-findings.md) lists them.
+> enclosure. PRD v0.15 and Decision Register v0.25 were reconciled with it on 2026-10-02.
+> [`doc-findings`](./doc-findings.md) lists the disagreements that remain.
 
 ---
 
@@ -135,8 +135,8 @@ earlier selection checklist asked for: it runs from 3.3 V, it states its TCXO vo
 
 **It does not meet the fourth.** Seeed does not tie DIO2 to the RF switch inside the
 module, so the switch needs a GPIO as well as DIO2-as-RF-switch (expansion board §7.3,
-confirmed 2026-09-05). The carrier spends G40 on it. **PRD R-4.3b still says the module
-SHALL NOT need that line**, and is listed in `doc-findings`.
+confirmed 2026-09-05). The carrier spends G40 on it, and PRD v0.15's R-4.3b allows that
+one line.
 
 **Do not confuse it with the Kit.** The Wio-SX1262 **with** XIAO ESP32S3 (p-5982) joins its
 module over a B2B connector on GPIO 38–42 and uses none of the header board's pads. It is
@@ -314,12 +314,11 @@ which keeps the radio off the rail that drives the relays and the opto inputs.
 | 5 V | SparkFun BabyBuck AP63357 | AMS1117 input; BSS138 HV rail |
 | 3.3 V | AMS1117-3.3 module | Wio-SX1262; BSS138 LV rail |
 
-**D26 is half overtaken.** Its finding stands: the StamPLC exposes no 3.3 V rail. Its
-consequence does not. D26 excluded the AMS1117 on dropout against `EXT_5V`, which sits near
-4.76 V under load. The expansion board feeds the AMS1117 from its own buck instead, so that
-comparison no longer describes the build. PRD **R-4.3d**'s ≤300 mV dropout requirement
-comes from the same premise. Both are listed in `doc-findings`, and the Decision Register
-needs an amendment to D26 before this plan can cite it as closed.
+**D26, as amended on 2026-10-02.** The StamPLC exposes no 3.3 V rail. D26 once excluded
+the AMS1117 on dropout against `EXT_5V`, which sits near 4.76 V under load. The expansion
+board feeds the AMS1117 from its own buck instead, and the amendment withdraws the
+exclusion (Decision Register §3.14). PRD **R-4.3d** applies its ≤300 mV dropout limit
+only to a regulator fed from `EXT_5V`.
 
 **Load on the 3.3 V rail.** The expansion board budgets the radio at ~125 mA TX peak. That
 figure sits above anything either envelope lets this node transmit. Envelope A caps
@@ -345,11 +344,11 @@ module, §8 for installation practice, §10 for the checks before soldering and 
 bring-up order. Two of its choices reach the firmware: the shared SPI bus (§5.2) and DIO1 on
 a Grove cable (§4.1).
 
-**Mounting does not yet meet R-4.3f.** The PRD requires the carrier to be DIN-mounted, and
-D27's remaining sub-item (**M15**) is to pick a DIN carrier and cut the board to it. The
-expansion board instead mates the carrier directly to the StamPLC on a right-angle header,
-cantilevered, with a standoff at the far end (§3). Either R-4.3f changes or the carrier
-gains a DIN mount; `doc-findings` lists it.
+**Mounting meets R-4.3f with the standoff.** The expansion board mates the carrier
+directly to the StamPLC on a right-angle header, with a standoff at the far end (§3). PRD
+v0.15's R-4.3f asks for exactly that support. The operator withdrew D27's DIN-rail
+sub-item, and **M15** with it, on 2026-10-02 (Decision Register §3.14). **Fit the standoff
+before the carrier goes into the enclosure.** Without it, R-4.3f is not met.
 
 ### 3.6 Spare capacity
 
@@ -826,13 +825,13 @@ project outside this repository, compile against one HAL. No firmware in this re
 uses such a library: the bridge and the simnode were built on Heltec and XIAO boards without
 one, and AquaLink's code is not here to share it. **The operator chose a firmware-local
 board layer on 2026-10-01**, with §5.3's `board_stamplc.cpp` written so it can move to
-`/lib/` unchanged when a second StamPLC firmware is built here. That choice contradicts
-§3.5's SHALL, and `doc-findings` lists it for the System PRD.
+`/lib/` unchanged when a second StamPLC firmware is built here. System PRD v0.30 amends
+§3.5 to allow it.
 
-§3.5's other SHALL, one SX1262 driver injected with its pins, holds for the injection and
-not for the driver. `RadioPins` is injected everywhere, but the bridge, the simnode and the
-range test each wrap RadioLib in their own driver, and the simnode's `radio.cpp` says why.
-GateLink adds a fourth (§4.1).
+§3.5's other SHALL, as amended, asks for injected pins and no longer for one driver.
+`RadioPins` is injected everywhere. The bridge, the simnode and the range test each wrap
+RadioLib in their own driver, and the simnode's `radio.cpp` says why. GateLink adds a
+fourth (§4.1).
 
 `docs/gatelink/engineering-log.md` carries the dated running record — what was tried,
 measured, decided and why. Neither this plan nor the PRD is the right place for "tried X
@@ -1466,6 +1465,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.26** — **The PRD and the Decision Register now describe the rev 0.3 carrier.** §3
+  cites PRD v0.15's R-4.3b, R-4.3d and R-4.3f, and Decision Register §3.14's amendments to
+  D26 and D27, where it listed them as open findings. **M15** is withdrawn. §5.3 cites
+  System PRD v0.30's amended §3.5. This closes `doc-findings` findings 3, 4, 5 and 9.
 
 - **v0.25** — **`lib/lran-node` splits a readback** (spec §7.4.1, **D57**). §6.4 no longer
   says the engine drops the entries past one `CONFIG_ACK`. A repeated `GET` or `GET_ALL`
