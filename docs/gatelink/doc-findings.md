@@ -113,9 +113,9 @@ for one SX1262 driver; the fleet has three, each with injected pins.
 **Correct statement:** Implementation Plan v0.18 §5.3. §3.5 needs amending, and AquaLink's
 own project should hear of it.
 
-**Fixed 2026-10-02** in System PRD v0.30, on branch `doc-amendments`. §3.5 allows the
-firmware-local layer and asks for injected radio configuration, not one driver. AquaLink's
-project has not been told; that is the operator's to do.
+**Fixed 2026-10-02** in System PRD v0.30, on branch `doc-amendments`. §3.5 keeps the board
+layer in GateLink's firmware and asks for injected radio configuration, not one driver. By
+operator direction, AquaLink is outside the LRAN fleet, so nothing is owed to it.
 
 ### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
 

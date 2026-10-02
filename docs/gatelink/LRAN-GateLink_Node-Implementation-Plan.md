@@ -819,14 +819,11 @@ firmware/gatelink/
     /lib/bms-ble/         TDT protocol and transport seam                   L2
 ```
 
-**There is no `/lib/lran-platform/` yet, and System PRD §3.5 requires one.** §3.5 says the
-library SHALL abstract the StamPLC so that GateLink and AquaLink, a water-system controller
-project outside this repository, compile against one HAL. No firmware in this repository
-uses such a library: the bridge and the simnode were built on Heltec and XIAO boards without
-one, and AquaLink's code is not here to share it. **The operator chose a firmware-local
-board layer on 2026-10-01**, with §5.3's `board_stamplc.cpp` written so it can move to
-`/lib/` unchanged when a second StamPLC firmware is built here. System PRD v0.30 amends
-§3.5 to allow it.
+**There is no `/lib/lran-platform/`, and System PRD v0.30 §3.5 does not ask for one yet.**
+GateLink is the only StamPLC firmware in this repository. **The operator chose a
+firmware-local board layer on 2026-10-01**, with §5.3's `board_stamplc.cpp` written so it
+can move to `/lib/` unchanged if a second StamPLC firmware is built here. AquaLink, a
+separate StamPLC project, is outside the LRAN fleet and places no requirement on it.
 
 §3.5's other SHALL, as amended, asks for injected pins and no longer for one driver.
 `RadioPins` is injected everywhere. The bridge, the simnode and the range test each wrap

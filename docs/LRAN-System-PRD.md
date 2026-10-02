@@ -210,28 +210,19 @@ lives on the bridge.
 - **Poll.** A per-node poll scheduler on the bridge, each node's interval
   runtime-configurable from HA.
 
-### 3.5 Platform convergence with AquaLink
+### 3.5 The StamPLC board layer and radio configuration
 
-AquaLink, the water-system controller project, independently selected the M5Stack
-StamPLC. GateLink and AquaLink therefore share a host platform. **This is a platform
-and framework convergence, not a feature one** — the two nodes share almost no
-application behaviour.
-
-**Shared:** the platform HAL (relay and input abstraction over the AW9523B, LCD,
-buttons, buzzer, INA226, LM75, RTC, SD logging); the `lran-protocol` library and the
-injected radio configuration; configuration, persistence and logging; the bench debug tooling; the
-PlatformIO environment and CI.
-
-**Not shared:** AquaLink is mains-powered indoors and publishes MQTT over WiFi
-directly. GateLink publishes over LoRa and is bridged.
+GateLink runs on the M5Stack StamPLC. AquaLink, a separate water-system controller
+project, also uses the StamPLC. **AquaLink is not part of the LRAN fleet, and LRAN carries
+no requirement on its behalf.** It may reuse code from this repository later.
 
 **Requirements.**
 
-- A board layer SHALL abstract the host so that both node applications compile against
-  the same HAL. It MAY live in the GateLink firmware until a second StamPLC firmware is
-  built in this repository, written so that it can then move to `/lib/lran-platform/`
-  unchanged. The operator chose the firmware-local layer on 2026-10-01, because no
-  firmware here needs to share it yet (GateLink Impl Plan §5.3).
+- A board layer SHALL abstract the StamPLC from GateLink's application: relays and inputs
+  over the AW9523B, the LCD, buttons, buzzer, INA226, LM75, RTC and SD logging. It lives
+  in GateLink's firmware, and moves to `/lib/lran-platform/` only if a second StamPLC
+  firmware is built in this repository (GateLink Impl Plan §5.3). The operator chose the
+  firmware-local layer on 2026-10-01.
 - The **radio pin map, TCXO voltage and RF-switch mode SHALL be injected by
   configuration rather than hardcoded**, so no SX1262 driver fixes one board's wiring,
   whether the Heltec bridge's fixed internal pins or the StamPLC carrier's. Each firmware
@@ -500,9 +491,9 @@ sequential.
 /firmware/range-test/    # D1 / M6 / M20 / W9 — pass 1 complete;      [built]
                          # pass 2 adds the XIAO + Wio-SX1262 profile
     CLAUDE.md
-/lib/lran-platform/      # host HAL, shared with AquaLink. Firmware-local in
-                         #   /firmware/gatelink/ until a second StamPLC
-                         #   firmware needs it (§3.5)               [deferred]
+/lib/lran-platform/      # StamPLC HAL. Firmware-local in /firmware/gatelink/
+                         #   until a second StamPLC firmware needs it
+                         #   (§3.5)                                 [deferred]
 /lib/lran-protocol/      # shared framing/addressing/HMAC/CRC/fragmentation [built]
     /src/schema/         #   versioned per-node payload schemas
     /test/               #   Unity suites; W4 vectors embedded from /tools/vectors/
@@ -750,13 +741,15 @@ assumed now.
 
 ## 13. Changelog
 
-- **v0.30** — **§3.5 allows GateLink's firmware-local board layer.** The operator chose it
-  on 2026-10-01, and §3.5 now says the layer can move to `/lib/lran-platform/` once a
-  second StamPLC firmware is built here. §3.5 also stops asking for one SX1262 driver: the
-  fleet has one per firmware, and the injected configuration is what the requirement
-  protects. §9.1 marks `/lib/lran-platform/` deferred. §12's version column catches up the
-  System PRD, the Decision Register, the GateLink PRD and the GateLink plan. This closes
-  GateLink `doc-findings` finding 9. AquaLink's project has not been told yet.
+- **v0.30** — **§3.5 no longer ties GateLink to AquaLink.** AquaLink is a separate
+  StamPLC project outside the LRAN fleet, by operator direction on 2026-10-02, and LRAN
+  carries no requirement on its behalf. GateLink's board layer lives in its firmware, as
+  the operator chose on 2026-10-01, and moves to `/lib/lran-platform/` only if a second
+  StamPLC firmware is built here. §3.5 also stops asking for one SX1262 driver: the fleet
+  has one per firmware, and the injected configuration is what the requirement protects.
+  §9.1 marks `/lib/lran-platform/` deferred. §12's version column catches up the System
+  PRD, the Decision Register, the GateLink PRD and the GateLink plan. This closes GateLink
+  `doc-findings` finding 9.
 
 - **v0.29** — **The BMS protocol write-up is out of the PoC workspace.** GateLink task L2
   wrote [`bms-protocol`](./gatelink/bms-protocol.md) and moved the protocol layer to

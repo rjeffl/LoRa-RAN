@@ -452,8 +452,8 @@ voltage-sense.** This is the requirement that drives platform selection.
 > by a bare radio module only with an external relay module, per-channel resistive
 > dividers with clamp diodes, and a 12 V→USB-C adapter bolted on. The platform choice
 > **removes three subassemblies and every hand-built discrete circuit from the design**,
-> which is a long-standing project preference, and it aligns GateLink with AquaLink
-> (System PRD §3.5). The cost is that the platform has no radio, which §4.3 addresses.
+> which is a long-standing project preference. The cost is that the platform has no
+> radio, which §4.3 addresses.
 
 - **R-4.2b.** Relays, inputs, buttons and indicators sit behind I²C expanders and
   therefore consume **no general-purpose GPIO**. The design SHALL preserve that
@@ -1007,7 +1007,8 @@ implementation plan.*
   fed from the host's 5 V rail, which rev 0.3 does not use. R-4.3f asks for a standoff or
   bracket at the carrier's far end instead of a DIN mount, by operator decision on
   2026-10-02. Decision Register v0.25 amends D26 and D27 to match (§3.14). This closes
-  `doc-findings` findings 3, 4 and 5.
+  `doc-findings` findings 3, 4 and 5. §4.2's note no longer says the platform aligns
+  GateLink with AquaLink, which is outside the LRAN fleet (System PRD v0.30 §3.5).
 
 - **v0.14** — **R-4.3i calls the conducted transmit power `tx_power_dbm`**, the name
   Protocol Library Plan §4 declares at `0x0114`, where this document said

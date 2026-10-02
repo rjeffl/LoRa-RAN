@@ -167,9 +167,6 @@ board's are its D-pads (expansion board §6.1).
   (GL1) should carry those lines before `bms_task` uses the file, at GL5.
 - **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It waits for the
   next specification revision made for another reason, by operator decision 2026-10-02.
-- **AquaLink's project has not heard of System PRD v0.30's §3.5.** The board layer stays in
-  GateLink's firmware until a second StamPLC firmware is built here. Telling AquaLink is
-  the operator's.
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` and `lran-platform` lines: it
   lists `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written, and the
   bridge and GateLink firmware as planned. A System PRD style revision, not GateLink's.
