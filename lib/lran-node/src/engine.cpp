@@ -348,10 +348,67 @@ bool Engine::send_config_ack(Context& c, NodeId dst, const schema::NodeConfigAck
 bool Engine::send_config_readback(Context& c, Application& app, NodeId dst) {
   cfg_rx_    = kEmptyConfig;
   cfg_rx_.op = ConfigOp::GetAll;
-  apply_config(c, app, cfg_rx_, &cfg_ack_, 0);
+  apply_config(c, app, cfg_rx_, 0);
   // Unsolicited: it answers a POLL bit 1 or a REQUEST_CONFIG and correlates to no
   // request at all (D45).
-  return send_config_ack(c, dst, cfg_ack_, kUseStatusSeq);
+  return send_config_answer(c, dst, kUseStatusSeq);
+}
+
+bool Engine::send_config_answer(Context& c, NodeId dst, uint32_t reply_seq) {
+  // spec 7.4.1 - a read may span messages; a SET is answered in one, and the bridge sends a
+  // set it cannot fit as several CONFIGs.
+  const bool   split = cfg_ack_.op != ConfigOp::Set;
+  const size_t limit = split ? schema::kMaxConfigAckMessages : 1;
+
+  // Message boundaries first, so the answer is counted before anything is queued and goes
+  // out whole or not at all, as a fragment set does. A bridge holding a message marked
+  // MORE_FOLLOWS waits out config_readback_timeout_ms for one the outbox refused.
+  size_t ends[schema::kMaxConfigAckMessages] = {};
+  size_t messages                            = 0;
+  size_t next                                = 0;
+  do {
+    size_t used = schema::kConfigAckHdrLen;
+    size_t n    = 0;
+    while (next < nresults_ && n < schema::kMaxConfigAckEntries &&
+           used + schema::kConfigAckEntryHdrLen + results_[next].len <= kMaxSchemaPayload) {
+      used += schema::kConfigAckEntryHdrLen + results_[next].len;
+      ++n;
+      ++next;
+    }
+    ends[messages++] = next;
+  } while (next < nresults_ && messages < limit);
+
+  if (out_->free_slots() < messages) {
+    ++answers_dropped_;
+    sink_printf(log_, "config %02x: %u CONFIG_ACK message(s) do not fit the outbox, none queued",
+                c.id, static_cast<unsigned>(messages));
+    return false;
+  }
+  const size_t dropped = results_dropped_ + (nresults_ - next);
+  if (dropped > 0) {
+    sink_printf(log_, "config %02x: %u result(s) did not fit %u CONFIG_ACK message(s) "
+                      "(spec 7.4.1) - resolve by readback",
+                c.id, static_cast<unsigned>(dropped), static_cast<unsigned>(messages));
+  }
+
+  // Every message repeats op and persist_status (spec 7.4.1); only the entries move.
+  const ConfigOp      op      = cfg_ack_.op;
+  const PersistStatus persist = cfg_ack_.persist_status;
+  size_t              first   = 0;
+  for (size_t m = 0; m < messages; ++m) {
+    cfg_ack_                = kEmptyConfigAck;
+    cfg_ack_.op             = op;
+    cfg_ack_.persist_status = persist;
+    for (size_t i = first; i < ends[m]; ++i) cfg_ack_.entries[cfg_ack_.count++] = results_[i];
+    first = ends[m];
+    // spec 7.4.1 - every message but the last. The last is unmarked even when results were
+    // dropped, as lran-config's Store ends an answer it cannot finish.
+    cfg_ack_.more_follows = m + 1 < messages;
+    // A solicited answer repeats the request's seq on every message; an unsolicited one
+    // takes a status seq per message, which send_config_ack() draws.
+    if (!send_config_ack(c, dst, cfg_ack_, reply_seq)) return false;
+  }
+  return true;
 }
 
 bool Engine::send_hex_rsp(Context& c, NodeId dst, Seq seq, HexStatus status, const char* hex,
@@ -542,6 +599,17 @@ void Engine::on_config(Context& c, Application& app, const Header& hdr, const ui
       phy_->on_authenticated();
       break;
     case Verdict::ReturnCached:
+      // spec 7.4.1 - a repeated GET or GET_ALL is answered by walking the table again, not
+      // from the cache: a read applies nothing, and the cache holds one result, not an
+      // answer of several messages. A repeated write keeps the cached answer.
+      if (schema::deserialize(payload, len, &cfg_rx_) == Status::Ok &&
+          (cfg_rx_.op == ConfigOp::Get || cfg_rx_.op == ConfigOp::GetAll)) {
+        sink_printf(log_, "config %02x <- %02x seq %u: dedup hit on a read, answered again",
+                    c.id, hdr.src, static_cast<unsigned>(hdr.seq));
+        apply_config(c, app, cfg_rx_, now_ms);
+        send_config_answer(c, hdr.src, hdr.seq);
+        return;
+      }
       sink_printf(log_, "config %02x <- %02x seq %u: dedup hit, DUPLICATE_CACHED, not applied",
                   c.id, hdr.src, static_cast<unsigned>(hdr.seq));
       send_ack(c, hdr.src, hdr.seq, AckResult::DuplicateCached,
@@ -568,39 +636,52 @@ void Engine::on_config(Context& c, Application& app, const Header& hdr, const ui
   }
 
   ++c.executions;
-  apply_config(c, app, cfg_rx_, &cfg_ack_, now_ms);
+  apply_config(c, app, cfg_rx_, now_ms);
   c.gate.record(hdr.seq, AckResult::Accepted, 0);
   sink_printf(log_, "config %02x <- %02x seq %u: op %u, %u entr%s, %u result(s)", c.id, hdr.src,
               static_cast<unsigned>(hdr.seq), static_cast<unsigned>(cfg_rx_.op),
               static_cast<unsigned>(cfg_rx_.count), cfg_rx_.count == 1 ? "y" : "ies",
-              static_cast<unsigned>(cfg_ack_.count));
-  send_config_ack(c, hdr.src, cfg_ack_, hdr.seq);
+              static_cast<unsigned>(nresults_));
+  send_config_answer(c, hdr.src, hdr.seq);
 }
 
 namespace {
 
-// Results are added while they fit one CONFIG_ACK (spec 11.4 - single-frame). The
-// application's parameters and the PHY group together can outgrow one; spec 7.4.1's split
-// is not built, so the overflow is counted and logged, never silent.
-class AckBuilder final : public ConfigSink {
+// Collects one answer's results; Engine::send_config_answer() splits them into messages
+// (spec 7.4.1). Past kMaxResults a result is counted and logged there, never silent.
+class ResultCollector final : public ConfigSink {
  public:
-  explicit AckBuilder(schema::NodeConfigAckV1* out) : out_(out) {}
+  ResultCollector(schema::ConfigAckEntry* out, size_t cap, size_t* n, size_t* dropped)
+      : out_(out), cap_(cap), n_(n), dropped_(dropped) {}
   void add(const schema::ConfigAckEntry& a) override {
-    const size_t need = schema::kConfigAckEntryHdrLen + a.len;
-    if (out_->count >= schema::kMaxConfigAckEntries || used_ + need > kMaxSchemaPayload) {
-      ++dropped_;
+    if (*n_ >= cap_) {
+      ++*dropped_;
       return;
     }
-    out_->entries[out_->count++] = a;
-    used_ += need;
+    out_[(*n_)++] = a;
   }
-  size_t dropped() const { return dropped_; }
 
  private:
-  schema::NodeConfigAckV1* out_;
-  size_t                   used_    = schema::kConfigAckHdrLen;
-  size_t                   dropped_ = 0;
+  schema::ConfigAckEntry* out_;
+  size_t                  cap_;
+  size_t*                 n_;
+  size_t*                 dropped_;
 };
+
+// spec 7.4.1 - a full readback walks the table in ascending param_id. The application
+// lists its rows in its own order and the PHY group follows them, so the engine sorts.
+// Insertion sort: stable, no allocation, and at most kMaxResults entries.
+void sort_by_param_id(schema::ConfigAckEntry* r, size_t n) {
+  for (size_t i = 1; i < n; ++i) {
+    const schema::ConfigAckEntry e = r[i];
+    size_t                       j = i;
+    while (j > 0 && r[j - 1].param_id > e.param_id) {
+      r[j] = r[j - 1];
+      --j;
+    }
+    r[j] = e;
+  }
+}
 
 schema::ConfigAckEntry unknown_param(uint16_t id, PType t) {
   schema::ConfigAckEntry a;
@@ -614,10 +695,13 @@ schema::ConfigAckEntry unknown_param(uint16_t id, PType t) {
 }  // namespace
 
 void Engine::apply_config(Context& c, Application& app, const schema::NodeConfigV1& in,
-                          schema::NodeConfigAckV1* out, uint32_t now_ms) {
-  *out    = kEmptyConfigAck;
-  out->op = in.op;
-  AckBuilder ack(out);
+                          uint32_t now_ms) {
+  schema::NodeConfigAckV1* out = &cfg_ack_;
+  *out                         = kEmptyConfigAck;
+  out->op                      = in.op;
+  nresults_                    = 0;
+  results_dropped_             = 0;
+  ResultCollector ack(results_, kMaxResults, &nresults_, &results_dropped_);
 
   // spec 7.4, D53 - persist_status after a write says what was applied; after a read,
   // whether the current overrides are persisted. The PHY group reports its own, which a
@@ -680,6 +764,7 @@ void Engine::apply_config(Context& c, Application& app, const schema::NodeConfig
       break;
     case ConfigOp::GetAll:
       list_all();
+      sort_by_param_id(results_, nresults_);
       out->persist_status = current();
       break;
     case ConfigOp::RestoreDefaults:
@@ -687,6 +772,7 @@ void Engine::apply_config(Context& c, Application& app, const schema::NodeConfig
       // D52 - answered with the full effective configuration, as GET_ALL is.
       app.config_restore_defaults(c);
       list_all();
+      sort_by_param_id(results_, nresults_);
       out->persist_status = current();
       break;
     default:
@@ -694,12 +780,6 @@ void Engine::apply_config(Context& c, Application& app, const schema::NodeConfig
       sink_printf(log_, "config %02x: unknown op 0x%02x, not applied", c.id,
                   static_cast<unsigned>(in.op));
       break;
-  }
-  if (ack.dropped() > 0) {
-    sink_printf(log_, "config %02x: CONFIG_ACK holds %u result(s); %u more did not fit %u B "
-                      "(spec 3.1) - resolve by readback",
-                c.id, static_cast<unsigned>(out->count), static_cast<unsigned>(ack.dropped()),
-                static_cast<unsigned>(kMaxSchemaPayload));
   }
 }
 

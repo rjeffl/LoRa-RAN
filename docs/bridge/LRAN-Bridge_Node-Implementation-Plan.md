@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.81
+**Version:** 0.82
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -2839,7 +2839,7 @@ by §10.2, §10.4 and §10.5.1 were decided with the operator on 2026-09-14:
 | Point | Decision |
 |---|---|
 | Synthetic marking | **Schema `0xFE` is the marker.** `push <hex> [reason]` takes any spec §8.7 name and defaults to `DEBUG_SYNTHETIC` |
-| `CONFIG` without `/lib/lran-config/` | **A generic RAM store** of 21 entries: any `param_id` with a consistent `ptype` and `len`. Every override is RAM-only, so a write that took effect reads `APPLIED_NOT_PERSISTED`, a `SET` with every entry rejected `NOT_APPLIED`, and a read with no override held `PERSISTED` (spec §7.4, D53). `RESTORE_DEFAULTS` empties the store and answers as `GET_ALL` does (D52). No `param_id` is declared here |
+| `CONFIG` without `/lib/lran-config/` | **A generic RAM store** of 23 entries, as many rows as GateLink holds outside the PHY group: any `param_id` with a consistent `ptype` and `len`. Filled with GateLink's rows, its `GET_ALL` answer is two `CONFIG_ACK` messages (spec §7.4.1). Every override is RAM-only, so a write that took effect reads `APPLIED_NOT_PERSISTED`, a `SET` with every entry rejected `NOT_APPLIED`, and a read with no override held `PERSISTED` (spec §7.4, D53). `RESTORE_DEFAULTS` empties the store and answers as `GET_ALL` does (D52). No `param_id` is declared here |
 | `ack` modes | `suppress [count]` and `dup [count]` **arm the bounded `ack_suppress` and `ack_dup` faults**. `delay <ms>` is a setting that lasts until `ack <hex> normal` |
 | `cmd_replay`, `cmd_stale_seq` targets | **A target on the same board is fed through the node's receive path and never transmitted.** Another board's target needs `to <hex> ctx <hex32>`, and `seq <n>` when its high-water mark is above zero |
 
@@ -3091,6 +3091,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.82** — **§10's generic RAM store holds 23 entries**, up from 21, because
+  `lib/lran-node` now splits a readback (spec §7.4.1). 21 was the most one `CONFIG_ACK`
+  held at `uint32`. 23 is GateLink's rows outside the PHY group, so a filled store answers
+  `GET_ALL` in the two messages GateLink will send.
 
 - **v0.81** — **GateLink task L7 amends §10.** §10.4 adds the `bms` command, and new
   §10.9.4 describes the BMS emulator: a console-switched BLE peripheral outside the

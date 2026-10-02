@@ -63,6 +63,9 @@ class TestApp final : public Application {
     if (cmd.cmd == static_cast<uint8_t>(Cmd::Reboot)) {
       return {AckResult::Accepted, 0, AfterAck::Reboot, false};
     }
+    if (cmd.cmd == static_cast<uint8_t>(Cmd::RequestConfig)) {
+      return {AckResult::Accepted, 0, AfterAck::ConfigReadback, false};
+    }
     return {AckResult::Accepted, 0, AfterAck::None, defer};
   }
 
@@ -93,6 +96,20 @@ class TestApp final : public Application {
     return HexReply::Answered;
   }
   uint32_t hex_timeout_ms(const Context&) const override { return 500; }
+
+  // `listed` uint32 rows from 0x1000 up, listed in DESCENDING param_id, so a test sees the
+  // engine put a readback in order (spec 7.4.1).
+  void config_list(const Context&, ConfigSink* sink) override {
+    for (size_t i = listed; i > 0; --i) {
+      schema::ConfigAckEntry a;
+      a.param_id = static_cast<uint16_t>(0x1000 + i - 1);
+      a.ptype    = PType::U32;
+      a.len      = 4;
+      a.value[0] = static_cast<uint8_t>(i);
+      sink->add(a);
+    }
+  }
+  size_t listed = 0;
 
   bool defer      = false;
   bool hex_silent = false;
@@ -436,6 +453,131 @@ void test_config_get_all_lists_the_phy_group() {
   TEST_ASSERT_EQUAL_UINT8(kPhyGroupSize, ack.count);
 }
 
+namespace {
+
+void send_config(Rig& r, Seq seq, ConfigOp op) {
+  schema::NodeConfigV1 cfg;
+  cfg.op = op;
+  uint8_t p[kMaxSchemaPayload];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::serialize(cfg, p, sizeof(p), &n)));
+  Header h;
+  h.type   = MsgType::Config;
+  h.src    = kNodeBridge;
+  h.dst    = kSelf;
+  h.seq    = seq;
+  h.ctx_id = r.c.ctx_id;
+  h.schema = kSchemaNodeConfigV1;
+  r.rx(h, p, n);
+}
+
+// One answer as the bridge reads it: CONFIG_ACKs until MORE_FOLLOWS is clear. Checks what
+// every message of an answer shares (spec 7.4.1) and that param_id ascends across all of
+// them. Returns the message count; the results land in `ids`.
+size_t read_answer(Rig& r, ConfigOp op, uint16_t* ids, size_t cap, size_t* nids, Seq* seqs) {
+  *nids        = 0;
+  size_t   m   = 0;
+  uint32_t last = 0;
+  for (;;) {
+    TEST_ASSERT_TRUE_MESSAGE(r.out.size() > 0, "answer ended on a message marked MORE_FOLLOWS");
+    uint8_t     buf[kOutFrameMax];
+    const Frame f = r.next(buf);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::ConfigAck),
+                            static_cast<uint8_t>(f.hdr.type));
+    schema::NodeConfigAckV1 ack;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::deserialize(f.payload, f.payload_len, &ack)));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(op), static_cast<uint8_t>(ack.op));
+    seqs[m] = f.hdr.seq;
+    for (uint8_t i = 0; i < ack.count; ++i) {
+      TEST_ASSERT_TRUE(ack.entries[i].param_id > last);
+      last = ack.entries[i].param_id;
+      TEST_ASSERT_TRUE(*nids < cap);
+      ids[(*nids)++] = ack.entries[i].param_id;
+    }
+    ++m;
+    if (!ack.more_follows) return m;
+  }
+}
+
+}  // namespace
+
+// spec 7.4.1 - GateLink's readback outgrows one CONFIG_ACK. 25 uint32 rows and the PHY
+// group are 267 bytes against 193, so two messages: the first marked, both under the
+// request's seq, and the PHY rows (0x01xx) ahead of the application's (0x1xxx).
+void test_get_all_splits_in_param_id_order() {
+  Rig r;
+  r.app.listed = 25;
+  send_config(r, 30, ConfigOp::GetAll);
+  uint16_t ids[64];
+  size_t   n = 0;
+  Seq      seqs[4];
+  TEST_ASSERT_EQUAL_size_t(2, read_answer(r, ConfigOp::GetAll, ids, 64, &n, seqs));
+  TEST_ASSERT_EQUAL_size_t(25 + kPhyGroupSize, n);
+  TEST_ASSERT_EQUAL_UINT16(30, seqs[0]);
+  TEST_ASSERT_EQUAL_UINT16(30, seqs[1]);
+  TEST_ASSERT_EQUAL_UINT16(0x1018, ids[n - 1]);
+  TEST_ASSERT_EQUAL_size_t(0, r.out.size());
+}
+
+// spec 7.4.1, D45 - the unsolicited readback after REQUEST_CONFIG takes a status seq per
+// message, in the order sent.
+void test_unsolicited_readback_takes_a_status_seq_per_message() {
+  Rig r;
+  r.app.listed = 25;
+  r.command(40, Cmd::RequestConfig);
+  assert_result(AckResult::Accepted, r.next_ack());
+  uint16_t ids[64];
+  size_t   n = 0;
+  Seq      seqs[4];
+  TEST_ASSERT_EQUAL_size_t(2, read_answer(r, ConfigOp::GetAll, ids, 64, &n, seqs));
+  TEST_ASSERT_EQUAL_UINT16(static_cast<Seq>(seqs[0] + 1), seqs[1]);
+}
+
+// spec 7.4.1 - a repeated GET_ALL is walked again, not answered DUPLICATE_CACHED.
+void test_repeated_get_all_is_answered_again() {
+  Rig r;
+  r.app.listed = 25;
+  send_config(r, 30, ConfigOp::GetAll);
+  uint16_t ids[64];
+  size_t   n = 0;
+  Seq      seqs[4];
+  read_answer(r, ConfigOp::GetAll, ids, 64, &n, seqs);
+  r.app.listed = 26;  // a value that changed between answers is reported as it now stands
+  send_config(r, 30, ConfigOp::GetAll);
+  TEST_ASSERT_EQUAL_size_t(2, read_answer(r, ConfigOp::GetAll, ids, 64, &n, seqs));
+  TEST_ASSERT_EQUAL_size_t(26 + kPhyGroupSize, n);
+  TEST_ASSERT_EQUAL_UINT16(30, seqs[1]);
+}
+
+// spec 7.4.1 - at most 4 messages, and the fourth ends the answer unmarked, so the bridge
+// is not left waiting for a fifth.
+void test_answer_stops_at_four_messages() {
+  Rig r;
+  r.app.listed = 100;
+  send_config(r, 30, ConfigOp::GetAll);
+  uint16_t ids[160];
+  size_t   n = 0;
+  Seq      seqs[4];
+  TEST_ASSERT_EQUAL_size_t(4, read_answer(r, ConfigOp::GetAll, ids, 160, &n, seqs));
+  TEST_ASSERT_TRUE(n < 100 + kPhyGroupSize);
+  TEST_ASSERT_EQUAL_size_t(0, r.out.size());
+}
+
+// An answer the outbox cannot hold whole is not started: a partial one leaves the bridge
+// holding a message marked MORE_FOLLOWS.
+void test_answer_is_queued_whole_or_not_at_all() {
+  Rig r;
+  r.app.listed = 25;
+  const uint8_t filler[1] = {0};
+  while (r.out.free_slots() > 1) r.out.push(filler, 1);
+  const uint32_t dropped = r.eng.answers_dropped();
+  send_config(r, 30, ConfigOp::GetAll);
+  TEST_ASSERT_EQUAL_size_t(1, r.out.free_slots());
+  TEST_ASSERT_EQUAL_UINT32(dropped + 1, r.eng.answers_dropped());
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_poll_is_answered_from_the_context);
@@ -450,5 +592,10 @@ int main(int, char**) {
   RUN_TEST(test_hex_busy_then_timeout);
   RUN_TEST(test_hex_completed_later);
   RUN_TEST(test_config_get_all_lists_the_phy_group);
+  RUN_TEST(test_get_all_splits_in_param_id_order);
+  RUN_TEST(test_unsolicited_readback_takes_a_status_seq_per_message);
+  RUN_TEST(test_repeated_get_all_is_answered_again);
+  RUN_TEST(test_answer_stops_at_four_messages);
+  RUN_TEST(test_answer_is_queued_whole_or_not_at_all);
   return UNITY_END();
 }

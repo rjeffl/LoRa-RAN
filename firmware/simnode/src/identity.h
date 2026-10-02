@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "lran/config.h"
+#include "lran/config/table.h"
 #include "lran/counters.h"
 #include "lran/mac.h"
 #include "lran/schema/node_config_v1.h"
@@ -50,10 +51,14 @@ constexpr bool is_simnode_id(lran::NodeId id) {
 // ROLE_GATELINK state (BF-6). Every identity carries it; only ROLE_GATELINK reads it.
 // ---------------------------------------------------------------------------
 
-// spec 7.4 / 3.1 - a CONFIG_ACK result entry for a u32 is 9 bytes and the whole ACK must fit
-// kMaxSchemaPayload: (196 - 3) / 9 = 21, the figure spec 7.4 gives. A store any deeper could
-// answer a GET_ALL that no CONFIG_ACK can carry.
-inline constexpr size_t kConfigStoreDepth = 21;
+// Every row a GateLink holds outside the PHY group: node-common's others and GateLink's
+// block. Filled, the store answers GET_ALL with GateLink's full readback, 199 bytes, which
+// spec 7.4.1 splits across two CONFIG_ACKs - the shape the bridge must stage. Until
+// lran-node split readbacks it was 21, the most one CONFIG_ACK holds at u32.
+inline constexpr size_t kConfigStoreDepth =
+    sizeof(lran::config::kNodeCommonParams) / sizeof(lran::config::kNodeCommonParams[0]) -
+    lran::config::kPhyGroupSize +
+    sizeof(lran::config::kGateLinkParams) / sizeof(lran::config::kGateLinkParams[0]);
 
 // One parameter held by the generic RAM store (decided with the operator 2026-09-14). No
 // param_id is invented here: they belong to /lib/lran-config/, which does not exist yet.
