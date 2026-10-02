@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that built L6.** It replaces the file the
-session that built L5 wrote.
+**Written 2026-10-02, at the end of the session that ran L6's bench check and merged L6.**
+It replaces the file the session that built L6 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,9 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **L6 bench check** — boot the skeleton on the StamPLC, then merge L6 | *L6 on the bench*, below. `firmware/gatelink/CLAUDE.md`. Work on branch `l6-gatelink-skeleton` |
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
-| **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §6.8, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8 and 9. Each names where the correct statement lives |
 | **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
@@ -31,47 +29,26 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L6 is built, in draft PR [rjeffl/LoRa-RAN#149](https://github.com/rjeffl/LoRa-RAN/pull/149),
-and has not booted on a board.** Its one unmet acceptance criterion is "boots on a bare
-StamPLC, prints its banner and starts its tasks with stub bodies". The next session runs
-that bench check, records it in the engineering log, marks the PR ready and merges it once
-the operator accepts it. After that, the operator picks the next task from the table. The
-split readback must land before GateLink answers `GET_ALL`.
-
-### L6 on the bench
-
-The bench `secrets.h` already holds `LRAN_GATELINK_NODE_KEY`: the operator ran
-`tools/provision/node_key.py` and pasted its line on 2026-10-02.
-
-1. Plug in the StamPLC alone, or tell it from the XIAO by the banner. Both enumerate as
-   `/dev/cu.usbmodem*`.
-2. `pio run -d firmware/gatelink -e gatelink -t upload`, adding `--upload-port` when the
-   XIAO is also attached.
-3. `pio device monitor -d firmware/gatelink -e gatelink`, then press reset. Expect, in order:
-   `LRAN GateLink - node 0x01`, the `Binding spec` line, `Version: 0.1.0 (<commit>)`,
-   `Reset: <cause>`, `Node key: provisioned`, and `Tasks: 7 of 7 started`. An `alive:` line
-   with seven counts follows every 30 s, and each count rises except `bms`, which advances
-   once per 300 s.
-4. The panel shows four lines in landscape: `GateLink node 0x01`, the version and commit,
-   the reset cause, and `key provisioned`.
-5. **Pass:** every line above appears and no task count stays at 0 past its period.
-   **Fail:** anything else; record what was seen in the engineering log before changing code.
-
-Nothing in this image drives a relay, but `M5StamPLC.begin()` initializes the expander
-behind them. A bare StamPLC has nothing connected, and GL1 owns the scope check.
+**L6 is merged** ([rjeffl/LoRa-RAN#149](https://github.com/rjeffl/LoRa-RAN/pull/149)), and
+it boots on a bare StamPLC. The operator picks the next task from the table. The split
+readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier built and the
+carrier's module confirmed in hand (*Hardware state*).
 
 ## What the last session established
 
-- **`firmware/gatelink/` builds against the committed template**, with RAM at 19.7 % and
-  flash at 558 KB of a 4 MB factory partition. The 13 host tests pass. CI gains the native
-  suite, a firmware matrix row and `tools/checks/io_task_never_blocks.py`.
-- **A `secrets.h` without `LRAN_GATELINK_NODE_KEY` stops the build** at `main.cpp`'s
-  `#error`, which names `tools/provision/node_key.py`. The banner and the panel both report
-  an all-zero key.
+- **The skeleton boots on a bare StamPLC.** The banner, `Tasks: 7 of 7 started` and an
+  `alive:` line every 30 s appear, and every task count advances at its period. The
+  engineering log's 2026-10-02 bench entry has the counts.
+- **`log_task` writes each line in one `Serial.write()`.** Written as eight calls, every
+  line lost bytes through Arduino-ESP32 2.0.17's USB-serial driver. GL1's leveled log
+  inherits the rule: build the line, then write it once.
+- **The panel is turned 180° and inset 6 pixels**, because GateLink mounts the StamPLC
+  upside down and the case's bezel covers the left edge. A line holds 19 characters.
+- **`Reset: unknown` follows a reset from the USB-serial port.** ESP-IDF 4.4 names no
+  reason for ROM code `0x15`; it is not a fault.
+- **The M5Stack libraries ran on `espressif32@6.13.0`** without a fault.
 - **The watchdog is not armed.** Its timeout waits on a GL3 decision (plan §5.2, v0.22).
 - **`board_profile.h` waits for GL0**, until the carrier's module is known (plan §5.3).
-- **The M5Stack libraries are pinned at the versions `wattcycle-reader` ran**, now on
-  `espressif32@6.13.0`. The bench check is their first run on that platform.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -101,8 +78,8 @@ behind them. A bare StamPLC has nothing connected, and GL1 owns the scope check.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.22. L1, L3, L4, L5. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L6: built, awaiting its bench check |
+| Done | Plan v0.22. L1, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | Nothing |
 | Not started | L2. GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -135,7 +112,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | Last recorded running `wattcycle-reader -e m5stack_stamplc` (its README, M7a–M8). Next: `firmware/gatelink -e gatelink` (L6 bench check) | Nothing GateLink depends on | Location not recorded. **No carrier fitted** |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed 2026-10-02 | Nothing GateLink depends on | On the operator's bench. **No carrier fitted** |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
@@ -168,7 +145,10 @@ board's are its D-pads (expansion board §6.1).
 - **Bus 14 is labelled `CS` and carries BUSY**; NSS is on Bus 16. Expansion board §6.
 - **An open DIO1 conductor fails late**, as transmits that never complete, not at
   `radio.begin()`. Plan §4.1 and expansion board §7.1.1.
-- **The panel is landscape 240×135**, not the 135×240 its name suggests.
+- **The panel is landscape 240×135**, not the 135×240 its name suggests. GateLink turns it
+  180° and insets each line 6 pixels; text at x = 0 is under the bezel.
+- **A StamPLC that macOS lists but gives no `/dev/cu.usbmodem*`** needs a replug. The
+  USB device shows `!registered, !matched` in `ioreg -p IOUSB` until it does.
 
 ## Open, and not closable from here
 
