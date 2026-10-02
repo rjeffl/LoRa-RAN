@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.21
+**Version:** 0.22
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -11,7 +11,7 @@ firmware starts, and four measurements come before the carrier is populated.
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -750,6 +750,10 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   pending transmit must cut it short. Decide which at GL3, with the window measured at GL5.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
+- **The watchdog is not armed yet.** L6 starts the tasks without it, because its timeout
+  is a timing constant on a node with no OTA (root rule 8). The bridge fixed its own at
+  10 s, arguing from OTA, which GateLink lacks. Decide the timeout, and whether it is a
+  parameter, at GL3.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
   masked by a healthy I/O loop.
 - **`CommandGate::check()` runs in the receive path, before dispatch; `record()` runs
@@ -829,8 +833,15 @@ GateLink adds a fourth (§4.1).
 `docs/gatelink/engineering-log.md` carries the dated running record — what was tried,
 measured, decided and why. Neither this plan nor the PRD is the right place for "tried X
 on the bench, it did not work because Y," and that is exactly the information most
-expensive to lose. It does not exist yet; the first GateLink session creates it, along
-with `docs/gatelink/HANDOFF.md` (root *Workflow*).
+expensive to lose.
+
+**L6 built the skeleton, and a file arrives with the milestone that fills it.** L6 wrote
+`platformio.ini`, `partitions.csv`, `scripts/version.py`, `CLAUDE.md`, `main.cpp`,
+`tasks.cpp`, `task_runtime.cpp`, `ui_pages.cpp` (the boot page) and `board_stamplc.cpp`
+(the panel alone). The module map above is the target, not a list of empty files.
+**`board_profile.h` waits for GL0**, because the carrier's module is not recorded as in
+hand (expansion board §10). A pin table written from the wrong module produces a carrier
+that looks configured and never answers.
 
 ### 5.4 What GateLink reuses
 
@@ -1450,6 +1461,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.22** — **L6 built.** §5.3 says which of the module map's files exist, and why
+  `board_profile.h` waits for GL0. §5.2 records that the watchdog is not armed and that its
+  timeout needs a decision at GL3. The banner and the panel report an unprovisioned node
+  key (§6.8), and `tools/checks/io_task_never_blocks.py` joins CI's `checks` job (§7.5).
 
 - **v0.21** — **L5 built.** §6.8 describes the provisioning as built: the template field,
   `tools/provision/node_key.py`, `lran::key_is_placeholder()` and the check that no node

@@ -242,6 +242,14 @@ jobs:
           python3 tools/checks/lora_task_never_blocks.py --self-test
           python3 tools/checks/lora_task_never_blocks.py
 
+      # GateLink Impl Plan §5.2, §7.5, PRD R-5.2a: io_task times every relay pulse, so it
+      # waits on nothing but its own period. A late trailing edge is a command of the wrong
+      # length. Same shape as the lora_task check, and the same limit: it reads one function.
+      - name: GateLink io_task never blocks
+        run: |
+          python3 tools/checks/io_task_never_blocks.py --self-test
+          python3 tools/checks/io_task_never_blocks.py
+
       # D1 frequency change brief §5: several listen-only receivers a metre apart, each on
       # a candidate frequency 0.2 MHz from the next. The comparison assumes none of them
       # transmits, and a receiver that did would show in its neighbours' captures as an
@@ -352,6 +360,11 @@ jobs:
       - name: Simnode firmware
         run: pio test -d firmware/simnode -e native
 
+      # GateLink's task table and boot page (L6). No secrets: the tests use their own keys,
+      # and the repo root is off the native include path.
+      - name: GateLink firmware
+        run: pio test -d firmware/gatelink -e native
+
       # The listen-only receiver's frequency rules and console grammar. No secrets.
       - name: Channel-capture firmware
         run: pio test -d firmware/chan-capture -e native
@@ -390,6 +403,13 @@ jobs:
             id: simnode
             dir: firmware/simnode
             envs: simnode-heltec simnode-xiao-wio
+            secrets: true
+          # GateLink reads LRAN_GATELINK_NODE_KEY, which the template leaves all zero, so
+          # the image says at boot that it cannot authenticate (Impl Plan §6.8).
+          - name: GateLink
+            id: gatelink
+            dir: firmware/gatelink
+            envs: gatelink
             secrets: true
           # The listen-only receiver needs no secrets.h. Both boards, because brief §5
           # runs them side by side.

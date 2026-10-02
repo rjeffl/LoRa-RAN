@@ -87,7 +87,8 @@ lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
             VE.Direct reference: osh-labs/VE.Direct_mppt_arduino, not Victron's PDFs
             bms-ble                                         [planned]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
-            gatelink/, welllink/                            [planned]
+            gatelink/ - skeleton, task L6                   [built]
+            welllink/                                       [planned]
 tools/      vectors/, checks/, simctl/, rangetest/, ha/, provision/   [built]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
