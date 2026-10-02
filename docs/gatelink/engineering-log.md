@@ -299,3 +299,23 @@ handshake gate, the 4 s drop and fragmented responses before GL5 reaches the pac
 replays the captured bytes rather than encoding them with `lib/bms-ble/`, so a codec defect
 cannot pass on both ends.
 
+## 2026-10-02 — L7 moves into the simnode, and `instrument.py` is found
+
+**L7 is a BMS peripheral inside the simnode, not a separate firmware**, by operator decision.
+It runs on the `simnode-heltec` board. It is not a simnode role: a role is LoRa behaviour
+assigned to one identity at bench addresses `0xF0`–`0xF3` (`identity.h`), and a BLE
+peripheral has no address and is one per board. It is switched from the console instead,
+off at boot, so the bridge bench sees the same simnode until someone turns it on.
+
+**Starting Bluetooth on the simnode has one known interaction.** `main.cpp` keeps
+`bootloader_random_enable()` on for `ctx_id` entropy, because the simnode ran neither WiFi
+nor Bluetooth. That ADC source must be disabled before the radio starts. The L7 row says
+so. Flash is not a constraint: the image is 403 KB in a 3.2 MB app partition
+(`default_8MB.csv`).
+
+**The operator's probe-development folder had the two missing scripts.** `instrument.py`
+and `scan.py` are now in `wattcycle-reader/tools/`, with license headers added and nothing
+else changed. That folder's `bms_probe_v1_0.py` is identical to the repository's copy. It
+also holds `bms_probe_v0_7.py` to `v0_9.py`, which the repository does not have and this
+session did not add.
+

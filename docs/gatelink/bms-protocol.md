@@ -298,9 +298,9 @@ aiobmsble -v                     # find and dump every reachable BMS
 `wattcycle-reader/tools/` keeps the PoC's probes. `bms_probe_v1_0.py` is an independent
 Python implementation of §3 to §7: `--raw` dumps each frame's bytes, and `--selftest`
 decodes the §9 frames with no hardware. It is the tool for the M7 capture, because
-`aiobmsble` decodes the current but does not show its raw bytes. The PoC document's §10.2b
-describes `instrument.py`, which logs every BLE call `aiobmsble` makes. **That script is not
-in the repository.**
+`aiobmsble` decodes the current but does not show its raw bytes. `instrument.py` logs
+every BLE call `aiobmsble` makes, with its arguments and timing, and is how §3 was found.
+`scan.py` lists every advertiser in range with its RSSI and service UUIDs.
 
 ## Changelog
 

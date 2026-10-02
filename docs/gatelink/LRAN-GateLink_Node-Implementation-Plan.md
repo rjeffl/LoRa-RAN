@@ -594,8 +594,8 @@ protocol** (§9.6).
   frames in the library's own `native` environment. `wattcycle-reader`'s M7 poll loop ran
   it on a StamPLC (`wattcycle-reader/README.md`), before task **L2** moved it out of
   `wattcycle-reader/lib/bms_ble/`.
-- **A bench stand-in for the pack is task L7** (§8.1): a Heltec V3 that emulates the BMS
-  from the `bms-protocol` §9 capture. It lets `bms_task` run its connect, handshake, read
+- **A bench stand-in for the pack is task L7** (§8.1): the simnode, on its Heltec V3,
+  emulates the BMS from the `bms-protocol` §9 capture. It lets `bms_task` run its connect, handshake, read
   and disconnect cycle, and its fault paths, before GL5 reaches the pack.
 - **The client around it is new work.** The PoC holds one connection open and polls on an
   interval. **R-3.4a/R-3.4b** require connect, read, disconnect and BLE controller de-init
@@ -1032,7 +1032,7 @@ an explicit not-persisted status, and the condition is published as a diagnostic
 | **Input injection** | Synthetic assertions on IN1–IN6 in configurable order and spacing, injected *below* the debounce layer so debounce is exercised too. Must cover 30 s gaps and partial traversals |
 | **Packet loopback** | RF echo, and internal loopback feeding serialized frames back into the receive parser with no radio — the path with **no PHY CRC**, hence the application CRC16 |
 | **Dummy status push** | Synthetic VE.Direct and gate-state data, marked synthetic all the way into HA history |
-| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** Task L7 builds the BMS peripheral (§8.1). The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
+| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** Task L7 adds the BMS peripheral to the simnode (§8.1). The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
 | **The bridge as the far end** | Every bench test of the LoRa side runs against the real bridge. Its frame log, counters and `config/ack` topics are the instruments. The simnode's `ROLE_GATELINK` gives a known-good node to compare GateLink's behaviour against, frame for frame |
 | **MQTT as bench harness** | `mosquitto_sub -t 'lran/#'` to watch every decoded payload live; `mosquitto_pub` to inject commands or fake status, decoupled from HA and the RF link |
 | **microSD logging** | Leveled and rotating, so a fault occurring while the LoRa link is down is still recoverable afterwards |
@@ -1201,7 +1201,7 @@ one branch and one session, and each leaves every existing suite passing.
 | **L4** | **GateLink's parameter block** in `lib/lran-config/` | `0x1000`–`0x1FFF` rows declared from the PRD and §4.4, `doc-findings` finding 2 settled first. The bridge's discovery output and `docs/gatelink/gatelink-config.md` derived from the table and checked |
 | **L5** | **Node key provisioning** (§6.8) | The `secrets.h.example` field, the host tool and the boot check's library half. CI builds against the template, and CI fails a firmware outside the bridge and the simnode that names the master |
 | **L6** | **`firmware/gatelink/` skeleton** | §5.1's `platformio.ini`, partition table and version stamp; §5.3's layout; the `native` env and its CI rows (§7.5). Boots on a bare StamPLC, prints its banner and starts its tasks with stub bodies. `main.cpp` requires `LRAN_GATELINK_NODE_KEY`, and the banner says when `lran::key_is_placeholder()` finds it unprovisioned (§6.8) |
-| **L7** | **BMS emulator**, `firmware/bms-sim/` on a Heltec V3 (§4.3, §6.6) | A BLE peripheral advertising as `XDZN_001_` and a suffix, with service `0xFFF0` and characteristics `FFF1`, `FFF2` and `FFFA` as [`bms-protocol`](./bms-protocol.md) §2 lays them out. Before `HiLink` reaches `FFFA` it ignores writes to `FFF2` and drops the link at about 4 s; after it, `FFFA` reads `0x01` (§3, §8). It answers `0x8C`, `0x8D` and `0x92` with the §9 frames **replayed byte for byte, not rebuilt with `lib/bms-ble/`'s codec**, so a codec defect cannot hide on both ends. Fault modes chosen from its console: bad CRC, bad terminator, a response split across notifications at MTU 23, no response, and a link drop mid-frame. NimBLE pinned exactly, at the version `lib/bms-ble/` runs. A `native` environment tests its state machine, and CI builds it. `wattcycle-reader`'s StamPLC target decodes the §9 values from it. **It closes none of GL5's criteria**: the live decode, M7, M23 and `0x8D` all need the pack |
+| **L7** | **BMS emulator in the simnode**, on the `simnode-heltec` board (§4.3, §6.6) | A console-switched BMS peripheral in `firmware/simnode/`, **off at boot and independent of the identity table**: it holds no bench address and changes no role. With it off, the simnode's image behaves as before, and its suites and L1's bench checks pass again. On, it advertises as `XDZN_001_` and a suffix, with service `0xFFF0` and characteristics `FFF1`, `FFF2` and `FFFA` as [`bms-protocol`](./bms-protocol.md) §2 lays them out. Before `HiLink` reaches `FFFA` it ignores writes to `FFF2` and drops the link at about 4 s; after it, `FFFA` reads `0x01` (§3, §8). It answers `0x8C`, `0x8D` and `0x92` with the §9 frames **replayed byte for byte, not rebuilt with `lib/bms-ble/`'s codec**, so a codec defect cannot hide on both ends. Fault modes chosen from the console: bad CRC, bad terminator, a response split across notifications at MTU 23, no response, and a link drop mid-frame. `bootloader_random_disable()` runs before the controller starts, because the SAR ADC entropy source the simnode keeps on must not run alongside the radio. NimBLE pinned exactly, at the version `lib/bms-ble/` runs. The protocol half is Arduino-free and tested in the simnode's `native` env. `wattcycle-reader`'s StamPLC target decodes the §9 values from it. Bridge Impl Plan §10 owns the simnode, so L7 amends it. **It closes none of GL5's criteria**: the live decode, M7, M23 and `0x8D` all need the pack |
 
 L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of L1.
 
@@ -1469,9 +1469,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 
 - **v0.23** — **L2 built**, and **L7 added.** `lib/bms-ble/` holds the TDT protocol layer,
   and [`bms-protocol`](./bms-protocol.md) holds the protocol write-up. §4.3, §5.4's reuse
-  table and §5.1's library table point at them. L7 is a new library-stage task: a Heltec V3
-  that emulates the BMS from the captured frames, so `bms_task` meets the access sequence
-  and its faults before the pack. GL5 now depends on it, and §6.6's debug tooling names it.
+  table and §5.1's library table point at them. L7 is a new library-stage task: a
+  console-switched BMS peripheral in the simnode, on its Heltec V3, that emulates the BMS
+  from the captured frames. It holds no identity and changes no role, so `bms_task` meets
+  the access sequence and its faults before the pack without disturbing the bridge's bench. GL5 now depends on it, and §6.6's debug tooling names it.
 
 - **v0.22** — **L6 built.** §5.3 says which of the module map's files exist, and why
   `board_profile.h` waits for GL0. §5.2 records that the watchdog is not armed and that its

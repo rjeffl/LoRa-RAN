@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **L7** — BMS emulator on a Heltec V3, `firmware/bms-sim/` | Plan §8.1's L7 row and §4.3. [`bms-protocol`](./bms-protocol.md) §2–§9. `lib/bms-ble/test/test_tdt_protocol/`'s fixtures. The simnode's `simnode-heltec` env, for the board definition. *Hardware state* below, for which Heltec |
+| **L7** — BMS emulator in the simnode, on `simnode-heltec` | Plan §8.1's L7 row and §4.3. [`bms-protocol`](./bms-protocol.md) §2–§9. `lib/bms-ble/test/test_tdt_protocol/`'s fixtures. Bridge Impl Plan §10, which owns the simnode, and the bridge handoff's *Hardware state*. `firmware/simnode/src/identity.h` for what a role is, and `main.cpp`'s `bootloader_random_enable()` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8, 9 and 10. Each names where the correct statement lives |
 | **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
@@ -46,8 +46,10 @@ built and the carrier's module confirmed in hand (*Hardware state*).
   flashed. Its M5Stack set is now pinned to `firmware/gatelink`'s versions, because
   re-resolving `^1.2.0` fetched an M5StamPLC that does not compile here (engineering log,
   2026-10-02).
-- **L7 is in the plan** (v0.23), by operator decision: a Heltec V3 emulating the BMS. GL5
-  now depends on it.
+- **L7 is in the plan** (v0.23), by operator decision: the simnode Heltec emulates the BMS,
+  switched from the console and outside the identity table. GL5 now depends on it.
+- **`instrument.py` and `scan.py` are in `wattcycle-reader/tools/`**, from the operator's
+  probe-development folder. `bms_probe_v1_0.py` there matched the repository's copy.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -115,7 +117,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
-| Heltec WiFi LoRa 32 V3 | **a Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | — | — | **L7 needs one.** The bridge handoff owns the `simnode-heltec` board. Ask the operator whether L7 borrows it or uses another |
+| Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec` | The bridge handoff's *Hardware state* | **L7 runs on it**, by operator decision 2026-10-02. The bridge handoff owns the board; L7's emulator stays off unless the console turns it on |
 | MPPT 75/15, WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | — | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | Installed and running the gate today. **Not yet rewired or reprogrammed (GL2)** |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
@@ -164,8 +166,6 @@ board's are its D-pads (expansion board §6.1).
   not a GateLink one.
 - **`nimble_transport.cpp` logs through `Serial`**, as the PoC did. GateLink's leveled log
   (GL1) should carry those lines before `bms_task` uses the file, at GL5.
-- **`instrument.py` is missing.** The PoC document's §10.2b says it was kept;
-  `wattcycle-reader/tools/` has no such file. Ask the operator whether a copy exists.
 - **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It belongs in the
   next specification revision, not on a GateLink branch.
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` lines L2 fixed: it lists
