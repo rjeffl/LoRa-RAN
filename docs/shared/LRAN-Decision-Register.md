@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D61** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D76** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
