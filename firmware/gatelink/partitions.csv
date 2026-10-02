@@ -1,0 +1,21 @@
+# firmware/gatelink/partitions.csv - GateLink's flash layout. Task L6; Impl Plan 5.1.
+# Copyright (c) 2026 Robert J. Lee - MIT.
+#
+# GateLink has no OTA, so it has one factory app partition and no otadata. Every image
+# arrives by USB, which also rewrites this table.
+#
+# Committed rather than the board's default, as the bridge's is: a platform bump that
+# changed esp32-s3-devkitc-1's default table would otherwise change this layout with no
+# commit to blame.
+#
+# The StamPLC's ESP32-S3FN8 has 8 MB of flash. The app gets 4 MB against an image the
+# size of the bridge's, under 1 MB today. spiffs is reserved and unused: configuration
+# persists to the microSD card (D49), and holding the space now costs nothing, where
+# claiming it later costs a reflash at the gate. coredump keeps the last panic across a
+# reset.
+#
+# Name,   Type, SubType,  Offset,   Size,     Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+factory,  app,  factory,  0x10000,  0x400000,
+spiffs,   data, spiffs,   0x410000, 0x3E0000,
+coredump, data, coredump, 0x7F0000, 0x10000,

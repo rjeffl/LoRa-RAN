@@ -202,3 +202,28 @@ requires it, but each copy carries its own block, so a copy made before today ha
 check for it. The bridge and the simnode do not read the field and build unchanged.
 GateLink's `main.cpp` must test for the field itself (L6).
 
+
+## 2026-10-02 — L6: the firmware skeleton, built but not yet booted
+
+`firmware/gatelink/` exists. It builds for the StamPLC against the committed template
+(RAM 19.7 %, flash 558 KB of a 4 MB factory partition), and its 13 host tests pass. **No
+StamPLC was attached this session**, so L6's "boots on a bare StamPLC" is not yet shown.
+The bench check is a flash and a serial read: the banner, `Tasks: 7 of 7 started`, an
+`alive:` line every 30 s, and the boot page on the panel.
+
+**The environment pins the M5Stack libraries `wattcycle-reader` resolved, not the newest.**
+Those are M5StamPLC 1.2.0, M5Unified 0.2.20 and M5GFX 0.2.27, with NimBLE-Arduino 1.4.3.
+The PoC floated them on `espressif32@^6.9.0`; this build moves them to the fleet's 6.13.0,
+and nothing has run them on that platform yet.
+
+**RadioLib's `#warning` did not fire.** `-Wno-error=cpp` is set as plan §5.1 says, but
+nothing includes RadioLib until GL0 adds `radio.cpp`, so the library is not compiled.
+
+**The watchdog is not armed.** The bridge fixed its timeout at 10 s and argued the
+exception to root rule 8 from having OTA. GateLink has no OTA, so that argument does not
+carry over. Plan §5.2 now leaves the timeout to GL3.
+
+**This machine's `secrets.h` lacks `LRAN_GATELINK_NODE_KEY`.** The local target build
+stops at `main.cpp`'s `#error`, which names `tools/provision/node_key.py`. That error is
+the behaviour plan §6.8 asks for. The target build above ran in a scratch copy with the
+template as `secrets.h`, as CI builds it.
