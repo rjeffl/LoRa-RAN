@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that built and merged L2.**
-It replaces the file the session that merged L6 wrote.
+**Written 2026-10-02, at the end of the session that built L7.**
+It replaces the file the session that merged L2 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,6 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **L7** — BMS emulator in the simnode, on `simnode-heltec` | Plan §8.1's L7 row and §4.3. [`bms-protocol`](./bms-protocol.md) §2–§9. `lib/bms-ble/test/test_tdt_protocol/`'s fixtures. Bridge Impl Plan §10, which owns the simnode, and the bridge handoff's *Hardware state*. `firmware/simnode/src/identity.h` for what a role is, and `main.cpp`'s `bootloader_random_enable()` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8, 9 and 10. Each names where the correct statement lives |
 | **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
@@ -29,27 +28,23 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L2 is merged** ([rjeffl/LoRa-RAN#151](https://github.com/rjeffl/LoRa-RAN/pull/151)). The
-operator picks the next task from the table. L7 must land before GL5.
-The split readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier
-built and the carrier's module confirmed in hand (*Hardware state*).
+**L7 is built.** Its PR waits for the operator to accept it;
+merge it then. After that, the operator picks the next task from the table. The split
+readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier built and the
+carrier's module confirmed in hand (*Hardware state*). GL5 no longer waits on L7.
 
 ## What the last session established
 
-- **`lib/bms-ble/` holds the TDT protocol layer**, moved from `wattcycle-reader/lib/bms_ble/`.
-  Files, functions and fields are `snake_case`, headers carry the license, and the 21
-  host tests pass under `-Werror` in the library's own `native` env. CI runs them.
-- **[`bms-protocol`](./bms-protocol.md) is the protocol reference.** It keeps every
-  unverified item, in §10, and adds the full `0x92` capture and an open question about
-  which temperature sensor is which.
-- **`wattcycle-reader` builds against the moved library**, both targets. Neither was
-  flashed. Its M5Stack set is now pinned to `firmware/gatelink`'s versions, because
-  re-resolving `^1.2.0` fetched an M5StamPLC that does not compile here (engineering log,
-  2026-10-02).
-- **L7 is in the plan** (v0.23), by operator decision: the simnode Heltec emulates the BMS,
-  switched from the console and outside the identity table. GL5 now depends on it.
-- **`instrument.py` and `scan.py` are in `wattcycle-reader/tools/`**, from the operator's
-  probe-development folder. `bms_probe_v1_0.py` there matched the repository's copy.
+- **The simnode emulates the BMS over BLE.** `bms on [suffix]` starts it, and it is off at
+  boot. Bridge Impl Plan §10.9.4 describes it, and the engineering log's 2026-10-02 L7
+  entry has the on-air run. `wattcycle-reader`'s StamPLC target decoded `bms-protocol`
+  §9's values from it. Every fault reached the client as intended.
+- **`lib/bms-ble/` had a defect that would have reached the gate**, and it is fixed.
+  `FrameReassembler::tick()` dropped a partial frame when the caller's clock was older than
+  the frame's arrival stamp, so any response split across notifications failed. That
+  happens whenever MTU negotiation fails. The suite is 22 tests.
+- **Not shown on a board:** the pre-handshake drop, `0x8D` and `0x92` (host only), and L1's
+  four bench checks, which need the XIAO. The engineering-log entry says why.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -79,9 +74,9 @@ built and the carrier's module confirmed in hand (*Hardware state*).
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.23. L1, L2, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.24. L1, L2, L3, L4, L5, L6, and L7 pending its merge. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | Nothing |
-| Not started | L7. GL0–GL9 |
+| Not started | GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -94,7 +89,7 @@ pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
 python3 tools/provision/node_key.py --self-test   # node key derivation (L5)
 pio test -d lib/vedirect -e native            # HEX codec and text parser (L3)
-pio test -d lib/bms-ble -e native            # 21 TDT protocol tests (L2)
+pio test -d lib/bms-ble -e native            # 22 TDT protocol tests (L2, L7)
 python3 tools/checks/run_ci_local.py          # CI's checks job
 ```
 
@@ -113,11 +108,11 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed 2026-10-02 | Nothing GateLink depends on | On the operator's bench. **No carrier fitted** |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed again 2026-10-02 after L7's run on `wattcycle-reader`. MAC `50:78:7d:cd:c9:94` | Nothing GateLink depends on | On the operator's bench, `/dev/cu.usbmodem101` on 2026-10-02. **No carrier fitted** |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
-| Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec` | The bridge handoff's *Hardware state* | **L7 runs on it**, by operator decision 2026-10-02. The bridge handoff owns the board; L7's emulator stays off unless the console turns it on |
+| Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
 | MPPT 75/15, WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | — | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | Installed and running the gate today. **Not yet rewired or reprogrammed (GL2)** |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
@@ -153,6 +148,13 @@ board's are its D-pads (expansion board §6.1).
   USB device shows `!registered, !matched` in `ioreg -p IOUSB` until it does.
 
 ## Open, and not closable from here
+
+- **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
+  `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
+  rewrite.
+- **`wattcycle-reader`'s `loop()` ticks the reassembler with a clock read before its
+  blocking write.** The library tolerates it now. GateLink's `bms_task` should read its
+  clock after the write.
 
 - **The bench `secrets.h` is temporary.** It holds bench WiFi, the sandbox broker's
   credentials and a bench master key, and the operator creates a production `secrets.h`
