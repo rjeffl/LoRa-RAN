@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.22
+**Version:** 0.23
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -564,10 +564,10 @@ carrier revision.
 ### 4.3 BLE BMS
 
 The pack is a **TDT** BMS advertising as `XDZN_001_xxxx`. **Frame formats, the register
-decode and a reference capture are to live in `docs/gatelink/bms-protocol.md`** and are
-not duplicated here. **That file does not exist yet.** The write-up is in
-`wattcycle-reader/docs/wattcycle-reader-poc_3.md`, and task **L2** (§8.1) lifts it out with
-its known-unverified items intact.
+decode and a reference capture live in [`bms-protocol`](./bms-protocol.md)** and are not
+duplicated here. Task **L2** (§8.1) lifted them out of
+`wattcycle-reader/docs/wattcycle-reader-poc_3.md` with the unverified items intact;
+`bms-protocol` §10 lists them.
 
 **The access sequence — the part nothing else documents:**
 
@@ -588,11 +588,15 @@ protocol** (§9.6).
 - **MTU.** Reference decodes were obtained at a negotiated MTU of **512**, with responses
   arriving unfragmented. **NimBLE defaults lower**; the client must either request a
   larger MTU or implement reassembly.
-- **The protocol layer exists, and has run on this host.** `wattcycle-reader/lib/bms_ble/`
-  holds `TdtProtocol` (CRC, frame build, reassembly, decode into `BmsData`), the abstract
+- **The protocol layer exists, and has run on this host.** `lib/bms-ble/` holds
+  `tdt_protocol` (CRC, frame build, reassembly, decode into `BmsData`), the abstract
   `BmsTransport` and its one NimBLE implementation. Its 21 host tests run against captured
-  frames, and its M7 poll loop ran on a StamPLC with no change under `lib/bms_ble/`
-  (`wattcycle-reader/README.md`). Task **L2** moves it to `lib/bms-ble/`.
+  frames in the library's own `native` environment. `wattcycle-reader`'s M7 poll loop ran
+  it on a StamPLC (`wattcycle-reader/README.md`), before task **L2** moved it out of
+  `wattcycle-reader/lib/bms_ble/`.
+- **A bench stand-in for the pack is task L7** (§8.1): a Heltec V3 that emulates the BMS
+  from the `bms-protocol` §9 capture. It lets `bms_task` run its connect, handshake, read
+  and disconnect cycle, and its fault paths, before GL5 reaches the pack.
 - **The client around it is new work.** The PoC holds one connection open and polls on an
   interval. **R-3.4a/R-3.4b** require connect, read, disconnect and BLE controller de-init
   on every `bms_poll_s`. The PoC's `src/main.cpp` is its wiring, not GateLink's. GateLink's
@@ -676,7 +680,7 @@ The ranges are proposals, not measurements.
 | LoRa | **RadioLib 7.7.1**, pinned (**D32**). CAD for media access | MIT |
 | VE.Direct | **`lib/vedirect/`**: the HEX codec and the text parser (L3) are built | MIT |
 | BLE | **NimBLE-Arduino**, pinned exactly at the version `wattcycle-reader` proved | Apache-2.0 |
-| BMS protocol | **`lib/bms-ble/`**, moved from `wattcycle-reader/lib/bms_ble/` by task **L2** | MIT |
+| BMS protocol | **`lib/bms-ble/`**, moved from `wattcycle-reader/lib/bms_ble/` by task **L2**. [`bms-protocol`](./bms-protocol.md) is its protocol reference | MIT |
 | Node protocol | **`lib/lran-node/`**, extracted from the simnode by task **L1** (§5.4) | MIT |
 | Codec, MAC, `CommandGate` | **`lib/lran-protocol/`**, with `platform/esp32/` for the mbedTLS HMAC | MIT; mbedTLS Apache-2.0 |
 | Media access, PHY, pins | **`lib/lran-link/`** | MIT |
@@ -859,7 +863,7 @@ code.
 | Node receive path, context, roll, reboot and `BOOT`, config readback, PHY trial, HEX gating | `firmware/simnode/src/node.cpp`, `gatelink.cpp`, `phy_trial.cpp` | Built and on air in `ROLE_GATELINK`. **Simnode-only until L1** |
 | SX1262 driver, Wio-SX1262 configuration | `firmware/simnode/src/radio.cpp`; bridge `lora_link.cpp` | Reference to copy and adapt (§4.1) |
 | VE.Direct HEX codec | `lib/vedirect/` | Built. Text parser is L3 |
-| TDT BMS protocol | `wattcycle-reader/lib/bms_ble/` | Built and run on a StamPLC. Moves in L2 |
+| TDT BMS protocol | `lib/bms-ble/` | Built and run on a StamPLC. Moved out of `wattcycle-reader` by L2 |
 | StamPLC build environment and TFT page | `wattcycle-reader/platformio.ini`, `src/TftDisplay.cpp` | Reference (§5.1, §6.5) |
 | GateLink's HA entities | the bridge's `discovery.cpp`, `tools/ha/`, `ha/discovery/` | Built on the bridge side. GateLink's configuration `number` entities follow L4 |
 | A peer to test against | simnode `ROLE_GATELINK`, the bridge's GateLink simulator, `tools/simctl/` | Built. The bridge is the far end of every GateLink bench test |
@@ -1028,7 +1032,7 @@ an explicit not-persisted status, and the condition is published as a diagnostic
 | **Input injection** | Synthetic assertions on IN1–IN6 in configurable order and spacing, injected *below* the debounce layer so debounce is exercised too. Must cover 30 s gaps and partial traversals |
 | **Packet loopback** | RF echo, and internal loopback feeding serialized frames back into the receive parser with no radio — the path with **no PHY CRC**, hence the application CRC16 |
 | **Dummy status push** | Synthetic VE.Direct and gate-state data, marked synthetic all the way into HA history |
-| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
+| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** Task L7 builds the BMS peripheral (§8.1). The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
 | **The bridge as the far end** | Every bench test of the LoRa side runs against the real bridge. Its frame log, counters and `config/ack` topics are the instruments. The simnode's `ROLE_GATELINK` gives a known-good node to compare GateLink's behaviour against, frame for frame |
 | **MQTT as bench harness** | `mosquitto_sub -t 'lran/#'` to watch every decoded payload live; `mosquitto_pub` to inject commands or fake status, decoupled from HA and the RF link |
 | **microSD logging** | Leveled and rotating, so a fault occurring while the LoRa link is down is still recoverable afterwards |
@@ -1197,6 +1201,7 @@ one branch and one session, and each leaves every existing suite passing.
 | **L4** | **GateLink's parameter block** in `lib/lran-config/` | `0x1000`–`0x1FFF` rows declared from the PRD and §4.4, `doc-findings` finding 2 settled first. The bridge's discovery output and `docs/gatelink/gatelink-config.md` derived from the table and checked |
 | **L5** | **Node key provisioning** (§6.8) | The `secrets.h.example` field, the host tool and the boot check's library half. CI builds against the template, and CI fails a firmware outside the bridge and the simnode that names the master |
 | **L6** | **`firmware/gatelink/` skeleton** | §5.1's `platformio.ini`, partition table and version stamp; §5.3's layout; the `native` env and its CI rows (§7.5). Boots on a bare StamPLC, prints its banner and starts its tasks with stub bodies. `main.cpp` requires `LRAN_GATELINK_NODE_KEY`, and the banner says when `lran::key_is_placeholder()` finds it unprovisioned (§6.8) |
+| **L7** | **BMS emulator**, `firmware/bms-sim/` on a Heltec V3 (§4.3, §6.6) | A BLE peripheral advertising as `XDZN_001_` and a suffix, with service `0xFFF0` and characteristics `FFF1`, `FFF2` and `FFFA` as [`bms-protocol`](./bms-protocol.md) §2 lays them out. Before `HiLink` reaches `FFFA` it ignores writes to `FFF2` and drops the link at about 4 s; after it, `FFFA` reads `0x01` (§3, §8). It answers `0x8C`, `0x8D` and `0x92` with the §9 frames **replayed byte for byte, not rebuilt with `lib/bms-ble/`'s codec**, so a codec defect cannot hide on both ends. Fault modes chosen from its console: bad CRC, bad terminator, a response split across notifications at MTU 23, no response, and a link drop mid-frame. NimBLE pinned exactly, at the version `lib/bms-ble/` runs. A `native` environment tests its state machine, and CI builds it. `wattcycle-reader`'s StamPLC target decodes the §9 values from it. **It closes none of GL5's criteria**: the live decode, M7, M23 and `0x8D` all need the pack |
 
 L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of L1.
 
@@ -1214,7 +1219,7 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 | **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
 | **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
 | **GL4** | **VE.Direct** | GL0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
-| **GL5** | **Battery and BMS** | GL1, L2 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
+| **GL5** | **Battery and BMS** | GL1, L2, L7 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
 | **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
 | **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
 | **GL8** | **HA integration** | GL3–GL7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
@@ -1461,6 +1466,12 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.23** — **L2 built**, and **L7 added.** `lib/bms-ble/` holds the TDT protocol layer,
+  and [`bms-protocol`](./bms-protocol.md) holds the protocol write-up. §4.3, §5.4's reuse
+  table and §5.1's library table point at them. L7 is a new library-stage task: a Heltec V3
+  that emulates the BMS from the captured frames, so `bms_task` meets the access sequence
+  and its faults before the pack. GL5 now depends on it, and §6.6's debug tooling names it.
 
 - **v0.22** — **L6 built.** §5.3 says which of the module map's files exist, and why
   `board_profile.h` waits for GL0. §5.2 records that the watchdog is not armed and that its

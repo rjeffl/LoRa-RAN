@@ -84,6 +84,19 @@ for one SX1262 driver; the fleet has three, each with injected pins.
 **Correct statement:** Implementation Plan v0.18 §5.3. §3.5 needs amending, and AquaLink's
 own project should hear of it.
 
+### 10. The protocol specification points at `/docs/bms-protocol.md`, which does not exist
+
+**Found 2026-10-02**, by task L2, which wrote the file.
+
+Protocol Specification §1 and §7.2.3 both cite `/docs/bms-protocol.md` for the TDT BMS
+protocol. The file is `docs/gatelink/bms-protocol.md`: plan v0.18 moved its planned path
+under `docs/gatelink/`, and L2 wrote it there. Nothing about the wire changes. The
+specification is binding, so the path is fixed by a specification revision, not on a
+GateLink branch.
+
+**Correct statement:** [`bms-protocol`](./bms-protocol.md), and System PRD §5's protocol
+table, which links it.
+
 ## Fixed
 
 ### 2. `tx_conducted_dbm` and `tx_power_dbm` are one parameter under two names
