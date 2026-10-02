@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.80
+**Version:** 0.81
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.24 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -2401,6 +2401,8 @@ serial, driven by hand or by `/tools/simctl/`.
 | `fault <hex> <name> [count]` | Inject a fault from §10.5, once or `count` times |
 | `field <hex> <name> <value>` | Override a generated telemetry field — sentinels, out-of-range, stale flags |
 | `mppt <hex> <mode>` | The simulated MPPT behind a `ROLE_GATELINK` identity: `list` \| `set <reg> <value>` \| `timeout [count]` \| `hex_timeout <ms>` \| `reset` — HEX proxy tests (§10.9.3), added 2026-09-25 |
+| `bms on [suffix]` / `bms off` | Start or stop the BMS emulator, a BLE peripheral outside the identity table (§10.9.4). Off at boot — added 2026-10-02, GateLink task L7 |
+| `bms status` / `bms fault <name> [count]` / `bms fault off` | The emulator's link state and counters, and its faults: `bad_crc`, `bad_term`, `split`, `no_response`, `drop_mid` |
 | `log <level>` | Serial verbosity |
 
 `/tools/simctl/` scripts these into repeatable scenarios so a regression run is one
@@ -2893,6 +2895,45 @@ Victron's MPPT never answers, and the `timeout` fault are both `TIMEOUT` after
 **A node reboot clears the transaction and keeps the registers**, because a GateLink reboot
 does not touch the MPPT.
 
+#### 10.9.4 The BMS emulator (GateLink task L7), 2026-10-02
+
+**The simnode can stand in for the gate battery's BMS over BLE**, so GateLink's `bms_task`
+meets the access sequence and its faults before GL5 reaches the pack. GateLink Impl Plan
+§8.1 sets the task, and [`bms-protocol`](../gatelink/bms-protocol.md) §2–§9 is what it
+emulates. `bms_emu.{h,cpp}` is the protocol half, Arduino-free and host-tested.
+`bms_ble_peripheral.cpp` puts it on air, and it is the only file in the simnode that
+includes NimBLE.
+
+**It is not a role.** A role is LoRa behaviour assigned to one identity at `0xF0`–`0xF3`
+(§10.2). A BLE peripheral has no address, and a board has one. `bms on` starts it and `bms
+off` stops it. It is off at boot, so a simnode nobody switched holds the same bench it did
+before.
+
+**It replays and does not build.** Each answer is a §9 capture, copied byte for byte. The
+emulator does not include `lib/bms-ble/`, so a defect in that codec cannot appear on both
+ends and pass. A fault corrupts a copy of the capture. The host tests use `lib/bms-ble/` as
+the client, so each half checks the other.
+
+| Behaviour | Source |
+|---|---|
+| Advertises `XDZN_001_` and a suffix: the tail of the board's BT MAC, or the one `bms on` gives. `bms on 49A1` matches the pack's name exactly, which is what `wattcycle-reader` scans for | `bms-protocol` §2 |
+| Before `HiLink` reaches `FFFA`, writes to `FFF2` are ignored and counted, and the link drops 4 s after it was made. A write does not reset that timer | §3, §8 |
+| `FFFA` reads `0x01` after the handshake. It reads `0x00` before it, which is the simnode's choice: the pack's value then was never captured | §3 |
+| `0x8C`, `0x8D` and `0x92` answered from the §9 frames. Anything else on `FFF2` is counted as `unknown` and not answered | §5, §9 |
+| One notification per frame at the negotiated MTU, MTU − 3 bytes each below it | §7 |
+
+**Starting Bluetooth turns the entropy source off.** `main.cpp` keeps
+`bootloader_random_enable()` on for `ctx_id`, because the board otherwise runs no RF of its
+own. ESP-IDF says that source must not run alongside the Bluetooth radio, so `bms on`
+disables it before the controller starts, and `bms off` enables it again once the
+controller is down. `esp_random()` is true random while Bluetooth runs, so a `ctx_id`
+drawn meanwhile still meets spec §10.1.
+
+**Its first on-air run found a client defect.** `split` made `wattcycle-reader` log `BAD
+TERMINATOR` on every response, with every byte arriving correct. `lib/bms-ble/`'s `tick()`
+treated a clock older than a partial frame's arrival stamp as a timeout, and dropped the
+partial. The GateLink engineering log has the trace, dated 2026-10-02.
+
 ---
 
 ## 11. Development environment and workflow
@@ -3050,6 +3091,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.81** — **GateLink task L7 amends §10.** §10.4 adds the `bms` command, and new
+  §10.9.4 describes the BMS emulator: a console-switched BLE peripheral outside the
+  identity table, which replays `bms-protocol` §9's captures and injects five faults.
 
 - **v0.80** — **Library Plan v0.23 → v0.24**, which declares GateLink's block (GateLink
   task L4). §6.7.1: the node-scope lookups take the node, so a node's own rows resolve on

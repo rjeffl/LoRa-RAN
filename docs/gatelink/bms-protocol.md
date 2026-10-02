@@ -1,7 +1,7 @@
 # TDT smart BMS protocol over BLE
 
 **Document:** `bms-protocol`
-**Version:** 0.1
+**Version:** 0.2
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Confirmed on hardware for one pack at rest. §10 lists what is not verified.
 **Implementation:** [`lib/bms-ble/`](../../lib/bms-ble/)
@@ -162,7 +162,10 @@ The reassembly rules:
 3. Wait for `8 + payload_len + 3` bytes in total.
 4. Check that the last byte is `0x0D`, then validate CRC-16/MODBUS over every byte before
    the CRC.
-5. Drop a partial frame after about 1 s.
+5. Drop a partial frame after about 1 s, measured from the arrival of its first byte. A
+   clock reading older than that arrival is not a timeout. The notification callback and
+   the timeout check usually run in different tasks, and a loop can read its clock before
+   a blocking write that the response overtakes.
 
 The reassembler passes the §9 frames at chunk sizes of 20, 7 and 1 bytes.
 
@@ -303,6 +306,10 @@ every BLE call `aiobmsble` makes, with its arguments and timing, and is how §3 
 `scan.py` lists every advertiser in range with its RSSI and service UUIDs.
 
 ## Changelog
+
+- **v0.2** (2026-10-02) — §7's rule 5 says that a clock older than a partial frame's
+  arrival is not a timeout. GateLink task L7's emulator found the defect that rule
+  prevents, in `lib/bms-ble/`, now fixed.
 
 - **v0.1** (2026-10-02) — Lifted out of `wattcycle-reader-poc_3` §4–§5 and §10.3 by
   GateLink task L2, with every unverified item kept. Adds the full `0x92` capture from the
