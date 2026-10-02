@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-01, at the end of the session that built L5.** It replaces the file the
-session that built L4 wrote.
+**Written 2026-10-02, at the end of the session that built L6.** It replaces the file the
+session that built L5 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,6 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
+| **L6 bench check** — boot the skeleton on the StamPLC, then merge L6 | *L6 on the bench*, below. `firmware/gatelink/CLAUDE.md`. Work on branch `l6-gatelink-skeleton` |
 | **L2** — move `bms_ble` to `lib/bms-ble/`, write `bms-protocol.md` | Plan §4.3, §8.1. `wattcycle-reader/CLAUDE.md` and `README.md`, then `wattcycle-reader/docs/wattcycle-reader-poc_3.md` |
 | **L6** — `firmware/gatelink/` skeleton | Plan §5.1, §5.3, §6.8, §7.5. `wattcycle-reader/platformio.ini`'s `m5stack_stamplc` env, the simnode's and the bridge's `platformio.ini` |
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8 and 9. Each names where the correct statement lives |
@@ -30,23 +31,47 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L5 merged on 2026-10-01.** The node key has a template field, a tool that derives it
-and a library check for the placeholder, and CI fails any node firmware that names the
-master. GateLink's own boot check waits for L6,
-whose acceptance row now carries it. The operator picks the next task from the table
-above. The split readback must land before GateLink answers `GET_ALL`.
+**L6 is built, in draft PR [rjeffl/LoRa-RAN#149](https://github.com/rjeffl/LoRa-RAN/pull/149),
+and has not booted on a board.** Its one unmet acceptance criterion is "boots on a bare
+StamPLC, prints its banner and starts its tasks with stub bodies". The next session runs
+that bench check, records it in the engineering log, marks the PR ready and merges it once
+the operator accepts it. After that, the operator picks the next task from the table. The
+split readback must land before GateLink answers `GET_ALL`.
+
+### L6 on the bench
+
+The bench `secrets.h` already holds `LRAN_GATELINK_NODE_KEY`: the operator ran
+`tools/provision/node_key.py` and pasted its line on 2026-10-02.
+
+1. Plug in the StamPLC alone, or tell it from the XIAO by the banner. Both enumerate as
+   `/dev/cu.usbmodem*`.
+2. `pio run -d firmware/gatelink -e gatelink -t upload`, adding `--upload-port` when the
+   XIAO is also attached.
+3. `pio device monitor -d firmware/gatelink -e gatelink`, then press reset. Expect, in order:
+   `LRAN GateLink - node 0x01`, the `Binding spec` line, `Version: 0.1.0 (<commit>)`,
+   `Reset: <cause>`, `Node key: provisioned`, and `Tasks: 7 of 7 started`. An `alive:` line
+   with seven counts follows every 30 s, and each count rises except `bms`, which advances
+   once per 300 s.
+4. The panel shows four lines in landscape: `GateLink node 0x01`, the version and commit,
+   the reset cause, and `key provisioned`.
+5. **Pass:** every line above appears and no task count stays at 0 past its period.
+   **Fail:** anything else; record what was seen in the engineering log before changing code.
+
+Nothing in this image drives a relay, but `M5StamPLC.begin()` initializes the expander
+behind them. A bare StamPLC has nothing connected, and GL1 owns the scope check.
 
 ## What the last session established
 
-- **Provision GateLink with `python3 tools/provision/node_key.py`.** It reads the master
-  from the root `secrets.h` and prints `LRAN_GATELINK_NODE_KEY` to paste there. It refuses
-  the all-zero and the W4 test masters. Its self-test reproduces the W4 `kdf` vectors.
-- **`lran::key_is_placeholder()`** in `lib/lran-protocol/` is the boot check. The bridge
-  and the simnode call it; GateLink's banner and display call it at L6.
-- **`tools/checks/node_holds_no_master.py`** fails a firmware other than the bridge and
-  the simnode that names `LRAN_MASTER_KEY`. It runs in CI's `checks` job.
-- **An existing `secrets.h` lacks the new field.** Add it before L6's first target build.
-  The bridge and the simnode build without it.
+- **`firmware/gatelink/` builds against the committed template**, with RAM at 19.7 % and
+  flash at 558 KB of a 4 MB factory partition. The 13 host tests pass. CI gains the native
+  suite, a firmware matrix row and `tools/checks/io_task_never_blocks.py`.
+- **A `secrets.h` without `LRAN_GATELINK_NODE_KEY` stops the build** at `main.cpp`'s
+  `#error`, which names `tools/provision/node_key.py`. The banner and the panel both report
+  an all-zero key.
+- **The watchdog is not armed.** Its timeout waits on a GL3 decision (plan §5.2, v0.22).
+- **`board_profile.h` waits for GL0**, until the carrier's module is known (plan §5.3).
+- **The M5Stack libraries are pinned at the versions `wattcycle-reader` ran**, now on
+  `espressif32@6.13.0`. The bench check is their first run on that platform.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -76,12 +101,14 @@ above. The split readback must land before GateLink answers `GET_ALL`.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.21. L1, L3, L4, L5. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | Nothing |
-| Not started | L2, L6. GL0–GL9. `firmware/gatelink/` does not exist |
+| Done | Plan v0.22. L1, L3, L4, L5. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | L6: built, awaiting its bench check |
+| Not started | L2. GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
+pio test -d firmware/gatelink -e native       # task table and boot page (L6)
+python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
 pio test -d lib/lran-node -e native           # the node engine (L1)
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
@@ -108,7 +135,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | Last recorded running `wattcycle-reader -e m5stack_stamplc` (its README, M7a–M8) | Nothing GateLink depends on | Location not recorded. **No carrier fitted** |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | Last recorded running `wattcycle-reader -e m5stack_stamplc` (its README, M7a–M8). Next: `firmware/gatelink -e gatelink` (L6 bench check) | Nothing GateLink depends on | Location not recorded. **No carrier fitted** |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
@@ -145,8 +172,12 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **GateLink's boot check on the board** (plan §6.8, L6's row): `main.cpp` requires
-  `LRAN_GATELINK_NODE_KEY`, and the banner and display report a placeholder.
+- **The bench `secrets.h` is temporary.** It holds bench WiFi, the sandbox broker's
+  credentials and a bench master key, and the operator creates a production `secrets.h`
+  before the final production builds. The GateLink node key derived from the bench master
+  appeared in a session transcript on 2026-10-02. That is acceptable only because the
+  bench master is replaced: **production GateLink and bridge images must be built from the
+  production `secrets.h`, with the node key derived again from its master.**
 - **A leaked node key costs the whole fleet.** Spec §9.1 derives each key from the master
   and the node ID alone, so replacing GateLink's key means a new master and a reflash of
   every node. A per-node key generation would contain it. That is a protocol question,
