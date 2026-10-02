@@ -53,7 +53,8 @@ constexpr bool is_simnode_id(lran::NodeId id) {
 
 // Every row a GateLink holds outside the PHY group: node-common's others and GateLink's
 // block. Filled, the store answers GET_ALL with GateLink's full readback, 199 bytes, which
-// spec 7.4.1 splits across two CONFIG_ACKs - the shape the bridge must stage. Until
+// spec 7.4.1 splits across two CONFIG_ACKs - the shape the bridge must stage. The bridge
+// names GateLink's rows only for 0x01 today, so it cannot fill the store yet. Until
 // lran-node split readbacks it was 21, the most one CONFIG_ACK holds at u32.
 inline constexpr size_t kConfigStoreDepth =
     sizeof(lran::config::kNodeCommonParams) / sizeof(lran::config::kNodeCommonParams[0]) -

@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that built and merged L7.**
-It replaces the file the session that merged L2 wrote.
+**Written 2026-10-02, at the end of the session that built the split readback.**
+It replaces the file the session that merged L7 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,7 +20,6 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **Document amendments** | `doc-findings.md`, findings 3–6, 8, 9 and 10. Each names where the correct statement lives |
-| **Split readback in `lran-node`** — spec §7.4.1 `MORE_FOLLOWS` | Plan §6.4. `lib/lran-node/src/engine.cpp`'s `AckBuilder`. `lib/lran-config`'s `next_readback_message()`, which already splits |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -28,23 +27,20 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L7 is merged** ([rjeffl/LoRa-RAN#153](https://github.com/rjeffl/LoRa-RAN/pull/153)). The
-operator picks the next task from the table. The split readback must land before GateLink
-answers `GET_ALL`. GL0 needs the carrier built and the carrier's module confirmed in hand
-(*Hardware state*). GL5 no longer waits on L7.
+**`lib/lran-node` splits a readback** (spec §7.4.1). It is host-tested only. The bridge cannot draw a split answer from a simnode yet (*Open*), so
+the on-air check waits for a bridge change. The operator picks the next task. GL0 needs
+the carrier built and the carrier's module confirmed in hand (*Hardware state*).
 
 ## What the last session established
 
-- **The simnode emulates the BMS over BLE.** `bms on [suffix]` starts it, and it is off at
-  boot. Bridge Impl Plan §10.9.4 describes it, and the engineering log's 2026-10-02 L7
-  entry has the on-air run. `wattcycle-reader`'s StamPLC target decoded `bms-protocol`
-  §9's values from it. Every fault reached the client as intended.
-- **`lib/bms-ble/` had a defect that would have reached the gate**, and it is fixed.
-  `FrameReassembler::tick()` dropped a partial frame when the caller's clock was older than
-  the frame's arrival stamp, so any response split across notifications failed. That
-  happens whenever MTU negotiation fails. The suite is 22 tests.
-- **Not shown on a board:** the pre-handshake drop, `0x8D` and `0x92` (host only), and L1's
-  four bench checks, which need the XIAO. The engineering-log entry says why.
+- **The engine answers a read in up to four `CONFIG_ACK` messages.** It sorts a full
+  readback by `param_id` and queues the whole answer or none of it. A repeated `GET` or
+  `GET_ALL` is walked again rather than answered `DUPLICATE_CACHED`. The engineering
+  log's 2026-10-02 split-readback entry has the details. The `lran-node` suite is 17 tests.
+- **An answer that fits one frame is unchanged on air.** The bridge's `GET_ALL` to `f1` on
+  the XIAO Kit came back in one message and closed.
+- **The simnode's `ROLE_GATELINK` store holds 23 rows**, GateLink's count outside the PHY
+  group (Bridge Impl Plan v0.82 §10).
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -74,7 +70,7 @@ answers `GET_ALL`. GL0 needs the carrier built and the carrier's module confirme
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.24. L1, L2, L3, L4, L5, L6, L7. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.25. L1, L2, L3, L4, L5, L6, L7, the split readback. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | Nothing |
 | Not started | GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
@@ -83,7 +79,7 @@ answers `GET_ALL`. GL0 needs the carrier built and the carrier's module confirme
 pio test -d firmware/gatelink -e native       # task table and boot page (L6)
 python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
-pio test -d lib/lran-node -e native           # the node engine (L1)
+pio test -d lib/lran-node -e native           # the node engine (L1), split readback
 pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
@@ -109,7 +105,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
 | M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed again 2026-10-02 after L7's run on `wattcycle-reader`. MAC `50:78:7d:cd:c9:94` | Nothing GateLink depends on | On the operator's bench, `/dev/cu.usbmodem101` on 2026-10-02. **No carrier fitted** |
-| XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. Proves the Wio's radio configuration, **not** the carrier's wiring |
+| XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
@@ -173,9 +169,18 @@ board's are its D-pads (expansion board §6.1).
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` lines L2 fixed: it lists
   `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written. A System PRD
   revision, not GateLink's.
-- **`lran-node` cannot split a readback** (spec §7.4.1). Its `AckBuilder` drops entries
-  past one `CONFIG_ACK` and counts them. GateLink's readback needs two messages. A task
-  row above covers it.
+- **No split readback has been seen on air.** The bridge names GateLink's rows only for
+  `0x01` (`node_block()`), and a simnode cannot take that ID, so `simnode1`'s readback
+  stops at 68 bytes. Showing the split needs the bridge to name GateLink's block for a
+  `ROLE_GATELINK` simnode, which changes the simnode's discovery in HA, or needs GateLink
+  itself on air. The bridge's call.
+- **The bridge answers nothing to a `config/set` of 512 bytes or more**
+  (`kMaxInboundPayloadLen`). The refusal is counted, but no `config/ack` is published.
+  A set of GateLink's 23 non-PHY rows is about 660 bytes. Spec §16.7.3 expects an answer.
+  The bridge's to fix or document.
+- **The bridge handoff's *Hardware state* row for the XIAO Kit** names
+  `/dev/cu.usbmodem1101`. On 2026-10-02 it was `/dev/cu.usbmodem2101`, running this
+  branch's simnode image.
 - **PRD R-4.3i's `antenna_gain_dbi` and envelope rows**, M21 handoff items 1–3. They are
   fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
   of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
