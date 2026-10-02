@@ -1,2 +1,2 @@
 # Reserved for shared project headers (§7 layout). Empty for now — the
-# reusable code lives in lib/bms_ble/ so it can be lifted into GateLink whole.
+# reusable code lives in the repository's lib/bms-ble/ so it can be lifted into GateLink whole.

@@ -345,6 +345,13 @@ jobs:
       - name: VE.Direct library
         run: pio test -d lib/vedirect -e native
 
+      # GateLink task L2. The TDT BMS protocol layer, moved from wattcycle-reader: CRC, request
+      # frames, reassembly and decode, tested against frames captured from the gate battery
+      # (docs/gatelink/bms-protocol.md §9). The fixtures are the oracle; a decoder that
+      # disagrees with one is the defect.
+      - name: BMS BLE library
+        run: pio test -d lib/bms-ble -e native
+
       - name: Range test firmware
         run: pio test -d firmware/range-test -e native
 

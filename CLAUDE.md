@@ -85,7 +85,7 @@ lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
             lran-node - node-side engine, from the simnode  [built]
             vedirect — HEX frames and text parser           [built]
             VE.Direct reference: osh-labs/VE.Direct_mppt_arduino, not Victron's PDFs
-            bms-ble                                         [planned]
+            bms-ble — TDT BMS protocol layer, task L2       [built]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/ - skeleton, task L6                   [built]
             welllink/                                       [planned]
@@ -94,8 +94,8 @@ docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive
             <node>/engineering-log.md — protocol-lib, rangetest and bridge have one
 ha/         discovery payloads, GENERATED from the firmware   [built]
 wattcycle-reader/  BMS BLE proof of concept, self-contained, its own CLAUDE.md. Not
-            part of the LRAN build; its TDT protocol write-up still needs lifting
-            out into docs/gatelink/bms-protocol.md
+            part of the LRAN build. It builds against lib/bms-ble; its protocol
+            write-up is docs/gatelink/bms-protocol.md
 ```
 
 Each firmware is its own PlatformIO project, reaching shared code via

@@ -6,7 +6,7 @@
 // M0b (§11): OLED alive, showing the layout with live RSSI.
 // M2 (§11): "Connects, enumerates FFF0, confirms FFF1/FFF2 handles."
 // M3 (§11): HiLink -> FFFA, read-back 0x01, subscribe FFF1, send 0x8C.
-// M4 (§11): notification bytes fed through TdtProtocol::FrameReassembler.
+// M4 (§11): notification bytes fed through tdt::FrameReassembler.
 // M5 (§11): a complete 0x8C frame decoded and printed field by field.
 // M6b (§11): the decoded frame and a filled link indicator pushed to the
 // OLED, riding on BmsDisplay's existing staleness handling from M0b.
@@ -21,7 +21,7 @@
 //     handshake + subscribe. Success moves to Polling; failure stays in
 //     Scanning and counts against g_consecutive_failures.
 //   Polling: connection is held open. Every kPollIntervalMs, send a 0x8C
-//     request; the reassembler/decoder run from BmsNotifyHandler::onNotify()
+//     request; the reassembler/decoder run from BmsNotifyHandler::on_notify()
 //     same as M4/M5, and any newly decoded frame is pushed to the display.
 //     If the connection drops (out of range, BMS-side timeout, etc.), fall
 //     back to Scanning — this is the "survives going out of range and coming
@@ -29,9 +29,9 @@
 //     (NimBLEClient::getRssi()), not from scanning, since the two aren't run
 //     concurrently here.
 //
-// The reassembler and decoder in lib/bms_ble/TdtProtocol.* were already
-// complete and host-tested (`pio test -e native`) before any of M2-M6b ran on
-// hardware, and needed no changes to keep passing here — this file is BLE
+// The reassembler and decoder, then in lib/bms_ble/ and now in the repository's
+// lib/bms-ble/ (GateLink task L2), were already complete and host-tested before any
+// of M2-M6b ran on hardware, and needed no changes to keep passing here — this file is BLE
 // state-machine wiring, not decode work.
 //
 // M7a: GateLink's real node hardware turned out to be the M5Stack StamPLC,
@@ -48,16 +48,16 @@
 // battery's antenna appears shielded by the BMS heat sink.
 
 #include <Arduino.h>
-#include <NimBLEDevice.h>   // scanning/connecting — see BmsTransport.h's scope note:
+#include <NimBLEDevice.h>   // scanning/connecting — see bms_transport.h's scope note:
                             // this file is PoC wiring, meant to be replaced by
-                            // GateLink's own client, not part of the lib/bms_ble/
+                            // GateLink's own client, not part of the lib/bms-ble/
                             // boundary that's meant to drop in unchanged.
 
-#include "BmsData.h"
-#include "BmsTransport.h"
+#include "bms_ble/bms_data.h"
+#include "bms_ble/bms_transport.h"
 #include "LinkState.h"
-#include "NimBleTransport.h"
-#include "TdtProtocol.h"
+#include "bms_ble/nimble_transport.h"
+#include "bms_ble/tdt_protocol.h"
 
 #if defined(BOARD_STAMPLC)
 #include "TftDisplay.h"
@@ -95,7 +95,7 @@ static uint32_t g_last_poll_ms = 0;
 static uint32_t g_last_frame_seen = 0;   // last BmsNotifyHandler::frameCount() consumed
 
 // Feeds notifications through the reassembler (M4) and decodes complete
-// 0x8C frames (M5). onNotify() runs on NimBLE's host task, a different
+// 0x8C frames (M5). on_notify() runs on NimBLE's host task, a different
 // FreeRTOS task from the Arduino loop() task that calls tick()/frameCount()/
 // lastData() (§7: "keep it short — feed the reassembler, no more"), so
 // reassembler_/last_data_/frame_count_ are genuinely shared across tasks —
@@ -108,7 +108,7 @@ static uint32_t g_last_frame_seen = 0;   // last BmsNotifyHandler::frameCount() 
 // printing) happens after it's released.
 class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
   public:
-    void onNotify(const uint8_t* data, size_t len) override {
+    void on_notify(const uint8_t* data, size_t len) override {
         size_t off = 0;
         while (off < len) {
             bms::tdt::FrameReassembler::Status status;
@@ -120,13 +120,13 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
 
             portENTER_CRITICAL(&mux_);
             off += reassembler_.feed(data + off, len - off, status, millis());
-            if (status == bms::tdt::FrameReassembler::STATUS_COMPLETE) {
+            if (status == bms::tdt::FrameReassembler::kComplete) {
                 const bms::tdt::Frame& frame = reassembler_.frame();
                 frame_cmd = frame.cmd;
                 frame_payload_len = frame.payload_len;
-                if (frame_cmd == bms::tdt::CMD_CELLS_PACK) {
+                if (frame_cmd == bms::tdt::kCmdCellsPack) {
                     decode_attempted = true;
-                    decode_ok = bms::tdt::decodeCellsAndPack(frame, decoded);
+                    decode_ok = bms::tdt::decode_cells_and_pack(frame, decoded);
                     if (decode_ok) {
                         last_data_ = decoded;
                         ++frame_count_;
@@ -136,7 +136,7 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
             portEXIT_CRITICAL(&mux_);
 
             switch (status) {
-                case bms::tdt::FrameReassembler::STATUS_COMPLETE:
+                case bms::tdt::FrameReassembler::kComplete:
                     if (!decode_attempted) {
                         Serial.printf("  frame: cmd 0x%02x, %u bytes (not 0x8C, not decoded)\n",
                                       frame_cmd, frame_payload_len);
@@ -146,13 +146,13 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
                         logDecoded(decoded);
                     }
                     break;
-                case bms::tdt::FrameReassembler::STATUS_CRC_ERROR:
+                case bms::tdt::FrameReassembler::kCrcError:
                     Serial.println(F("  reassembler: CRC ERROR"));
                     break;
-                case bms::tdt::FrameReassembler::STATUS_BAD_TERMINATOR:
+                case bms::tdt::FrameReassembler::kBadTerminator:
                     Serial.println(F("  reassembler: BAD TERMINATOR"));
                     break;
-                case bms::tdt::FrameReassembler::STATUS_INCOMPLETE:
+                case bms::tdt::FrameReassembler::kIncomplete:
                     break;
             }
         }
@@ -196,16 +196,16 @@ class BmsNotifyHandler : public bms::BmsTransport::NotifyHandler {
                       data.cell_count, data.temp_count);
         Serial.print(F("    cells (mV):"));
         for (uint8_t i = 0; i < data.cell_count; ++i) {
-            Serial.printf(" %u", data.cell_mV[i]);
+            Serial.printf(" %u", data.cell_mv[i]);
         }
-        Serial.printf("  (delta %u mV)\n", data.deltaCell_mV());
+        Serial.printf("  (delta %u mV)\n", data.delta_cell_mv());
         Serial.print(F("    temps (0.1C):"));
         for (uint8_t i = 0; i < data.temp_count; ++i) {
-            Serial.printf(" %d", data.temp_dC[i]);
+            Serial.printf(" %d", data.temp_dc[i]);
         }
         Serial.println();
         Serial.printf("    pack: %u mV   current: %ld mA (%s)   SOC: %u%%\n",
-                      (unsigned)data.pack_mV, (long)data.current_mA,
+                      (unsigned)data.pack_mv, (long)data.current_ma,
                       data.discharging ? "discharge flag" : "charge flag",
                       data.soc_pct);
         Serial.printf("    remaining/nominal: %u/%u (0.1 Ah)   cycles: %u   SOH: %u (0.1%%)\n",
@@ -289,7 +289,7 @@ static bool connectAndHandshake(NimBLEAdvertisedDevice& target_dev) {
         Serial.println(F("  connect FAILED"));
         return false;
     }
-    g_transport.logDiscovery();
+    g_transport.log_discovery();
 
     // §5.1 steps 2-3: HiLink to FFFA, with response, then read FFFA back and
     // gate on 0x01. Everything past this point is silently ignored by the
@@ -394,7 +394,7 @@ static void loopPolling() {
     // The "survives battery going out of range and coming back" half of M7:
     // detect the drop and fall back to Scanning, which will reconnect once
     // the target is seen again.
-    if (!g_transport.isConnected()) {
+    if (!g_transport.is_connected()) {
         Serial.println(F("\n--- link dropped, resuming scan ---"));
         ++g_consecutive_failures;
         g_transport.disconnect();   // releases the NimBLEClient cleanly
@@ -406,7 +406,7 @@ static void loopPolling() {
     if (now - g_last_poll_ms >= kPollIntervalMs) {
         g_last_poll_ms = now;
         uint8_t req[bms::tdt::kRequestLen];
-        const size_t req_len = bms::tdt::buildRequest(bms::tdt::CMD_CELLS_PACK, req, sizeof(req));
+        const size_t req_len = bms::tdt::build_request(bms::tdt::kCmdCellsPack, req, sizeof(req));
         const bool sent = g_transport.write(bms::GattChar::Tx, req, req_len, true);
         if (!sent) ++g_consecutive_failures;
         Serial.printf("\n--- poll: 0x8C sent=%s  rssi=%d dBm  heap=%lu  failures=%lu ---\n",
@@ -416,7 +416,7 @@ static void loopPolling() {
 
     g_notify_handler.tick(now);
 
-    // Push only genuinely new frames (M4/M5 decode inside onNotify() already
+    // Push only genuinely new frames (M4/M5 decode inside on_notify() already
     // ran by the time we get here) — pushing the same frame repeatedly would
     // keep re-stamping BmsDisplay's freshness timer and defeat the M6b
     // staleness check.
