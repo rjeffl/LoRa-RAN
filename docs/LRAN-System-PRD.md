@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.28
+**Version:** 0.29
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-02
 
 ---
 
@@ -316,7 +316,7 @@ Five distinct protocols meet in this system. Only the first two are LRAN's own.
 | **LRAN LoRa frame format** | bridge ↔ any node | **LRAN** | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §3–§15 |
 | **LRAN MQTT interface** | bridge ↔ HA | **LRAN** | Protocol Spec §16 |
 | **VE.Direct** (text + HEX) | GateLink ↔ MPPT 75/15 | Victron | [`osh-labs/VE.Direct_mppt_arduino`](https://github.com/osh-labs/VE.Direct_mppt_arduino), the reference of record; Victron's documents only where it is silent. Transported verbatim |
-| **TDT BLE BMS** | GateLink ↔ battery pack | Pack vendor | `/docs/gatelink/bms-protocol.md` — **still to be written up** from the PoC workspace (`/wattcycle-reader/`) |
+| **TDT BLE BMS** | GateLink ↔ battery pack | Pack vendor | [`bms-protocol`](./gatelink/bms-protocol.md), lifted out of the PoC workspace (`/wattcycle-reader/`) by GateLink task L2 |
 | **1050 accessory I/O** | GateLink ↔ gate controller | Nice/Apollo | Vendor manual; GateLink PRD |
 
 ### 5.1 LoRa link — system-level parameters
@@ -414,12 +414,11 @@ protocol?
 **Outcome — resolved.** The pack is a **TDT** BMS (advertising `XDZN_001_xxxx`), not
 the JBD/Xiaoxiang or Daly families originally assumed. The access sequence is
 documented, and an independent client was written and validated over **32 consecutive
-polls with zero CRC failures**, in the `/wattcycle-reader/` PoC workspace. **The protocol
-write-up and reference captures have not yet been lifted out of that workspace into
-`/docs/gatelink/bms-protocol.md`** — doing so is a prerequisite for the GateLink BMS
-port, since the PoC workspace is not part of the LRAN build. The C++ client for GateLink
-is a port of that implementation,
-testable offline against the same captures.
+polls with zero CRC failures**, in the `/wattcycle-reader/` PoC workspace. GateLink task
+L2 lifted the protocol write-up and reference captures into
+[`bms-protocol`](./gatelink/bms-protocol.md), and the protocol layer into `/lib/bms-ble/`,
+whose host tests run against the same captures. GateLink's client around that layer is
+new work (GateLink Impl Plan §4.3).
 
 The dead ends — the 20-combination JBD/Daly sweep, the wrong-characteristic writes, the
 hypothesis matrix — are preserved in
@@ -505,7 +504,7 @@ sequential.
 /lib/lran-config/        # runtime config: parameter table, SD persistence,
                          #   CONFIG frame handling
 /lib/vedirect/           # VE.Direct text + HEX (osh-labs port) [MIT]
-/lib/bms-ble/            # TDT BLE BMS client
+/lib/bms-ble/            # TDT BLE BMS protocol layer and transport seam [built]
 /tools/                  # bench scripts, simulators, MQTT helpers
     /vectors/            #   W4 generator, checker and vector JSON      [built]
     /checks/             #   build-time guards (e.g. no_mbedtls_hkdf.py) [built]
@@ -520,7 +519,6 @@ sequential.
     /archive/            #   superseded revisions and the Research Archive
                          # planned, not yet written:
     1050-config.md       #   as-programmed gate controller settings
-    bms-protocol.md      #   TDT BLE protocol + reference captures
     mppt-config.md       #   as-configured MPPT settings
     gatelink-config.md   #   generated parameter reference
     /<node>/engineering-log.md   # one per node, created at its bring-up
@@ -711,8 +709,9 @@ assumed now.
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.79 |
 | [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.66 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-10-01 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.13 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.17 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.14 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.23 |
+| [`bms-protocol`](./gatelink/bms-protocol.md) | The TDT smart BMS's BLE access sequence, frames, decode and reference capture. Not part of the LRAN protocol | v0.1 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
 | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.13 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
@@ -745,6 +744,12 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.29** — **The BMS protocol write-up is out of the PoC workspace.** GateLink task L2
+  wrote [`bms-protocol`](./gatelink/bms-protocol.md) and moved the protocol layer to
+  `/lib/bms-ble/`. §5's protocol table, §7.1, §9.1's layout and §12 say so. §12 also
+  catches up the GateLink PRD and plan rows, which had fallen behind by one and six
+  revisions.
 
 - **v0.28** — **Protocol specification v0.16 → v0.17.** No architecture changes. D73–D76
   settle four HEX proxy and MQTT topic readings that B5's code already builds. §12's version
