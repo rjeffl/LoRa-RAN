@@ -16,6 +16,7 @@
 
 #include <cstring>
 
+#include "bms_ble_peripheral.h"
 #include "console.h"
 #include "gatelink.h"
 #include "fault.h"
@@ -142,9 +143,10 @@ bool reboot_command(char** argv, int argc, simnode::Sink* out) {
 
 // `radio` - what the driver saw. `stats` counts frames an identity queued; this counts
 // TX_DONE, which is the only evidence on this board that a frame reached the air. Also
-// dispatches `phy` and `reboot`, because the console takes one board hook.
+// dispatches `phy`, `reboot` and `bms`, because the console takes one board hook.
 bool radio_command(char** argv, int argc, simnode::Sink* out) {
   if (std::strcmp(argv[0], "phy") == 0) return phy_command(argv, argc, out);
+  if (std::strcmp(argv[0], "bms") == 0) return simnode::bms_console(argv, argc, out);
   if (std::strcmp(argv[0], "reboot") == 0) return reboot_command(argv, argc, out);
   if (std::strcmp(argv[0], "radio") != 0) return false;
   if (argc != 1) {
@@ -192,8 +194,10 @@ uint32_t           g_ui_last_ms = 0;
 void ui_service(uint32_t now) {
   if (now - g_ui_last_ms < kUiPollMs) return;
   g_ui_last_ms = now;
-  const simnode::PageLines page = simnode::build_page(
-      simnode::take_snapshot(g_ids, g_faults, g_node, simnode::radio_ready(), now));
+  simnode::PageSnapshot snap =
+      simnode::take_snapshot(g_ids, g_faults, g_node, simnode::radio_ready(), now);
+  simnode::add_bms(&snap, simnode::bms_peripheral()->running(), *simnode::bms_emulator());
+  const simnode::PageLines page = simnode::build_page(snap);
   // Byte comparison of a local, fixed-layout struct - it never leaves this board.
   if (std::memcmp(&page, &g_page_shown, sizeof(page)) == 0) return;
   g_page_shown = page;
@@ -261,9 +265,10 @@ void setup() {
                 simnode::reset_cause_name(cause), static_cast<int>(esp_reset_reason()),
                 static_cast<unsigned>(boots));
 
-  // spec 10.1 - ctx_id from a true entropy source. The simnode runs neither WiFi nor
-  // Bluetooth, so esp_random() is pseudo-random until this turns the SAR ADC noise source on.
-  // It stays on: nothing here uses the ADC, and a roll or `id add` draws a ctx_id later.
+  // spec 10.1 - ctx_id from a true entropy source. The simnode runs no WiFi, and Bluetooth
+  // only while `bms on` runs the BMS emulator, so esp_random() is pseudo-random until this
+  // turns the SAR ADC noise source on. It stays on, because a roll or `id add` draws a ctx_id
+  // later. bms_ble_peripheral.cpp turns it off while the Bluetooth radio runs (L7).
   bootloader_random_enable();
 
   {
@@ -324,6 +329,7 @@ void loop() {
   g_faults.tick(now);
   simnode::radio_service(&g_node, &g_outbox, now);
   restart_service();
+  simnode::bms_service(now);
   ui_service(now);
   delay(1);  // spec 12.3 backoffs are milliseconds; nothing here needs a finer loop
 }
