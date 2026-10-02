@@ -1,6 +1,6 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that built L2.**
+**Written 2026-10-02, at the end of the session that built and merged L2.**
 It replaces the file the session that merged L6 wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
@@ -29,8 +29,8 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**L2 is built, and its PR waits for the operator's acceptance.** `gh pr list` finds it.
-Once it merges, the operator picks the next task from the table. L7 must land before GL5.
+**L2 is merged** ([rjeffl/LoRa-RAN#151](https://github.com/rjeffl/LoRa-RAN/pull/151)). The
+operator picks the next task from the table. L7 must land before GL5.
 The split readback must land before GateLink answers `GET_ALL`. GL0 needs the carrier
 built and the carrier's module confirmed in hand (*Hardware state*).
 
@@ -79,8 +79,8 @@ built and the carrier's module confirmed in hand (*Hardware state*).
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.23. L1, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | L2, built and awaiting acceptance |
+| Done | Plan v0.23. L1, L2, L3, L4, L5, L6. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | Nothing |
 | Not started | L7. GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
 
