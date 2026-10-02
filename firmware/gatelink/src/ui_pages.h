@@ -11,9 +11,10 @@
 
 namespace gatelink {
 
-// The panel is landscape 240x135. At text size 2 the built-in font is 12x16 pixels, so a
-// line holds 20 characters and the panel 8 lines.
-inline constexpr size_t kPageCols  = 20;
+// The panel is landscape 240x135. At text size 2 the built-in font is 12x16 pixels, so
+// the panel holds 8 lines. board_show() insets each line 6 pixels to clear the case's
+// bezel, which leaves room for 19 characters.
+inline constexpr size_t kPageCols  = 19;
 inline constexpr size_t kPageLines = 8;
 
 struct PageText {

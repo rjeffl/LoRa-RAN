@@ -31,7 +31,7 @@ const char* node_key_status(const uint8_t* key, size_t len) {
 void render_boot_page(const BootInfo& info, PageText* out) {
   out->count = 0;
   put(out, "%s%s", "GateLink node 0x01");
-  put(out, "v%s %s", info.version, info.git);
+  put(out, "%s %s", info.version, info.git);  // no "v": a dirty build fills all 19
   put(out, "reset %s", info.reset);
   put(out, "%s%s", node_key_status(info.node_key, info.node_key_len));
 }

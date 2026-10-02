@@ -56,11 +56,11 @@ void test_page_names_node_version_and_reset() {
   PageText p;
   render_boot_page(boot(kTemplateKey), &p);
   TEST_ASSERT_TRUE(page_has(p, "0x01"));
-  TEST_ASSERT_TRUE(page_has(p, "v0.1.0 abc1234-dirty"));
+  TEST_ASSERT_TRUE(page_has(p, "0.1.0 abc1234-dirty"));
   TEST_ASSERT_TRUE(page_has(p, "reset power_on"));
 }
 
-// The panel is 20 characters wide at text size 2. A long field is cut, not wrapped onto
+// A panel line holds kPageCols characters. A long field is cut, not wrapped onto
 // the line below, and every line stays terminated.
 void test_long_fields_are_cut_to_the_panel() {
   BootInfo b = boot(kTemplateKey);

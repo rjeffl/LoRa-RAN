@@ -20,6 +20,7 @@
 #include <freertos/task.h>
 
 #include <atomic>
+#include <cstdio>
 
 namespace gatelink {
 namespace {
@@ -102,16 +103,24 @@ void ui_task(void*) {
 // GL1 - a queue of leveled lines and the microSD log. Today it prints the pass counts, the
 // only task that writes to Serial: a full USB CDC buffer blocks the writer, and no other
 // task may be that writer.
+//
+// The line is built whole and written once. Arduino-ESP32 2.0.17's USB-serial driver lost
+// bytes from every line written as eight printf calls (bench, 2026-10-02). The first report
+// waits a period, so it cannot interleave with setup()'s last banner line.
 void log_task(void*) {
+  char line[160];
   for (;;) {
-    count(TaskId::Log);
-    Serial.print(F("alive:"));
-    for (size_t i = 0; i < kTaskCount; ++i) {
-      Serial.printf(" %s=%lu", task_table()[i].name,
-                    static_cast<unsigned long>(g_passes[i].load(std::memory_order_relaxed)));
-    }
-    Serial.println();
     vTaskDelay(pdMS_TO_TICKS(kAliveReportMs));
+    count(TaskId::Log);
+    size_t n = static_cast<size_t>(std::snprintf(line, sizeof(line), "alive:"));
+    for (size_t i = 0; i < kTaskCount && n < sizeof(line); ++i) {
+      n += static_cast<size_t>(std::snprintf(
+          line + n, sizeof(line) - n, " %s=%lu", task_table()[i].name,
+          static_cast<unsigned long>(g_passes[i].load(std::memory_order_relaxed))));
+    }
+    if (n > sizeof(line) - 2) n = sizeof(line) - 2;  // a cut line still ends in a newline
+    line[n++] = '\n';
+    Serial.write(reinterpret_cast<const uint8_t*>(line), n);
   }
 }
 

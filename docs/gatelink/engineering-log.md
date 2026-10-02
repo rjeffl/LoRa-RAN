@@ -227,3 +227,37 @@ carry over. Plan §5.2 now leaves the timeout to GL3.
 stops at `main.cpp`'s `#error`, which names `tools/provision/node_key.py`. That error is
 the behaviour plan §6.8 asks for. The target build above ran in a scratch copy with the
 template as `secrets.h`, as CI builds it.
+
+## 2026-10-02 — L6 boots on a bare StamPLC, after two fixes the bench found
+
+**The skeleton passes the bench check in *L6 on the bench*.** On a StamPLC with nothing
+attached, the image prints its banner and `Tasks: 7 of 7 started`, then an `alive:` line
+every 30 s. Over five minutes, `io`, `app` and `ui` gained 300 a line, `vedirect` and
+`lora` 30, and `log` 1. `bms` reached 2 at 300 s. The panel showed its four lines. Two
+defects surfaced first, and the operator asked for two changes to the panel.
+
+**Every `alive:` line lost bytes, its newline included.** A line read
+`alive: io=301 vedirect=31 lora= ui=301`, and the next line ran on from it. `log_task`
+wrote each line as eight `Serial` calls. The installed core, Arduino-ESP32 2.0.17, drives
+the USB-serial FIFO from an ISR that ignores how many bytes
+`usb_serial_jtag_ll_write_txfifo()` accepted. Small writes racing that ISR are the likely
+loss; the fix supports that, but nothing here proves it. `log_task` now formats the line
+into one buffer and writes it once. Ten lines in a row came through whole.
+
+**The first `alive:` line interleaved with the banner.** `log_task` printed before
+`setup()` had written `Tasks: 7 of 7 started`, so two writers shared `Serial` for a moment.
+The first report now waits one period.
+
+**`Reset: unknown` is correct for a reset from the USB-serial port.** The ROM reports
+`rst:0x15 (USB_UART_CHIP_RESET)`, and ESP-IDF 4.4's `esp_reset_reason_t` has no value for
+it. The code was left as it was.
+
+**The panel turns 180° and insets each line 6 pixels.** GateLink's StamPLC mounts upside
+down, and the case's bezel covered part of each line's first character. `board_begin()`
+turns the display from the library's default rotation, so it keeps that default's panel
+offset. The inset costs a column: a line holds 19 characters, not 20. A dirty build's
+version line, `v0.1.0 abc1234-dirty`, was exactly 20, so the panel drops the `v`. The
+serial banner never printed one.
+
+**The M5Stack libraries run on `espressif32@6.13.0`.** This was their first run on that
+platform. The display, the backlight and `M5StamPLC.begin()` showed no fault.

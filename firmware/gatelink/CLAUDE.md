@@ -63,5 +63,7 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
   appear. The flag is set; do not remove it.
 - **The StamPLC and the XIAO both enumerate as `/dev/cu.usbmodem*`.** Read the banner, and
   pass `--upload-port`.
-- **The panel is landscape 240×135.** At text size 2 a line holds 20 characters.
+- **The panel is landscape 240×135, turned 180° because GateLink mounts the StamPLC upside
+  down.** The case's bezel covers the left edge, so each line starts 6 pixels in and holds
+  19 characters at text size 2.
 - **Read the installed M5StamPLC headers under `.pio/libdeps/`**, not GitHub.
