@@ -58,7 +58,7 @@ struct BmsView {
   bool        on         = false;
   bool        linked     = false;  // a central is connected and has sent the handshake
   const char* fault      = nullptr;  // exact console token, or nullptr when nothing is armed
-  uint32_t    fault_left = 0;
+  uint16_t    fault_left = 0;  // `bms fault` caps a count at 1000, so five digits fit the row
 };
 
 struct PageSnapshot {

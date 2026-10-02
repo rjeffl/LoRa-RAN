@@ -159,7 +159,7 @@ void add_bms(PageSnapshot* s, bool on, const BmsEmu& emu) {
   s->bms.linked = on && emu.connected() && emu.handshaken();
   if (on && emu.fault() != BmsFault::None) {
     s->bms.fault      = bms_fault_name(emu.fault());
-    s->bms.fault_left = emu.fault_left();
+    s->bms.fault_left = static_cast<uint16_t>(emu.fault_left() > 0xFFFF ? 0xFFFF : emu.fault_left());
   }
 }
 
@@ -177,7 +177,7 @@ PageLines build_page(const PageSnapshot& s) {
     PageRow* row = &p.rows[kPageRows - 1];
     *row         = PageRow{};
     if (s.bms.fault != nullptr) {
-      std::snprintf(row->right, sizeof(row->right), "%lu", static_cast<unsigned long>(s.bms.fault_left));
+      std::snprintf(row->right, sizeof(row->right), "%u", static_cast<unsigned>(s.bms.fault_left));
       join_cut(row->left, sizeof(row->left), "bms ", s.bms.fault,
                kRowBudget - 1 - std::strlen(row->right));
       row->invert = true;
