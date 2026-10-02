@@ -590,7 +590,7 @@ protocol** (§9.6).
   larger MTU or implement reassembly.
 - **The protocol layer exists, and has run on this host.** `lib/bms-ble/` holds
   `tdt_protocol` (CRC, frame build, reassembly, decode into `BmsData`), the abstract
-  `BmsTransport` and its one NimBLE implementation. Its 21 host tests run against captured
+  `BmsTransport` and its one NimBLE implementation. Its 22 host tests run against captured
   frames in the library's own `native` environment. `wattcycle-reader`'s M7 poll loop ran
   it on a StamPLC (`wattcycle-reader/README.md`), before task **L2** moved it out of
   `wattcycle-reader/lib/bms_ble/`.

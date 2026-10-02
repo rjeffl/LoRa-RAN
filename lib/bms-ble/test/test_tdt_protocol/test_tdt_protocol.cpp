@@ -287,6 +287,20 @@ void test_partial_frame_times_out(void) {
     TEST_ASSERT_EQUAL(FrameReassembler::kComplete, feed_all(rx, kRsp8C, sizeof(kRsp8C)));
 }
 
+void test_tick_with_a_clock_older_than_the_partial_keeps_it(void) {
+    // GateLink task L7 found this on air, 2026-10-02. A caller that reads its clock before a
+    // blocking write, then ticks with that reading, ticks with a time earlier than the one
+    // the notification task stamped. Unsigned subtraction made the partial's age about 2^32
+    // ms, and the partial frame was dropped mid-response.
+    FrameReassembler rx;
+    FrameReassembler::Status st;
+    rx.feed(kRsp8C, 20, st, 15244);
+    rx.tick(15243);
+    TEST_ASSERT_TRUE(rx.has_partial());
+    rx.feed(kRsp8C + 20, sizeof(kRsp8C) - 20, st, 15245);
+    TEST_ASSERT_EQUAL(FrameReassembler::kComplete, st);
+}
+
 // --- Decode 0x8C (bms-protocol §6, ground truth in bms-protocol §9) ------------------------------
 
 void test_decode_0x8C_matches_reference_capture(void) {
@@ -442,6 +456,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_bad_terminator_is_detected);
     RUN_TEST(test_reassembler_recovers_after_bad_frame);
     RUN_TEST(test_partial_frame_times_out);
+    RUN_TEST(test_tick_with_a_clock_older_than_the_partial_keeps_it);
 
     RUN_TEST(test_decode_0x8C_matches_reference_capture);
     RUN_TEST(test_decode_0x8C_current_encoding);

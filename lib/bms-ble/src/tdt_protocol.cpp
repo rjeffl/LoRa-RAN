@@ -158,7 +158,11 @@ size_t FrameReassembler::feed(const uint8_t* data, size_t len, Status& status,
 // Rule 5: time out and reset a partial frame after ~1 s.
 void FrameReassembler::tick(uint32_t now_ms) {
     if (len_ == 0 || !timing_) return;
-    if ((uint32_t)(now_ms - started_ms_) >= kPartialFrameTimeoutMs) {
+    // Signed, because the notification task stamps feed() and the loop calls tick(): a loop
+    // that read its clock before a blocking write ticks with a time older than the stamp,
+    // and an unsigned age wrapped to ~2^32 ms and dropped the frame (GateLink L7, 2026-10-02).
+    const int32_t age_ms = (int32_t)(now_ms - started_ms_);
+    if (age_ms >= (int32_t)kPartialFrameTimeoutMs) {
         discarded_ += len_;
         len_ = 0;
         timing_ = false;

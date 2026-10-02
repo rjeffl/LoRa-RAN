@@ -107,7 +107,7 @@ and that self-upgrades silently drop, and always using `/dev/cu.*` not
 
 **Layering rule (the one that matters most):** in `lib/bms-ble/`,
 `tdt_protocol.h/.cpp` and `bms_data.h` must never include `Arduino.h` or NimBLE headers.
-They compile on the host, which is what lets the library's 21 tests run against captured
+They compile on the host, which is what lets the library's 22 tests run against captured
 frames with no board attached, and the library's `native` env stops compiling if a
 dependency creeps in. `nimble_transport.h/.cpp` is the only code there allowed to include
 NimBLE. It implements the abstract `BmsTransport`, and it is guarded `#ifdef ARDUINO` so the

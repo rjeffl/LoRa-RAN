@@ -22,7 +22,7 @@ The vendor publishes no protocol. Everything here was captured from the gate bat
 the bench, by the `wattcycle-reader` proof of concept. `aiobmsble` 0.27.0, a maintained
 Python library, decodes the same pack and is the reference implementation (§12).
 
-`lib/bms-ble/` implements §4 to §7 and §9. Its 21 host tests run against the captured frames
+`lib/bms-ble/` implements §4 to §7 and §9. Its 22 host tests run against the captured frames
 in §9:
 
 ```bash

@@ -61,7 +61,7 @@ framing and CRC are already covered by tests.
 
 ```
 platformio.ini                two envs: heltec_wifi_lora_32_V3, m5stack_stamplc
-../lib/bms-ble/               the BMS library and its 21 host tests (GateLink task L2)
+../lib/bms-ble/               the BMS library and its 22 host tests (GateLink task L2)
 src/
   main.cpp                   Scanning<->Polling state machine, serial wiring
   LinkState.h                connection-state enum shared by both displays
@@ -81,7 +81,7 @@ Tests first — they need no hardware and take about a second:
 
 ```bash
 cd wattcycle-reader
-pio test -d ../lib/bms-ble -e native      # 21 tests against the captured frames
+pio test -d ../lib/bms-ble -e native      # 22 tests against the captured frames
 pio run                                   # build for the default env (Heltec V3)
 pio run -t upload                         # flash the default env
 pio run -e m5stack_stamplc -t upload      # flash the StamPLC instead
