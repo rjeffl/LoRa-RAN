@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.23
+**Version:** 0.24
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -590,12 +590,12 @@ protocol** (§9.6).
   larger MTU or implement reassembly.
 - **The protocol layer exists, and has run on this host.** `lib/bms-ble/` holds
   `tdt_protocol` (CRC, frame build, reassembly, decode into `BmsData`), the abstract
-  `BmsTransport` and its one NimBLE implementation. Its 21 host tests run against captured
+  `BmsTransport` and its one NimBLE implementation. Its 22 host tests run against captured
   frames in the library's own `native` environment. `wattcycle-reader`'s M7 poll loop ran
   it on a StamPLC (`wattcycle-reader/README.md`), before task **L2** moved it out of
   `wattcycle-reader/lib/bms_ble/`.
-- **A bench stand-in for the pack is task L7** (§8.1): the simnode, on its Heltec V3,
-  emulates the BMS from the `bms-protocol` §9 capture. It lets `bms_task` run its connect, handshake, read
+- **A bench stand-in for the pack is task L7** (§8.1), built 2026-10-02: the simnode, on
+  its Heltec V3, emulates the BMS from the `bms-protocol` §9 capture. It lets `bms_task` run its connect, handshake, read
   and disconnect cycle, and its fault paths, before GL5 reaches the pack.
 - **The client around it is new work.** The PoC holds one connection open and polls on an
   interval. **R-3.4a/R-3.4b** require connect, read, disconnect and BLE controller de-init
@@ -1032,7 +1032,7 @@ an explicit not-persisted status, and the condition is published as a diagnostic
 | **Input injection** | Synthetic assertions on IN1–IN6 in configurable order and spacing, injected *below* the debounce layer so debounce is exercised too. Must cover 30 s gaps and partial traversals |
 | **Packet loopback** | RF echo, and internal loopback feeding serialized frames back into the receive parser with no radio — the path with **no PHY CRC**, hence the application CRC16 |
 | **Dummy status push** | Synthetic VE.Direct and gate-state data, marked synthetic all the way into HA history |
-| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **Neither exists.** Task L7 adds the BMS peripheral to the simnode (§8.1). The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
+| **Device simulators** | A VE.Direct frame generator covering **both text and HEX**; a dummy BMS BLE peripheral. **The BMS peripheral exists**: task L7 built it into the simnode, and Bridge Impl Plan §10.9.4 describes it. **The VE.Direct generator does not.** The simnode's `sim_mppt` answers HEX only, inside the simnode, and does not drive a UART |
 | **The bridge as the far end** | Every bench test of the LoRa side runs against the real bridge. Its frame log, counters and `config/ack` topics are the instruments. The simnode's `ROLE_GATELINK` gives a known-good node to compare GateLink's behaviour against, frame for frame |
 | **MQTT as bench harness** | `mosquitto_sub -t 'lran/#'` to watch every decoded payload live; `mosquitto_pub` to inject commands or fake status, decoupled from HA and the RF link |
 | **microSD logging** | Leveled and rotating, so a fault occurring while the LoRa link is down is still recoverable afterwards |
@@ -1466,6 +1466,12 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.24** — **L7 built.** The simnode emulates the BMS over BLE, and Bridge Impl Plan
+  §10.9.4 describes it. Its first on-air run found that `lib/bms-ble/`'s reassembler
+  dropped a partial frame when its caller ticked with a clock older than the frame's
+  arrival stamp. The library is fixed, and its suite is 22 tests. §4.3 and §6.6 say the
+  peripheral exists.
 
 - **v0.23** — **L2 built**, and **L7 added.** `lib/bms-ble/` holds the TDT protocol layer,
   and [`bms-protocol`](./bms-protocol.md) holds the protocol write-up. §4.3, §5.4's reuse

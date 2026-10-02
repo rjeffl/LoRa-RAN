@@ -90,6 +90,14 @@ colon and the command nibble and nothing else, because the registers are the MPP
 captured Set replays; and `HEX_RSP` repeats the request's `seq`. The HEX frame codec is
 `lib/vedirect/`, which the bridge shares.
 
+**The board can emulate the gate battery's BMS over BLE (GateLink task L7, 2026-10-02)**:
+`bms_emu.{h,cpp}` (Arduino-free, `test/test_bms_emu`) and `bms_ble_peripheral.cpp` (**the
+only file that includes NimBLE**), driven by `bms on [suffix] | off | status | fault <name>
+[count] | fault off`; Impl Plan §10.9.4. **Keep three things:** it is off at boot and is not
+a role, so it holds no identity; its answers are `bms-protocol` §9's bytes replayed, and it
+never includes `lib/bms-ble/`, the client's codec; and `bms on` disables
+`bootloader_random` before the controller starts, and `bms off` enables it again.
+
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added
 here has no scenario there** — run it after touching `kFaultCatalogue`.
@@ -155,6 +163,13 @@ bridge. Change them there, and run both firmwares' tests.
   false before opening. On 2026-09-24 an open reset neither board. Open every port before
   the run starts, and toggle RTS when a run needs a boot banner (GateLink engineering log,
   2026-10-01).
+- **`wattcycle-reader` connects only to the name `XDZN_001_49A1`** or the pack's MAC. `bms on`
+  alone advertises the board's own MAC tail, so give it `bms on 49A1` for that client. The
+  real pack is at the gate, 87 m away, and has not been seen at the bench.
+- **A Python BLE tool run from a Claude Code shell is killed by macOS**, with a crash
+  notice and no output, because that process has no Bluetooth permission. `bms_probe_v1_0.py`
+  and `aiobmsble` need a terminal that has the permission. The StamPLC running
+  `wattcycle-reader` needs none.
 - **Every identity decodes every frame.** A PING to `f1` raises `rx_not_addressed`, and so
   `rx_dropped`, on every other identity on the board. That is what four boards would count.
 

@@ -117,7 +117,9 @@ class FrameReassembler {
     size_t feed(const uint8_t* data, size_t len, Status& status, uint32_t now_ms);
 
     // Call from the main loop with a monotonic millisecond clock. Drops a
-    // partial frame that has been sitting incomplete for too long.
+    // partial frame that has been sitting incomplete for too long. A clock
+    // older than the partial's arrival stamp is not a timeout, so a caller
+    // may tick with a time it read before a blocking write.
     void tick(uint32_t now_ms);
 
     // Valid only immediately after feed() reported kComplete.

@@ -270,6 +270,55 @@ void test_the_top_row_fits_at_its_widest() {
   assert_fits(build_page(s));
 }
 
+// GateLink task L7 - the BMS emulator's row: the bottom one, inverted while a fault is armed.
+void test_the_bms_row_takes_the_bottom_row_and_shows_an_armed_fault() {
+  Board         b;
+  b.ids.add(kNodeSim0, Role::Range);
+  class NullLink final : public BmsLink {
+   public:
+    bool notify(const uint8_t*, size_t) override { return true; }
+    void drop() override {}
+  } link;
+  BmsEmu emu(&link);
+
+  PageSnapshot s = take_snapshot(b.ids, b.faults, b.node, true, 0);
+  add_bms(&s, false, emu);
+  TEST_ASSERT_EQUAL_STRING("", build_page(s).rows[kPageRows - 1].left);
+
+  add_bms(&s, true, emu);
+  TEST_ASSERT_EQUAL_STRING("bms advertising", build_page(s).rows[kPageRows - 1].left);
+
+  emu.arm(BmsFault::NoResponse, 3);
+  s = take_snapshot(b.ids, b.faults, b.node, true, 0);
+  add_bms(&s, true, emu);
+  const PageLines p = build_page(s);
+  TEST_ASSERT_TRUE(p.rows[kPageRows - 1].invert);
+  TEST_ASSERT_EQUAL_STRING("bms no_response", p.rows[kPageRows - 1].left);
+  TEST_ASSERT_EQUAL_STRING("3", p.rows[kPageRows - 1].right);
+  TEST_ASSERT_EQUAL_STRING("f0 ROLE_RANGE", p.rows[1].left);
+}
+
+void test_with_four_identities_only_an_armed_bms_fault_displaces_the_fourth() {
+  Board b;
+  b.ids.add(kNodeSim0, Role::Range);
+  b.ids.add(kNodeSim1, Role::Range);
+  b.ids.add(kNodeSim2, Role::Range);
+  b.ids.add(kNodeSim3, Role::Range);
+  class NullLink final : public BmsLink {
+   public:
+    bool notify(const uint8_t*, size_t) override { return true; }
+    void drop() override {}
+  } link;
+  BmsEmu       emu(&link);
+  PageSnapshot s = take_snapshot(b.ids, b.faults, b.node, true, 0);
+  add_bms(&s, true, emu);
+  TEST_ASSERT_EQUAL_STRING("f3 ROLE_RANGE", build_page(s).rows[kPageRows - 1].left);
+  emu.arm(BmsFault::DropMid, 1);
+  s = take_snapshot(b.ids, b.faults, b.node, true, 0);
+  add_bms(&s, true, emu);
+  TEST_ASSERT_EQUAL_STRING("bms drop_mid", build_page(s).rows[kPageRows - 1].left);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_an_idle_board_lists_its_identities_uninverted);
@@ -286,5 +335,7 @@ int main() {
   RUN_TEST(test_a_board_with_no_identities_says_so);
   RUN_TEST(test_ages_step_through_their_units);
   RUN_TEST(test_the_top_row_fits_at_its_widest);
+  RUN_TEST(test_the_bms_row_takes_the_bottom_row_and_shows_an_armed_fault);
+  RUN_TEST(test_with_four_identities_only_an_armed_bms_fault_displaces_the_fourth);
   return UNITY_END();
 }

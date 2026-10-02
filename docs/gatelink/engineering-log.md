@@ -319,3 +319,54 @@ else changed. That folder's `bms_probe_v1_0.py` is identical to the repository's
 also holds `bms_probe_v0_7.py` to `v0_9.py`, which the repository does not have and this
 session did not add.
 
+---
+
+## 2026-10-02 — L7: the BMS emulator runs on air, and its first run found a client defect
+
+**The simnode Heltec emulated the BMS, and `wattcycle-reader`'s StamPLC target decoded it.**
+The Heltec (MAC `44:1b:f6:fa:bc:2c`, `/dev/cu.usbserial-4`) ran `simnode-heltec` from this
+branch. The StamPLC (MAC `50:78:7d:cd:c9:94`, `/dev/cu.usbmodem101`) ran `wattcycle-reader -e
+m5stack_stamplc`, flashed over the L6 skeleton by operator decision, then flashed back to
+`firmware/gatelink -e gatelink`. A harness held both ports and typed the simnode's console.
+
+| Check | What happened |
+|---|---|
+| Discovery | `bms on 49A1`. The StamPLC found `XDZN_001_49A1` at −54 dBm, about 1 m away, and connected. MTU 512 was negotiated, and `FFF1`, `FFF2` and `FFFA` resolved with the §2 properties |
+| Handshake | `HiLink -> FFFA: read-back 0x01 (ACK)`, then `subscribe FFF1: OK` |
+| `0x8C` decode | Cells 3465, 3489, 3484, 3483 mV; temperatures 215, 242, 212, 211 (0.1 °C); 13920 mV; 0 mA with the discharge flag; SOC 100 %; 999/1000; 1 cycle; SOH 1000. These are `bms-protocol` §9's values. 18 polls over 90 s, `notify_failures 0` |
+| `bad_crc` | `reassembler: CRC ERROR`, twice for a count of 2, then a clean decode |
+| `bad_term` | `reassembler: BAD TERMINATOR` |
+| `no_response` | The poll was sent and nothing came back. The next poll decoded |
+| `drop_mid` | The link dropped after 20 bytes. The StamPLC logged `link dropped, resuming scan`, reconnected, handshook again and decoded |
+| `split` | **Failed first, as `BAD TERMINATOR` on every split response.** Passes after the fix below |
+| `bms off`, `bms on` | The StamPLC saw the link drop, and reconnected after `bms on`. `bms on` with no suffix advertised `XDZN_001_BC2D` |
+| LoRa alongside BLE | Two `ping f0 16` sends with BLE connected gave `tx_frames 4`, with no TX errors or timeouts. Reception by the bridge was not checked |
+
+**`split`'s failure was in the client, and the bytes proved it.** The server sent all three
+notifications with return code 0. Bridge Impl Plan §10.9.4 explains why the peripheral calls
+`ble_gattc_notify_custom` itself. A dump recorded inside `wattcycle-reader`'s `on_notify()`
+showed 20, 20 and 3 bytes, correct and in order, 1 ms apart. The reassembler still reported
+`BAD TERMINATOR`. With a `Serial.printf` inside the callback the same response decoded,
+because the print slowed it.
+
+**The cause was `FrameReassembler::tick()`'s unsigned age.** `wattcycle-reader`'s `loop()`
+reads `now = millis()`, then blocks in `g_transport.write()` while NimBLE's host task feeds
+the response, stamping its first byte with a later `millis()`. The loop then calls
+`tick(now)`, and `(uint32_t)(now - started_ms_)` wraps to about 2³² ms. The partial frame
+was dropped as timed out. The reassembler then resynced on the literal `0x7E` in cell 4,
+and its bogus header's length ended on a non-`0x0D` byte. A frame in one notification
+completes inside the callback and is never partial, so only a fragmented response failed.
+**GateLink's `bms_task` would have met this whenever MTU negotiation failed**, at the gate.
+`tick()` now computes a signed age and treats a clock older than the stamp as no timeout.
+A host test reproduces the defect, and both split responses decode on the same hardware.
+
+**What L7 does not show yet.** The pre-handshake drop at 4 s and a refused handshake are
+host-tested only, because `wattcycle-reader` always handshakes. It polls `0x8C` alone, so
+`0x8D` and `0x92` are decoded on the host and not on a board. The four L1 bench checks were
+not run again: they need the XIAO, which could not be connected for lack of a USB port.
+The Heltec image with the emulator off differs from the old one by an early return in
+`loop()` and an OLED row that is empty while the emulator is off.
+
+**The StamPLC's USB CDC console drops and splices lines** under this load, so several
+results above were read from the counters on the simnode, not the StamPLC's log.
+

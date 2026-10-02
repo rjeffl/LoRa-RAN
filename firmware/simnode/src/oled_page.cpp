@@ -154,6 +154,15 @@ PageSnapshot take_snapshot(const IdentityTable& ids, const FaultInjector& faults
   return s;
 }
 
+void add_bms(PageSnapshot* s, bool on, const BmsEmu& emu) {
+  s->bms.on     = on;
+  s->bms.linked = on && emu.connected() && emu.handshaken();
+  if (on && emu.fault() != BmsFault::None) {
+    s->bms.fault      = bms_fault_name(emu.fault());
+    s->bms.fault_left = static_cast<uint16_t>(emu.fault_left() > 0xFFFF ? 0xFFFF : emu.fault_left());
+  }
+}
+
 PageLines build_page(const PageSnapshot& s) {
   PageLines p;
   last_frame_row(s, &p.rows[0]);
@@ -162,6 +171,19 @@ PageLines build_page(const PageSnapshot& s) {
   }
   if (!s.ids[0].used) {
     std::snprintf(p.rows[1].left, sizeof(p.rows[1].left), "no identities");
+  }
+  const bool last_free = !s.ids[kMaxIdentities - 1].used;
+  if (s.bms.on && (last_free || s.bms.fault != nullptr)) {
+    PageRow* row = &p.rows[kPageRows - 1];
+    *row         = PageRow{};
+    if (s.bms.fault != nullptr) {
+      std::snprintf(row->right, sizeof(row->right), "%u", static_cast<unsigned>(s.bms.fault_left));
+      join_cut(row->left, sizeof(row->left), "bms ", s.bms.fault,
+               kRowBudget - 1 - std::strlen(row->right));
+      row->invert = true;
+    } else {
+      std::snprintf(row->left, sizeof(row->left), "bms %s", s.bms.linked ? "linked" : "advertising");
+    }
   }
   return p;
 }

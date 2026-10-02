@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "bms_emu.h"
 #include "fault.h"
 #include "identity.h"
 #include "node.h"
@@ -52,11 +53,20 @@ struct IdentityView {
   uint16_t     fault_left = 0;        // injections still to fire, or answers still to withhold
 };
 
+// The BMS emulator (GateLink task L7). It has no identity, so it gets its own view.
+struct BmsView {
+  bool        on         = false;
+  bool        linked     = false;  // a central is connected and has sent the handshake
+  const char* fault      = nullptr;  // exact console token, or nullptr when nothing is armed
+  uint16_t    fault_left = 0;  // `bms fault` caps a count at 1000, so five digits fit the row
+};
+
 struct PageSnapshot {
   bool         radio_up = false;
   uint32_t     now_ms   = 0;
   LastRx       last;
   IdentityView ids[kMaxIdentities];
+  BmsView      bms;
 };
 
 // Reads the table, the injector and the node. `silent` lives on the identity rather than in
@@ -64,6 +74,12 @@ struct PageSnapshot {
 PageSnapshot take_snapshot(const IdentityTable& ids, const FaultInjector& faults, const Node& node,
                            bool radio_up, uint32_t now_ms);
 
+// Fills `s->bms` from the emulator. A separate call, because the emulator is the board's.
+void add_bms(PageSnapshot* s, bool on, const BmsEmu& emu);
+
+// The BMS row takes the bottom row while the emulator is on. With all four identity slots
+// in use it displaces the fourth only while a BMS fault is armed, so an armed fault is
+// always on the panel (Impl Plan 10.6 rule 2).
 PageLines build_page(const PageSnapshot& s);
 
 // Four characters at most, so the last-frame row fits with an RSSI and an age.
