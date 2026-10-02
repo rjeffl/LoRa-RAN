@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that built the split readback.**
-It replaces the file the session that merged L7 wrote.
+**Written 2026-10-02, at the end of the session that made the document amendments.**
+It replaces the file the session that built the split readback wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **Document amendments** | `doc-findings.md`, findings 3–6, 8, 9 and 10. Each names where the correct statement lives |
+| **None queued** | The operator picks the next task from plan §8.1 or §8.2. GL0 needs the carrier built and the carrier's module confirmed in hand (*Hardware state*) |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,20 +27,21 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**`lib/lran-node` splits a readback** (spec §7.4.1). It is host-tested only. The bridge cannot draw a split answer from a simnode yet (*Open*), so
-the on-air check waits for a bridge change. The operator picks the next task. GL0 needs
-the carrier built and the carrier's module confirmed in hand (*Hardware state*).
+**The operator picks it.** No task is in progress, and the remaining document findings
+wait on a measurement or on a specification revision. GL0 needs the carrier built, with
+its far-end standoff fitted (PRD v0.15 R-4.3f), and the carrier's module confirmed in
+hand (*Hardware state*).
 
 ## What the last session established
 
-- **The engine answers a read in up to four `CONFIG_ACK` messages.** It sorts a full
-  readback by `param_id` and queues the whole answer or none of it. A repeated `GET` or
-  `GET_ALL` is walked again rather than answered `DUPLICATE_CACHED`. The engineering
-  log's 2026-10-02 split-readback entry has the details. The `lran-node` suite is 17 tests.
-- **An answer that fits one frame is unchanged on air.** The bridge's `GET_ALL` to `f1` on
-  the XIAO Kit came back in one message and closed.
-- **The simnode's `ROLE_GATELINK` store holds 23 rows**, GateLink's count outside the PHY
-  group (Bridge Impl Plan v0.82 §10).
+- **The PRDs and the register describe the rev 0.3 carrier.** GateLink PRD v0.15 rewrites
+  R-4.3b, R-4.3d and R-4.3f. Decision Register v0.25 amends D26 and D27 (§3.14) and
+  withdraws **M15**. System PRD v0.30 amends §3.5 for the firmware-local board layer.
+  Plan v0.26 cites them. `doc-findings` 3, 4, 5 and 9 are fixed.
+- **The carrier needs a standoff at its far end**, by operator decision on 2026-10-02, not
+  a DIN mount.
+- **`doc-findings` 6, 8 and 10 stay open.** 6 waits for M4 and 8 for M12. 10 waits for the
+  next specification revision made for another reason, by operator decision.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -70,7 +71,7 @@ the carrier built and the carrier's module confirmed in hand (*Hardware state*).
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.25. L1, L2, L3, L4, L5, L6, L7, the split readback. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.26. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | Nothing |
 | Not started | GL0–GL9 |
 | Queue | The rest of §8.1, in any order |
@@ -164,11 +165,11 @@ board's are its D-pads (expansion board §6.1).
   not a GateLink one.
 - **`nimble_transport.cpp` logs through `Serial`**, as the PoC did. GateLink's leveled log
   (GL1) should carry those lines before `bms_task` uses the file, at GL5.
-- **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It belongs in the
-  next specification revision, not on a GateLink branch.
-- **System PRD §9.1's layout is stale** beyond the `bms-ble` lines L2 fixed: it lists
-  `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written. A System PRD
-  revision, not GateLink's.
+- **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It waits for the
+  next specification revision made for another reason, by operator decision 2026-10-02.
+- **System PRD §9.1's layout is stale** beyond the `bms-ble` and `lran-platform` lines: it
+  lists `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written, and the
+  bridge and GateLink firmware as planned. A System PRD style revision, not GateLink's.
 - **No split readback has been seen on air.** The bridge names GateLink's rows only for
   `0x01` (`node_block()`), and a simnode cannot take that ID, so `simnode1`'s readback
   stops at 68 bytes. Showing the split needs the bridge to name GateLink's block for a
@@ -198,11 +199,9 @@ board's are its D-pads (expansion board §6.1).
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
   Due before GL3.
-- **`doc-findings` 3–6, 8, 9 and 10**: PRD R-4.3b, R-4.3d and R-4.3f, D26, VE.Direct's 5 V vs
-  3.25 V, the INA226's two readings, System PRD §3.5, and the specification's path to
-  `bms-protocol`. Each needs the operator or a
-  measurement.
-- **Measurements** M1–M4, M8–M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
+- **`doc-findings` 6 and 8**: VE.Direct's 5 V against 3.25 V, and the INA226's two
+  readings. M4 and M12 settle them.
+- **Measurements** M1–M4, M8–M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s register scales are confirmed at GL4.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
