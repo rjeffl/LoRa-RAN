@@ -467,7 +467,7 @@ log. Never commit, echo or log the real values.
 ## Board gotchas
 
 - **RadioLib, version pinned in `platformio.ini`** (**D32**). Every firmware in the repo
-  uses the same driver; letting the version float in one of four is how a fleet-wide
+  uses the same driver; letting the version float in any one of them is how a fleet-wide
   regression arrives without a commit to blame.
 - **Radio pins come from `RadioPins` in `radio_config.h`, not from `#define`s.** The
   bridge's values are the `LRAN_PROFILE_HELTEC` entry in Impl Plan §10.8.1 — `nss=8
@@ -480,9 +480,6 @@ log. Never commit, echo or log the real values.
   radio that will not calibrate, not as an obvious error.
 - **OLED sits behind Vext.** Enable Vext before init. A dark display on boot is usually
   Vext, not the driver.
-- **`MQTT_MAX_PACKET_SIZE` defaults to 256.** Discovery configs exceed it and fail with no
-  error pointing at the cause. Set it to ≥ 1024 **in the build flags on day one** — this is
-  the single most likely early time-sink on this node.
 
 ## Structure
 

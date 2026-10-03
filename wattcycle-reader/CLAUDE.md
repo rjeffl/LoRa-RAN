@@ -26,14 +26,14 @@ in code comments and the README here — those point at
 
 **The BMS library is no longer here.** GateLink task L2 moved `lib/bms_ble/` to the
 repository's `lib/bms-ble/`, renamed its files and functions to repo conventions, and moved
-its 21 host tests with it. Both targets here build against it through `lib_extra_dirs`.
+its 22 host tests with it. Both targets here build against it through `lib_extra_dirs`.
 Change the library there, under the root rules; `src/` here is PoC wiring. One difference
 between the two is already known: this PoC holds a persistent connection and
 polls on an interval, while `R-3.4a`/`R-3.4b` require GateLink to connect, read,
 disconnect and de-initialize the BLE controller between polls. See Architecture below.
 
-Two other sub-projects have code now — `lib/lran-protocol/` and `firmware/range-test/`.
-Neither builds against anything here.
+Nothing elsewhere in the repository builds against this directory; `lib/bms-ble/` is the
+shared piece.
 
 The TDT protocol write-up now lives in `docs/gatelink/bms-protocol.md`, which is
 authoritative for it. `docs/wattcycle-reader-poc_3.md` §5 is the record it came from.
@@ -59,7 +59,7 @@ All commands run from `wattcycle-reader/`. `pio` is PlatformIO; if not on
 PATH it's at `~/.platformio/penv/bin/pio`.
 
 ```bash
-pio test -d ../lib/bms-ble -e native      # host-only: 21 protocol tests, no hardware
+pio test -d ../lib/bms-ble -e native      # host-only: 22 protocol tests, no hardware
 pio run                                    # build default env (Heltec V3)
 pio run -e m5stack_stamplc                 # build for the StamPLC instead
 pio run -t upload                          # flash default env
@@ -115,7 +115,7 @@ NimBLE. It implements the abstract `BmsTransport`, and it is guarded `#ifdef ARD
 
 That rule stops at the library boundary, though: `src/main.cpp` also
 includes NimBLE headers directly, for scanning and connection-state
-management. This is intentional and documented (`BmsTransport.h`'s scope
+management. This is intentional and documented (`bms_transport.h`'s scope
 note) — `BmsTransport` only covers post-connection I/O (write/read/
 subscribe/rssi); `main.cpp` is this PoC's wiring, meant to be replaced by
 GateLink's own client, not dropped into GateLink verbatim the way

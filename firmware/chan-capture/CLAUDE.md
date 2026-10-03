@@ -70,5 +70,5 @@ pio run  -d firmware/chan-capture -e xiao-wio -t upload --upload-port <port>
 python3 tools/checks/chan_capture_never_transmits.py
 ```
 
-**Tell the two Heltecs apart by enclosure**, as the bridge's `CLAUDE.md` says: both CP2102
-bridges report `SER=0001`, and port names move on replug.
+**Tell the two Heltecs apart by enclosure, not by port**: both CP2102 bridges report
+`SER=0001` (range-test `CLAUDE.md`, board gotchas), and port names move on replug.
