@@ -198,6 +198,12 @@ in its own commit, with the evidence in the message.
   aim to wrap up by about 20 %, or 200k tokens. A task that must read large documents
   before it can start may run to 40 %, or 400k tokens; say so when the intake pushes past
   20 %.
+- **Fix a stale reference when you touch its file, not with a commit of its own.** A
+  comment or document line that cites a moved document, a renumbered section or a closed
+  decision is fixed in the commit that edits its file for another reason. Until then it is
+  one line under the handoff's *Open*. A moved or renamed document is the exception:
+  `tools/checks/doc_paths.py` fails on a live citation of a path that names no file, so the
+  commit that moves a document fixes what cites it.
 - **Branch per milestone**, named for it: `p4-schemas`, `b0-simnode-bringup`.
 - **Open the PR and write the description yourself.** State which acceptance criteria from
   the milestone table the branch satisfies **and which it does not** — a criterion not met
