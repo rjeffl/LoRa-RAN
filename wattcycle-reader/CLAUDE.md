@@ -41,7 +41,7 @@ authoritative for it. `docs/wattcycle-reader-poc_3.md` §5 is the record it came
 ## Writing
 
 This sub-project is outside the LRAN build, but **the repo's prose standard still applies
-to it**: root `## Writing` — use the `nbj-write-clearly` skill for the README, the design
+to it**: root `## Writing` — use the `write-clearly` skill for the README, the design
 docs under `wattcycle-reader/docs/`, commit messages and code comments.
 
 The target-specific trap is the **known-unverified** material. README §"Known-unverified"

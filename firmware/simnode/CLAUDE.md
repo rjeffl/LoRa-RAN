@@ -9,7 +9,7 @@ halves of later tasks are in their rows: §7's BF-34 for the context roll, §8's
 PHY change and §9's BF-36 for the simulated MPPT.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Driver:** RadioLib, version pinned in `platformio.ini` (**D32**).
-**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
+**Prose:** root `## Writing` — use the `write-clearly` skill. The target-specific
 trap: **console commands, fault names, role names and schema IDs are exact tokens.**
 `ROLE_GATELINK`, `DEBUG_SYNTHETIC`, `0xFE` and every `simctl` verb are typed by an
 operator or a script and must match the firmware character for character. Never
