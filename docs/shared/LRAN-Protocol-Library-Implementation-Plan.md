@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.24
+**Version:** 0.25
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-03
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -89,7 +89,7 @@ lran/
     bridge/platformio.ini
     simnode/platformio.ini
     gatelink/platformio.ini
-    rangetest/platformio.ini
+    range-test/platformio.ini
   tools/
     simctl/                 Python
     vectors/                Python — W4 generation and checking
@@ -829,21 +829,9 @@ out why: simnode and the bridge link the same codec, so a bug in the codec is in
 any test that uses both ends of it. Both sides agree, everything passes, the frame is
 wrong. The vectors are the only reference neither firmware can vote on.
 
-**Format** — `/tools/vectors/vectors.json`, one object per case:
-
-```json
-{
-  "name": "gatelink_status_nominal",
-  "spec_ref": "7.2",
-  "master_key_hex": "00112233...",
-  "header": { "ver": 2, "type": 4, "src": 1, "dst": 0, "seq": 42,
-              "ctx_id": 305419896, "frag": 1, "schema": 16,
-              "hdr_flags": 0, "reserved": [0,0,0] },
-  "payload_fields": { "gate_state": 2, "last_traversal_age_s": 4294967295, "...": 0 },
-  "expect_frame_hex": "0204010...",
-  "expect_status": "Ok"
-}
-```
+**Format** — four files, `tools/vectors/vectors_<group>.json`, for the groups `kdf`,
+`single`, `frag` and `negative`. [`tools/vectors/README.md`](../../tools/vectors/README.md)
+defines each group's shape and is the format of record; this plan no longer copies it.
 
 Generated and checked by `/tools/vectors/` in Python, **with an independent
 implementation of the framing** — not by calling into the C++ library through a binding.
@@ -933,6 +921,11 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.25** — **§5 names the four vector files** that `tools/vectors/` writes, in place of
+  a single `vectors.json` that was never built. Its copy of the vector format had drifted
+  from the files, so it now points to `tools/vectors/README.md`, the format of record.
+  §2's layout names `firmware/range-test/`, not `rangetest/`. No API or test changes.
 
 - **v0.24** — **GateLink's block is declared** (GateLink task L4). §4 records its 19 rows,
   `node_block()`, and a GateLink readback that now needs spec §7.4.1's two messages. The

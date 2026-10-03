@@ -141,6 +141,10 @@ is not shown, because the simulated MPPT has no path for making that change.
 
 ### 5. Documents and tools
 
+- **Owed to the next specification revision**, by operator decision 2026-10-03: §7.1 says
+  schema definitions live in `/lib/lran-protocol/schemas/`, and they are in
+  `include/lran/schema/` and `src/schema/`. §20 also owes an entry for the 2026-10-03 path
+  fixes in §1, §7.2.3 and §7.4, made at v0.17 without one.
 - **The whole-document style passes** are owed, on a branch of their own.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
   called the Davis "not periodic" on the day that confirmed its clock to half a second.
