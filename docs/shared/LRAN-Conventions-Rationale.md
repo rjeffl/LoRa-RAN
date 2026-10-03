@@ -1,12 +1,12 @@
 # LRAN conventions rationale — why the repo-wide rules are what they are
 
 **Document:** `LRAN-Conventions-Rationale`
-**Version:** 0.1
+**Version:** 0.2
 **Status:** **Reference.** This document holds the reasoning behind the rules in the
 repo-root [`CLAUDE.md`](../../CLAUDE.md). It binds nothing on its own: where it and
 `CLAUDE.md` disagree about what a rule *is*, `CLAUDE.md` wins.
 **Parent document:** [`CLAUDE.md`](../../CLAUDE.md)
-**Last updated:** 2026-09-22
+**Last updated:** 2026-10-03
 
 Read this when a rule looks wrong, arbitrary, or worth changing. Each section names the
 rule, then gives the failure that produced it. Several rules exist because the obvious
@@ -26,6 +26,7 @@ That is why the two are separate files.
 - [Why Layout carries only `[built]` and `[planned]`](#why-layout-carries-only-built-and-planned)
 - [Why the command catalogue is not in `CLAUDE.md`](#why-the-command-catalogue-is-not-in-claudemd)
 - [Writing rules](#writing-rules)
+- [Why stale references wait for the next edit, and moved paths do not](#why-stale-references-wait-for-the-next-edit-and-moved-paths-do-not)
 - [Documents are guidance, and they are works in progress](#documents-are-guidance-and-they-are-works-in-progress)
 - [Changelog](#changelog)
 
@@ -216,6 +217,38 @@ gap into an apparent fact, and the next reader builds on it.
 
 ---
 
+## Why stale references wait for the next edit, and moved paths do not
+
+On 2026-10-03, eight live citations named document paths under `/docs/` that had never
+existed: three in the protocol specification, two each in the System PRD and the GateLink
+PRD, and one in the Decision Register. One had been reported the day before and deferred,
+because fixing the specification costs a version bump. A link is never compiled, so nothing
+failed. A reader who followed one found nothing and could reasonably conclude the document
+was never written.
+
+The operator then asked for a rule to clean stale references out of code before each
+recompile. A recompile is the wrong trigger. A comment does not change what the firmware
+does, so a build is no more urgent with a stale one in it. A path goes stale in the commit
+that moves its document, and that commit is the cheapest place to fix every citation of it.
+A rule that depends on someone remembering it before a build can be forgotten.
+
+So the rule has two parts:
+
+- **A moved or renamed document is caught by a check.** `tools/checks/doc_paths.py` runs in
+  CI's `checks` job and the pre-push hook. It fails on a Markdown link or a `.md` path, in a
+  document or a code comment, that names no file, and suggests where a file of that name is
+  now. It skips the records that keep their wording by rule, and lists planned documents
+  with what writes them.
+- **Everything a script cannot judge waits for the next edit to its file.** A renumbered
+  section, a closed decision or a comment describing old behaviour is fixed in the commit
+  that touches the file for another reason, and goes under the handoff's *Open* until then.
+  A commit made only to edit comments still costs a review.
+
+A check that spec section numbers exist is the obvious next step. It waits until a
+specification revision renumbers a section, so it is built against a real case.
+
+---
+
 ## Documents are guidance, and they are works in progress
 
 **`CLAUDE.md` included.** The governing set — `CLAUDE.md`, the PRDs, the implementation
@@ -253,4 +286,5 @@ would falsify it](../README.md#a-load-bearing-premise-must-name-the-check-that-w
 
 | Version | Date | Change |
 |---|---|---|
+| **v0.2** | 2026-10-03 | New section on stale references: moved document paths fail `tools/checks/doc_paths.py`, and everything else waits for the next edit to its file. Records the eight broken `/docs/` citations found that day |
 | **v0.1** | 2026-09-22 | Initial release. Reasoning relocated from the repo-root `CLAUDE.md`, which went from 383 lines to under 200 so that per-turn context cost fell by about 57 %. No rule changed; the two document-authoring meta-rules moved to [`docs/README.md`](../README.md) instead of here. The command-catalogue section records the three-way drift found on 2026-09-22 between `CLAUDE.md`, `README.md` and CI |
