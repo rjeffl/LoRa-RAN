@@ -40,18 +40,22 @@ accepts the PR.
 
 ## Once the operator accepts
 
-The repository has delete-on-merge on (since 2026-10-03). Auto-merge is allowed too, but
-GitHub refuses `gh pr merge --auto` until `main` has a branch rule with required checks,
-and it has none. So merge by hand once CI is green:
+Since 2026-10-03 the repository has auto-merge and delete-on-merge on. The ruleset
+*main: CI must pass* requires every CI job, so auto-merge waits for the firmware builds
+too. Arm it once the operator accepts:
 
 ```bash
 gh pr ready <n>
-gh pr merge <n> --merge             # once the ccd_pr status shows CI green
+gh pr merge <n> --merge --auto      # merges when every required check passes
 ```
 
-Read CI with the ccd_pr `get_status` tool, not with `sleep` or `gh pr checks --watch`. If
-GitHub says the head branch is out of date, run `gh pr update-branch <n>` and let CI run
-again.
+Don't wait on CI with `sleep` or `gh pr checks --watch`. Read CI and the merge with the
+ccd_pr `get_status` tool. If a check fails, auto-merge stays armed but doesn't merge, so
+report the failure. If GitHub says the head branch is out of date, run
+`gh pr update-branch <n>`.
+
+A job renamed in ci.yml leaves a required check that never reports, and every PR then
+waits on it. Update the ruleset in the same PR as the rename.
 
 After the merge, confirm it landed and prune:
 
