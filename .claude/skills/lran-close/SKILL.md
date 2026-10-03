@@ -41,7 +41,8 @@ accepts the PR.
 ## Once the operator accepts
 
 Since 2026-10-03 the repository has auto-merge and delete-on-merge on. The ruleset
-*main: CI must pass* requires every CI job, so auto-merge waits for the firmware builds
+*main: CI must pass* requires one check, ci.yml's *CI result* job. That job waits for every
+other job and fails if any of them failed, so auto-merge waits for the firmware builds
 too. Arm it once the operator accepts:
 
 ```bash
@@ -54,8 +55,8 @@ ccd_pr `get_status` tool. If a check fails, auto-merge stays armed but doesn't m
 report the failure. If GitHub says the head branch is out of date, run
 `gh pr update-branch <n>`.
 
-A job renamed in ci.yml leaves a required check that never reports, and every PR then
-waits on it. Update the ruleset in the same PR as the rename.
+A job added to ci.yml must also go in *CI result*'s `needs`, or the gate stops waiting
+for it.
 
 After the merge, confirm it landed and prune:
 
