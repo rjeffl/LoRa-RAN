@@ -585,3 +585,20 @@ jobs:
         with:
           path: ${{ env.PLATFORMIO_BUILD_CACHE_DIR }}
           key: pio-build-bridge-vb9-run-${{ github.run_id }}-${{ github.run_attempt }}
+
+  # The one check main's ruleset requires. A matrix job skipped as a whole reports a
+  # single check named "Firmware - ${{ matrix.name }}", unexpanded, so requiring the
+  # per-board names blocked every PR that skipped the firmware builds (#162). This job
+  # runs whatever the others did and passes only when none failed or was cancelled. A
+  # job skipped by the path filter counts as passing. A job added above must be added
+  # to `needs` too, or the gate stops waiting for it.
+  ci-result:
+    name: CI result
+    needs: [changes, checks, native, firmware, bridge-vb9]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")'
