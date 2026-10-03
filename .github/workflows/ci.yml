@@ -198,6 +198,13 @@ jobs:
           python3 tools/simctl/test_simctl.py
           python3 tools/checks/simctl_catalogue.py
 
+      # The bench harness and the section reader carry no requirement of their own, but
+      # a session that trusts a broken `wait` reads a timeout as a firmware fault.
+      - name: Bench harness and doc section reader
+        run: |
+          python3 tools/bench/test_bench.py
+          python3 tools/docs/test_section.py
+
       # Impl Plan §8.1: the M22 / V-B12 arithmetic. The guards are the point - a window
       # the bridge rebooted through, or one that carried another node's poll answer,
       # must refuse to produce a PER rather than produce a plausible wrong one.

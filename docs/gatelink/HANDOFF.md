@@ -214,6 +214,9 @@ board's are its D-pads (expansion board §6.1).
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s register scales are confirmed at GL4.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
+- **Spec §7.2.3 cites a path that doesn't exist**: `/docs/bms-protocol.md`. The file is
+  [`docs/gatelink/bms-protocol.md`](bms-protocol.md). This needs a spec revision on its
+  own branch. Found 2026-10-03.
 
 ### Closed, and not to be reopened by habit
 
