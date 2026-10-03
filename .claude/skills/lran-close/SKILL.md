@@ -40,16 +40,18 @@ accepts the PR.
 
 ## Once the operator accepts
 
-The repository has auto-merge and delete-on-merge on (since 2026-10-03). Then:
+The repository has delete-on-merge on (since 2026-10-03). Auto-merge is allowed too, but
+GitHub refuses `gh pr merge --auto` until `main` has a branch rule with required checks,
+and it has none. So merge by hand once CI is green:
 
 ```bash
 gh pr ready <n>
-gh pr merge <n> --merge --auto      # merges when CI is green; no polling
+gh pr merge <n> --merge             # once the ccd_pr status shows CI green
 ```
 
-If GitHub says the head branch is out of date, run `gh pr update-branch <n>`, then arm
-auto-merge again. Don't wait on CI with `sleep` or `gh pr checks --watch`. The merge
-happens on its own, and the ccd_pr status reports it.
+Read CI with the ccd_pr `get_status` tool, not with `sleep` or `gh pr checks --watch`. If
+GitHub says the head branch is out of date, run `gh pr update-branch <n>` and let CI run
+again.
 
 After the merge, confirm it landed and prune:
 
