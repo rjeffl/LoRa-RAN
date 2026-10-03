@@ -23,8 +23,7 @@ Two consequences, both easy to violate by accident:
    bench work* can reuse them, and so pass 2 is a config addition rather than a refactor
    (R2). That reuse direction is outward from `lib/` and from this directory — never from
    this `main` into `firmware/bridge/` or `firmware/gatelink/`.
-2. **`firmware/bridge/` and `firmware/simnode/` stay empty shells.** Do not fill them
-   from here.
+2. **Nothing from here goes into `firmware/bridge/` or `firmware/simnode/`.**
 
 ## The one specification rule this binary deliberately breaks
 
@@ -52,7 +51,7 @@ and is correct in this one.
 ## Board gotchas
 
 - **RadioLib pinned exactly — `jgromes/RadioLib@7.7.1`**, no caret (**D32**, repo rule 9).
-  Four firmwares share this driver. The OLED driver is pinned the same way: a bench
+  Every firmware here shares this driver. The OLED driver is pinned the same way: a bench
   instrument whose display library moves under it produces unexplained differences
   between one walk and the next.
 - **Radio pins come from `BoardRadioConfig`, never `#define`.** Values are transcribed
@@ -156,7 +155,7 @@ frame handling runs. Keep it that way.
   transmits. See `src/role.h`.
 - **Seven named sites, one stored run each** (`bridge-house`, `gatelink-gate`,
   `weather-island`, `welllink-well`, `irrigation-pump`, `hopyard-lower`, `propane-tank`).
-  Seven blobs of 1580 bytes in a 20 kB NVS partition - the fit is asserted by a host test,
+  Seven blobs of 1584 bytes in a 20 kB NVS partition - the fit is asserted by a host test,
   not assumed. A short write is reported and does **not** advance the site.
 - **A campaign dump prints ONE header for all seven sites.** A header reprinted per site is
   indistinguishable, to anything reading the port, from a board reboot - `capture.py` read

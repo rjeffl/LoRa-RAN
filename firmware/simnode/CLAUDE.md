@@ -133,8 +133,8 @@ bridge. Change them there, and run both firmwares' tests.
 - **`stats` counts frames an identity queued; `radio` counts `TX_DONE`.** Only `radio` shows
   a frame reached the air.
 - **`ping` takes `to <hex>`**, an addition to Impl Plan §10.4 that lets two simnodes echo
-  each other. The destination defaults to `00`, and **the bridge does not answer PING yet**
-  (spec §17.3 gap, no task assigned), so a ping to `00` reports no echo.
+  each other. The destination defaults to `00`, which the bridge's RF echo answers
+  (bridge `echo.{h,cpp}`, Impl Plan §6.6.4).
 - **The XIAO's panel is on the Seeeduino expansion board**, not the Kit: SDA 5, SCL 6, no
   reset line, no Vext. A dark XIAO panel is the expansion board's seating, not Vext.
   **It is not flipped here, and the range test flips it**: as a simnode the board is mounted
@@ -367,5 +367,5 @@ happens.
 spaces; console accepts every command; `ROLE_RANGE` echoes `PING`; faults arm, fire the
 specified count, self-disarm, and show armed state on the OLED.
 
-B0 depends on protocol library **P6** (W4 vectors committed). This ordering is
+B0 depends on protocol library **P6** (W4 vectors committed) and **P8**. This ordering is
 deliberate: a simnode validated only against the bridge is a mirror, not an instrument.
