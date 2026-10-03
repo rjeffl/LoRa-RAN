@@ -159,7 +159,7 @@ re-provisioning every node, which for GateLink means a USB reflash at the gate.
 
 ## Writing
 
-**Use the `nbj-write-clearly` skill for every prose artifact in this repo** — documents under
+**Use the `write-clearly` skill for every prose artifact in this repo** — documents under
 `docs/`, `README`s, engineering-log entries, commit messages, PR descriptions, code comments
 and docstrings, and revisions to any of them. Invoke it before drafting, not as a cleanup
 pass. Every passage you write or revise meets it: the lines the change touches, and the

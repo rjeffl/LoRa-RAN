@@ -13,7 +13,7 @@ only. **The antenna is decided and is not a choice to revisit here:** the same 3
 19 cm stick the range test ran on (PRD **R-4.3a.1**). Its gain is a term in D1's EIRP
 arithmetic, not a note about a part.
 
-**Prose:** root `## Writing` — use the `nbj-write-clearly` skill. The target-specific
+**Prose:** root `## Writing` — use the `write-clearly` skill. The target-specific
 trap: **MQTT topics, discovery keys and the §14.1 counter names are exact tokens**, and
 they are the interface Home Assistant sees. A topic or counter renamed for readability in
 a document is a topic that no longer matches the spec, which owns both (see **Counter
