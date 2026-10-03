@@ -1,17 +1,17 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.26
+**Version:** 0.27
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.15
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.16
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-03
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -1462,6 +1462,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.27** — **Cites PRD v0.16.** That revision moves R-6.1b's `mppt-config.md` and S-6's
+  `1050-config.md` under `docs/gatelink/`. The plan already used that path for
+  `1050-config.md` and does not cite `mppt-config.md`, so nothing else here changes.
 
 - **v0.26** — **The PRD and the Decision Register now describe the rev 0.3 carrier.** §3
   cites PRD v0.15's R-4.3b, R-4.3d and R-4.3f, and Decision Register §3.14's amendments to

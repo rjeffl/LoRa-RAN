@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.15
+**Version:** 0.16
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-03
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -723,7 +723,7 @@ steel gate-controller enclosure  (outdoors, at the gate)
 - **R-6.1b.** The charge controller SHALL be reconfigured for LiFePO4 **before the pack
   is first charged** — battery type user-defined, equalization **disabled**, temperature
   compensation **0 mV/°C**, absorption and float per the pack specification. Final
-  values recorded in `/docs/mppt-config.md`.
+  values recorded in `docs/gatelink/mppt-config.md`.
 
 > **Sequencing note.** This must happen before LRAN exists, so initial reconfiguration
 > is done with the vendor app over a USB cable. **LRAN's HEX path is for ongoing
@@ -922,7 +922,7 @@ being 40% open is worse than one reporting discrete states.**
 - **S-6. Two independent manual UNLOCK paths are required and provided** (**D24**): the
   handheld remote already programmed with UNLOCK, and the panel pushbutton. **Plain STEP
   does not override a lock**, so without these a crashed GateLink would leave a held gate
-  with no manual release. Both are recorded in `/docs/1050-config.md`.
+  with no manual release. Both are recorded in `docs/gatelink/1050-config.md`.
 - **S-7. GateLink SHALL NOT unlock the gate on boot.** An earlier design pulsed UNLOCK
   at startup to clear a lock a previous instance might have left. **That is withdrawn.**
   GateLink reads the real hold state at boot, adopts it, and marks the source unknown if
@@ -1000,6 +1000,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.16** — **R-6.1b and S-6 name `docs/gatelink/`** for `mppt-config.md` and
+  `1050-config.md`, which they placed under `/docs/`. The Implementation Plan already uses
+  the `docs/gatelink/` path for `1050-config.md`. Neither file is written yet. No
+  requirement changes.
 
 - **v0.15** — **Three radio requirements describe the rev 0.3 carrier**, which the operator
   adopted on 2026-10-01. R-4.3b allows the one RF-switch GPIO the Wio-SX1262 for XIAO

@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.25
+**Version:** 0.26
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-03
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -394,7 +394,7 @@ Frames from a node that is not deployed are processed as they are now.
 | **D41** | Whether the bridge sends §14's `ERROR` replies, and how they are addressed | **Registered sources only, rate-limited.** `error_min_interval_ms` default **1000**, runtime-settable; `src` the sender's own, `ctx_id` **`0`** (unknown, §5.5), `ref_seq` the offending frame's. A receiver MUST NOT adopt a zero `ctx_id`. Answering any `src` was rejected as a reflection vector: a spoofed frame would make the receiver transmit at an attacker's chosen rate. `BAD_CRC` and `BAD_VERSION` stay optional. New **§14.2** | Protocol Spec §14.2 (**BF-19a**) |
 | **D42** | Which §16.2 topics get a normative payload now | **`lran/bridge/version` and `lran/<node>/diag/state` only**, in new §16.2.1, because both ship today and Home Assistant breaks on a rename. **`config/set` and `config/ack` stay undefined** until they have a caller — neither has an implementation, a configuration library or an inbound path, and a payload specified before its first caller is a guess with a version number. *Amended 2026-09-19:* the `config/*` payloads now have their caller, and **D48** defines them | Protocol Spec §16.2.1 (**BF-13**, **BF-19**; **BF-26**, **BF-23** deferred) |
 | **D43** | Route for runtime configuration from Home Assistant | **The general `lran/<node>/config/set`, with `/lib/lran-config/` behind it**, for the bridge's parameters and every node's. A narrow single-purpose topic was rejected because it spends an HA-visible token that cannot be renamed; a serial-only lever was rejected because it leaves root rule 8 unmet on nodes that cannot be reflashed without a walk. See §3.6 | System PRD §9.4, Protocol Spec §16.7 (**BF-32**) |
-| **D44** | Whether the parameter table is generated or hand-written | **A hand-written C++ table is the one source**, and every other copy is derived from it by code: firmware defaults and HA `number` discovery read it directly, and a host tool writes `/docs/gatelink-config.md` for a check to diff, as `tools/ha/dump_discovery.cpp` does for `/ha/`. No generator, no YAML, and nothing maintained by hand against the header | Protocol Library Plan §4, System PRD §9.4, Protocol Spec §7.4 |
+| **D44** | Whether the parameter table is generated or hand-written | **A hand-written C++ table is the one source**, and every other copy is derived from it by code: firmware defaults and HA `number` discovery read it directly, and a host tool writes [`gatelink-config`](../gatelink/gatelink-config.md) for a check to diff, as `tools/ha/dump_discovery.cpp` does for `/ha/`. No generator, no YAML, and nothing maintained by hand against the header | Protocol Library Plan §4, System PRD §9.4, Protocol Spec §7.4 |
 | **D45** | What answers `POLL` `poll_flags` bit 1 and `REQUEST_CONFIG` | **An unsolicited `CONFIG_ACK` with `op` = `GET_ALL`, with a `seq` from the node's status sequence space** (§10.2) — what simnode BF-6 already sends. It carries no MAC, for the reason `STATUS` carries none: a spoofed readback misreports configuration as a spoofed `STATUS` misreports state (§9.5). `CONFIG` `GET` and `GET_ALL` stay as the authenticated read. Retiring bit 1 and `REQUEST_CONFIG` was rejected: it breaks working simnode code and a published HA button, and costs an authenticated frame per readback | Protocol Spec §6.4, §7.4, §8.1, §9.2 |
 | **D46** | Whether `param_id` is one namespace, and whose schema `0x12` is | **One namespace for the fleet, allocated in blocks per owner**: `0x0000`–`0x00FF` bridge, `0x0100`–`0x01FF` every node, `0x1000`–`0x1FFF` GateLink, `0x2000`–`0x2FFF` WellLink. Schema `0x12` keeps its value and becomes **node config v1**, carried by any node. No byte changes | Protocol Spec §7.1, §7.4 |
 | **D47** | Where a parameter about a node is held | **Each parameter declares its owner**: the bridge, globally; the bridge, per node; or the node. The bridge applies its own half of a `config/set`, sends the node's half as `CONFIG`, and publishes one `config/ack` when both have an outcome. `config/state` shows the node's and the bridge's per-node values together, so HA sees one device with one configuration | Protocol Spec §16.7, Protocol Library Plan §4 |
@@ -1326,6 +1326,9 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.26** — **D44 links `docs/gatelink/gatelink-config.md`**, which it cited as
+  `/docs/gatelink-config.md`, a path that does not exist. No decision changes.
 
 - **v0.25** — **D26 and D27 amended on 2026-10-02** to describe the rev 0.3 carrier. D26
   no longer excludes the AMS1117, because the carrier feeds it from its own 5 V buck
