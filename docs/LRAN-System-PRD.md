@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.30
+**Version:** 0.31
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-03
 
 ---
 
@@ -350,8 +350,8 @@ specification and does not restate it**. In particular:
 - Frame layouts, enumerations and schema IDs are defined once, in the protocol spec.
 - A node needing a new field gets a **new schema ID**, not a header change — the
   mechanism that keeps a change from becoming a fleet-wide reflash.
-- Protocol changes require a version bump and an entry in
-  `/docs/protocol-changelog.md`.
+- Protocol changes require a version bump and an entry in the specification's changelog,
+  [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) §20.
 - MQTT topic grammar, retention rules and the **hard never-retain rule for event
   topics** are protocol-spec requirements binding on the bridge.
 
@@ -582,9 +582,9 @@ into a workflow file.
 
 `/lib/lran-config/` declares every runtime parameter **once** — name, owner, type, unit,
 range, default — in a hand-written C++ table. The firmware defaults, the HA `number`
-discovery payloads and `/docs/gatelink-config.md` are all **derived from that table by
-code** (**D44**), and Home Assistant sets a parameter over `lran/<node>/config/set`
-(**D43**, Protocol Spec §16.7).
+discovery payloads and [`gatelink-config`](./gatelink/gatelink-config.md) are all
+**derived from that table by code** (**D44**), and Home Assistant sets a parameter over
+`lran/<node>/config/set` (**D43**, Protocol Spec §16.7).
 
 > Three hand-maintained copies of a parameter table drift, and the drift is silent: HA
 > offers a range the firmware clamps, or documentation describes a default that changed
@@ -691,9 +691,9 @@ assumed now.
 
 | Document | Covers | Status |
 |---|---|---|
-| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.30 |
+| **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.31 |
 | [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.17** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D76** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.25 |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D76** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.26 |
 | [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.23 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-P8-CommandGate-Brief`](./shared/LRAN-P8-CommandGate-Brief.md) | **Superseded 2026-09-11 by Decision Register §3.2.1**, which amended D34 on this brief's recommendations. Kept as the reasoning: the `seq` high-water timing that would double-execute a retry, the in-flight window, cache sizing | v0.2 |
@@ -705,8 +705,8 @@ assumed now.
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.79 |
 | [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.66 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-10-01 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.15 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.26 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.16 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.27 |
 | [`bms-protocol`](./gatelink/bms-protocol.md) | The TDT smart BMS's BLE access sequence, frames, decode and reference capture. Not part of the LRAN protocol | v0.1 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
 | [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.13 |
@@ -740,6 +740,12 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.31** — **Two citations named paths under `/docs/` that do not exist.** §5.2 sends a
+  protocol change's changelog entry to the specification's §20, not
+  `/docs/protocol-changelog.md`. §9.4 links `docs/gatelink/gatelink-config.md`. §12's
+  version column catches up the Decision Register, the GateLink PRD and the GateLink
+  plan. No requirement changes.
 
 - **v0.30** — **§3.5 no longer ties GateLink to AquaLink.** AquaLink is a separate
   StamPLC project outside the LRAN fleet, by operator direction on 2026-10-02, and LRAN

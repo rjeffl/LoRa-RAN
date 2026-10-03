@@ -36,6 +36,8 @@ Implementation Plan §9.8 and V-11 use it for the **node's** own supply.
 **Correct statement:** not yet established. **Measurement M12**, at milestone GL1, finds
 which current passes through its shunt.
 
+## Fixed
+
 ### 10. The protocol specification points at `/docs/bms-protocol.md`, which does not exist
 
 **Found 2026-10-02**, by task L2, which wrote the file.
@@ -52,7 +54,9 @@ table, which links it.
 **Deferred 2026-10-02** by operator decision. The path waits for the next specification
 revision made for another reason, rather than a version bump and citation sweep of its own.
 
-## Fixed
+**Fixed 2026-10-03** on branch `docs-spec-bms-protocol-path`, by operator direction that
+day. Both citations now link `docs/gatelink/bms-protocol.md`. The specification kept
+v0.17: no version bump and no citation sweep.
 
 ### 3. PRD R-4.3b forbids the RF-switch line the chosen module needs
 

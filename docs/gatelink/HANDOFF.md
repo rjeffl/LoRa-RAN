@@ -40,8 +40,7 @@ hand (*Hardware state*).
   Plan v0.26 cites them. `doc-findings` 3, 4, 5 and 9 are fixed.
 - **The carrier needs a standoff at its far end**, by operator decision on 2026-10-02, not
   a DIN mount.
-- **`doc-findings` 6, 8 and 10 stay open.** 6 waits for M4 and 8 for M12. 10 waits for the
-  next specification revision made for another reason, by operator decision.
+- **`doc-findings` 6 and 8 stay open.** 6 waits for M4 and 8 for M12. 10 is fixed.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -165,8 +164,6 @@ board's are its D-pads (expansion board §6.1).
   not a GateLink one.
 - **`nimble_transport.cpp` logs through `Serial`**, as the PoC did. GateLink's leveled log
   (GL1) should carry those lines before `bms_task` uses the file, at GL5.
-- **`doc-findings` 10**: the specification cites `/docs/bms-protocol.md`. It waits for the
-  next specification revision made for another reason, by operator decision 2026-10-02.
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` and `lran-platform` lines: it
   lists `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written, and the
   bridge and GateLink firmware as planned. A System PRD style revision, not GateLink's.
@@ -214,9 +211,6 @@ board's are its D-pads (expansion board §6.1).
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s register scales are confirmed at GL4.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
-- **Spec §7.2.3 cites a path that doesn't exist**: `/docs/bms-protocol.md`. The file is
-  [`docs/gatelink/bms-protocol.md`](bms-protocol.md). This needs a spec revision on its
-  own branch. Found 2026-10-03.
 
 ### Closed, and not to be reopened by habit
 
