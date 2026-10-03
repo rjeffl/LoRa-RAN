@@ -991,7 +991,7 @@ authenticated read, answered by a `CONFIG_ACK` correlated by `seq`.
 `param_id` values, names, types, ranges and defaults are declared once, in a hand-written
 C++ table in `/lib/lran-config/`, and every other copy is derived from it by code:
 firmware defaults and HA discovery read the table directly, and a host tool writes
-`/docs/gatelink-config.md` (**D44**). **This document does not enumerate them** — three
+[`gatelink-config`](../gatelink/gatelink-config.md) (**D44**). **This document does not enumerate them** — three
 hand-maintained copies would drift.
 
 
