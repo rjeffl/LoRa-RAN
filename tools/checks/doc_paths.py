@@ -25,6 +25,7 @@ WHAT IT SKIPS, because these keep their wording by rule (root CLAUDE.md, Writing
   - `docs/archive/`, engineering logs, and `wattcycle-reader/`, whose paths are relative
     to its own project and whose documents are versioned records.
   - `doc-findings.md` files, which name broken references because that is their job.
+  - This file, whose examples and HISTORICAL entries name paths that do not exist.
   - Documents whose header says `**Status:** **Superseded`.
   - Inside a Markdown document, any section whose heading says `Changelog` or
     `superseded`, down to the next heading of the same or higher level.
@@ -69,7 +70,8 @@ SKIP_SECTION = re.compile(r"changelog|superseded", re.IGNORECASE)
 def skipped_file(rel):
     parts = rel.split("/")
     return (rel.startswith("docs/archive/") or rel.startswith("wattcycle-reader/")
-            or parts[-1].startswith("engineering-log") or parts[-1] == "doc-findings.md")
+            or parts[-1].startswith("engineering-log") or parts[-1] == "doc-findings.md"
+            or rel == "tools/checks/doc_paths.py")
 
 
 def live_lines(rel, text):
