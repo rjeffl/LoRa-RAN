@@ -89,7 +89,8 @@ lib/        lran-protocol, lran-link, lran-sim, lran-config   [built]
 firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             gatelink/ - skeleton, task L6                   [built]
             welllink/                                       [planned]
-tools/      vectors/, checks/, simctl/, rangetest/, ha/, provision/   [built]
+tools/      vectors/, checks/, simctl/, rangetest/, ha/, provision/,
+            bench/, docs/                                   [built]
 docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
             <node>/engineering-log.md — protocol-lib, rangetest, bridge and gatelink have one
 ha/         discovery payloads, GENERATED from the firmware   [built]
@@ -111,6 +112,8 @@ pio run  -d firmware/<node> -e <env>          # target build; add -t upload to f
 python3 tools/checks/<check>.py               # repository invariants
 python3 tools/checks/run_ci_local.py          # CI's checks job, read from ci.yml; --job native adds the suites
 python3 tools/vectors/generate.py             # regenerate W4 vectors after a spec change
+python3 tools/docs/section.py <doc> [<§>]     # one section of a document, or its outline
+~/.platformio/penv/bin/python tools/bench/bench.py run|send|wait   # bench harness; tools/bench/README.md
 ```
 
 **[`.github/workflows/ci.yml`](.github/workflows/ci.yml) is the catalogue**, in three
@@ -189,7 +192,8 @@ in its own commit, with the evidence in the message.
   `HANDOFF.md` and read only what it names for the task. Do the task and the cleanup it
   produced — stale comments and document lines, closed `TODO(<id>)` markers, merged branches
   and worktrees. Close by opening the PR, merging it once the operator accepts it, and
-  rewriting *Start here*. Something out of scope, a wrong document included, goes in one
+  rewriting *Start here*. The project skills `/lran-task` and `/lran-close`, in
+  `.claude/skills/`, carry those steps. Something out of scope, a wrong document included, goes in one
   line under the handoff's *Open*, not into the session. Context in use is the budget:
   aim to wrap up by about 20 %, or 200k tokens. A task that must read large documents
   before it can start may run to 40 %, or 400k tokens; say so when the intake pushes past
