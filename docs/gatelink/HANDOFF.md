@@ -170,6 +170,15 @@ board's are its D-pads (expansion board §6.1).
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` and `lran-platform` lines: it
   lists `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written, and the
   bridge and GateLink firmware as planned. A System PRD style revision, not GateLink's.
+- **The bridge and simnode `CLAUDE.md` files cite old document versions**: PRD v0.17,
+  Impl Plan v0.75 and Tasks v0.61, where the documents are at v0.18, v0.82 and v0.69.
+  Check the sections and `BF-*` numbers each file cites before moving the citations, as the
+  root `CLAUDE.md`'s *Check the version* rule asks. The bridge's to reconcile.
+- **Five `CLAUDE.md` passages describe what the file used to say**: range-test's 2.0 dBi
+  note, simnode's Kit-variant warning and its `CONFIG_ACK` note, wattcycle-reader's
+  `lran-prd-v0_5` §5.7 citation, and the bridge's note on B0's P6-only gating. The
+  2026-10-03 prompt audit proposed removing them. That is a style pass, and it waits for
+  the operator to ask for one.
 - **No split readback has been seen on air.** The bridge names GateLink's rows only for
   `0x01` (`node_block()`), and a simnode cannot take that ID, so `simnode1`'s readback
   stops at 68 bytes. Showing the split needs the bridge to name GateLink's block for a
