@@ -1,0 +1,13 @@
+# .write-clearly.toml - project exceptions for the write-clearly skill's
+# scripts/prose_check.py, which finds this file by searching upward from the
+# file it checks. CLAUDE.md "Writing" says when the skill applies.
+#
+# Both are technical terms here, not filler: LoRa beacons, and wire and test
+# harnesses. Every other listed word stays flagged on purpose.
+allow = ["beacon", "harness"]
+
+# Left out deliberately, decided 2026-10-03:
+# - disable = ["em-dash", "bold-sprinkle"]: new prose meets the skill's limits;
+#   older documents aren't linted whole, so their findings don't matter.
+# - exclude_headings for dated log entries: it would also skip the new entry
+#   being written. Lint a new entry on its own, from stdin, instead.
