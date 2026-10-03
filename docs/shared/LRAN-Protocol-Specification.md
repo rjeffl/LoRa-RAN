@@ -53,7 +53,7 @@ and retention rules.
 
 **Out of scope:** the VE.Direct text and HEX protocols themselves (Victron-owned —
 LRAN transports HEX verbatim, §7.6), the TDT BLE BMS protocol
-(`/docs/bms-protocol.md`), 1050 accessory-I/O semantics
+([`bms-protocol`](../gatelink/bms-protocol.md)), 1050 accessory-I/O semantics
 ([`LRAN-GateLink_Node-PRD`](../gatelink/LRAN-GateLink_Node-PRD.md)), and HA entity definitions
 (node PRDs).
 
@@ -662,7 +662,7 @@ cheap to change.
 #### 7.2.3 BMS block — offsets 36–63
 
 Populated from the TDT BLE client. Frame formats and the register decode live in
-`/docs/bms-protocol.md`; this block is the transport representation only.
+[`bms-protocol`](../gatelink/bms-protocol.md); this block is the transport representation only.
 
 | Off | Type | Field | Unit | Notes |
 |---:|---|---|---|---|
@@ -991,7 +991,7 @@ authenticated read, answered by a `CONFIG_ACK` correlated by `seq`.
 `param_id` values, names, types, ranges and defaults are declared once, in a hand-written
 C++ table in `/lib/lran-config/`, and every other copy is derived from it by code:
 firmware defaults and HA discovery read the table directly, and a host tool writes
-`/docs/gatelink-config.md` (**D44**). **This document does not enumerate them** — three
+[`gatelink-config`](../gatelink/gatelink-config.md) (**D44**). **This document does not enumerate them** — three
 hand-maintained copies would drift.
 
 
