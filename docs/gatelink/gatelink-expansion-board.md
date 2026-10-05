@@ -222,8 +222,9 @@ constant (§7.3).
 >
 > **The XIAO GPIO column above is still unrung** — it is derived, and corroborated by an
 > independent source (meshtastic/firmware issue #8409) that matches the pad column value
-> for value. Two agreeing derivations are not a continuity check. §10's ring-out item is
-> the check that closes it.
+> for value. Two agreeing derivations are not a continuity check. §10's ring-out, done on
+> 2026-10-05, verified the pad column against this board's nets, not a XIAO's GPIO. The
+> XIAO column is rung out only when a header board is fitted to a XIAO.
 
 ### VE.Direct
 
@@ -416,7 +417,7 @@ At roughly 5.25 A per leaf: a 20 ft run in 16 AWG drops about 0.84 V, in 18 AWG 
 - [x] R4 fitted (RST → GND). Operator, 2026-10-05.
 - [x] Firmware sets `INPUT_PULLDOWN` on G1 (DIO1) at boot and again after `radio.begin()` (§7.1.1). `firmware/gatelink/src/bringup.cpp`, 2026-10-05.
 - [x] P6KE18A manufacturer — ST's part specs 32.5 V max clamping vs Vishay/Taiwan Semi's 25.2 V. The AP63357's input limit is 32 V. The fitted part's maker is unknown; its rating is 25.2 V maximum clamp at 18.9 V breakdown (operator, 2026-10-05).
-- [ ] P6KE18A is the unidirectional "A", not the bidirectional "CA".
+- [x] P6KE18A is the unidirectional "A", not the bidirectional "CA". Confirmed by the operator, 2026-10-05.
 - [x] C10 rated 25 V minimum (50 V specified). 50 V fitted (operator, 2026-10-05).
 - [x] Decide whether D2 is fitted. Not fitted (operator, 2026-10-05).
 

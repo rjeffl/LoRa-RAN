@@ -45,8 +45,8 @@ Measurement M4 and §11 step 5 wait for the MPPT on the bench.
 ## What the last session established
 
 - **The carrier is built** and carries the header board (p-6379), by operator report on
-  2026-10-05. Expansion board §10 is ticked but for one item: whether the P6KE18A is the
-  unidirectional "A" (*Open*). The ring-outs cover J1, the pad mapping and all five nets.
+  2026-10-05. Every expansion board §10 item is ticked. The ring-outs cover J1, the pad
+  mapping and all five nets.
 - **`board_profile.h` declares the carrier's `RadioPins`**, and the `gatelink-bringup`
   env builds a console for §11 steps 1–4. It builds; it has not run on the board.
 - **RadioLib's `begin()` clears the DIO1 pull-down.** Plan v0.28 and expansion board
@@ -158,8 +158,6 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Expansion board §10's P6KE18A polarity item is unticked.** The operator gave the part
-  as P6KE18A with a 25.2 V clamp; confirm the marking is the unidirectional "A", not "CA".
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
