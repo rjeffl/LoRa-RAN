@@ -307,9 +307,14 @@ def scan(lines, pattern, since=None, tag=None):
     rx = re.compile(pattern)
     start = 0
     if since:
+        # No mark yet means run has not read ctl.txt yet. Scanning from line 0 then matched
+        # lines older than the mark and fired a reset early (engineering log, 2026-10-05).
+        start = None
         for i, line in enumerate(lines):
             if line.rstrip().endswith(f"CMD mark {since}"):
                 start = i + 1
+        if start is None:
+            return []
     hits = []
     for line in lines[start:]:
         fields = line.split(None, 2)

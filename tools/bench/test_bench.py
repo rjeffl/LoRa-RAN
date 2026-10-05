@@ -153,6 +153,8 @@ class WaitTest(unittest.TestCase):
     def test_since_mark_and_tag(self):
         self.assertEqual(len(bench.scan(self.LOG, "decode")), 3)
         self.assertEqual(len(bench.scan(self.LOG, "decode", since="bb")), 1)
+        # A mark not yet in the log matches nothing, rather than the whole log.
+        self.assertEqual(bench.scan(self.LOG, "decode", since="zz"), [])
         self.assertEqual(bench.scan(self.LOG, "decode", since="aa", tag="MQTT"),
                          ["  4.00 MQTT lran/x decode 0x8C"])
 
