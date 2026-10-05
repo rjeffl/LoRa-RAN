@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-02, at the end of the session that made the document amendments.**
-It replaces the file the session that built the split readback wrote.
+**Written 2026-10-05, at the end of the session that started GL0.**
+It replaces the file the session that made the document amendments wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **None queued** | The operator picks the next task from plan §8.1 or §8.2. GL0 needs the carrier built and the carrier's module confirmed in hand (*Hardware state*) |
+| **GL0, resumed** | *The next job*, below; plan §8.2's GL0 row; expansion board §10 and §11; the engineering log's 2026-10-05 entry. `firmware/gatelink/src/bringup.cpp` is the tool |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,20 +27,31 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**The operator picks it.** No task is in progress, and the remaining document findings
-wait on a measurement or on a specification revision. GL0 needs the carrier built, with
-its far-end standoff fitted (PRD v0.15 R-4.3f), and the carrier's module confirmed in
-hand (*Hardware state*).
+**GL0, on the branch `gl0-carrier-bringup`, waits for a USB 2.0 hub.** With the 12 V
+supply on, the StamPLC backfeeds 5 V onto its USB-C VBUS, and the Mac's USB-C port never
+attaches (engineering log, 2026-10-05). Connect through a hub with USB-A ports, then:
+
+1. Flash `pio run -d firmware/gatelink -e gatelink-bringup -t upload --upload-port <port>`.
+   Commit first, or the banner reads `-dirty`.
+2. At the console, in order: `pins`, `reset`, `begin`, `tx`. Then `txloop 50` while the
+   operator watches the 3.3 V rail, which must hold ≥3.2 V. With a microSD card in, run
+   `sd`, then `bus 60`.
+3. Record the results in the engineering log, and tick expansion board §10's two
+   remaining items once the operator confirms them (*Open*).
+
+**GL0's last criterion, ping and loopback with the bridge, needs `lib/lran-node` on
+GateLink.** That is GL3's integration. Say so in the PR rather than building it here.
+Measurement M4 and §11 step 5 wait for the MPPT on the bench.
 
 ## What the last session established
 
-- **The PRDs and the register describe the rev 0.3 carrier.** GateLink PRD v0.15 rewrites
-  R-4.3b, R-4.3d and R-4.3f. Decision Register v0.25 amends D26 and D27 (§3.14) and
-  withdraws **M15**. System PRD v0.30 amends §3.5 for the firmware-local board layer.
-  Plan v0.26 cites them. `doc-findings` 3, 4, 5 and 9 are fixed.
-- **The carrier needs a standoff at its far end**, by operator decision on 2026-10-02, not
-  a DIN mount.
-- **`doc-findings` 6 and 8 stay open.** 6 waits for M4 and 8 for M12. 10 is fixed.
+- **The carrier is built** and carries the header board (p-6379), by operator report on
+  2026-10-05. Expansion board §10 is ticked for R3, R4, the P6KE18A, C10, D2 and the
+  firmware pull-down.
+- **`board_profile.h` declares the carrier's `RadioPins`**, and the `gatelink-bringup`
+  env builds a console for §11 steps 1–4. It builds; it has not run on the board.
+- **RadioLib's `begin()` clears the DIO1 pull-down.** Plan v0.28 and expansion board
+  §7.1.1 now say to set it again after `begin()`.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -70,9 +81,9 @@ hand (*Hardware state*).
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.26. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | Nothing |
-| Not started | GL0–GL9 |
+| Done | Plan v0.28. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL0: the bring-up image is built, not run |
+| Not started | GL1–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -104,10 +115,10 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed again 2026-10-02 after L7's run on `wattcycle-reader`. MAC `50:78:7d:cd:c9:94` | Nothing GateLink depends on | On the operator's bench, `/dev/cu.usbmodem101` on 2026-10-02. **No carrier fitted** |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed again 2026-10-02 after L7's run on `wattcycle-reader`. MAC `50:78:7d:cd:c9:94` | Nothing GateLink depends on | On the operator's bench with the carrier fitted and a 12 V wall supply on VIN, 2026-10-05. **Not visible over USB while the 12 V is on**; still runs the L6 skeleton |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
-| Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **Not recorded in the repo as in hand.** Expansion board §10 says the board that arrived was the Kit. Ask the operator |
-| Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Not built.** Expansion board §10's checks are all unticked |
+| Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
+| Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected; VE.Direct cable not fitted |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
 | MPPT 75/15, WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | — | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | Installed and running the gate today. **Not yet rewired or reprogrammed (GL2)** |
 
@@ -126,6 +137,9 @@ board's are its D-pads (expansion board §6.1).
 
 ## Traps that cost real time here
 
+- **A StamPLC on its 12 V supply never appears on a USB-C host port.** It backfeeds 5 V
+  onto VBUS. Use a USB 2.0 hub with USB-A ports (engineering log, 2026-10-05).
+- **RadioLib's `begin()` clears DIO1's pull-down.** Set it again after `begin()`.
 - **`Serial` is silent on the StamPLC without `-DARDUINO_USB_CDC_ON_BOOT=1`.** Boot ROM lines
   and NimBLE logs still appear, so it looks like it works.
 - **That flag makes RadioLib 7.7.1 emit a `#warning`**, which `-Werror` turns into a failed
@@ -144,6 +158,11 @@ board's are its D-pads (expansion board §6.1).
   USB device shows `!registered, !matched` in `ioreg -p IOUSB` until it does.
 
 ## Open, and not closable from here
+
+- **Expansion board §10's three ring-outs are unticked**: J1 orientation, the Wio pad
+  mapping and the five non-SPI radio nets. The operator reported the netlist buzzed out on
+  2026-10-05. Confirm that it covered each of them before ticking it. The pad mapping
+  closes Bridge Impl Plan §10.8.1's premise.
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
