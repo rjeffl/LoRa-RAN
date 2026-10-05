@@ -34,7 +34,7 @@ env.Append(CPPDEFINES=[("LRAN_GATELINK_VERSION", env.StringifyMacro(version))])
 # LRAN_GATELINK_GIT changes with every commit, and a define is part of every object's
 # build signature. Defined project-wide, it made each commit recompile the whole
 # framework and defeated CI's build cache, so only the files that print it get it.
-GIT_USERS = {os.path.join(env.subst("$PROJECT_SRC_DIR"), f) for f in ("main.cpp",)}
+GIT_USERS = {os.path.join(env.subst("$PROJECT_SRC_DIR"), f) for f in ("main.cpp", "bringup.cpp")}
 
 
 def stamp_git(env, node):
