@@ -578,12 +578,13 @@ jobs:
       - name: secrets.h from the committed template
         run: cp secrets.h.example secrets.h
 
-      - name: V-B9 no-network and panic images, and V-B12's blaster image
+      - name: V-B9 no-network and panic images, V-B12's blaster and the watchdog hang image
         id: build
         run: |
           pio run -d firmware/bridge -e v_b9_no_network
           pio run -d firmware/bridge -e v_b9_panic
           pio run -d firmware/bridge -e v_b12_blaster
+          pio run -d firmware/bridge -e wdt_hang_test
 
       - name: Save build cache
         if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}

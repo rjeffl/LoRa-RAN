@@ -2063,7 +2063,22 @@ bool watch_this_task(TaskId id) {
   return false;
 }
 
+#if defined(LRAN_WDT_HANG_TEST)
+// The watchdog bench image only (env:wdt_hang_test). No production path hangs a task on
+// demand, so this one does: `hang <task>` on the console parks that task at its next feed.
+// It sleeps rather than spins, so every other task keeps running and only the task
+// watchdog can end the hang. Impl Plan 5.2.2 says what each watched task's starvation means.
+std::atomic<const char*> g_hang_task{nullptr};
+#endif
+
 void feed_watchdog(bool watched) {
+#if defined(LRAN_WDT_HANG_TEST)
+  const char* hang = g_hang_task.load();
+  if (watched && hang != nullptr && std::strcmp(pcTaskGetName(nullptr), hang) == 0) {
+    Serial.printf("wdt-test: %s parked, not feeding\n", hang);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(100));
+  }
+#endif
   if (watched) (void)esp_task_wdt_reset();
 }
 
@@ -3371,6 +3386,20 @@ bool inject_synthetic(RxMessage& msg, const char* tool) {
 }  // namespace
 
 void console_line(const char* line) {
+#if defined(LRAN_WDT_HANG_TEST)
+  if (std::strncmp(line, "hang ", 5) == 0) {
+    for (size_t i = 0; i < kTaskCount; ++i) {
+      const TaskSpec& spec = task_spec(static_cast<TaskId>(i));
+      if (spec.watched && std::strcmp(line + 5, spec.name) == 0) {
+        g_hang_task.store(spec.name);
+        Serial.printf("wdt-test: hang %s requested\n", spec.name);
+        return;
+      }
+    }
+    Serial.println("wdt-test: hang lora|sched|mqtt|app");
+    return;
+  }
+#endif
   // A fresh context per boot, so spec 7.3's (ctx_id, event_id) does not repeat when the
   // dummy's event_id restarts.
   if (g_dummy_ctx == 0) g_dummy_ctx = fresh_ctx();
