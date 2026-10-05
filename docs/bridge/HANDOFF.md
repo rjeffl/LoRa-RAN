@@ -21,11 +21,10 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: nothing.** The operator picks the next group from *Work before GateLink*.
-Groups 1, 2, 4 and 6 are done; groups 3, 5 and 7 remain, and none of them needs GateLink.
+Groups 1 to 4 and 6 are done; groups 5 and 7 remain, and neither needs GateLink.
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
-| **3. A B7 rehearsal** | The operator's four preparations, listed in its section | Bench, three boards |
 | **5. Documents and tools** | Nothing | Host only |
 | **7. Bench evidence the bridge still owes** | Nothing for two items; the operator's call for the other three | Bench, bridge and one simnode |
 
@@ -90,36 +89,21 @@ GateLink simulator and internal loopback were built and run on the bench the sam
 
 ### 3. A B7 rehearsal on the bench
 
-**B7's conditions can run against the simnodes now**: broker restarts, WiFi outages and a
-node power cycle, with `deployed` set on the bench rows. It cannot accept B7, which
-depends on B6. What it can find is stuck availability or a frame lost on reconnect while
-the node is on a desk rather than at the gate.
+**Done 2026-10-05.** The engineering log's 2026-10-05 entry has the run: two WiFi outages
+paused at the AP, a 90 s XIAO power cycle and two broker restarts, against `simnode0` to
+`simnode2`. Every condition recovered with no availability stuck, and spec §10.1's
+power-cycle `ctx_id` check found no repeat. It cannot accept B7, which depends on B6. It
+left three items:
 
-**Deferred on 2026-09-26 until the operator can take the bridge off WiFi.** The session
-that opened it found no firmware lever that drops WiFi, and the operator could not change
-the network that day. Nothing ran on the bench. The session needs the following from the
-operator before it starts.
-
-1. **A way to take the bridge off WiFi and bring it back, twice in one run.** Block the
-   bridge's client, MAC `44:1b:f6:f9:70:14`, at its access point, or disable the SSID it
-   joins. Hold one outage for about 2 minutes and one for about 10. The short outage
-   outlasts the bridge's 30 s MQTT keepalive and its 30 s reconnect ceiling
-   (`mqtt_esp.cpp`, `net_policy.h`). The long one is meant to fill BF-38's 32-slot state
-   queue; whether 10 minutes fills it is not measured.
-2. **Hands on the XIAO's USB cable for a power cycle.** Unplug it for about 90 s, past
-   three missed polls at the run's 15 s `poll_interval_s`, then plug it back in. That run
-   also covers spec §10.1's power-cycle `ctx_id` check, which no bench run has made.
-3. **The three boards on USB to the build machine**, and no serial monitor open on any of
-   them. The harness holds the bridge's port for the whole run and opens neither simnode's
-   port, so the power cycle is the only reset the XIAO sees.
-4. **Consent to live simnode entities in the sandbox HA during the run.** The run sets
-   `simnode_diag_enable` and `deployed` and clears both afterwards.
-
-The broker restarts need nothing from the operator: the session restarts the add-on
-through the sandbox HA's API. If blocking the bridge at the access point stays
-unavailable, the alternative is a bench `wifi drop <s>` line on the bridge's serial
-console, which needs a firmware change and a reflash. That drops WiFi from inside the
-stack rather than at the access point, so it is the operator's call.
+- **The publish queue fills in about 80 s**, mostly with `lran/bridge/diag/rxlog/log`.
+  Impl Plan §5.2.1's claim that the queue "rides out a broker reconnect" holds for a 7 s
+  broker restart, not for a WiFi outage past a minute. Whether rxlog should share the
+  32 slots with state is the operator's call; the plan's sentence changes with it.
+- **The power-cycle boot logged reset cause `EXTERNAL`** and advanced `boot_count` by one.
+  A power cycle with no harness on the XIAO's port would show whether the port reopen
+  reset an already-booted board.
+- **A node document lost on reconnect is untested**, because spec §16.6 axis 1 withholds
+  simnode documents. It waits for GateLink.
 
 ### 4. HA, before GateLink deploys
 
