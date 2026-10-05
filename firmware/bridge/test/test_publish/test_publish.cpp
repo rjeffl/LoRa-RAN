@@ -226,6 +226,34 @@ void test_health_uptime_alone_is_not_a_change() {
   TEST_ASSERT_EQUAL(1, r.n);
 }
 
+// Impl Plan 6.3. The frame counters and the link figures ride outside the hash, so a poll
+// that moves only them publishes nothing until the heartbeat; a dropped frame still does.
+void test_health_link_figures_alone_are_not_a_change() {
+  PublicationPolicy    p;
+  Recorder             r;
+  schema::NodeHealthV1 h;
+  h.boot_count    = 3;
+  h.last_rssi_dbm = -80;
+  const NodeInfo well{kNodeWellLink, NodeType::WellLink, false};
+  auto send = [&](uint32_t t) {
+    uint8_t buf[schema::kNodeHealthV1Len];
+    size_t  n = 0;
+    TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(h, buf, sizeof(buf), &n));
+    p.on_status(well, status_hdr(kNodeWellLink, kSchemaNodeHealthV1), buf, n, t, kNow, r);
+  };
+  send(1000);
+  h.rx_frames += 1;
+  h.tx_frames += 1;
+  h.last_rssi_dbm = -95;
+  h.last_snr_db10 = -40;
+  send(61000);
+  TEST_ASSERT_EQUAL(1, r.n);
+  h.rx_dropped += 1;
+  send(121000);
+  TEST_ASSERT_EQUAL(2, r.n);
+  expect(r.items[1].payload, "last_rssi_dbm", "-95");  // the published copy is current
+}
+
 // Victron's CS and ERR codes are named beside the raw code; an unlisted one is null.
 void test_mppt_codes_are_named() {
   PublicationPolicy p;
@@ -534,6 +562,7 @@ int main(int, char**) {
   RUN_TEST(test_cell_drift_crosses_the_deadband);
   RUN_TEST(test_uptime_alone_is_not_a_change);
   RUN_TEST(test_health_uptime_alone_is_not_a_change);
+  RUN_TEST(test_health_link_figures_alone_are_not_a_change);
   RUN_TEST(test_mppt_codes_are_named);
   RUN_TEST(test_deadband_zero_publishes_every_change);
   RUN_TEST(test_heartbeat_republishes_unchanged_state);

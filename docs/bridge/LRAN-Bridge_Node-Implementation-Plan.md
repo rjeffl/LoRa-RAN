@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.83
+**Version:** 0.84
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.25 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-05
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -1247,7 +1247,7 @@ Assistant's value templates read them, so a key published is a key frozen:
 | `lran/<node>/solar/state` | `available`, `batt_mv`, `batt_ma`, `pv_mv`, `pv_w`, `load_ma`, `yield_today_kwh`, `yield_yesterday_kwh`, `pmax_today_w`, `yield_total_kwh`, `charge_state`, `charge_state_name`, `error`, `error_name`, `tracker`, `load_on`, `charge_inhibited`, `temp_c`, `hex_pending`, `synthetic` |
 | `lran/<node>/battery/state` | `available`, `soc`, `soc_source`, `pack_mv`, `pack_ma`, `cell_count`, `cell1_mv`–`cell4_mv`, `cell1_temp_c`–`cell4_temp_c`, `cycles`, `capacity_ah`, `alarms`, `charge_fet`, `discharge_fet`, `charge_inhibited`, `protection`, `balancing`, `ble_rssi_dbm`, `age_s`, `synthetic` |
 | `lran/<node>/node/state` | `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `reason`, `synthetic`, `uptime_s` |
-| `lran/<node>/node/health/state` | Schema `0xF0`: `boot_count`, `rx_frames`, `tx_frames`, `rx_dropped`, `cad_backoffs`, `last_rssi_dbm`, `last_snr_db`, `proto_ver`, `debug`, `uptime_s` |
+| `lran/<node>/node/health/state` | Schema `0xF0`: `boot_count`, `rx_dropped`, `cad_backoffs`, `proto_ver`, `debug`, then outside the hash `rx_frames`, `tx_frames`, `last_rssi_dbm`, `last_snr_db`, `uptime_s` |
 
 | Choice | Why |
 |---|---|
@@ -1256,7 +1256,8 @@ Assistant's value templates read them, so a key published is a key frozen:
 | **Units are converted exactly**: 10 mV to mV, 10 Wh to kWh with two decimals, 0.1 °C and 0.1 Ah to one decimal | Integer arithmetic, so no float round trip reaches HA's history |
 | **R-5.2b: a stale block publishes `available: false` with every reading `null`** | `mppt_flags` bit 1 stales `solar`. `battery` is stale when `bms_flags` bit 0 is clear, `bms_age_s` is the sentinel, or it exceeds `bms_stale_s`. The entities list that document as a second availability topic with `avty_mode: all`, so HA shows them unavailable while the node is online. `ble_rssi_dbm`, `age_s` and `hex_pending` stay readable, because they say why |
 | **R-5.2a: publish on change compares whole documents**, by an FNV-1a hash | A document is queued when any value in it changes, or when `republish_interval_s` has passed since it was last queued. HA records an entity's state only when its own value changes, so the deadband is what keeps jitter out of history. The hash replaces a kilobyte per node and domain; a collision delays one change to the heartbeat, once in 2³² |
-| **`uptime_s` is outside the hash.** `node/state` and `node/health/state` write it last and hash only what comes before it. Chosen with the operator on 2026-09-27 | It changes on every poll, so hashing it published both documents on every frame. The heartbeat keeps it current to `republish_interval_s`. A reboot still publishes, because `boot_count` changes with it. `node/health/state` still moves with its frame counters and RSSI |
+| **`uptime_s` is outside the hash.** `node/state` and `node/health/state` write it last and hash only what comes before it. Chosen with the operator on 2026-09-27 | It changes on every poll, so hashing it published both documents on every frame. The heartbeat keeps it current to `republish_interval_s`. A reboot still publishes, because `boot_count` changes with it |
+| **`node/health/state`'s frame counters and link figures are outside the hash too.** `rx_frames`, `tx_frames`, `last_rssi_dbm` and `last_snr_db` follow the hashed fields. Chosen with the operator on 2026-10-05 | They move on every poll, as `uptime_s` does, so the document published on every frame. It now publishes on a change to `boot_count`, `rx_dropped`, `cad_backoffs`, `proto_ver` or `debug`, and otherwise on the heartbeat. No board has shown it: §16.6 withholds a bench node's `0xF0`, so GateLink is the first node that can |
 | **Cell voltages move only by `cell_mv_deadband`**, measured from the value last published | Measured from the published value, a drift of 1 mV a poll still crosses the band. Measured from the last reading, it never would |
 | **A heartbeat needs a frame.** The interval is checked when a node's `STATUS` arrives | A silent node republishes nothing, which is R-5.2b from the other side. Its availability goes `offline` through BF-20 |
 | **`last_traversal` is an ISO 8601 UTC time, from SNTP** (spec §7.2.9) | `mqtt_task` starts SNTP against `pool.ntp.org` when WiFi first connects. Until it answers, the value is `null`. A move of 2 s or less is the age's rounding and is not republished |
@@ -3091,6 +3092,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.84** — **§6.3: `node/health/state` hashes only what a poll does not move.** Its frame
+  counters, RSSI and SNR join `uptime_s` outside the hash, so the document no longer
+  publishes on every frame. Host-tested; GateLink is the first node that can show it.
 
 - **v0.83** — **Cites Protocol Library Plan v0.25.** That revision names the four vector
   files and `firmware/range-test/`; neither changes this plan. Nothing else changes.

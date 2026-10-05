@@ -468,16 +468,18 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     // spec 7.5 carries no sentinel for boot_count; spec 7.2.4's `0 if unavailable` is the
     // same field's rule in the node block, and a node restarting from zero boots is 1.
     if (h.boot_count == 0) j.null("boot_count"); else j.u32("boot_count", h.boot_count);
-    j.u32("rx_frames", h.rx_frames);
-    j.u32("tx_frames", h.tx_frames);
     j.u32("rx_dropped", h.rx_dropped);
     j.u32("cad_backoffs", h.cad_backoffs);
-    i16_or_null(j, "last_rssi_dbm", h.last_rssi_dbm);
-    tenths_or_null(j, "last_snr_db", h.last_snr_db10);
     j.u32("proto_ver", h.proto_ver);
     j.boolean("debug", (h.health_flags & lran::schema::kHealthFlagDebugActive) != 0);
-    // Last and outside the hash: see the node document below.
+    // Last and outside the hash: the frame counters and the link figures move on every
+    // poll, as uptime_s does, and hashing them published this document on every frame.
+    // The heartbeat keeps them current to republish_interval_s (Impl Plan 6.3).
     const size_t hashed = j.length();
+    j.u32("rx_frames", h.rx_frames);
+    j.u32("tx_frames", h.tx_frames);
+    i16_or_null(j, "last_rssi_dbm", h.last_rssi_dbm);
+    tenths_or_null(j, "last_snr_db", h.last_snr_db10);
     j.u32("uptime_s", h.uptime_s);
     offer(ni, Domain::Health, token, j.finish(), now_ms, sink, hashed);
     return;
