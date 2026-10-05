@@ -269,7 +269,7 @@ Rev 0.3's forced re-route lands on **DIO1 and RST** — the bottom two rows. Tha
 
 DIO1 is the SX1262's interrupt line — TxDone, RxDone, timeout. Two consequences of putting it on PORT.A:
 
-**Float protection.** The SX1262 drives DIO1 push-pull, so an open conductor leaves G1 floating and the ESP32 will see edges that came from nothing. Enable the internal pull-down on G1 (`pinMode(LORA_DIO1, INPUT_PULLDOWN)`) before `radio.begin()`. G1 supports it, and an open line then reads a steady "no interrupt" rather than random ones. A discrete 10 kΩ to GND on the perfboard would do the same job and is worth fitting if there is room — but the internal pull-down is free and costs no BOM change, so it is the plan of record.
+**Float protection.** The SX1262 drives DIO1 push-pull, so an open conductor leaves G1 floating and the ESP32 will see edges that came from nothing. Enable the internal pull-down on G1 (`pinMode(LORA_DIO1, INPUT_PULLDOWN)`) at boot, and **again after `radio.begin()`**: RadioLib 7.7.1's `begin()` sets the IRQ pin to plain `INPUT`, which clears the pull-down (GateLink engineering log, 2026-10-05). G1 supports it, and an open line then reads a steady "no interrupt" rather than random ones. A discrete 10 kΩ to GND on the perfboard would do the same job and is worth fitting if there is room — but the internal pull-down is free and costs no BOM change, so it is the plan of record.
 
 **Detection.** An open DIO1 does not fail at init; it fails later, as transmits that never report completion. RadioLib's blocking `transmit()` already times out rather than hanging, so the firmware requirement is only that the timeout path is treated as a fault and logged, not retried silently. A useful bring-up check: after `startTransmit()` of a known-good packet, if the IRQ has not fired within the computed time-on-air plus margin, read `getIrqStatus()` over SPI. If the status says TxDone but no edge arrived, the fault is the DIO1 conductor and nothing else.
 
@@ -412,13 +412,13 @@ At roughly 5.25 A per leaf: a 20 ft run in 16 AWG drops about 0.84 V, in 18 AWG 
 - [ ] Wio socket pad mapping — ring out each D-pad to its module pin. **This item is the tracked check for Bridge Impl Plan §10.8.1's remaining load-bearing premise** — that the header board's pads map to this board's nets as §6 describes. Ticking it closes that premise; leaving it open means the premise is assumed, not verified. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
   - The D-number mapping did gain an **independent corroboration** on 2026-09-05 — meshtastic/firmware issue #8409's header-board map matches §6's Wio pad column value for value (D9 MISO, D8 SCK, D10 MOSI, D3 BUSY, D5 RF_SW, D4 NSS, D1 DIO1, D2 RST). **Two agreeing derivations are not a continuity check.** Ring it out anyway.
 - [ ] **Every non-SPI radio net moved in rev 0.3.** Ring out all five against §6 before power-up: BUSY→Bus 14, RF_SW→Bus 15, NSS→Bus 16, DIO1→PORT.A white, RST→PORT.A yellow. Any rev 0.2 board, harness or firmware header on the bench is now wrong.
-- [ ] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**
-- [ ] R4 fitted (RST → GND).
-- [ ] Firmware sets `INPUT_PULLDOWN` on G1 (DIO1) before `radio.begin()` (§7.1.1).
-- [ ] P6KE18A manufacturer — ST's part specs 32.5 V max clamping vs Vishay/Taiwan Semi's 25.2 V. The AP63357's input limit is 32 V.
+- [x] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**
+- [x] R4 fitted (RST → GND). Operator, 2026-10-05.
+- [x] Firmware sets `INPUT_PULLDOWN` on G1 (DIO1) at boot and again after `radio.begin()` (§7.1.1). `firmware/gatelink/src/bringup.cpp`, 2026-10-05.
+- [x] P6KE18A manufacturer — ST's part specs 32.5 V max clamping vs Vishay/Taiwan Semi's 25.2 V. The AP63357's input limit is 32 V. The fitted part's maker is unknown; its rating is 25.2 V maximum clamp at 18.9 V breakdown (operator, 2026-10-05).
 - [ ] P6KE18A is the unidirectional "A", not the bidirectional "CA".
-- [ ] C10 rated 25 V minimum (50 V specified).
-- [ ] Decide whether D2 is fitted.
+- [x] C10 rated 25 V minimum (50 V specified). 50 V fitted (operator, 2026-10-05).
+- [x] Decide whether D2 is fitted. Not fitted (operator, 2026-10-05).
 
 *Resolved in rev 0.2 and removed from this list:* Seeed's pull-up coverage on NSS (confirmed absent — R3 required); BabyBuck input cap voltage rating (module is rated to 32 V input by design).
 

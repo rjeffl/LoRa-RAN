@@ -401,3 +401,45 @@ an answer that fits one frame is unchanged. Two bridge properties stop a larger 
 
 The simnode's `ROLE_GATELINK` store now holds 23 rows, so a bridge that can name
 GateLink's block for a simnode will draw GateLink's own 199-byte, two-message answer.
+
+## 2026-10-05 — GL0 starts: a bring-up image, and a StamPLC the Mac cannot see
+
+**The carrier is built.** The operator reports the 5 V and 3.3 V rails clean, the netlist
+buzzed out on the board, and the Wio and the level translator seated, with the antenna
+connected. The module is the header board, "Wio-SX1262 for XIAO" (p-6379), not the Kit.
+Of expansion board §10's remaining items: R3 and R4 are fitted, and C10 is rated 50 V.
+D2 is not fitted. The P6KE18A's maker is unknown, but its marking gives a 25.2 V maximum
+clamp at an 18.9 V breakdown, which is under the AP63357's 32 V input limit. VE.Direct is
+not wired, so measurement M4 and §11 step 5 wait until the MPPT comes to the bench.
+
+**No radio test ran.** `gatelink-bringup` builds and is ready to flash. It walks §11
+steps 1–4 as console commands (`firmware/gatelink/src/bringup.cpp`).
+
+**RadioLib's `begin()` undoes the DIO1 pull-down.** `SX126x::modSetup()` in 7.7.1 sets
+the IRQ pin to plain `INPUT`, which on the ESP32 clears a pull-down set before it.
+Expansion board §7.1.1 and plan §4.1 both said to set `INPUT_PULLDOWN` before
+`radio.begin()`. That alone leaves an open DIO1 conductor floating, so the bring-up
+image sets the pull-down again after `begin()`, and both documents now say so. The
+simnode's `radio.cpp` never sets a pull-down, and the Kit's DIO1 is a board trace.
+
+**`SD.begin()` would start the shared bus on the wrong pins.** M5StamPLC's
+`sd_card_init()` passes the global `SPI` to `SD.begin()`, which starts an idle `SPIClass`
+on the board definition's default pins. On `esp32-s3-devkitc-1` those are G11–G13: BUSY,
+the LCD's chip select and the internal I²C's SDA. The bring-up image calls
+`SPI.begin(7, 9, 8)` before `M5StamPLC.begin()`. M5StamPLC leaves the SD card off by
+default, which is why L6 never met this. M5GFX drives the panel in 3-wire SPI on the
+same host, and its `endTransaction()` restores full-duplex for Arduino's SPI users.
+Step 4 tests whether that is enough.
+
+**With the 12 V supply on, the StamPLC's USB never enumerates.** No `/dev/cu.usbmodem*`
+appears, and `ioreg -p IOUSB` lists no device at all. The schematics account for it,
+though M5Stack's documentation does not mention it. The StampS3's USB-C VBUS reaches its
+5 V rail through a 1 A PPTC with no diode (`Sch_StampS3_v0.3.3`), and the StamPLC feeds
+that pin from `SYS_5V` through FU3 (`K141_sch_StamPLC_V10_CPU`). The board therefore
+holds about 5 V on VBUS before the cable is plugged in. A USB-C host applies VBUS only
+after it sees 0 V there, so the Mac never attaches. That last step is an inference from
+the Type-C specification, not a measurement. **Falsified by:** a USB 2.0 hub with USB-A
+ports between the Mac and the StamPLC, which has no 0 V check. If the port still does
+not appear through the hub, the cause is something else. The carrier cannot be the
+cause: the StampS3's USB is on G19 and G20, which reach neither the bus header nor the
+Grove ports. GL0 waits for that hub.
