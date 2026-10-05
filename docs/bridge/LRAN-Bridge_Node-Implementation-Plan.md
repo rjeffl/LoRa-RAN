@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.84
+**Version:** 0.85
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -246,7 +246,7 @@ module; only the carrier validates the carrier.**
 > above, from meshtastic/firmware issue #8409) that matches
 > `gatelink-expansion-board.md` §6 value for value. **Two agreeing derivations are not a
 > continuity check**, and the Kit cannot supply one because it does not use those pads.
-> §10's ring-out item stays open.
+> §10's ring-out item closed on 2026-10-05, when the operator rang out the built carrier.
 >
 > Identification was by **interconnect, not part number** — the stack is zip-tied and the
 > underside is unreachable. B1b's request for "the exact module part number" is answered
@@ -2690,7 +2690,8 @@ other documents in the first place.
 > **PREMISE CHECK.** The claim that the header board's pads map to the carrier's nets as
 > `gatelink-expansion-board` §6 describes is **falsified by a continuity test**, tracked as
 > the *"Wio socket pad mapping — ring out each D-pad"* item in that document's §10,
-> *Verify before soldering*. It remains unticked. Named because the previous version of
+> *Verify before soldering*. It was ticked on 2026-10-05, when the operator rang out the
+> built carrier, so the premise holds for the carrier's pad column. Named because the previous version of
 > this section stated its own falsification condition in prose, tracked it nowhere, and did
 > not notice when it came true (root `CLAUDE.md`, *A load-bearing premise must name the
 > check that would falsify it*).
@@ -3092,6 +3093,10 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.85** — **§2.3.1 and §10.8.1: the header board's pad ring-out is done.** The operator
+  rang out the built GateLink carrier on 2026-10-05, and expansion board §10's item is
+  ticked. The premise it tracked now holds for the carrier's pad column.
 
 - **v0.84** — **§6.3: `node/health/state` hashes only what a poll does not move.** Its frame
   counters, RSSI and SNR join `uptime_s` outside the hash, so the document no longer

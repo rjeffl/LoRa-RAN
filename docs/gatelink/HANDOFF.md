@@ -36,8 +36,7 @@ attaches (engineering log, 2026-10-05). Connect through a hub with USB-A ports, 
 2. At the console, in order: `pins`, `reset`, `begin`, `tx`. Then `txloop 50` while the
    operator watches the 3.3 V rail, which must hold ≥3.2 V. With a microSD card in, run
    `sd`, then `bus 60`.
-3. Record the results in the engineering log, and tick expansion board §10's two
-   remaining items once the operator confirms them (*Open*).
+3. Record the results in the engineering log.
 
 **GL0's last criterion, ping and loopback with the bridge, needs `lib/lran-node` on
 GateLink.** That is GL3's integration. Say so in the PR rather than building it here.
@@ -46,8 +45,8 @@ Measurement M4 and §11 step 5 wait for the MPPT on the bench.
 ## What the last session established
 
 - **The carrier is built** and carries the header board (p-6379), by operator report on
-  2026-10-05. Expansion board §10 is ticked for R3, R4, the P6KE18A, C10, D2 and the
-  firmware pull-down.
+  2026-10-05. Expansion board §10 is ticked but for one item: whether the P6KE18A is the
+  unidirectional "A" (*Open*). The ring-outs cover J1, the pad mapping and all five nets.
 - **`board_profile.h` declares the carrier's `RadioPins`**, and the `gatelink-bringup`
   env builds a console for §11 steps 1–4. It builds; it has not run on the board.
 - **RadioLib's `begin()` clears the DIO1 pull-down.** Plan v0.28 and expansion board
@@ -159,10 +158,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Expansion board §10's three ring-outs are unticked**: J1 orientation, the Wio pad
-  mapping and the five non-SPI radio nets. The operator reported the netlist buzzed out on
-  2026-10-05. Confirm that it covered each of them before ticking it. The pad mapping
-  closes Bridge Impl Plan §10.8.1's premise.
+- **Expansion board §10's P6KE18A polarity item is unticked.** The operator gave the part
+  as P6KE18A with a 25.2 V clamp; confirm the marking is the unidirectional "A", not "CA".
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
