@@ -1615,3 +1615,60 @@ flash.** No board has run this change.
 The lookups `find_param()`, `find_param_by_id()`, `scope_rows()` and
 `config_set_reaches_node()` now take the node, because a node's own block is that node's
 alone. GateLink's rows are `unknown_param` on WellLink's topic and on the bridge's.
+
+---
+
+## 2026-10-05 — B7 rehearsal on the bench: every outage recovered, and the publish queue fills in about 80 s
+
+Handoff group 3 ran its conditions against the simnodes: two WiFi outages, a node power
+cycle and two broker restarts. The bridge ran `d8e45c3`, the simnodes `be5c7c8`, at 917.4
+MHz. `simnode0` to `simnode2` were set to `deployed` 1 and `poll_interval_s` 15, with
+`simnode_diag_enable` 1, and all three were restored afterwards (`deployed` 0,
+`poll_interval_s` 60, `simnode_diag_enable` 0). The operator paused the SSID at the access
+point. The broker restarts went through HA's `hassio.addon_restart`. The bench log stayed in
+the session's scratch directory, so the figures below are the record.
+
+**No availability stuck, and no poll missed during either outage.** Polling does not need
+WiFi, so `missed_polls` stayed 0 on all three nodes throughout.
+
+| Condition | Bridge lost the broker | Recovered | Notes |
+|---|---|---|---|
+| WiFi outage 1, about 2.5 min | `BEACON_TIMEOUT`; the LWT `offline` 26 s later | MQTT connected 12 s after the SSID returned | `NO_AP_FOUND` every 30 s while out |
+| WiFi outage 2, 10 min | `BEACON_TIMEOUT` | MQTT connected about 46 s after the SSID returned | The first association failed with `HANDSHAKE_TIMEOUT`; the next 30 s retry joined |
+| Broker restart 1 | Socket reset | 7.4 s | Reconnect attempts at 1 s, 2 s, 4 s |
+| Broker restart 2 | Socket reset | 7.3 s | The same backoff |
+
+After every recovery, `simnode0` to `simnode2` republished `online` within a second of the
+bridge's own `availability`. On the first outage the AP's `AUTH_LEAVE` came about 25 s
+before `BEACON_TIMEOUT`, and the bridge reached the broker in between. A pause at this AP
+is not instant.
+
+**The 32-slot publish queue fills in about 80 s, not 10 minutes.** After outage 1,
+`q_publish_high_water` read 32 and `q_publish_dropped` 44. After outage 2, `dropped` read
+354, 310 more. The volume is `lran/bridge/diag/rxlog/log`: 32 of the 46 publications in an
+80 s window after recovery, about 24 a minute at 15 s polling of three nodes. The other 14
+were the six per-minute diag documents, twice. Every drop was counted, and
+`queue_refused`, which counts documents and events, stayed 0. Impl Plan §5.2.1 says the
+publish queue "is what rides out a broker reconnect". That holds for a broker restart of
+7 s. It does not hold for a WiFi outage past about a minute while rxlog is flowing.
+
+**The bridge publishes the outage's first state on reconnect, then the current one.**
+Because a full queue drops the newest item (§5.2.1), the queue drains the publications
+made in the outage's first minute. The current diag documents follow within a second. A
+state topic ends up right; HA sees a stale value for under a second. Nothing here tests a
+node document lost on reconnect: spec §16.6 axis 1 withholds a simnode's STATUS and EVENT
+documents, and `bench_withheld` counted 203 of them. That question waits for GateLink.
+
+**Spec §10.1's power-cycle `ctx_id` check found no repeat.** The XIAO was unplugged for
+about 90 s. f1 went `offline` 42 s after the port dropped, at `missed_polls` 3. On replug,
+f1 booted with `ctx 0x579b1b73`. Its previous boot drew `0x8e32e4fb`, which the bridge's
+roll replaced with `0x5d869ad9`. The bridge accepted the new context with
+`rx_rejected_ctx` 0, logged `config: f1 rebooted, readback owed`, and published f1's
+`config/state` 2 s later. f1 was back `online` 0.1 s after its first reply.
+
+**That boot logged reset cause `EXTERNAL`, not `POWER_ON`.** The ROM banner read
+`rst:0x15 (USB_UART_CHIP_RESET)`, and `boot_count` advanced by one, 159 to 160. The board
+was unpowered for the 90 s. The banner appeared when the harness reopened the port, so the
+USB-JTAG reopen may have reset a board that had already powered up. If so, the power-on
+boot was not counted. Which happened is not established. The check that would settle it
+is a power cycle with no harness on the XIAO's port, reading `boot_count` afterwards.
