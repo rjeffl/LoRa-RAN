@@ -1672,3 +1672,86 @@ was unpowered for the 90 s. The banner appeared when the harness reopened the po
 USB-JTAG reopen may have reset a board that had already powered up. If so, the power-on
 boot was not counted. Which happened is not established. The check that would settle it
 is a power cycle with no harness on the XIAO's port, reading `boot_count` afterwards.
+
+---
+
+## 2026-10-05 — Group 7's bench evidence: the watchdog trips, OTA waits, and the 2048 build costs 28 KB of heap
+
+Handoff group 7 owed six items. Five ran on the bench, and the sixth is a code change that
+no bench node can show. All three boards were flashed over USB from `32503d5`. The bridge
+was on `/dev/cu.usbserial-0001`, the Heltec simnode (f0, f2) on `/dev/cu.usbserial-4` and
+the XIAO (f1) on `/dev/cu.usbmodem1101`. All three MACs matched the handoff's table. Times
+are seconds from the harness's start, in
+[`data/group7-phy-ota-bench-2026-10-05.log`](./data/group7-phy-ota-bench-2026-10-05.log)
+and [`data/wdt-hang-bench-2026-10-05.log`](./data/wdt-hang-bench-2026-10-05.log).
+
+**`kMaxPayloadLen` 2048 on a board.** The connect banner read `heap free 32964, lowest
+26576`. The September traces read about 60 to 68 KB free, with a lowest of 51 to 63 KB.
+The change costs about 28 KB of heap, in line with the 26 KB of static RAM it added.
+`mqtt_task`'s lowest was 1920 bytes free of 6144, at 89.36 with three nodes rolling. The
+2026-09-26 low was 2012. Neither number is near trouble, but 26.5 KB is now the floor
+any further static growth comes out of.
+
+**`sched_task`'s PHY-change low is 1264 bytes free of 5120.** A `get_all` on `simnode1`
+read 2288 before any change (115.22). One change to 917.0 MHz committed at 135.17, and the
+next `get_all` read 1264 (141.29). The 2026-09-24 reading was 1352, after three changes.
+The stack has 25 % headroom on its deepest known path.
+
+**A reset at the commit line did not lose the answer.** On the change back to 917.4 MHz,
+`phy: every node heard - committed` logged at 242.86 and the harness sent `reset BRG` at
+243.02. The single `config/ack` reached the broker at 243.25, and the board's banner
+followed at 243.67. No rebuilt copy followed, so the owed record had cleared before the
+reset. The harness polls at 0.1 to 0.2 s and cannot fire a reset inside that gap. A run
+that holds the answer would need the broker unreachable at the commit, and no such run
+was made.
+
+**The harness fired one reset early.** `wait --since` scanned the whole log when its mark
+was not yet logged, matched an older commit line, and reset the bridge 100 ms after the
+publish at 156.94. That `freq_hz` set reached the broker, but the bridge never handled it
+and no `config/ack` came back. `d96a81b` fixes `scan()`.
+
+**The OTA hold (R-5.3d) holds, and the upload goes through after it.** Holding the Heltec
+in reset silenced f0. `command_ack_timeout_ms` was raised to 30000, clamped from 60000, so
+an unanswered command spans minutes. espota started from the operator's
+terminal while the command was between attempts.
+
+| Run | Command | What espota saw |
+|---|---|---|
+| `cmd_retries` 3 | 415.97 to 539.84, four attempts, `no_ack` | No answer for 124 s. espota stops inviting after about 100 s and reported no response. At 540.04 ArduinoOTA answered three queued invitations whose sockets were closed: `200 was expected. got 0` |
+| `cmd_retries` 1 | 1344.01 to 1405.88, two attempts, `no_ack` | Two stale invitations answered at 1405.93, then `OTA: upload started` at 1406.53 and `upload complete` at 1424.23. The image booted in `app1` as `pending_verify` and was marked valid at 1544.44 |
+
+The 2026-09-26 entry predicted the stale invitations from ArduinoOTA's source; this is the
+first board run that shows them. An unanswered command at the defaults spans about 12 s,
+well inside espota's 100 s. That image built from a tree with an uncommitted `bench.py`
+change, so its banner read `32503d5-dirty`; the firmware sources matched `32503d5`.
+
+**`hold` does not hold the XIAO.** On its native USB port, the harness's RTS hold produced
+`rst:0x15 (USB_UART_CHIP_RESET)`, and the board booted straight back. The Heltec's CP2102
+holds. A `hold` on the XIAO also re-rolls f1: a command in flight met `REJECTED_CTX` and
+resolved `unconfirmed`.
+
+**The task watchdog trips on each watched task.** `dd791a0` adds `env:wdt_hang_test`,
+whose console line `hang <task>` parks one task at its next feed. Each run reset the bridge
+with the starved task named and `Reset: task_watchdog` on the next banner:
+
+| Task | Parked | Watchdog fired | Back online |
+|---|---|---|---|
+| `sched` | 12.81 | 21.73 | 23.60 |
+| `lora` | 23.90 | 34.62 | about 36 |
+| `mqtt` | 36.38 | 46.51 | 47.57 |
+| `app` | 48.27 | 58.41 | about 60 |
+
+`kWatchdogTimeoutS` is 10, and each trip came 9 to 11 s after the park, counted from the
+task's last feed. In every panic both cores were idle, so the parked task was the only one
+stopped.
+
+**`node/health/state` moves its frame counters, RSSI and SNR outside the hash**
+(`28dc204`, Impl Plan §6.3, chosen with the operator). Host-tested. No board can show it
+yet, because §16.6 withholds a bench node's `0xF0`, and a dummy health frame would publish
+an unmarked document for a production address. GateLink is the first node that can show
+it.
+
+The bridge was then flashed over USB with `28dc204` and boots in `app0`. It holds
+`command_ack_timeout_ms` 3000 and `cmd_retries` 3 as overrides from these runs.
+`simnode_diag_enable` is 0, `deployed` is 0 on `simnode0` to `simnode2`, and the fleet is
+on 917.4 MHz.
