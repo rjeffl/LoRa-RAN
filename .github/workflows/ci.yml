@@ -425,11 +425,12 @@ jobs:
             envs: simnode-heltec simnode-xiao-wio
             secrets: true
           # GateLink reads LRAN_GATELINK_NODE_KEY, which the template leaves all zero, so
-          # the image says at boot that it cannot authenticate (Impl Plan §6.8).
+          # the image says at boot that it cannot authenticate (Impl Plan §6.8). The GL0
+          # bring-up image builds beside it, so a board-layer change cannot break it unseen.
           - name: GateLink
             id: gatelink
             dir: firmware/gatelink
-            envs: gatelink
+            envs: gatelink gatelink-bringup
             secrets: true
           # The listen-only receiver needs no secrets.h. Both boards, because brief §5
           # runs them side by side.
