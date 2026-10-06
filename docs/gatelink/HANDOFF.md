@@ -170,8 +170,8 @@ board's are its D-pads (expansion board §6.1).
 
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1. Find what feeds it, or confirm the supply was off.
-- **`beep` logged `LEDC is not initialized`** on first use; whether the buzzer sounds is
-  unchecked.
+- **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
+  one `beep` while listening to tie the two together.
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to

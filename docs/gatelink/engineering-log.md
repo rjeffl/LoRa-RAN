@@ -660,3 +660,11 @@ been drawing from USB, so it does not settle M12.
 
 **`beep` printed `ledc_get_duty(745): LEDC is not initialized`** on its first use.
 Whether the buzzer sounded was not recorded.
+
+## 2026-10-06 — The buzzer sounds
+
+**The operator heard a clearly audible beep during the session** but wasn't watching the
+bench. The only `beep` sent was the one that logged `LEDC is not initialized`, and no
+button was pressed, so that command most likely made it. The message looks like a log
+line from the first `tone()` call, not a failure. Not yet confirmed by a `beep` sent
+while someone is listening.
