@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.28
+**Version:** 0.29
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -331,11 +331,13 @@ has not been tested there.
 10.5 A peak sags the bank by under 1 V, against a nominal 12.8 V (§4, *Measured supply
 behaviour*).
 
-**What the INA226 measures is unverified.** Expansion board §7.7 reads the StamPLC's INA226
-as the **bank's** voltage and current. This plan's §9.8 and V-11 read it as the **node's**
-supply. Which current passes through its shunt decides which reading is right, and whether
-the carrier's draw through Bus pin 1 passes through it. **M12 settles it**, at GL1, before
-V-11 depends on the answer.
+**The INA226 measures VIN, and neither the node's current nor the bank's.** M12 settled it
+at GL1, on 2026-10-06 (engineering log). Its bus voltage reads VIN, which is the bank's
+voltage behind the inline fuse. Its shunt carries neither the node's own supply nor the
+carrier's draw through Bus pin 1: a 5.6 mA load on Bus pin 1 left it at 0 mA. M5StamPLC
+calls the reading the current of "the right side io socket," on some output of the socket
+other than Bus pin 1. **§9.8's node-current row, V-11 and PRD R-4.4b still read it as
+the node's supply**, and need a requirement change before GL9 relies on them.
 
 ### 3.5 Carrier board layout
 
@@ -1472,6 +1474,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.29** — **M12 settled at GL1** (§3.4). The INA226 reads VIN, and its shunt carries
+  neither the node's supply nor the carrier's Bus pin 1 draw. §9.8's node-current row and
+  V-11 still rely on it, pending a PRD change to R-4.4b.
 
 - **v0.28** — **The DIO1 pull-down is set again after `radio.begin()`** (§3.3, §4.1).
   RadioLib 7.7.1's `begin()` sets the IRQ pin to plain `INPUT`, which clears a pull-down

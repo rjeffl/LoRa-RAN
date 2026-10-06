@@ -717,3 +717,23 @@ supply current, and expansion board §7.7 as the bank's current. Both are wrong.
 voltage, which reads VIN, is still usable as the bank's voltage behind the inline fuse.
 The node's consumption needs another source, and choosing it is a requirement change, not
 a fix made here.
+
+**With USB attached, the 12 V feed carries 3.1 mA.** USB supplies almost all of the
+StamPLC's load even with VIN at 12 V. That is why the first INA226 reading, 0 mA with
+USB attached, settled nothing, and it fits the 12 V power cycle that reset nothing.
+
+## 2026-10-06 — The inputs debounce against a bench switch
+
+**`io_task` debounces a bench switch as plan §8.2 asks.** The switch fed 12 V+ to IN8,
+with `EXCOM_COM` on 12 V−, which is the high-level wiring plan §3.2 gives IN1–IN4. At
+lran-config's defaults, `input_poll_ms` 100 and `input_debounce_samples` 2, the debounced
+value followed each raw change one poll later.
+
+`in` now counts bit changes before and after the debouncer. Ten taps, as short as the
+operator could make them, gave **20 raw edges and 16 debounced**. The poll sampled every
+tap, and the two that lasted a single sample were rejected. A bounce shorter than
+`input_poll_ms` falls between samples and never reaches the debouncer at all.
+
+**IN8 is bit 7 and IN1 is bit 0**, matching M5StamPLC 1.2.0's `_in_pin_list`. The switch
+was first wired to IN8 while meant for IN1. With the board mounted upside down, its
+terminal labels read the other way round.

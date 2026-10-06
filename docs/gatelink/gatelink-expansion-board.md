@@ -348,7 +348,7 @@ Practice:
 
 ### 7.7 Free telemetry
 
-With Bus pin 1 tied to the bank, the StamPLC's on-board INA226 measures bank voltage and current directly — an independent cross-check against VE.Direct that still works if the MPPT drops off the serial link.
+The StamPLC's on-board INA226 measures **VIN**, which is the bank's voltage behind the inline fuse. It is an independent cross-check on VE.Direct's battery voltage that still works if the MPPT drops off the serial link. **It does not measure the bank's current**, nor the carrier's draw through Bus pin 1 (measurement M12, engineering log 2026-10-06).
 
 ---
 
