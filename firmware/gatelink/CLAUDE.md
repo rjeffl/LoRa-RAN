@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.28, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.29, §5
 for the architecture and §8 for the milestones.
 **Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.16.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
@@ -14,9 +14,11 @@ for the architecture and §8 for the milestones.
 **The L6 skeleton, with GL1's board layer under `io_task`.** It boots, clears the relay
 latch, prints its banner, draws the boot page and starts the seven tasks of plan §5.2.
 `io_task` times relay pulses, debounces the inputs and reads the buttons and sensors.
-`log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`,
-`restart`, `hang`) and
-prints the pass counts every 30 s as an `alive:` line. The other bodies are stubs.
+`lora_task` brings the radio up. `ui_task` shows the INA226 and LM75 on the panel's last
+line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`,
+`radio`, `bus <s>`, `restart`, `hang`) and prints the pass counts every 30 s as an
+`alive:` line. `bus <s>` is GL1's SPI test, run by the three tasks that own the LCD, the
+microSD and the radio. The other bodies are stubs.
 
 | File | What it holds | Native? |
 |---|---|---|
@@ -27,6 +29,7 @@ prints the pass counts every 30 s as an `alive:` line. The other bodies are stub
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
 | `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
 | `gate_io.{h,cpp}` | Relay pulse timing and input debounce, with time passed in | yes |
+| `radio.{h,cpp}` | The SX1262 brought up from `board_profile.h`, and a sync-word probe. GL3 grows it | no |
 | `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379) | yes |
 | `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp` | no |
 

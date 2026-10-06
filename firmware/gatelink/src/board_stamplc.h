@@ -57,7 +57,9 @@ uint8_t board_poll_buttons();
 struct BoardSensors {
   int16_t  temp_c10 = INT16_MIN;   // LM75, 0.1 degC
   uint16_t bus_mv   = UINT16_MAX;  // INA226 bus voltage
-  int32_t  shunt_ma = INT32_MIN;   // INA226 shunt current; which current is measurement M12
+  // INA226 shunt current, in uA: whole mA hid the carrier's 2.4 mA draw under the part's
+  // ~1 mA offset (measurement M12, engineering log 2026-10-06).
+  int32_t  shunt_ua = INT32_MIN;
 };
 BoardSensors board_read_sensors();
 
@@ -67,6 +69,10 @@ bool board_rtc_get(std::tm* out);
 
 // Clears the panel and draws the page, under the SpiLock.
 void board_show(const PageText& page);
+
+// Redraws one line of the panel, row 0 at the top, and leaves the rest as it was. Under
+// the SpiLock.
+void board_show_line(size_t row, const char* text);
 
 // Non-blocking: the buzzer runs on a LEDC timer.
 void board_beep(uint16_t freq_hz, uint16_t ms);

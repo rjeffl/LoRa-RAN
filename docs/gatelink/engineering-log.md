@@ -668,3 +668,72 @@ bench. The only `beep` sent was the one that logged `LEDC is not initialized`, a
 button was pressed, so that command most likely made it. The message looks like a log
 line from the first `tone()` call, not a failure. Not yet confirmed by a `beep` sent
 while someone is listening.
+
+## 2026-10-06 — The node image shares the SPI bus cleanly from its own tasks
+
+**GL1's concurrency criterion passes on the node image** (plan §8.2). `bus <s>` drives
+the LCD from `ui_task`, the microSD from `log_task` and the radio from `lora_task`, each
+at its plan §5.2 priority and unpinned, all under the `SpiLock`. Each device checks its
+own transfer. The radio reads its sync word back every 5 ms, and the microSD takes one
+append on each 20 ms `log_task` pass.
+
+| Run | LCD frames, longest call | microSD ok / bad, longest call | Radio ok / bad, longest call |
+|---|---|---|---|
+| 60 s | 600, 25.0 ms | 2100 / 0, 23.8 ms | 7790 / 0, 15.5 ms |
+| 300 s | 3000, 36.2 ms | 9007 / 0, 55.9 ms | 35764 / 0, 49.1 ms |
+
+Neither run reset the chip or tripped the task watchdog, and `io_task` kept its 100 ms
+period through both: its count in the 30 s `alive:` lines rose by 300 each time. A longest call includes the wait for
+the lock, so the radio's 49 ms is mostly a microSD write ahead of it. The bring-up
+image's IDLE0 starvation did not appear, because each task here sleeps between
+operations rather than taking the lock straight back.
+
+`radio.cpp` brings the SX1262 up in `lora_task` at boot, with RadioLib status 0.
+
+## 2026-10-06 — M12: the INA226 sees neither the node's current nor Bus pin 1's
+
+**The INA226 reads VIN, but its shunt carries neither the node's own supply nor the
+carrier's draw through Bus pin 1.** The operator put a DVM in series with the 12 V feed
+to VIN, with USB unplugged, and read the panel's INA226 line alongside it:
+
+| Condition | DVM, 12 V feed | INA226 |
+|---|---|---|
+| StamPLC and carrier | 43.6 mA | 11,870 mV, 0 mA |
+| Carrier unplugged | 41.2 mA | — |
+| Carrier, plus 2.2 kΩ from Bus pin 1 to GND | 49.2 mA | 0 mA |
+
+The carrier draws 2.4 mA, and the resistor adds 5.6 mA, close to the 5.5 mA that 12 V
+across 2.2 kΩ predicts. The INA226 did not move off 0 mA for either. The library's
+calibration (10 mΩ, 2 A full scale) resolves about 61 µA, and the part's offset is about
+1 mA at most, so a 5.6 mA load through its shunt could not read 0. The panel showed whole
+milliamps at the time.
+
+M5StamPLC 1.2.0 calls the reading the current of "the right side io socket." The StamPLC
+has one expansion socket, and the carrier is in it, so that name points at some output
+on the socket other than Bus pin 1. Which one was not established.
+
+**What this settles.** Plan §9.8, V-11 and PRD R-4.4b read the INA226 as the node's own
+supply current, and expansion board §7.7 as the bank's current. Both are wrong. The bus
+voltage, which reads VIN, is still usable as the bank's voltage behind the inline fuse.
+The node's consumption needs another source, and choosing it is a requirement change, not
+a fix made here.
+
+**With USB attached, the 12 V feed carries 3.1 mA.** USB supplies almost all of the
+StamPLC's load even with VIN at 12 V. That is why the first INA226 reading, 0 mA with
+USB attached, settled nothing, and it fits the 12 V power cycle that reset nothing.
+
+## 2026-10-06 — The inputs debounce against a bench switch
+
+**`io_task` debounces a bench switch as plan §8.2 asks.** The switch fed 12 V+ to IN8,
+with `EXCOM_COM` on 12 V−, which is the high-level wiring plan §3.2 gives IN1–IN4. At
+lran-config's defaults, `input_poll_ms` 100 and `input_debounce_samples` 2, the debounced
+value followed each raw change one poll later.
+
+`in` now counts bit changes before and after the debouncer. Ten taps, as short as the
+operator could make them, gave **20 raw edges and 16 debounced**. The poll sampled every
+tap, and the two that lasted a single sample were rejected. A bounce shorter than
+`input_poll_ms` falls between samples and never reaches the debouncer at all.
+
+**IN8 is bit 7 and IN1 is bit 0**, matching M5StamPLC 1.2.0's `_in_pin_list`. The switch
+was first wired to IN8 while meant for IN1. With the board mounted upside down, its
+terminal labels read the other way round.

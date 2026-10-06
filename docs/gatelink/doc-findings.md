@@ -33,8 +33,11 @@ both statements until it runs.
 Expansion board §7.7 says the INA226 measures the **bank's** voltage and current. PRD R-4.4b,
 Implementation Plan §9.8 and V-11 use it for the **node's** own supply.
 
-**Correct statement:** not yet established. **Measurement M12**, at milestone GL1, finds
-which current passes through its shunt.
+**Correct statement:** neither. **Measurement M12** found on 2026-10-06 that the INA226's
+bus voltage reads VIN, and its shunt carries neither the node's supply nor the carrier's
+draw through Bus pin 1 (engineering log). Plan §3.4 and expansion board §7.7 now say so.
+PRD R-4.4b, plan §9.8 and V-11 still use it for the node's current, and need a
+requirement change.
 
 ## Fixed
 
