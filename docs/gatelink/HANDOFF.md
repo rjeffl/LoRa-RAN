@@ -27,8 +27,8 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1's two relay checks, on a logic analyzer.** Steps 3–5 of the last list passed, and
-GL1's work continues on its milestone branch (`gh pr list`). No scope is on the bench. A
+**GL1's two relay checks, on a logic analyzer.** Steps 3–5 of the last list passed and
+merged; the analyzer half takes a new branch from `main`. No scope is on the bench. A
 HiLetgo USB logic analyzer runs PulseView on the operator's Linux laptop, because
 PulseView has no Apple Silicon build. The operator is wiring the relay outputs to a
 header, since the screw terminals give the probes no clean connection.
