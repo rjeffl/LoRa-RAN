@@ -388,9 +388,13 @@ void cmd_bus(uint32_t seconds) {
   g_bus_stats = BusStats{};
   g_bus_done  = 0;
   g_bus_run   = true;
-  xTaskCreate(bus_lcd, "bus_lcd", 4096, nullptr, 2, nullptr);
-  if (g_sd_up) xTaskCreate(bus_sd, "bus_sd", 6144, nullptr, 2, nullptr);
-  xTaskCreate(bus_radio, "bus_radio", 4096, nullptr, 2, nullptr);
+  // Every driver here busy-waits on its SPI transfer, and the lock passes straight from one
+  // task to the next, so the bus never idles. Unpinned at priority 2, the tasks kept IDLE0 off
+  // CPU 0 until the task watchdog fired (engineering log, 2026-10-06). On core 1 at the loop
+  // task's priority, CPU 0 idles and the reporter below still gets time slices.
+  xTaskCreatePinnedToCore(bus_lcd, "bus_lcd", 4096, nullptr, 1, nullptr, 1);
+  if (g_sd_up) xTaskCreatePinnedToCore(bus_sd, "bus_sd", 6144, nullptr, 1, nullptr, 1);
+  xTaskCreatePinnedToCore(bus_radio, "bus_radio", 4096, nullptr, 1, nullptr, 1);
   // A line a second, so a crash mid-run still leaves the trend in the log.
   for (uint32_t t = 1; t <= seconds; ++t) {
     delay(1000);
