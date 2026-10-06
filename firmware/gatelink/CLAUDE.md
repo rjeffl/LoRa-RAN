@@ -11,17 +11,21 @@ for the architecture and §8 for the milestones.
 
 ## What exists here today
 
-**The L6 skeleton.** It boots on a bare StamPLC, prints its banner, draws the boot page
-and starts the seven tasks of plan §5.2 with stub bodies. Each stub counts its passes and
-waits out its period. `log_task` prints the counts every 30 s as an `alive:` line.
+**The L6 skeleton, with GL1's board layer under `io_task`.** It boots, clears the relay
+latch, prints its banner, draws the boot page and starts the seven tasks of plan §5.2.
+`io_task` times relay pulses, debounces the inputs and reads the buttons and sensors.
+`log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`) and
+prints the pass counts every 30 s as an `alive:` line. The other bodies are stubs.
 
 | File | What it holds | Native? |
 |---|---|---|
 | `main.cpp` | Boot, banner, task start. **The only file that includes `secrets.h`**, for `LRAN_GATELINK_NODE_KEY` alone | no |
 | `tasks.{h,cpp}` | The task table and its invariants | yes |
-| `task_runtime.{h,cpp}` | Static task creation and the stub bodies | no |
+| `task_runtime.{h,cpp}` | Static task creation, `io_task`, the bench console in `log_task`, and the stub bodies | no |
 | `ui_pages.{h,cpp}` | Panel text, and the node key's status | yes |
-| `board_stamplc.{h,cpp}` | The board layer over M5StamPLC; the panel only, until GL1 | no |
+| `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
+| `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
+| `gate_io.{h,cpp}` | Relay pulse timing and input debounce, with time passed in | yes |
 | `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379) | yes |
 | `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp` | no |
 
@@ -32,7 +36,7 @@ pins on the header board give a carrier that never answers.
 ## Build and test
 
 ```bash
-pio test -d firmware/gatelink -e native        # task table and boot page
+pio test -d firmware/gatelink -e native        # task table, boot page, pulse and debounce
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2
@@ -54,6 +58,10 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
   `node_holds_no_master.py` fails CI if any code or build flag here names it.
 - **`io_task` waits on nothing but `vTaskDelayUntil`.** No lock, no queue timeout, no
   `Serial`. `io_task_never_blocks.py` reads its body.
+- **Only `io_task` touches the internal I²C bus** once tasks run: relays, inputs,
+  buttons, INA226, LM75 and RTC. Whether M5Unified's I²C class locks is not established.
+- **`board_relays_off_early()` is the first call in `setup()`** (PRD R-3.5j). The relay
+  expander does not reset with the ESP32.
 - **Only `log_task` writes to `Serial`.** A full USB CDC buffer blocks the writer.
 - **The native `build_src_filter` is the seam.** A file that moves across it is a visible
   edit to `platformio.ini`.

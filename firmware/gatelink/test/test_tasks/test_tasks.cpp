@@ -47,6 +47,16 @@ void test_io_period_is_input_poll_ms() {
   TEST_ASSERT_EQUAL_UINT32(100, default_period_ms(task_spec(TaskId::Io)));
 }
 
+// io_task reads these four rows by id. A renumbered row would hand it another parameter's
+// default; Impl Plan 4.4 states the values.
+void test_io_param_defaults() {
+  TEST_ASSERT_EQUAL_UINT32(500, param_default(kParamRelayPulseMs));
+  TEST_ASSERT_EQUAL_UINT32(500, param_default(kParamRelayMinSpacingMs));
+  TEST_ASSERT_EQUAL_UINT32(100, param_default(kParamInputPollMs));
+  TEST_ASSERT_EQUAL_UINT32(2, param_default(kParamInputDebounceSamples));
+  TEST_ASSERT_EQUAL_UINT32(0, param_default(0x10FF));
+}
+
 // bms_poll_s is in seconds; the period comes out in milliseconds.
 void test_bms_period_is_bms_poll_s_scaled() {
   TEST_ASSERT_EQUAL_HEX16(0x1040, task_spec(TaskId::Bms).period_param);
@@ -71,6 +81,7 @@ int main(int, char**) {
   RUN_TEST(test_every_row_is_populated);
   RUN_TEST(test_period_params_exist);
   RUN_TEST(test_io_period_is_input_poll_ms);
+  RUN_TEST(test_io_param_defaults);
   RUN_TEST(test_bms_period_is_bms_poll_s_scaled);
   RUN_TEST(test_no_task_has_two_period_sources);
   return UNITY_END();

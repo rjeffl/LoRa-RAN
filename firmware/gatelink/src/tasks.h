@@ -69,6 +69,16 @@ const TaskSpec* task_table();
 // default of its period parameter, scaled to milliseconds. 0 for an event-driven task.
 uint32_t default_period_ms(const TaskSpec& spec);
 
+// The default of a GateLink parameter in lran-config's table, or 0 if the table has no such
+// row. Stands in for the Store until GL3 brings one up.
+uint32_t param_default(uint16_t id);
+
+// GateLink's rows in lran-config's table (Impl Plan 4.4) that io_task reads.
+inline constexpr uint16_t kParamRelayPulseMs        = 0x1000;
+inline constexpr uint16_t kParamRelayMinSpacingMs   = 0x1001;
+inline constexpr uint16_t kParamInputPollMs         = 0x1010;
+inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
+
 // ---------------------------------------------------------------------------
 // The invariants. Impl Plan 5.2's rules, written so a test can fail.
 // ---------------------------------------------------------------------------

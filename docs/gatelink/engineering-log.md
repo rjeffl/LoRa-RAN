@@ -586,3 +586,28 @@ that is not 10 kΩ. An R4 of about 23 kΩ against the Wio's 10 kΩ alone would a
 2.3 V. **Falsified by:** R4 measured out of circuit, or RST measured on the carrier with
 the Wio pulled. Neither changes the conclusion that R4 cannot hold reset. Expansion board §7.1
 now cites the Wio's 10 kΩ.
+
+## 2026-10-06 — GL1 starts: the relay expander does not reset with the ESP32
+
+**A reset in the middle of a relay pulse lengthens it.** The four relays are P0_0–P0_3 of
+the AW9523B at 0x59 on the internal I²C bus (M5StamPLC 1.2.0, `io_expander_b_init()`).
+That chip sits outside the ESP32's reset domain, so a watchdog reset or a panic leaves its
+output latch as it was. The relay stays energized through the boot ROM, `setup()`'s 200 ms
+banner delay and `M5.begin()`, until `io_expander_b_init()` makes every pin an input.
+PRD R-3.5j asks that no relay energize from reset; this is a relay that never
+de-energized. Found by reading the installed library, not on the bench.
+
+**The library's own sequence would also close a relay briefly.** For each relay pin,
+`io_expander_b_init()` calls `pinMode(OUTPUT)` before `digitalWrite(false)`. With a 1 in
+the latch, the relay is driven between those two I²C transactions.
+
+**`board_relays_off_early()` is now the first call in `setup()`**, in the node image and
+the bring-up image. It writes 0 to the output latch over a raw I²C write before anything
+else runs. That ends the stretched pulse at the first instruction `setup()` executes, and
+leaves a 0 in the latch for the library's sequence. It does not cover the boot ROM and
+the core's start-up, before `setup()`. **Falsified by:** the GL1 scope check, a relay
+output observed through a watchdog reset fired during a pulse.
+
+**The library names the INA226's current the "IO socket output current"**
+(`getIoSocketOutputCurrent()`, `M5StamPLC.h`). That names neither of the two readings
+plan §3.4 weighs, the bank's current or the node's. M12 is still open.
