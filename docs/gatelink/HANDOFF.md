@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL1** (bench) | *The next job*, below; plan §8.2's GL1 row and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry *GL1 starts* has the relay-expander finding. `firmware/gatelink/CLAUDE.md` lists the console commands |
+| **GL1** (bench, the analyzer half) | *The next job*, below; plan §8.2's GL1 row; PRD R-3.5j. The 2026-10-06 engineering-log entry *GPIO 3 holds the IO expanders in reset* says which reset windows the code does not cover. `firmware/gatelink/CLAUDE.md` lists the console commands |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,32 +27,39 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1's scope checks.** The node image runs on the StamPLC, and its `log_task` console
-drives the board layer (`firmware/gatelink/CLAUDE.md`). Unplug USB for any power cycle:
-USB VBUS keeps the board running.
+**GL1's two relay checks, on a logic analyzer.** Steps 3–5 of the last list passed, and
+GL1's work continues on its milestone branch (`gh pr list`). No scope is on the bench. A
+HiLetgo USB logic analyzer runs PulseView on the operator's Linux laptop, because
+PulseView has no Apple Silicon build. The operator is wiring the relay outputs to a
+header, since the screw terminals give the probes no clean connection.
 
-1. Scope each relay output through a `relay <k>` pulse: 500 ms ±10 ms.
-2. Scope every relay output through a power cycle with USB unplugged, a `hang`
-   (interrupt-watchdog reset), and a brownout (PRD R-3.5j). Run `relay 4 2000` before a
-   `hang` to reset during a pulse. The 2026-10-06 engineering-log entry on GPIO 3 says
-   which windows the code does not cover, and the power cycle is the one to watch.
-3. Debounce `in` against a bench switch on an input.
-4. Run the LCD, the microSD and the radio together under `SpiLock` in the node image,
-   which needs a minimal `radio.cpp`. The bring-up image's `bus` test already passes for
-   the raw drivers.
-5. Settle measurement M12 with USB unplugged (plan §3.4). With USB attached the INA226
-   read 0 mA, which may only mean the board ran from USB.
+**The wiring for each relay.** COM to analyzer GND, NO to a channel with 10 kΩ to the
+analyzer's 3.3 V, so the channel reads low while the contact is closed. Sample at 1 MHz
+or faster and capture continuously through each reset. The analyzer sees the contact,
+not the coil: a coil glitch shorter than the relay's operate time does not show. Record
+that as the method's limit, and propose that R-3.5j's *Verified by* accept it.
+
+1. Each relay through a `relay <k>` pulse: 500 ms ±10 ms, operate and release times
+   included.
+2. Every relay output through a power cycle with USB unplugged, a `hang` after
+   `relay 4 2000`, and a brownout (PRD R-3.5j). USB VBUS keeps the board running, so
+   unplug it for the power cycle. **The brownout needs a source**: a supply that can sag
+   VIN below the board's reset point. None has been named.
+
+Then close GL1: merge its PR once the operator accepts it.
 
 ## What the last session established
 
-- **GL1's board layer runs on the StamPLC.** The inputs, LM75, INA226, RTC and microSD
-  answer through it, and the pulse widths timed from the expander writes are 499.9 ms and
-  99.9 ms. The RTC reads 2088 and has never been set.
-- **GPIO 3 holds both IO expanders in reset after a chip reset.** `board_relays_off_early()`
-  drives it high, then clears the relay latch. It now succeeds after chip and CPU resets
-  alike.
-- **A 12 V power cycle with USB attached resets nothing**, and the carrier's 3.3 V LED
-  stayed lit through it. That LED should have gone out.
+- **The node's own tasks share the SPI bus cleanly.** `bus 300` ran the LCD from
+  `ui_task`, the microSD from `log_task` and the radio from `lora_task`: 0 bad transfers
+  in about 48,000, no reset, and `io_task` on its period throughout.
+- **M12: the INA226 reads VIN, and its shunt carries neither the node's current nor Bus
+  pin 1's.** A 5.6 mA load on Bus pin 1 left it at 0 mA. PRD R-4.4b, plan §9.8 and V-11
+  still rely on it (*Open*).
+- **The inputs debounce against a bench switch.** Ten taps gave 20 raw edges and 16
+  debounced. IN8 is bit 7, and its terminal is easy to read as IN1's with the board
+  upside down.
+- **With USB attached, the 12 V feed carries 3.1 mA**, against 43.6 mA without.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -82,9 +89,9 @@ USB VBUS keeps the board running.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.28. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3 |
-| Not started | GL1–GL9; GL1 is next |
+| Done | Plan v0.29. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3. GL1: all but the two relay checks on the analyzer |
+| Not started | GL2–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -116,7 +123,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink-bringup`, the GL0 console, flashed 2026-10-06. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding only the bus test's `/gl0bus.bin` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-06 |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with GL1's console, flashed 2026-10-06 at `3061caa`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-06 |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected; VE.Direct cable not fitted |
@@ -168,8 +175,14 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **PRD R-4.4b, plan §9.8 and V-11 need another source for the node's current**, since
+  M12 found the INA226 cannot give it. Options: drop node current and use the BMS or MPPT
+  figures, which measure the bank; add a current sensor on VIN; or find which socket
+  output the shunt carries. The operator's decision, before GL9.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
-  draws only from Bus pin 1. Find what feeds it, or confirm the supply was off.
+  draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
+  not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
+  path, or confirm the supply was off.
 - **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
   one `beep` while listening to tie the two together.
 
@@ -240,9 +253,9 @@ board's are its D-pads (expansion board §6.1).
   while the boot check stands.
 - **Expansion board §11 step 5** and measurement M4 wait for the MPPT on the bench; step 6
   waits for the gate.
-- **`doc-findings` 6 and 8**: VE.Direct's 5 V against 3.25 V, and the INA226's two
-  readings. M4 and M12 settle them.
-- **Measurements** M1–M4, M8–M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
+- **`doc-findings` 6 and 8**: VE.Direct's 5 V against 3.25 V, which M4 settles, and the
+  INA226's two readings. M12 settled 8's facts; the R-4.4b item above is what remains.
+- **Measurements** M1–M4, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s register scales are confirmed at GL4.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
