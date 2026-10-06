@@ -79,7 +79,17 @@ struct BusStats {
   uint32_t sd_bad     = 0;
   uint32_t radio_ok   = 0;
   uint32_t radio_bad  = 0;
+  // Longest hold of the bus lock, per task. A fill that slows from ~15 ms names a clock
+  // that another device's transaction left behind.
+  uint32_t lcd_max_us   = 0;
+  uint32_t sd_max_us    = 0;
+  uint32_t radio_max_us = 0;
 };
+
+void note_hold(uint32_t& max_us, uint32_t t0) {
+  const uint32_t dt = micros() - t0;
+  if (dt > max_us) max_us = dt;
+}
 BusStats          g_bus_stats;
 volatile bool     g_bus_run = false;
 volatile uint32_t g_bus_done = 0;
@@ -297,12 +307,14 @@ void bus_lcd(void*) {
   uint32_t i = 0;
   while (g_bus_run) {
     xSemaphoreTake(g_bus, portMAX_DELAY);
+    const uint32_t t0 = micros();
     auto& d = M5StamPLC.Display;
     d.fillRect(0, 0, 240, 135, (i & 1) ? TFT_NAVY : TFT_BLACK);
     d.setTextColor(TFT_WHITE);
     d.setTextSize(2);
     d.setCursor(6, 56);
     d.printf("bus test %lu", static_cast<unsigned long>(i));
+    note_hold(g_bus_stats.lcd_max_us, t0);
     xSemaphoreGive(g_bus);
     ++g_bus_stats.lcd_frames;
     ++i;
@@ -319,6 +331,7 @@ void bus_sd(void*) {
   while (g_bus_run) {
     for (size_t k = 0; k < sizeof(out); ++k) out[k] = static_cast<uint8_t>(k * 7 + i);
     xSemaphoreTake(g_bus, portMAX_DELAY);
+    const uint32_t t0 = micros();
     bool ok = false;
     File f  = SD.open("/gl0bus.bin", FILE_WRITE, true);
     if (f) {
@@ -333,6 +346,7 @@ void bus_sd(void*) {
     } else {
       ok = false;
     }
+    note_hold(g_bus_stats.sd_max_us, t0);
     xSemaphoreGive(g_bus);
     if (ok) {
       ++g_bus_stats.sd_ok;
@@ -350,7 +364,9 @@ void bus_radio(void*) {
   while (g_bus_run) {
     uint8_t sync[2] = {};
     xSemaphoreTake(g_bus, portMAX_DELAY);
+    const uint32_t t0 = micros();
     const int16_t st = g_radio->readRegister(RADIOLIB_SX126X_REG_LORA_SYNC_WORD_MSB, sync, 2);
+    note_hold(g_bus_stats.radio_max_us, t0);
     xSemaphoreGive(g_bus);
     if (st == RADIOLIB_ERR_NONE && sync[0] == 0x14 && sync[1] == 0x24) {
       ++g_bus_stats.radio_ok;
@@ -375,7 +391,16 @@ void cmd_bus(uint32_t seconds) {
   xTaskCreate(bus_lcd, "bus_lcd", 4096, nullptr, 2, nullptr);
   if (g_sd_up) xTaskCreate(bus_sd, "bus_sd", 6144, nullptr, 2, nullptr);
   xTaskCreate(bus_radio, "bus_radio", 4096, nullptr, 2, nullptr);
-  delay(seconds * 1000);
+  // A line a second, so a crash mid-run still leaves the trend in the log.
+  for (uint32_t t = 1; t <= seconds; ++t) {
+    delay(1000);
+    const auto& s = g_bus_stats;
+    Serial.printf("bus: t %lu; LCD %lu, max %lu us; SD %lu ok %lu bad, max %lu us; radio %lu, max %lu us\n",
+                  static_cast<unsigned long>(t), static_cast<unsigned long>(s.lcd_frames),
+                  static_cast<unsigned long>(s.lcd_max_us), static_cast<unsigned long>(s.sd_ok),
+                  static_cast<unsigned long>(s.sd_bad), static_cast<unsigned long>(s.sd_max_us),
+                  static_cast<unsigned long>(s.radio_ok), static_cast<unsigned long>(s.radio_max_us));
+  }
   g_bus_run = false;
   while (g_bus_done < tasks) delay(10);
 
