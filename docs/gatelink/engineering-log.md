@@ -536,3 +536,38 @@ The operator watched the panel throughout. The text stayed legible with no corru
 The panel flashes because the test alternates navy and black fills at about 67 frames a
 second, which is intended. This passes §11 step 4 for the LCD and the radio only. The
 microSD leg waits on the decision whether to keep the card.
+
+## 2026-10-06 — §11 step 4 passes with the microSD card, once the test stops starving IDLE0
+
+**The 128 GB card would not mount until it was formatted on the board.** `SD.begin()`
+failed with FatFs `(13) There is no valid FAT volume`. That error comes after the card
+has initialised and its first sectors have been read, so the wiring was good. The core
+builds FatFs with `FF_FS_EXFAT 0` (`ffconf.h`), and a card over 32 GB ships as exFAT.
+`sd format` passes `format_if_empty` to `SD.begin()`. FatFs made a FAT32 volume of
+121,942 MB in 61 s over SPI at 4 MHz, with the operator's permission to erase the card.
+
+**The first two runs with the card tripped the task watchdog on IDLE0**, at 5 s and at
+9 s. Each time `bus_lcd` was running on CPU 0, busy-waiting in M5GFX's
+`Bus_SPI::writeDataRepeat()`. The suspected cause, an LCD clock that an SD transaction
+left at 4 MHz, is ruled out: the longest LCD hold stayed at 14.3–14.6 ms throughout. Every
+driver busy-waits on its own transfer, and the lock passes straight from one task to
+the next, so the bus never idles. Three unpinned tasks at priority 2 kept IDLE0 off
+CPU 0. No transfer failed in either run. The bus tasks now run on core 1 at priority 1.
+
+**With that change, all three legs pass:**
+
+| Run | LCD | SD | Radio | Transmit after |
+|---|---|---|---|---|
+| `bus 60` | 1,592 frames, max hold 14.6 ms | 1,588 ok, 0 bad, max 59.2 ms | 1,596 reads, 0 bad, max 0.23 ms | ok |
+| `bus 5` | 135 frames | 133 ok, 0 bad | 134 reads, 0 bad | ok |
+| `bus 20` | 532 frames, max 14.6 ms | 530 ok, 0 bad, max 51.1 ms | 531 reads, 0 bad, max 0.23 ms | ok |
+
+The operator watched the panel through `bus 20` and saw no corruption.
+
+**An SD write holds the bus for up to 59 ms**, and a radio operation waits behind it.
+That bears on plan §5.2's ACK-timing question at GL3, if the card stays.
+
+**The console holds back the last line of a long command.** After the 60 s and 20 s
+runs, the summary line appeared only when the next command produced output. The 5 s
+run's summary arrived at once. The cause is not established; it looks like the USB CDC
+transmit buffer not being flushed. Send `stat` to flush it.
