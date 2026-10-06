@@ -507,3 +507,19 @@ Expansion board §7.1 and plan §4.1 now say so.
 it would move persistence to NVS, which changes Protocol Spec §8.11's meaning of
 `APPLIED_NOT_PERSISTED` for GateLink (D49). It would also leave the M14 baseline log and
 D29's seasonal temperature log without a local store.
+
+## 2026-10-06 — The 3.3 V rail holds through transmit at −4 dBm
+
+**The 3.3 V rail read 3.32–3.33 V through `txloop 50` and `txloop 200`.** The operator
+may have seen one brief dip to 3.31 V, possibly from poor probe contact. GL0 requires
+≥3.2 V. All 250 transmits completed with a DIO1 edge and `TX_DONE`, at Envelope A's
+−4 dBm conducted.
+
+The meter was a DMM, which averages, so it cannot show the dip at each PA turn-on.
+Each loop is about 172 ms, of which 165 ms is time on air, so the reading is close to
+the rail voltage during transmit. A scope on the rail at the start of a transmit would
+show the turn-on dip. The operator notes that the Wio is the only switching load on the
+rail, and reads the result as the 100 µF capacitor doing its job.
+
+**`bus` runs without a card now.** It required `sd` first. With the card's future
+undecided, it runs the LCD and radio tasks alone when no card is mounted.

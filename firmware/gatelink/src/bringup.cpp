@@ -287,8 +287,9 @@ void cmd_sd() {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 - three tasks on the one bus. Each checks its own data, so a transaction that
-// leaks into another shows up as a count, not as a hang to diagnose later.
+// Step 4 - three tasks on the one bus, or two without a card: whether GateLink keeps the
+// microSD card is undecided (engineering log, 2026-10-06). Each task checks its own data, so a
+// transaction that leaks into another shows up as a count, not as a hang to diagnose later.
 // ---------------------------------------------------------------------------
 void bus_lcd(void*) {
   uint32_t i = 0;
@@ -361,26 +362,28 @@ void bus_radio(void*) {
 }
 
 void cmd_bus(uint32_t seconds) {
-  if (!g_radio_up || !g_sd_up) {
-    Serial.println(F("bus: run begin and sd first"));
+  if (!g_radio_up) {
+    Serial.println(F("bus: run begin first"));
     return;
   }
+  const uint32_t tasks = g_sd_up ? 3 : 2;
   g_bus_stats = BusStats{};
   g_bus_done  = 0;
   g_bus_run   = true;
   xTaskCreate(bus_lcd, "bus_lcd", 4096, nullptr, 2, nullptr);
-  xTaskCreate(bus_sd, "bus_sd", 6144, nullptr, 2, nullptr);
+  if (g_sd_up) xTaskCreate(bus_sd, "bus_sd", 6144, nullptr, 2, nullptr);
   xTaskCreate(bus_radio, "bus_radio", 4096, nullptr, 2, nullptr);
   delay(seconds * 1000);
   g_bus_run = false;
-  while (g_bus_done < 3) delay(10);
+  while (g_bus_done < tasks) delay(10);
 
   // A transmit at the end proves the radio still works after the bus was shared.
   const bool tx_after = transmit_once(false);
   const auto& s = g_bus_stats;
-  Serial.printf("bus: %lu s; LCD %lu frames; SD %lu ok %lu bad; radio %lu ok %lu bad; tx after %s\n",
+  Serial.printf("bus: %lu s; LCD %lu frames; SD %s %lu ok %lu bad; radio %lu ok %lu bad; tx after %s\n",
                 static_cast<unsigned long>(seconds), static_cast<unsigned long>(s.lcd_frames),
-                static_cast<unsigned long>(s.sd_ok), static_cast<unsigned long>(s.sd_bad),
+                g_sd_up ? "on" : "off", static_cast<unsigned long>(s.sd_ok),
+                static_cast<unsigned long>(s.sd_bad),
                 static_cast<unsigned long>(s.radio_ok), static_cast<unsigned long>(s.radio_bad),
                 tx_after ? "ok" : "FAILED");
 }
