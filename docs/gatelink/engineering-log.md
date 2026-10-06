@@ -523,3 +523,16 @@ rail, and reads the result as the 100 µF capacitor doing its job.
 
 **`bus` runs without a card now.** It required `sd` first. With the card's future
 undecided, it runs the LCD and radio tasks alone when no card is mounted.
+
+## 2026-10-06 — The LCD and the radio share the bus cleanly, without a card
+
+**`bus 60` ran with no microSD card mounted**, on image `1d9f746`:
+
+```text
+bus: 60 s; LCD 4000 frames; SD off 0 ok 0 bad; radio 7989 ok 0 bad; tx after ok
+```
+
+The operator watched the panel throughout. The text stayed legible with no corruption.
+The panel flashes because the test alternates navy and black fills at about 67 frames a
+second, which is intended. This passes §11 step 4 for the LCD and the radio only. The
+microSD leg waits on the decision whether to keep the card.
