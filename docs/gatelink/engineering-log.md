@@ -487,3 +487,23 @@ reading is wrong; otherwise the opposing pull-up is 10 kΩ × (3.3 − V)/V.
 moved to the workbench. The operator is weighing dropping the microSD card, because it
 is a liability in an enclosure without climate control. That would leave NVS as the only
 nonvolatile store.
+
+## 2026-10-06 — The RST pull-up is on the Wio, and R4 cannot win against it
+
+**With the board powered and G2 not driven, the RST net reads 2.3 V.** The operator
+measured it on the carrier. It still reads 2.3 V with the PORT.A cable unplugged, so the
+pull-up is not on the StamPLC. Only R4 and the Wio remain on the net, so the Wio pulls
+RST up through about 10 kΩ × (3.3 − 2.3) / 2.3 ≈ 4.3 kΩ. Whether the resistor is on
+Seeed's header board or inside the module is not known. Finding out means taking the
+carrier out of the enclosure to pull the Wio, and that was not done. R4 could not be
+measured in circuit with the Wio seated.
+
+**R4 stays fitted at 10 kΩ.** Winning against 4.3 kΩ cleanly needs about 470 Ω, which
+draws 7 mA whenever G2 drives high. Instead, the GateLink driver checks RST at boot: it
+drives RST low and requires BUSY to rise, then releases RST and requires BUSY to fall.
+Expansion board §7.1 and plan §4.1 now say so.
+
+**SD testing is deferred**, along with the decision on whether to keep the card. Dropping
+it would move persistence to NVS, which changes Protocol Spec §8.11's meaning of
+`APPLIED_NOT_PERSISTED` for GateLink (D49). It would also leave the M14 baseline log and
+D29's seasonal temperature log without a local store.

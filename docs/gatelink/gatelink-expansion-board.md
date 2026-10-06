@@ -256,13 +256,15 @@ PORT.A has two conductors, so exactly two radio control signals are exposed to a
 | RF_SW | RF path stuck in one state. Presents as unexplained range loss, intermittently. | Avoid |
 | BUSY | Reads stuck-busy (hang) or stuck-ready (SPI issued before the part is ready — corruption). | Avoid |
 | DIO1 | IRQ never fires. TX/RX complete but firmware doesn't learn about it — a timeout, not corruption. | Acceptable, see §7.1.1 |
-| RST | Radio never leaves reset, or never gets reset. Fails at `radio.begin()`. | Best candidate |
+| RST | The radio is never reset; the Wio's own pull-up keeps it running. Fails only at the boot check below. | Best candidate |
 
 Rev 0.3's forced re-route lands on **DIO1 and RST** — the bottom two rows. That is a better pairing than rev 0.2's RF_SW and RST, so the orientation change improves this trade rather than compromising it. NSS stays on the bus (Bus 16 instead of Bus 14), which is what §7.1 was always protecting; the specific pin never mattered.
 
 **R3 — 10 kΩ from D4 (NSS) to 3V3, now landing on G41.** Confirmed: Seeed fits no on-board pull-up on NSS. Without R3, G41 is a floating input from power-on until firmware configures it. That matters here specifically because the radio shares SPI with the LCD and microSD (§7.2) — a floating NSS during boot means the SX1262 can respond to traffic intended for the SD card. R3 makes "deselected" the boot state. G41 is not an ESP32-S3 strapping pin (those are G0, G3, G45, G46), so the pull-up has no boot-mode interaction.
 
-**R4 — 10 kΩ from D2 (RST) to GND.** Unchanged. SX1262 RST is active-low, so a pull-down holds the radio in reset if G2 floats at boot or the pigtail opens. Fail-loud rather than fail-weird. The ESP32 fights it with 330 µA when driving RST high, which is nothing. G2 is not a strapping pin either.
+**R4 — 10 kΩ from D2 (RST) to GND. It does not hold reset, as built.** It was meant to: SX1262 RST is active-low, so a pull-down would hold the radio in reset if G2 floated at boot or the pigtail opened. But the Wio pulls RST up through about 4.3 kΩ. With PORT.A disconnected, the carrier's RST net reads 2.3 V, and the radio runs (engineering log, 2026-10-06). Whether that pull-up is on Seeed's header board or inside the module is not known; finding out means pulling the Wio from its socket. A value low enough to win, about 470 Ω, would draw 7 mA whenever G2 drives high, so R4 stays at 10 kΩ and does no useful work. It costs 330 µA while G2 is high. Removing it is optional.
+
+**Fail-loud on RST is the firmware's job.** At boot the driver drives RST low and confirms BUSY rises, then releases it and confirms BUSY falls (plan §4.1). An open yellow conductor fails that check. G2 is not a strapping pin, so a floating G2 at boot does no harm beyond a radio left running until the check resets it.
 
 **G40 and G41 are the ESP32-S3's MTDO and MTDI.** They function as ordinary GPIO and the default debug path on this part is USB-Serial-JTAG, so nothing is lost. But if external JTAG is ever wanted on this node, RF_SW and NSS are the two pins it would want back. Note it and move on.
 
