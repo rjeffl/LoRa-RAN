@@ -14,7 +14,8 @@ for the architecture and §8 for the milestones.
 **The L6 skeleton, with GL1's board layer under `io_task`.** It boots, clears the relay
 latch, prints its banner, draws the boot page and starts the seven tasks of plan §5.2.
 `io_task` times relay pulses, debounces the inputs and reads the buttons and sensors.
-`log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`) and
+`log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`,
+`restart`, `hang`) and
 prints the pass counts every 30 s as an `alive:` line. The other bodies are stubs.
 
 | File | What it holds | Native? |
@@ -59,7 +60,8 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
 - **`io_task` waits on nothing but `vTaskDelayUntil`.** No lock, no queue timeout, no
   `Serial`. `io_task_never_blocks.py` reads its body.
 - **Only `io_task` touches the internal I²C bus** once tasks run: relays, inputs,
-  buttons, INA226, LM75 and RTC. Whether M5Unified's I²C class locks is not established.
+  buttons, INA226, LM75 and RTC. M5GFX locks each transaction with `portMAX_DELAY`, so a
+  second user could stall `io_task`.
 - **`board_relays_off_early()` is the first call in `setup()`** (PRD R-3.5j). The relay
   expander does not reset with the ESP32.
 - **Only `log_task` writes to `Serial`.** A full USB CDC buffer blocks the writer.
@@ -81,5 +83,8 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
 - **With the 12 V supply on, the StamPLC's USB does not enumerate on a USB-C host port.**
   The board backfeeds 5 V onto VBUS. Go through a USB 2.0 hub with USB-A ports
   (engineering log, 2026-10-05).
+- **GPIO 3, the LCD's reset, also holds both IO expanders in reset.** After a chip reset
+  nothing answers at 0x43 or 0x59 until it is driven high (engineering log, 2026-10-06).
+- **USB VBUS keeps the StamPLC running with the 12 V off.** Unplug USB to power-cycle it.
 - **`SPI.begin(7, 9, 8)` before `M5StamPLC.begin()`.** Otherwise `SD.begin()` starts the
   bus on the board definition's defaults, G11–G13.

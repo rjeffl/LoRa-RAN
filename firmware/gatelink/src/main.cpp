@@ -54,7 +54,7 @@ const char* reset_reason_name(esp_reset_reason_t r) {
 void setup() {
   // PRD R-3.5j. Before the banner's 200 ms: a reset in the middle of a pulse leaves the
   // relay energized until this write.
-  const bool relays_off = gatelink::board_relays_off_early();
+  const gatelink::EarlyOff relays_off = gatelink::board_relays_off_early();
 
   Serial.begin(115200);
   delay(200);  // USB CDC enumeration on a cold boot, before the first println
@@ -70,7 +70,8 @@ void setup() {
   // matches no commit in the repository.
   Serial.printf("Version: %s (%s)\n", LRAN_GATELINK_VERSION, LRAN_GATELINK_GIT);
   Serial.printf("Reset: %s\n", reset);
-  if (!relays_off) Serial.println(F("*** Relay expander did not acknowledge the boot-time off write ***"));
+  if (relays_off == gatelink::EarlyOff::BusFailed) Serial.println(F("*** Boot-time relay off: internal I2C did not start ***"));
+  if (relays_off == gatelink::EarlyOff::NoAck) Serial.println(F("*** Boot-time relay off: expander did not acknowledge ***"));
 
   if (gatelink::node_key_unprovisioned(kNodeKey, sizeof(kNodeKey))) {
     Serial.println(F("*** LRAN_GATELINK_NODE_KEY IS THE ALL-ZERO PLACEHOLDER ***"));

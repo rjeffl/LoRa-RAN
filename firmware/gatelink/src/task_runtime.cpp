@@ -16,6 +16,7 @@
 #include "task_runtime.h"
 
 #include <Arduino.h>
+#include <esp_system.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -283,6 +284,9 @@ const char* pulse_result_name(PulseResult r) {
 //   sense             INA226, LM75 and RTC
 //   sd                mount the card and append a line to /gl1.txt
 //   beep              the buzzer
+//   restart           a software reset
+//   hang              interrupts off until the interrupt watchdog resets the chip. With
+//                     `relay <k> 2000` first, it is R-3.5j's reset in the middle of a pulse
 void console_command(char* cmd) {
   char line[160];
   size_t n = 0;
@@ -302,8 +306,11 @@ void console_command(char* cmd) {
     }
   } else if (std::strcmp(cmd, "in") == 0) {
     const IoSnapshot s = io_snapshot();
-    n = std::snprintf(line, sizeof(line), "in: raw 0x%02X debounced 0x%02X relays 0x%02X i2c failures %lu",
-                      s.inputs_raw, s.inputs, s.relays, static_cast<unsigned long>(s.i2c_failures));
+    static const char* const kEarlyOff[] = {"ok", "bus failed", "no ack"};
+    n = std::snprintf(line, sizeof(line),
+                      "in: raw 0x%02X debounced 0x%02X relays 0x%02X i2c failures %lu; boot relay-off %s",
+                      s.inputs_raw, s.inputs, s.relays, static_cast<unsigned long>(s.i2c_failures),
+                      kEarlyOff[static_cast<size_t>(board_early_off_result())]);
   } else if (std::strcmp(cmd, "sense") == 0) {
     const IoSnapshot s = io_snapshot();
     n = std::snprintf(line, sizeof(line),
@@ -319,8 +326,18 @@ void console_command(char* cmd) {
   } else if (std::strcmp(cmd, "beep") == 0) {
     board_beep(2000, 200);
     n = std::snprintf(line, sizeof(line), "beep");
+  } else if (std::strcmp(cmd, "restart") == 0) {
+    Serial.println(F("restart"));
+    Serial.flush();
+    esp_restart();
+  } else if (std::strcmp(cmd, "hang") == 0) {
+    Serial.println(F("hang: interrupts off"));
+    Serial.flush();
+    portDISABLE_INTERRUPTS();
+    for (;;) {
+    }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | restart | hang");
   }
   write_line(line, n, sizeof(line));
 }

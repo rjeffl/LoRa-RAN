@@ -11,6 +11,7 @@
 #include <M5StamPLC.h>
 #include <SD.h>
 #include <SPI.h>
+#include <Wire.h>
 
 #include <cmath>
 #include <cstring>
@@ -33,20 +34,68 @@ constexpr uint8_t  kRegOutput0 = 0x02;
 constexpr uint32_t kI2cHz      = 400000;
 constexpr uint8_t  kRelayBits  = 0x0F;
 
-bool g_sd_up = false;
+bool     g_sd_up     = false;
+EarlyOff g_early_off = EarlyOff::Ok;
+
+// A CPU reset in the middle of an I2C read can leave a device holding SDA low, waiting for
+// clocks that never come. io_task reads the expander every input_poll_ms, so a watchdog
+// reset can land there. Clock SCL until SDA is released (nine clocks finish any byte),
+// then send a STOP. A precaution: no stuck bus has been seen on the bench.
+void i2c_bus_recover(int sda, int scl) {
+  pinMode(sda, INPUT_PULLUP);
+  pinMode(scl, OUTPUT_OPEN_DRAIN);
+  digitalWrite(scl, HIGH);
+  delayMicroseconds(5);
+  for (int i = 0; i < 9 && digitalRead(sda) == LOW; ++i) {
+    digitalWrite(scl, LOW);
+    delayMicroseconds(5);
+    digitalWrite(scl, HIGH);
+    delayMicroseconds(5);
+  }
+  pinMode(sda, OUTPUT_OPEN_DRAIN);
+  digitalWrite(sda, LOW);
+  delayMicroseconds(5);
+  digitalWrite(sda, HIGH);  // SDA rising while SCL is high is a STOP
+  delayMicroseconds(5);
+  pinMode(sda, INPUT);
+  pinMode(scl, INPUT);
+}
+
+EarlyOff relays_off_early() {
+  // The internal bus's pins, from M5StamPLC's pin_config.h.
+  i2c_bus_recover(STAMPLC_PIN_I2C_INTER_SDA, STAMPLC_PIN_I2C_INTER_SCL);
+  // The core's Wire, released before M5StamPLC.begin() opens the port its own way.
+  if (!Wire.begin(STAMPLC_PIN_I2C_INTER_SDA, STAMPLC_PIN_I2C_INTER_SCL, kI2cHz)) {
+    return EarlyOff::BusFailed;
+  }
+  // GPIO 3 is the LCD's reset, and it holds both IO expanders in reset too. A chip reset
+  // (power-on, brownout, USB) leaves it undriven, and 0x43 and 0x59 do not answer until
+  // M5GFX drives it high inside M5.begin() (bench, 2026-10-06). A CPU reset leaves it high,
+  // and the expander keeps its latch.
+  pinMode(STAMPLC_PIN_LCD_RST, OUTPUT);
+  digitalWrite(STAMPLC_PIN_LCD_RST, HIGH);
+  delay(2);
+  // The latch alone, not the direction: a relay pin still configured as an output goes
+  // low. M5GFX pulses GPIO 3 again inside M5.begin(), which resets the expander to its
+  // defaults before io_expander_b_init() runs. That function sets each relay pin to an
+  // output BEFORE it writes the pin low, so the latch's reset default decides whether a
+  // relay closes for one I2C transaction. The scope check answers that, not this write.
+  EarlyOff result = EarlyOff::NoAck;
+  for (int attempt = 0; attempt < 3 && result != EarlyOff::Ok; ++attempt) {
+    Wire.beginTransmission(kExpanderB);
+    Wire.write(kRegOutput0);
+    Wire.write(static_cast<uint8_t>(0x00));
+    if (Wire.endTransmission() == 0) result = EarlyOff::Ok;
+  }
+  Wire.end();
+  return result;
+}
 
 }  // namespace
 
-bool board_relays_off_early() {
-  // The internal bus's pins, from M5StamPLC's pin_config.h. M5StamPLC.begin() releases
-  // and restarts the bus later, so starting it here costs nothing.
-  m5::In_I2C.begin(I2C_NUM_0, STAMPLC_PIN_I2C_INTER_SDA, STAMPLC_PIN_I2C_INTER_SCL);
-  // The latch alone, not the direction. A relay pin still configured as an output goes low
-  // here. io_expander_b_init() then sets each relay pin to an output BEFORE it writes the
-  // pin low, which with a 1 left in the latch would close the relay for one I2C
-  // transaction; with 0 here, it does not.
-  return m5::In_I2C.writeRegister8(kExpanderB, kRegOutput0, 0x00, kI2cHz);
-}
+EarlyOff board_relays_off_early() { return g_early_off = relays_off_early(); }
+
+EarlyOff board_early_off_result() { return g_early_off; }
 
 void board_begin() {
   // The global SPI gets the carrier's bus pins before M5StamPLC.begin(). SD.begin() would

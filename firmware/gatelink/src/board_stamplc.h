@@ -26,10 +26,15 @@
 namespace gatelink {
 
 // PRD R-3.5j. Writes 0 to the relay expander's output latch before anything else runs.
-// The AW9523B is outside the ESP32's reset domain: a watchdog reset or panic in the middle
-// of a pulse leaves the relay energized until M5StamPLC.begin() reaches it. setup() calls
-// this first. Returns false if the expander did not acknowledge.
-bool board_relays_off_early();
+// A CPU reset (watchdog, panic, software) does not reset the AW9523B, so a reset in the
+// middle of a pulse leaves the relay energized until this write. A chip reset holds the
+// expander in reset through GPIO 3, which this releases first. setup() calls this first.
+enum class EarlyOff : uint8_t { Ok, BusFailed, NoAck };
+EarlyOff board_relays_off_early();
+
+// What the boot-time write returned, for a console that attaches after the banner has gone:
+// a power-on reset with USB unplugged leaves no banner to read.
+EarlyOff board_early_off_result();
 
 // SPI on the carrier's pins, then M5StamPLC.begin(): the internal I2C bus, both IO
 // expanders, the LM75, INA226 and RTC, and the panel. Then the backlight on.
