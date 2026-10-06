@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL1** | *The next job*, below; plan §8.2's GL1 row, §5.2 and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry on §11 step 4 has the bus-lock hold times |
+| **GL1** (bench) | *The next job*, below; plan §8.2's GL1 row and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry *GL1 starts* has the relay-expander finding. `firmware/gatelink/CLAUDE.md` lists the console commands |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,30 +27,32 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1, the board layer**, on the StamPLC with the carrier fitted. GL0 is done except
-for one criterion: ping and loopback with the bridge need `lib/lran-node` on GateLink,
-which is GL3's integration.
+**GL1's scope checks.** The node image runs on the StamPLC, and its `log_task` console
+drives the board layer (`firmware/gatelink/CLAUDE.md`). Unplug USB for any power cycle:
+USB VBUS keeps the board running.
 
-1. Build the board layer behind §5.2's one bus lock: LCD, microSD, radio, relays, inputs,
-   buzzer, INA226, LM75 and RTC.
-2. Show the LCD, the microSD and the radio working concurrently under that lock. The
-   bring-up image's `bus` test already does this for the raw drivers. Its tasks run on
-   core 1, because three busy-waiting drivers on CPU 0 starved IDLE0.
-3. Put a scope on every relay output through a power cycle, a watchdog reset and a
-   brownout (PRD R-3.5j). The operator needs the scope for this step.
-4. Settle measurement M12: which current the INA226 sees (plan §3.4).
+1. Scope each relay output through a `relay <k>` pulse: 500 ms ±10 ms.
+2. Scope every relay output through a power cycle with USB unplugged, a `hang`
+   (interrupt-watchdog reset), and a brownout (PRD R-3.5j). Run `relay 4 2000` before a
+   `hang` to reset during a pulse. The 2026-10-06 engineering-log entry on GPIO 3 says
+   which windows the code does not cover, and the power cycle is the one to watch.
+3. Debounce `in` against a bench switch on an input.
+4. Run the LCD, the microSD and the radio together under `SpiLock` in the node image,
+   which needs a minimal `radio.cpp`. The bring-up image's `bus` test already passes for
+   the raw drivers.
+5. Settle measurement M12 with USB unplugged (plan §3.4). With USB attached the INA226
+   read 0 mA, which may only mean the board ran from USB.
 
 ## What the last session established
 
-- **GL0 passes on the carrier**, apart from ping and loopback. The radio starts from
-  `RadioPins` at −4 dBm, and every transmit saw the DIO1 edge with `TX_DONE`, 251 of them in `tx` and `txloop`. The
-  3.3 V rail held 3.32 V on an averaging DMM. The LCD, the microSD card and the radio
-  shared the bus for 60 s with 0 bad transfers and a clean panel.
-- **R4 does not hold RST low.** The Wio's 10 kΩ pull-up and something else, about 7.7 kΩ,
-  hold RST at 2.3 V. Plan §4.1 now requires a boot check instead: BUSY rises with RST
-  held low and falls after release.
-- **An SD write holds the bus for up to 59 ms.** That bears on §5.2's ACK-timing question.
-- **GateLink keeps the microSD card**, by operator decision on 2026-10-06.
+- **GL1's board layer runs on the StamPLC.** The inputs, LM75, INA226, RTC and microSD
+  answer through it, and the pulse widths timed from the expander writes are 499.9 ms and
+  99.9 ms. The RTC reads 2088 and has never been set.
+- **GPIO 3 holds both IO expanders in reset after a chip reset.** `board_relays_off_early()`
+  drives it high, then clears the relay latch. It now succeeds after chip and CPU resets
+  alike.
+- **A 12 V power cycle with USB attached resets nothing**, and the carrier's 3.3 V LED
+  stayed lit through it. That LED should have gone out.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -166,6 +168,10 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
+  draws only from Bus pin 1. Find what feeds it, or confirm the supply was off.
+- **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
+  one `beep` while listening to tie the two together.
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to

@@ -463,7 +463,10 @@ void dispatch(char* line) {
 }  // namespace
 
 void setup() {
-  // Before anything else: an open DIO1 conductor then reads a steady low (expansion
+  // PRD R-3.5j: a reset in the middle of a pulse leaves the relay energized until this.
+  gatelink::board_relays_off_early();
+
+  // Then the radio's lines: an open DIO1 conductor reads a steady low (expansion
   // board 7.1.1), and the radio stays deselected and in reset on R3 and R4 alone.
   pinMode(kCarrierRadio.dio1, INPUT_PULLDOWN);
 

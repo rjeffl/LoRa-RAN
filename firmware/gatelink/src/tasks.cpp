@@ -66,6 +66,11 @@ uint32_t default_period_ms(const TaskSpec& spec) {
   return static_cast<uint32_t>(p->def) * (seconds ? 1000u : 1u);
 }
 
+uint32_t param_default(uint16_t id) {
+  const lran::config::ParamDef* p = find_param(id);
+  return p == nullptr ? 0 : static_cast<uint32_t>(p->def);
+}
+
 bool io_is_strictly_highest() {
   const uint8_t io = task_spec(TaskId::Io).priority;
   for (const auto& t : kTable) {
