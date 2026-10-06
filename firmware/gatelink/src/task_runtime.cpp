@@ -29,6 +29,7 @@
 
 #include "board_stamplc.h"
 #include "gate_io.h"
+#include "radio.h"
 
 namespace gatelink {
 namespace {
@@ -101,6 +102,51 @@ uint8_t take_buttons() {
   g_io.buttons    = 0;
   portEXIT_CRITICAL(&g_io_mux);
   return b;
+}
+
+// The page main.cpp drew at boot, which ui_task draws again after a bus test.
+PageText g_boot_page{};
+
+// radio_begin()'s status, written by lora_task. INT16_MIN until it has run.
+std::atomic<int16_t> g_radio_status{INT16_MIN};
+
+// ---------------------------------------------------------------------------
+// GL1's bus test (Impl Plan 8.2): the LCD, the microSD and the radio, each driven by the
+// task that owns it in Impl Plan 5.2, at that task's priority, all under the SpiLock. Each
+// device checks its own transfer, so a transaction that leaks into another shows up as a
+// count. The bring-up image's `bus` test proved the drivers from tasks of its own; this
+// one proves the node's tasks.
+//
+// Each figure has one writer. The max times are of the whole call, so they include the
+// wait for the lock.
+// ---------------------------------------------------------------------------
+struct BusStats {
+  std::atomic<uint32_t> lcd_frames{0};
+  std::atomic<uint32_t> lcd_max_us{0};
+  std::atomic<uint32_t> sd_ok{0};
+  std::atomic<uint32_t> sd_bad{0};
+  std::atomic<uint32_t> sd_max_us{0};
+  std::atomic<uint32_t> radio_ok{0};
+  std::atomic<uint32_t> radio_bad{0};
+  std::atomic<uint32_t> radio_max_us{0};
+};
+BusStats          g_bus;
+std::atomic<bool> g_bus_run{false};
+
+// lora_task reads the sync word this often during a test: far more SPI traffic than GL3's
+// receive loop makes, short of starving the tasks below it.
+constexpr uint32_t kBusRadioPeriodMs = 5;
+
+void bus_reset() {
+  for (auto* a : {&g_bus.lcd_frames, &g_bus.lcd_max_us, &g_bus.sd_ok, &g_bus.sd_bad, &g_bus.sd_max_us,
+                  &g_bus.radio_ok, &g_bus.radio_bad, &g_bus.radio_max_us}) {
+    a->store(0, std::memory_order_relaxed);
+  }
+}
+
+void note_max(std::atomic<uint32_t>& max_us, int64_t t0) {
+  const uint32_t dt = static_cast<uint32_t>(esp_timer_get_time() - t0);
+  if (dt > max_us.load(std::memory_order_relaxed)) max_us.store(dt, std::memory_order_relaxed);
 }
 
 uint32_t now_ms() { return static_cast<uint32_t>(xTaskGetTickCount()); }
@@ -222,11 +268,22 @@ void vedirect_task(void*) {
   }
 }
 
-// GL3 - waits on the DIO1 notification and the TX queue instead of a second.
+// GL3 - waits on the DIO1 notification and the TX queue instead of a second. GL1 brings
+// the radio up and drives its half of the bus test.
 void lora_task(void*) {
+  const int16_t st = radio_begin();
+  g_radio_status.store(st, std::memory_order_relaxed);
   for (;;) {
     count(TaskId::Lora);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    if (st == 0 && g_bus_run.load(std::memory_order_relaxed)) {
+      const int64_t t0 = esp_timer_get_time();
+      const bool    ok = radio_probe();
+      note_max(g_bus.radio_max_us, t0);
+      (ok ? g_bus.radio_ok : g_bus.radio_bad).fetch_add(1, std::memory_order_relaxed);
+      vTaskDelay(pdMS_TO_TICKS(kBusRadioPeriodMs));
+    } else {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+    }
   }
 }
 
@@ -247,13 +304,46 @@ void bms_task(void*) {
   }
 }
 
-// GL1 - the buttons, for now as a beep each. The panel pages, under the SPI lock, follow;
-// until then main.cpp draws the boot page once, before any task starts.
+// GL1 - the buttons, for now as a beep each, and the INA226 and LM75 on the panel's last
+// line once a second. That line is how measurement M12 is read with USB unplugged (Impl
+// Plan 3.4). The panel pages follow; until then the boot page stays above it. During a bus
+// test the panel is redrawn whole on every tick instead.
 void ui_task(void*) {
-  TickType_t last = xTaskGetTickCount();
+  TickType_t last     = xTaskGetTickCount();
+  uint32_t   ticks    = 0;
+  uint32_t   frame    = 0;
+  bool       was_test = false;
   for (;;) {
     count(TaskId::Ui);
     if (take_buttons() != 0) board_beep(2000, 60);
+    const bool test = g_bus_run.load(std::memory_order_relaxed);
+    if (test) {
+      PageText page{};
+      page.count = 1;
+      std::snprintf(page.line[0], sizeof(page.line[0]), "bus test %lu", static_cast<unsigned long>(frame++));
+      const int64_t t0 = esp_timer_get_time();
+      board_show(page);
+      note_max(g_bus.lcd_max_us, t0);
+      g_bus.lcd_frames.fetch_add(1, std::memory_order_relaxed);
+    } else {
+      if (was_test) board_show(g_boot_page);
+      if (was_test || ticks % 10 == 0) {
+        const BoardSensors s = io_snapshot().sensors;
+        // Fits 19 characters in normal use: "12144mV -1234mA 24C". A sentinel current prints
+        // as "--"; anything longer is cut at the panel's width, never wrapped.
+        char text[48];
+        if (s.shunt_ma == INT32_MIN) {
+          std::snprintf(text, sizeof(text), "%umV --mA %dC", s.bus_mv, s.temp_c10 / 10);
+        } else {
+          std::snprintf(text, sizeof(text), "%umV %ldmA %dC", s.bus_mv, static_cast<long>(s.shunt_ma),
+                        s.temp_c10 / 10);
+        }
+        text[kPageCols] = '\0';
+        board_show_line(kPageLines - 1, text);
+      }
+    }
+    was_test = test;
+    ++ticks;
     vTaskDelayUntil(&last, period_ticks(TaskId::Ui));
   }
 }
@@ -284,9 +374,24 @@ const char* pulse_result_name(PulseResult r) {
 //   sense             INA226, LM75 and RTC
 //   sd                mount the card and append a line to /gl1.txt
 //   beep              the buzzer
+//   radio             radio_begin()'s status
+//   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
 //                     `relay <k> 2000` first, it is R-3.5j's reset in the middle of a pulse
+uint32_t g_bus_seconds = 0;
+uint32_t g_bus_end_ms  = 0;
+
+size_t bus_line(char* line, size_t cap, const char* head) {
+  const auto ld = [](const std::atomic<uint32_t>& a) {
+    return static_cast<unsigned long>(a.load(std::memory_order_relaxed));
+  };
+  return static_cast<size_t>(std::snprintf(
+      line, cap, "bus: %s; LCD %lu, max %lu us; SD %lu ok %lu bad, max %lu us; radio %lu ok %lu bad, max %lu us",
+      head, ld(g_bus.lcd_frames), ld(g_bus.lcd_max_us), ld(g_bus.sd_ok), ld(g_bus.sd_bad),
+      ld(g_bus.sd_max_us), ld(g_bus.radio_ok), ld(g_bus.radio_bad), ld(g_bus.radio_max_us)));
+}
+
 void console_command(char* cmd) {
   char line[160];
   size_t n = 0;
@@ -323,6 +428,30 @@ void console_command(char* cmd) {
     const bool ok = up && board_sd_append("/gl1.txt", "GL1 board layer");
     n = std::snprintf(line, sizeof(line), "sd: %s, append %s", up ? "mounted" : "NOT MOUNTED",
                       ok ? "ok" : "FAILED");
+  } else if (std::strcmp(cmd, "radio") == 0) {
+    const int16_t st = g_radio_status.load(std::memory_order_relaxed);
+    if (st == INT16_MIN) {
+      n = std::snprintf(line, sizeof(line), "radio: not started");
+    } else {
+      n = std::snprintf(line, sizeof(line), "radio: RadioLib status %d - %s", st, st == 0 ? "up" : "FAILED");
+    }
+  } else if (std::strcmp(cmd, "bus") == 0) {
+    const unsigned long secs = arg != nullptr ? std::strtoul(arg, nullptr, 10) : 0;
+    if (secs < 1 || secs > 600) {
+      n = std::snprintf(line, sizeof(line), "bus: seconds 1-600");
+    } else if (g_bus_run.load(std::memory_order_relaxed)) {
+      n = std::snprintf(line, sizeof(line), "bus: already running");
+    } else if (g_radio_status.load(std::memory_order_relaxed) != 0) {
+      n = std::snprintf(line, sizeof(line), "bus: radio not up; send radio");
+    } else if (!board_sd_begin()) {
+      n = std::snprintf(line, sizeof(line), "bus: microSD NOT MOUNTED");
+    } else {
+      bus_reset();
+      g_bus_seconds = static_cast<uint32_t>(secs);
+      g_bus_end_ms  = now_ms() + g_bus_seconds * 1000;
+      g_bus_run.store(true, std::memory_order_relaxed);
+      n = std::snprintf(line, sizeof(line), "bus: %lu s started", secs);
+    }
   } else if (std::strcmp(cmd, "beep") == 0) {
     board_beep(2000, 200);
     n = std::snprintf(line, sizeof(line), "beep");
@@ -337,7 +466,7 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | restart | hang");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | bus <s> | restart | hang");
   }
   write_line(line, n, sizeof(line));
 }
@@ -352,8 +481,31 @@ void log_task(void*) {
   size_t   cmd_len    = 0;
   uint32_t last_alive = now_ms();
   uint32_t pulse_seq  = 0;
+  uint32_t bus_next   = 0;
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(20));
+    if (g_bus_run.load(std::memory_order_relaxed)) {
+      // log_task's half of the bus test: one microSD append a pass, as the microSD log will.
+      const int64_t t0 = esp_timer_get_time();
+      const bool    ok = board_sd_append("/gl1bus.txt", "GL1 bus test");
+      note_max(g_bus.sd_max_us, t0);
+      (ok ? g_bus.sd_ok : g_bus.sd_bad).fetch_add(1, std::memory_order_relaxed);
+      const uint32_t now = now_ms();
+      if (bus_next == 0) bus_next = now + 1000;
+      if (reached(now, g_bus_end_ms)) {
+        g_bus_run.store(false, std::memory_order_relaxed);
+        bus_next = 0;
+        char head[16];
+        std::snprintf(head, sizeof(head), "%lu s done", static_cast<unsigned long>(g_bus_seconds));
+        write_line(line, bus_line(line, sizeof(line), head), sizeof(line));
+      } else if (reached(now, bus_next)) {
+        // A line a second, so a reset in the middle still leaves the trend in the log.
+        char head[16];
+        std::snprintf(head, sizeof(head), "t %lu", static_cast<unsigned long>(g_bus_seconds - (g_bus_end_ms - now) / 1000));
+        bus_next += 1000;
+        write_line(line, bus_line(line, sizeof(line), head), sizeof(line));
+      }
+    }
     while (Serial.available() > 0) {
       const int c = Serial.read();
       if (c == '\r' || c == '\n') {
@@ -415,7 +567,8 @@ static_assert(sizeof(StackType_t) == 1, "ESP-IDF counts stack depth in bytes (ta
 
 }  // namespace
 
-size_t start_tasks() {
+size_t start_tasks(const PageText& boot_page) {
+  g_boot_page = boot_page;
   g_pulse_q = xQueueCreateStatic(4, sizeof(PulseRequest), g_pulse_q_buf, &g_pulse_q_storage);
   size_t started = 0;
   for (size_t i = 0; i < kTaskCount; ++i) {

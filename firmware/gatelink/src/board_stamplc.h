@@ -68,6 +68,10 @@ bool board_rtc_get(std::tm* out);
 // Clears the panel and draws the page, under the SpiLock.
 void board_show(const PageText& page);
 
+// Redraws one line of the panel, row 0 at the top, and leaves the rest as it was. Under
+// the SpiLock.
+void board_show_line(size_t row, const char* text);
+
 // Non-blocking: the buzzer runs on a LEDC timer.
 void board_beep(uint16_t freq_hz, uint16_t ms);
 

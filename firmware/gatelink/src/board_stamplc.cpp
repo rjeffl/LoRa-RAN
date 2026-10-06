@@ -167,6 +167,17 @@ void board_show(const PageText& page) {
   }
 }
 
+void board_show_line(size_t row, const char* text) {
+  SpiLock lock;
+  auto& d = M5StamPLC.Display;
+  const int32_t y = static_cast<int32_t>(row * 16);
+  d.fillRect(0, y, d.width(), 16, TFT_BLACK);
+  d.setTextColor(TFT_WHITE, TFT_BLACK);
+  d.setTextDatum(top_left);
+  d.setTextSize(2);
+  d.drawString(text, kInsetX, y);
+}
+
 void board_beep(uint16_t freq_hz, uint16_t ms) { M5StamPLC.tone(freq_hz, ms); }
 
 bool board_sd_begin() {
