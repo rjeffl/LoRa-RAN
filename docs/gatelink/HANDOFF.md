@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL1** | *The next job*, below; plan §8.2's GL1 row, §5.2 and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry on §11 step 4 has the bus-lock hold times |
+| **GL1** (bench) | *The next job*, below; plan §8.2's GL1 row and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry *GL1 starts* has the relay-expander finding. `firmware/gatelink/CLAUDE.md` lists the console commands |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,30 +27,33 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1, the board layer**, on the StamPLC with the carrier fitted. GL0 is done except
-for one criterion: ping and loopback with the bridge need `lib/lran-node` on GateLink,
-which is GL3's integration.
+**GL1 on the bench.** The board layer is built and passes its native tests, but has not
+run on the StamPLC. Flash `-e gatelink` through the USB 2.0 hub and drive it from the
+`log_task` console.
 
-1. Build the board layer behind §5.2's one bus lock: LCD, microSD, radio, relays, inputs,
-   buzzer, INA226, LM75 and RTC.
-2. Show the LCD, the microSD and the radio working concurrently under that lock. The
-   bring-up image's `bus` test already does this for the raw drivers. Its tasks run on
-   core 1, because three busy-waiting drivers on CPU 0 starved IDLE0.
-3. Put a scope on every relay output through a power cycle, a watchdog reset and a
-   brownout (PRD R-3.5j). The operator needs the scope for this step.
-4. Settle measurement M12: which current the INA226 sees (plan §3.4).
+1. Check that it boots: `in`, `sense`, `sd`, `beep`, and a button press beeps.
+2. `relay 1` to `relay 4`. Each pulse should measure 500 ms ±10 ms on the scope; the
+   console prints the width timed from the expander writes. Then debounce `in` against
+   a bench switch on an input.
+3. Scope every relay output through a power cycle, a watchdog reset and a brownout (PRD
+   R-3.5j). Include a reset fired *during* a pulse, which `board_relays_off_early()`
+   exists for. The console has no command that forces a reset yet, so add one.
+4. Run the LCD, the microSD and the radio together under `SpiLock` in the node image,
+   which needs a minimal `radio.cpp`. The bring-up image's `bus` test already passes for
+   the raw drivers.
+5. Settle measurement M12: which current the INA226 sees (plan §3.4).
 
 ## What the last session established
 
-- **GL0 passes on the carrier**, apart from ping and loopback. The radio starts from
-  `RadioPins` at −4 dBm, and every transmit saw the DIO1 edge with `TX_DONE`, 251 of them in `tx` and `txloop`. The
-  3.3 V rail held 3.32 V on an averaging DMM. The LCD, the microSD card and the radio
-  shared the bus for 60 s with 0 bad transfers and a clean panel.
-- **R4 does not hold RST low.** The Wio's 10 kΩ pull-up and something else, about 7.7 kΩ,
-  hold RST at 2.3 V. Plan §4.1 now requires a boot check instead: BUSY rises with RST
-  held low and falls after release.
-- **An SD write holds the bus for up to 59 ms.** That bears on §5.2's ACK-timing question.
-- **GateLink keeps the microSD card**, by operator decision on 2026-10-06.
+- **GL1's code is in, and none of it has run on the board.** `gate_io.cpp` times pulses
+  and debounces inputs, with native tests. `io_task` wakes at a pulse's trailing edge as
+  well as at each poll. `spi_bus.cpp` is the one SPI lock. Only `io_task` touches the
+  internal I²C bus.
+- **The relay expander does not reset with the ESP32.** A reset in the middle of a pulse
+  held the relay on until `M5StamPLC.begin()` reached it. `board_relays_off_early()` now
+  clears the latch first thing in `setup()`. Nothing covers the time from the boot ROM to
+  `setup()`.
+- **GL0 passes on the carrier**, apart from ping and loopback, which wait for GL3.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -166,6 +169,8 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **Whether M5Unified's I²C class locks the internal bus is not established.** Until
+  someone reads `I2C_Class.inl` or measures it, `io_task` stays the bus's only user.
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
