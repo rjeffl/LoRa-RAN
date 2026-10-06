@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL0, resumed** | *The next job*, below; plan §8.2's GL0 row; expansion board §10 and §11; the engineering log's 2026-10-05 entry. `firmware/gatelink/src/bringup.cpp` is the tool |
+| **GL1** | *The next job*, below; plan §8.2's GL1 row, §5.2 and §3.4; PRD R-3.5j. The 2026-10-06 engineering-log entry on §11 step 4 has the bus-lock hold times |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,30 +27,30 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL0, on the branch `gl0-carrier-bringup`, waits for a USB 2.0 hub.** With the 12 V
-supply on, the StamPLC backfeeds 5 V onto its USB-C VBUS, and the Mac's USB-C port never
-attaches (engineering log, 2026-10-05). Connect through a hub with USB-A ports, then:
+**GL1, the board layer**, on the StamPLC with the carrier fitted. GL0 is done except
+for one criterion: ping and loopback with the bridge need `lib/lran-node` on GateLink,
+which is GL3's integration.
 
-1. Flash `pio run -d firmware/gatelink -e gatelink-bringup -t upload --upload-port <port>`.
-   Commit first, or the banner reads `-dirty`.
-2. At the console, in order: `pins`, `reset`, `begin`, `tx`. Then `txloop 50` while the
-   operator watches the 3.3 V rail, which must hold ≥3.2 V. With a microSD card in, run
-   `sd`, then `bus 60`.
-3. Record the results in the engineering log.
-
-**GL0's last criterion, ping and loopback with the bridge, needs `lib/lran-node` on
-GateLink.** That is GL3's integration. Say so in the PR rather than building it here.
-Measurement M4 and §11 step 5 wait for the MPPT on the bench.
+1. Build the board layer behind §5.2's one bus lock: LCD, microSD, radio, relays, inputs,
+   buzzer, INA226, LM75 and RTC.
+2. Show the LCD, the microSD and the radio working concurrently under that lock. The
+   bring-up image's `bus` test already does this for the raw drivers. Its tasks run on
+   core 1, because three busy-waiting drivers on CPU 0 starved IDLE0.
+3. Put a scope on every relay output through a power cycle, a watchdog reset and a
+   brownout (PRD R-3.5j). The operator needs the scope for this step.
+4. Settle measurement M12: which current the INA226 sees (plan §3.4).
 
 ## What the last session established
 
-- **The carrier is built** and carries the header board (p-6379), by operator report on
-  2026-10-05. Every expansion board §10 item is ticked. The ring-outs cover J1, the pad
-  mapping and all five nets.
-- **`board_profile.h` declares the carrier's `RadioPins`**, and the `gatelink-bringup`
-  env builds a console for §11 steps 1–4. It builds; it has not run on the board.
-- **RadioLib's `begin()` clears the DIO1 pull-down.** Plan v0.28 and expansion board
-  §7.1.1 now say to set it again after `begin()`.
+- **GL0 passes on the carrier**, apart from ping and loopback. The radio starts from
+  `RadioPins` at −4 dBm, and every transmit saw the DIO1 edge with `TX_DONE`, 251 of them in `tx` and `txloop`. The
+  3.3 V rail held 3.32 V on an averaging DMM. The LCD, the microSD card and the radio
+  shared the bus for 60 s with 0 bad transfers and a clean panel.
+- **R4 does not hold RST low.** The Wio's 10 kΩ pull-up and something else, about 7.7 kΩ,
+  hold RST at 2.3 V. Plan §4.1 now requires a boot check instead: BUSY rises with RST
+  held low and falls after release.
+- **An SD write holds the bus for up to 59 ms.** That bears on §5.2's ACK-timing question.
+- **GateLink keeps the microSD card**, by operator decision on 2026-10-06.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -81,8 +81,8 @@ Measurement M4 and §11 step 5 wait for the MPPT on the bench.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.28. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL0: the bring-up image is built, not run |
-| Not started | GL1–GL9 |
+| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3 |
+| Not started | GL1–GL9; GL1 is next |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
@@ -114,7 +114,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the L6 skeleton, flashed again 2026-10-02 after L7's run on `wattcycle-reader`. MAC `50:78:7d:cd:c9:94` | Nothing GateLink depends on | On the operator's bench with the carrier fitted and a 12 V wall supply on VIN, 2026-10-05. **Not visible over USB while the 12 V is on**; still runs the L6 skeleton |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink-bringup`, the GL0 console, flashed 2026-10-06. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding only the bus test's `/gl0bus.bin` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-06 |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected; VE.Direct cable not fitted |
@@ -137,7 +137,15 @@ board's are its D-pads (expansion board §6.1).
 ## Traps that cost real time here
 
 - **A StamPLC on its 12 V supply never appears on a USB-C host port.** It backfeeds 5 V
-  onto VBUS. Use a USB 2.0 hub with USB-A ports (engineering log, 2026-10-05).
+  onto VBUS. A USB 2.0 hub with USB-A ports works (engineering log, 2026-10-05 and
+  2026-10-06).
+- **A microSD card over 32 GB will not mount.** The core builds FatFs without exFAT, so
+  `SD.begin()` reports `(13) There is no valid FAT volume`. The bring-up image's
+  `sd format` makes a FAT32 volume, and only on a card without one.
+- **The console holds back the last line of a long command.** It appears with the next
+  command's output; send `stat` to flush it. Don't read a missing summary as a hang.
+- **Busy-waiting SPI drivers starve IDLE0.** Three tasks sharing the bus lock at priority
+  2 on CPU 0 tripped the task watchdog in under 10 s. GL1's board layer meets this too.
 - **RadioLib's `begin()` clears DIO1's pull-down.** Set it again after `begin()`.
 - **`Serial` is silent on the StamPLC without `-DARDUINO_USB_CDC_ON_BOOT=1`.** Boot ROM lines
   and NimBLE logs still appear, so it looks like it works.
@@ -218,7 +226,14 @@ board's are its D-pads (expansion board §6.1).
   lists them. Re-check each row against upstream's latest commit first, report rows 1, 4
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
 - **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
-  Due before GL3.
+  Due before GL3. An SD write holds the bus lock for up to 59 ms, and the radio waits
+  behind it (engineering log, 2026-10-06).
+- **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3.
+- **About 7.7 kΩ of RST pull-up is unexplained**, beyond the Wio's 10 kΩ. R4 measured out
+  of circuit, or RST measured with the Wio pulled, would settle it. It changes nothing
+  while the boot check stands.
+- **Expansion board §11 step 5** and measurement M4 wait for the MPPT on the bench; step 6
+  waits for the gate.
 - **`doc-findings` 6 and 8**: VE.Direct's 5 V against 3.25 V, and the INA226's two
   readings. M4 and M12 settle them.
 - **Measurements** M1–M4, M8–M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
