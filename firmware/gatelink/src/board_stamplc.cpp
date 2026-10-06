@@ -145,7 +145,7 @@ BoardSensors board_read_sensors() {
   // The library calls this the "IO socket output current" (M5StamPLC.h). Expansion board
   // 7.7 reads it as the bank's current, and plan 9.8 as the node's. M12 decides.
   const float a = M5StamPLC.getIoSocketOutputCurrent();
-  if (std::isfinite(a)) s.shunt_ma = static_cast<int32_t>(std::lround(a * 1000.0f));
+  if (std::isfinite(a)) s.shunt_ua = static_cast<int32_t>(std::lround(a * 1000000.0f));
   return s;
 }
 

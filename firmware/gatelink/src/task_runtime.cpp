@@ -144,6 +144,17 @@ void bus_reset() {
   }
 }
 
+// Microamps as mA with `places` decimals (1-3), sign included: -1234 uA, 2 places, is
+// "-1.23".
+void format_ma(int32_t ua, int places, char* out, size_t cap) {
+  const int64_t mag  = ua < 0 ? -static_cast<int64_t>(ua) : ua;
+  const int64_t div  = places == 1 ? 100 : places == 2 ? 10 : 1;
+  const int64_t frac = places == 1 ? 10 : places == 2 ? 100 : 1000;
+  const int64_t q    = mag / div;
+  std::snprintf(out, cap, "%s%lld.%0*lld", ua < 0 ? "-" : "", static_cast<long long>(q / frac), places,
+                static_cast<long long>(q % frac));
+}
+
 void note_max(std::atomic<uint32_t>& max_us, int64_t t0) {
   const uint32_t dt = static_cast<uint32_t>(esp_timer_get_time() - t0);
   if (dt > max_us.load(std::memory_order_relaxed)) max_us.store(dt, std::memory_order_relaxed);
@@ -329,14 +340,15 @@ void ui_task(void*) {
       if (was_test) board_show(g_boot_page);
       if (was_test || ticks % 10 == 0) {
         const BoardSensors s = io_snapshot().sensors;
-        // Fits 19 characters in normal use: "12144mV -1234mA 24C". A sentinel current prints
+        // Fits 19 characters in normal use: "11870mV 2.40mA 29C". A sentinel current prints
         // as "--"; anything longer is cut at the panel's width, never wrapped.
         char text[48];
-        if (s.shunt_ma == INT32_MIN) {
+        if (s.shunt_ua == INT32_MIN) {
           std::snprintf(text, sizeof(text), "%umV --mA %dC", s.bus_mv, s.temp_c10 / 10);
         } else {
-          std::snprintf(text, sizeof(text), "%umV %ldmA %dC", s.bus_mv, static_cast<long>(s.shunt_ma),
-                        s.temp_c10 / 10);
+          char ma[16];
+          format_ma(s.shunt_ua, 2, ma, sizeof(ma));
+          std::snprintf(text, sizeof(text), "%umV %smA %dC", s.bus_mv, ma, s.temp_c10 / 10);
         }
         text[kPageCols] = '\0';
         board_show_line(kPageLines - 1, text);
@@ -418,9 +430,11 @@ void console_command(char* cmd) {
                       kEarlyOff[static_cast<size_t>(board_early_off_result())]);
   } else if (std::strcmp(cmd, "sense") == 0) {
     const IoSnapshot s = io_snapshot();
+    char ma[16] = "--";
+    if (s.sensors.shunt_ua != INT32_MIN) format_ma(s.sensors.shunt_ua, 3, ma, sizeof(ma));
     n = std::snprintf(line, sizeof(line),
-                      "sense: LM75 %d (0.1 C) INA226 %u mV %ld mA; RTC %s %04d-%02d-%02d %02d:%02d:%02d",
-                      s.sensors.temp_c10, s.sensors.bus_mv, static_cast<long>(s.sensors.shunt_ma),
+                      "sense: LM75 %d (0.1 C) INA226 %u mV %s mA; RTC %s %04d-%02d-%02d %02d:%02d:%02d",
+                      s.sensors.temp_c10, s.sensors.bus_mv, ma,
                       s.rtc_ok ? "ok" : "unset", s.rtc.tm_year + 1900, s.rtc.tm_mon + 1, s.rtc.tm_mday,
                       s.rtc.tm_hour, s.rtc.tm_min, s.rtc.tm_sec);
   } else if (std::strcmp(cmd, "sd") == 0) {
