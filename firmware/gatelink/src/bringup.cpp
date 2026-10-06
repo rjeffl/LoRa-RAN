@@ -299,9 +299,9 @@ void cmd_sd(bool format) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 - three tasks on the one bus, or two without a card: whether GateLink keeps the
-// microSD card is undecided (engineering log, 2026-10-06). Each task checks its own data, so a
-// transaction that leaks into another shows up as a count, not as a hang to diagnose later.
+// Step 4 - three tasks on the one bus, or two when no card is mounted. Each task checks its
+// own data, so a transaction that leaks into another shows up as a count, not as a hang to
+// diagnose later.
 // ---------------------------------------------------------------------------
 void bus_lcd(void*) {
   uint32_t i = 0;

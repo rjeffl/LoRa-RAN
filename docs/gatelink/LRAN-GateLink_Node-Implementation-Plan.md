@@ -426,9 +426,9 @@ to tell a dead DIO1 line from a dead link. It sets `INPUT_PULLDOWN` on G1 at boo
 and again after `radio.begin()`, because RadioLib 7.7.1's `begin()` sets the pin to plain
 `INPUT` and clears the pull-down (engineering log, 2026-10-05).
 
-**RST rides the other Grove conductor, and nothing holds it low.** The Wio pulls RST up
-through about 4.3 kΩ, which overrides R4 (expansion board §7.1; engineering log,
-2026-10-06). An open conductor therefore leaves the radio running, not held in reset, and
+**RST rides the other Grove conductor, and nothing holds it low.** RST is pulled up
+through about 4.3 kΩ in total on the Wio side, which overrides R4 (expansion board
+§7.1; engineering log, 2026-10-06). An open conductor therefore leaves the radio running, not held in reset, and
 `radio.begin()` still succeeds. Before `radio.begin()`, the driver drives RST low and
 requires BUSY to read high, then releases RST and requires BUSY to fall. A failure is a
 counted fault reported at boot, not a retry. The bring-up image's `reset` command does this

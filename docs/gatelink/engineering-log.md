@@ -571,3 +571,18 @@ That bears on plan §5.2's ACK-timing question at GL3, if the card stays.
 runs, the summary line appeared only when the next command produced output. The 5 s
 run's summary arrived at once. The cause is not established; it looks like the USB CDC
 transmit buffer not being flushed. Send `stat` to flush it.
+
+## 2026-10-06 — GateLink keeps the microSD card; the Wio's 10 kΩ does not explain 2.3 V
+
+**The operator has decided to keep the microSD card.** Nothing in the plan or the
+specification changes, since both already assume it. The bring-up `bus` test still runs
+without a card, for a bench with none fitted.
+
+**The Wio's schematic shows a 10 kΩ pull-up on RST.** Against R4's 10 kΩ, that alone
+would hold RST at 1.65 V, not the 2.3 V measured. The measured 2.3 V implies about
+4.3 kΩ of pull-up in total, so something else supplies about 7.7 kΩ in parallel. Two
+candidates fit, and neither is checked: a pull-up inside the SX1262 on NRESET, or an R4
+that is not 10 kΩ. An R4 of about 23 kΩ against the Wio's 10 kΩ alone would also give
+2.3 V. **Falsified by:** R4 measured out of circuit, or RST measured on the carrier with
+the Wio pulled. Neither changes the conclusion that R4 cannot hold reset. Expansion board §7.1
+now cites the Wio's 10 kΩ.
