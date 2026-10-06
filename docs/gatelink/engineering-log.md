@@ -401,3 +401,188 @@ an answer that fits one frame is unchanged. Two bridge properties stop a larger 
 
 The simnode's `ROLE_GATELINK` store now holds 23 rows, so a bridge that can name
 GateLink's block for a simnode will draw GateLink's own 199-byte, two-message answer.
+
+## 2026-10-05 — GL0 starts: a bring-up image, and a StamPLC the Mac cannot see
+
+**The carrier is built.** The operator reports the 5 V and 3.3 V rails clean, the netlist
+buzzed out on the board, and the Wio and the level translator seated, with the antenna
+connected. The module is the header board, "Wio-SX1262 for XIAO" (p-6379), not the Kit.
+Of expansion board §10's remaining items: R3 and R4 are fitted, and C10 is rated 50 V.
+D2 is not fitted. The P6KE18A's maker is unknown, but its marking gives a 25.2 V maximum
+clamp at an 18.9 V breakdown, which is under the AP63357's 32 V input limit. VE.Direct is
+not wired, so measurement M4 and §11 step 5 wait until the MPPT comes to the bench.
+
+**No radio test ran.** `gatelink-bringup` builds and is ready to flash. It walks §11
+steps 1–4 as console commands (`firmware/gatelink/src/bringup.cpp`).
+
+**RadioLib's `begin()` undoes the DIO1 pull-down.** `SX126x::modSetup()` in 7.7.1 sets
+the IRQ pin to plain `INPUT`, which on the ESP32 clears a pull-down set before it.
+Expansion board §7.1.1 and plan §4.1 both said to set `INPUT_PULLDOWN` before
+`radio.begin()`. That alone leaves an open DIO1 conductor floating, so the bring-up
+image sets the pull-down again after `begin()`, and both documents now say so. The
+simnode's `radio.cpp` never sets a pull-down, and the Kit's DIO1 is a board trace.
+
+**`SD.begin()` would start the shared bus on the wrong pins.** M5StamPLC's
+`sd_card_init()` passes the global `SPI` to `SD.begin()`, which starts an idle `SPIClass`
+on the board definition's default pins. On `esp32-s3-devkitc-1` those are G11–G13: BUSY,
+the LCD's chip select and the internal I²C's SDA. The bring-up image calls
+`SPI.begin(7, 9, 8)` before `M5StamPLC.begin()`. M5StamPLC leaves the SD card off by
+default, which is why L6 never met this. M5GFX drives the panel in 3-wire SPI on the
+same host, and its `endTransaction()` restores full-duplex for Arduino's SPI users.
+Step 4 tests whether that is enough.
+
+**With the 12 V supply on, the StamPLC's USB never enumerates.** No `/dev/cu.usbmodem*`
+appears, and `ioreg -p IOUSB` lists no device at all. The schematics account for it,
+though M5Stack's documentation does not mention it. The StampS3's USB-C VBUS reaches its
+5 V rail through a 1 A PPTC with no diode (`Sch_StampS3_v0.3.3`), and the StamPLC feeds
+that pin from `SYS_5V` through FU3 (`K141_sch_StamPLC_V10_CPU`). The board therefore
+holds about 5 V on VBUS before the cable is plugged in. A USB-C host applies VBUS only
+after it sees 0 V there, so the Mac never attaches. That last step is an inference from
+the Type-C specification, not a measurement. **Falsified by:** a USB 2.0 hub with USB-A
+ports between the Mac and the StamPLC, which has no 0 V check. If the port still does
+not appear through the hub, the cause is something else. The carrier cannot be the
+cause: the StampS3's USB is on G19 and G20, which reach neither the bus header nor the
+Grove ports. GL0 waits for that hub.
+
+## 2026-10-06 — GL0: the radio answers on the carrier, and R4 does not hold reset
+
+**Through a USB 2.0 hub, the StamPLC enumerates with the 12 V supply on.** It appeared
+as `/dev/cu.usbmodem1101`. That is the outcome the 2026-10-05 entry's falsification
+check predicted, so the VBUS backfeed explanation stands. The bring-up image flashed
+from `1e5048a`, and the banner reads `0.1.0 (1e5048a)`.
+
+**§11 steps 2 and 3 pass.** Console output, from `tools/bench/bench.py`:
+
+```text
+reset: BUSY in reset high; after release low in 1619 us
+begin: RadioLib status 0 - radio up
+begin: 917400000 Hz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+radio: version "SX1261 V2D 2D02" (status 0), sync word 0x1424 (status 0, expect 0x1424)
+tx: #1 time on air 164864 us; DIO1 edge SEEN at 171385 us; IRQ 0x0001, TX_DONE set
+```
+
+The DIO1 edge arrived on the first transmit, so the PORT.A white conductor carries the
+IRQ. The version string reads "SX1261" on an SX1262 as well; the part answered over SPI,
+and the read-back sync word matches.
+
+**R4 does not hold the radio in reset.** Right after boot, with G2 set to `INPUT`,
+`pins` reads NRESET high and BUSY low:
+
+```text
+pins: NSS G41 high (expect high, R3)
+pins: NRESET G2 high (expect low, R4)
+pins: BUSY G11 low (expect high while in reset)
+pins: DIO1 G1 low (expect low, pull-down)
+```
+
+A low BUSY means the radio really was out of reset, so this is not a threshold reading
+near mid-rail. Something on the RST net pulls up harder than R4's 10 kΩ pulls down.
+The candidates are a pull-up on the StamPLC's PORT.A or one on the Wio header board;
+neither is confirmed. Firmware drives RST from `begin()` on, so bring-up is not blocked,
+but expansion board §7.1's fail-loud reset at boot does not hold as built. **Falsified
+by:** the RST voltage to GND at idle after a boot. A reading near 0 V means the `pins`
+reading is wrong; otherwise the opposing pull-up is 10 kΩ × (3.3 − V)/V.
+
+**Not run:** `txloop 50` with the 3.3 V rail on a meter, `sd` and `bus 60`. The board
+moved to the workbench. The operator is weighing dropping the microSD card, because it
+is a liability in an enclosure without climate control. That would leave NVS as the only
+nonvolatile store.
+
+## 2026-10-06 — The RST pull-up is on the Wio, and R4 cannot win against it
+
+**With the board powered and G2 not driven, the RST net reads 2.3 V.** The operator
+measured it on the carrier. It still reads 2.3 V with the PORT.A cable unplugged, so the
+pull-up is not on the StamPLC. Only R4 and the Wio remain on the net, so the Wio pulls
+RST up through about 10 kΩ × (3.3 − 2.3) / 2.3 ≈ 4.3 kΩ. Whether the resistor is on
+Seeed's header board or inside the module is not known. Finding out means taking the
+carrier out of the enclosure to pull the Wio, and that was not done. R4 could not be
+measured in circuit with the Wio seated.
+
+**R4 stays fitted at 10 kΩ.** Winning against 4.3 kΩ cleanly needs about 470 Ω, which
+draws 7 mA whenever G2 drives high. Instead, the GateLink driver checks RST at boot: it
+drives RST low and requires BUSY to rise, then releases RST and requires BUSY to fall.
+Expansion board §7.1 and plan §4.1 now say so.
+
+**SD testing is deferred**, along with the decision on whether to keep the card. Dropping
+it would move persistence to NVS, which changes Protocol Spec §8.11's meaning of
+`APPLIED_NOT_PERSISTED` for GateLink (D49). It would also leave the M14 baseline log and
+D29's seasonal temperature log without a local store.
+
+## 2026-10-06 — The 3.3 V rail holds through transmit at −4 dBm
+
+**The 3.3 V rail read 3.32–3.33 V through `txloop 50` and `txloop 200`.** The operator
+may have seen one brief dip to 3.31 V, possibly from poor probe contact. GL0 requires
+≥3.2 V. All 250 transmits completed with a DIO1 edge and `TX_DONE`, at Envelope A's
+−4 dBm conducted.
+
+The meter was a DMM, which averages, so it cannot show the dip at each PA turn-on.
+Each loop is about 172 ms, of which 165 ms is time on air, so the reading is close to
+the rail voltage during transmit. A scope on the rail at the start of a transmit would
+show the turn-on dip. The operator notes that the Wio is the only switching load on the
+rail, and reads the result as the 100 µF capacitor doing its job.
+
+**`bus` runs without a card now.** It required `sd` first. With the card's future
+undecided, it runs the LCD and radio tasks alone when no card is mounted.
+
+## 2026-10-06 — The LCD and the radio share the bus cleanly, without a card
+
+**`bus 60` ran with no microSD card mounted**, on image `1d9f746`:
+
+```text
+bus: 60 s; LCD 4000 frames; SD off 0 ok 0 bad; radio 7989 ok 0 bad; tx after ok
+```
+
+The operator watched the panel throughout. The text stayed legible with no corruption.
+The panel flashes because the test alternates navy and black fills at about 67 frames a
+second, which is intended. This passes §11 step 4 for the LCD and the radio only. The
+microSD leg waits on the decision whether to keep the card.
+
+## 2026-10-06 — §11 step 4 passes with the microSD card, once the test stops starving IDLE0
+
+**The 128 GB card would not mount until it was formatted on the board.** `SD.begin()`
+failed with FatFs `(13) There is no valid FAT volume`. That error comes after the card
+has initialised and its first sectors have been read, so the wiring was good. The core
+builds FatFs with `FF_FS_EXFAT 0` (`ffconf.h`), and a card over 32 GB ships as exFAT.
+`sd format` passes `format_if_empty` to `SD.begin()`. FatFs made a FAT32 volume of
+121,942 MB in 61 s over SPI at 4 MHz, with the operator's permission to erase the card.
+
+**The first two runs with the card tripped the task watchdog on IDLE0**, at 5 s and at
+9 s. Each time `bus_lcd` was running on CPU 0, busy-waiting in M5GFX's
+`Bus_SPI::writeDataRepeat()`. The suspected cause, an LCD clock that an SD transaction
+left at 4 MHz, is ruled out: the longest LCD hold stayed at 14.3–14.6 ms throughout. Every
+driver busy-waits on its own transfer, and the lock passes straight from one task to
+the next, so the bus never idles. Three unpinned tasks at priority 2 kept IDLE0 off
+CPU 0. No transfer failed in either run. The bus tasks now run on core 1 at priority 1.
+
+**With that change, all three legs pass:**
+
+| Run | LCD | SD | Radio | Transmit after |
+|---|---|---|---|---|
+| `bus 60` | 1,592 frames, max hold 14.6 ms | 1,588 ok, 0 bad, max 59.2 ms | 1,596 reads, 0 bad, max 0.23 ms | ok |
+| `bus 5` | 135 frames | 133 ok, 0 bad | 134 reads, 0 bad | ok |
+| `bus 20` | 532 frames, max 14.6 ms | 530 ok, 0 bad, max 51.1 ms | 531 reads, 0 bad, max 0.23 ms | ok |
+
+The operator watched the panel through `bus 20` and saw no corruption.
+
+**An SD write holds the bus for up to 59 ms**, and a radio operation waits behind it.
+That bears on plan §5.2's ACK-timing question at GL3, if the card stays.
+
+**The console holds back the last line of a long command.** After the 60 s and 20 s
+runs, the summary line appeared only when the next command produced output. The 5 s
+run's summary arrived at once. The cause is not established; it looks like the USB CDC
+transmit buffer not being flushed. Send `stat` to flush it.
+
+## 2026-10-06 — GateLink keeps the microSD card; the Wio's 10 kΩ does not explain 2.3 V
+
+**The operator has decided to keep the microSD card.** Nothing in the plan or the
+specification changes, since both already assume it. The bring-up `bus` test still runs
+without a card, for a bench with none fitted.
+
+**The Wio's schematic shows a 10 kΩ pull-up on RST.** Against R4's 10 kΩ, that alone
+would hold RST at 1.65 V, not the 2.3 V measured. The measured 2.3 V implies about
+4.3 kΩ of pull-up in total, so something else supplies about 7.7 kΩ in parallel. Two
+candidates fit, and neither is checked: a pull-up inside the SX1262 on NRESET, or an R4
+that is not 10 kΩ. An R4 of about 23 kΩ against the Wio's 10 kΩ alone would also give
+2.3 V. **Falsified by:** R4 measured out of circuit, or RST measured on the carrier with
+the Wio pulled. Neither changes the conclusion that R4 cannot hold reset. Expansion board §7.1
+now cites the Wio's 10 kΩ.

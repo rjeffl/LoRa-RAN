@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.26, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.28, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.15.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.16.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
@@ -22,16 +22,19 @@ waits out its period. `log_task` prints the counts every 30 s as an `alive:` lin
 | `task_runtime.{h,cpp}` | Static task creation and the stub bodies | no |
 | `ui_pages.{h,cpp}` | Panel text, and the node key's status | yes |
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC; the panel only, until GL1 | no |
+| `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379) | yes |
+| `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp` | no |
 
 Every other file in plan §5.3's module map arrives with the milestone that fills it.
-**`board_profile.h` waits for GL0**: which Wio-SX1262 the carrier uses is not recorded,
-and the Kit's pins on the header board give a carrier that never answers.
+**The carrier carries the header board, not the Kit** (operator, 2026-10-05). The Kit's
+pins on the header board give a carrier that never answers.
 
 ## Build and test
 
 ```bash
 pio test -d firmware/gatelink -e native        # task table and boot page
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
+pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2
 python3 tools/checks/node_holds_no_master.py   # plan §6.8
 ```
@@ -67,3 +70,8 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
   down.** The case's bezel covers the left edge, so each line starts 6 pixels in and holds
   19 characters at text size 2.
 - **Read the installed M5StamPLC headers under `.pio/libdeps/`**, not GitHub.
+- **With the 12 V supply on, the StamPLC's USB does not enumerate on a USB-C host port.**
+  The board backfeeds 5 V onto VBUS. Go through a USB 2.0 hub with USB-A ports
+  (engineering log, 2026-10-05).
+- **`SPI.begin(7, 9, 8)` before `M5StamPLC.begin()`.** Otherwise `SD.begin()` starts the
+  bus on the board definition's defaults, G11–G13.

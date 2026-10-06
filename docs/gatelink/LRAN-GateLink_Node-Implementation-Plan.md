@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.27
+**Version:** 0.28
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -11,7 +11,7 @@ firmware starts, and four measurements come before the carrier is populated.
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-05
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -273,7 +273,7 @@ After this build the StamPLC has no uncommitted GPIO.
 | SX1262 NSS | G41 | Bus 16 | R3 pulls it up, so the radio is deselected from power-on |
 | SX1262 BUSY | G11 | Bus 14 | The vendor's pin table calls Bus 14 `CS`. It carries BUSY |
 | RF switch | G40 | Bus 15 | The **RX enable** in `setRfSwitchPins(rf_sw, RADIOLIB_NC)`, alongside DIO2-as-RF-switch (§2.2) |
-| SX1262 DIO1 | G1 | PORT.A white | On a Grove cable. Set `INPUT_PULLDOWN` before `radio.begin()` (§4.1) |
+| SX1262 DIO1 | G1 | PORT.A white | On a Grove cable. Set `INPUT_PULLDOWN` at boot and again after `radio.begin()` (§4.1) |
 | SX1262 NRESET | G2 | PORT.A yellow | On a Grove cable. R4 holds the radio in reset if the line floats |
 | VE.Direct TX (to the MPPT) | G5 | PORT.C yellow | Through BSS138 channel 3 |
 | VE.Direct RX (from the MPPT) | G4 | PORT.C white | Through BSS138 channel 4 and R2 |
@@ -422,8 +422,18 @@ restated. Implementation obligations for this node:
 **DIO1 rides a Grove cable** (expansion board §7.1.1). An open conductor does not fail at
 `radio.begin()`. It fails later, as transmits that never report completion. The driver
 therefore treats a transmit timeout as a counted fault and reads `getIrqStatus()` over SPI
-to tell a dead DIO1 line from a dead link. It sets `INPUT_PULLDOWN` on G1 before
-`radio.begin()`.
+to tell a dead DIO1 line from a dead link. It sets `INPUT_PULLDOWN` on G1 at boot
+and again after `radio.begin()`, because RadioLib 7.7.1's `begin()` sets the pin to plain
+`INPUT` and clears the pull-down (engineering log, 2026-10-05).
+
+**RST rides the other Grove conductor, and nothing holds it low.** RST is pulled up
+through about 4.3 kΩ in total on the Wio side, which overrides R4 (expansion board
+§7.1; engineering log, 2026-10-06). An open conductor therefore leaves the radio running, not held in reset, and
+`radio.begin()` still succeeds. Before `radio.begin()`, the driver drives RST low and
+requires BUSY to read high, then releases RST and requires BUSY to fall. A failure is a
+counted fault reported at boot, not a retry. The bring-up image's `reset` command does this
+check (`firmware/gatelink/src/bringup.cpp`): on the carrier, BUSY fell 1.6 ms after
+release.
 
 **The driver starts from the simnode's** (`firmware/simnode/src/radio.cpp`). That file
 already drives a Wio-SX1262 through the same `RadioPins` shape on the `simnode-xiao-wio`
@@ -1462,6 +1472,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.28** — **The DIO1 pull-down is set again after `radio.begin()`** (§3.3, §4.1).
+  RadioLib 7.7.1's `begin()` sets the IRQ pin to plain `INPUT`, which clears a pull-down
+  set before it. Expansion board §7.1.1 had the same instruction and now says the same.
 
 - **v0.27** — **Cites PRD v0.16.** That revision moves R-6.1b's `mppt-config.md` and S-6's
   `1050-config.md` under `docs/gatelink/`. The plan already used that path for

@@ -222,8 +222,9 @@ constant (§7.3).
 >
 > **The XIAO GPIO column above is still unrung** — it is derived, and corroborated by an
 > independent source (meshtastic/firmware issue #8409) that matches the pad column value
-> for value. Two agreeing derivations are not a continuity check. §10's ring-out item is
-> the check that closes it.
+> for value. Two agreeing derivations are not a continuity check. §10's ring-out, done on
+> 2026-10-05, verified the pad column against this board's nets, not a XIAO's GPIO. The
+> XIAO column is rung out only when a header board is fitted to a XIAO.
 
 ### VE.Direct
 
@@ -255,13 +256,15 @@ PORT.A has two conductors, so exactly two radio control signals are exposed to a
 | RF_SW | RF path stuck in one state. Presents as unexplained range loss, intermittently. | Avoid |
 | BUSY | Reads stuck-busy (hang) or stuck-ready (SPI issued before the part is ready — corruption). | Avoid |
 | DIO1 | IRQ never fires. TX/RX complete but firmware doesn't learn about it — a timeout, not corruption. | Acceptable, see §7.1.1 |
-| RST | Radio never leaves reset, or never gets reset. Fails at `radio.begin()`. | Best candidate |
+| RST | The radio is never reset; the Wio's own pull-up keeps it running. Fails only at the boot check below. | Best candidate |
 
 Rev 0.3's forced re-route lands on **DIO1 and RST** — the bottom two rows. That is a better pairing than rev 0.2's RF_SW and RST, so the orientation change improves this trade rather than compromising it. NSS stays on the bus (Bus 16 instead of Bus 14), which is what §7.1 was always protecting; the specific pin never mattered.
 
 **R3 — 10 kΩ from D4 (NSS) to 3V3, now landing on G41.** Confirmed: Seeed fits no on-board pull-up on NSS. Without R3, G41 is a floating input from power-on until firmware configures it. That matters here specifically because the radio shares SPI with the LCD and microSD (§7.2) — a floating NSS during boot means the SX1262 can respond to traffic intended for the SD card. R3 makes "deselected" the boot state. G41 is not an ESP32-S3 strapping pin (those are G0, G3, G45, G46), so the pull-up has no boot-mode interaction.
 
-**R4 — 10 kΩ from D2 (RST) to GND.** Unchanged. SX1262 RST is active-low, so a pull-down holds the radio in reset if G2 floats at boot or the pigtail opens. Fail-loud rather than fail-weird. The ESP32 fights it with 330 µA when driving RST high, which is nothing. G2 is not a strapping pin either.
+**R4 — 10 kΩ from D2 (RST) to GND. It does not hold reset, as built.** It was meant to: SX1262 RST is active-low, so a pull-down would hold the radio in reset if G2 floated at boot or the pigtail opened. But with PORT.A disconnected, the carrier's RST net reads 2.3 V, and the radio runs (engineering log, 2026-10-06). Against R4, that is a pull-up of about 4.3 kΩ in total. The Wio's schematic shows a 10 kΩ pull-up on RST, which alone would give 1.65 V. What supplies the rest, about 7.7 kΩ in parallel, is not known. A value low enough to win, about 470 Ω, would draw 7 mA whenever G2 drives high, so R4 stays at 10 kΩ and does no useful work. It costs 330 µA while G2 is high. Removing it is optional.
+
+**Fail-loud on RST is the firmware's job.** At boot the driver drives RST low and confirms BUSY rises, then releases it and confirms BUSY falls (plan §4.1). An open yellow conductor fails that check. G2 is not a strapping pin, so a floating G2 at boot does no harm beyond a radio left running until the check resets it.
 
 **G40 and G41 are the ESP32-S3's MTDO and MTDI.** They function as ordinary GPIO and the default debug path on this part is USB-Serial-JTAG, so nothing is lost. But if external JTAG is ever wanted on this node, RF_SW and NSS are the two pins it would want back. Note it and move on.
 
@@ -269,7 +272,7 @@ Rev 0.3's forced re-route lands on **DIO1 and RST** — the bottom two rows. Tha
 
 DIO1 is the SX1262's interrupt line — TxDone, RxDone, timeout. Two consequences of putting it on PORT.A:
 
-**Float protection.** The SX1262 drives DIO1 push-pull, so an open conductor leaves G1 floating and the ESP32 will see edges that came from nothing. Enable the internal pull-down on G1 (`pinMode(LORA_DIO1, INPUT_PULLDOWN)`) before `radio.begin()`. G1 supports it, and an open line then reads a steady "no interrupt" rather than random ones. A discrete 10 kΩ to GND on the perfboard would do the same job and is worth fitting if there is room — but the internal pull-down is free and costs no BOM change, so it is the plan of record.
+**Float protection.** The SX1262 drives DIO1 push-pull, so an open conductor leaves G1 floating and the ESP32 will see edges that came from nothing. Enable the internal pull-down on G1 (`pinMode(LORA_DIO1, INPUT_PULLDOWN)`) at boot, and **again after `radio.begin()`**: RadioLib 7.7.1's `begin()` sets the IRQ pin to plain `INPUT`, which clears the pull-down (GateLink engineering log, 2026-10-05). G1 supports it, and an open line then reads a steady "no interrupt" rather than random ones. A discrete 10 kΩ to GND on the perfboard would do the same job and is worth fitting if there is room — but the internal pull-down is free and costs no BOM change, so it is the plan of record.
 
 **Detection.** An open DIO1 does not fail at init; it fails later, as transmits that never report completion. RadioLib's blocking `transmit()` already times out rather than hanging, so the firmware requirement is only that the timeout path is treated as a fault and logged, not retried silently. A useful bring-up check: after `startTransmit()` of a known-good packet, if the IRQ has not fired within the computed time-on-air plus margin, read `getIrqStatus()` over SPI. If the status says TxDone but no edge arrived, the fault is the DIO1 conductor and nothing else.
 
@@ -408,17 +411,17 @@ At roughly 5.25 A per leaf: a 20 ft run in 16 AWG drops about 0.84 V, in 18 AWG 
 
 ## 10. Verify before soldering
 
-- [ ] J1 orientation — continuity-check pin 1 with the boards seated. The right-angle mate mirrors the footprint.
-- [ ] Wio socket pad mapping — ring out each D-pad to its module pin. **This item is the tracked check for Bridge Impl Plan §10.8.1's remaining load-bearing premise** — that the header board's pads map to this board's nets as §6 describes. Ticking it closes that premise; leaving it open means the premise is assumed, not verified. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
+- [x] J1 orientation — continuity-check pin 1 with the boards seated. The right-angle mate mirrors the footprint. Rung out by the operator, 2026-10-05.
+- [x] Wio socket pad mapping — ring out each D-pad to its module pin. **Rung out by the operator on 2026-10-05, on the header board (p-6379); this closes the premise below.** **This item is the tracked check for Bridge Impl Plan §10.8.1's remaining load-bearing premise** — that the header board's pads map to this board's nets as §6 describes. Ticking it closes that premise; leaving it open means the premise is assumed, not verified. **Still open, and the XIAO evaluation board cannot close it.** The kit that arrived is the **B2B variant (p-5982)**, whose control lines are GPIO 38–42 and do not touch these pads; this board uses the **header board (p-6379)**. See Bridge Impl Plan §2.3.1 finding 2.
   - The D-number mapping did gain an **independent corroboration** on 2026-09-05 — meshtastic/firmware issue #8409's header-board map matches §6's Wio pad column value for value (D9 MISO, D8 SCK, D10 MOSI, D3 BUSY, D5 RF_SW, D4 NSS, D1 DIO1, D2 RST). **Two agreeing derivations are not a continuity check.** Ring it out anyway.
-- [ ] **Every non-SPI radio net moved in rev 0.3.** Ring out all five against §6 before power-up: BUSY→Bus 14, RF_SW→Bus 15, NSS→Bus 16, DIO1→PORT.A white, RST→PORT.A yellow. Any rev 0.2 board, harness or firmware header on the bench is now wrong.
-- [ ] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**
-- [ ] R4 fitted (RST → GND).
-- [ ] Firmware sets `INPUT_PULLDOWN` on G1 (DIO1) before `radio.begin()` (§7.1.1).
-- [ ] P6KE18A manufacturer — ST's part specs 32.5 V max clamping vs Vishay/Taiwan Semi's 25.2 V. The AP63357's input limit is 32 V.
-- [ ] P6KE18A is the unidirectional "A", not the bidirectional "CA".
-- [ ] C10 rated 25 V minimum (50 V specified).
-- [ ] Decide whether D2 is fitted.
+- [x] **Every non-SPI radio net moved in rev 0.3.** Ring out all five against §6 before power-up: BUSY→Bus 14, RF_SW→Bus 15, NSS→Bus 16, DIO1→PORT.A white, RST→PORT.A yellow. All five rung out by the operator, 2026-10-05. Any rev 0.2 board, harness or firmware header on the bench is now wrong.
+- [x] R3 fitted (NSS → 3V3) — **it lands on Bus 16 / G41 now, not Bus 14.**
+- [x] R4 fitted (RST → GND). Operator, 2026-10-05.
+- [x] Firmware sets `INPUT_PULLDOWN` on G1 (DIO1) at boot and again after `radio.begin()` (§7.1.1). `firmware/gatelink/src/bringup.cpp`, 2026-10-05.
+- [x] P6KE18A manufacturer — ST's part specs 32.5 V max clamping vs Vishay/Taiwan Semi's 25.2 V. The AP63357's input limit is 32 V. The fitted part's maker is unknown; its rating is 25.2 V maximum clamp at 18.9 V breakdown (operator, 2026-10-05).
+- [x] P6KE18A is the unidirectional "A", not the bidirectional "CA". Confirmed by the operator, 2026-10-05.
+- [x] C10 rated 25 V minimum (50 V specified). 50 V fitted (operator, 2026-10-05).
+- [x] Decide whether D2 is fitted. Not fitted (operator, 2026-10-05).
 
 *Resolved in rev 0.2 and removed from this list:* Seeed's pull-up coverage on NSS (confirmed absent — R3 required); BabyBuck input cap voltage rating (module is rated to 32 V input by design).
 
