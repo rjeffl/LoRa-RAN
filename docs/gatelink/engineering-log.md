@@ -443,3 +443,47 @@ ports between the Mac and the StamPLC, which has no 0 V check. If the port still
 not appear through the hub, the cause is something else. The carrier cannot be the
 cause: the StampS3's USB is on G19 and G20, which reach neither the bus header nor the
 Grove ports. GL0 waits for that hub.
+
+## 2026-10-06 — GL0: the radio answers on the carrier, and R4 does not hold reset
+
+**Through a USB 2.0 hub, the StamPLC enumerates with the 12 V supply on.** It appeared
+as `/dev/cu.usbmodem1101`. That is the outcome the 2026-10-05 entry's falsification
+check predicted, so the VBUS backfeed explanation stands. The bring-up image flashed
+from `1e5048a`, and the banner reads `0.1.0 (1e5048a)`.
+
+**§11 steps 2 and 3 pass.** Console output, from `tools/bench/bench.py`:
+
+```text
+reset: BUSY in reset high; after release low in 1619 us
+begin: RadioLib status 0 - radio up
+begin: 917400000 Hz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+radio: version "SX1261 V2D 2D02" (status 0), sync word 0x1424 (status 0, expect 0x1424)
+tx: #1 time on air 164864 us; DIO1 edge SEEN at 171385 us; IRQ 0x0001, TX_DONE set
+```
+
+The DIO1 edge arrived on the first transmit, so the PORT.A white conductor carries the
+IRQ. The version string reads "SX1261" on an SX1262 as well; the part answered over SPI,
+and the read-back sync word matches.
+
+**R4 does not hold the radio in reset.** Right after boot, with G2 set to `INPUT`,
+`pins` reads NRESET high and BUSY low:
+
+```text
+pins: NSS G41 high (expect high, R3)
+pins: NRESET G2 high (expect low, R4)
+pins: BUSY G11 low (expect high while in reset)
+pins: DIO1 G1 low (expect low, pull-down)
+```
+
+A low BUSY means the radio really was out of reset, so this is not a threshold reading
+near mid-rail. Something on the RST net pulls up harder than R4's 10 kΩ pulls down.
+The candidates are a pull-up on the StamPLC's PORT.A or one on the Wio header board;
+neither is confirmed. Firmware drives RST from `begin()` on, so bring-up is not blocked,
+but expansion board §7.1's fail-loud reset at boot does not hold as built. **Falsified
+by:** the RST voltage to GND at idle after a boot. A reading near 0 V means the `pins`
+reading is wrong; otherwise the opposing pull-up is 10 kΩ × (3.3 − V)/V.
+
+**Not run:** `txloop 50` with the 3.3 V rail on a meter, `sd` and `bus 60`. The board
+moved to the workbench. The operator is weighing dropping the microSD card, because it
+is a liability in an enclosure without climate control. That would leave NVS as the only
+nonvolatile store.
