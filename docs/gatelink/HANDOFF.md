@@ -27,33 +27,32 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1 on the bench.** The board layer is built and passes its native tests, but has not
-run on the StamPLC. Flash `-e gatelink` through the USB 2.0 hub and drive it from the
-`log_task` console.
+**GL1's scope checks.** The node image runs on the StamPLC, and its `log_task` console
+drives the board layer (`firmware/gatelink/CLAUDE.md`). Unplug USB for any power cycle:
+USB VBUS keeps the board running.
 
-1. Check that it boots: `in`, `sense`, `sd`, `beep`, and a button press beeps.
-2. `relay 1` to `relay 4`. Each pulse should measure 500 ms ±10 ms on the scope; the
-   console prints the width timed from the expander writes. Then debounce `in` against
-   a bench switch on an input.
-3. Scope every relay output through a power cycle, a watchdog reset and a brownout (PRD
-   R-3.5j). Include a reset fired *during* a pulse, which `board_relays_off_early()`
-   exists for. The console has no command that forces a reset yet, so add one.
+1. Scope each relay output through a `relay <k>` pulse: 500 ms ±10 ms.
+2. Scope every relay output through a power cycle with USB unplugged, a `hang`
+   (interrupt-watchdog reset), and a brownout (PRD R-3.5j). Run `relay 4 2000` before a
+   `hang` to reset during a pulse. The 2026-10-06 engineering-log entry on GPIO 3 says
+   which windows the code does not cover, and the power cycle is the one to watch.
+3. Debounce `in` against a bench switch on an input.
 4. Run the LCD, the microSD and the radio together under `SpiLock` in the node image,
    which needs a minimal `radio.cpp`. The bring-up image's `bus` test already passes for
    the raw drivers.
-5. Settle measurement M12: which current the INA226 sees (plan §3.4).
+5. Settle measurement M12 with USB unplugged (plan §3.4). With USB attached the INA226
+   read 0 mA, which may only mean the board ran from USB.
 
 ## What the last session established
 
-- **GL1's code is in, and none of it has run on the board.** `gate_io.cpp` times pulses
-  and debounces inputs, with native tests. `io_task` wakes at a pulse's trailing edge as
-  well as at each poll. `spi_bus.cpp` is the one SPI lock. Only `io_task` touches the
-  internal I²C bus.
-- **The relay expander does not reset with the ESP32.** A reset in the middle of a pulse
-  held the relay on until `M5StamPLC.begin()` reached it. `board_relays_off_early()` now
-  clears the latch first thing in `setup()`. Nothing covers the time from the boot ROM to
-  `setup()`.
-- **GL0 passes on the carrier**, apart from ping and loopback, which wait for GL3.
+- **GL1's board layer runs on the StamPLC.** The inputs, LM75, INA226, RTC and microSD
+  answer through it, and the pulse widths timed from the expander writes are 499.9 ms and
+  99.9 ms. The RTC reads 2088 and has never been set.
+- **GPIO 3 holds both IO expanders in reset after a chip reset.** `board_relays_off_early()`
+  drives it high, then clears the relay latch. It now succeeds after chip and CPU resets
+  alike.
+- **A 12 V power cycle with USB attached resets nothing**, and the carrier's 3.3 V LED
+  stayed lit through it. That LED should have gone out.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -169,8 +168,10 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **Whether M5Unified's I²C class locks the internal bus is not established.** Until
-  someone reads `I2C_Class.inl` or measures it, `io_task` stays the bus's only user.
+- **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
+  draws only from Bus pin 1. Find what feeds it, or confirm the supply was off.
+- **`beep` logged `LEDC is not initialized`** on first use; whether the buzzer sounds is
+  unchecked.
 
 - **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
   `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to

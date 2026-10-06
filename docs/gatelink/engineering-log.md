@@ -611,3 +611,52 @@ output observed through a watchdog reset fired during a pulse.
 **The library names the INA226's current the "IO socket output current"**
 (`getIoSocketOutputCurrent()`, `M5StamPLC.h`). That names neither of the two readings
 plan §3.4 weighs, the bank's current or the node's. M12 is still open.
+
+## 2026-10-06 — GPIO 3 holds the IO expanders in reset after a chip reset
+
+**The first bench run of GL1's image found the boot-time relay-off write unacknowledged**
+after the upload's reset (`rst:0x15`, `USB_UART_CHIP_RESET`) and after a power-on with
+USB unplugged. It was acknowledged after a software reset and after four
+interrupt-watchdog resets (`rst:0xc`, `RTC_SW_CPU_RST`), three of them during a 2 s pulse
+on K4. Clocking SCL to free the bus did not change it, and neither did the core's `Wire`
+in place of M5Unified's `In_I2C`.
+
+**A bus scan at the start of `setup()` found the cause.** After a chip reset, only 0x32
+(RX8130), 0x40 (INA226) and 0x48 (LM75) answer. With GPIO 3 driven high, 0x43 (expander
+A, a PI4IOE5V6408 by M5Unified's board table) and 0x59 (the relay expander) answer too,
+and the write is acknowledged at once. GPIO 3 is the LCD's reset (`STAMPLC_PIN_LCD_RST`),
+and M5GFX drives it inside `M5.begin()`. A CPU reset leaves it high, which is why those
+resets behaved.
+
+**What this means for PRD R-3.5j:**
+
+- After a power-on, brownout or USB reset, the relay expander sits in hardware reset until
+  GPIO 3 rises. Its outputs are then whatever its reset state gives, so the boot ROM is
+  covered by hardware if that state leaves the relays off.
+- After a CPU reset, the expander keeps its latch, and `board_relays_off_early()` clears
+  it at the start of `setup()`. The boot ROM and the core's start-up remain uncovered.
+- M5GFX pulses GPIO 3 again inside `M5.begin()`, which resets the expander to its
+  defaults before `io_expander_b_init()` turns each relay pin to an output and then writes
+  it low. The latch's reset default therefore decides whether a relay closes briefly
+  there. The datasheet's default was not checked. **Falsified by:** the scope through a
+  power cycle, which is GL1's R-3.5j check.
+
+`board_relays_off_early()` now drives GPIO 3 high before the write. After the upload's
+chip reset and after an interrupt-watchdog reset during a 2 s K4 pulse, the console
+reported `boot relay-off ok` and `relays 0x00`.
+
+**Pulse widths timed from the expander writes:** 499.9 ms at the default 500 ms and
+99.9 ms at 100 ms. A pulse sent 0.2 s after K1's trailing edge was refused, as
+`relay_min_spacing_ms` requires. The scope measurement is still to come.
+
+**A 12 V power cycle with USB attached resets nothing.** USB VBUS keeps the StamPLC
+running, and the operator saw the carrier's 3.3 V LED stay lit. The carrier draws only
+from Bus pin 1, so something reaches that pin from USB, or the supply was not fully off.
+Not investigated.
+
+**The INA226 read 12,144 mV and 0 mA** with the StamPLC and carrier running and USB
+attached. That fits the library's "IO socket output current", but the board may have
+been drawing from USB, so it does not settle M12.
+
+**`beep` printed `ledc_get_duty(745): LEDC is not initialized`** on its first use.
+Whether the buzzer sounded was not recorded.
