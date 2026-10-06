@@ -276,9 +276,11 @@ void cmd_rx(uint32_t seconds) {
                 static_cast<unsigned long>(seconds));
 }
 
-void cmd_sd() {
+// `sd format` lets FatFs make a FAT32 volume, but only on a card with no FAT volume: the
+// core builds FatFs without exFAT (FF_FS_EXFAT 0), so a card over 32 GB arrives unreadable.
+void cmd_sd(bool format) {
   xSemaphoreTake(g_bus, portMAX_DELAY);
-  g_sd_up = SD.begin(gatelink::kSdCs, SPI, 4000000);
+  g_sd_up = SD.begin(gatelink::kSdCs, SPI, 4000000, "/sd", 5, format);
   const uint64_t mb = g_sd_up ? SD.cardSize() / (1024 * 1024) : 0;
   xSemaphoreGive(g_bus);
   Serial.printf("sd: %s", g_sd_up ? "mounted" : "NOT MOUNTED (card present?)");
@@ -396,7 +398,7 @@ void cmd_stat() {
 }
 
 void help() {
-  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | sd | bus <s> | stat"));
+  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | sd [format] | bus <s> | stat"));
 }
 
 void dispatch(char* line) {
@@ -419,7 +421,7 @@ void dispatch(char* line) {
   } else if (std::strcmp(line, "rx") == 0) {
     cmd_rx(n == 0 ? 10 : n);
   } else if (std::strcmp(line, "sd") == 0) {
-    cmd_sd();
+    cmd_sd(arg != nullptr && std::strcmp(arg, "format") == 0);
   } else if (std::strcmp(line, "bus") == 0) {
     cmd_bus(n == 0 ? 30 : n);
   } else if (std::strcmp(line, "stat") == 0) {
