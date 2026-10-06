@@ -67,6 +67,10 @@ struct PulseRequest {
 struct IoSnapshot {
   uint8_t      inputs_raw    = 0;
   uint8_t      inputs        = 0;  // debounced
+  // Bit changes seen since boot, raw and after debounce. A bounce or a tap shorter than
+  // input_debounce_samples polls adds to the first and not the second.
+  uint32_t     raw_edges     = 0;
+  uint32_t     inputs_edges  = 0;
   uint8_t      relays        = 0;
   uint32_t     i2c_failures  = 0;  // every failed expander read or write (root rule 4)
   uint8_t      buttons       = 0;  // presses not yet taken by ui_task, bit 0 = A
@@ -237,8 +241,11 @@ void io_task(void*) {
       const uint8_t buttons = board_poll_buttons();
       portENTER_CRITICAL(&g_io_mux);
       if (ok) {
+        const uint8_t inputs = debounce.update(raw, samples);
+        g_io.raw_edges += static_cast<uint32_t>(__builtin_popcount(raw ^ g_io.inputs_raw));
+        g_io.inputs_edges += static_cast<uint32_t>(__builtin_popcount(inputs ^ g_io.inputs));
         g_io.inputs_raw = raw;
-        g_io.inputs     = debounce.update(raw, samples);
+        g_io.inputs     = inputs;
       } else {
         ++g_io.i2c_failures;
       }
@@ -382,7 +389,7 @@ const char* pulse_result_name(PulseResult r) {
 // GL1's bench console. Plan 6.6's debug tooling replaces it; until then it is how the
 // bench drives the board layer:
 //   relay <1-4> [ms]  pulse K1-K4, relay_pulse_ms by default, and report the width
-//   in                inputs, raw and debounced
+//   in                inputs, raw and debounced, and their edge counts since boot
 //   sense             INA226, LM75 and RTC
 //   sd                mount the card and append a line to /gl1.txt
 //   beep              the buzzer
@@ -425,8 +432,10 @@ void console_command(char* cmd) {
     const IoSnapshot s = io_snapshot();
     static const char* const kEarlyOff[] = {"ok", "bus failed", "no ack"};
     n = std::snprintf(line, sizeof(line),
-                      "in: raw 0x%02X debounced 0x%02X relays 0x%02X i2c failures %lu; boot relay-off %s",
-                      s.inputs_raw, s.inputs, s.relays, static_cast<unsigned long>(s.i2c_failures),
+                      "in: raw 0x%02X debounced 0x%02X edges %lu/%lu relays 0x%02X i2c failures %lu; boot relay-off %s",
+                      s.inputs_raw, s.inputs, static_cast<unsigned long>(s.raw_edges),
+                      static_cast<unsigned long>(s.inputs_edges), s.relays,
+                      static_cast<unsigned long>(s.i2c_failures),
                       kEarlyOff[static_cast<size_t>(board_early_off_result())]);
   } else if (std::strcmp(cmd, "sense") == 0) {
     const IoSnapshot s = io_snapshot();
