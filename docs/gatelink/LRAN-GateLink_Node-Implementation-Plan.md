@@ -763,8 +763,18 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
 - **One interlock serializes LoRa transmit and BLE activity** (**R-4.3h**). `bms_task`
   holds it from connect to controller de-init, and `lora_task` takes it before each
   transmit. **The interlock delays answers.** A `COMMAND_ACK` due during a BLE window waits
-  for it, and the bridge's ACK timeout is 3 s. The BLE window therefore needs a bound, or a
-  pending transmit must cut it short. Decide which at GL3, with the window measured at GL5.
+  for it, and the bridge's ACK timeout is 3 s. **Decided 2026-10-07, by the operator: a
+  reply the bridge is waiting on cuts the window short, and a runtime cap bounds it.** A
+  `COMMAND_ACK`, `CONFIG_ACK`, `HEX_RSP`, or a `STATUS` answering a `POLL`, queued while
+  `bms_task` holds the interlock, makes `bms_task` abort: disconnect, de-init the
+  controller, release the interlock. That BMS read is skipped until the next `bms_poll_s`,
+  which R-3.4d allows. An unsolicited `STATUS` or `EVENT` waits for the window to end.
+  `bms_window_max_ms` caps the window for a NimBLE stack that hangs, so the interlock is
+  never held until the watchdog fires. Preemption alone could not do that, and a cap alone
+  would make every command in a window wait. GL5 measures the window and the abort latency,
+  and sets the cap's default and range from them; the parameter joins
+  `lib/lran-config/`'s table then, not before, because its name is permanent once Home
+  Assistant publishes it.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
 - **The watchdog is not armed yet.** L6 starts the tasks without it, because its timeout
@@ -780,9 +790,17 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   `InFlight` and no answer (Protocol Spec §9.4, D34 amended 2026-09-11). The gate holds no
   lock, so the two calls are serialized: post the result back to the task that owns the
   gate, or guard it. `lran-node` (L1) must expose `check()` and `record()` as separate
-  steps for this reason. **Open:** whether the ACK waits for the pulse to complete or for
-  the gate to confirm movement (`command_confirm_timeout_s`, 5 s). It sets how often the
-  window is hit against the bridge's 3 s ACK timeout. **Decide it before GL3.**
+  steps for this reason. **Decided 2026-10-07, by the operator: the ACK waits for the
+  pulse to complete, not for the gate to move.** `io_task` reports the trailing edge, or
+  the I²C failure that stopped the pulse, and that is the result `record()` caches. Spec
+  §6.3 already rules out waiting for movement: `ACCEPTED` means dispatched, and only a
+  `STATUS` with `GATE_STATE_CHANGE` confirms motion. Waiting for
+  `command_confirm_timeout_s` (5 s) would also outlast the bridge's 3 s ACK timeout on
+  every command. Acknowledging on dispatch would cache success for a pulse that failed. At
+  the defaults the window is at most a 500 ms `relay_min_spacing_ms` wait and a 500 ms
+  `relay_pulse_ms` pulse, inside 3 s. At the ranges' upper ends, 5000 ms and 2000 ms, a
+  retry can land in it and go unanswered, and the next retry gets `DUPLICATE_CACHED`
+  (Protocol Spec §9.4).
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls
@@ -1229,7 +1247,7 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 | **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
 | **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
 | **GL4** | **VE.Direct** | GL0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
-| **GL5** | **Battery and BMS** | GL1, L2, L7 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window is measured for §5.2's interlock. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
+| **GL5** | **Battery and BMS** | GL1, L2, L7 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window and abort latency are measured for §5.2's interlock, setting `bms_window_max_ms`'s default and range. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
 | **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
 | **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
 | **GL8** | **HA integration** | GL3–GL7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |

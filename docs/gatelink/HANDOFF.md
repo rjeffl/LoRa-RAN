@@ -245,9 +245,8 @@ board's are its D-pads (expansion board §6.1).
   timing is the operator's. [`lib/vedirect/osh-labs-deviations.md`](../../lib/vedirect/osh-labs-deviations.md)
   lists them. Re-check each row against upstream's latest commit first, report rows 1, 4
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
-- **§5.2's two questions**: what the `COMMAND_ACK` waits for, and the bound on a BLE window.
-  Due before GL3. An SD write holds the bus lock for up to 59 ms, and the radio waits
-  behind it (engineering log, 2026-10-06).
+- **An SD write holds the SPI bus lock for up to 59 ms**, and the radio waits behind it
+  (engineering log, 2026-10-06). GL3's radio driver inherits that wait.
 - **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3.
 - **About 7.7 kΩ of RST pull-up is unexplained**, beyond the Wio's 10 kΩ. R4 measured out
   of circuit, or RST measured with the Wio pulled, would settle it. It changes nothing
