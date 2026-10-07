@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL1** (bench, the analyzer half) | *The next job*, below; plan §8.2's GL1 row; PRD R-3.5j. The 2026-10-06 engineering-log entry *GPIO 3 holds the IO expanders in reset* says which reset windows the code does not cover. `firmware/gatelink/CLAUDE.md` lists the console commands |
+| **GL3** (protocol, framing and configuration on the bench) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §10.6 and §10.7; PRD R-3.5f–R-3.5k. `firmware/gatelink/CLAUDE.md` lists the console commands |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,39 +27,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL1's two relay checks, on a logic analyzer.** Steps 3–5 of the last list passed and
-merged; the analyzer half takes a new branch from `main`. No scope is on the bench. A
-HiLetgo USB logic analyzer runs PulseView on the operator's Linux laptop, because
-PulseView has no Apple Silicon build. The operator is wiring the relay outputs to a
-header, since the screw terminals give the probes no clean connection.
-
-**The wiring for each relay.** COM to analyzer GND, NO to a channel with 10 kΩ to the
-analyzer's 3.3 V, so the channel reads low while the contact is closed. Sample at 1 MHz
-or faster and capture continuously through each reset. The analyzer sees the contact,
-not the coil: a coil glitch shorter than the relay's operate time does not show. Record
-that as the method's limit, and propose that R-3.5j's *Verified by* accept it.
-
-1. Each relay through a `relay <k>` pulse: 500 ms ±10 ms, operate and release times
-   included.
-2. Every relay output through a power cycle with USB unplugged, a `hang` after
-   `relay 4 2000`, and a brownout (PRD R-3.5j). USB VBUS keeps the board running, so
-   unplug it for the power cycle. **The brownout needs a source**: a supply that can sag
-   VIN below the board's reset point. None has been named.
-
-Then close GL1: merge its PR once the operator accepts it.
+**GL3, which opens with §5.2's two questions.** GL1 is done, except its brownout leg, which
+the operator left open (*Open*). GL3 is next on the critical path, and plan §5.2's two
+questions are due before it starts: what the `COMMAND_ACK` waits for, and the bound on a
+BLE window. Answer both in the plan before building on them. GL3 then needs GateLink and a
+bridge on air, with `simnode` alongside.
 
 ## What the last session established
 
-- **The node's own tasks share the SPI bus cleanly.** `bus 300` ran the LCD from
-  `ui_task`, the microSD from `log_task` and the radio from `lora_task`: 0 bad transfers
-  in about 48,000, no reset, and `io_task` on its period throughout.
-- **M12: the INA226 reads VIN, and its shunt carries neither the node's current nor Bus
-  pin 1's.** A 5.6 mA load on Bus pin 1 left it at 0 mA. PRD v0.17 drops node current from
-  R-4.4b.
-- **The inputs debounce against a bench switch.** Ten taps gave 20 raw edges and 16
-  debounced. IN8 is bit 7, and its terminal is easy to read as IN1's with the board
-  upside down.
-- **With USB attached, the 12 V feed carries 3.1 mA**, against 43.6 mA without.
+- **The relay contacts pulse within ±10 ms.** At the default 500 ms, a logic analyzer read
+  498.2–499.3 ms on K1–K4, operate and release times included.
+- **No contact closed through five power cycles with USB unplugged.** The expander's reset
+  default, through M5GFX's GPIO 3 pulse, leaves the relays off.
+- **A watchdog reset does not release a relay that is already on.** K4, pulsed for 2000 ms
+  with a `hang` 0.57 s in, stayed closed 1262 ms, until `board_relays_off_early()` ran.
+- **The analyzer's pull-ups need a supply of their own** for any check that powers the
+  board down. A 5 V wall adapter served.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -90,7 +73,7 @@ Then close GL1: merge its PR once the operator accepts it.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.29. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3. GL1: all but the two relay checks on the analyzer |
+| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3. GL1: done except R-3.5j's brownout leg, left open by the operator |
 | Not started | GL2–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -175,6 +158,22 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **R-3.5j's brownout leg is unverified.** The bench supply stops at 5.25 V, where the
+  MP4560 still regulates. The operator left it open on 2026-10-07: a VIN sag that deep
+  means the LiFePO4 BMS failed, which is beyond any failsafe's scope. PRD §3.5's
+  preamble still names a brownout as a reset GateLink must survive. Revise R-3.5j, or run
+  the leg with a supply that reaches the reset point.
+- **R-3.5j's *Verified by* says "on a scope"**; GL1 used a logic analyzer on the contacts,
+  which cannot see a coil glitch shorter than the operate time. Proposed: accept the
+  analyzer, with that limit stated. The operator's call, then a PRD and plan §8.2 edit.
+- **A watchdog reset holds an energized relay until `setup()`** (engineering log,
+  2026-10-07). A hang 100 ms into a 500 ms pulse would close the relay for about 1 s. Any
+  fix is a design question, since releasing the relay at the panic would mean I²C from
+  the panic handler.
+- **The interrupt-watchdog panic printed `Re-entered core dump!`** before rebooting. The
+  reset still happened. Unexamined.
+- **`bench.py run` exits when it writes to a port that has disappeared**
+  (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not.
 - **Protocol Specification §7.2.4 calls `node_ma` the "INA226 supply current"**, which
   the INA226 cannot give (PRD R-4.4b, v0.17). The field stays and carries its sentinel; the
   note waits for the next specification revision.
