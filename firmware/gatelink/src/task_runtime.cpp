@@ -3,9 +3,10 @@
 //
 // Task creation and the task bodies. Task L6; GateLink Impl Plan 5.2.
 //
-// io_task does real work from GL1: relay pulses, input debounce, buttons and the sensors.
-// log_task carries GL1's bench console. Every other body is a stub that counts its passes
-// and waits out its period; the milestone that fills it is named at it.
+// io_task does real work from GL1: relay pulses, input debounce, buttons and the sensors,
+// and from GL3 the relay sequence of each gate command. lora_task runs lran-node's engine
+// from GL3. log_task carries the bench console. Every other body is a stub that counts its
+// passes and waits out its period; the milestone that fills it is named at it.
 //
 // THE WATCHDOG IS NOT ARMED HERE. Impl Plan 5.2 feeds it from app_task, and the timeout is a
 // timing constant on a node with no OTA (root rule 8). The bridge fixed its own at 10 s on
@@ -29,6 +30,10 @@
 
 #include "board_stamplc.h"
 #include "gate_io.h"
+#include "gatelink_app.h"
+#include "lran/node/engine.h"
+#include "lran/node/names.h"
+#include "mbedtls_mac.h"
 #include "radio.h"
 
 namespace gatelink {
@@ -50,6 +55,9 @@ constexpr uint32_t kAliveReportMs = 30000;
 
 // io_task counts milliseconds in ticks.
 static_assert(configTICK_RATE_HZ == 1000, "io_task's deadlines assume a 1 ms tick");
+
+// How often io_task looks again at a sequence that is waiting to start its next pulse.
+constexpr uint32_t kSequenceTickMs = 10;
 
 // How often io_task reads the INA226, LM75 and RTC. A display and log rate, not a control
 // loop's, so it is not a parameter.
@@ -85,6 +93,11 @@ struct IoSnapshot {
   PulseResult  pulse_result  = PulseResult::Started;
   int64_t      pulse_on_us   = 0;
   int64_t      pulse_off_us  = 0;
+  // GL3 - the end of each gate command's relay sequence, which lora_task's COMMAND_ACK waits
+  // for (Impl Plan 5.2). cmd_seq is bumped once per sequence, after its last trailing edge.
+  uint32_t     cmd_seq       = 0;
+  SequenceEnd  cmd_end       = SequenceEnd::Done;
+  uint32_t     cmd_i2c_failures = 0;  // expander writes a sequence lost, since boot
 };
 
 portMUX_TYPE  g_io_mux = portMUX_INITIALIZER_UNLOCKED;
@@ -92,6 +105,15 @@ IoSnapshot    g_io;
 StaticQueue_t g_pulse_q_storage;
 uint8_t       g_pulse_q_buf[4 * sizeof(PulseRequest)];
 QueueHandle_t g_pulse_q = nullptr;
+
+// lora_task's gate commands. Depth 1: the engine runs one command at a time (spec 9.4), so a
+// full queue means a second caller, and execute() answers ACTUATOR_BUSY.
+StaticQueue_t g_cmd_q_storage;
+uint8_t       g_cmd_q_buf[sizeof(RelaySequence)];
+QueueHandle_t g_cmd_q = nullptr;
+
+// io_task tells lora_task that a sequence ended. Written before any task starts.
+TaskHandle_t g_lora_handle = nullptr;
 
 IoSnapshot io_snapshot() {
   portENTER_CRITICAL(&g_io_mux);
@@ -191,7 +213,10 @@ void io_task(void*) {
   const uint32_t poll_ms    = param_default(kParamInputPollMs);
   const uint32_t width_ms   = param_default(kParamRelayPulseMs);
   const uint32_t spacing_ms = param_default(kParamRelayMinSpacingMs);
+  const uint32_t settle_ms  = param_default(kParamUnlockSettleMs);
   const uint8_t  samples    = static_cast<uint8_t>(param_default(kParamInputDebounceSamples));
+  CommandSequencer sequencer;
+  uint32_t         seq_i2c_failures = 0;
 
   TickType_t last        = xTaskGetTickCount();
   uint32_t   next_poll   = now_ms();
@@ -204,12 +229,42 @@ void io_task(void*) {
     if (pulser.update(now)) {
       const bool    ok  = board_write_relays(pulser.mask());
       const int64_t t   = esp_timer_get_time();
+      if (!ok && sequencer.running()) ++seq_i2c_failures;
       portENTER_CRITICAL(&g_io_mux);
       g_io.relays       = pulser.mask();
       g_io.pulse_off_us = t;
       if (!ok) ++g_io.i2c_failures;
       ++g_io.pulse_seq;
       portEXIT_CRITICAL(&g_io_mux);
+    }
+
+    // GL3 - a gate command's sequence. Taken only between sequences; the engine sends no
+    // second one until the first is acknowledged.
+    RelaySequence cmd;
+    if (!sequencer.running() && xQueueReceive(g_cmd_q, &cmd, 0) == pdTRUE) {
+      sequencer.begin(cmd, now);
+    }
+    if (sequencer.service(pulser, width_ms, spacing_ms, settle_ms, now)) {
+      const bool    ok = board_write_relays(pulser.mask());
+      const int64_t t  = esp_timer_get_time();
+      if (!ok) ++seq_i2c_failures;
+      portENTER_CRITICAL(&g_io_mux);
+      g_io.relays       = pulser.mask();
+      g_io.pulse_relay  = static_cast<uint8_t>(__builtin_ctz(pulser.mask()));
+      g_io.pulse_result = PulseResult::Started;
+      g_io.pulse_on_us  = t;
+      if (!ok) ++g_io.i2c_failures;
+      portEXIT_CRITICAL(&g_io_mux);
+    }
+    SequenceEnd end;
+    if (sequencer.take_end(&end)) {
+      portENTER_CRITICAL(&g_io_mux);
+      g_io.cmd_end = end;
+      g_io.cmd_i2c_failures += seq_i2c_failures;
+      ++g_io.cmd_seq;
+      portEXIT_CRITICAL(&g_io_mux);
+      seq_i2c_failures = 0;
+      if (g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
     }
 
     PulseRequest req;
@@ -272,6 +327,9 @@ void io_task(void*) {
     uint32_t       wait  = reached(after, next_poll) ? 0 : next_poll - after;
     const uint32_t edge  = pulser.ms_to_edge(after);
     if (edge < wait) wait = edge;
+    // A sequence waiting out spacing or unlock_settle_ms starts within a few ticks of its
+    // time rather than at the next poll: an immediate close is two of these.
+    if (sequencer.running() && pulser.mask() == 0 && wait > kSequenceTickMs) wait = kSequenceTickMs;
     const uint32_t target = after + wait;
     TickType_t     inc    = static_cast<TickType_t>(target - static_cast<uint32_t>(last));
     if (static_cast<int32_t>(inc) < 1) inc = 1;
@@ -287,22 +345,193 @@ void vedirect_task(void*) {
   }
 }
 
-// GL3 - waits on the DIO1 notification and the TX queue instead of a second. GL1 brings
-// the radio up and drives its half of the bus test.
+// ---------------------------------------------------------------------------
+// GL3 - the protocol node. lora_task owns the engine, the context and the application, and
+// is their only caller, so the engine's lack of a lock is safe (Impl Plan 5.2): check() runs
+// in receive(), and finish_command() runs here when io_task reports the end of a sequence.
+// ---------------------------------------------------------------------------
+
+// Engine log lines, carried to log_task, the only task that writes to Serial. A full queue
+// drops the line and counts it: lora_task never waits on logging.
+constexpr size_t kLogLineLen   = 120;
+constexpr size_t kLogQueueDepth = 8;
+struct LogLine {
+  char text[kLogLineLen];
+};
+StaticQueue_t         g_log_q_storage;
+uint8_t               g_log_q_buf[kLogQueueDepth * sizeof(LogLine)];
+QueueHandle_t         g_log_q = nullptr;
+std::atomic<uint32_t> g_log_dropped{0};
+
+class QueueSink final : public lran::node::Sink {
+ public:
+  void line(const char* text) override {
+    LogLine l{};
+    std::strncpy(l.text, text, sizeof(l.text) - 1);
+    if (xQueueSend(g_log_q, &l, 0) != pdTRUE) g_log_dropped.fetch_add(1, std::memory_order_relaxed);
+  }
+};
+
+uint32_t random_u32() { return esp_random(); }
+
+// spec 8.14. A REBOOT command resets through esp_restart(), which the chip reports as a
+// software reset; this word, which survives a software reset, tells the two apart.
+constexpr uint32_t        kRebootMarker = 0x5245424Fu;  // "REBO"
+RTC_NOINIT_ATTR uint32_t g_reboot_marker;
+
+lran::ResetCause reset_cause() {
+  const bool commanded = g_reboot_marker == kRebootMarker;
+  g_reboot_marker      = 0;
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:  return lran::ResetCause::PowerOn;
+    case ESP_RST_SW:       return commanded ? lran::ResetCause::RebootCommand : lran::ResetCause::Software;
+    case ESP_RST_PANIC:    return lran::ResetCause::Panic;
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:      return lran::ResetCause::Watchdog;
+    case ESP_RST_BROWNOUT: return lran::ResetCause::Brownout;
+    case ESP_RST_EXT:      return lran::ResetCause::External;
+    default:               return lran::ResetCause::Unknown;
+  }
+}
+
+class Node final : public RadioClient, public GateLinkPort {
+ public:
+  Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
+
+  void begin(const uint8_t* key, size_t key_len) {
+    ctx_.id = lran::kNodeGateLink;
+    std::memcpy(ctx_.key, key, key_len < sizeof(ctx_.key) ? key_len : sizeof(ctx_.key));
+    lran::node::reset_context(ctx_, random_u32);  // spec 10.1 - a new ctx_id every boot
+  }
+
+  // RadioClient
+  void on_frame(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_db10,
+                uint32_t now_ms) override {
+    engine_.receive(ctx_, app_, buf, len, rssi_dbm, snr_db10, now_ms);
+  }
+  void            on_phy_crc_error(uint32_t) override { lran::node::Engine::on_phy_crc_error(ctx_); }
+  lran::Counters* counters() override { return &ctx_.counters; }
+
+  // GateLinkPort
+  bool dispatch(const RelaySequence& seq) override { return xQueueSend(g_cmd_q, &seq, 0) == pdTRUE; }
+  NodeSnapshot snapshot() const override {
+    const IoSnapshot io = io_snapshot();
+    NodeSnapshot     n;
+    n.inputs             = io.inputs;
+    n.node_mv            = io.sensors.bus_mv;
+    n.enclosure_temp_c10 = io.sensors.temp_c10;
+    n.uptime_s           = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
+    return n;
+  }
+
+  lran::node::Engine&       engine() { return engine_; }
+  lran::node::Context&      ctx() { return ctx_; }
+  GateLinkApp&              app() { return app_; }
+  lran::node::Outbox&       outbox() { return outbox_; }
+
+ private:
+  lran::node::Outbox     outbox_;
+  lran::esp32::MbedtlsMac mac_;
+  QueueSink              sink_;
+  lran::node::Engine     engine_;
+  GateLinkApp            app_;
+  lran::node::Context    ctx_;
+};
+
+// Static, not on lora_task's stack: the outbox alone is 4 KB, and the engine holds a full
+// CONFIG and CONFIG_ACK (root rule 3).
+Node g_node;
+
+const uint8_t* g_node_key     = nullptr;
+size_t         g_node_key_len = 0;
+
+// What the console's `lran` line reads. Copied by lora_task once a pass; one writer.
+struct NodeView {
+  uint32_t ctx_id      = 0;
+  uint16_t tx_seq      = 0;
+  bool     pending     = false;
+  uint32_t rx_frames   = 0;
+  uint32_t tx_frames   = 0;
+  uint32_t rejected    = 0;  // ctx, MAC and seq refusals
+  uint32_t dup_command = 0;
+  uint32_t executions  = 0;
+  uint32_t dispatched  = 0;
+  uint32_t busy        = 0;
+  uint32_t dropped     = 0;  // answers the outbox had no room for
+  uint32_t cmd_i2c     = 0;
+};
+portMUX_TYPE g_view_mux = portMUX_INITIALIZER_UNLOCKED;
+NodeView     g_view;
+
+// lora_task waits this long on DIO1 or io_task with nothing moving, and this long while a
+// frame is in media access or on the air, whose steps are read from the IRQ register.
+constexpr uint32_t kLoraIdleWaitMs   = 100;
+constexpr uint32_t kLoraActiveWaitMs = 5;
+
+// GL3 - waits on DIO1 and io_task, through one task notification. GL1's bus test still
+// drives the radio from here while it runs.
 void lora_task(void*) {
-  const int16_t st = radio_begin();
+  g_node.begin(g_node_key, g_node_key_len);
+  const int16_t st = radio_begin(xTaskGetCurrentTaskHandle());
   g_radio_status.store(st, std::memory_order_relaxed);
+
+  // spec 10.7 - STATUS with BOOT, then the BOOT event with its cause. Queued now; media
+  // access sends them once the radio is up.
+  const lran::ResetCause cause = reset_cause();
+  if (!g_node.engine().announce_boot(g_node.ctx(), g_node.app(), cause, now_ms())) {
+    QueueSink().line("boot: announcement not queued");
+  }
+
+  uint32_t cmd_seq = io_snapshot().cmd_seq;
   for (;;) {
     count(TaskId::Lora);
-    if (st == 0 && g_bus_run.load(std::memory_order_relaxed)) {
+    const bool active = radio_tx_active() || g_node.outbox().size() != 0 ||
+                        g_bus_run.load(std::memory_order_relaxed);
+    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(active ? kLoraActiveWaitMs : kLoraIdleWaitMs));
+    const uint32_t now = now_ms();
+
+    radio_service(&g_node, &g_node.outbox(), now);
+
+    // Impl Plan 5.2 - the ACK after the last trailing edge. A failed expander write has no
+    // AckResult (spec 8.2); it is counted, and the handoff carries the question.
+    const IoSnapshot io = io_snapshot();
+    if (io.cmd_seq != cmd_seq) {
+      cmd_seq = io.cmd_seq;
+      g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
+    }
+    g_node.engine().tick(g_node.ctx(), now);
+
+    // spec 8.1 - a REBOOT resets once its ACK is on the air.
+    if (g_node.engine().restart_owed() && g_node.outbox().size() == 0 && radio_tx_idle()) {
+      g_reboot_marker = kRebootMarker;
+      esp_restart();
+    }
+
+    if (g_bus_run.load(std::memory_order_relaxed)) {
       const int64_t t0 = esp_timer_get_time();
       const bool    ok = radio_probe();
       note_max(g_bus.radio_max_us, t0);
       (ok ? g_bus.radio_ok : g_bus.radio_bad).fetch_add(1, std::memory_order_relaxed);
-      vTaskDelay(pdMS_TO_TICKS(kBusRadioPeriodMs));
-    } else {
-      vTaskDelay(pdMS_TO_TICKS(1000));
     }
+
+    const lran::Counters& k = g_node.ctx().counters;
+    NodeView              v;
+    v.ctx_id      = g_node.ctx().ctx_id;
+    v.tx_seq      = g_node.ctx().tx_seq;
+    v.pending     = g_node.ctx().pending.active;
+    v.rx_frames   = radio_stats().rx_frames;
+    v.tx_frames   = radio_stats().tx_frames;
+    v.rejected    = k.rx_rejected_ctx + k.rx_rejected_mac + k.rx_rejected_seq;
+    v.dup_command = k.rx_dup_command;
+    v.executions  = g_node.ctx().executions;
+    v.dispatched  = g_node.app().dispatched();
+    v.busy        = g_node.app().dispatch_refused();
+    v.dropped     = g_node.engine().answers_dropped();
+    v.cmd_i2c     = io.cmd_i2c_failures;
+    portENTER_CRITICAL(&g_view_mux);
+    g_view = v;
+    portEXIT_CRITICAL(&g_view_mux);
   }
 }
 
@@ -395,6 +624,7 @@ const char* pulse_result_name(PulseResult r) {
 //   sd                mount the card and append a line to /gl1.txt
 //   beep              the buzzer
 //   radio             radio_begin()'s status
+//   lran              the protocol node: context, frames, refusals, commands (GL3)
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
@@ -476,6 +706,20 @@ void console_command(char* cmd) {
       g_bus_run.store(true, std::memory_order_relaxed);
       n = std::snprintf(line, sizeof(line), "bus: %lu s started", secs);
     }
+  } else if (std::strcmp(cmd, "lran") == 0) {
+    portENTER_CRITICAL(&g_view_mux);
+    const NodeView v = g_view;
+    portEXIT_CRITICAL(&g_view_mux);
+    n = std::snprintf(line, sizeof(line),
+                      "lran: ctx %08lx seq %u%s; rx %lu tx %lu; refused %lu dup %lu; exec %lu, "
+                      "pulsed %lu busy %lu, i2c lost %lu; dropped %lu log %lu",
+                      static_cast<unsigned long>(v.ctx_id), static_cast<unsigned>(v.tx_seq),
+                      v.pending ? ", command in flight" : "", static_cast<unsigned long>(v.rx_frames),
+                      static_cast<unsigned long>(v.tx_frames), static_cast<unsigned long>(v.rejected),
+                      static_cast<unsigned long>(v.dup_command), static_cast<unsigned long>(v.executions),
+                      static_cast<unsigned long>(v.dispatched), static_cast<unsigned long>(v.busy),
+                      static_cast<unsigned long>(v.cmd_i2c), static_cast<unsigned long>(v.dropped),
+                      static_cast<unsigned long>(g_log_dropped.load(std::memory_order_relaxed)));
   } else if (std::strcmp(cmd, "beep") == 0) {
     board_beep(2000, 200);
     n = std::snprintf(line, sizeof(line), "beep");
@@ -490,7 +734,7 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | bus <s> | restart | hang");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | bus <s> | restart | hang");
   }
   write_line(line, n, sizeof(line));
 }
@@ -529,6 +773,10 @@ void log_task(void*) {
         bus_next += 1000;
         write_line(line, bus_line(line, sizeof(line), head), sizeof(line));
       }
+    }
+    LogLine engine_line;
+    while (xQueueReceive(g_log_q, &engine_line, 0) == pdTRUE) {
+      write_line(engine_line.text, std::strlen(engine_line.text), sizeof(engine_line.text));
     }
     while (Serial.available() > 0) {
       const int c = Serial.read();
@@ -591,9 +839,13 @@ static_assert(sizeof(StackType_t) == 1, "ESP-IDF counts stack depth in bytes (ta
 
 }  // namespace
 
-size_t start_tasks(const PageText& boot_page) {
-  g_boot_page = boot_page;
+size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len) {
+  g_boot_page    = boot_page;
+  g_node_key     = node_key;
+  g_node_key_len = node_key_len;
   g_pulse_q = xQueueCreateStatic(4, sizeof(PulseRequest), g_pulse_q_buf, &g_pulse_q_storage);
+  g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
+  g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
   size_t started = 0;
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];
@@ -602,6 +854,7 @@ size_t start_tasks(const PageText& boot_page) {
         kSlots[i].body, spec.name, spec.stack_bytes, nullptr, spec.priority, kSlots[i].stack,
         &g_tcb[i], spec.core == kAnyCore ? tskNO_AFFINITY : spec.core);
     if (h != nullptr) ++started;
+    if (spec.id == TaskId::Lora) g_lora_handle = h;
   }
   return started;
 }
