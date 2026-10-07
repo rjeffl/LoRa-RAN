@@ -779,8 +779,9 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
 - No task blocks on the LoRa transmit path; frames are queued.
 - **The watchdog is not armed yet.** L6 starts the tasks without it, because its timeout
   is a timing constant on a node with no OTA (root rule 8). The bridge fixed its own at
-  10 s, arguing from OTA, which GateLink lacks. Decide the timeout, and whether it is a
-  parameter, at GL3.
+  10 s, arguing from OTA, which GateLink lacks. **Decided 2026-10-07, by the operator: a
+  parameter**, `watchdog_timeout_s` in `lib/lran-config/`'s table, default 10 s, applied
+  at boot and again when it is set.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
   masked by a healthy I/O loop.
 - **`CommandGate::check()` runs in the receive path, before dispatch; `record()` runs
@@ -791,16 +792,18 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   lock, so the two calls are serialized: post the result back to the task that owns the
   gate, or guard it. `lran-node` (L1) must expose `check()` and `record()` as separate
   steps for this reason. **Decided 2026-10-07, by the operator: the ACK waits for the
-  pulse to complete, not for the gate to move.** `io_task` reports the trailing edge, or
-  the I²C failure that stopped the pulse, and that is the result `record()` caches. Spec
-  §6.3 already rules out waiting for movement: `ACCEPTED` means dispatched, and only a
-  `STATUS` with `GATE_STATE_CHANGE` confirms motion. Waiting for
-  `command_confirm_timeout_s` (5 s) would also outlast the bridge's 3 s ACK timeout on
-  every command. Acknowledging on dispatch would cache success for a pulse that failed. At
-  the defaults the window is at most a 500 ms `relay_min_spacing_ms` wait and a 500 ms
-  `relay_pulse_ms` pulse, inside 3 s. At the ranges' upper ends, 5000 ms and 2000 ms, a
-  retry can land in it and go unanswered, and the next retry gets `DUPLICATE_CACHED`
-  (Protocol Spec §9.4).
+  pulse to complete, not for the gate to move.** `io_task` reports the last trailing edge
+  of the command's sequence, and `record()` runs then. Spec §6.3 already rules out waiting
+  for movement: `ACCEPTED` means dispatched, and only a `STATUS` with
+  `GATE_STATE_CHANGE` confirms motion. Waiting for `command_confirm_timeout_s` (5 s) would
+  also outlast the bridge's 3 s ACK timeout on every command. At the defaults the longest
+  window is an immediate close: a `relay_min_spacing_ms` wait, K2, `unlock_settle_ms`, K4,
+  each 500 ms, so 2 s inside the 3 s timeout. Near the ranges' upper ends a retry lands
+  in the window and goes unanswered, and the next retry gets `DUPLICATE_CACHED`
+  (Protocol Spec §9.4). **A pulse the expander did not carry out has no `AckResult`.**
+  Spec §8.2 holds that a pulse either happens or the node is not running, but an I²C
+  write can fail. GateLink counts the failure and answers `ACCEPTED`. Whether the ACK
+  should say so is a question for the specification (handoff, *Open*).
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls

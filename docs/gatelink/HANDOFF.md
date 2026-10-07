@@ -245,6 +245,10 @@ board's are its D-pads (expansion board §6.1).
   timing is the operator's. [`lib/vedirect/osh-labs-deviations.md`](../../lib/vedirect/osh-labs-deviations.md)
   lists them. Re-check each row against upstream's latest commit first, report rows 1, 4
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
+- **Spec §8.2 has no `AckResult` for a relay pulse the expander did not carry out.** It
+  holds that a pulse "either happens or the node is not running", but an I²C write can
+  fail. GateLink counts the failure and answers `ACCEPTED` (plan §5.2). A spec question:
+  a new result, or a meaning for `detail` under `ACCEPTED`.
 - **An SD write holds the SPI bus lock for up to 59 ms**, and the radio waits behind it
   (engineering log, 2026-10-06). GL3's radio driver inherits that wait.
 - **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3.
