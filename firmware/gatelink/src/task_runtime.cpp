@@ -460,6 +460,8 @@ struct NodeView {
   uint32_t busy        = 0;
   uint32_t dropped     = 0;  // answers the outbox had no room for
   uint32_t cmd_i2c     = 0;
+  uint8_t  outbox      = 0;  // frames waiting for media access
+  bool     tx_active   = false;
 };
 portMUX_TYPE g_view_mux = portMUX_INITIALIZER_UNLOCKED;
 NodeView     g_view;
@@ -529,6 +531,8 @@ void lora_task(void*) {
     v.busy        = g_node.app().dispatch_refused();
     v.dropped     = g_node.engine().answers_dropped();
     v.cmd_i2c     = io.cmd_i2c_failures;
+    v.outbox      = static_cast<uint8_t>(g_node.outbox().size());
+    v.tx_active   = radio_tx_active();
     portENTER_CRITICAL(&g_view_mux);
     g_view = v;
     portEXIT_CRITICAL(&g_view_mux);
@@ -643,7 +647,7 @@ size_t bus_line(char* line, size_t cap, const char* head) {
 }
 
 void console_command(char* cmd) {
-  char line[160];
+  char line[200];
   size_t n = 0;
   char* arg = std::strchr(cmd, ' ');
   if (arg != nullptr) *arg++ = '\0';
@@ -687,7 +691,21 @@ void console_command(char* cmd) {
     if (st == INT16_MIN) {
       n = std::snprintf(line, sizeof(line), "radio: not started");
     } else {
-      n = std::snprintf(line, sizeof(line), "radio: RadioLib status %d - %s", st, st == 0 ? "up" : "FAILED");
+      // Aligned 32-bit words, which lora_task alone writes: a read is never torn.
+      const RadioStats& r = radio_stats();
+      portENTER_CRITICAL(&g_view_mux);
+      const NodeView v = g_view;
+      portEXIT_CRITICAL(&g_view_mux);
+      n = std::snprintf(line, sizeof(line),
+                        "radio: RadioLib status %d - %s; begin fails %lu; rx %lu err %lu; tx %lu "
+                        "err %lu timeout %lu forced %lu; cad err %lu deferred %lu; outbox %u%s; last error %s %d",
+                        st, st == 0 ? "up" : "FAILED", static_cast<unsigned long>(r.begin_failures),
+                        static_cast<unsigned long>(r.rx_frames), static_cast<unsigned long>(r.rx_driver_errors),
+                        static_cast<unsigned long>(r.tx_frames), static_cast<unsigned long>(r.tx_errors),
+                        static_cast<unsigned long>(r.tx_timeouts), static_cast<unsigned long>(r.tx_forced),
+                        static_cast<unsigned long>(r.cad_errors), static_cast<unsigned long>(r.cad_deferred),
+                        static_cast<unsigned>(v.outbox), v.tx_active ? ", sending" : "",
+                        r.last_error_at[0] != '\0' ? r.last_error_at : "none", r.last_error);
     }
   } else if (std::strcmp(cmd, "bus") == 0) {
     const unsigned long secs = arg != nullptr ? std::strtoul(arg, nullptr, 10) : 0;

@@ -86,6 +86,11 @@ constexpr RadioLibIrqFlags_t kRxIrqFlags =
 
 uint32_t elapsed(uint32_t now_ms, uint32_t since_ms) { return now_ms - since_ms; }
 
+void note_error(const char* at, int16_t status) {
+  g_stats.last_error_at = at;
+  g_stats.last_error    = status;
+}
+
 int16_t snr_db10(float snr) {
   const long v = std::lround(snr * 10.0f);
   if (v < INT16_MIN + 1) return INT16_MIN + 1;  // INT16_MIN is the "not available" sentinel
@@ -144,6 +149,7 @@ void radio_failed(int16_t status, uint32_t now_ms) {
 int16_t try_begin(uint32_t now_ms) {
   const int16_t st = configure();
   if (st != RADIOLIB_ERR_NONE) {
+    note_error("begin", st);
     radio_failed(st, now_ms);
     return st;
   }
@@ -161,6 +167,7 @@ void start_receive(uint32_t now_ms) {
   g_arrival.reset();
   const int16_t st = start_receive_radio();
   if (st != RADIOLIB_ERR_NONE) {
+    note_error("startReceive", st);
     radio_failed(st, now_ms);
     return;
   }
@@ -217,6 +224,7 @@ void start_transmit(uint32_t now_ms) {
   if (g_access.forced()) ++g_stats.tx_forced;
   const int16_t st = g_radio->startTransmit(g_tx.bytes, g_tx.len);
   if (st != RADIOLIB_ERR_NONE) {
+    note_error("startTransmit", st);
     ++g_stats.tx_errors;
     end_tx();
     start_receive(now_ms);
@@ -253,6 +261,7 @@ void start_cad(RadioClient* client, uint32_t now_ms) {
   }
   const int16_t st = g_radio->startChannelScan();
   if (st != RADIOLIB_ERR_NONE) {
+    note_error("startChannelScan", st);
     if (report_cad(client, CadResult::Error, now_ms) == TxStep::Transmit) {
       start_transmit(now_ms);
     } else {

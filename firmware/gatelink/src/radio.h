@@ -49,12 +49,15 @@ struct RadioStats {
   uint32_t tx_forced         = 0;  // spec 12.3's "transmit regardless"
   uint32_t cad_errors        = 0;
   uint32_t cad_deferred      = 0;  // a CAD not started because a frame was arriving
+  // The last RadioLib call that failed, and its status: what a count alone cannot say.
+  const char* last_error_at  = "";
+  int16_t     last_error     = 0;
 };
 
 // Configures the radio from kCarrierRadio and lran::link::kPhy and starts receiving.
 // `task` is lora_task's handle, which DIO1 notifies. Returns RadioLib's status: 0 is
-// success, -2 CHIP_NOT_FOUND, -707 SPI_CMD_TIMEOUT (BUSY never fell). After a failure,
-// radio_service() tries again every 10 s.
+// success, -2 CHIP_NOT_FOUND, -705 SPI_CMD_TIMEOUT (BUSY never fell), -707 SPI_CMD_FAILED.
+// After a failure, radio_service() tries again every 10 s.
 int16_t radio_begin(void* task);
 
 // One pass: hand a received frame to the client, then move the next outgoing frame through
