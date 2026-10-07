@@ -78,7 +78,8 @@ struct IoSnapshot {
   std::tm      rtc{};
   bool         rtc_ok        = false;
   // The last pulse, timed from the expander's acknowledgements: the moment the relay
-  // driver was told, not the contact. The scope measures the contact.
+  // driver was told, not the contact. A logic analyzer on the contact read 0.6-1.7 ms
+  // shorter (bench, 2026-10-07).
   uint32_t     pulse_seq     = 0;  // bumped when a pulse ends or is refused
   uint8_t      pulse_relay   = 0;
   PulseResult  pulse_result  = PulseResult::Started;
