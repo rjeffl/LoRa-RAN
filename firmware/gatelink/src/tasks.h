@@ -76,6 +76,7 @@ uint32_t param_default(uint16_t id);
 // GateLink's rows in lran-config's table (Impl Plan 4.4) that io_task reads.
 inline constexpr uint16_t kParamRelayPulseMs        = 0x1000;
 inline constexpr uint16_t kParamRelayMinSpacingMs   = 0x1001;
+inline constexpr uint16_t kParamUnlockSettleMs      = 0x1002;
 inline constexpr uint16_t kParamInputPollMs         = 0x1010;
 inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
 

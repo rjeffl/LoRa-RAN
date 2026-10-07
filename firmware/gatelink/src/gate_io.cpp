@@ -46,6 +46,58 @@ uint32_t RelayPulser::ms_to_edge(uint32_t now_ms) const {
   return end_ms_ - now_ms;
 }
 
+bool CommandSequencer::begin(const RelaySequence& seq, uint32_t now_ms) {
+  if (state_ != State::Idle) return false;
+  relay_[0]      = seq.first;
+  relay_[1]      = seq.second;
+  step_          = 0;
+  not_before_ms_ = now_ms;
+  ended_         = false;
+  state_         = State::Waiting;
+  return true;
+}
+
+bool CommandSequencer::service(RelayPulser& pulser, uint32_t width_ms, uint32_t spacing_ms,
+                               uint32_t settle_ms, uint32_t now_ms) {
+  if (state_ == State::Pulsing) {
+    // Nothing else can start a pulse while this one runs, so an empty mask is its edge.
+    if (pulser.mask() != 0) return false;
+    if (step_ == 1 || relay_[1] == kNoRelay) {
+      state_ = State::Idle;
+      ended_ = true;
+      end_   = SequenceEnd::Done;
+      return false;
+    }
+    step_          = 1;
+    not_before_ms_ = now_ms + settle_ms;
+    state_         = State::Waiting;
+  }
+  if (state_ != State::Waiting || !reached(now_ms, not_before_ms_)) return false;
+
+  switch (pulser.start(relay_[step_], width_ms, spacing_ms, now_ms)) {
+    case PulseResult::Started:
+      state_ = State::Pulsing;
+      return true;
+    case PulseResult::Busy:
+    case PulseResult::TooSoon:
+      return false;  // a later pass
+    case PulseResult::BadRelay:
+    case PulseResult::BadWidth:
+      break;
+  }
+  state_ = State::Idle;
+  ended_ = true;
+  end_   = SequenceEnd::Refused;
+  return false;
+}
+
+bool CommandSequencer::take_end(SequenceEnd* end) {
+  if (!ended_) return false;
+  ended_ = false;
+  *end   = end_;
+  return true;
+}
+
 uint8_t Debouncer::update(uint8_t raw, uint8_t samples) {
   if (!primed_) {
     primed_ = true;

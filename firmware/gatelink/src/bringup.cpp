@@ -16,6 +16,7 @@
 //   tx    - step 3: one transmit, with the DIO1 edge timed rather than inferred
 //   txloop <n> - n transmits back to back, to watch the 3.3 V rail through TX
 //   rx <s>     - listen s seconds and print what arrives
+//   cad [rx]   - one channel scan, from standby or from receive, with BUSY and DIO1 timed
 //   sd    - mount the microSD on the shared bus
 //   bus <s>    - step 4: LCD, microSD and radio concurrently, s seconds
 //   stat  - the counters
@@ -180,7 +181,7 @@ void cmd_begin() {
   g_radio_up = (st == RADIOLIB_ERR_NONE);
   Serial.printf("begin: RadioLib status %d - %s\n", st, g_radio_up ? "radio up" : "FAILED");
   if (!g_radio_up) {
-    // -2 is CHIP_NOT_FOUND, -707 SPI_CMD_TIMEOUT (BUSY never fell).
+    // -2 is CHIP_NOT_FOUND, -705 SPI_CMD_TIMEOUT (BUSY never fell), -707 SPI_CMD_FAILED.
     Serial.println(F("begin: suspect TCXO voltage, then NSS on G41 and BUSY on G11 (expansion board 11)"));
     return;
   }
@@ -284,6 +285,58 @@ void cmd_rx(uint32_t seconds) {
   xSemaphoreGive(g_bus);
   Serial.printf("rx: %lu frames in %lu s\n", static_cast<unsigned long>(heard),
                 static_cast<unsigned long>(seconds));
+}
+
+// GL3 - one CAD, the step lran-link's media access takes before every transmit. The node
+// image's first CAD left BUSY high until a reset (engineering log, 2026-10-07). From
+// receive is what the node does; from standby is what GL0 never tried.
+void cmd_cad(bool from_rx) {
+  if (!g_radio_up) {
+    Serial.println(F("cad: run begin first"));
+    return;
+  }
+  const int busy_pin = kCarrierRadio.busy;
+  xSemaphoreTake(g_bus, portMAX_DELAY);
+  int16_t st = from_rx ? g_radio->startReceive() : g_radio->standby();
+  xSemaphoreGive(g_bus);
+  Serial.printf("cad: %s status %d, BUSY %s\n", from_rx ? "startReceive" : "standby", st,
+                digitalRead(busy_pin) ? "high" : "low");
+  if (from_rx) delay(50);
+
+  const uint32_t edges0 = g_dio1_edges;
+  xSemaphoreTake(g_bus, portMAX_DELAY);
+  const uint32_t t0 = micros();
+  st                = g_radio->startChannelScan();
+  xSemaphoreGive(g_bus);
+  Serial.printf("cad: startChannelScan status %d\n", st);
+
+  // BUSY sampled every 100 us for 500 ms: when it fell, and whether it stayed down.
+  uint32_t busy_low_us = 0;
+  bool     fell        = false;
+  while (micros() - t0 < 500000) {
+    if (!fell && digitalRead(busy_pin) == LOW) {
+      fell        = true;
+      busy_low_us = micros() - t0;
+    }
+    if (g_dio1_edges != edges0) break;
+    delayMicroseconds(100);
+  }
+  const bool     edge    = g_dio1_edges != edges0;
+  const uint32_t edge_us = g_dio1_last_us - t0;
+  Serial.printf("cad: BUSY %s", fell ? "fell" : "NEVER FELL");
+  if (fell) Serial.printf(" at %lu us", static_cast<unsigned long>(busy_low_us));
+  Serial.printf("; DIO1 edge %s", edge ? "seen" : "NOT SEEN");
+  if (edge) Serial.printf(" at %lu us", static_cast<unsigned long>(edge_us));
+  Serial.printf("; BUSY now %s\n", digitalRead(busy_pin) ? "high" : "low");
+
+  xSemaphoreTake(g_bus, portMAX_DELAY);
+  const uint32_t irq = g_radio->getIrqFlags();
+  st                 = g_radio->standby();
+  xSemaphoreGive(g_bus);
+  Serial.printf("cad: IRQ 0x%04lX (CAD_DONE %s, DETECTED %s); standby status %d\n",
+                static_cast<unsigned long>(irq),
+                (irq & RADIOLIB_SX126X_IRQ_CAD_DONE) ? "set" : "clear",
+                (irq & RADIOLIB_SX126X_IRQ_CAD_DETECTED) ? "set" : "clear", st);
 }
 
 // `sd format` lets FatFs make a FAT32 volume, but only on a card with no FAT volume: the
@@ -427,7 +480,7 @@ void cmd_stat() {
 }
 
 void help() {
-  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | sd [format] | bus <s> | stat"));
+  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | cad [rx] | sd [format] | bus <s> | stat"));
 }
 
 void dispatch(char* line) {
@@ -449,6 +502,8 @@ void dispatch(char* line) {
     cmd_tx(n == 0 ? 20 : n);
   } else if (std::strcmp(line, "rx") == 0) {
     cmd_rx(n == 0 ? 10 : n);
+  } else if (std::strcmp(line, "cad") == 0) {
+    cmd_cad(arg != nullptr && std::strcmp(arg, "rx") == 0);
   } else if (std::strcmp(line, "sd") == 0) {
     cmd_sd(arg != nullptr && std::strcmp(arg, "format") == 0);
   } else if (std::strcmp(line, "bus") == 0) {
