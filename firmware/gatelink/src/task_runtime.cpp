@@ -8,11 +8,9 @@
 // from GL3. log_task carries the bench console. Every other body is a stub that counts its
 // passes and waits out its period; the milestone that fills it is named at it.
 //
-// THE WATCHDOG IS NOT ARMED HERE. Impl Plan 5.2 feeds it from app_task, and the timeout is a
-// timing constant on a node with no OTA (root rule 8). The bridge fixed its own at 10 s on
-// the strength of having OTA (bridge tasks.h), an argument GateLink cannot borrow. Arming it
-// waits on that decision, at GL3. Arduino-ESP32's default watchdog still watches the idle
-// task on core 0.
+// THE WATCHDOG IS NOT ARMED HERE. Impl Plan 5.2 feeds it from app_task, and its timeout is
+// the parameter watchdog_timeout_s (decided 2026-10-07; root rule 8), which a later GL3
+// slice adds. Arduino-ESP32's default watchdog still watches the idle task on core 0.
 
 #include "task_runtime.h"
 
