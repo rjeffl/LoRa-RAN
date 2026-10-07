@@ -810,3 +810,50 @@ hardware reset as a power-on does, is unmeasured.
 **`bench.py run` exits when a port disappears and a command is then written to it.** USB
 was unplugged for the power cycles. The read side logged `reopening` once a second, and
 the next `send` raised `PortNotOpenError` at `bench.py:259`, which stopped the harness.
+
+## 2026-10-07 — GL3's node image on the air: BOOT, the context roll, polls and PING pass
+
+**The first node image's frames never left: every CAD hung the radio.** `lora_task` queued
+the `BOOT` status and event at boot, and the console showed status `seq` 3 with no frame
+transmitted. The new `radio` line gave `cad err 2`, `begin fails 2` and `last error
+startReceive -707`. A CAD started cleanly, `CAD_DONE` never arrived within 500 ms, and
+every command after it failed. Each failure dropped the frame, so the outbox emptied with
+nothing on the air.
+
+**The bring-up image's new `cad` step placed it outside the firmware.** With no tasks and no
+panel traffic, `begin` succeeded and read back the version and sync word, and then a CAD
+let BUSY fall at 5.6 ms with no DIO1 edge and IRQ `0x0000`. A `tx` straight after a fresh
+`begin` failed the same way, though GL0 recorded 250 clean transmits on 2026-10-06.
+`startChannelScan` afterwards returned `WRONG_MODEM`: the chip read back packet type GFSK,
+its power-on default, so the radio was resetting when its RF chain powered up. The
+operator found a power problem at the expansion board. With it fixed, `tx`, three CADs
+from standby and from receive, and `txloop 5` all completed, each CAD with `CAD_DONE` at
+20–25 ms.
+
+**-707 is `SPI_CMD_FAILED`, not `SPI_CMD_TIMEOUT`**, which is -705. `radio.h` and
+`bringup.cpp` said otherwise from GL1, and are corrected.
+
+**On the air with the bridge, no broker.** The bridge restarted when the harness opened its
+port, at 0.0 s below:
+
+| t (s) | Bridge | Reads as |
+|---|---|---|
+| 1.44 | `rx peer=0x01 type=4 schema=16 seq=1`, `config: 01 rebooted` | The `BOOT` `STATUS` (spec 10.7) |
+| 1.85 | `rx type=5 schema=17 seq=2`, `gatelink online` | The `BOOT` event |
+| 2.05–2.86 | `tx type=1`, `rx type=2`, `roll: 01 rolled to ctx 0xe9f955c7 after 1 attempt(s)` | `ROLL_CONTEXT` and its ACK (spec 10.6) |
+| 23.78–24.80 | `tx type=3`, `poll: 01 answered in 966 ms` | A scheduled `POLL`, answered with schema `0x10` |
+
+GateLink's `lran` line read the same `ctx_id`, `0xe9f955c7`, and no refusal. The bridge's
+type 8 frame at 18.92 s went unanswered, as expected: GateLink does not take `CONFIG` yet.
+
+**PING from the simnode, identity `0xF0`, all echoed:** 32 bytes in 901 ms; 202 bytes
+`pattern` in one 222-byte frame, 2460 ms; 202 bytes `pattern` in five 48-byte fragments,
+five back, 4130 ms. RSSI −59 dBm, SNR 11.0 dB. This is GL0's ping and loopback item.
+
+**Not run: every check that needs a `COMMAND`.** The broker at 192.168.2.52 was down, and
+the bridge takes commands from MQTT alone. The ACK after the pulse, dedup of a retry and
+the context resync wait for it.
+
+**`Reset: unknown` after the harness opens the StamPLC's port.** The USB-serial-JTAG reset
+is not among `main.cpp`'s cases, and `reset_cause()` reports it as `UNKNOWN` in the `BOOT`
+event. GL3's reset-cause slice should name it.
