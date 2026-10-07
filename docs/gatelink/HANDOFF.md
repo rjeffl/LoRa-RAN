@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-05, at the end of the session that started GL0.**
-It replaces the file the session that made the document amendments wrote.
+**Written 2026-10-07, at the end of the session that started GL3.**
+It replaces the file the GL1 session wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,10 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL3** (protocol, framing and configuration on the bench) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §10.6 and §10.7; PRD R-3.5f–R-3.5k. `firmware/gatelink/CLAUDE.md` lists the console commands |
+| **GL3, the command path's bench checks** (needs the broker) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §9.4 and §10.3. `firmware/gatelink/CLAUDE.md` lists the console commands |
+| **GL3, the watchdog** | Plan §5.2, the watchdog bullets; the bridge's `tasks.h` for how it arms its own |
+| **GL3, CONFIG** | Plan §4.4 and §6.4; spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
+| **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -27,22 +30,27 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3, which opens with §5.2's two questions.** GL1 is done, except its brownout leg, which
-the operator left open (*Open*). GL3 is next on the critical path, and plan §5.2's two
-questions are due before it starts: what the `COMMAND_ACK` waits for, and the bound on a
-BLE window. Answer both in the plan before building on them. GL3 then needs GateLink and a
-bridge on air, with `simnode` alongside.
+**GL3's command-path checks, once the broker at 192.168.2.52 is back.** The command path
+is built and passes the native suite, but nothing has sent GateLink a `COMMAND` on the
+air: the bridge takes commands from MQTT alone, and the broker was down. Publish to
+`lran/gatelink/cmd/<action>/set` (`open`, `close`, `hold_open`, `release_hold`) and check
+that the ACK follows the last trailing edge, that a retry in the window goes unanswered and
+then gets `DUPLICATE_CACHED`, and that the resync after `REJECTED_CTX` behaves as spec §10.3
+says. The other three GL3 slices in *Start here* can go in any order after it. GL3 has
+several sessions in it.
 
 ## What the last session established
 
-- **The relay contacts pulse within ±10 ms.** At the default 500 ms, a logic analyzer read
-  498.2–499.3 ms on K1–K4, operate and release times included.
-- **No contact closed through five power cycles with USB unplugged.** The expander's reset
-  default, through M5GFX's GPIO 3 pulse, leaves the relays off.
-- **A watchdog reset does not release a relay that is already on.** K4, pulsed for 2000 ms
-  with a `hang` 0.57 s in, stayed closed 1262 ms, until `board_relays_off_early()` ran.
-- **The analyzer's pull-ups need a supply of their own** for any check that powers the
-  board down. A 5 V wall adapter served.
+- **Plan §5.2's three decisions, by the operator.** The `COMMAND_ACK` waits for the relay
+  sequence's last trailing edge. A reply the bridge is waiting on preempts a BLE window,
+  and `bms_window_max_ms` caps it, its default set at GL5. The watchdog timeout is a
+  parameter, `watchdog_timeout_s`, default 10 s.
+- **GateLink is on the air with the bridge.** The `BOOT` status and event, the context roll
+  after a bridge restart, and a scheduled poll all pass. PING from the simnode echoes at
+  32 bytes, 202 bytes in one frame and 202 bytes in five fragments, which closes GL0.
+- **Every CAD hung the radio until the expansion board's power was fixed.** The radio reset
+  when its RF chain powered up. The bring-up image's `cad` step shows it with no tasks
+  running. Engineering log, 2026-10-07.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -72,13 +80,13 @@ bridge on air, with `simnode` alongside.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.29. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL0: done except ping and loopback with the bridge, which wait for GL3. GL1: done except R-3.5j's brownout leg, left open by the operator |
-| Not started | GL2–GL9 |
+| Done | Plan v0.29. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain |
+| Not started | GL2, GL4–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
-pio test -d firmware/gatelink -e native       # task table and boot page (L6)
+pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp
 python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
 pio test -d lib/lran-node -e native           # the node engine (L1), split readback
@@ -106,7 +114,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with GL1's console, flashed 2026-10-06 at `3061caa`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-06 |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the GL3 node image, flashed 2026-10-07 at `9f8f6bb`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-07. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected; VE.Direct cable not fitted |
@@ -251,7 +259,10 @@ board's are its D-pads (expansion board §6.1).
   a new result, or a meaning for `detail` under `ACCEPTED`.
 - **An SD write holds the SPI bus lock for up to 59 ms**, and the radio waits behind it
   (engineering log, 2026-10-06). GL3's radio driver inherits that wait.
-- **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3.
+- **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3's
+  reset-cause slice.
+- **`Reset: unknown` after a USB-serial-JTAG reset.** `main.cpp` and `reset_cause()` have no
+  case for it, so the `BOOT` event reports `UNKNOWN`. GL3's reset-cause slice.
 - **About 7.7 kΩ of RST pull-up is unexplained**, beyond the Wio's 10 kΩ. R4 measured out
   of circuit, or RST measured with the Wio pulled, would settle it. It changes nothing
   while the boot check stands.
