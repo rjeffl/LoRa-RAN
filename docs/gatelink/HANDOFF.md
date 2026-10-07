@@ -54,8 +54,8 @@ Then close GL1: merge its PR once the operator accepts it.
   `ui_task`, the microSD from `log_task` and the radio from `lora_task`: 0 bad transfers
   in about 48,000, no reset, and `io_task` on its period throughout.
 - **M12: the INA226 reads VIN, and its shunt carries neither the node's current nor Bus
-  pin 1's.** A 5.6 mA load on Bus pin 1 left it at 0 mA. PRD R-4.4b, plan §9.8 and V-11
-  still rely on it (*Open*).
+  pin 1's.** A 5.6 mA load on Bus pin 1 left it at 0 mA. PRD v0.17 drops node current from
+  R-4.4b.
 - **The inputs debounce against a bench switch.** Ten taps gave 20 raw edges and 16
   debounced. IN8 is bit 7, and its terminal is easy to read as IN1's with the board
   upside down.
@@ -175,10 +175,12 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **PRD R-4.4b, plan §9.8 and V-11 need another source for the node's current**, since
-  M12 found the INA226 cannot give it. Options: drop node current and use the BMS or MPPT
-  figures, which measure the bank; add a current sensor on VIN; or find which socket
-  output the shunt carries. The operator's decision, before GL9.
+- **Protocol Specification §7.2.4 calls `node_ma` the "INA226 supply current"**, which
+  the INA226 cannot give (PRD R-4.4b, v0.17). The field stays and carries its sentinel; the
+  note waits for the next specification revision.
+- **The bridge still publishes a "Node supply current" entity**
+  (`firmware/bridge/src/discovery.cpp`, `ha/discovery/`), which will always read
+  unavailable. Removing it is a bridge change, not made on a GateLink branch.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
@@ -253,8 +255,7 @@ board's are its D-pads (expansion board §6.1).
   while the boot check stands.
 - **Expansion board §11 step 5** and measurement M4 wait for the MPPT on the bench; step 6
   waits for the gate.
-- **`doc-findings` 6 and 8**: VE.Direct's 5 V against 3.25 V, which M4 settles, and the
-  INA226's two readings. M12 settled 8's facts; the R-4.4b item above is what remains.
+- **`doc-findings` 6**: VE.Direct's 5 V against 3.25 V, which M4 settles.
 - **Measurements** M1–M4, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s register scales are confirmed at GL4.

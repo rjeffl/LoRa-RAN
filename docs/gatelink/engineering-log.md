@@ -737,3 +737,20 @@ tap, and the two that lasted a single sample were rejected. A bounce shorter tha
 **IN8 is bit 7 and IN1 is bit 0**, matching M5StamPLC 1.2.0's `_in_pin_list`. The switch
 was first wired to IN8 while meant for IN1. With the board mounted upside down, its
 terminal labels read the other way round.
+
+## 2026-10-07 — The StamPLC schematic answers M12, and R-4.4b drops node current
+
+**The schematic settles what M12 measured.** VIN reaches the StamPLC's system rail
+through a power MOSFET and a Zener, which protect against reverse voltage and transients,
+and nothing on that path passes through the INA226's shunt. The shunt sits on the 5 V
+output rail alone. GateLink does not use that rail, so the reading is 0 mA in this
+application, which is what M12 saw.
+
+**Reading the schematic first would have saved the bench time.** Five minutes with it
+answers M12. The bench session took over half an hour and ended in the same place. A
+measurement that asks what a host's own sensor sees starts from that host's schematic.
+
+**The operator amended PRD R-4.4b (v0.17).** The node publishes VIN from the INA226 and
+`node_ma` as its unavailable sentinel. No other current sensor is planned: node current
+was a nice-to-have, never a requirement. V-11 now compares the BMS's overnight ΔSOC, which
+is the whole bank's consumption, gate operator included, against the budget.

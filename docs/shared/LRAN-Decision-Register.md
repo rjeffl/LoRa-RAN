@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.27
+**Version:** 0.28
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-06
+**Last updated:** 2026-10-07
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -1241,7 +1241,7 @@ Plan's B1a row, the repository README and root `CLAUDE.md` — all corrected in 
 | M9 | Real EXIT→SAFETY gap times, by driving the vehicle | `detect_sequence_window_ms` default | GateLink Impl Plan |
 | M10 | Exit wand hold / de-assert behaviour with a stationary vehicle | Debounce and re-trigger lockout. Some wands de-assert after a hold time, producing repeated edges from an idling vehicle | GateLink Impl Plan |
 | M11 | Which loop input the loop detector occupies; whether EDGE is in use | Spare-capacity record | GateLink Impl Plan |
-| M12 | ~~Node supply current via the onboard INA226~~ | **Done (2026-10-06).** **It cannot measure it.** The INA226's bus voltage reads VIN, and its shunt carries neither the node's supply nor the carrier's Bus pin 1 draw: with a DVM in series on VIN, a 5.6 mA load on Bus pin 1 left it at 0 mA (GateLink engineering log). The budget rows it was to close stay open, and GateLink PRD R-4.4b and V-11 need another source | GateLink Impl Plan |
+| M12 | ~~Node supply current via the onboard INA226~~ | **Done (2026-10-06).** **It cannot measure it.** The INA226's bus voltage reads VIN, and its shunt carries neither the node's supply nor the carrier's Bus pin 1 draw: with a DVM in series on VIN, a 5.6 mA load on Bus pin 1 left it at 0 mA (GateLink engineering log). The budget rows it was to close stay open. GateLink PRD v0.17 drops node current from R-4.4b, and V-11 reads the BMS's overnight ΔSOC | GateLink Impl Plan |
 | M13 | Enclosure temperature, seasonal, across LM75 + MPPT + BMS | **D29** | GateLink Impl Plan |
 | M14 | One week of MPPT yield (H19/H20/H21) and battery Vmin baseline before install | Install go/no-go, and the *actual* present margin for free | GateLink Impl Plan |
 | M15 | ~~DIN-rail carrier selection, then cut the perfboard to it~~ | **Withdrawn (2026-10-02)** with D27's sub-item. The carrier is supported by its header and a standoff, not a DIN carrier (§3.14) | GateLink Impl Plan |
@@ -1326,6 +1326,9 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.28** — **M12's row names its outcome**: GateLink PRD v0.17 drops node current
+  from R-4.4b. No decision changes.
 
 - **v0.27** — **M12 done on 2026-10-06**: the StamPLC's INA226 reads VIN but not the
   node's current or the bank's. No decision changes.

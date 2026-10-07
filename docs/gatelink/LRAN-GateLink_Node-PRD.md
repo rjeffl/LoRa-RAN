@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.16
+**Version:** 0.17
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-07
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -545,9 +545,12 @@ steel gate-controller enclosure  (outdoors, at the gate)
 
 - **R-4.4a.** GateLink SHALL be powered **directly from the 12 V LiFePO4 pack** through
   an inline fuse to the host's VIN terminal block. No intermediate 12 V→5 V adapter.
-- **R-4.4b.** The node SHALL measure and publish **its own supply voltage and current**
-  from the onboard INA226. Node consumption becomes a measured telemetry value rather
-  than a budget assumption.
+- **R-4.4b.** The node SHALL measure and publish **its supply voltage** from the onboard
+  INA226, whose bus voltage reads VIN (measurement M12). **No provision exists for
+  measuring the node's own current, and none is planned.** The INA226's shunt sits on the
+  host's 5 V output, which GateLink does not use, so `node_ma` carries its unavailable
+  sentinel. Node consumption stays a budget figure, checked against the bank at V-11.
+  Node current was a nice-to-have, never a requirement.
 - **R-4.4c. Nothing SHALL depend on a clean shutdown or on RAM surviving a power
   event.** Unlike a lead-acid pack, which sags, a LiFePO4 pack goes to **zero volts at
   the terminals** when the BMS opens. GateLink will not brown out gracefully; it will
@@ -875,7 +878,7 @@ as unavailable.
 
 | Entity | Type | Source |
 |---|---|---|
-| Node supply voltage / current | `sensor` (diagnostic) | INA226 |
+| Node supply voltage | `sensor` (diagnostic) | INA226, reading VIN |
 | Enclosure temperature | `sensor` | LM75 |
 | MPPT temperature | `sensor` (diagnostic) | MPPT |
 | Node uptime, boot count | `sensor` (diagnostic) | node |
@@ -972,7 +975,7 @@ implementation plan.*
 | **V-8** | Every command path from HA, with **relay dry-run enabled first** | Command logic must be validated before anything can move the gate |
 | **V-9** | Both manual UNLOCK paths, **before the first real hold-open** | **S-6**. A held gate with no manual release is the failure this guards against |
 | **V-10** | Configuration round-trip: set every parameter, confirm the ACK, power-cycle, confirm the override survived — **then repeat with the microSD removed** and confirm the change still applies and is honestly reported as unpersisted | R-5.3d has two halves and the second one is the one that gets skipped |
-| **V-11** | Measured daily consumption against budget, using the onboard INA226 | R-4.4b makes this free; not doing it would be perverse |
+| **V-11** | Measured daily consumption against budget, from the BMS's overnight ΔSOC. That is the bank's consumption, gate operator included, not the node's alone | The node cannot measure its own current (R-4.4b) |
 | **V-12** | Seasonal enclosure-temperature log across all three sensors | **D29** closes on logged maxima, not on a datasheet |
 
 ### 9.2 Staged validation requirement
@@ -1000,6 +1003,12 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.17** — **R-4.4b drops the node's own current.** Measurement M12 found the
+  INA226's shunt does not carry the node's supply, and the host's schematic puts it on the
+  5 V output, which GateLink does not use. No other current sensor is planned. The INA226
+  still gives the supply voltage. §8's entity table loses node current, and **V-11** now
+  measures the bank's consumption through the BMS's overnight ΔSOC.
 
 - **v0.16** — **R-6.1b and S-6 name `docs/gatelink/`** for `mppt-config.md` and
   `1050-config.md`, which they placed under `/docs/`. The Implementation Plan already uses

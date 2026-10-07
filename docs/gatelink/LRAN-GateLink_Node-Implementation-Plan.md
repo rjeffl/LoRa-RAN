@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.29
+**Version:** 0.30
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.16
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.17
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -334,10 +334,12 @@ behaviour*).
 **The INA226 measures VIN, and neither the node's current nor the bank's.** M12 settled it
 at GL1, on 2026-10-06 (engineering log). Its bus voltage reads VIN, which is the bank's
 voltage behind the inline fuse. Its shunt carries neither the node's own supply nor the
-carrier's draw through Bus pin 1: a 5.6 mA load on Bus pin 1 left it at 0 mA. M5StamPLC
-calls the reading the current of "the right side io socket," on some output of the socket
-other than Bus pin 1. **§9.8's node-current row, V-11 and PRD R-4.4b still read it as
-the node's supply**, and need a requirement change before GL9 relies on them.
+carrier's draw through Bus pin 1: a 5.6 mA load on Bus pin 1 left it at 0 mA. The
+StamPLC schematic, read after M12, shows why. VIN reaches the system rail through a power
+MOSFET and a Zener, for reverse-voltage and transient protection, and the INA226's shunt
+sits on the 5 V output rail alone, which GateLink does not use. **PRD R-4.4b (v0.17)
+therefore asks for the supply voltage only.** The node publishes `node_ma` as its
+unavailable sentinel, and no other current sensor is planned.
 
 ### 3.5 Carrier board layout
 
@@ -1126,7 +1128,7 @@ into a document.
 | V-8 command paths | **Dry-run first**, then live | GL7 |
 | V-9 manual unlock | Physical test, **before the first real hold-open** | GL7 |
 | V-10 config round-trip | With card, then **with the card removed** | GL3 |
-| V-11 consumption vs. budget | Onboard INA226 over a soak period | GL9 |
+| V-11 consumption vs. budget | BMS overnight ΔSOC over a soak period | GL9 |
 | V-12 thermal | Seasonal log, three sensors | GL9 |
 
 ### 7.2 Staged safety gating
@@ -1231,7 +1233,7 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 | **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
 | **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
 | **GL8** | **HA integration** | GL3–GL7 | Discovery publishes one device per node with correct availability. Command round-trip works end to end. All §7.2 entities present and populated. **Held-open and FIRE events verified to fire exactly once and not replay on HA restart or discovery refresh.** Configuration `number` entities read and write |
-| **GL9** | **Field soak** | GL8 | Installed. Measured daily consumption from the INA226 compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
+| **GL9** | **Field soak** | GL8 | Installed. Measured daily consumption from the BMS's overnight ΔSOC compared against budget. Overnight ΔSOC and days-since-full tracked. **Seasonal enclosure-temperature log begun across all three sensors (D29).** Error paths exercised: link loss, BLE failure, VE.Direct stall, microSD removal |
 
 **Critical path:** L1 → GL3 → GL6 → GL7 → GL8 → GL9, with GL0 and GL1 joining at GL3. L1 is the
 longest library task and nothing on the node's protocol side starts without it. GL2 runs in
@@ -1465,7 +1467,7 @@ free.
 | Daily Vmin | MPPT | Proxy for depth of discharge if SOC is unavailable |
 | Days since full | derived | Early warning of a sustained deficit |
 | Charging-inhibited hours | derived | Distinguishes cold events from real faults |
-| Node supply V/I | INA226 | Node consumption, measured not assumed |
+| Node supply voltage | INA226 | VIN, a cross-check on the MPPT's battery voltage |
 | Three temperatures | LM75 / MPPT / BMS | **D29** |
 
 **Decision rule for a panel upgrade:** upgrade only if *days-since-full* trends upward
@@ -1474,6 +1476,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.30** — **PRD v0.17: R-4.4b drops the node's own current.** §3.4 records the
+  schematic's reason, and §9.8, V-11 and GL9 measure consumption from the BMS's overnight
+  ΔSOC instead of the INA226.
 
 - **v0.29** — **M12 settled at GL1** (§3.4). The INA226 reads VIN, and its shunt carries
   neither the node's supply nor the carrier's Bus pin 1 draw. §9.8's node-current row and
