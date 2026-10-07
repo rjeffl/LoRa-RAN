@@ -26,6 +26,8 @@ level does not settle D25, which is about the low level against a 10 kΩ load.
 **Correct statement:** not yet established. **Measurement M4** settles D25. The plan keeps
 both statements until it runs.
 
+## Fixed
+
 ### 8. What the StamPLC's INA226 measures is stated two ways
 
 **Found 2026-10-01**, in the same reconciliation.
@@ -36,10 +38,10 @@ Implementation Plan §9.8 and V-11 use it for the **node's** own supply.
 **Correct statement:** neither. **Measurement M12** found on 2026-10-06 that the INA226's
 bus voltage reads VIN, and its shunt carries neither the node's supply nor the carrier's
 draw through Bus pin 1 (engineering log). Plan §3.4 and expansion board §7.7 now say so.
-PRD R-4.4b, plan §9.8 and V-11 still use it for the node's current, and need a
-requirement change.
+The StamPLC schematic puts the shunt on the host's 5 V output, which GateLink does not use.
 
-## Fixed
+**Fixed 2026-10-07** on branch `gl-r44b-node-current`, by operator decision. PRD v0.17
+drops node current from R-4.4b, and V-11 and plan §9.8 read the BMS's overnight ΔSOC.
 
 ### 10. The protocol specification points at `/docs/bms-protocol.md`, which does not exist
 
