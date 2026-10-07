@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// GL1 - relay pulse timing and input debounce (GateLink Impl Plan 4.4, 5.2).
+// GL1 - relay pulse timing and input debounce; GL3 - the command sequencer (GateLink Impl
+// Plan 4.4, 5.2, 6.1).
 
 #include <unity.h>
 
@@ -106,6 +107,83 @@ void test_samples_of_one_follow_every_read() {
   TEST_ASSERT_EQUAL_HEX8(0x10, d.update(0x10, 1));
 }
 
+// GL3 - a one-pulse command ends at its trailing edge, not at its start (Impl Plan 5.2).
+void test_sequence_of_one_ends_at_the_trailing_edge() {
+  RelayPulser      p;
+  CommandSequencer q;
+  SequenceEnd      end;
+  TEST_ASSERT_TRUE(q.begin({2, kNoRelay}, 0));
+  TEST_ASSERT_TRUE(q.service(p, 500, 500, 500, 0));
+  TEST_ASSERT_EQUAL_HEX8(0x04, p.mask());
+  TEST_ASSERT_FALSE(q.take_end(&end));
+  p.update(500);
+  q.service(p, 500, 500, 500, 500);
+  TEST_ASSERT_TRUE(q.take_end(&end));
+  TEST_ASSERT_EQUAL(SequenceEnd::Done, end);
+  TEST_ASSERT_FALSE(q.running());
+  TEST_ASSERT_FALSE(q.take_end(&end));  // once
+}
+
+// PRD R-3.1.2c - K2, unlock_settle_ms from its trailing edge, then K4.
+void test_immediate_close_waits_the_settle() {
+  RelayPulser      p;
+  CommandSequencer q;
+  SequenceEnd      end;
+  q.begin({1, 3}, 0);
+  q.service(p, 500, 100, 700, 0);
+  TEST_ASSERT_EQUAL_HEX8(0x02, p.mask());
+  p.update(500);
+  TEST_ASSERT_FALSE(q.service(p, 500, 100, 700, 500));
+  TEST_ASSERT_FALSE(q.service(p, 500, 100, 700, 1199));
+  TEST_ASSERT_TRUE(q.service(p, 500, 100, 700, 1200));
+  TEST_ASSERT_EQUAL_HEX8(0x08, p.mask());
+  TEST_ASSERT_FALSE(q.take_end(&end));
+  p.update(1700);
+  q.service(p, 500, 100, 700, 1700);
+  TEST_ASSERT_TRUE(q.take_end(&end));
+  TEST_ASSERT_EQUAL(SequenceEnd::Done, end);
+}
+
+// R-3.1.2b - spacing delays a command; it never refuses one.
+void test_spacing_delays_a_command() {
+  RelayPulser      p;
+  CommandSequencer q;
+  p.start(0, 500, 500, 0);  // a bench pulse
+  p.update(500);
+  q.begin({2, kNoRelay}, 600);
+  TEST_ASSERT_FALSE(q.service(p, 500, 500, 500, 600));
+  TEST_ASSERT_TRUE(q.running());
+  TEST_ASSERT_TRUE(q.service(p, 500, 500, 500, 1000));
+}
+
+void test_a_pulse_in_progress_delays_a_command() {
+  RelayPulser      p;
+  CommandSequencer q;
+  p.start(0, 500, 0, 0);
+  q.begin({2, kNoRelay}, 100);
+  TEST_ASSERT_FALSE(q.service(p, 500, 0, 500, 100));
+  p.update(500);
+  TEST_ASSERT_TRUE(q.service(p, 500, 0, 500, 500));
+  TEST_ASSERT_EQUAL_HEX8(0x04, p.mask());
+}
+
+void test_bad_step_is_refused_and_ends() {
+  RelayPulser      p;
+  CommandSequencer q;
+  SequenceEnd      end;
+  q.begin({7, kNoRelay}, 0);
+  TEST_ASSERT_FALSE(q.service(p, 500, 500, 500, 0));
+  TEST_ASSERT_TRUE(q.take_end(&end));
+  TEST_ASSERT_EQUAL(SequenceEnd::Refused, end);
+  TEST_ASSERT_EQUAL_HEX8(0x00, p.mask());
+}
+
+void test_second_sequence_is_refused_while_one_runs() {
+  CommandSequencer q;
+  TEST_ASSERT_TRUE(q.begin({0, kNoRelay}, 0));
+  TEST_ASSERT_FALSE(q.begin({1, kNoRelay}, 0));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_pulse_holds_its_width_and_then_ends);
@@ -119,5 +197,11 @@ int main() {
   RUN_TEST(test_glitch_resets_the_count);
   RUN_TEST(test_bits_are_independent);
   RUN_TEST(test_samples_of_one_follow_every_read);
+  RUN_TEST(test_sequence_of_one_ends_at_the_trailing_edge);
+  RUN_TEST(test_immediate_close_waits_the_settle);
+  RUN_TEST(test_spacing_delays_a_command);
+  RUN_TEST(test_a_pulse_in_progress_delays_a_command);
+  RUN_TEST(test_bad_step_is_refused_and_ends);
+  RUN_TEST(test_second_sequence_is_refused_while_one_runs);
   return UNITY_END();
 }

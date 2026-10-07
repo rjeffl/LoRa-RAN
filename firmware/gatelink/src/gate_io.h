@@ -51,6 +51,54 @@ class RelayPulser {
   uint32_t end_ms_ = 0;      // the trailing edge, scheduled or past
 };
 
+// A relay in a RelaySequence that is not used.
+inline constexpr uint8_t kNoRelay = 0xFF;
+
+// One gate command as io_task carries it out: a single pulse, or two with a settle between
+// them. An immediate close is K2, unlock_settle_ms, then K4 (PRD R-3.1.2c, Impl Plan 6.1).
+struct RelaySequence {
+  uint8_t first  = kNoRelay;
+  uint8_t second = kNoRelay;
+};
+
+enum class SequenceEnd : uint8_t {
+  Done,     // every pulse ran to its trailing edge
+  Refused,  // the pulser refused a step as BadRelay or BadWidth
+};
+
+// Carries one RelaySequence through the RelayPulser. Impl Plan 5.2: the COMMAND_ACK waits
+// for the last trailing edge, so io_task reports the end of the sequence, not its start.
+//
+// A step the pulser answers Busy or TooSoon is tried again on a later pass rather than
+// refused: a bench pulse in progress, or relay_min_spacing_ms, delays a command; it does
+// not fail it (R-3.1.2b).
+class CommandSequencer {
+ public:
+  // False while a sequence is running. The engine runs one command at a time and answers
+  // ACTUATOR_BUSY to the rest, so a refusal here means two callers.
+  bool begin(const RelaySequence& seq, uint32_t now_ms);
+
+  // One io_task pass, after RelayPulser::update(). Returns true when it started a pulse,
+  // which is the caller's cue to write the expander.
+  bool service(RelayPulser& pulser, uint32_t width_ms, uint32_t spacing_ms, uint32_t settle_ms,
+               uint32_t now_ms);
+
+  bool running() const { return state_ != State::Idle; }
+
+  // True once, after the sequence ends; `end` receives how.
+  bool take_end(SequenceEnd* end);
+
+ private:
+  enum class State : uint8_t { Idle, Waiting, Pulsing };
+
+  State       state_    = State::Idle;
+  uint8_t     relay_[2] = {kNoRelay, kNoRelay};
+  uint8_t     step_     = 0;
+  uint32_t    not_before_ms_ = 0;  // unlock_settle_ms after the first step's trailing edge
+  bool        ended_    = false;
+  SequenceEnd end_      = SequenceEnd::Done;
+};
+
 // Eight inputs, as one mask. A bit changes only after `samples` consecutive raw reads
 // agree on its new value (input_debounce_samples; Impl Plan 4.4).
 class Debouncer {
