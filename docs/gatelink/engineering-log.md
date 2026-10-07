@@ -754,3 +754,59 @@ measurement that asks what a host's own sensor sees starts from that host's sche
 `node_ma` as its unavailable sentinel. No other current sensor is planned: node current
 was a nice-to-have, never a requirement. V-11 now compares the BMS's overnight ΔSOC, which
 is the whole bank's consumption, gate operator included, against the budget.
+
+## 2026-10-07 — GL1's relay checks on a logic analyzer: pulses, power cycles and a watchdog reset pass
+
+**The method.** A HiLetgo USB logic analyzer ran PulseView on the operator's Linux laptop,
+sampling at 1 MHz. Each relay's COM went to analyzer GND, and its NO went to a channel with
+10 kΩ to a pull-up supply, so a channel reads low while its contact is closed. The board ran
+`main`'s image (`3beb863`). **The analyzer sees the contact, not the coil.** A coil
+glitch shorter than the relay's operate time does not show, and every result below has
+that limit.
+
+**The pull-ups need their own supply for anything that powers the board down.** They were
+first fed from the Wio's 3.3 V, so every channel would have read low the moment the board
+lost power. A 5 V wall adapter replaced it for the power cycles.
+
+**Pulse widths, contact to contact, at the default 500 ms:**
+
+| Relay | Analyzer | Firmware (expander writes) |
+|---|---|---|
+| K1 | 499.3 ms | 499.9 ms |
+| K2 | 499.3 ms | 499.9 ms |
+| K3 | 499.3 ms | 499.8 ms |
+| K4 | 498.2 ms | 499.9 ms |
+
+All four are inside 500 ms ±10 ms with operate and release times included. One
+single-sample low showed on K3 when K4 operated. The operator judged it noise from the
+breadboard connections. A 1 µs low is far shorter than a contact can close, so it is not
+K3's contact; coupling from K4's switching is likely but not shown.
+
+**Five power cycles with USB unplugged: no channel went low.** The board came back with
+`relays 0x00; boot relay-off ok`. This answers the 2026-10-06 entry's open question: the
+relay expander's reset default, through M5GFX's GPIO 3 pulse inside `M5.begin()`, closes
+no contact.
+
+**A watchdog reset mid-pulse: no relay energized from the reset, but K4 held through it.**
+`relay 4 2000`, then `hang` 0.57 s later. The interrupt watchdog reset the board
+(`Reset: interrupt_watchdog`), and K4's contact stayed closed for 1262.46 ms. By the
+console's timestamps that puts its release at about the moment `setup()` ran, so
+`board_relays_off_early()` released it, not the reset: a CPU reset leaves the expander's
+latch alone. No channel went low after K4's pulse. R-3.5j is met as worded, but the same
+mechanism lengthens a pulse. A hang 100 ms into a 500 ms pulse would hold the relay for
+the watchdog timeout plus the reboot, and a hang in `io_task` itself would hold it until
+the watchdog fired. The panic output also printed `Re-entered core dump! Exception happened
+during core dump!` before rebooting.
+
+**The brownout leg was not run.** The bench supply adjusts from 5.25 V to 17 V, and at
+5.25 V the StamPLC's MP4560 still regulates: no reset and no glitch. No supply on hand
+reaches the board's reset point. The operator closed GL1 with the leg open. A VIN sag that
+deep means the LiFePO4 BMS failed to cut the battery's output at low charge. A
+catastrophic battery or BMS failure is beyond the scope of any failsafe operation.
+**Falsified by:** a VIN sag through the reset point on the analyzer, if the brownout leg is
+ever run. The 2026-10-06 entry's premise, that a brownout puts the relay expander into
+hardware reset as a power-on does, is unmeasured.
+
+**`bench.py run` exits when a port disappears and a command is then written to it.** USB
+was unplugged for the power cycles. The read side logged `reopening` once a second, and
+the next `send` raised `PortNotOpenError` at `bench.py:259`, which stopped the harness.

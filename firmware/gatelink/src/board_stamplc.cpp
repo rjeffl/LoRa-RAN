@@ -79,7 +79,8 @@ EarlyOff relays_off_early() {
   // low. M5GFX pulses GPIO 3 again inside M5.begin(), which resets the expander to its
   // defaults before io_expander_b_init() runs. That function sets each relay pin to an
   // output BEFORE it writes the pin low, so the latch's reset default decides whether a
-  // relay closes for one I2C transaction. The scope check answers that, not this write.
+  // relay closes for one I2C transaction. It does not: no contact closed through five
+  // power cycles on a logic analyzer (bench, 2026-10-07).
   EarlyOff result = EarlyOff::NoAck;
   for (int attempt = 0; attempt < 3 && result != EarlyOff::Ok; ++attempt) {
     Wire.beginTransmission(kExpanderB);
@@ -102,8 +103,8 @@ void board_begin() {
   // otherwise start it on the board definition's defaults, G11-G13: BUSY and the internal
   // I2C's SDA (GL0 bring-up).
   SPI.begin(kCarrierRadio.sck, kCarrierRadio.miso, kCarrierRadio.mosi, -1);
-  // Whether every relay output stays off through this, a watchdog reset and a brownout is
-  // GL1's scope check (PRD R-3.5j).
+  // Every relay output stayed off through this, on a logic analyzer, across power cycles
+  // and a watchdog reset (PRD R-3.5j, bench 2026-10-07). The brownout leg was not run.
   M5StamPLC.begin();
   M5StamPLC.setBacklight(true);
   // GateLink mounts the StamPLC upside down (bench, 2026-10-02). Turning from the library's
