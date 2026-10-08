@@ -722,49 +722,70 @@ void cmd_ved_scan() {
                 static_cast<unsigned>(sizeof(kScanRegs) / sizeof(kScanRegs[0])));
 }
 
-// G4 sampled as a GPIO, with Serial1 released. It tells apart the three ways `ved raw`
-// gets nothing: a line stuck high (D25, or the wrong J4 pin), a line stuck low, and edges
-// that arrive but do not frame at 19200 baud. A bit is 52 us; the shortest low seen
-// should be near that or a multiple of it.
+// G4 and G5 sampled as GPIO inputs, with Serial1 released. It tells apart the ways `ved
+// raw` gets nothing: a line stuck high (D25, or the wrong J4 pin), a line stuck low, and
+// edges that arrive but do not frame at 19200 baud. The BSS138 channels pass a low both
+// ways, so a swapped cable shows the MPPT's TX on G5. Neither pin is driven here, so a
+// swap cannot set up the contention expansion board 7.4 describes. A bit is 52 us; the
+// shortest low seen should be near that or a multiple of it.
+struct EdgeStats {
+  int      pin;
+  int      start;
+  int      prev;
+  uint32_t falls   = 0;
+  uint32_t fell    = 0;
+  uint32_t low_us  = 0;
+  uint32_t min_low = UINT32_MAX;
+  uint32_t max_low = 0;
+};
+
+void sample_edge(EdgeStats& e, uint32_t now) {
+  const int v = digitalRead(e.pin);
+  if (v == e.prev) return;
+  if (v == 0) {
+    ++e.falls;
+    e.fell = now;
+  } else if (e.falls > 0) {
+    const uint32_t w = now - e.fell;
+    e.low_us += w;
+    if (w < e.min_low) e.min_low = w;
+    if (w > e.max_low) e.max_low = w;
+  }
+  e.prev = v;
+}
+
 void cmd_ved_edges(uint32_t seconds) {
   if (g_ved_up) {
     Serial1.end();
     g_ved_up = false;
   }
-  const int pin = gatelink::kVedUartRx;
-  pinMode(pin, INPUT);
-  uint32_t       falls = 0, low_us = 0, min_low = UINT32_MAX, max_low = 0;
-  int            prev  = digitalRead(pin);
-  const int      start = prev;
-  uint32_t       fell  = micros();
-  const uint32_t t0    = millis();
+  EdgeStats e[2];
+  e[0].pin = gatelink::kVedUartRx;
+  e[1].pin = gatelink::kVedUartTx;
+  for (auto& x : e) {
+    pinMode(x.pin, INPUT);
+    x.start = x.prev = digitalRead(x.pin);
+  }
+  const uint32_t t0 = millis();
   while (millis() - t0 < seconds * 1000UL) {
     // 100 ms of tight polling, then a tick for the scheduler.
     const uint32_t c0 = micros();
-    while (micros() - c0 < 100000UL) {
-      const int v = digitalRead(pin);
-      if (v == prev) continue;
-      const uint32_t now = micros();
-      if (v == 0) {
-        ++falls;
-        fell = now;
-      } else if (falls > 0) {
-        const uint32_t w = now - fell;
-        low_us += w;
-        if (w < min_low) min_low = w;
-        if (w > max_low) max_low = w;
-      }
-      prev = v;
+    uint32_t       now;
+    while ((now = micros()) - c0 < 100000UL) {
+      sample_edge(e[0], now);
+      sample_edge(e[1], now);
     }
     delay(1);
   }
-  Serial.printf("ved edges: G%d %s at start, %s at end; %lu falling edges in %lu s; low "
-                "%lu us in all, shortest %lu us, longest %lu us\n",
-                pin, start ? "high" : "low", prev ? "high" : "low",
-                static_cast<unsigned long>(falls), static_cast<unsigned long>(seconds),
-                static_cast<unsigned long>(low_us),
-                static_cast<unsigned long>(min_low == UINT32_MAX ? 0 : min_low),
-                static_cast<unsigned long>(max_low));
+  for (const auto& x : e) {
+    Serial.printf("ved edges: G%d %s at start, %s at end; %lu falling edges in %lu s; low "
+                  "%lu us in all, shortest %lu us, longest %lu us\n",
+                  x.pin, x.start ? "high" : "low", x.prev ? "high" : "low",
+                  static_cast<unsigned long>(x.falls), static_cast<unsigned long>(seconds),
+                  static_cast<unsigned long>(x.low_us),
+                  static_cast<unsigned long>(x.min_low == UINT32_MAX ? 0 : x.min_low),
+                  static_cast<unsigned long>(x.max_low));
+  }
 }
 
 void ved_help() {
