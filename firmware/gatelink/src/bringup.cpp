@@ -490,17 +490,22 @@ void cmd_bus(uint32_t seconds) {
 
 bool                 g_ved_up = false;
 vedirect::TextParser g_text;
+// `ved swap` receives on G5 with TX off: a cable with J4 pins 2 and 3 crossed can then be
+// read before it is re-crimped, and nothing drives the MPPT. HEX refuses while it is set.
+bool                 g_ved_swapped = false;
 
 void ved_begin() {
   if (g_ved_up) return;
   // Before begin(), or the core ignores it. A text block is a few hundred bytes, and a
   // console print can hold this loop for longer than the default 256 take at 19200 baud.
   Serial1.setRxBufferSize(1024);
-  Serial1.begin(gatelink::kVedBaud, SERIAL_8N1, gatelink::kVedUartRx, gatelink::kVedUartTx);
+  const int8_t rx = g_ved_swapped ? gatelink::kVedUartTx : gatelink::kVedUartRx;
+  const int8_t tx = g_ved_swapped ? -1 : gatelink::kVedUartTx;
+  Serial1.begin(gatelink::kVedBaud, SERIAL_8N1, rx, tx);
   g_ved_up = true;
-  Serial.printf("ved: Serial1 at %lu baud, RX G%d, TX G%d\n",
-                static_cast<unsigned long>(gatelink::kVedBaud), gatelink::kVedUartRx,
-                gatelink::kVedUartTx);
+  Serial.printf("ved: Serial1 at %lu baud, RX G%d, TX %s%d\n",
+                static_cast<unsigned long>(gatelink::kVedBaud), rx, tx < 0 ? "off " : "G",
+                tx < 0 ? 0 : tx);
 }
 
 // One byte as it would be written in a C string literal, so a capture can be pasted into
@@ -651,6 +656,10 @@ bool ved_hex(const char* req, size_t n, int32_t reg) {
     Serial.printf("hex: command %X refused; this console only reads\n", q.cmd);
     return false;
   }
+  if (g_ved_swapped) {
+    Serial.println(F("hex: refused while `ved swap` is on; there is no TX"));
+    return false;
+  }
   ved_begin();
   Serial1.write(reinterpret_cast<const uint8_t*>(req), n);
   Serial1.write('\n');
@@ -789,7 +798,7 @@ void cmd_ved_edges(uint32_t seconds) {
 }
 
 void ved_help() {
-  Serial.println(F("ved: raw [s] | edges [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | stat"));
+  Serial.println(F("ved: raw [s] | edges [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | swap | stat"));
 }
 
 void cmd_ved(char* arg) {
@@ -817,6 +826,11 @@ void cmd_ved(char* arg) {
     cmd_ved_scan();
   } else if (std::strcmp(sub, "send") == 0 && rest != nullptr) {
     ved_hex(rest, std::strlen(rest), -1);
+  } else if (std::strcmp(sub, "swap") == 0) {
+    if (g_ved_up) Serial1.end();
+    g_ved_up      = false;
+    g_ved_swapped = !g_ved_swapped;
+    Serial.printf("ved swap: %s\n", g_ved_swapped ? "on, RX on G5, TX off" : "off");
   } else if (std::strcmp(sub, "stat") == 0) {
     print_counters();
   } else {
