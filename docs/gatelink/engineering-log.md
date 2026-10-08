@@ -944,3 +944,36 @@ page, and every value the app shows matches. The app showed no equalisation volt
 
 **M4 and D25 closed, by the operator's decision**, on the in-circuit result above rather
 than a scope reading. The BSS138 stays in both directions. Decision Register v0.29.
+
+## 2026-10-08 — `vedirect_task` on the carrier: readback over the air, and staleness
+
+**Image `cb92ff6`, then `177b8e3`, on the carrier at the gate's MPPT, with the bridge on
+the air and no broker.** The bridge's BF-30 readback starts once it hears the node, so it
+ran without MQTT and exercised the whole `HEX_REQ` path.
+
+**All ten BF-30 registers came back through the node, each on its first attempt.** Every
+`HEX_RSP` carried status 0 and the MPPT's reply verbatim. The values are the scan's
+above: `0xEDF7` 1420, `0xEDF6` 1350, `0xEDF4` 0, `0xEDFD` 0, `0xEDF2` 0, `0xEDF1` `0xFF`,
+`0xEDF0` 150, `0xEDFB` 200, `0xEDEA` 12 and `0xEDE0` 500. The bridge paced them over
+about 54 s.
+
+**The first Get met the Async burst and still answered.** The node counted 8 Async frames
+before the reply, and no retry was needed. So the retry at half of `hex_timeout_ms` has
+not yet run on the board; the native suite is all that covers it. After the readback the
+MPPT kept sending Async frames: the next boot counted 97 in about 150 s with no request
+sent.
+
+**Staleness, PRD R-3.3f.** With the console sampling `ved` every 2 s, the operator pulled
+the VE.Direct cable for about 15 s. The last block arrived at 122.8 s. Bit 1 was clear at
+126.9 s and set at 129.1 s, 6.2 s after it, against `vedirect_stale_s` of 5. The values
+held at the last block's while the bit was set. The bit cleared by 143.3 s, after the
+cable went back in. No block failed its checksum across the pull: 108 good, 0 bad.
+
+**The USB console loses bytes from the middle of a line.** The 190-byte `ved` line lost
+about 60 bytes, so `177b8e3` split it in two. The shorter lines then lost bytes too, one
+in about ten, so line length is not the cause. The loss is in the console, not in
+`vedirect_task`: the counters it prints agree with each other.
+
+**`vedirect_task` passes about 240 times a second**, against the 50 its 20 ms wait alone
+would give. Serial1's receive callback wakes it for each burst of bytes. Nothing has been
+starved yet.

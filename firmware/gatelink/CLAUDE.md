@@ -17,20 +17,24 @@ starts the seven tasks of plan §5.2. `io_task` times relay pulses, debounces th
 reads the buttons and sensors, and carries out each gate command's relay sequence.
 `lora_task` runs lran-node's engine on the carrier radio: it announces `BOOT`, answers
 `POLL`, `PING`, `ROLL_CONTEXT` and `COMMAND`, and sends each `COMMAND_ACK` after io_task
-reports the last trailing edge (plan §5.2). It does not answer `CONFIG` yet. `ui_task`
-shows the INA226 and LM75 on the panel's last line. `log_task` runs a bench console
-(`relay <1-4> [ms]`, `in`, `sense`, `sd`, `beep`, `radio`, `lran`, `bus <s>`, `restart`,
-`hang`), prints the engine's log lines, and prints the pass counts every 30 s as an
-`alive:` line. `radio` prints the driver's counters and its last RadioLib error; `lran`
-prints the context, frame counts, refusals and commands. `bus <s>` is GL1's SPI test. The
-other bodies are stubs.
+reports the last trailing edge (plan §5.2). It does not answer `CONFIG` yet.
+`vedirect_task` reads the MPPT's text blocks into spec §7.2.2's status fields, sets §7.2.6
+bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
+transaction at a time (plan §4.2.4). `ui_task` shows the INA226 and LM75 on the panel's
+last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`,
+`beep`, `radio`, `lran`, `ved`, `bus <s>`, `restart`, `hang`), prints the engine's log
+lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
+driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
+refusals and commands; `ved` prints the MPPT snapshot and the VE.Direct counters. `bus <s>`
+is GL1's SPI test. The other bodies are stubs.
 
 | File | What it holds | Native? |
 |---|---|---|
 | `main.cpp` | Boot, banner, task start. **The only file that includes `secrets.h`**, for `LRAN_GATELINK_NODE_KEY` alone | no |
 | `tasks.{h,cpp}` | The task table and its invariants | yes |
 | `task_runtime.{h,cpp}` | Static task creation, `io_task`, `lora_task`'s node, the bench console in `log_task`, and the stub bodies | no |
-| `gatelink_app.{h,cpp}` | GateLink's lran-node application: spec §8.1 commands to K1–K4, status and event bodies, PING echo | yes |
+| `gatelink_app.{h,cpp}` | GateLink's lran-node application: spec §8.1 commands to K1–K4, status and event bodies, PING echo, `HEX_REQ` to `vedirect_task` | yes |
+| `ved_link.{h,cpp}` | `vedirect_task`'s logic: the text cache scaled into spec §7.2.2, staleness, and one HEX transaction with its Get retry | yes |
 | `ui_pages.{h,cpp}` | Panel text, and the node key's status | yes |
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
 | `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
@@ -46,7 +50,7 @@ pins on the header board give a carrier that never answers.
 ## Build and test
 
 ```bash
-pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp
+pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2

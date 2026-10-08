@@ -79,6 +79,9 @@ inline constexpr uint16_t kParamRelayMinSpacingMs   = 0x1001;
 inline constexpr uint16_t kParamUnlockSettleMs      = 0x1002;
 inline constexpr uint16_t kParamInputPollMs         = 0x1010;
 inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
+// And those vedirect_task and lora_task read (GL4).
+inline constexpr uint16_t kParamHexTimeoutMs        = 0x1030;
+inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
 
 // ---------------------------------------------------------------------------
 // The invariants. Impl Plan 5.2's rules, written so a test can fail.
