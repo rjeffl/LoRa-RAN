@@ -722,8 +722,53 @@ void cmd_ved_scan() {
                 static_cast<unsigned>(sizeof(kScanRegs) / sizeof(kScanRegs[0])));
 }
 
+// G4 sampled as a GPIO, with Serial1 released. It tells apart the three ways `ved raw`
+// gets nothing: a line stuck high (D25, or the wrong J4 pin), a line stuck low, and edges
+// that arrive but do not frame at 19200 baud. A bit is 52 us; the shortest low seen
+// should be near that or a multiple of it.
+void cmd_ved_edges(uint32_t seconds) {
+  if (g_ved_up) {
+    Serial1.end();
+    g_ved_up = false;
+  }
+  const int pin = gatelink::kVedUartRx;
+  pinMode(pin, INPUT);
+  uint32_t       falls = 0, low_us = 0, min_low = UINT32_MAX, max_low = 0;
+  int            prev  = digitalRead(pin);
+  const int      start = prev;
+  uint32_t       fell  = micros();
+  const uint32_t t0    = millis();
+  while (millis() - t0 < seconds * 1000UL) {
+    // 100 ms of tight polling, then a tick for the scheduler.
+    const uint32_t c0 = micros();
+    while (micros() - c0 < 100000UL) {
+      const int v = digitalRead(pin);
+      if (v == prev) continue;
+      const uint32_t now = micros();
+      if (v == 0) {
+        ++falls;
+        fell = now;
+      } else if (falls > 0) {
+        const uint32_t w = now - fell;
+        low_us += w;
+        if (w < min_low) min_low = w;
+        if (w > max_low) max_low = w;
+      }
+      prev = v;
+    }
+    delay(1);
+  }
+  Serial.printf("ved edges: G%d %s at start, %s at end; %lu falling edges in %lu s; low "
+                "%lu us in all, shortest %lu us, longest %lu us\n",
+                pin, start ? "high" : "low", prev ? "high" : "low",
+                static_cast<unsigned long>(falls), static_cast<unsigned long>(seconds),
+                static_cast<unsigned long>(low_us),
+                static_cast<unsigned long>(min_low == UINT32_MAX ? 0 : min_low),
+                static_cast<unsigned long>(max_low));
+}
+
 void ved_help() {
-  Serial.println(F("ved: raw [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | stat"));
+  Serial.println(F("ved: raw [s] | edges [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | stat"));
 }
 
 void cmd_ved(char* arg) {
@@ -735,6 +780,8 @@ void cmd_ved(char* arg) {
     ved_help();
   } else if (std::strcmp(sub, "raw") == 0) {
     cmd_ved_raw(n == 0 ? 5 : n);
+  } else if (std::strcmp(sub, "edges") == 0) {
+    cmd_ved_edges(n == 0 ? 3 : n);
   } else if (std::strcmp(sub, "text") == 0) {
     cmd_ved_text(n == 0 ? 10 : n);
   } else if (std::strcmp(sub, "ping") == 0) {
