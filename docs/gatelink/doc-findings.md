@@ -15,6 +15,10 @@ rather than a rewrite.
 
 ## Open
 
+None.
+
+## Fixed
+
 ### 6. VE.Direct is "5 V" in the plan and 3.3 V in a measurement
 
 **Found 2026-10-01**, in the same reconciliation.
@@ -23,10 +27,9 @@ Implementation Plan §4.2 says all Victron MPPTs are 5 V devices. Expansion boar
 measured this unit's TX pin idling at 3.25 V, and concludes it needs no translation. An idle
 level does not settle D25, which is about the low level against a 10 kΩ load.
 
-**Correct statement:** not yet established. **Measurement M4** settles D25. The plan keeps
-both statements until it runs.
-
-## Fixed
+**Correct statement:** the 75/15's RX pin is pulled up to 5 V, and its TX drives 3.2 V
+through a weak high side and a strong low side. M4 closed on 2026-10-08 and D25 with it;
+plan §4.2 now says so.
 
 ### 8. What the StamPLC's INA226 measures is stated two ways
 

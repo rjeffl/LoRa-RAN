@@ -935,3 +935,12 @@ requests; the console discarded each as unmatched without losing its transaction
 **Three blocks failed their checksum, and the console caused them.** Nothing reads
 Serial1 between console commands, so its 1 KB buffer overflows and loses bytes. Every
 failure followed such a gap.
+
+## 2026-10-08 — The readback matches VictronConnect, and M4 closes in circuit
+
+**The operator compared the scan with the VictronConnect iOS app** on the Battery settings
+page, and every value the app shows matches. The app showed no equalisation voltage, so
+`0xEDF4`'s 0 has no second reading.
+
+**M4 and D25 closed, by the operator's decision**, on the in-circuit result above rather
+than a scope reading. The BSS138 stays in both directions. Decision Register v0.29.
