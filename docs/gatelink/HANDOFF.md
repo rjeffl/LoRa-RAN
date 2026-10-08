@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-08, at the end of the session that started GL4.**
-It replaces the file GL3's first session wrote.
+**Written 2026-10-08, at the end of the session that built `vedirect_task` (GL4).**
+It replaces the file GL4's first session wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL4, `vedirect_task`** (the MPPT on the bench) | *The next job*, below; plan §4.2.4, §5.2's `vedirect_task` row and §8.2's GL4 row; spec §7.2.2, §7.2.6 and §7.6; PRD R-3.3d–R-3.3f; `gatelink-config.md` rows `0x1030`–`0x1031`. `lib/vedirect/include/vedirect/text.h` and `hex.h` are the API |
+| **GL4's last criteria** (need the broker) | *The next job*, below; plan §8.2's GL4 row and §9.8 for M14; bridge PRD R-3.5b for the write arm. `firmware/gatelink/src/ved_link.h` and `gatelink_app.h` hold the node's half |
 | **GL3, the command path's bench checks** (needs the broker) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §9.4 and §10.3. `firmware/gatelink/CLAUDE.md` lists the console commands |
 | **GL3, the watchdog** | Plan §5.2, the watchdog bullets; the bridge's `tasks.h` for how it arms its own |
 | **GL3, CONFIG** | Plan §4.4 and §6.4; spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
@@ -31,28 +31,23 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL4's `vedirect_task` in the node image.** VE.Direct works on the carrier in both
-directions, from the bring-up image's `ved` console, but the node's `vedirect_task` is
-still a stub. It should feed Serial1 to `TextParser` continuously, publish the decoded
-block into spec §7.2.2's status fields, and assert §7.2.6 bit 1 after `vedirect_stale_s`
-without a block. It also runs one HEX transaction at a time for `lora_task`'s `HEX_REQ`,
-refusing an unauthenticated write as plan §4.2.4 says. The MPPT answers its first HEX
-contact with a burst of about 25 Async frames, and a Get sent into it went unanswered.
-Retry a timed-out Get once. That closes GL4's write-rejection and staleness criteria.
-With the bridge, it closes BF-30's readback. GL3's command-path checks on the broker are
-still owed, and either can go first.
+**GL4 needs the broker for what it has left.** `vedirect_task` is built and ran on the
+carrier: the bridge's BF-30 readback came back over the air register by register, and
+staleness asserts and clears on the board. Three GL4 criteria remain. The bridge must
+refuse a write while disarmed, which needs `write_enable/set` on MQTT. A Set must go
+through to the MPPT and read back. And M14's §9.8 baseline log must start. The node's
+refusal of an unauthenticated Set is host-tested only, because the bridge always sends a
+MAC. GL3's command-path checks on the broker are also owed, and either can go first.
 
 ## What the last session established
 
-- **VE.Direct works on the carrier, both ways.** Text arrives at 1 Hz, and every block
-  read continuously passed its checksum. Ping, AppVersion, ProductId and Gets answer in
-  8–15 ms. All ten BF-30 registers read back and match VictronConnect. One real block is
-  `kCaptured` in `lib/vedirect`'s tests.
-- **D25 and M4 closed (Register v0.29), by the operator, on the in-circuit result.** The
-  BSS138 stays in both directions.
-- **J4 is a 2×2 header, its pins named for the MPPT pin each reaches.** The first harness
-  was built to J4's numbers through the factory crossover cable and crossed TX and RX.
-  Expansion board §6 now says so. Engineering log, 2026-10-08.
+- **`vedirect_task` carries `HEX_REQ` to the MPPT and back.** All ten BF-30 registers
+  answered on their first attempt, through the bridge with no broker. The values match the
+  bring-up scan and VictronConnect. Engineering log, 2026-10-08, the `vedirect_task` entry.
+- **Staleness works on the board.** Bit 1 set 6.2 s after the last block, against
+  `vedirect_stale_s` of 5, kept the last values, and cleared when the cable went back in.
+- **The Get retry has not run on the board.** The first Get met 8 Async frames and still
+  answered inside half of `hex_timeout_ms`. The native suite covers the retry.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -83,12 +78,12 @@ still owed, and either can go first.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.31. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: text, the HEX round-trip and D25 pass on the bench; `vedirect_task`, staleness, write rejection, BF-30 against the bridge and M14 remain |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: text, D25, `vedirect_task`'s HEX round-trip over the air, BF-30's readback and staleness pass on the bench; the disarmed-write refusal, a Set end to end and M14 remain, and need the broker |
 | Not started | GL2, GL5–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
-pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp
+pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp, VedLink
 python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
 pio test -d lib/lran-node -e native           # the node engine (L1), split readback
@@ -116,7 +111,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink-bringup`, the bring-up image with the `ved` console, flashed 2026-10-08 at `2dd9f99`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem1301` on 2026-10-08. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with `vedirect_task`, flashed 2026-10-08 at `177b8e3`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem1301` on 2026-10-08. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -194,6 +189,14 @@ board's are its D-pads (expansion board §6.1).
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
   path, or confirm the supply was off.
+- **Spec §7.2.2 names no sentinel for its `uint8` code fields** (`charge_state`, `mppt_err`,
+  `mppt_tracker`). GateLink sends `0xFF` for one missing from a good block
+  (`ved_link.h`, `kCodeNotAvailable`). A non-zero `mppt_err` triggers a push, so the
+  specification should say what `0xFF` means.
+- **GateLink's USB console loses bytes from the middle of lines**, about one line in ten
+  (engineering log, 2026-10-08). Splitting the `ved` line did not stop it.
+- **`vedirect_task` wakes about 240 times a second**, once per burst of received bytes.
+  Measure its CPU share before GL5 puts NimBLE beside it.
 - **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
   one `beep` while listening to tie the two together.
 
