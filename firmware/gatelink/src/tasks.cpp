@@ -20,7 +20,8 @@ constexpr TaskSpec kTable[kTaskCount] = {
     // AW9523B (Impl Plan 5.2). Its period is input_poll_ms.
     {TaskId::Io, "io", kPriorityIo, 4096, kAnyCore, 0, 0x1010},
 
-    // The VE.Direct line parser and the HEX transaction. Driven by UART RX events from GL4.
+    // The VE.Direct line parser and the HEX transaction, woken by UART RX events and by
+    // lora_task's HEX_REQ.
     {TaskId::Vedirect, "vedirect", kPriorityHigh, 4096, kAnyCore, 0, 0},
 
     // The radio, media access and lran-node's receive path. Driven by DIO1 and the TX

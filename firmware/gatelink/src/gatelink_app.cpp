@@ -5,6 +5,8 @@
 
 #include "gatelink_app.h"
 
+#include <cstring>
+
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 
@@ -20,8 +22,6 @@ constexpr uint8_t kK2Unlock    = 1;
 constexpr uint8_t kK3Open      = 2;
 constexpr uint8_t kK4CloseNow  = 3;
 
-// spec 7.2.6 bit 1: no VE.Direct frame yet. The bridge marks the MPPT entities unavailable.
-constexpr uint8_t kMpptFlagStale = 0x02;
 // spec 7.2.7 bits 7:6: soc_source unknown, and bit 0 clear: no BMS read yet.
 constexpr uint8_t kBmsSocSourceUnknown = 0xC0;
 // spec 7.2.8.
@@ -70,7 +70,8 @@ bool relay_sequence_for(const lran::msg::Command& cmd, RelaySequence* out) {
 }
 
 uint8_t GateLinkApp::capabilities(const lran::node::Context&) const {
-  return lran::node::kAnswersCommands | lran::node::kRefusesAuthenticated;
+  return lran::node::kAnswersCommands | lran::node::kAnswersHex |
+         lran::node::kRefusesAuthenticated;
 }
 
 bool GateLinkApp::on_poll(lran::node::Engine& engine, lran::node::Context& c,
@@ -174,15 +175,21 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
   s.gate_state = static_cast<uint8_t>(lran::GateState::Unknown);
   s.input_bits = n.inputs;
 
-  s.batt_mv       = lran::kU16NotAvailable;
-  s.batt_ma       = lran::kI16NotAvailable;
-  s.pv_cv         = lran::kU16NotAvailable;
-  s.pv_w          = lran::kU16NotAvailable;
-  s.yield_today   = lran::kU16NotAvailable;
-  s.yield_yest    = lran::kU16NotAvailable;
-  s.pmax_today    = lran::kU16NotAvailable;
-  s.yield_total   = lran::kU32NotAvailable;
-  s.mppt_flags    = kMpptFlagStale;
+  const MpptSnapshot m = port_->mppt();
+  s.batt_mv       = m.batt_mv;
+  s.batt_ma       = m.batt_ma;
+  s.pv_cv         = m.pv_cv;
+  s.pv_w          = m.pv_w;
+  s.load_ma       = m.load_ma;
+  s.yield_today   = m.yield_today;
+  s.yield_yest    = m.yield_yest;
+  s.pmax_today    = m.pmax_today;
+  s.yield_total   = m.yield_total;
+  s.charge_state  = m.charge_state;
+  s.mppt_err      = m.mppt_err;
+  s.mppt_tracker  = m.mppt_tracker;
+  s.mppt_flags    = m.mppt_flags;
+  s.mppt_temp_c10 = m.mppt_temp_c10;
 
   s.bms_flags        = kBmsSocSourceUnknown;
   s.pack_mv          = lran::kU16NotAvailable;
@@ -219,6 +226,45 @@ size_t GateLinkApp::build_event(lran::node::Context&, lran::EventType type, uint
   *schema   = lran::kSchemaGateLinkEventV1;
   size_t nw = 0;
   return lran::schema::serialize(ev, out, cap, &nw) == lran::Status::Ok ? nw : 0;
+}
+
+lran::node::HexReply GateLinkApp::hex_forward(lran::node::Context&, const char* req, size_t n,
+                                              char*, size_t, size_t*, uint32_t) {
+  HexJob job;
+  job.token  = ++hex_token_;
+  if (n > vedirect::kMaxChars) {
+    // Longer than any VE.Direct frame (hex.h), so the MPPT could only refuse it.
+    hex_refusal_owed_ = true;
+    hex_refusal_      = lran::HexStatus::MalformedRequest;
+    return lran::node::HexReply::Pending;
+  }
+  std::memcpy(job.hex, req, n);
+  job.n = n;
+  if (!port_->hex_submit(job)) {
+    // vedirect_task still holds a job the engine has given up on.
+    hex_refusal_owed_ = true;
+    hex_refusal_      = lran::HexStatus::Busy;
+  }
+  return lran::node::HexReply::Pending;
+}
+
+void GateLinkApp::poll_hex(lran::node::Engine& engine, lran::node::Context& c) {
+  if (hex_refusal_owed_) {
+    hex_refusal_owed_ = false;
+    engine.complete_hex(c, hex_refusal_, nullptr, 0);
+  }
+  HexResult r;
+  while (port_->hex_take(&r)) {
+    // A token other than the last job's, or no transaction pending, is an answer the engine
+    // has already timed out. Completing with it would answer a later request.
+    if (r.token != hex_token_ || !c.hex_pending.active) {
+      ++hex_late_;
+      lran::node::sink_printf(log_, "hex: answer to job %lu after its deadline, discarded",
+                              static_cast<unsigned long>(r.token));
+      continue;
+    }
+    engine.complete_hex(c, r.status, r.hex, r.n);
+  }
 }
 
 }  // namespace gatelink

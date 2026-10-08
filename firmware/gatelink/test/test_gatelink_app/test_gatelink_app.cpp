@@ -10,6 +10,7 @@
 #include <unity.h>
 
 #include <cstring>
+#include <string>
 
 #include "gatelink_app.h"
 #include "lran/lran.h"
@@ -56,9 +57,36 @@ class FakePort final : public gatelink::GateLinkPort {
     s.uptime_s           = 42;
     return s;
   }
-  RelaySequence last;
-  int           count  = 0;
-  bool          refuse = false;
+  gatelink::MpptSnapshot mppt() const override { return mppt_view; }
+  bool hex_submit(const gatelink::HexJob& job) override {
+    if (hex_refuse) return false;
+    jobs[job_count++ % 4] = job;
+    return true;
+  }
+  bool hex_take(gatelink::HexResult* out) override {
+    if (!result_ready) return false;
+    result_ready = false;
+    *out         = result;
+    return true;
+  }
+  void answer(uint32_t token, HexStatus status, const char* hex) {
+    result        = gatelink::HexResult{};
+    result.token  = token;
+    result.status = status;
+    result.n      = std::strlen(hex);
+    std::memcpy(result.hex, hex, result.n);
+    result_ready  = true;
+  }
+
+  RelaySequence          last;
+  int                    count  = 0;
+  bool                   refuse = false;
+  gatelink::MpptSnapshot mppt_view;
+  gatelink::HexJob       jobs[4];
+  int                    job_count    = 0;
+  bool                   hex_refuse   = false;
+  gatelink::HexResult    result;
+  bool                   result_ready = false;
 };
 
 struct Rig {
@@ -74,10 +102,10 @@ struct Rig {
     reset_context(c, counting_random);
   }
 
-  void rx(const Header& h, const uint8_t* payload, size_t n) {
+  void rx(const Header& h, const uint8_t* payload, size_t n, const uint8_t* key = nullptr) {
     EncodeCtx ectx;
     ectx.mac      = &g_mac;
-    ectx.node_key = c.key;
+    ectx.node_key = key != nullptr ? key : c.key;
     uint8_t buf[kMaxFrame];
     size_t  len = 0;
     TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
@@ -119,6 +147,25 @@ struct Rig {
     TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
                           static_cast<int>(decode_payload(buf, f.len, d, &fr)));
     return fr;
+  }
+
+  void hex_req(Seq seq, const char* text, const uint8_t* key = nullptr) {
+    const msg::HexReq req{0, static_cast<uint8_t>(std::strlen(text)),
+                          reinterpret_cast<const uint8_t*>(text)};
+    uint8_t p[kMaxPayloadPlain];
+    size_t  n = 0;
+    msg::serialize(req, p, sizeof(p), &n);
+    rx(to_node(MsgType::HexReq, seq), p, n, key);
+  }
+
+  // The HEX_RSP's status and string; `seq` receives its seq.
+  HexStatus next_hex(Seq* seq, std::string* hex = nullptr) {
+    uint8_t     buf[kOutFrameMax];
+    const Frame f = next(buf);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::HexRsp), static_cast<uint8_t>(f.hdr.type));
+    *seq = f.hdr.seq;
+    if (hex != nullptr) hex->assign(reinterpret_cast<const char*>(f.payload + 2), f.payload[1]);
+    return static_cast<HexStatus>(f.payload[0]);
   }
 
   msg::CommandAck next_ack() {
@@ -282,6 +329,99 @@ void test_ping_is_echoed() {
   TEST_ASSERT_EQUAL_MEMORY(p, f.payload, n);
 }
 
+// spec 7.2.2 - the MPPT block is vedirect_task's snapshot, passed through.
+void test_status_carries_the_mppt_snapshot() {
+  Rig r;
+  r.port.mppt_view.batt_mv      = 13360;
+  r.port.mppt_view.batt_ma      = -40;
+  r.port.mppt_view.yield_total  = 467;
+  r.port.mppt_view.charge_state = 3;
+  r.port.mppt_view.mppt_flags   = gatelink::kMpptFlagLoadOn;
+  const uint8_t p[1] = {0};
+  r.rx(r.to_node(MsgType::Poll, 9), p, 1);
+  uint8_t     buf[kOutFrameMax];
+  const Frame f = r.next(buf);
+  schema::GateLinkStatusV1 s;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+  TEST_ASSERT_EQUAL_UINT16(13360, s.batt_mv);
+  TEST_ASSERT_EQUAL_INT16(-40, s.batt_ma);
+  TEST_ASSERT_EQUAL_UINT32(467, s.yield_total);
+  TEST_ASSERT_EQUAL_UINT8(3, s.charge_state);
+  TEST_ASSERT_EQUAL_HEX8(gatelink::kMpptFlagLoadOn, s.mppt_flags);
+}
+
+// spec 7.6 - a Get needs no MAC. It goes to vedirect_task, and its answer goes back under
+// the request's seq (D74).
+void test_hex_get_round_trip() {
+  Rig r;
+  r.hex_req(40, ":70001004D");
+  TEST_ASSERT_EQUAL_INT(1, r.port.job_count);
+  TEST_ASSERT_EQUAL_STRING(":70001004D", r.port.jobs[0].hex);
+  TEST_ASSERT_TRUE(r.c.hex_pending.active);
+  r.app.poll_hex(r.eng, r.c);
+  TEST_ASSERT_EQUAL_size_t(0, r.out.size());
+  r.port.answer(r.port.jobs[0].token, HexStatus::Ok, ":7000100075A048");
+  r.app.poll_hex(r.eng, r.c);
+  Seq         seq = 0;
+  std::string hex;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok),
+                          static_cast<uint8_t>(r.next_hex(&seq, &hex)));
+  TEST_ASSERT_EQUAL_UINT16(40, seq);
+  TEST_ASSERT_EQUAL_STRING(":7000100075A048", hex.c_str());
+  TEST_ASSERT_FALSE(r.c.hex_pending.active);
+}
+
+// GL4's write-rejection criterion, spec 7.6 step 3 (D73) - a Set under the wrong key is
+// answered REJECTED_UNAUTHENTICATED and never reaches vedirect_task.
+void test_unauthenticated_set_never_reaches_the_mppt() {
+  Rig           r;
+  const uint8_t wrong[kNodeKeyLen] = {0x5A};
+  r.hex_req(41, ":8F7ED008C0598", wrong);
+  Seq seq = 0;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::RejectedUnauthenticated),
+                          static_cast<uint8_t>(r.next_hex(&seq)));
+  TEST_ASSERT_EQUAL_UINT16(41, seq);
+  TEST_ASSERT_EQUAL_INT(0, r.port.job_count);
+}
+
+// The same Set with the node's MAC goes through.
+void test_authenticated_set_is_forwarded() {
+  Rig r;
+  r.hex_req(42, ":8F7ED008C0598");
+  TEST_ASSERT_EQUAL_INT(1, r.port.job_count);
+  TEST_ASSERT_EQUAL_STRING(":8F7ED008C0598", r.port.jobs[0].hex);
+}
+
+// vedirect_task still busy with a job the engine gave up on: BUSY, not silence.
+void test_hex_refused_by_the_port_answers_busy() {
+  Rig r;
+  r.port.hex_refuse = true;
+  r.hex_req(43, ":154");
+  r.app.poll_hex(r.eng, r.c);
+  Seq seq = 0;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Busy),
+                          static_cast<uint8_t>(r.next_hex(&seq)));
+  TEST_ASSERT_EQUAL_UINT16(43, seq);
+}
+
+// An answer to a job the engine has already timed out must not answer the next request.
+void test_late_answer_is_discarded() {
+  Rig r;
+  r.hex_req(44, ":154");
+  const uint32_t old = r.port.jobs[0].token;
+  r.eng.tick(r.c, 1000 + r.app.hex_timeout_ms(r.c));
+  Seq seq = 0;
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Timeout),
+                          static_cast<uint8_t>(r.next_hex(&seq)));
+  r.hex_req(45, ":154");
+  r.port.answer(old, HexStatus::Ok, ":51641F9");
+  r.app.poll_hex(r.eng, r.c);
+  TEST_ASSERT_EQUAL_size_t(0, r.out.size());
+  TEST_ASSERT_EQUAL_UINT32(1, r.app.hex_late());
+  TEST_ASSERT_TRUE(r.c.hex_pending.active);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_commands_map_to_relays);
@@ -293,5 +433,11 @@ int main() {
   RUN_TEST(test_reboot_needs_its_guard);
   RUN_TEST(test_poll_answers_status_with_sentinels);
   RUN_TEST(test_ping_is_echoed);
+  RUN_TEST(test_status_carries_the_mppt_snapshot);
+  RUN_TEST(test_hex_get_round_trip);
+  RUN_TEST(test_unauthenticated_set_never_reaches_the_mppt);
+  RUN_TEST(test_authenticated_set_is_forwarded);
+  RUN_TEST(test_hex_refused_by_the_port_answers_busy);
+  RUN_TEST(test_late_answer_is_discarded);
   return UNITY_END();
 }

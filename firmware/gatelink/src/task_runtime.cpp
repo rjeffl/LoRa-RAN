@@ -5,8 +5,9 @@
 //
 // io_task does real work from GL1: relay pulses, input debounce, buttons and the sensors,
 // and from GL3 the relay sequence of each gate command. lora_task runs lran-node's engine
-// from GL3. log_task carries the bench console. Every other body is a stub that counts its
-// passes and waits out its period; the milestone that fills it is named at it.
+// from GL3. vedirect_task reads the MPPT and carries its HEX transactions from GL4. log_task
+// carries the bench console. Every other body is a stub that counts its passes and waits
+// out its period; the milestone that fills it is named at it.
 //
 // THE WATCHDOG IS NOT ARMED HERE. Impl Plan 5.2 feeds it from app_task, and its timeout is
 // the parameter watchdog_timeout_s (decided 2026-10-07; root rule 8), which a later GL3
@@ -26,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "board_profile.h"
 #include "board_stamplc.h"
 #include "gate_io.h"
 #include "gatelink_app.h"
@@ -33,6 +35,7 @@
 #include "lran/node/names.h"
 #include "mbedtls_mac.h"
 #include "radio.h"
+#include "ved_link.h"
 
 namespace gatelink {
 namespace {
@@ -335,12 +338,93 @@ void io_task(void*) {
   }
 }
 
-// GL4 - waits on UART RX events instead of a second.
+// ---------------------------------------------------------------------------
+// GL4 - vedirect_task owns Serial1 and the VedLink on it (Impl Plan 4.2.4). lora_task hands it
+// a HEX_REQ through a queue and takes the answer from a slot; every other task reads the
+// MPPT through a snapshot copied under a spinlock.
+// ---------------------------------------------------------------------------
+
+// Depth 1: the engine holds one HEX transaction at a time (spec 8.13).
+StaticQueue_t g_hex_q_storage;
+uint8_t       g_hex_q_buf[sizeof(HexJob)];
+QueueHandle_t g_hex_q = nullptr;
+
+struct VedView {
+  MpptSnapshot mppt;
+  bool         busy        = false;  // a job is with the MPPT
+  bool         result_ready = false;
+  HexResult    result;
+  bool         have_block  = false;
+  uint32_t     block_age_ms = 0;
+  vedirect::TextCounters text;
+  VedCounters  link;
+};
+portMUX_TYPE g_ved_mux = portMUX_INITIALIZER_UNLOCKED;
+VedView      g_ved;
+
+// The longest vedirect_task sleeps with nothing received. It bounds how late a retry or a
+// TIMEOUT can be, which kHexBackstopMarginMs must exceed.
+constexpr uint32_t kVedWaitMs = 20;
+static_assert(kVedWaitMs < kHexBackstopMarginMs, "the engine's backstop must outlast vedirect_task's wait");
+
+class SerialWriter final : public VedWriter {
+ public:
+  bool write_line(const char* s, size_t n) override {
+    size_t w = Serial1.write(reinterpret_cast<const uint8_t*>(s), n);
+    w += Serial1.write('\n');
+    return w == n + 1;
+  }
+};
+
+// Static, not on the task's stack: the parser holds two 24-field blocks (root rule 3).
+SerialWriter g_ved_writer;
+VedLink      g_ved_link(&g_ved_writer);
+TaskHandle_t g_ved_handle = nullptr;
+
+// Waits on UART RX events, and wakes at least every kVedWaitMs for the HEX timers.
 void vedirect_task(void*) {
+  g_ved_handle = xTaskGetCurrentTaskHandle();
+  g_ved_link.set_params(
+      VedParams{param_default(kParamHexTimeoutMs), param_default(kParamVedirectStaleS) * 1000});
+  // Before begin(), or the core ignores it. A text block is a few hundred bytes; 1 KB holds
+  // several, so a late pass loses none (engineering log, 2026-10-08).
+  Serial1.setRxBufferSize(1024);
+  Serial1.begin(kVedBaud, SERIAL_8N1, kVedUartRx, kVedUartTx);
+  Serial1.onReceive([] { xTaskNotifyGive(g_ved_handle); });
+
   for (;;) {
     count(TaskId::Vedirect);
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kVedWaitMs));
+    const uint32_t now = now_ms();
+    while (Serial1.available() > 0) g_ved_link.feed(static_cast<uint8_t>(Serial1.read()), now);
+
+    HexJob job;
+    if (!g_ved_link.busy() && xQueueReceive(g_hex_q, &job, 0) == pdTRUE) g_ved_link.start(job, now);
+    g_ved_link.tick(now);
+
+    HexResult  r;
+    const bool answered = g_ved_link.take_result(&r);
+    portENTER_CRITICAL(&g_ved_mux);
+    g_ved.mppt         = g_ved_link.mppt(now);
+    g_ved.busy         = g_ved_link.busy();
+    if (answered) {
+      g_ved.result       = r;
+      g_ved.result_ready = true;
+    }
+    g_ved.have_block   = g_ved_link.has_block();
+    g_ved.block_age_ms = now - g_ved_link.last_block_ms();
+    g_ved.text         = g_ved_link.parser().counters();
+    g_ved.link         = g_ved_link.counters();
+    portEXIT_CRITICAL(&g_ved_mux);
+    if (answered) xTaskNotifyGive(g_lora_handle);
   }
+}
+
+VedView ved_view() {
+  portENTER_CRITICAL(&g_ved_mux);
+  const VedView copy = g_ved;
+  portEXIT_CRITICAL(&g_ved_mux);
+  return copy;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +482,7 @@ class Node final : public RadioClient, public GateLinkPort {
   Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
 
   void begin(const uint8_t* key, size_t key_len) {
+    app_.set_hex_timeout_ms(param_default(kParamHexTimeoutMs));
     ctx_.id = lran::kNodeGateLink;
     std::memcpy(ctx_.key, key, key_len < sizeof(ctx_.key) ? key_len : sizeof(ctx_.key));
     lran::node::reset_context(ctx_, random_u32);  // spec 10.1 - a new ctx_id every boot
@@ -421,6 +506,30 @@ class Node final : public RadioClient, public GateLinkPort {
     n.enclosure_temp_c10 = io.sensors.temp_c10;
     n.uptime_s           = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     return n;
+  }
+  MpptSnapshot mppt() const override {
+    portENTER_CRITICAL(&g_ved_mux);
+    const MpptSnapshot m = g_ved.mppt;
+    portEXIT_CRITICAL(&g_ved_mux);
+    return m;
+  }
+  bool hex_submit(const HexJob& job) override {
+    // A job still with the MPPT is one the engine has given up on; the next waits for it.
+    portENTER_CRITICAL(&g_ved_mux);
+    const bool busy = g_ved.busy;
+    portEXIT_CRITICAL(&g_ved_mux);
+    if (busy) return false;
+    const bool queued = xQueueSend(g_hex_q, &job, 0) == pdTRUE;
+    if (queued) xTaskNotifyGive(g_ved_handle);
+    return queued;
+  }
+  bool hex_take(HexResult* out) override {
+    portENTER_CRITICAL(&g_ved_mux);
+    const bool ready = g_ved.result_ready;
+    if (ready) *out = g_ved.result;
+    g_ved.result_ready = false;
+    portEXIT_CRITICAL(&g_ved_mux);
+    return ready;
   }
 
   lran::node::Engine&       engine() { return engine_; }
@@ -500,6 +609,7 @@ void lora_task(void*) {
       cmd_seq = io.cmd_seq;
       g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
     }
+    g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
 
     // spec 8.1 - a REBOOT resets once its ACK is on the air.
@@ -736,6 +846,29 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(v.dispatched), static_cast<unsigned long>(v.busy),
                       static_cast<unsigned long>(v.cmd_i2c), static_cast<unsigned long>(v.dropped),
                       static_cast<unsigned long>(g_log_dropped.load(std::memory_order_relaxed)));
+  } else if (std::strcmp(cmd, "ved") == 0) {
+    const VedView      v = ved_view();
+    const MpptSnapshot& m = v.mppt;
+    n = std::snprintf(line, sizeof(line),
+                      "ved: %s, flags 0x%02X; batt %u mV %d mA, pv %u cV %u W, load %d mA, cs %u err %u mppt %u, "
+                      "h19 %lu h20 %u h21 %u h22 %u",
+                      v.have_block ? "block" : "NO BLOCK YET", m.mppt_flags, m.batt_mv, m.batt_ma, m.pv_cv,
+                      m.pv_w, m.load_ma, m.charge_state, m.mppt_err, m.mppt_tracker,
+                      static_cast<unsigned long>(m.yield_total), m.yield_today, m.pmax_today, m.yield_yest);
+    write_line(line, n, sizeof(line));
+    const auto ld = [](uint32_t x) { return static_cast<unsigned long>(x); };
+    n = std::snprintf(line, sizeof(line),
+                      "ved: last block %lu ms ago; text %lu ok, %lu bad, %lu unsynced, %lu interrupted, %lu overflow, "
+                      "%lu unparsed",
+                      v.have_block ? ld(v.block_age_ms) : 0, ld(v.text.blocks), ld(v.text.bad_checksum),
+                      ld(v.text.unsynced), ld(v.text.interrupted), ld(v.text.overflow), ld(v.link.blocks_unparsed));
+    write_line(line, n, sizeof(line));
+    n = std::snprintf(line, sizeof(line),
+                      "ved: hex sent %lu, retried %lu, answered %lu, timeouts %lu, uart errors %lu; async %lu, "
+                      "unmatched %lu, bad %lu, too long %lu%s",
+                      ld(v.link.hex_sent), ld(v.link.hex_retries), ld(v.link.hex_answered), ld(v.link.hex_timeouts),
+                      ld(v.link.hex_uart_errors), ld(v.link.hex_async), ld(v.link.hex_unmatched),
+                      ld(v.link.hex_bad), ld(v.text.hex_too_long), v.busy ? "; one outstanding" : "");
   } else if (std::strcmp(cmd, "beep") == 0) {
     board_beep(2000, 200);
     n = std::snprintf(line, sizeof(line), "beep");
@@ -750,7 +883,7 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | bus <s> | restart | hang");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | restart | hang");
   }
   write_line(line, n, sizeof(line));
 }
@@ -862,6 +995,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_pulse_q = xQueueCreateStatic(4, sizeof(PulseRequest), g_pulse_q_buf, &g_pulse_q_storage);
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
+  g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
   size_t started = 0;
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];
