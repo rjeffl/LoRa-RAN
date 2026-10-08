@@ -263,6 +263,9 @@ void GateLinkApp::poll_hex(lran::node::Engine& engine, lran::node::Context& c) {
                               static_cast<unsigned long>(r.token));
       continue;
     }
+    lran::node::sink_printf(log_, "hex %02x -> %02x seq %u: status %u %.*s", c.id,
+                            c.hex_pending.peer, static_cast<unsigned>(c.hex_pending.seq),
+                            static_cast<unsigned>(r.status), static_cast<int>(r.n), r.hex);
     engine.complete_hex(c, r.status, r.hex, r.n);
   }
 }
