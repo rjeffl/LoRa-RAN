@@ -849,12 +849,14 @@ void console_command(char* cmd) {
   } else if (std::strcmp(cmd, "ved") == 0) {
     const VedView      v = ved_view();
     const MpptSnapshot& m = v.mppt;
-    n = std::snprintf(line, sizeof(line),
-                      "ved: %s, flags 0x%02X; batt %u mV %d mA, pv %u cV %u W, load %d mA, cs %u err %u mppt %u, "
-                      "h19 %lu h20 %u h21 %u h22 %u",
+    // Short lines: one near 200 bytes lost its middle on the USB console (bench, 2026-10-08).
+    n = std::snprintf(line, sizeof(line), "ved: %s, flags 0x%02X; batt %u mV %d mA, pv %u cV %u W, load %d mA",
                       v.have_block ? "block" : "NO BLOCK YET", m.mppt_flags, m.batt_mv, m.batt_ma, m.pv_cv,
-                      m.pv_w, m.load_ma, m.charge_state, m.mppt_err, m.mppt_tracker,
-                      static_cast<unsigned long>(m.yield_total), m.yield_today, m.pmax_today, m.yield_yest);
+                      m.pv_w, m.load_ma);
+    write_line(line, n, sizeof(line));
+    n = std::snprintf(line, sizeof(line), "ved: cs %u err %u mppt %u; h19 %lu h20 %u h21 %u h22 %u",
+                      m.charge_state, m.mppt_err, m.mppt_tracker, static_cast<unsigned long>(m.yield_total),
+                      m.yield_today, m.pmax_today, m.yield_yest);
     write_line(line, n, sizeof(line));
     const auto ld = [](uint32_t x) { return static_cast<unsigned long>(x); };
     n = std::snprintf(line, sizeof(line),
