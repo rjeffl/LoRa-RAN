@@ -36,8 +36,8 @@ other bodies are stubs.
 | `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
 | `gate_io.{h,cpp}` | Relay pulse timing, the command sequencer and input debounce, with time passed in | yes |
 | `radio.{h,cpp}` | The SX1262 driver: receive, spec §12.3 media access, transmit, and GL1's sync-word probe | no |
-| `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379) | yes |
-| `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp`. `cad [rx]` times one channel scan | no |
+| `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379), and the VE.Direct UART pins | yes |
+| `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp`. `cad [rx]` times one channel scan. `ved` reads VE.Direct text and runs read-only HEX; `ved edges` finds a crossed harness | no |
 
 Every other file in plan §5.3's module map arrives with the milestone that fills it.
 **The carrier carries the header board, not the Kit** (operator, 2026-10-05). The Kit's

@@ -3,11 +3,13 @@
 //
 // The text parser and its HEX multiplexer (GateLink Impl Plan 4.2.4, task L3).
 //
-// NOT A CAPTURE. L3's criterion asks for a captured MPPT 75/15 block, and none exists yet:
-// the MPPT is at the gate, and osh-labs' own tests synthesize theirs. kMppt7515 is built
-// from osh-labs' sample block, with H19 and H21 added from spec 7.2.2 and the FW and SER#
-// labels osh-labs names. OR and H23 are left out because neither source defines them.
-// Replace it with a real capture at GL4, and keep the expected values as the capture reads.
+// TWO BLOCKS. kMppt7515 is synthesized, from osh-labs' sample block with H19 and H21 added
+// from spec 7.2.2 and the FW and SER# labels osh-labs names. Its nonzero PV, charge-state
+// and yield values exercise decode_mppt() in ways the capture cannot. kCaptured is the
+// gate's 75/15 itself, byte for byte, read by the bring-up image's `ved raw` on 2026-10-08
+// (GateLink engineering log). It was on a bench supply with no PV, so its panel fields
+// read zero. Its checksum byte is the MPPT's own, and it carries OR and H23, which neither
+// source defines.
 
 #include <cstdio>
 #include <cstring>
@@ -57,6 +59,11 @@ std::string make_block(const Rec* recs, size_t n) {
 }
 
 std::string mppt_block() { return make_block(kMppt7515, kMpptCount); }
+
+const char kCaptured[] =
+    "\r\nPID\t0xA075\r\nFW\t175\r\nSER#\tHQ25492XRJM\r\nV\t13360\r\nI\t-40\r\nVPV\t10"
+    "\r\nPPV\t0\r\nCS\t0\r\nMPPT\t0\r\nOR\t0x00000001\r\nERR\t0\r\nLOAD\tON\r\nIL\t0"
+    "\r\nH19\t467\r\nH20\t0\r\nH21\t0\r\nH22\t3\r\nH23\t26\r\nHSDS\t59\r\nChecksum\t\xDC";
 
 struct Tally {
   int blocks  = 0;
@@ -132,6 +139,35 @@ void test_decode_mppt() {
   TEST_ASSERT_EQUAL_UINT32(34, m.yield_yest);
   TEST_ASSERT_EQUAL_UINT16(77, m.day_seq);
   TEST_ASSERT_EQUAL_STRING("HQ0000TEST", p.block().find("SER#"));
+}
+
+void test_captured_block() {
+  TextParser p;
+  Tally t = feed_all(p, std::string(kCaptured, sizeof(kCaptured) - 1));
+  TEST_ASSERT_EQUAL_INT(1, t.blocks);
+  TEST_ASSERT_EQUAL_INT(0, t.dropped);
+  TEST_ASSERT_EQUAL_size_t(19, p.block().count);
+  TEST_ASSERT_EQUAL_STRING("175", p.block().find("FW"));
+  TEST_ASSERT_EQUAL_STRING("0x00000001", p.block().find("OR"));
+  TEST_ASSERT_EQUAL_STRING("26", p.block().find("H23"));
+
+  MpptText m;
+  TEST_ASSERT_EQUAL_size_t(0, decode_mppt(p.block(), &m));
+  TEST_ASSERT_EQUAL_HEX16(0xA075, m.pid);
+  TEST_ASSERT_EQUAL_UINT32(13360, m.batt_mv);
+  TEST_ASSERT_EQUAL_INT32(-40, m.batt_ma);
+  TEST_ASSERT_EQUAL_UINT32(10, m.pv_mv);
+  TEST_ASSERT_EQUAL_UINT32(0, m.pv_w);
+  TEST_ASSERT_EQUAL_INT32(0, m.load_ma);
+  TEST_ASSERT_TRUE(m.load == LoadState::On);
+  TEST_ASSERT_EQUAL_UINT16(0, m.charge_state);
+  TEST_ASSERT_EQUAL_UINT16(0, m.tracker);
+  TEST_ASSERT_EQUAL_UINT16(0, m.err);
+  TEST_ASSERT_EQUAL_UINT32(467, m.yield_total);
+  TEST_ASSERT_EQUAL_UINT32(0, m.yield_today);
+  TEST_ASSERT_EQUAL_UINT32(0, m.pmax_today);
+  TEST_ASSERT_EQUAL_UINT32(3, m.yield_yest);
+  TEST_ASSERT_EQUAL_UINT16(59, m.day_seq);
 }
 
 void test_decode_sentinels_and_malformed() {
@@ -269,6 +305,7 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_every_field_of_the_block);
   RUN_TEST(test_decode_mppt);
+  RUN_TEST(test_captured_block);
   RUN_TEST(test_decode_sentinels_and_malformed);
   RUN_TEST(test_bad_checksum_rejected_and_counted);
   RUN_TEST(test_joining_mid_block_is_unsynced_not_bad);

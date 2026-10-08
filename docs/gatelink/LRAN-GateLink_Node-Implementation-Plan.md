@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.30
+**Version:** 0.31
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -11,7 +11,7 @@ firmware starts, and four measurements come before the carrier is populated.
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-08
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -120,7 +120,7 @@ discover late:
 | 1 | **M5Stack StamPLC (K141)** | Host platform. 4 relays, 8 opto-isolated inputs, 6–36 V in, DIN, screw terminals. ~$43 |
 | 1 | **Carrier board, complete** | **[`gatelink-expansion-board`](./gatelink-expansion-board.md) §2 is the carrier's bill of materials**: the Seeed Wio-SX1262 for XIAO header board (p-6379), a SparkFun BabyBuck AP63357, an AMS1117-3.3 module, a 4-channel BSS138 converter, connectors J1–J4 and the discretes. **D27.** Not repeated here, so that one list changes when the design does |
 | 1 | IPEX → SMA bulkhead pigtail + 915 MHz antenna | LoRa antenna **outside** the steel enclosure (**R-4.3e**). The expansion board lists the pigtail; PRD §4.3.1 gives the full RF path across both bulkheads |
-| *0–1* | *ADuM1201 breakout **or** 74LVC1G17 buffer* | **Only if M4 shows a weak symmetric low-side driver** on the MPPT TX line (§4.2.2) |
+| ~~*0–1*~~ | ~~*ADuM1201 breakout **or** 74LVC1G17 buffer*~~ | **Not needed.** D25 closed 2026-10-08 with the BSS138 in both directions (§4.2.2) |
 | 1 | VE.Direct cable / JST-PH 2.0 4-pin pigtail | **Both data lines used.** Buying a genuine Victron cable and cutting it is the easiest sourcing path |
 | 1 | **microSD card** — small, industrial-grade if available | Configuration overrides, retained counters and on-node logging. **Not required for the node to run** (**R-4.2d**) |
 | — | Mounting, strain relief, **inline fuse on the battery tap** | Inside the existing enclosure. **S-10** |
@@ -463,12 +463,11 @@ vendor-documented, with signal names given from the **device's** perspective:
 Channels and nets are expansion board §6. Firmware names them from the ESP32's side:
 `VED_UART_TX` is G5, `VED_UART_RX` is G4.
 
-> **Two statements here disagree, and neither has been withdrawn.** The correction above
-> says all Victron MPPTs are 5 V devices. Expansion board §7.4 measured this unit's pin 3
-> (TX) idling at **3.25 V** and pin 2 (RX) pulled up to **5.25 V**, and concludes pin 3
-> "needs no translation". An idle level does not answer D25's question, which is about the
-> **low** level against a 10 kΩ load. **M4 is still the check**, and §4.2.2 stands until it
-> runs. `doc-findings` lists the disagreement.
+> **The gate's 75/15 is a 5 V device on its RX pin only.** Expansion board §7.4 measured
+> its pin 3 (TX) idling at **3.25 V** and pin 2 (RX) pulled up to **5.25 V**. On
+> 2026-10-08 its TX showed a weak high side, about 19 kΩ by DVM, and a low side strong
+> enough to drive the BSS138 (§4.2.2). The correction above holds for the RX direction,
+> which is the one that needs the converter.
 
 **Both data lines are mandatory:** HEX is a request/response protocol and cannot function
 without the MPPT RX line.
@@ -477,7 +476,9 @@ without the MPPT RX line.
 
 - **Wire colours are actively misleading.** VE.Direct cables are crossover cables; red
   may be GND and black may be V+, and the two data conductors differ in meaning between
-  the cable's ends. **Meter every conductor.**
+  the cable's ends. **Meter every conductor.** Expansion board §6 names J4's pins for the
+  MPPT pin each one reaches, so a harness through a crossover cable is wired to that, not
+  to J4's pin numbers taken one for one.
 - Community sources disagree about whether pin 4 is V+ or GND on some units. Moot since
   pin 4 is unconnected, but a further argument for metering first.
 - **Do not attempt to power the front end from the VE.Direct V+ pin** — it is limited to
@@ -504,6 +505,11 @@ observe the **low** excursions, preferably on a scope.
 |---|---|---|
 | Low ≈ 0–0.5 V | Strong low side | **BSS138 as planned.** No BOM change |
 | Low ≈ 2–2.5 V | Weak symmetric driver | BSS138 cannot translate this direction. Use an **ADuM1201** (CMOS input, unloads the driver, isolation as a bonus) or a **74LVC1G17** buffer at 3.3 V |
+
+**Result, 2026-10-08: the BSS138 stays.** M4 closed on the carrier's own path rather than
+a scope reading, by the operator's decision. The MPPT's lows reached the ESP32 through
+channel 4 and R2 as clean logic lows, the shortest 45 µs against a 52 µs bit, and text and
+HEX both worked (engineering log, 2026-10-08). D25 is closed in the register.
 
 **The BSS138 stays for the RX direction regardless** — a strong 3.3 V output into a
 high-impedance MPPT input is exactly what that topology handles well. **A split solution
@@ -1249,7 +1255,7 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 | **GL1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
 | **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
 | **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
-| **GL4** | **VE.Direct** | GL0, L3, **measurement M4** | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
+| **GL4** | **VE.Direct** | GL0, L3, **measurement M4** (closed 2026-10-08) | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
 | **GL5** | **Battery and BMS** | GL1, L2, L7 | `bms_task` runs connect, read, disconnect and controller de-init on `bms_poll_s`, and its window and abort latency are measured for §5.2's interlock, setting `bms_window_max_ms`'s default and range. The client decodes the live pack in agreement with the reference implementation. **BLE RSSI measured from the intended mounting position (measurement M23, D28)** and judged adequate — or a fallback selected. MPPT reconfigured for LiFePO4 and verified by readback. Low-temperature inhibition detection validated by both paths. **Pack current captured under charge and under load (measurement M7)**, settling the sign convention |
 | **GL6** | **Inputs live, read-only** | GL2, GL3 | Relays physically disconnected. State derivation, hold detection, detection and direction all confirmed against real gate cycles driven by the keypad and the remote. `hold_confirm_ms` demonstrably rejects the transient 1/1 at the start of a close. **The gate cannot be moved by GateLink in this phase** |
 | **GL7** | **Relays live** | GL6 | Dry-run first: every command path exercised from HA, logged intent matching expectation. **Both manual UNLOCK paths confirmed working.** Then dry-run disabled and each command tested with a clear line of sight |
@@ -1497,6 +1503,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.31** — **D25 and M4 closed on 2026-10-08**: the BSS138 stays in both VE.Direct
+  directions, and §2.1's contingency translator is not needed. §4.2's disagreement note is
+  replaced by what the gate's 75/15 measured. §4.2.1 points to expansion board §6 for
+  J4's pin names through a crossover cable.
 
 - **v0.30** — **PRD v0.17: R-4.4b drops the node's own current.** §3.4 records the
   schematic's reason, and §9.8, V-11 and GL9 measure consumption from the BMS's overnight
