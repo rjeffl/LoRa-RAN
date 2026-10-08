@@ -857,3 +857,28 @@ the context resync wait for it.
 **`Reset: unknown` after the harness opens the StamPLC's port.** The USB-serial-JTAG reset
 is not among `main.cpp`'s cases, and `reset_cause()` reports it as `UNKNOWN` in the `BOOT`
 event. GL3's reset-cause slice should name it.
+
+## 2026-10-08 — M4 by DVM: the MPPT's TX has a weak high side; its low side is unmeasured
+
+**The MPPT is the gate's 75/15, brought to the bench** and powered from a bench supply
+with no PV connected. The gate runs from its battery meanwhile. The operator saved the
+charger's settings from VictronConnect beforehand.
+
+**The operator measured J4 pin 3, the MPPT's TX, with a DVM, not a scope:**
+
+| Load on pin 3 | Reading |
+|---|---|
+| None | about 3.2 V |
+| 10 kΩ to GND | 1.1 V |
+
+The line idles high between 1 Hz text blocks, so both readings are the high level. They
+put the high side's source impedance near 19 kΩ, from 2.1 V dropped at 0.11 mA. That is
+weaker than plan §4.2.2's 10–11 kΩ, which came from Victron's 22 kΩ load figure. The
+unloaded 3.2 V agrees with expansion board §7.4's 3.25 V.
+
+**D25 is still open.** It turns on the low side, which a DVM cannot see on a 1 Hz stream.
+A strong low with this weak high is the case plan §4.2.2 calls moot: the BSS138 works. A
+low as weak as this high would sit near 3.3 V against the converter's 10 kΩ pull-up to
+5 V, and no data would arrive. The bring-up image's `ved raw` tests the carrier's own
+path instead, which is the question D25 exists to answer. Checksummed blocks through
+J4 settle it for this carrier; nothing, with the cable metered, is D25's failure case.

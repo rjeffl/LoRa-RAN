@@ -19,6 +19,7 @@
 //   cad [rx]   - one channel scan, from standby or from receive, with BUSY and DIO1 timed
 //   sd    - mount the microSD on the shared bus
 //   bus <s>    - step 4: LCD, microSD and radio concurrently, s seconds
+//   ved ...    - step 5 and GL4's bench checks: VE.Direct text and HEX; `ved` lists them
 //   stat  - the counters
 
 #include <Arduino.h>
@@ -36,6 +37,8 @@
 #include "board_profile.h"
 #include "board_stamplc.h"
 #include "lran/link/radio_config.h"
+#include "vedirect/hex.h"
+#include "vedirect/text.h"
 
 namespace {
 
@@ -472,6 +475,287 @@ void cmd_bus(uint32_t seconds) {
                 tx_after ? "ok" : "FAILED");
 }
 
+// ---------------------------------------------------------------------------
+// Step 5 (expansion board 11) and GL4's bench checks: VE.Direct on Serial1.
+//
+// THE MPPT ON THE BENCH IS THE GATE'S, with its settings saved from VictronConnect, and
+// the carrier speaks HEX to it. So this console sends only requests that read: Ping,
+// AppVersion, ProductId and Get. A Set, a Restart or anything else is refused here, before
+// it reaches the UART. Write rejection is the node's behaviour (plan 4.2.4), tested there.
+//
+// M4 BY DIVISION. Plan 4.2.2 asks whether the MPPT's TX drives low hard enough to pull the
+// converter's 10 kOhm pull-up below the BSS138's threshold. If it cannot, the failure is
+// silent: no framing errors, no bytes. `ved raw` receiving checksummed blocks answers that
+// for this carrier; receiving nothing, with the cable metered, points at D25 first.
+
+bool                 g_ved_up = false;
+vedirect::TextParser g_text;
+
+void ved_begin() {
+  if (g_ved_up) return;
+  // Before begin(), or the core ignores it. A text block is a few hundred bytes, and a
+  // console print can hold this loop for longer than the default 256 take at 19200 baud.
+  Serial1.setRxBufferSize(1024);
+  Serial1.begin(gatelink::kVedBaud, SERIAL_8N1, gatelink::kVedUartRx, gatelink::kVedUartTx);
+  g_ved_up = true;
+  Serial.printf("ved: Serial1 at %lu baud, RX G%d, TX G%d\n",
+                static_cast<unsigned long>(gatelink::kVedBaud), gatelink::kVedUartRx,
+                gatelink::kVedUartTx);
+}
+
+// One byte as it would be written in a C string literal, so a capture can be pasted into
+// lib/vedirect's tests unchanged. The checksum byte can be anything, so nothing is assumed
+// printable. A newline in the data also ends the console line.
+void print_escaped(uint8_t b) {
+  if (b == '\n') {
+    Serial.print("\\n\n");
+  } else if (b == '\r') {
+    Serial.print("\\r");
+  } else if (b == '\t') {
+    Serial.print("\\t");
+  } else if (b == '\\' || b == '"') {
+    Serial.printf("\\%c", b);
+  } else if (b >= 0x20 && b < 0x7F) {
+    Serial.write(b);
+  } else {
+    // Closing the literal here stops a following hex digit from joining the escape.
+    Serial.printf("\\x%02X\"\"", b);
+  }
+}
+
+void cmd_ved_raw(uint32_t seconds) {
+  ved_begin();
+  while (Serial1.available() > 0) Serial1.read();
+  Serial.printf("ved raw: %lu s, bytes as a C string literal\n", static_cast<unsigned long>(seconds));
+  uint32_t       bytes = 0;
+  uint32_t       first = 0;
+  const uint32_t t0    = millis();
+  while (millis() - t0 < seconds * 1000UL) {
+    while (Serial1.available() > 0) {
+      if (bytes == 0) first = millis() - t0;
+      print_escaped(static_cast<uint8_t>(Serial1.read()));
+      ++bytes;
+    }
+    delay(1);
+  }
+  if (bytes == 0) {
+    Serial.println(F("\nved raw: NO BYTES. Meter the cable first (plan 4.2.1), then D25 (plan 4.2.2)"));
+  } else {
+    Serial.printf("\nved raw: %lu bytes, the first %lu ms in\n", static_cast<unsigned long>(bytes),
+                  static_cast<unsigned long>(first));
+  }
+}
+
+void print_counters() {
+  const auto& c = g_text.counters();
+  Serial.printf("ved counters: blocks %lu, bad_checksum %lu, unsynced %lu, interrupted %lu, "
+                "overflow %lu, hex_lines %lu, hex_too_long %lu\n",
+                static_cast<unsigned long>(c.blocks), static_cast<unsigned long>(c.bad_checksum),
+                static_cast<unsigned long>(c.unsynced), static_cast<unsigned long>(c.interrupted),
+                static_cast<unsigned long>(c.overflow), static_cast<unsigned long>(c.hex_lines),
+                static_cast<unsigned long>(c.hex_too_long));
+}
+
+void print_block(uint32_t gap_ms) {
+  const auto& b = g_text.block();
+  Serial.printf("block: %u fields, %lu ms after the last\n", static_cast<unsigned>(b.count),
+                static_cast<unsigned long>(gap_ms));
+  for (size_t i = 0; i < b.count; ++i) {
+    // The Checksum record's value is one raw byte, not text.
+    if (std::strcmp(b.fields[i].label, "Checksum") == 0) continue;
+    Serial.printf("  %-9s %s\n", b.fields[i].label, b.fields[i].value);
+  }
+  vedirect::MpptText m;
+  const size_t       bad = vedirect::decode_mppt(b, &m);
+  // Sentinels print as they are (root rule 6): a field that reads 4294967295 is missing.
+  Serial.printf("  decoded: pid 0x%04X, batt %lu mV %ld mA, pv %lu mV %lu W, load %ld mA %s, "
+                "cs %u, mppt %u, err %u, h19 %lu, h20 %lu, h21 %lu, h22 %lu, hsds %u; "
+                "%u unparsed\n",
+                m.pid, static_cast<unsigned long>(m.batt_mv), static_cast<long>(m.batt_ma),
+                static_cast<unsigned long>(m.pv_mv), static_cast<unsigned long>(m.pv_w),
+                static_cast<long>(m.load_ma),
+                m.load == vedirect::LoadState::On    ? "ON"
+                : m.load == vedirect::LoadState::Off ? "OFF"
+                                                     : "n/a",
+                m.charge_state, m.tracker, m.err, static_cast<unsigned long>(m.yield_total),
+                static_cast<unsigned long>(m.yield_today), static_cast<unsigned long>(m.pmax_today),
+                static_cast<unsigned long>(m.yield_yest), m.day_seq, static_cast<unsigned>(bad));
+}
+
+// Feeds one byte to the parser and reports what it completed. Returns the event so a HEX
+// transaction can look for its reply among the text.
+vedirect::TextEvent ved_feed(uint8_t b, uint32_t& last_block_ms, bool print_blocks) {
+  const vedirect::TextEvent ev = g_text.feed(b);
+  if (ev == vedirect::TextEvent::Block) {
+    const uint32_t now = millis();
+    if (print_blocks) print_block(last_block_ms == 0 ? 0 : now - last_block_ms);
+    last_block_ms = now;
+  } else if (ev == vedirect::TextEvent::Dropped) {
+    Serial.printf("dropped: %s\n", vedirect::drop_name(g_text.last_drop()));
+  }
+  return ev;
+}
+
+void cmd_ved_text(uint32_t seconds) {
+  ved_begin();
+  g_text.reset();
+  Serial.printf("ved text: %lu s\n", static_cast<unsigned long>(seconds));
+  uint32_t       last = 0;
+  const uint32_t t0   = millis();
+  while (millis() - t0 < seconds * 1000UL) {
+    while (Serial1.available() > 0) {
+      if (ved_feed(static_cast<uint8_t>(Serial1.read()), last, true) ==
+          vedirect::TextEvent::HexLine) {
+        Serial.printf("hex (unsolicited): %s\n", g_text.hex_line());
+      }
+    }
+    delay(1);
+  }
+  print_counters();
+}
+
+// Plan 4.2.4's hex_timeout_ms default. The node reads it from lran-config.
+constexpr uint32_t kHexTimeoutMs = 1000;
+
+// The response command that answers `req`, per hex.h's tables. Unknown and Error answer
+// any request.
+bool answers(uint8_t req, int32_t reg, const vedirect::Frame& f) {
+  using vedirect::HexRsp;
+  if (f.cmd == static_cast<uint8_t>(HexRsp::Unknown) || f.cmd == static_cast<uint8_t>(HexRsp::Error)) {
+    return true;
+  }
+  switch (static_cast<vedirect::HexCmd>(req)) {
+    case vedirect::HexCmd::Ping:       return f.cmd == static_cast<uint8_t>(HexRsp::Ping);
+    case vedirect::HexCmd::AppVersion: return f.cmd == static_cast<uint8_t>(HexRsp::Done);
+    case vedirect::HexCmd::ProductId:  return f.cmd == static_cast<uint8_t>(HexRsp::Done);
+    case vedirect::HexCmd::Get: {
+      vedirect::RegReply r;
+      return vedirect::reg_reply(f, &r) && r.cmd == HexRsp::Get && r.reg == reg;
+    }
+    default: return false;
+  }
+}
+
+// One transaction: one request out, its reply matched, everything else on the line
+// reported. Prints the result and returns whether a reply came.
+bool ved_hex(const char* req, size_t n, int32_t reg) {
+  vedirect::Frame q;
+  const vedirect::Parse qp = vedirect::decode(req, n, &q);
+  if (qp != vedirect::Parse::Ok) {
+    Serial.printf("hex: request refused, %s\n", vedirect::parse_name(qp));
+    return false;
+  }
+  using vedirect::HexCmd;
+  const HexCmd c = static_cast<HexCmd>(q.cmd);
+  if (c != HexCmd::Ping && c != HexCmd::AppVersion && c != HexCmd::ProductId && c != HexCmd::Get) {
+    Serial.printf("hex: command %X refused; this console only reads\n", q.cmd);
+    return false;
+  }
+  ved_begin();
+  Serial1.write(reinterpret_cast<const uint8_t*>(req), n);
+  Serial1.write('\n');
+  Serial.printf("hex > %.*s\n", static_cast<int>(n), req);
+
+  uint32_t       last = 0;
+  const uint32_t t0   = millis();
+  while (millis() - t0 < kHexTimeoutMs) {
+    while (Serial1.available() > 0) {
+      if (ved_feed(static_cast<uint8_t>(Serial1.read()), last, false) !=
+          vedirect::TextEvent::HexLine) {
+        continue;
+      }
+      vedirect::Frame       f;
+      const vedirect::Parse p = vedirect::decode(g_text.hex_line(), g_text.hex_len(), &f);
+      if (p != vedirect::Parse::Ok) {
+        Serial.printf("hex < %s  (%s)\n", g_text.hex_line(), vedirect::parse_name(p));
+        continue;
+      }
+      if (!answers(q.cmd, reg, f)) {
+        Serial.printf("hex < %s  (unmatched, discarded)\n", g_text.hex_line());
+        continue;
+      }
+      const uint32_t dt = millis() - t0;
+      Serial.printf("hex < %s  (%lu ms)\n", g_text.hex_line(), static_cast<unsigned long>(dt));
+      vedirect::RegReply r;
+      if (vedirect::reg_reply(f, &r)) {
+        Serial.printf("      reg 0x%04X flags 0x%02X value %lu (0x%lX), %u bytes%s\n", r.reg,
+                      r.flags, static_cast<unsigned long>(r.value),
+                      static_cast<unsigned long>(r.value), r.width,
+                      r.flags & vedirect::kFlagUnknownId ? ", UNKNOWN ID" : "");
+      } else {
+        // Ping and AppVersion carry the firmware version; ProductId the PID.
+        Serial.print(F("      data"));
+        for (size_t i = 0; i < f.len; ++i) Serial.printf(" %02X", f.data[i]);
+        Serial.println();
+      }
+      return true;
+    }
+    delay(1);
+  }
+  Serial.printf("hex: TIMEOUT after %lu ms\n", static_cast<unsigned long>(kHexTimeoutMs));
+  return false;
+}
+
+bool ved_simple(vedirect::HexCmd c) {
+  char         out[vedirect::kMaxChars];
+  const size_t n = vedirect::encode(static_cast<uint8_t>(c), nullptr, 0, out, sizeof(out));
+  return ved_hex(out, n, -1);
+}
+
+bool ved_get(uint16_t reg) {
+  char         out[vedirect::kMaxChars];
+  const size_t n = vedirect::encode_get(reg, out, sizeof(out));
+  return ved_hex(out, n, reg);
+}
+
+// The registers the bridge reads back for BF-30 (firmware/bridge/src/charge_readback.h),
+// then product ID and device state. Compare them with VictronConnect's.
+constexpr uint16_t kScanRegs[] = {0x0100, 0x0201, 0xEDF7, 0xEDF6, 0xEDF4, 0xEDFD, 0xEDF2,
+                                  0xEDF1, 0xEDF0, 0xEDFB, 0xEDEA, 0xEDE0};
+
+void cmd_ved_scan() {
+  unsigned ok = 0;
+  for (uint16_t reg : kScanRegs) {
+    if (ved_get(reg)) ++ok;
+  }
+  Serial.printf("ved scan: %u of %u answered\n", ok,
+                static_cast<unsigned>(sizeof(kScanRegs) / sizeof(kScanRegs[0])));
+}
+
+void ved_help() {
+  Serial.println(F("ved: raw [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | stat"));
+}
+
+void cmd_ved(char* arg) {
+  char* sub = arg;
+  char* rest = sub == nullptr ? nullptr : std::strchr(sub, ' ');
+  if (rest != nullptr) *rest++ = '\0';
+  const unsigned long n = rest == nullptr ? 0 : std::strtoul(rest, nullptr, 0);
+  if (sub == nullptr) {
+    ved_help();
+  } else if (std::strcmp(sub, "raw") == 0) {
+    cmd_ved_raw(n == 0 ? 5 : n);
+  } else if (std::strcmp(sub, "text") == 0) {
+    cmd_ved_text(n == 0 ? 10 : n);
+  } else if (std::strcmp(sub, "ping") == 0) {
+    ved_simple(vedirect::HexCmd::Ping);
+  } else if (std::strcmp(sub, "ver") == 0) {
+    ved_simple(vedirect::HexCmd::AppVersion);
+  } else if (std::strcmp(sub, "pid") == 0) {
+    ved_simple(vedirect::HexCmd::ProductId);
+  } else if (std::strcmp(sub, "get") == 0 && rest != nullptr) {
+    ved_get(static_cast<uint16_t>(std::strtoul(rest, nullptr, 16)));
+  } else if (std::strcmp(sub, "scan") == 0) {
+    cmd_ved_scan();
+  } else if (std::strcmp(sub, "send") == 0 && rest != nullptr) {
+    ved_hex(rest, std::strlen(rest), -1);
+  } else if (std::strcmp(sub, "stat") == 0) {
+    print_counters();
+  } else {
+    ved_help();
+  }
+}
+
 void cmd_stat() {
   Serial.printf("stat: radio %s, sd %s, DIO1 edges %lu, DIO1 now %s\n", g_radio_up ? "up" : "down",
                 g_sd_up ? "mounted" : "not mounted", static_cast<unsigned long>(g_dio1_edges),
@@ -480,7 +764,7 @@ void cmd_stat() {
 }
 
 void help() {
-  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | cad [rx] | sd [format] | bus <s> | stat"));
+  Serial.println(F("commands: pins | reset | begin | tx | txloop <n> | rx <s> | cad [rx] | sd [format] | bus <s> | ved | stat"));
 }
 
 void dispatch(char* line) {
@@ -508,6 +792,8 @@ void dispatch(char* line) {
     cmd_sd(arg != nullptr && std::strcmp(arg, "format") == 0);
   } else if (std::strcmp(line, "bus") == 0) {
     cmd_bus(n == 0 ? 30 : n);
+  } else if (std::strcmp(line, "ved") == 0) {
+    cmd_ved(arg);
   } else if (std::strcmp(line, "stat") == 0) {
     cmd_stat();
   } else if (line[0] != '\0') {
