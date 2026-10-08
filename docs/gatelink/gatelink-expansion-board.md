@@ -48,7 +48,7 @@ The board consumes the StamPLC's Bus header plus both Grove ports (PORT.A and PO
 | J1 | 2×8 2.54 mm **right-angle** header | Direct board-to-board to StamPLC Bus |
 | J2 | JST 2.0 4-pin | StamPLC PORT.A |
 | J3 | JST 2.0 4-pin | StamPLC PORT.C |
-| J4 | JST 2.0 4-pin | VE.Direct to MPPT |
+| J4 | JST 2.0 4-pin. **Built as a 2×2 header and mating socket** (operator, 2026-10-08) | VE.Direct to MPPT. Pins named for the MPPT pin each reaches — §6 |
 | — | 2.54 mm female socket strip | Wio module mount (§7.6) |
 | — | IPEX → SMA bulkhead pigtail | Antenna |
 
@@ -229,6 +229,8 @@ constant (§7.3).
 ### VE.Direct
 
 Named from the **ESP32's** perspective. Victron labels its connector from the MPPT's perspective, so their TX is our RX. Keep this convention everywhere in firmware and comments.
+
+**J4's pins are named for the MPPT pin each one reaches**, not for their position in J4's housing. "J4 pin 3 (Victron TX)" is the J4 pin whose conductor ends at the MPPT's pin 3. The factory VE.Direct cable is a crossover, so a harness built to these pin numbers through it lands pin 2 on the MPPT's TX and pin 3 on its RX. That build received the MPPT's text on G5 and nothing on G4 (engineering log, 2026-10-08). **Meter J4 to the MPPT end to end, through every cable in the harness**, and mark the pin names on the board.
 
 | Net | From | To |
 |---|---|---|

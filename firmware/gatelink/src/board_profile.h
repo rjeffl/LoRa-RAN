@@ -37,7 +37,8 @@ inline constexpr lran::link::RadioPins kCarrierRadio = {
 inline constexpr int8_t kSdCs = 10;
 
 // VE.Direct, named from the ESP32's side (expansion board 6 and 9). Victron names its
-// connector from the MPPT's side, so its TX, J4 pin 3, is kVedUartRx here.
+// connector from the MPPT's side, so its TX is kVedUartRx here. J4's pins are named for the
+// MPPT pin each reaches, through a crossover cable or not (expansion board 6).
 inline constexpr int8_t   kVedUartTx = 5;  // PORT.C yellow -> converter ch 3 -> J4 pin 2
 inline constexpr int8_t   kVedUartRx = 4;  // PORT.C white  -> converter ch 4 -> R2 -> J4 pin 3
 inline constexpr uint32_t kVedBaud   = 19200;  // GateLink Impl Plan 4.2

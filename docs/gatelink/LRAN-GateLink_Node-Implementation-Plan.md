@@ -477,7 +477,9 @@ without the MPPT RX line.
 
 - **Wire colours are actively misleading.** VE.Direct cables are crossover cables; red
   may be GND and black may be V+, and the two data conductors differ in meaning between
-  the cable's ends. **Meter every conductor.**
+  the cable's ends. **Meter every conductor.** Expansion board §6 names J4's pins for the
+  MPPT pin each one reaches, so a harness through a crossover cable is wired to that, not
+  to J4's pin numbers taken one for one.
 - Community sources disagree about whether pin 4 is V+ or GND on some units. Moot since
   pin 4 is unconnected, but a further argument for metering first.
 - **Do not attempt to power the front end from the VE.Direct V+ pin** — it is limited to

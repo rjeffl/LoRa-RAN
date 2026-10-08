@@ -882,3 +882,56 @@ low as weak as this high would sit near 3.3 V against the converter's 10 kΩ pul
 5 V, and no data would arrive. The bring-up image's `ved raw` tests the carrier's own
 path instead, which is the question D25 exists to answer. Checksummed blocks through
 J4 settle it for this carrier; nothing, with the cable metered, is D25's failure case.
+
+## 2026-10-08 — VE.Direct works both ways on the carrier; the BSS138 passes the MPPT's lows
+
+**The first build of the harness crossed TX and RX.** J4 is a 2×2 header and socket, not
+the JST of expansion board §2, and it was wired to §6's pin numbers through the factory
+VE.Direct cable, which is a crossover. The MPPT's TX landed on HV3, our TX channel. `ved
+raw` saw no bytes. `ved edges`, which samples G4 and G5 as inputs with the UART released,
+counted 1623 falling edges in 3 s on G5 and none on G4. The operator swapped the crimps of
+pins 2 and 3, and §6 now names J4's pins for the MPPT pin each reaches.
+
+**D25 is answered for this unit: the BSS138 stays.** Over the crossed cable, the MPPT's
+lows passed channel 3 against its 10 kΩ pull-up, and over the corrected one they pass
+channel 4 and R2. Both reached the ESP32 as clean lows, the shortest 45 µs against a 52 µs
+bit. The weak 19 kΩ high side of the earlier entry pairs with a strong low side, which is
+the case plan §4.2.2 calls moot. M4 was not run as specified, with a scope on a 10 kΩ
+load; this is the carrier's own path doing the job instead.
+
+**Text.** One block every 1000 ms, 19 fields, every block read continuously passed its
+checksum, and `decode_mppt()` left none unparsed. The block carries `OR` and `H23`, which
+neither osh-labs nor spec 7.2.2 defines. PID `0xA075`, FW `175`, battery 13.36 V at
+−40 mA, `CS` 0 and `OR` `0x00000001` with no PV. One block, byte for byte, is now
+`kCaptured` in `lib/vedirect`'s text tests.
+
+**HEX round-trip.** Ping answered `0x4175`, AppVersion the same, and ProductId `0xA075`,
+which agrees with the text block's PID. Each answered in 8–13 ms. Gets of BF-30's ten
+registers and of `0x0201` answered in 14–15 ms, one in 111 ms with a text block in the
+way:
+
+| Register | Raw | Reads as |
+|---|---|---|
+| `0xEDF7` absorption | 1420 | 14.20 V |
+| `0xEDF6` float | 1350 | 13.50 V |
+| `0xEDF4` equalisation | 0 | 0.00 V |
+| `0xEDFD` auto equalisation | 0 | off |
+| `0xEDF2` temperature compensation | 0 | off |
+| `0xEDF1` battery type | `0xFF` | user defined |
+| `0xEDF0` maximum charge current | 150 | 15.0 A |
+| `0xEDFB` absorption time limit | 200 | 2.00 h |
+| `0xEDEA` system voltage | 12 | 12 V |
+| `0xEDE0` low-temperature cut-off | 500 | 5.00 °C |
+| `0x0201` device state | 0 | off |
+
+The simnode's simulated MPPT holds 1420 in `0xEDF4`; this unit reads 0.
+
+**The first HEX contact sets off an Async burst.** The scan's first Get, of `0x0100`,
+drew about 25 unsolicited `:A` frames and no reply inside 1000 ms. The same Get answered
+`0xA075` on the next try, and the second scan answered 12 of 12. The node's VE.Direct
+task should expect the burst and retry a timed-out Get. Async frames also follow single
+requests; the console discarded each as unmatched without losing its transaction.
+
+**Three blocks failed their checksum, and the console caused them.** Nothing reads
+Serial1 between console commands, so its 1 KB buffer overflows and loses bytes. Every
+failure followed such a gap.
