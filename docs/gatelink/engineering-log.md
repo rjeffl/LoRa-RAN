@@ -1029,3 +1029,65 @@ not say. The totals record's yield, 467, matches the text block's `H19` of 4.67 
 layout used is Victron's history record: yield and consumption in 0.01 kWh, voltages in
 0.01 V, Imax in 0.1 A, and bulk, absorption and float in minutes. The rest of the
 totals record is not decoded.
+
+## 2026-10-08 — GL3's command path on the air: ACK after the pulse, the in-flight retry, the dedup hit and both resyncs
+
+**Bridge and StamPLC on the bench, with the sandbox broker; no simnode.** Every command
+went in on `lran/gatelink/cmd/<action>/set`. Trace:
+[`data/gl3-command-path-2026-10-08.log`](data/gl3-command-path-2026-10-08.log). Times
+below are seconds from the start of each run.
+
+**Every command on the air acked in one attempt.** Run 1, image `4fac560`:
+
+| Command | `cmd/ack` | At GateLink |
+|---|---|---|
+| `nop` | `acked`, result 0 | `NOP ACCEPTED` |
+| `open` | `acked`, result 0 | K3 for 499.8 ms, then the ACK |
+| `hold_open` | `acked`, result 0 | `HOLD_OPEN ACCEPTED`; the K1 line lost its middle on the console |
+| `release_hold` | `acked`, result 0 | K2 for 499.8 ms |
+| `close 0` | `acked`, result 0 | K2 for 499.8 ms |
+| `close 1` | `acked`, result 0 | K2, then K4 1.03 s later; the ACK after K4's trailing edge |
+| `request_status` | `acked`, result 0 | A `STATUS` followed the ACK |
+| `close 5` | `acked`, **result 5** | `REJECTED_ARG`, nothing dispatched |
+
+The `lran` line after them read `exec 8, pulsed 5`: five sequences handed to `io_task`, and
+the three commands that pulse nothing did not. `close 1` arrived at 175.13 and its ACK left
+at about 176.6, inside the bridge's 3 s timeout, as plan §5.2's decision of 2026-10-07
+predicted for the defaults.
+
+**A retry inside the execution window goes unanswered** (spec §9.4). With the bridge's
+`command_ack_timeout_ms` at 500, `close 1` went out at 211.95 and its retry, same `seq`
+10, at 212.76, while K2 was still timing. GateLink logged `retry in flight, not answered
+(spec 9.4)`, K4 followed, and the one ACK reached the bridge at 213.78. `cmd/ack` read
+`acked`, two attempts. The `lran` line went from `dup 0, exec 9` to `dup 1, exec 10`:
+one execution for two transmissions. The timeout went back to 3000 after the check.
+
+**The real ACK always beat the next retry, so `DUPLICATE_CACHED` needed a fault.**
+`75726f1` adds `lran ack drop`, which withholds one fresh ACK through lran-node's
+`fresh_ack()` hook. In run 2, `open` at `seq` 1 pulsed K3 and its ACK was withheld. The
+bridge's retry at 25.83 drew `dedup hit, DUPLICATE_CACHED (ACCEPTED), not executed`, and
+`cmd/ack` read `acked`, two attempts, result 7, detail 0. `exec 1, pulsed 1`: no second
+pulse. That is root rule 2 on GateLink's own relays.
+
+**Both resyncs behave as spec §10.3 and D70 say.** `4fac560` adds `lran ctx new`, a new
+`ctx_id` that GateLink does not announce. A reboot cannot stand in for it, because the
+bridge hears the `BOOT` frames and adopts the new context from them.
+
+- After `ctx new`, `request_status` drew `REJECTED_CTX (frame ctx 0xee1103fa, own
+  0x66f5e7c8)`. The bridge adopted the context and retried once at `seq` 1, which was
+  accepted. `cmd/ack` read `acked`, attempts 1, because a resync restarts the attempt
+  count, as the bridge log of 2026-09-16 found.
+- After a second `ctx new`, `open` drew `REJECTED_CTX` and the bridge published
+  `unconfirmed`, result 3, with no retry. Nothing pulsed. A `nop` that followed went at
+  `seq` 1 in the adopted context and acked.
+
+**Not reached on the air: `REJECTED_MAC` and `REJECTED_SEQ`.** The bridge always sends a
+valid MAC, and it resets `seq` with every roll and resync, so neither occurs without a
+fault. Both stay host-tested in `lib/lran-node` and `lib/lran-protocol`. Every frame here
+passed GateLink's MAC check, and `refused 2` counts the two `REJECTED_CTX` replies alone.
+
+**The console loses the middle of a line under load.** `GL q 1: OPEN ACCEPTED` and
+`GL (expander writes)` each lost about 25 bytes. The log queue dropped nothing (`log 0`),
+so the loss is past the queue, in the USB CDC path the 2026-10-02 and 2026-10-08 entries
+already found. It cost one pulse width, K1's, which this run has as dispatched but not
+measured.

@@ -1,0 +1,238 @@
+# run 1: commands, the in-flight retry, the resync (image 4fac560)
+   150.96 GL alive: io=1501 vedirect=34807 lora=3125 app=1501 bms=1 ui=1500 log=5
+   155.26 CMD mark 1125b2
+   155.26 CMD pub lran/gatelink/cmd/nop/set PRESS
+   155.27 MQTT lran/gatelink/cmd/nop/set PRESS
+   155.84 BRG FRAME #32 tx t=155615 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=3739
+   156.46 BRG FRAME #33 rx t=156265 peer=0x01 type=2 schema=0 frag=0x01 seq=6 rssi=-39 snr=11 st=0 rx=0 deaf=3973
+   156.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+   156.86 BRG cmd: 01 seq 1 -> outcome 1 result 0 detail 0
+   156.90 CMD mark a22336
+   156.90 CMD pub lran/gatelink/cmd/open/set PRESS
+   156.91 MQTT lran/gatelink/cmd/open/set PRESS
+   157.88 BRG FRAME #34 tx t=157607 peer=0x01 type=1 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=3994
+   158.06 GL cmd 01 <- 00 seq 1: NOP ACCEPTED
+   158.06 GL cmd 01 <- 00 seq 2: OPEN executing, ACK deferred
+   158.67 GL cmd 01 <- 00 seq 2: OPEN ACCEPTED
+   158.67 GL relay: K3 on for 499.8 ms (expander writes)
+   159.71 BRG FRAME #35 rx t=159456 peer=0x01 type=2 schema=0 frag=0x01 seq=7 rssi=-39 snr=11 st=0 rx=0 deaf=4227
+   159.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":2,"attempts":1,"result":0,"detail":0}
+   159.92 BRG cmd: 01 seq 2 -> outcome 1 result 0 detail 0
+   160.10 CMD mark 4cf59c
+   160.10 CMD pub lran/gatelink/cmd/hold_open/set PRESS
+   160.10 MQTT lran/gatelink/cmd/hold_open/set PRESS
+   160.73 BRG FRAME #36 tx t=160612 peer=0x01 type=1 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=4252
+   161.51 GL cmd 01 <- 00 seq 3: HOLD_OPEN executing, ACK deferred
+   161.51 GL cmd 01 <- 00 seq 3: HOLD_OPEN ACCEPTED
+   161.51 GL (expander writes)
+   161.95 BRG FRAME #37 rx t=161660 peer=0x01 type=2 schema=0 frag=0x01 seq=8 rssi=-39 snr=12 st=0 rx=0 deaf=4486
+   162.76 BRG cmd: 01 seq 3 -> outcome 1 result 0 detail 0
+   162.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":3,"attempts":1,"result":0,"detail":0}
+   162.99 CMD mark 48ec59
+   162.99 CMD pub lran/gatelink/cmd/release_hold/set PRESS
+   163.00 MQTT lran/gatelink/cmd/release_hold/set PRESS
+   163.78 BRG FRAME #38 tx t=163616 peer=0x01 type=1 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=4511
+   164.55 GL cmd 01 <- 00 seq 4: RELEASE_HOLD executing, ACK deferred
+   164.55 GL cmd 01 <- 00 seq 4: RELEASE_HOLD ACCEPTED
+   164.55 GL relay: K2 on for 499.8 ms (expander writes)
+   165.00 BRG FRAME #39 rx t=164660 peer=0x01 type=2 schema=0 frag=0x01 seq=9 rssi=-40 snr=11 st=0 rx=0 deaf=4744
+   165.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":4,"attempts":1,"result":0,"detail":0}
+   165.82 BRG cmd: 01 seq 4 -> outcome 1 result 0 detail 0
+   171.23 CMD mark f985b3
+   171.23 CMD pub lran/gatelink/cmd/close/set 0
+   171.24 MQTT lran/gatelink/cmd/close/set 0
+   171.92 BRG FRAME #40 tx t=171612 peer=0x01 type=1 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=4765
+   172.68 GL cmd 01 <- 00 seq 5: CLOSE executing, ACK deferred
+   172.68 GL cmd 01 <- 00 seq 5: CLOSE ACCEPTED
+   172.68 GL relay: K2 on for 499.8 ms (expander writes)
+   172.95 BRG FRAME #41 rx t=172660 peer=0x01 type=2 schema=0 frag=0x01 seq=10 rssi=-38 snr=11 st=0 rx=0 deaf=4998
+   173.76 BRG cmd: 01 seq 5 -> outcome 1 result 0 detail 0
+   173.83 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":5,"attempts":1,"result":0,"detail":0}
+   173.94 CMD mark 8c3489
+   173.94 CMD pub lran/gatelink/cmd/close/set 1
+   173.94 MQTT lran/gatelink/cmd/close/set 1
+   174.78 BRG FRAME #42 tx t=174616 peer=0x01 type=1 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=5023
+   175.13 GL cmd 01 <- 00 seq 6: CLOSE executing, ACK deferred
+   175.53 GL relay: K2 on for 499.8 ms (expander writes)
+   176.56 GL cmd 01 <- 00 seq 6: CLOSE ACCEPTED
+   176.56 GL relay: K4 on for 499.9 ms (expander writes)
+   177.02 BRG FRAME #43 rx t=176660 peer=0x01 type=2 schema=0 frag=0x01 seq=11 rssi=-38 snr=11 st=0 rx=0 deaf=5256
+   177.80 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":6,"attempts":1,"result":0,"detail":0}
+   177.82 BRG cmd: 01 seq 6 -> outcome 1 result 0 detail 0
+   178.06 CMD mark 0e8438
+   178.06 CMD pub lran/gatelink/cmd/request_status/set PRESS
+   178.07 MQTT lran/gatelink/cmd/request_status/set PRESS
+   178.84 BRG FRAME #44 tx t=178612 peer=0x01 type=1 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=5277
+   178.99 GL cmd 01 <- 00 seq 7: REQUEST_STATUS ACCEPTED
+   179.45 BRG FRAME #45 rx t=179262 peer=0x01 type=2 schema=0 frag=0x01 seq=12 rssi=-39 snr=11 st=0 rx=0 deaf=5510
+   179.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":7,"attempts":1,"result":0,"detail":0}
+   179.86 BRG cmd: 01 seq 7 -> outcome 1 result 0 detail 0
+   179.93 CMD mark b1ea94
+   179.93 CMD pub lran/gatelink/cmd/close/set 5
+   179.94 MQTT lran/gatelink/cmd/close/set 5
+   180.06 BRG FRAME #46 rx t=179834 peer=0x01 type=4 schema=16 frag=0x01 seq=13 rssi=-39 snr=11 st=0 rx=0 deaf=5510
+   180.82 GL alive: io=1846 vedirect=41584 lora=4052 app=1801 bms=1 ui=1800 log=6
+   180.88 BRG FRAME #47 tx t=180616 peer=0x01 type=1 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=5531
+   182.09 BRG FRAME #48 rx t=181927 peer=0x01 type=2 schema=0 frag=0x01 seq=14 rssi=-40 snr=11 st=0 rx=0 deaf=5764
+   182.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":8,"attempts":1,"result":5,"detail":0}
+   182.81 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":26,"ctx_rolls":1,"ctx_roll_failed":0}
+   182.81 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":8,"cmd_refused_busy":0,"cmd_sent":8,"cmd_retries":0,"cmd_acked":8,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   182.81 MQTT lran/gatelink/diag/state {"rssi_dbm":-40,"snr_db":11,"last_seen_s":0,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   182.91 BRG cmd: 01 seq 8 -> outcome 1 result 5 detail 0
+   182.92 CMD mark bba2e4
+   182.92 CMD GL lran
+   183.05 GL cmd 01 <- 00 seq 8: CLOSE REJECTED_ARG
+   183.05 GL lran: ctx ee1103fa seq 15; rx 23 tx 26; refused 0 dup 0; exec 8, pulsed 5 busy 0, i2c lost 0; dropped 0 log 0
+   194.60 CMD mark a7e993
+   194.60 CMD pub lran/gatelink/cmd/close/set 1
+   194.60 MQTT lran/gatelink/cmd/close/set 1
+   195.90 BRG FRAME #49 tx t=195613 peer=0x01 type=1 schema=0 frag=0x01 seq=9 rssi=- snr=- st=0 rx=5 deaf=5789
+   196.07 GL cmd 01 <- 00 seq 9: CLOSE executing, ACK deferred
+   196.68 GL relay: K2 on for 499.8 ms (expander writes)
+   197.50 GL cmd 01 <- 00 seq 9: CLOSE ACCEPTED
+   197.50 GL relay: K4 on for 499.9 ms (expander writes)
+   197.93 BRG FRAME #50 rx t=197660 peer=0x01 type=2 schema=0 frag=0x01 seq=15 rssi=-39 snr=11 st=0 rx=0 deaf=6022
+   198.74 BRG cmd: 01 seq 9 -> outcome 1 result 0 detail 0
+   198.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":9,"attempts":1,"result":0,"detail":0}
+   201.80 BRG FRAME #51 tx t=201612 peer=0x01 type=3 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=6043
+   202.81 BRG poll: 01 answered in 966 ms (window 10000 ms)
+   202.81 BRG FRAME #52 rx t=202551 peer=0x01 type=4 schema=16 frag=0x01 seq=16 rssi=-40 snr=11 st=0 rx=0 deaf=6235
+   209.50 CMD mark 73af57
+   209.50 CMD pub lran/bridge/config/set {"set":{"command_ack_timeout_ms":500}}
+   209.51 MQTT lran/bridge/config/set {"set":{"command_ack_timeout_ms":500}}
+   209.77 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"command_ack_timeout_ms":{"status":"ok","value":500}}}
+   210.01 CMD mark d5950d
+   210.01 CMD GL lran
+   210.11 GL lran: ctx ee1103fa seq 17; rx 25 tx 28; refused 0 dup 0; exec 9, pulsed 6 busy 0, i2c lost 0; dropped 0 log 0
+   210.93 GL alive: io=2191 vedirect=48274 lora=4735 app=2101 bms=1 ui=2100 log=7
+   210.93 BRG levers: gen 4 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 500 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+   210.93 BRG mqtt: stack high-water 1924 bytes free of 6144
+   211.04 CMD mark a44863
+   211.04 CMD pub lran/gatelink/cmd/close/set 1
+   211.05 MQTT lran/gatelink/cmd/close/set 1
+   211.95 GL cmd 01 <- 00 seq 10: CLOSE executing, ACK deferred
+   211.95 BRG FRAME #53 tx t=211614 peer=0x01 type=1 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=6256
+   212.56 GL relay: K2 on for 499.8 ms (expander writes)
+   212.76 BRG FRAME #54 tx t=212618 peer=0x01 type=1 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=6514
+   212.97 GL cmd 01 <- 00 seq 10: retry in flight, not answered (spec 9.4)
+   213.58 GL cmd 01 <- 00 seq 10: CLOSE ACCEPTED
+   213.58 GL relay: K4 on for 499.8 ms (expander writes)
+   213.78 BRG FRAME #55 rx t=213664 peer=0x01 type=2 schema=0 frag=0x01 seq=17 rssi=-39 snr=12 st=0 rx=0 deaf=6747
+   214.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":10,"attempts":2,"result":0,"detail":0}
+   214.79 BRG cmd: 01 seq 10 -> outcome 1 result 0 detail 0
+   215.99 CMD mark 6c0c35
+   215.99 CMD GL lran
+   216.21 GL lran: ctx ee1103fa seq 18; rx 27 tx 29; refused 0 dup 1; exec 10, pulsed 7 busy 0, i2c lost 0; dropped 0 log 0
+   238.17 CMD mark 0c00e0
+   238.17 CMD pub lran/bridge/config/set {"set":{"command_ack_timeout_ms":3000}}
+   238.18 MQTT lran/bridge/config/set {"set":{"command_ack_timeout_ms":3000}}
+   238.37 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"command_ack_timeout_ms":{"status":"ok","value":3000}}}
+   238.48 CMD mark a4945f
+   238.48 CMD GL lran ctx new
+   238.56 GL lran: new context requested
+   238.56 GL ctx: renewed, now 66f5e7c8
+   238.76 BRG levers: gen 6 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+   240.46 CMD mark 98086f
+   240.46 CMD pub lran/gatelink/cmd/request_status/set PRESS
+   240.46 MQTT lran/gatelink/cmd/request_status/set PRESS
+   240.80 BRG mqtt: stack high-water 1856 bytes free of 6144
+   240.80 BRG FRAME #56 tx t=240616 peer=0x01 type=1 schema=0 frag=0x01 seq=11 rssi=- snr=- st=0 rx=5 deaf=6768
+   240.99 GL alive: io=2536 vedirect=54964 lora=5081 app=2401 bms=1 ui=2400 log=8
+   240.99 GL cmd 01 <- 00 seq 11: REJECTED_CTX (frame ctx 0xee1103fa, own 0x66f5e7c8)
+   241.42 BRG FRAME #57 rx t=241269 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-40 snr=11 st=0 rx=0 deaf=7001
+   241.83 BRG FRAME #58 tx t=241615 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=7026
+   242.01 GL cmd 01 <- 00 seq 1: REQUEST_STATUS ACCEPTED
+   242.77 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":30,"ctx_rolls":1,"ctx_roll_failed":0}
+   242.77 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":11,"cmd_refused_busy":0,"cmd_sent":13,"cmd_retries":1,"cmd_acked":10,"cmd_no_ack":0,"cmd_resyncs":1,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   242.78 MQTT lran/gatelink/diag/state {"rssi_dbm":-40,"snr_db":11,"last_seen_s":1,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   242.84 BRG FRAME #59 rx t=242652 peer=0x01 type=2 schema=0 frag=0x01 seq=2 rssi=-39 snr=11 st=0 rx=0 deaf=7259
+   243.45 BRG FRAME #60 rx t=243224 peer=0x01 type=4 schema=16 frag=0x01 seq=3 rssi=-39 snr=11 st=0 rx=0 deaf=7259
+   243.78 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+   243.86 BRG cmd: 01 seq 1 -> outcome 1 result 0 detail 0
+   246.03 CMD mark 69e947
+   246.03 CMD GL lran ctx new
+   246.07 GL lran: new context requested
+   246.27 GL ctx: renewed, now 7092522b
+   248.10 CMD mark d064d0
+   248.10 CMD pub lran/gatelink/cmd/open/set PRESS
+   248.11 MQTT lran/gatelink/cmd/open/set PRESS
+   248.92 BRG FRAME #61 tx t=248620 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=7284
+   249.12 GL cmd 01 <- 00 seq 1: REJECTED_CTX (frame ctx 0x66f5e7c8, own 0x7092522b)
+   249.53 BRG FRAME #62 rx t=249273 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-39 snr=11 st=0 rx=0 deaf=7517
+   249.73 BRG cmd: 01 seq 1 -> outcome 4 result 3 detail 0
+   249.77 MQTT lran/gatelink/cmd/ack {"outcome":"unconfirmed","seq":1,"attempts":1,"result":3,"detail":0}
+   252.03 CMD mark 1466d6
+   252.03 CMD GL lran
+   252.16 GL lran: ctx 7092522b seq 2; rx 30 tx 33; refused 2 dup 1; exec 11, pulsed 7 busy 0, i2c lost 0; dropped 0 log 0
+   260.74 CMD mark b6cf87
+   260.74 CMD pub lran/gatelink/cmd/nop/set PRESS
+   260.74 MQTT lran/gatelink/cmd/nop/set PRESS
+   261.92 BRG FRAME #63 tx t=261619 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=7542
+   262.12 GL cmd 01 <- 00 seq 1: NOP ACCEPTED
+   262.54 BRG FRAME #64 rx t=262269 peer=0x01 type=2 schema=0 frag=0x01 seq=2 rssi=-39 snr=11 st=0 rx=0 deaf=7776
+   262.74 BRG cmd: 01 seq 1 -> outcome 1 result 0 detail 0
+   262.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+   263.83 CMD mark 3b818e
+   263.83 CMD GL lran
+   263.94 GL lran: ctx 7092522b seq 3; rx 31 tx 34; refused 2 dup 1; exec 12, pulsed 7 busy 0, i2c lost 0; dropped 0 log 0
+   263.95 BRG FRAME #65 tx t=263611 peer=0x01 type=3 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=7797
+   264.77 BRG poll: 01 answered in 962 ms (window 10000 ms)
+   264.77 BRG FRAME #66 rx t=264547 peer=0x01 type=4 schema=16 frag=0x01 seq=3 rssi=-39 snr=11 st=0 rx=0 deaf=7989
+   270.87 GL alive: io=2836 vedirect=61654 lora=6003 app=2701 bms=1 ui=2700 log=9
+   300.98 GL alive: io=3136 vedirect=68344 lora=6303 app=3001 bms=2 ui=3000 log=10
+   302.80 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":35,"ctx_rolls":1,"ctx_roll_failed":0}
+   302.80 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":13,"cmd_refused_busy":0,"cmd_sent":15,"cmd_retries":1,"cmd_acked":12,"cmd_no_ack":0,"cmd_resyncs":1,"cmd_resync_failed":0,"cmd_unconfirmed":1,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   302.81 MQTT lran/gatelink/diag/state {"rssi_dbm":-39,"snr_db":11,"last_seen_s":38,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   323.83 BRG FRAME #67 tx t=323613 peer=0x01 type=3 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=8014
+   324.85 BRG poll: 01 answered in 968 ms (window 10000 ms)
+   324.85 BRG FRAME #68 rx t=324553 peer=0x01 type=4 schema=16 frag=0x01 seq=4 rssi=-38 snr=12 st=0 rx=0 deaf=8206
+   330.89 GL alive: io=3436 vedirect=75034 lora=6742 app=3301 bms=2 ui=3300 log=11
+   360.95 GL alive: io=3736 vedirect=81724 lora=7042 app=3601 bms=2 ui=3600 log=12
+   362.81 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":36,"ctx_rolls":1,"ctx_roll_failed":0}
+   362.82 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":13,"cmd_refused_busy":0,"cmd_sent":15,"cmd_retries":1,"cmd_acked":12,"cmd_no_ack":0,"cmd_resyncs":1,"cmd_resync_failed":0,"cmd_unconfirmed":1,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   362.82 MQTT lran/gatelink/diag/state {"rssi_dbm":-38,"snr_db":12,"last_seen_s":38,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   383.83 BRG FRAME #69 tx t=383619 peer=0x01 type=3 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=8231
+   384.85 BRG poll: 01 answered in 974 ms (window 10000 ms)
+   384.85 BRG FRAME #70 rx t=384559 peer=0x01 type=4 schema=16 frag=0x01 seq=5 rssi=-39 snr=11 st=0 rx=0 deaf=8423
+   386.65 CMD mark 524d67
+   386.65 CMD quit
+# run 2: the dedup hit with one ACK withheld (image 75726f1)
+     2.87 BRG FRAME #2 tx t=2602 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+     3.12 GL Tasks: 7 of 7 started
+     3.12 GL roll 01 <- 00 seq 1: ctx 0x53e9df8c -> 0xf422e950, ACCEPTED
+     3.48 BRG FRAME #3 rx t=3252 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-38 snr=10 st=0 rx=0 deaf=254
+     3.88 BRG roll: 01 rolled to ctx 0xf422e950 after 1 attempt(s)
+     3.88 BRG FRAME #4 tx t=3603 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=275
+     4.10 CMD mark 6d2d1a
+     4.10 CMD GL lran ack drop
+     4.13 GL lran: next COMMAND_ACK will be withheld
+     4.91 BRG FRAME #5 rx t=4543 peer=0x01 type=4 schema=16 frag=0x01 seq=2 rssi=-37 snr=11 st=0 rx=0 deaf=467
+     6.17 CMD mark 59e14d
+     6.17 CMD pub lran/gatelink/cmd/open/set PRESS
+     6.18 MQTT lran/gatelink/cmd/open/set PRESS
+    10.80 BRG mqtt: stack high-water 2276 bytes free of 6144
+    19.73 BRG config: 01 outcome 4, sched stack high-water 2368 bytes free
+    19.73 BRG FRAME #6 tx t=19609 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=492
+    19.97 GL hex 01 -> 00 seq 1: status 0 :7F7ED008C05D9
+    20.54 BRG FRAME #7 rx t=20303 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-41 snr=11 st=0 rx=0 deaf=725
+    20.75 BRG hex: 01 seq 1 read -> answered status 0 result 0, sched stack 1844 bytes free
+    21.76 BRG FRAME #8 tx t=21605 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=746
+    22.62 GL q 1: OPEN ACCEPTED
+    22.62 GL ack drop: ACK for seq 1 withheld
+    22.62 GL relay: K3 on for 499.8 ms (expander writes)
+    25.83 BRG FRAME #9 tx t=25605 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=1000
+    26.08 GL cmd 01 <- 00 seq 1: dedup hit, DUPLICATE_CACHED (ACCEPTED), not executed
+    26.64 BRG FRAME #10 rx t=26254 peer=0x01 type=2 schema=0 frag=0x01 seq=3 rssi=-41 snr=11 st=0 rx=0 deaf=1233
+    26.77 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":1,"attempts":2,"result":7,"detail":0}
+    26.84 BRG cmd: 01 seq 1 -> outcome 1 result 7 detail 0
+    26.84 BRG FRAME #11 tx t=26606 peer=0x01 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1254
+    27.09 GL hex 01 -> 00 seq 2: status 0 :7F6ED00460520
+    27.65 BRG FRAME #12 rx t=27304 peer=0x01 type=9 schema=0 frag=0x01 seq=2 rssi=-41 snr=11 st=0 rx=0 deaf=1487
+    27.85 BRG hex: 01 seq 2 read -> answered status 0 result 0, sched stack 1844 bytes free
+    28.11 CMD mark b7d11a
+    28.11 CMD GL lran
+    28.31 GL lran: ctx f422e950 seq 4; rx 6 tx 7; refused 0 dup 1; exec 1, pulsed 1 busy 0, i2c lost 0; dropped 0 log 0
+    28.86 BRG FRAME #13 tx t=28606 peer=0x01 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1508
+    29.67 BRG poll: 01 answered in 967 ms (window 10000 ms)
+    29.67 BRG FRAME #14 rx t=29546 peer=0x01 type=4 schema=16 frag=0x01 seq=4 rssi=-41 snr=11 st=0 rx=0 deaf=1700
+    29.88 BRG FRAME #15 tx t=29752 peer=0x01 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1725
