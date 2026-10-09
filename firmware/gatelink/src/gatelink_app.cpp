@@ -69,6 +69,14 @@ bool relay_sequence_for(const lran::msg::Command& cmd, RelaySequence* out) {
   }
 }
 
+lran::node::AckDelivery GateLinkApp::fresh_ack(lran::node::Context&, lran::Seq seq) {
+  if (!withhold_ack_) return lran::node::AckDelivery::Send;
+  withhold_ack_ = false;
+  ++acks_withheld_;
+  lran::node::sink_printf(log_, "ack drop: ACK for seq %u withheld", static_cast<unsigned>(seq));
+  return lran::node::AckDelivery::Suppress;
+}
+
 uint8_t GateLinkApp::capabilities(const lran::node::Context&) const {
   return lran::node::kAnswersCommands | lran::node::kAnswersHex |
          lran::node::kRefusesAuthenticated;

@@ -573,6 +573,14 @@ struct NodeView {
 portMUX_TYPE g_view_mux = portMUX_INITIALIZER_UNLOCKED;
 NodeView     g_view;
 
+// The console's `lran ctx new`: a new ctx_id that the bridge does not hear, as a reboot
+// whose BOOT frames were lost would leave it. The bridge's next command then meets spec
+// 10.3's resync, which GL3 checks on the bench. lora_task owns the context, so the
+// console only asks.
+std::atomic<bool> g_ctx_new_req{false};
+// The console's `lran ack drop`, carried to lora_task, which owns the application.
+std::atomic<bool> g_ack_drop_req{false};
+
 // lora_task waits this long on DIO1 or io_task with nothing moving, and this long while a
 // frame is in media access or on the air, whose steps are read from the IRQ register.
 constexpr uint32_t kLoraIdleWaitMs   = 100;
@@ -611,6 +619,21 @@ void lora_task(void*) {
     }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
+
+    if (g_ack_drop_req.exchange(false, std::memory_order_relaxed)) g_node.app().withhold_next_ack();
+    if (g_ctx_new_req.exchange(false, std::memory_order_relaxed)) {
+      // A command mid-execution would lose its ACK, as it would in a real reboot; the
+      // check wants the resync alone.
+      if (g_node.ctx().pending.active) {
+        QueueSink().line("ctx: command in flight, not renewed");
+      } else {
+        lran::node::reset_context(g_node.ctx(), random_u32);
+        char text[48];
+        std::snprintf(text, sizeof(text), "ctx: renewed, now %08lx",
+                      static_cast<unsigned long>(g_node.ctx().ctx_id));
+        QueueSink().line(text);
+      }
+    }
 
     // spec 8.1 - a REBOOT resets once its ACK is on the air.
     if (g_node.engine().restart_owed() && g_node.outbox().size() == 0 && radio_tx_idle()) {
@@ -737,6 +760,8 @@ const char* pulse_result_name(PulseResult r) {
 //   beep              the buzzer
 //   radio             radio_begin()'s status
 //   lran              the protocol node: context, frames, refusals, commands (GL3)
+//   lran ctx new      a new ctx_id, unannounced, for spec 10.3's resync on the bench
+//   lran ack drop     withhold the next fresh COMMAND_ACK, for spec 9.4's dedup hit
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
@@ -831,6 +856,17 @@ void console_command(char* cmd) {
       g_bus_end_ms  = now_ms() + g_bus_seconds * 1000;
       g_bus_run.store(true, std::memory_order_relaxed);
       n = std::snprintf(line, sizeof(line), "bus: %lu s started", secs);
+    }
+  } else if (std::strcmp(cmd, "lran") == 0 && arg != nullptr) {
+    if (std::strcmp(arg, "ctx new") == 0) {
+      g_ctx_new_req.store(true, std::memory_order_relaxed);
+      if (g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
+      n = std::snprintf(line, sizeof(line), "lran: new context requested");
+    } else if (std::strcmp(arg, "ack drop") == 0) {
+      g_ack_drop_req.store(true, std::memory_order_relaxed);
+      n = std::snprintf(line, sizeof(line), "lran: next COMMAND_ACK will be withheld");
+    } else {
+      n = std::snprintf(line, sizeof(line), "lran: no arguments, ctx new, or ack drop");
     }
   } else if (std::strcmp(cmd, "lran") == 0) {
     portENTER_CRITICAL(&g_view_mux);

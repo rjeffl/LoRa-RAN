@@ -20,7 +20,6 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **GL4's M14 log** (needs the MPPT back on the gate's PV) | *The next job*, below; plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
-| **GL3, the command path's bench checks** (needs the broker) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §9.4 and §10.3. `firmware/gatelink/CLAUDE.md` lists the console commands |
 | **GL3, the watchdog** | Plan §5.2, the watchdog bullets; the bridge's `tasks.h` for how it arms its own |
 | **GL3, CONFIG** | Plan §4.4 and §6.4; spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
@@ -31,22 +30,24 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3's command-path checks on the broker can go next; GL4 waits only on M14.** GL4's
-write gates pass on the bench: the bridge refused a Set while disarmed, and an armed Set
-reached the MPPT and read back. M14 needs a week logged at the gate, and the MPPT is on a
-bench supply with no PV, so it starts once the MPPT goes back. The MPPT's own 30-day
-history is already read and logged as a starting point. The node's refusal of an
-unauthenticated Set is host-tested only, because the bridge always sends a MAC.
+**GL3's watchdog, CONFIG or reset-cause slice can go next; GL4 waits only on M14.** The
+command path passes on the air, so GL3's remaining slices are independent of each other;
+the table above lists what each reads. M14 needs a week logged at the gate, and the MPPT
+is on a bench supply with no PV, so it starts once the MPPT goes back. The node's refusals
+of a bad MAC, a stale `seq` and an unauthenticated Set are host-tested only, because the
+bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **The bridge refuses a write while disarmed, and builds no frame for it** (PRD R-3.5b,
-  gate 2). Armed, a Set of `0xEDF0` reached the MPPT, read back 14.0 A, and was restored to
-  15.0 A. Engineering log, 2026-10-08, *Writes through the broker*.
-- **The node now matches a HEX reply of any width.** `cbacd3f` correlates on the echoed
-  register; before it, a history Get (34 bytes) timed out. The Get retry ran on the board.
-- **The MPPT's 30-day history is in `data/m14-mppt-history-2026-10-08.log`**: 0.03–0.14 kWh
-  a day, Vbat min 12.44–13.19 V, no errors. A start for M14, not its result.
+- **Every gate command acks after its last trailing edge**, in one attempt at the
+  defaults; `close 1`'s two pulses finish inside the bridge's 3 s timeout. Engineering log,
+  2026-10-08, *GL3's command path on the air*.
+- **A retry inside the execution window goes unanswered, and a retry after it draws
+  `DUPLICATE_CACHED`** (spec §9.4). Neither pulses a relay twice.
+- **Both resyncs match spec §10.3 and D70**: a `request_status` is retried once in the
+  adopted context, and an `open` is published `unconfirmed` without a retry.
+- **Two bench faults on the console**: `lran ctx new` and `lran ack drop`
+  (`firmware/gatelink/CLAUDE.md`).
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -77,7 +78,7 @@ unauthenticated Set is host-tested only, because the bridge always sends a MAC.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.31. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included. CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
 | Not started | GL2, GL5–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -176,6 +177,9 @@ board's are its D-pads (expansion board §6.1).
   the panic handler.
 - **The interrupt-watchdog panic printed `Re-entered core dump!`** before rebooting. The
   reset still happened. Unexamined.
+- **The GateLink console loses the middle of a line under load** (engineering log,
+  2026-10-08, *GL3's command path on the air*). `log 0` shows the queue dropped nothing,
+  so the loss is in the USB CDC path. It hid one pulse width on the bench.
 - **`bench.py run` exits when it writes to a port that has disappeared**
   (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not.
 - **Protocol Specification §7.2.4 calls `node_ma` the "INA226 supply current"**, which

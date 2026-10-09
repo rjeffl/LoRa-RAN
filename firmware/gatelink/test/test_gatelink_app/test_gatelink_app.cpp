@@ -236,6 +236,25 @@ void test_actuation_acks_after_the_pulse() {
   TEST_ASSERT_EQUAL_INT(1, r.port.count);
 }
 
+// The console's `lran ack drop` withholds one fresh ACK and disarms. The retry is answered
+// from the cache, which the hook never touches (spec 9.4 step 4).
+void test_ack_drop_withholds_one_fresh_ack() {
+  Rig r;
+  r.app.withhold_next_ack();
+  r.command(3, Cmd::Nop);
+  TEST_ASSERT_EQUAL_size_t(0, r.out.size());
+  TEST_ASSERT_EQUAL_UINT32(1, r.app.acks_withheld());
+
+  r.command(3, Cmd::Nop);
+  const msg::CommandAck a = r.next_ack();
+  assert_result(AckResult::DuplicateCached, a);
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::Accepted), a.detail);
+
+  r.command(4, Cmd::Nop);
+  assert_result(AckResult::Accepted, r.next_ack());
+  TEST_ASSERT_EQUAL_UINT32(1, r.app.acks_withheld());
+}
+
 // An immediate close is one command and one ACK: HA sees one "close" (Impl Plan 6.1).
 void test_immediate_close_is_one_sequence() {
   Rig r;
@@ -430,6 +449,7 @@ int main() {
   RUN_TEST(test_close_with_a_bad_arg_is_refused_at_once);
   RUN_TEST(test_dry_run_moves_nothing);
   RUN_TEST(test_full_port_answers_busy);
+  RUN_TEST(test_ack_drop_withholds_one_fresh_ack);
   RUN_TEST(test_reboot_needs_its_guard);
   RUN_TEST(test_poll_answers_status_with_sentinels);
   RUN_TEST(test_ping_is_echoed);
