@@ -20,8 +20,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **GL4's M14 log** (needs the MPPT back on the gate's PV) | *The next job*, below; plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
-| **GL3, the watchdog** | Plan §5.2, the watchdog bullets; the bridge's `tasks.h` for how it arms its own |
-| **GL3, CONFIG** | Plan §4.4 and §6.4; spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
+| **GL3, CONFIG** | Plan §4.4, §6.4 and §5.2's watchdog bullet (a `SET` of `0x1060` calls `apply_watchdog_timeout()`); spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -30,9 +29,10 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3's watchdog, CONFIG or reset-cause slice can go next; GL4 waits only on M14.** The
-command path passes on the air, so GL3's remaining slices are independent of each other;
-the table above lists what each reads. M14 needs a week logged at the gate, and the MPPT
+**GL3's CONFIG or reset-cause slice can go next; GL4 waits only on M14.** The watchdog is
+armed and fired on the bench (engineering log, 2026-10-08), so GL3's two remaining slices
+are independent of each other; the table above lists what each reads. CONFIG also wires
+`watchdog_timeout_s`: until a `Store` exists, the watchdog runs at the row's 10 s default. M14 needs a week logged at the gate, and the MPPT
 is on a bench supply with no PV, so it starts once the MPPT goes back. The node's refusals
 of a bad MAC, a stale `seq` and an unauthenticated Set are host-tested only, because the
 bridge always sends a valid MAC and resets `seq` itself.
@@ -77,8 +77,8 @@ bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.31. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included. CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
+| Done | Plan v0.32. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, and the task watchdog arms and fires. CONFIG, state derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
 | Not started | GL2, GL5–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -250,7 +250,7 @@ board's are its D-pads (expansion board §6.1).
   fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
   of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
   ceiling.
-- **GateLink's 19 ranges are proposals.** None is measured. The operator reviews them
+- **GateLink's 20 ranges are proposals.** None is measured. The operator reviews them
   before HA first publishes the names, which are permanent.
 - **The bridge's 2048-byte payload has not run on a board.** The bridge handoff's §7 owns
   the reading.
