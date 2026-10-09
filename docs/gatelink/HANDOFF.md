@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-08, at the end of the session that built `vedirect_task` (GL4).**
-It replaces the file GL4's first session wrote.
+**Written 2026-10-08, at the end of the session that ran GL4's write gates on the broker.**
+It replaces the file the `vedirect_task` session wrote.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -19,7 +19,7 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 
 | Task | Read |
 |---|---|
-| **GL4's last criteria** (need the broker) | *The next job*, below; plan §8.2's GL4 row and §9.8 for M14; bridge PRD R-3.5b for the write arm. `firmware/gatelink/src/ved_link.h` and `gatelink_app.h` hold the node's half |
+| **GL4's M14 log** (needs the MPPT back on the gate's PV) | *The next job*, below; plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
 | **GL3, the command path's bench checks** (needs the broker) | *The next job*, below; plan §5.2 and §8.2's GL3 row; spec §9.4 and §10.3. `firmware/gatelink/CLAUDE.md` lists the console commands |
 | **GL3, the watchdog** | Plan §5.2, the watchdog bullets; the bridge's `tasks.h` for how it arms its own |
 | **GL3, CONFIG** | Plan §4.4 and §6.4; spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
@@ -31,23 +31,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL4 needs the broker for what it has left.** `vedirect_task` is built and ran on the
-carrier: the bridge's BF-30 readback came back over the air register by register, and
-staleness asserts and clears on the board. Three GL4 criteria remain. The bridge must
-refuse a write while disarmed, which needs `write_enable/set` on MQTT. A Set must go
-through to the MPPT and read back. And M14's §9.8 baseline log must start. The node's
-refusal of an unauthenticated Set is host-tested only, because the bridge always sends a
-MAC. GL3's command-path checks on the broker are also owed, and either can go first.
+**GL3's command-path checks on the broker can go next; GL4 waits only on M14.** GL4's
+write gates pass on the bench: the bridge refused a Set while disarmed, and an armed Set
+reached the MPPT and read back. M14 needs a week logged at the gate, and the MPPT is on a
+bench supply with no PV, so it starts once the MPPT goes back. The MPPT's own 30-day
+history is already read and logged as a starting point. The node's refusal of an
+unauthenticated Set is host-tested only, because the bridge always sends a MAC.
 
 ## What the last session established
 
-- **`vedirect_task` carries `HEX_REQ` to the MPPT and back.** All ten BF-30 registers
-  answered on their first attempt, through the bridge with no broker. The values match the
-  bring-up scan and VictronConnect. Engineering log, 2026-10-08, the `vedirect_task` entry.
-- **Staleness works on the board.** Bit 1 set 6.2 s after the last block, against
-  `vedirect_stale_s` of 5, kept the last values, and cleared when the cable went back in.
-- **The Get retry has not run on the board.** The first Get met 8 Async frames and still
-  answered inside half of `hex_timeout_ms`. The native suite covers the retry.
+- **The bridge refuses a write while disarmed, and builds no frame for it** (PRD R-3.5b,
+  gate 2). Armed, a Set of `0xEDF0` reached the MPPT, read back 14.0 A, and was restored to
+  15.0 A. Engineering log, 2026-10-08, *Writes through the broker*.
+- **The node now matches a HEX reply of any width.** `cbacd3f` correlates on the echoed
+  register; before it, a history Get (34 bytes) timed out. The Get retry ran on the board.
+- **The MPPT's 30-day history is in `data/m14-mppt-history-2026-10-08.log`**: 0.03–0.14 kWh
+  a day, Vbat min 12.44–13.19 V, no errors. A start for M14, not its result.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -78,7 +77,7 @@ MAC. GL3's command-path checks on the broker are also owed, and either can go fi
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.31. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: text, D25, `vedirect_task`'s HEX round-trip over the air, BF-30's readback and staleness pass on the bench; the disarmed-write refusal, a Set end to end and M14 remain, and need the broker |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: the command path is built, and BOOT, the roll, polls and PING pass on the air. Commands on the air, CONFIG, state derivation, the watchdog and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
 | Not started | GL2, GL5–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -111,7 +110,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with `vedirect_task`, flashed 2026-10-08 at `177b8e3`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem1301` on 2026-10-08. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with `vedirect_task`, flashed 2026-10-08 at `cbacd3f`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN, a DVM in series with it and a bench switch on IN8. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -274,6 +273,8 @@ board's are its D-pads (expansion board §6.1).
 - **Expansion board §11 step 6** waits for the gate.
 - **`0xEDF4` reads 0 on the gate's MPPT**, and the simnode's simulated MPPT holds 1420.
   VictronConnect does not show the setting. A simnode change, if anyone wants it.
+- **The StamPLC was silent on the air for 135 s before a replug** (engineering log,
+  2026-10-08). Nothing explains it yet; watch for a repeat.
 - **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised.

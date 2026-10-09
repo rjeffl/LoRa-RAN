@@ -183,9 +183,11 @@ bool VedLink::answers(const vedirect::Frame& f) const {
       return f.cmd == static_cast<uint8_t>(HexRsp::Done);
     case HexCmd::Get:
     case HexCmd::Set: {
-      vedirect::RegReply r;
-      return req_reg_known_ && vedirect::reg_reply(f, &r) && static_cast<uint8_t>(r.cmd) == req_cmd_ &&
-             r.reg == req_reg_;
+      // Matched on the echoed register alone, not through reg_reply(), which takes a value
+      // of at most 4 bytes. A history record (0x1050 onwards) carries 34, and its reply
+      // then went unmatched and the request timed out (engineering log, 2026-10-08).
+      if (!req_reg_known_ || f.cmd != req_cmd_ || f.len < 3) return false;
+      return static_cast<uint16_t>(f.data[0] | (f.data[1] << 8)) == req_reg_;
     }
     default:
       return false;

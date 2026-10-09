@@ -1,0 +1,109 @@
+    47.44 CMD mark disarmed write
+    47.44 CMD pub lran/gatelink/vedirect/hex/request :8F0ED008C00E4
+    47.45 MQTT lran/gatelink/vedirect/hex/request :8F0ED008C00E4
+    47.76 MQTT lran/gatelink/vedirect/hex/response {"request":":8F0ED008C00E4","seq":1,"outcome":"refused_disarmed","status":null,"response":null}
+    47.77 MQTT lran/gatelink/vedirect/hex/audit {"request":":8F0ED008C00E4","seq":1,"outcome":"refused_disarmed","status":null,"response":null,"authorization":"disarmed","at":"2026-10-09T01:01:24Z"}
+    47.80 BRG hex: 01 seq 1 write -> refused_disarmed status 0 result 0, sched stack 1844 bytes free
+    57.84 CMD mark 3ab715
+    57.84 CMD mark armed set
+    57.84 CMD pub lran/gatelink/vedirect/write_enable/set ON
+    57.85 MQTT lran/gatelink/vedirect/write_enable/set ON
+    58.15 BRG hex: 01 write ARMED
+    58.76 MQTT lran/gatelink/vedirect/write_enable/state ON
+    58.97 CMD mark 770d9e
+    58.97 CMD pub lran/gatelink/vedirect/hex/request :8F0ED008C00E4
+    58.98 MQTT lran/gatelink/vedirect/hex/request :8F0ED008C00E4
+    59.78 BRG FRAME #28 tx t=59606 peer=0x01 type=8 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=3267
+    60.04 GL hex 01 -> 00 seq 2: status 0 :8F0ED008C00E4
+    60.59 BRG FRAME #29 rx t=60359 peer=0x01 type=9 schema=0 frag=0x01 seq=2 rssi=-38 snr=11 st=0 rx=0 deaf=3562
+    60.76 MQTT lran/gatelink/vedirect/hex/response {"request":":8F0ED008C00E4","seq":2,"outcome":"answered","status":"ok","response":":8F0ED008C00E4"}
+    60.77 MQTT lran/gatelink/vedirect/hex/audit {"request":":8F0ED008C00E4","seq":2,"outcome":"answered","status":"ok","response":":8F0ED008C00E4","authorization":"armed","at":"2026-10-09T01:01:37Z"}
+    60.79 BRG hex: 01 seq 2 write -> answered status 0 result 0, sched stack 1844 bytes free
+    61.04 CMD mark cbc5c0
+    61.04 CMD pub lran/gatelink/vedirect/hex/request :7F0ED0071
+    61.05 MQTT lran/gatelink/vedirect/hex/request :7F0ED0071
+    61.06 GL alive: io=601 vedirect=14703 lora=2363 app=601 bms=1 ui=601 log=2
+    61.78 MQTT lran/gatelink/diag/state {"rssi_dbm":-38,"snr_db":11,"last_seen_s":1,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+    61.81 BRG FRAME #30 tx t=61601 peer=0x01 type=8 schema=0 frag=0x01 seq=11 rssi=- snr=- st=0 rx=5 deaf=3583
+    62.08 GL hex 01 -> 00 seq 11: status 0 :7F0ED008C00E5
+    62.62 BRG FRAME #31 rx t=62294 peer=0x01 type=9 schema=0 frag=0x01 seq=11 rssi=-38 snr=11 st=0 rx=0 deaf=3816
+    62.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7F0ED0071","seq":11,"outcome":"answered","status":"ok","response":":7F0ED008C00E5"}
+    62.82 BRG hex: 01 seq 11 read -> answered status 0 result 0, sched stack 1844 bytes free
+    63.84 BRG FRAME #32 tx t=63610 peer=0x01 type=8 schema=0 frag=0x01 seq=12 rssi=- snr=- st=0 rx=5 deaf=3841
+    64.11 GL hex 01 -> 00 seq 12: status 0 :7F7ED008C05D9
+    64.64 BRG FRAME #33 rx t=64308 peer=0x01 type=9 schema=0 frag=0x01 seq=12 rssi=-38 snr=11 st=0 rx=0 deaf=4075
+    64.85 BRG hex: 01 seq 12 read -> answered status 0 result 0, sched stack 1844 bytes free
+    65.87 BRG FRAME #34 tx t=65604 peer=0x01 type=8 schema=0 frag=0x01 seq=13 rssi=- snr=- st=0 rx=5 deaf=4100
+    66.14 GL hex 01 -> 00 seq 13: status 0 :7F6ED00460520
+    66.48 BRG FRAME #35 rx t=66297 peer=0x01 type=9 schema=0 frag=0x01 seq=13 rssi=-38 snr=11 st=0 rx=0 deaf=4333
+    66.89 BRG hex: 01 seq 13 read -> answered status 0 result 0, sched stack 1844 bytes free
+    67.91 BRG FRAME #36 tx t=67613 peer=0x01 type=8 schema=0 frag=0x01 seq=14 rssi=- snr=- st=0 rx=5 deaf=4358
+    67.97 GL hex 01 -> 00 seq 14: status 0 :7F4ED0000006D
+    68.52 BRG FRAME #37 rx t=68307 peer=0x01 type=9 schema=0 frag=0x01 seq=14 rssi=-37 snr=11 st=0 rx=0 deaf=4591
+    68.93 BRG hex: 01 seq 14 read -> answered status 0 result 0, sched stack 1844 bytes free
+    69.94 BRG FRAME #38 tx t=69609 peer=0x01 type=8 schema=0 frag=0x01 seq=15 rssi=- snr=- st=0 rx=5 deaf=4612
+    69.99 GL hex 01 -> 00 seq 15: status 0 :7FDED000064
+    70.55 BRG FRAME #39 rx t=70306 peer=0x01 type=9 schema=0 frag=0x01 seq=15 rssi=-39 snr=11 st=0 rx=0 deaf=4845
+    70.75 BRG hex: 01 seq 15 read -> answered status 0 result 0, sched stack 1844 bytes free
+    71.77 BRG FRAME #40 tx t=71608 peer=0x01 type=8 schema=0 frag=0x01 seq=16 rssi=- snr=- st=0 rx=5 deaf=4866
+    72.01 GL hex 01 -> 00 seq 16: status 0 :7F2ED0000006F
+    72.58 BRG FRAME #41 rx t=72301 peer=0x01 type=9 schema=0 frag=0x01 seq=16 rssi=-39 snr=11 st=0 rx=0 deaf=5099
+    72.78 BRG hex: 01 seq 16 read -> answered status 0 result 0, sched stack 1844 bytes free
+    73.80 BRG FRAME #42 tx t=73603 peer=0x01 type=8 schema=0 frag=0x01 seq=17 rssi=- snr=- st=0 rx=5 deaf=5120
+    74.04 GL hex 01 -> 00 seq 17: status 0 :7F1ED00FF71
+    74.61 BRG FRAME #43 rx t=74300 peer=0x01 type=9 schema=0 frag=0x01 seq=17 rssi=-39 snr=12 st=0 rx=0 deaf=5354
+    74.81 BRG hex: 01 seq 17 read -> answered status 0 result 0, sched stack 1844 bytes free
+    77.05 BRG FRAME #44 tx t=76839 peer=0x01 type=8 schema=0 frag=0x01 seq=18 rssi=- snr=- st=0 rx=5 deaf=5396
+    77.29 GL hex 01 -> 00 seq 18: status 0 :7F0ED008C00E5
+    77.66 BRG FRAME #45 rx t=77532 peer=0x01 type=9 schema=0 frag=0x01 seq=18 rssi=-39 snr=11 st=0 rx=0 deaf=5629
+    77.77 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":0.00,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":14.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":5.00}
+    77.85 CMD mark f2a8d3
+    77.85 CMD mark restore
+    77.85 CMD pub lran/gatelink/vedirect/hex/request :8F0ED009600DA
+    77.86 MQTT lran/gatelink/vedirect/hex/request :8F0ED009600DA
+    77.86 BRG hex: 01 seq 18 read -> answered status 0 result 0, sched stack 1844 bytes free
+    78.88 BRG FRAME #46 tx t=78604 peer=0x01 type=8 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=5650
+    79.11 GL hex 01 -> 00 seq 3: status 0 :8F0ED009600DA
+    79.49 BRG FRAME #47 rx t=79358 peer=0x01 type=9 schema=0 frag=0x01 seq=3 rssi=-39 snr=11 st=0 rx=0 deaf=5945
+    79.77 MQTT lran/gatelink/vedirect/hex/response {"request":":8F0ED009600DA","seq":3,"outcome":"answered","status":"ok","response":":8F0ED009600DA"}
+    79.77 MQTT lran/gatelink/vedirect/hex/audit {"request":":8F0ED009600DA","seq":3,"outcome":"answered","status":"ok","response":":8F0ED009600DA","authorization":"armed","at":"2026-10-09T01:01:56Z"}
+    79.90 BRG hex: 01 seq 3 write -> answered status 0 result 0, sched stack 1844 bytes free
+    79.92 CMD mark 6b31ae
+    79.92 CMD pub lran/gatelink/vedirect/write_enable/set OFF
+    79.92 MQTT lran/gatelink/vedirect/write_enable/set OFF
+    80.10 BRG hex: 01 write disarmed
+    80.76 MQTT lran/gatelink/vedirect/write_enable/state OFF
+    82.13 BRG FRAME #48 tx t=81801 peer=0x01 type=8 schema=0 frag=0x01 seq=19 rssi=- snr=- st=0 rx=5 deaf=5991
+    82.15 GL hex 01 -> 00 seq 19: status 0 :7F7ED008C05D9
+    82.73 BRG FRAME #49 rx t=82494 peer=0x01 type=9 schema=0 frag=0x01 seq=19 rssi=-39 snr=11 st=0 rx=0 deaf=6224
+    82.94 BRG hex: 01 seq 19 read -> answered status 0 result 0, sched stack 1844 bytes free
+    83.94 BRG FRAME #50 tx t=83610 peer=0x01 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=6249
+    84.76 BRG poll: 01 answered in 972 ms (window 10000 ms)
+    84.76 BRG FRAME #51 rx t=84550 peer=0x01 type=4 schema=16 frag=0x01 seq=4 rssi=-39 snr=11 st=0 rx=0 deaf=6442
+    84.76 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13370,"batt_ma":-20,"pv_mv":10,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.03,"pmax_today_w":0,"yield_total_kwh":4.67,"charge_state":0,"charge_state_name":"off","error":0,"error_name":"no_error","tracker":0,"load_on":true,"charge_inhibited":false,"temp_c":null,"hex_pending":false,"synthetic":false}
+    84.77 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":26.8,"config_persisted":true,"sd_ok":false,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":83}
+    84.96 BRG FRAME #52 tx t=84757 peer=0x01 type=8 schema=0 frag=0x01 seq=20 rssi=- snr=- st=0 rx=5 deaf=6467
+    85.77 BRG FRAME #53 rx t=85546 peer=0x01 type=9 schema=0 frag=0x01 seq=20 rssi=-38 snr=10 st=0 rx=0 deaf=6700
+    85.77 BRG hex: 01 seq 20 read -> answered status 0 result 0, sched stack 1844 bytes free
+    86.79 BRG FRAME #54 tx t=86612 peer=0x01 type=8 schema=0 frag=0x01 seq=21 rssi=- snr=- st=0 rx=5 deaf=6725
+    87.02 GL hex 01 -> 00 seq 20: status 0 :7F6ED00460520
+    87.02 GL hex 01 -> 00 seq 21: status 0 :7F4ED0000006D
+    87.60 BRG FRAME #55 rx t=87306 peer=0x01 type=9 schema=0 frag=0x01 seq=21 rssi=-37 snr=12 st=0 rx=0 deaf=6959
+    87.81 BRG hex: 01 seq 21 read -> answered status 0 result 0, sched stack 1844 bytes free
+    88.82 BRG FRAME #56 tx t=88608 peer=0x01 type=8 schema=0 frag=0x01 seq=22 rssi=- snr=- st=0 rx=5 deaf=6980
+    89.05 GL hex 01 -> 00 seq 22: status 0 :7FDED000064
+    89.64 BRG FRAME #57 rx t=89305 peer=0x01 type=9 schema=0 frag=0x01 seq=22 rssi=-39 snr=11 st=0 rx=0 deaf=7213
+    89.84 BRG hex: 01 seq 22 read -> answered status 0 result 0, sched stack 1844 bytes free
+    90.85 BRG FRAME #58 tx t=90607 peer=0x01 type=8 schema=0 frag=0x01 seq=23 rssi=- snr=- st=0 rx=5 deaf=7234
+    91.08 GL alive: io=901 vedirect=22286 lora=3897 app=901 bms=1 ui=901 log=3
+    91.08 GL hex 01 -> 00 seq 23: status 0 :7F2ED0000006F
+    91.46 BRG FRAME #59 rx t=91305 peer=0x01 type=9 schema=0 frag=0x01 seq=23 rssi=-38 snr=11 st=0 rx=0 deaf=7467
+    91.87 BRG hex: 01 seq 23 read -> answered status 0 result 0, sched stack 1844 bytes free
+    92.88 BRG FRAME #60 tx t=92607 peer=0x01 type=8 schema=0 frag=0x01 seq=24 rssi=- snr=- st=0 rx=5 deaf=7488
+    93.11 GL hex 01 -> 00 seq 24: status 0 :7F1ED00FF71
+    93.49 BRG FRAME #61 rx t=93304 peer=0x01 type=9 schema=0 frag=0x01 seq=24 rssi=-38 snr=11 st=0 rx=0 deaf=7721
+    93.90 BRG hex: 01 seq 24 read -> answered status 0 result 0, sched stack 1844 bytes free
+    94.92 BRG FRAME #62 tx t=94606 peer=0x01 type=8 schema=0 frag=0x01 seq=25 rssi=- snr=- st=0 rx=5 deaf=7742
+    95.14 GL hex 01 -> 00 seq 25: status 0 :7F0ED009600DB
+    95.52 BRG FRAME #63 rx t=95300 peer=0x01 type=9 schema=0 frag=0x01 seq=25 rssi=-38 snr=11 st=0 rx=0 deaf=7975
+    95.76 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":14.20,"charge_float_voltage_v":13.50,"charge_equalisation_voltage_v":0.00,"charge_auto_equalisation":0,"charge_temp_compensation_mv_k":0.00,"charge_battery_type":255,"charge_max_current_a":15.0,"charge_absorption_time_limit_h":2.00,"charge_system_voltage_v":12,"charge_low_temp_level_c":5.00}

@@ -977,3 +977,55 @@ in about ten, so line length is not the cause. The loss is in the console, not i
 **`vedirect_task` passes about 240 times a second**, against the 50 its 20 ms wait alone
 would give. Serial1's receive callback wakes it for each burst of bytes. Nothing has been
 starved yet.
+
+## 2026-10-08 — Writes through the broker, and 30 days of MPPT history
+
+**Bridge, simnode Heltec and the StamPLC on the bench, with the sandbox broker; the MPPT on
+its bench supply with no PV.** Traces: [`data/gl4-write-gates-2026-10-08.log`](data/gl4-write-gates-2026-10-08.log)
+and [`data/m14-mppt-history-2026-10-08.log`](data/m14-mppt-history-2026-10-08.log).
+
+**The StamPLC was silent until it was replugged.** For 135 s after the bridge booted,
+`lran/gatelink/availability` stayed `offline`, and macOS gave the StamPLC no
+`/dev/cu.usbmodem*`. After a replug it booted `177b8e3`, rolled its context and came
+online. What it was doing before the replug is not known; its console was unreachable.
+
+**The bridge refused a Set while disarmed, and built no frame for it.** A Set of `0xEDF0`
+to 14.0 A (`:8F0ED008C00E4`) drew `refused_disarmed` on `hex/response` and a retained
+`hex/audit` entry with `authorization` `disarmed`. The bridge's frame log shows no
+transmission between the request and the refusal. PRD R-3.5b's second gate passes on the
+bench.
+
+**Armed, the same Set reached the MPPT and read back.** `write_enable/set ON` armed it,
+and `write_enable/state` followed. The MPPT echoed the Set with flags 0. A Get of
+`0xEDF0` returned `0x008C`, and the bridge's own readback after the write published
+`charge_max_current_a` 14.0. A second Set restored 15.0 A, `OFF` disarmed it, and the
+readback showed 15.0 again. Each write's audit entry carries `authorization` `armed` and
+the MPPT's reply.
+
+**A history Get timed out at the node, though the MPPT answered it.** The first Get of
+`0x1050`, today's history record, came back `status` timeout. The node's counters showed
+one retry and two unmatched replies. `VedLink::answers()` matched a Get through
+`vedirect::reg_reply()`, which accepts at most 4 value bytes, and a history record carries
+34. `cbacd3f` matches on the echoed register alone. On that image every Get from `0x104F`
+to `0x106E` answered on its first attempt. The first history Get was also the first time
+the Get retry ran on the board.
+
+**The history gives M14 a starting point, not its result.** M14 asks for a week logged
+at the gate before install, and the MPPT is off the gate's PV, so it stays open. The
+records are the MPPT's own, kept while it was on the gate:
+
+| | Days 1–30 |
+|---|---|
+| Daily yield | 0.03–0.14 kWh, most days 0.08–0.10 |
+| Daily Vbat min | 12.44–13.19 V |
+| Daily Vbat max | 13.64–14.23 V |
+| Daily Pmax | 19–60 W |
+| Daily Vpv max | 19.13–21.79 V |
+| Errors | none recorded |
+
+Day 0 is the bench: no yield and a Vpv max of 0.01 V. Day 1 has 312 minutes of bulk and
+no absorption, so it may be the partial day the MPPT came off the gate. The record does
+not say. The totals record's yield, 467, matches the text block's `H19` of 4.67 kWh. The
+layout used is Victron's history record: yield and consumption in 0.01 kWh, voltages in
+0.01 V, Imax in 0.1 A, and bulk, absorption and float in minutes. The rest of the
+totals record is not decoded.
