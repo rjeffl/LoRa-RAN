@@ -31,6 +31,7 @@
 
 #include "board_profile.h"
 #include "board_stamplc.h"
+#include "config_store.h"
 #include "gate_io.h"
 #include "gatelink_app.h"
 #include "lran/node/engine.h"
@@ -200,6 +201,53 @@ TickType_t period_ticks(TaskId id) {
   return pdMS_TO_TICKS(default_period_ms(task_spec(id)));
 }
 
+// ---------------------------------------------------------------------------
+// Configuration (GL3, Impl Plan 6.4). start_tasks() reads the card before any task runs;
+// lora_task owns the Store from then on, because CONFIG arrives there.
+// ---------------------------------------------------------------------------
+
+constexpr const char* kConfigPath = "/config.json";
+
+class SdConfigFile final : public ConfigFile {
+ public:
+  bool   mount(bool remount) override { return board_sd_mount(remount); }
+  size_t read(char* out, size_t cap) override { return board_sd_read(kConfigPath, out, cap); }
+  bool   write(const char* text, size_t n) override {
+    return board_sd_replace(kConfigPath, text, n);
+  }
+};
+
+SdConfigFile   g_config_file;
+GateLinkConfig g_config(&g_config_file);
+
+// Each row's effective value, for the tasks that read one. lora_task writes them, from
+// GateLinkPort::param_changed(); the table they index is fixed once g_config is built.
+std::atomic<int32_t> g_live[lran::config::kMaxTableParams];
+
+size_t live_index(uint16_t id) {
+  const lran::config::Table& t = g_config.table();
+  for (size_t i = 0; i < t.size(); ++i) {
+    if (t.at(i)->id == id) return i;
+  }
+  return lran::config::kMaxTableParams;
+}
+
+uint32_t live_param(uint16_t id) {
+  const size_t i = live_index(id);
+  return i < lran::config::kMaxTableParams
+             ? static_cast<uint32_t>(g_live[i].load(std::memory_order_relaxed))
+             : param_default(id);
+}
+
+void publish_param(uint16_t id, int32_t v) {
+  const size_t i = live_index(id);
+  if (i < lran::config::kMaxTableParams) g_live[i].store(v, std::memory_order_relaxed);
+}
+
+// lora_task retries a card it cannot write this often, so a card put back is found
+// without a reboot. A mount attempt holds the SPI bus, so not every pass.
+constexpr uint32_t kCardRetryMs = 30000;
+
 // R-5.2a - io_task never blocks on anything but its own period, and vTaskDelayUntil keeps
 // that period from drifting by the length of a pass. tools/checks/io_task_never_blocks.py
 // reads this function.
@@ -208,16 +256,11 @@ TickType_t period_ticks(TaskId id) {
 // is late by at most a tick and an I2C write rather than by up to input_poll_ms. A pulse's
 // leading edge waits for the next poll, which delays the command but not its width.
 //
-// The Store supplies the four parameters from GL3; until then they are lran-config's
-// defaults.
+// Its five parameters are read each pass, so a SET takes effect at the next pass, inside a
+// running sequence too.
 void io_task(void*) {
   RelayPulser pulser;
   Debouncer   debounce;
-  const uint32_t poll_ms    = param_default(kParamInputPollMs);
-  const uint32_t width_ms   = param_default(kParamRelayPulseMs);
-  const uint32_t spacing_ms = param_default(kParamRelayMinSpacingMs);
-  const uint32_t settle_ms  = param_default(kParamUnlockSettleMs);
-  const uint8_t  samples    = static_cast<uint8_t>(param_default(kParamInputDebounceSamples));
   CommandSequencer sequencer;
   uint32_t         seq_i2c_failures = 0;
 
@@ -226,7 +269,12 @@ void io_task(void*) {
   uint32_t   next_sensor = now_ms();
   for (;;) {
     count(TaskId::Io);
-    const uint32_t now = now_ms();
+    const uint32_t now        = now_ms();
+    const uint32_t poll_ms    = live_param(kParamInputPollMs);
+    const uint32_t width_ms   = live_param(kParamRelayPulseMs);
+    const uint32_t spacing_ms = live_param(kParamRelayMinSpacingMs);
+    const uint32_t settle_ms  = live_param(kParamUnlockSettleMs);
+    const uint8_t  samples    = static_cast<uint8_t>(live_param(kParamInputDebounceSamples));
 
     // The trailing edge first: it is the one with a deadline.
     if (pulser.update(now)) {
@@ -386,8 +434,8 @@ TaskHandle_t g_ved_handle = nullptr;
 // Waits on UART RX events, and wakes at least every kVedWaitMs for the HEX timers.
 void vedirect_task(void*) {
   g_ved_handle = xTaskGetCurrentTaskHandle();
-  g_ved_link.set_params(
-      VedParams{param_default(kParamHexTimeoutMs), param_default(kParamVedirectStaleS) * 1000});
+  VedParams params{live_param(kParamHexTimeoutMs), live_param(kParamVedirectStaleS) * 1000};
+  g_ved_link.set_params(params);
   // Before begin(), or the core ignores it. A text block is a few hundred bytes; 1 KB holds
   // several, so a late pass loses none (engineering log, 2026-10-08).
   Serial1.setRxBufferSize(1024);
@@ -398,6 +446,12 @@ void vedirect_task(void*) {
     count(TaskId::Vedirect);
     (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kVedWaitMs));
     const uint32_t now = now_ms();
+    // A SET of either takes effect here; a HEX transaction under way keeps its deadline.
+    const VedParams live{live_param(kParamHexTimeoutMs), live_param(kParamVedirectStaleS) * 1000};
+    if (live.hex_timeout_ms != params.hex_timeout_ms || live.stale_ms != params.stale_ms) {
+      params = live;
+      g_ved_link.set_params(params);
+    }
     while (Serial1.available() > 0) g_ved_link.feed(static_cast<uint8_t>(Serial1.read()), now);
 
     HexJob job;
@@ -484,10 +538,12 @@ class Node final : public RadioClient, public GateLinkPort {
   Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
 
   void begin(const uint8_t* key, size_t key_len) {
-    app_.set_hex_timeout_ms(param_default(kParamHexTimeoutMs));
     ctx_.id = lran::kNodeGateLink;
     std::memcpy(ctx_.key, key, key_len < sizeof(ctx_.key) ? key_len : sizeof(ctx_.key));
     lran::node::reset_context(ctx_, random_u32);  // spec 10.1 - a new ctx_id every boot
+    // Impl Plan 6.4 - the card's values, read by start_tasks(), applied to every task.
+    app_.set_config(&g_config);
+    app_.apply_all(ctx_);
   }
 
   // RadioClient
@@ -524,6 +580,27 @@ class Node final : public RadioClient, public GateLinkPort {
     const bool queued = xQueueSend(g_hex_q, &job, 0) == pdTRUE;
     if (queued) xTaskNotifyGive(g_ved_handle);
     return queued;
+  }
+  // Every row reaches g_live; the rows owned by lora_task's own objects are applied here.
+  void param_changed(uint16_t id, int32_t v) override {
+    publish_param(id, v);
+    switch (id) {
+      case kParamCadRetries:
+      case kParamBackoffMaxMs:
+        radio_set_media_access(static_cast<uint8_t>(live_param(kParamCadRetries)),
+                               live_param(kParamBackoffMaxMs));
+        break;
+      case kParamWatchdogTimeoutS:
+        // Impl Plan 5.2 - applied when set. start_tasks() armed it at this value already,
+        // so boot's apply_all() does not re-arm it.
+        if (static_cast<uint32_t>(v) != watchdog_timeout_s() &&
+            !apply_watchdog_timeout(static_cast<uint32_t>(v))) {
+          QueueSink().line("wdt: new timeout NOT applied");
+        }
+        break;
+      default:
+        break;
+    }
   }
   bool hex_take(HexResult* out) override {
     portENTER_CRITICAL(&g_ved_mux);
@@ -571,6 +648,11 @@ struct NodeView {
   uint32_t cmd_i2c     = 0;
   uint8_t  outbox      = 0;  // frames waiting for media access
   bool     tx_active   = false;
+  // The configuration's store (Impl Plan 6.4), for the console's `cfg`.
+  bool         card_mounted = false;
+  bool         card_dirty   = false;
+  bool         unpersisted  = false;
+  PersistStats card;
 };
 portMUX_TYPE g_view_mux = portMUX_INITIALIZER_UNLOCKED;
 NodeView     g_view;
@@ -602,6 +684,18 @@ void lora_task(void*) {
     QueueSink().line("boot: announcement not queued");
   }
 
+  {
+    const PersistStats& k = g_config.persist().stats();
+    char                text[112];
+    std::snprintf(text, sizeof(text), "cfg: card %s; %lu restored, %lu refused, %lu unknown%s",
+                  g_config.persist().mounted() ? "mounted" : "NOT MOUNTED - defaults",
+                  static_cast<unsigned long>(k.restored), static_cast<unsigned long>(k.refused),
+                  static_cast<unsigned long>(k.unknown),
+                  k.file_corrupt ? "; config.json UNREADABLE, defaults" : "");
+    QueueSink().line(text);
+  }
+  uint32_t card_retry_at = now_ms() + kCardRetryMs;
+
   uint32_t cmd_seq = io_snapshot().cmd_seq;
   for (;;) {
     count(TaskId::Lora);
@@ -621,6 +715,15 @@ void lora_task(void*) {
     }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
+
+    // Impl Plan 6.4 - a card that was absent, or failed a write, is retried; a card put
+    // back then holds RAM's overrides and the answers say PERSISTED again.
+    if (reached(now, card_retry_at)) {
+      card_retry_at = now + kCardRetryMs;
+      if (!g_config.persist().usable() && g_config.persist().refresh()) {
+        QueueSink().line("cfg: card back, config.json rewritten");
+      }
+    }
 
     if (g_ack_drop_req.exchange(false, std::memory_order_relaxed)) g_node.app().withhold_next_ack();
     if (g_ctx_new_req.exchange(false, std::memory_order_relaxed)) {
@@ -666,6 +769,10 @@ void lora_task(void*) {
     v.cmd_i2c     = io.cmd_i2c_failures;
     v.outbox      = static_cast<uint8_t>(g_node.outbox().size());
     v.tx_active   = radio_tx_active();
+    v.card_mounted = g_config.persist().mounted();
+    v.card_dirty   = g_config.persist().dirty();
+    v.unpersisted  = g_config.unpersisted();
+    v.card         = g_config.persist().stats();
     portENTER_CRITICAL(&g_view_mux);
     g_view = v;
     portEXIT_CRITICAL(&g_view_mux);
@@ -782,6 +889,7 @@ const char* pulse_result_name(PulseResult r) {
 //   lran ack drop     withhold the next fresh COMMAND_ACK, for spec 9.4's dedup hit
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   wdt               the task watchdog's timeout
+//   cfg               the configuration's card: mounted, dirty, writes and what boot read
 //   wdt stall         park app_task unfed, so the task watchdog resets the chip (GL3)
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
@@ -902,6 +1010,19 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(v.dispatched), static_cast<unsigned long>(v.busy),
                       static_cast<unsigned long>(v.cmd_i2c), static_cast<unsigned long>(v.dropped),
                       static_cast<unsigned long>(g_log_dropped.load(std::memory_order_relaxed)));
+  } else if (std::strcmp(cmd, "cfg") == 0) {
+    portENTER_CRITICAL(&g_view_mux);
+    const NodeView v = g_view;
+    portEXIT_CRITICAL(&g_view_mux);
+    const auto ld = [](uint32_t x) { return static_cast<unsigned long>(x); };
+    n = std::snprintf(line, sizeof(line),
+                      "cfg: card %s%s, overrides %s; writes %lu failed %lu, mounts failed %lu; "
+                      "boot read %lu, refused %lu, unknown %lu%s",
+                      v.card_mounted ? "mounted" : "NOT MOUNTED", v.card_dirty ? " DIRTY" : "",
+                      v.unpersisted ? "NOT PERSISTED" : "persisted", ld(v.card.writes),
+                      ld(v.card.write_failures), ld(v.card.mounts_failed), ld(v.card.restored),
+                      ld(v.card.refused), ld(v.card.unknown),
+                      v.card.file_corrupt ? ", file unreadable" : "");
   } else if (std::strcmp(cmd, "ved") == 0) {
     const VedView      v = ved_view();
     const MpptSnapshot& m = v.mppt;
@@ -1064,9 +1185,16 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
   g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
+  // Impl Plan 6.4 - the card before any task runs, so every task starts on its values.
+  // lora_task applies them and logs what was read.
+  g_config.persist().load(&g_config.store());
+  const lran::config::Table& t = g_config.table();
+  for (size_t i = 0; i < t.size(); ++i) {
+    g_live[i].store(g_config.store().effective(t.at(i)->id), std::memory_order_relaxed);
+  }
   // Armed before any task starts, so app_task subscribes at the configured timeout. A
   // watchdog that fails to arm leaves app_task unwatched; app_task logs that.
-  (void)apply_watchdog_timeout(param_default(kParamWatchdogTimeoutS));
+  (void)apply_watchdog_timeout(live_param(kParamWatchdogTimeoutS));
   size_t started = 0;
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];

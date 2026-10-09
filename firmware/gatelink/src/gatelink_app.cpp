@@ -9,6 +9,7 @@
 
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "tasks.h"
 
 namespace gatelink {
 namespace {
@@ -26,6 +27,7 @@ constexpr uint8_t kK4CloseNow  = 3;
 constexpr uint8_t kBmsSocSourceUnknown = 0xC0;
 // spec 7.2.8.
 constexpr uint8_t kNodeFlagPersisted      = 0x01;
+constexpr uint8_t kNodeFlagCardWritable   = 0x02;
 constexpr uint8_t kNodeFlagDryRun         = 0x04;
 constexpr uint8_t kNodeFlagBmsPolling     = 0x08;
 constexpr uint8_t kNodeFlagDebug          = 0x10;
@@ -78,16 +80,26 @@ lran::node::AckDelivery GateLinkApp::fresh_ack(lran::node::Context&, lran::Seq s
 }
 
 uint8_t GateLinkApp::capabilities(const lran::node::Context&) const {
-  return lran::node::kAnswersCommands | lran::node::kAnswersHex |
+  return lran::node::kAnswersCommands | lran::node::kAnswersConfig | lran::node::kAnswersHex |
          lran::node::kRefusesAuthenticated;
 }
 
 bool GateLinkApp::on_poll(lran::node::Engine& engine, lran::node::Context& c,
-                          const lran::Header& hdr, const uint8_t*, size_t, uint32_t now_ms) {
-  // The poll's config-readback bit waits for the CONFIG path; the STATUS answers either way.
+                          const lran::Header& hdr, const uint8_t* payload, size_t len,
+                          uint32_t now_ms) {
+  lran::msg::Poll p;
+  const uint8_t   flags =
+      lran::msg::deserialize(payload, len, &p) == lran::Status::Ok ? p.poll_flags : 0;
   if (!engine.send_status(c, *this, hdr.src, lran::StatusReason::PollResponse, now_ms)) {
     engine.count_dropped();
     lran::node::sink_printf(log_, "poll <- %02x: answer not queued", hdr.src);
+  }
+  // spec 6.4 bit 1 - the readback that recovers a lost CONFIG_ACK (spec 7.4), after the
+  // STATUS.
+  if ((flags & lran::kPollFlagConfigReadback) != 0 &&
+      !engine.send_config_readback(c, *this, hdr.src)) {
+    engine.count_dropped();
+    lran::node::sink_printf(log_, "poll <- %02x: config readback not queued", hdr.src);
   }
   return true;
 }
@@ -140,8 +152,7 @@ lran::node::CommandOutcome GateLinkApp::execute(lran::node::Context&,
       o.after = AfterAck::Status;
       break;
     case Cmd::RequestConfig:
-      // The readback that follows the ACK needs the CONFIG path (spec 7.4).
-      o.result = AckResult::RejectedNotSupported;
+      o.after = AfterAck::ConfigReadback;  // spec 7.4 - the readback follows the ACK
       break;
     case Cmd::SetDebugMode:
       debug_modes_ = static_cast<uint8_t>(cmd.arg2);
@@ -211,7 +222,9 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
   s.node_ma            = lran::kI16NotAvailable;  // R-4.4b: the INA226 gives VIN only
   s.enclosure_temp_c10 = n.enclosure_temp_c10;
   s.node_flags         = static_cast<uint8_t>(
-      kNodeFlagPersisted | kNodeFlagAgeNotPersisted | (dry_run_ ? kNodeFlagDryRun : 0) |
+      (cfg_ == nullptr || !cfg_->unpersisted() ? kNodeFlagPersisted : 0) |
+      (cfg_ != nullptr && cfg_->persist().usable() ? kNodeFlagCardWritable : 0) |
+      kNodeFlagAgeNotPersisted | (dry_run_ ? kNodeFlagDryRun : 0) |
       (bms_polling_ ? kNodeFlagBmsPolling : 0) | (debug_modes_ != 0 ? kNodeFlagDebug : 0));
   s.status_reason = static_cast<uint8_t>(reason);
 
@@ -276,6 +289,76 @@ void GateLinkApp::poll_hex(lran::node::Engine& engine, lran::node::Context& c) {
                             static_cast<unsigned>(r.status), static_cast<int>(r.n), r.hex);
     engine.complete_hex(c, r.status, r.hex, r.n);
   }
+}
+
+// ---------------------------------------------------------------------------
+// CONFIG, spec 7.4 - every row but the PHY group, which the engine answers
+// ---------------------------------------------------------------------------
+
+bool GateLinkApp::config_set(lran::node::Context& c, const lran::schema::ConfigEntry& in,
+                             lran::schema::ConfigAckEntry* out) {
+  if (cfg_ == nullptr) return false;
+  *out = cfg_->store().apply(in, nullptr, nullptr);
+  if (out->status == lran::ParamStatus::Ok || out->status == lran::ParamStatus::Clamped) {
+    apply_param(c, in.param_id);
+  }
+  return out->status != lran::ParamStatus::UnknownParam;
+}
+
+bool GateLinkApp::config_get(const lran::node::Context&, uint16_t id,
+                             lran::schema::ConfigAckEntry* out) {
+  if (cfg_ == nullptr) return false;
+  *out = cfg_->store().get(id);
+  return out->status != lran::ParamStatus::UnknownParam;
+}
+
+void GateLinkApp::config_list(const lran::node::Context&, lran::node::ConfigSink* sink) {
+  if (cfg_ == nullptr) return;
+  const lran::config::Table& t = cfg_->table();
+  for (size_t i = 0; i < t.size(); ++i) {
+    const lran::config::ParamDef* d = t.at(i);
+    // The engine lists the PHY group from its own copy; listing it here would answer it
+    // twice.
+    if (d == nullptr || d->access == lran::config::Access::Phy) continue;
+    sink->add(cfg_->store().get(d->id));
+  }
+}
+
+void GateLinkApp::config_restore_defaults(lran::node::Context& c) {
+  if (cfg_ == nullptr) return;
+  (void)cfg_->store().restore_defaults();
+  apply_all(c);
+}
+
+bool GateLinkApp::config_unpersisted(const lran::node::Context&) const {
+  return cfg_ != nullptr && cfg_->unpersisted();
+}
+
+void GateLinkApp::apply_all(lran::node::Context& c) {
+  if (cfg_ == nullptr) return;
+  const lran::config::Table& t = cfg_->table();
+  for (size_t i = 0; i < t.size(); ++i) {
+    const lran::config::ParamDef* d = t.at(i);
+    if (d != nullptr && d->access != lran::config::Access::Phy) apply_param(c, d->id);
+  }
+}
+
+void GateLinkApp::apply_param(lran::node::Context& c, uint16_t id) {
+  const int32_t v = cfg_->store().effective(id);
+  switch (id) {
+    case kParamDedupCacheDepth:
+      c.gate.set_cache_depth(static_cast<uint8_t>(v));
+      break;
+    case kParamFragReassemblyTimeoutMs:
+      c.reassembler.set_timeout_ms(static_cast<uint32_t>(v));
+      break;
+    case kParamHexTimeoutMs:
+      hex_timeout_ms_ = static_cast<uint32_t>(v);
+      break;
+    default:
+      break;
+  }
+  port_->param_changed(id, v);
 }
 
 }  // namespace gatelink

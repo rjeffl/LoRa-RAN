@@ -73,6 +73,13 @@ uint32_t default_period_ms(const TaskSpec& spec);
 // row. Stands in for the Store until GL3 brings one up.
 uint32_t param_default(uint16_t id);
 
+// The node-common rows GateLink applies (spec 7.4, D46): two in the engine's context, two
+// in the radio's media access (spec 12.3).
+inline constexpr uint16_t kParamDedupCacheDepth         = 0x0100;
+inline constexpr uint16_t kParamFragReassemblyTimeoutMs = 0x0101;
+inline constexpr uint16_t kParamCadRetries              = 0x0102;
+inline constexpr uint16_t kParamBackoffMaxMs            = 0x0103;
+
 // GateLink's rows in lran-config's table (Impl Plan 4.4) that io_task reads.
 inline constexpr uint16_t kParamRelayPulseMs        = 0x1000;
 inline constexpr uint16_t kParamRelayMinSpacingMs   = 0x1001;

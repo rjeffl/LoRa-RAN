@@ -19,9 +19,14 @@
 // with vedirect_task's answer (GL4, Impl Plan 4.2.4). vedirect_task times the TIMEOUT
 // itself, so the engine's deadline is only a backstop for a task that stopped answering.
 //
+// CONFIG IS ANSWERED FROM GateLinkConfig's Store (spec 7.4, Impl Plan 6.4). The engine
+// answers the PHY group itself, READ_ONLY while spec 12.4.2 is unbuilt; every other row is
+// the Store's. A row the application can apply itself, it applies: the dedup depth, the
+// reassembly timeout and hex_timeout_ms. The rest go to GateLinkPort::param_changed(),
+// which on the board reaches the task that reads them.
+//
 // WHAT IS LEFT OUT. Gate state derivation, hold tracking and direction are app_task's, and
-// STATUS reports them as UNKNOWN until it runs. CONFIG is not answered yet, so the
-// capabilities leave kAnswersConfig out. The BMS block carries its sentinels and its
+// STATUS reports them as UNKNOWN until it runs. The BMS block carries its sentinels and its
 // "no data" flags until GL5 fills it.
 
 #pragma once
@@ -29,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "config_store.h"
 #include "gate_io.h"
 #include "ved_link.h"
 #include "lran/node/application.h"
@@ -63,6 +69,10 @@ class GateLinkPort {
   virtual bool hex_submit(const HexJob& job) = 0;
   // vedirect_task's answer to a job, once. False while none is waiting.
   virtual bool hex_take(HexResult* out) = 0;
+
+  // A parameter's effective value changed, or is being applied at boot. Called for every
+  // row, including those the application applied itself.
+  virtual void param_changed(uint16_t, int32_t) {}
 };
 
 // The engine's HEX deadline beyond hex_timeout_ms. vedirect_task wakes at least every
@@ -95,13 +105,27 @@ class GateLinkApp final : public lran::node::Application {
   size_t build_event(lran::node::Context& c, lran::EventType type, uint16_t detail,
                      uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) override;
 
+  bool config_set(lran::node::Context& c, const lran::schema::ConfigEntry& in,
+                  lran::schema::ConfigAckEntry* out) override;
+  bool config_get(const lran::node::Context& c, uint16_t id,
+                  lran::schema::ConfigAckEntry* out) override;
+  void config_list(const lran::node::Context& c, lran::node::ConfigSink* sink) override;
+  void config_restore_defaults(lran::node::Context& c) override;
+  bool config_unpersisted(const lran::node::Context& c) const override;
+
+  // The configuration CONFIG reads and writes. Null answers every row but the PHY group
+  // UNKNOWN_PARAM.
+  void set_config(GateLinkConfig* cfg) { cfg_ = cfg; }
+  // Applies every row's effective value, at boot once the card has been read.
+  void apply_all(lran::node::Context& c);
+
   lran::node::HexReply hex_forward(lran::node::Context& c, const char* req, size_t n, char* rsp,
                                    size_t cap, size_t* rsp_n, uint32_t now_ms) override;
   uint32_t hex_timeout_ms(const lran::node::Context&) const override {
     return hex_timeout_ms_ + kHexBackstopMarginMs;
   }
 
-  // lran-config 0x1030. The Store sets it once CONFIG is answered.
+  // lran-config 0x1030, set by apply_all() and by a SET.
   void set_hex_timeout_ms(uint32_t ms) { hex_timeout_ms_ = ms; }
 
   // Completes the engine's transaction with vedirect_task's answer, or with the refusal
@@ -126,9 +150,12 @@ class GateLinkApp final : public lran::node::Application {
   lran::node::AckDelivery fresh_ack(lran::node::Context& c, lran::Seq seq) override;
 
  private:
+  void apply_param(lran::node::Context& c, uint16_t id);
+
   GateLinkPort*        port_;
   lran::node::RandomFn random_;
   lran::node::Sink*    log_;
+  GateLinkConfig*      cfg_ = nullptr;
 
   bool    dry_run_     = false;
   uint8_t debug_modes_ = 0;

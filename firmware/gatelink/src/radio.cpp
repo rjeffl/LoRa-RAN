@@ -367,6 +367,13 @@ bool radio_tx_active() { return g_have_tx || g_mode == Mode::Cad || g_mode == Mo
 
 bool radio_tx_idle() { return !radio_tx_active(); }
 
+void radio_set_media_access(uint8_t cad_retries, uint32_t backoff_max_ms) {
+  lran::link::MediaAccessConfig cfg;
+  cfg.cad_retries    = cad_retries;
+  cfg.backoff_max_ms = backoff_max_ms;
+  g_access.set_config(cfg);
+}
+
 bool radio_ready() { return g_mode != Mode::Down; }
 
 const RadioStats& radio_stats() { return g_stats; }
