@@ -72,6 +72,20 @@ void test_no_task_has_two_period_sources() {
   }
 }
 
+// GL3 - app_task feeds the watchdog, and comes round well inside even the shortest timeout.
+void test_app_feeds_well_inside_the_watchdog() {
+  TEST_ASSERT_TRUE(app_feeds_well_inside_the_watchdog());
+  TEST_ASSERT_EQUAL_UINT32(10, param_default(kParamWatchdogTimeoutS));
+}
+
+// A timeout outside the row's range is held to it, never passed to the watchdog as given.
+void test_watchdog_timeout_is_held_to_its_range() {
+  TEST_ASSERT_EQUAL_UINT32(5, watchdog_timeout_in_range(0));
+  TEST_ASSERT_EQUAL_UINT32(5, watchdog_timeout_in_range(1));
+  TEST_ASSERT_EQUAL_UINT32(10, watchdog_timeout_in_range(10));
+  TEST_ASSERT_EQUAL_UINT32(60, watchdog_timeout_in_range(3600));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_io_outranks_every_other_task);
@@ -84,5 +98,7 @@ int main(int, char**) {
   RUN_TEST(test_io_param_defaults);
   RUN_TEST(test_bms_period_is_bms_poll_s_scaled);
   RUN_TEST(test_no_task_has_two_period_sources);
+  RUN_TEST(test_app_feeds_well_inside_the_watchdog);
+  RUN_TEST(test_watchdog_timeout_is_held_to_its_range);
   return UNITY_END();
 }

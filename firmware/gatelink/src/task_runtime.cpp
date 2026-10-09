@@ -9,14 +9,16 @@
 // carries the bench console. Every other body is a stub that counts its passes and waits
 // out its period; the milestone that fills it is named at it.
 //
-// THE WATCHDOG IS NOT ARMED HERE. Impl Plan 5.2 feeds it from app_task, and its timeout is
-// the parameter watchdog_timeout_s (decided 2026-10-07; root rule 8), which a later GL3
-// slice adds. Arduino-ESP32's default watchdog still watches the idle task on core 0.
+// THE TASK WATCHDOG WATCHES app_task ALONE (Impl Plan 5.2), so a stalled application is
+// not masked by a healthy io_task. Its timeout is the parameter watchdog_timeout_s
+// (decided 2026-10-07; root rule 8), armed in start_tasks() before any task runs. The idle
+// task on core 0, which Arduino-ESP32 subscribes at boot, runs to the same timeout.
 
 #include "task_runtime.h"
 
 #include <Arduino.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
@@ -670,11 +672,27 @@ void lora_task(void*) {
   }
 }
 
-// GL3 - state derivation, triggers and status; feeds the watchdog once it is armed.
+// The timeout in force, or 0 before the watchdog arms. Written by start_tasks() and by
+// the CONFIG path; read by the console.
+std::atomic<uint32_t> g_wdt_timeout_s{0};
+
+// Set by the console's `wdt stall`: app_task stops feeding and parks, which is the
+// application stall the watchdog exists for. The bench reads the next boot's reset cause.
+std::atomic<bool> g_wdt_stall{false};
+
+// GL3 - state derivation, triggers and status, and the one task that feeds the watchdog
+// (Impl Plan 5.2). A task that cannot subscribe logs it and runs unwatched: a gate
+// controller that stops for want of a watchdog protects nothing.
 void app_task(void*) {
+  const bool watched = g_wdt_timeout_s.load() != 0 && esp_task_wdt_add(nullptr) == ESP_OK;
+  if (!watched) QueueSink{}.line("wdt: app_task not subscribed - runs unwatched");
   TickType_t last = xTaskGetTickCount();
   for (;;) {
     count(TaskId::App);
+    if (g_wdt_stall.load(std::memory_order_relaxed)) {
+      for (;;) vTaskDelay(portMAX_DELAY);
+    }
+    if (watched) (void)esp_task_wdt_reset();
     vTaskDelayUntil(&last, period_ticks(TaskId::App));
   }
 }
@@ -763,6 +781,8 @@ const char* pulse_result_name(PulseResult r) {
 //   lran ctx new      a new ctx_id, unannounced, for spec 10.3's resync on the bench
 //   lran ack drop     withhold the next fresh COMMAND_ACK, for spec 9.4's dedup hit
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
+//   wdt               the task watchdog's timeout
+//   wdt stall         park app_task unfed, so the task watchdog resets the chip (GL3)
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
 //                     `relay <k> 2000` first, it is R-3.5j's reset in the middle of a pulse
@@ -914,6 +934,16 @@ void console_command(char* cmd) {
     Serial.println(F("restart"));
     Serial.flush();
     esp_restart();
+  } else if (std::strcmp(cmd, "wdt") == 0) {
+    if (arg != nullptr && std::strcmp(arg, "stall") == 0) {
+      g_wdt_stall.store(true);
+      n = std::snprintf(line, sizeof(line), "wdt: app_task parked, not feeding; reset due in %lu s",
+                        static_cast<unsigned long>(watchdog_timeout_s()));
+    } else {
+      n = std::snprintf(line, sizeof(line), "wdt: timeout %lu s%s",
+                        static_cast<unsigned long>(watchdog_timeout_s()),
+                        watchdog_timeout_s() == 0 ? " - NOT ARMED" : "");
+    }
   } else if (std::strcmp(cmd, "hang") == 0) {
     Serial.println(F("hang: interrupts off"));
     Serial.flush();
@@ -921,7 +951,7 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | restart | hang");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | wdt [stall] | restart | hang");
   }
   write_line(line, n, sizeof(line));
 }
@@ -1034,6 +1064,9 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
   g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
+  // Armed before any task starts, so app_task subscribes at the configured timeout. A
+  // watchdog that fails to arm leaves app_task unwatched; app_task logs that.
+  (void)apply_watchdog_timeout(param_default(kParamWatchdogTimeoutS));
   size_t started = 0;
   for (size_t i = 0; i < kTaskCount; ++i) {
     const TaskSpec& spec = task_table()[i];
@@ -1046,6 +1079,15 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   }
   return started;
 }
+
+bool apply_watchdog_timeout(uint32_t seconds) {
+  const uint32_t s = watchdog_timeout_in_range(seconds);
+  if (esp_task_wdt_init(s, /*panic=*/true) != ESP_OK) return false;
+  g_wdt_timeout_s.store(s);
+  return true;
+}
+
+uint32_t watchdog_timeout_s() { return g_wdt_timeout_s.load(); }
 
 uint32_t task_passes(TaskId id) {
   return g_passes[static_cast<size_t>(id)].load(std::memory_order_relaxed);

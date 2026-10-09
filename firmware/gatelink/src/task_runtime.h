@@ -20,6 +20,15 @@ namespace gatelink {
 // its context and never prints it.
 size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t node_key_len);
 
+// Sets the task watchdog's timeout to watchdog_timeout_s, held to its row's range. start_tasks()
+// calls it with the default before any task starts; the CONFIG path calls it again when
+// the parameter is set (Impl Plan 5.2, decided 2026-10-07). ESP-IDF 4.4's init reconfigures
+// a watchdog already running. Returns false if ESP-IDF refused, and the old timeout stands.
+bool apply_watchdog_timeout(uint32_t seconds);
+
+// The timeout in force, in seconds, or 0 if the watchdog never armed.
+uint32_t watchdog_timeout_s();
+
 // Passes each task has completed since boot. log_task prints them, which is how a bench
 // session sees that every stub is being scheduled.
 uint32_t task_passes(TaskId id);

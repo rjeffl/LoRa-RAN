@@ -82,6 +82,13 @@ inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
 // And those vedirect_task and lora_task read (GL4).
 inline constexpr uint16_t kParamHexTimeoutMs        = 0x1030;
 inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
+// And the task watchdog's timeout, which start_tasks() arms (GL3, Impl Plan 5.2).
+inline constexpr uint16_t kParamWatchdogTimeoutS    = 0x1060;
+
+// watchdog_timeout_s held to its row's range. The Store clamps a SET already; this guards
+// the call itself, because a timeout of 0 or 1 s that slips through is a reset loop at a
+// node only a USB reflash can recover.
+uint32_t watchdog_timeout_in_range(uint32_t seconds);
 
 // ---------------------------------------------------------------------------
 // The invariants. Impl Plan 5.2's rules, written so a test can fail.
@@ -103,5 +110,10 @@ bool task_names_are_unique();
 
 // Every period parameter named in the table exists in GateLink's block of lran-config.
 bool period_params_exist();
+
+// app_task feeds the watchdog once a pass (Impl Plan 5.2), so its tick must come round in
+// under half the SHORTEST timeout the row allows, not just the default. The bridge holds
+// its watched tasks to the same half (bridge tasks.h).
+bool app_feeds_well_inside_the_watchdog();
 
 }  // namespace gatelink

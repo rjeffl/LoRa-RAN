@@ -1,14 +1,14 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.72
+**Version:** 0.73
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.85
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.86
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.25
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.26
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-05
+**Last updated:** 2026-10-08
 
 > **This document owns no requirement and no acceptance criterion.** Milestones **B0–B7**
 > and their acceptance criteria belong to Implementation Plan §8; requirements belong to
@@ -328,6 +328,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.73** — **Cites Protocol Library Plan v0.26 and Impl Plan v0.86.** Neither changes a
+  task here: the library plan adds GateLink's `watchdog_timeout_s` row, which the bridge
+  discovers from the table, and the Impl Plan only cites it.
 
 - **v0.72** — **Impl Plan v0.84 → v0.85**: the header board's pad ring-out is done, closing
   §10.8.1's premise for the GateLink carrier. No task changes.

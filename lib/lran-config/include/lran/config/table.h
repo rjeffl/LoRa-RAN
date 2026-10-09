@@ -171,7 +171,7 @@ inline constexpr ParamDef kNodeCommonParams[] = {
 // renumbering one HA already knows. The readback walks them in id order (spec 7.4.1).
 //
 // THESE ROWS OUTGROW ONE CONFIG_ACK. With node-common and the PHY group, a GateLink
-// readback is 199 bytes against spec 7.4's 193, so it needs spec 7.4.1's MORE_FOLLOWS
+// readback is 205 bytes against spec 7.4's 193, so it needs spec 7.4.1's MORE_FOLLOWS
 // split. readback_bytes() below counts it, and test_table pins the count.
 inline constexpr ParamDef kGateLinkParams[] = {
     // Relays. R-3.1.2b's spacing has no name in the PRD; its default equals the pulse.
@@ -224,6 +224,13 @@ inline constexpr ParamDef kGateLinkParams[] = {
      "Panel buzzer, Impl Plan 5.2 ui_task"},
     {0x1052, "inject_spacing_ms", Owner::Node, Access::ReadWrite, PType::U16, 100, 60000,
      1000, "ms", "Gap between injected inputs, PRD R-5.4b"},
+
+    // System. The watchdog timeout is a parameter because GateLink has no OTA (root rule 8;
+    // operator, 2026-10-07). The floor is what keeps a bad SET from becoming a reset loop:
+    // the value survives the reset it causes, and only a USB reflash at the gate clears it.
+    // 5 s is ESP-IDF's own default, which the idle task on core 0 already meets.
+    {0x1060, "watchdog_timeout_s", Owner::Node, Access::ReadWrite, PType::U8, 5, 60, 10, "s",
+     "Task watchdog timeout, fed by app_task, Impl Plan 5.2"},
 };
 
 // 0x2000-0x2FFF WellLink is declared by its own milestone. W10's count is in Protocol
@@ -234,7 +241,7 @@ inline constexpr size_t kNodeCommonParamCount = sizeof(kNodeCommonParams) / size
 inline constexpr size_t kGateLinkParamCount   = sizeof(kGateLinkParams) / sizeof(ParamDef);
 
 // One table is at most this many rows across all its blocks. Node-common's 10 plus
-// GateLink's 19 leaves room; raising it costs RAM in every Store.
+// GateLink's 20 leaves room; raising it costs RAM in every Store.
 inline constexpr size_t kMaxTableParams = 64;
 
 // A node's own block, by address. The bridge reads it to name, clamp and discover a
