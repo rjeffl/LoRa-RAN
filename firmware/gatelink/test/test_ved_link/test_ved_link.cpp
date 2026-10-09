@@ -171,6 +171,22 @@ void test_get_matched_by_register_among_async() {
   TEST_ASSERT_FALSE(r.link.busy());
 }
 
+// A history record's reply carries 34 bytes after the flags, past reg_reply()'s 4, and
+// is still the answer to its Get (engineering log, 2026-10-09).
+void test_get_of_a_wide_register_is_matched() {
+  Rig r;
+  r.start(get_req(0x1050).c_str(), 0);
+  uint8_t d[3 + 34] = {0x50, 0x10, 0x00};
+  for (size_t i = 3; i < sizeof(d); ++i) d[i] = static_cast<uint8_t>(i);
+  char         out[vedirect::kMaxChars];
+  const size_t n = vedirect::encode(0x7, d, sizeof(d), out, sizeof(out));
+  r.feed(std::string(out, n) + "\n", 10);
+  const HexResult res = r.result();
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(HexStatus::Ok), static_cast<uint8_t>(res.status));
+  TEST_ASSERT_EQUAL_STRING(std::string(out, n).c_str(), std::string(res.hex, res.n).c_str());
+  TEST_ASSERT_EQUAL_UINT32(0, r.link.counters().hex_unmatched);
+}
+
 // A Get unanswered by half of hex_timeout_ms is sent once more, inside the same wait.
 void test_get_retried_once_at_half_the_wait() {
   Rig r;
@@ -278,6 +294,7 @@ int main() {
   RUN_TEST(test_out_of_range_reads_as_sentinel);
   RUN_TEST(test_stale_after_vedirect_stale_s);
   RUN_TEST(test_get_matched_by_register_among_async);
+  RUN_TEST(test_get_of_a_wide_register_is_matched);
   RUN_TEST(test_get_retried_once_at_half_the_wait);
   RUN_TEST(test_timeout_at_hex_timeout_ms);
   RUN_TEST(test_set_is_not_retried);
