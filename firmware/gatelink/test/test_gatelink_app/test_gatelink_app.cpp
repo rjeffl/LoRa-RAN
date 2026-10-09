@@ -536,6 +536,7 @@ void test_config_set_with_a_card_is_persisted() {
   TEST_ASSERT_EQUAL_UINT32(700, schema::entry_raw(a.entries[0].value, a.entries[0].len));
   TEST_ASSERT_EQUAL_UINT16(kRelayPulseMs, r.port.last_param);
   TEST_ASSERT_EQUAL_INT32(700, r.port.last_value);
+  TEST_ASSERT_FALSE(r.app.take_card_retry());  // a working card owes no retry
   TEST_ASSERT_TRUE(r.card.text.find("\"relay_pulse_ms\": 700") != std::string::npos);
 
   const schema::GateLinkStatusV1 s = r.poll_status();
@@ -554,6 +555,8 @@ void test_config_set_with_no_card_says_so() {
   TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, a.persist_status);
   TEST_ASSERT_EQUAL(ParamStatus::Ok, a.entries[0].status);
   TEST_ASSERT_EQUAL_INT32(700, r.port.last_value);  // applied all the same
+  TEST_ASSERT_TRUE(r.app.take_card_retry());         // lora_task tries the card once
+  TEST_ASSERT_FALSE(r.app.take_card_retry());
 
   TEST_ASSERT_EQUAL_HEX8(0x00, r.poll_status().node_flags & 0x03);
 
@@ -572,6 +575,7 @@ void test_config_set_after_the_card_is_pulled() {
   TEST_ASSERT_EQUAL_HEX8(0x00, r.poll_status().node_flags & 0x03);
 
   r.card.present = true;
+  TEST_ASSERT_TRUE(r.app.take_card_retry());
   TEST_ASSERT_TRUE(r.cfg.persist().refresh());
   TEST_ASSERT_EQUAL_HEX8(0x03, r.poll_status().node_flags & 0x03);
 }

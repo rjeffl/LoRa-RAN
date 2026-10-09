@@ -299,6 +299,7 @@ bool GateLinkApp::config_set(lran::node::Context& c, const lran::schema::ConfigE
                              lran::schema::ConfigAckEntry* out) {
   if (cfg_ == nullptr) return false;
   *out = cfg_->store().apply(in, nullptr, nullptr);
+  note_card();
   if (out->status == lran::ParamStatus::Ok || out->status == lran::ParamStatus::Clamped) {
     apply_param(c, in.param_id);
   }
@@ -308,12 +309,14 @@ bool GateLinkApp::config_set(lran::node::Context& c, const lran::schema::ConfigE
 bool GateLinkApp::config_get(const lran::node::Context&, uint16_t id,
                              lran::schema::ConfigAckEntry* out) {
   if (cfg_ == nullptr) return false;
+  note_card();
   *out = cfg_->store().get(id);
   return out->status != lran::ParamStatus::UnknownParam;
 }
 
 void GateLinkApp::config_list(const lran::node::Context&, lran::node::ConfigSink* sink) {
   if (cfg_ == nullptr) return;
+  note_card();
   const lran::config::Table& t = cfg_->table();
   for (size_t i = 0; i < t.size(); ++i) {
     const lran::config::ParamDef* d = t.at(i);
@@ -327,6 +330,7 @@ void GateLinkApp::config_list(const lran::node::Context&, lran::node::ConfigSink
 void GateLinkApp::config_restore_defaults(lran::node::Context& c) {
   if (cfg_ == nullptr) return;
   (void)cfg_->store().restore_defaults();
+  note_card();
   apply_all(c);
 }
 

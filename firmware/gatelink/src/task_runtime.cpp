@@ -244,10 +244,6 @@ void publish_param(uint16_t id, int32_t v) {
   if (i < lran::config::kMaxTableParams) g_live[i].store(v, std::memory_order_relaxed);
 }
 
-// lora_task retries a card it cannot write this often, so a card put back is found
-// without a reboot. A mount attempt holds the SPI bus, so not every pass.
-constexpr uint32_t kCardRetryMs = 30000;
-
 // R-5.2a - io_task never blocks on anything but its own period, and vTaskDelayUntil keeps
 // that period from drifting by the length of a pass. tools/checks/io_task_never_blocks.py
 // reads this function.
@@ -550,6 +546,14 @@ class Node final : public RadioClient, public GateLinkPort {
   void on_frame(const uint8_t* buf, size_t len, int16_t rssi_dbm, int16_t snr_db10,
                 uint32_t now_ms) override {
     engine_.receive(ctx_, app_, buf, len, rssi_dbm, snr_db10, now_ms);
+    // Impl Plan 6.4 - a CONFIG met an absent or dirty card: try it again now, after the
+    // answer is queued. A card put back then holds RAM's overrides, and the next answer
+    // says PERSISTED. With no card the attempt holds the SPI bus for about 1 s (bench,
+    // 2026-10-08), which only configuration traffic pays.
+    if (app_.take_card_retry()) {
+      QueueSink().line(g_config.persist().refresh() ? "cfg: card back, config.json rewritten"
+                                                    : "cfg: card still unusable");
+    }
   }
   void            on_phy_crc_error(uint32_t) override { lran::node::Engine::on_phy_crc_error(ctx_); }
   lran::Counters* counters() override { return &ctx_.counters; }
@@ -694,8 +698,6 @@ void lora_task(void*) {
                   k.file_corrupt ? "; config.json UNREADABLE, defaults" : "");
     QueueSink().line(text);
   }
-  uint32_t card_retry_at = now_ms() + kCardRetryMs;
-
   uint32_t cmd_seq = io_snapshot().cmd_seq;
   for (;;) {
     count(TaskId::Lora);
@@ -715,15 +717,6 @@ void lora_task(void*) {
     }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
-
-    // Impl Plan 6.4 - a card that was absent, or failed a write, is retried; a card put
-    // back then holds RAM's overrides and the answers say PERSISTED again.
-    if (reached(now, card_retry_at)) {
-      card_retry_at = now + kCardRetryMs;
-      if (!g_config.persist().usable() && g_config.persist().refresh()) {
-        QueueSink().line("cfg: card back, config.json rewritten");
-      }
-    }
 
     if (g_ack_drop_req.exchange(false, std::memory_order_relaxed)) g_node.app().withhold_next_ack();
     if (g_ctx_new_req.exchange(false, std::memory_order_relaxed)) {

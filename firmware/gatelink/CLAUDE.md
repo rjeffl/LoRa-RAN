@@ -93,8 +93,10 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
 - **A task reads a parameter through `live_param()`**, each pass, never into a `const` at
   task start. lora_task publishes each effective value there when it applies a `SET`.
 - **`config.json` is written whole, from the `Store`.** A failed write marks the store dirty,
-  and every answer then says `APPLIED_NOT_PERSISTED` until lora_task's 30 s retry rewrites
-  the file. Removing the card is detected only through a failed write.
+  and every answer then says `APPLIED_NOT_PERSISTED`. The next `CONFIG` or readback to reach
+  the store while the card is unusable makes lora_task remount it and rewrite the file. There
+  is no timer: with no card a mount attempt holds the SPI bus for about 1 s. Removing the
+  card is detected only through a failed write.
 
 ## Traps
 

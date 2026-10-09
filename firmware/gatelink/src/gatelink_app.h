@@ -119,6 +119,16 @@ class GateLinkApp final : public lran::node::Application {
   // Applies every row's effective value, at boot once the card has been read.
   void apply_all(lran::node::Context& c);
 
+  // True once, after a CONFIG or a readback reached the configuration while the card was
+  // unusable. lora_task then calls SdPersist::refresh(), outside the SpiLock, so a card put
+  // back is found by the operator's next CONFIG rather than by a timer that would hold
+  // the bus every period at a gate with no card.
+  bool take_card_retry() {
+    const bool owed = card_retry_;
+    card_retry_     = false;
+    return owed;
+  }
+
   lran::node::HexReply hex_forward(lran::node::Context& c, const char* req, size_t n, char* rsp,
                                    size_t cap, size_t* rsp_n, uint32_t now_ms) override;
   uint32_t hex_timeout_ms(const lran::node::Context&) const override {
@@ -151,11 +161,13 @@ class GateLinkApp final : public lran::node::Application {
 
  private:
   void apply_param(lran::node::Context& c, uint16_t id);
+  void note_card() { card_retry_ = card_retry_ || !cfg_->persist().usable(); }
 
   GateLinkPort*        port_;
   lran::node::RandomFn random_;
   lran::node::Sink*    log_;
-  GateLinkConfig*      cfg_ = nullptr;
+  GateLinkConfig*      cfg_        = nullptr;
+  bool                 card_retry_ = false;
 
   bool    dry_run_     = false;
   uint8_t debug_modes_ = 0;
