@@ -1,0 +1,129 @@
+     0.55 GL Version: 0.1.0 (cbacd3f)
+     2.12 CMD pub lran/gatelink/vedirect/hex/request :7501000EE
+     2.13 MQTT lran/gatelink/vedirect/hex/request :7501000EE
+    20.04 GL hex 01 -> 00 seq 1: status 0 :75010000000000000000000003A053805000000000000000000000000000000000001003B0036
+    21.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7501000EE","seq":1,"outcome":"answered","status":"ok","response":":75010000000000000000000003A053805000000000000000000000000000000000001003B0036"}
+    33.95 CMD pub lran/gatelink/vedirect/hex/request :74F1000EF
+    33.96 MQTT lran/gatelink/vedirect/hex/request :74F1000EF
+    37.77 MQTT lran/gatelink/vedirect/hex/response {"request":":74F1000EF","seq":8,"outcome":"answered","status":"ok","response":":74F1000010000000000D3010000D30100008A08A2051E3400FFFFFFFFFFFFFFFFFFFFFFFFFFC8"}
+    38.09 CMD pub lran/gatelink/vedirect/hex/request :7511000ED
+    38.09 MQTT lran/gatelink/vedirect/hex/request :7511000ED
+    39.13 GL hex 01 -> 00 seq 8: status 0 :74F1000010000000000D3010000D30100008A08A2051E3400FFFFFFFFFFFFFFFFFFFFFFFFFFC8
+    39.13 GL hex 01 -> 00 seq 9: status 0 :75110000003000000030000007905E70400000000003801000000001A0000001200DE073A00FA
+    40.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7511000ED","seq":9,"outcome":"answered","status":"ok","response":":75110000003000000030000007905E70400000000003801000000001A0000001200DE073A00FA"}
+    40.98 CMD pub lran/gatelink/vedirect/hex/request :7521000EC
+    40.98 MQTT lran/gatelink/vedirect/hex/request :7521000EC
+    42.18 GL hex 01 -> 00 seq 10: status 0 :75210000008000000050000008D05DC0400000000006C0178008F002C0000001E002708390047
+    43.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7521000EC","seq":10,"outcome":"answered","status":"ok","response":":75210000008000000050000008D05DC0400000000006C0178008F002C0000001E002708390047"}
+    43.88 CMD pub lran/gatelink/vedirect/hex/request :7531000EB
+    43.89 MQTT lran/gatelink/vedirect/hex/request :7531000EB
+    45.01 GL hex 01 -> 00 seq 11: status 0 :7531000000E000000060000008D05F70400000000000102780011003500000024000408380021
+    46.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7531000EB","seq":11,"outcome":"answered","status":"ok","response":":7531000000E000000060000008D05F70400000000000102780011003500000024000408380021"}
+    46.97 CMD pub lran/gatelink/vedirect/hex/request :7541000EA
+    46.98 MQTT lran/gatelink/vedirect/hex/request :7541000EA
+    48.06 GL hex 01 -> 00 seq 12: status 0 :75410000004000000050000005405F0040000000000760200000000130000000D007907370045
+    49.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7541000EA","seq":12,"outcome":"answered","status":"ok","response":":75410000004000000050000005405F0040000000000760200000000130000000D007907370045"}
+    49.88 CMD pub lran/gatelink/vedirect/hex/request :7551000E9
+    49.89 MQTT lran/gatelink/vedirect/hex/request :7551000E9
+    51.31 GL hex 01 -> 00 seq 13: status 0 :75510000008000000060000008D05260500000000008C019500660038000000260024083600D6
+    52.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7551000E9","seq":13,"outcome":"answered","status":"ok","response":":75510000008000000060000008D05260500000000008C019500660038000000260024083600D6"}
+    52.98 CMD pub lran/gatelink/vedirect/hex/request :7561000E8
+    52.98 MQTT lran/gatelink/vedirect/hex/request :7561000E8
+    54.15 GL hex 01 -> 00 seq 14: status 0 :75610000009000000050000008D0507050000000000CA01780044003400000024006A083500B6
+    55.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7561000E8","seq":14,"outcome":"answered","status":"ok","response":":75610000009000000050000008D0507050000000000CA01780044003400000024006A083500B6"}
+    55.87 CMD pub lran/gatelink/vedirect/hex/request :7571000E7
+    55.87 MQTT lran/gatelink/vedirect/hex/request :7571000E7
+    57.81 GL hex 01 -> 00 seq 15: status 0 :75710000009000000040000008D05FA040000000000970178007C0032000000220083083400AB
+    58.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7571000E7","seq":15,"outcome":"answered","status":"ok","response":":75710000009000000040000008D05FA040000000000970178007C0032000000220083083400AB"}
+    59.11 CMD pub lran/gatelink/vedirect/hex/request :7581000E6
+    59.11 MQTT lran/gatelink/vedirect/hex/request :7581000E6
+    60.07 GL hex 01 -> 00 seq 16: status 0 :75810000009000000050000008D05F7040000000000AC0179007E002F000000200021083300FC
+    61.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7581000E6","seq":16,"outcome":"answered","status":"ok","response":":75810000009000000050000008D05F7040000000000AC0179007E002F000000200021083300FC"}
+    61.95 CMD pub lran/gatelink/vedirect/hex/request :7591000E5
+    61.96 MQTT lran/gatelink/vedirect/hex/request :7591000E5
+    63.17 GL hex 01 -> 00 seq 17: status 0 :75910000009000000050000008D05E2040000000000990178007E002D00000020000E0832003A
+    64.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7591000E5","seq":17,"outcome":"answered","status":"ok","response":":75910000009000000050000008D05E2040000000000990178007E002D00000020000E0832003A"}
+    64.90 CMD pub lran/gatelink/vedirect/hex/request :75A1000E4
+    64.91 MQTT lran/gatelink/vedirect/hex/request :75A1000E4
+    66.04 GL hex 01 -> 00 seq 18: status 0 :75A10000008000000050000008D0524050000000000940178007B002F000000200024083100E8
+    67.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75A1000E4","seq":18,"outcome":"answered","status":"ok","response":":75A10000008000000050000008D0524050000000000940178007B002F000000200024083100E8"}
+    67.90 CMD pub lran/gatelink/vedirect/hex/request :75B1000E3
+    67.90 MQTT lran/gatelink/vedirect/hex/request :75B1000E3
+    69.09 GL hex 01 -> 00 seq 19: status 0 :75B1000000A000000040000008D052305000000000097017A0078002E00000020001A083000F1
+    70.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75B1000E3","seq":19,"outcome":"answered","status":"ok","response":":75B1000000A000000040000008D052305000000000097017A0078002E00000020001A083000F1"}
+    70.99 CMD pub lran/gatelink/vedirect/hex/request :75C1000E2
+    70.99 MQTT lran/gatelink/vedirect/hex/request :75C1000E2
+    72.14 GL hex 01 -> 00 seq 20: status 0 :75C10000008000000050000008D05230500000000009901780088002E000000200061082F009B
+    73.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75C1000E2","seq":20,"outcome":"answered","status":"ok","response":":75C10000008000000050000008D05230500000000009901780088002E000000200061082F009B"}
+    73.97 CMD pub lran/gatelink/vedirect/hex/request :75D1000E1
+    73.98 MQTT lran/gatelink/vedirect/hex/request :75D1000E1
+    75.18 GL hex 01 -> 00 seq 21: status 0 :75D10000009000000050000008F052605000000000097017C0076002E000000200023082E00E3
+    76.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75D1000E1","seq":21,"outcome":"answered","status":"ok","response":":75D10000009000000050000008F052605000000000097017C0076002E000000200023082E00E3"}
+    77.06 CMD pub lran/gatelink/vedirect/hex/request :75E1000E0
+    77.06 MQTT lran/gatelink/vedirect/hex/request :75E1000E0
+    78.01 GL hex 01 -> 00 seq 22: status 0 :75E1000000A000000060000008C05F3040000000000B601F70000003C0000002900BC072D0045
+    79.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75E1000E0","seq":22,"outcome":"answered","status":"ok","response":":75E1000000A000000060000008C05F3040000000000B601F70000003C0000002900BC072D0045"}
+    79.95 CMD pub lran/gatelink/vedirect/hex/request :75F1000DF
+    79.95 MQTT lran/gatelink/vedirect/hex/request :75F1000DF
+    81.05 GL hex 01 -> 00 seq 23: status 0 :75F10000006000000050000006E05050500000000008B0200000000260000001A009E072C00B9
+    82.77 MQTT lran/gatelink/vedirect/hex/response {"request":":75F1000DF","seq":23,"outcome":"answered","status":"ok","response":":75F10000006000000050000006E05050500000000008B0200000000260000001A009E072C00B9"}
+    82.95 CMD pub lran/gatelink/vedirect/hex/request :7601000DE
+    82.95 MQTT lran/gatelink/vedirect/hex/request :7601000DE
+    84.09 GL hex 01 -> 00 seq 24: status 0 :76010000008000000050000008D05270500000000002D017800530035000000240017082B0077
+    85.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7601000DE","seq":24,"outcome":"answered","status":"ok","response":":76010000008000000050000008D05270500000000002D017800530035000000240017082B0077"}
+    86.03 CMD pub lran/gatelink/vedirect/hex/request :7611000DD
+    86.03 MQTT lran/gatelink/vedirect/hex/request :7611000DD
+    87.15 GL hex 01 -> 00 seq 25: status 0 :7611000000A000000050000008C05F7040000000000BB01C3000A00300000002100A6072A0091
+    88.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7611000DD","seq":25,"outcome":"answered","status":"ok","response":":7611000000A000000050000008C05F7040000000000BB01C3000A00300000002100A6072A0091"}
+    89.02 CMD pub lran/gatelink/vedirect/hex/request :7621000DC
+    89.02 MQTT lran/gatelink/vedirect/hex/request :7621000DC
+    89.99 GL hex 01 -> 00 seq 26: status 0 :76210000008000000050000007B05F9040000000000A302000000002D0000001F008C072900A5
+    91.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7621000DC","seq":26,"outcome":"answered","status":"ok","response":":76210000008000000050000007B05F9040000000000A302000000002D0000001F008C072900A5"}
+    91.91 CMD pub lran/gatelink/vedirect/hex/request :7631000DB
+    91.91 MQTT lran/gatelink/vedirect/hex/request :7631000DB
+    93.03 GL hex 01 -> 00 seq 27: status 0 :76310000008000000050000008D05100500000000009601780041003100000022004B08280009
+    94.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7631000DB","seq":27,"outcome":"answered","status":"ok","response":":76310000008000000050000008D05100500000000009601780041003100000022004B08280009"}
+    95.10 CMD pub lran/gatelink/vedirect/hex/request :7641000DA
+    95.10 MQTT lran/gatelink/vedirect/hex/request :7641000DA
+    96.07 GL hex 01 -> 00 seq 28: status 0 :76410000009000000050000008D05F6040000000000B101780081002B0000001D00E00727003F
+    97.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7641000DA","seq":28,"outcome":"answered","status":"ok","response":":76410000009000000050000008D05F6040000000000B101780081002B0000001D00E00727003F"}
+    97.98 CMD pub lran/gatelink/vedirect/hex/request :7651000D9
+    97.98 MQTT lran/gatelink/vedirect/hex/request :7651000D9
+   100.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7651000D9","seq":29,"outcome":"answered","status":"ok","response":":76510000008000000050000008E05FA040000000000BA0178007B002A0000001D00EF0726002A"}
+   100.87 CMD pub lran/gatelink/vedirect/hex/request :7661000D8
+   100.88 MQTT lran/gatelink/vedirect/hex/request :7661000D8
+   102.17 GL hex 01 -> 00 seq 29: status 0 :76510000008000000050000008E05FA040000000000BA0178007B002A0000001D00EF0726002A
+   102.17 GL hex 01 -> 00 seq 30: status 0 :76610000009000000050000008D05F7040000000000C7019B0042003200000023000308250013
+   103.79 MQTT lran/gatelink/vedirect/hex/response {"request":":7661000D8","seq":30,"outcome":"answered","status":"ok","response":":76610000009000000050000008D05F7040000000000C7019B0042003200000023000308250013"}
+   104.07 CMD pub lran/gatelink/vedirect/hex/request :7671000D7
+   104.07 MQTT lran/gatelink/vedirect/hex/request :7671000D7
+   106.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7671000D7","seq":31,"outcome":"answered","status":"ok","response":":76710000008000000050000008E05270500000000008F017B009B002E0000001F0031082400BB"}
+   106.96 CMD pub lran/gatelink/vedirect/hex/request :7681000D6
+   106.97 MQTT lran/gatelink/vedirect/hex/request :7681000D6
+   108.06 GL hex 01 -> 00 seq 31: status 0 :76710000008000000050000008E05270500000000008F017B009B002E0000001F0031082400BB
+   108.06 GL hex 01 -> 00 seq 32: status 0 :76810000008000000040000008D0526050000000000B801780081002C0000001E0008082300DE
+   109.77 MQTT lran/gatelink/vedirect/hex/response {"request":":7681000D6","seq":32,"outcome":"answered","status":"ok","response":":76810000008000000040000008D0526050000000000B801780081002C0000001E0008082300DE"}
+   109.86 CMD pub lran/gatelink/vedirect/hex/request :7691000D5
+   109.87 MQTT lran/gatelink/vedirect/hex/request :7691000D5
+   112.84 MQTT lran/gatelink/vedirect/hex/response {"request":":7691000D5","seq":33,"outcome":"answered","status":"ok","response":":76910000009000000050000008E0527050000000000B501780087002D0000001F00F2072200EC"}
+   113.08 CMD pub lran/gatelink/vedirect/hex/request :76A1000D4
+   113.09 MQTT lran/gatelink/vedirect/hex/request :76A1000D4
+   114.17 GL hex 01 -> 00 seq 33: status 0 :76910000009000000050000008E0527050000000000B501780087002D0000001F00F2072200EC
+   114.17 GL hex 01 -> 00 seq 34: status 0 :76A10000008000000050000008F05F4040000000000E101E1000000390000002700FF072100F1
+   115.77 MQTT lran/gatelink/vedirect/hex/response {"request":":76A1000D4","seq":34,"outcome":"answered","status":"ok","response":":76A10000008000000050000008F05F4040000000000E101E1000000390000002700FF072100F1"}
+   115.96 CMD pub lran/gatelink/vedirect/hex/request :76B1000D3
+   115.97 MQTT lran/gatelink/vedirect/hex/request :76B1000D3
+   117.02 GL hex 01 -> 00 seq 35: status 0 :76B10000009000000050000008D05ED040000000000BA01790064002B0000001E00E307200057
+   118.77 MQTT lran/gatelink/vedirect/hex/response {"request":":76B1000D3","seq":35,"outcome":"answered","status":"ok","response":":76B10000009000000050000008D05ED040000000000BA01790064002B0000001E00E307200057"}
+   118.96 CMD pub lran/gatelink/vedirect/hex/request :76C1000D2
+   118.97 MQTT lran/gatelink/vedirect/hex/request :76C1000D2
+   120.07 GL hex 01 -> 00 seq 36: status 0 :76C10000008000000050000008E05F5040000000000D40178005F0031000000220033081F00E0
+   121.77 MQTT lran/gatelink/vedirect/hex/response {"request":":76C1000D2","seq":36,"outcome":"answered","status":"ok","response":":76C10000008000000050000008E05F5040000000000D40178005F0031000000220033081F00E0"}
+   122.07 CMD pub lran/gatelink/vedirect/hex/request :76D1000D1
+   122.07 MQTT lran/gatelink/vedirect/hex/request :76D1000D1
+   123.12 GL hex 01 -> 00 seq 37: status 0 :76D10000009000000050000008D05EF040000000000C301790076002C0000001E0014081E0007
+   124.77 MQTT lran/gatelink/vedirect/hex/response {"request":":76D1000D1","seq":37,"outcome":"answered","status":"ok","response":":76D10000009000000050000008D05EF040000000000C301790076002C0000001E0014081E0007"}
+   124.96 CMD pub lran/gatelink/vedirect/hex/request :76E1000D0
+   124.97 MQTT lran/gatelink/vedirect/hex/request :76E1000D0
+   126.18 GL hex 01 -> 00 seq 38: status 0 :76E10000008000000040000008F05F5040000000000A901830094003000000021005B081D00A5
+   127.79 MQTT lran/gatelink/vedirect/hex/response {"request":":76E1000D0","seq":38,"outcome":"answered","status":"ok","response":":76E10000008000000040000008F05F5040000000000A901830094003000000021005B081D00A5"}

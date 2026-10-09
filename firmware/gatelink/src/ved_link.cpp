@@ -185,7 +185,7 @@ bool VedLink::answers(const vedirect::Frame& f) const {
     case HexCmd::Set: {
       // Matched on the echoed register alone, not through reg_reply(), which takes a value
       // of at most 4 bytes. A history record (0x1050 onwards) carries 34, and its reply
-      // then went unmatched and the request timed out (engineering log, 2026-10-09).
+      // then went unmatched and the request timed out (engineering log, 2026-10-08).
       if (!req_reg_known_ || f.cmd != req_cmd_ || f.len < 3) return false;
       return static_cast<uint16_t>(f.data[0] | (f.data[1] << 8)) == req_reg_;
     }

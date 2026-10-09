@@ -172,7 +172,7 @@ void test_get_matched_by_register_among_async() {
 }
 
 // A history record's reply carries 34 bytes after the flags, past reg_reply()'s 4, and
-// is still the answer to its Get (engineering log, 2026-10-09).
+// is still the answer to its Get (engineering log, 2026-10-08).
 void test_get_of_a_wide_register_is_matched() {
   Rig r;
   r.start(get_req(0x1050).c_str(), 0);
