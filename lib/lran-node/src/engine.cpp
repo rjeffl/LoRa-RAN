@@ -745,8 +745,11 @@ void Engine::apply_config(Context& c, Application& app, const schema::NodeConfig
                     phy_ok ? "accepted" : "NOT accepted", phy_state_name(phy_->state()),
                     static_cast<unsigned>(phy_->accepted_mask()), static_cast<unsigned>(members));
       }
-      // D53 - NOT_APPLIED only when nothing in the set took effect.
-      out->persist_status = applied ? PersistStatus::AppliedNotPersisted : PersistStatus::NotApplied;
+      // D53 - NOT_APPLIED only when nothing in the set took effect. Otherwise the answer is
+      // the store's, read after the set: PERSISTED only when every override the node now
+      // holds is on its store. A node with a working store reports PERSISTED, and one
+      // whose store failed this write or an earlier one does not.
+      out->persist_status = applied ? current() : PersistStatus::NotApplied;
       break;
     }
     case ConfigOp::Get:

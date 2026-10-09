@@ -111,6 +111,16 @@ class TestApp final : public Application {
   }
   size_t listed = 0;
 
+  // One writable row, 0x1000, held in RAM; `unsaved` is the store's verdict on it.
+  bool config_set(Context&, const schema::ConfigEntry& in, schema::ConfigAckEntry* out) override {
+    if (in.param_id != 0x1000) return false;
+    schema::entry_pack(out, in.param_id, ParamStatus::Ok, in.ptype,
+                       schema::entry_raw(in.value, in.len));
+    return true;
+  }
+  bool config_unpersisted(const Context&) const override { return unsaved; }
+  bool unsaved = false;
+
   bool defer      = false;
   bool hex_silent = false;
   int  executed   = 0;
@@ -455,9 +465,12 @@ void test_config_get_all_lists_the_phy_group() {
 
 namespace {
 
-void send_config(Rig& r, Seq seq, ConfigOp op) {
+void send_config(Rig& r, Seq seq, ConfigOp op, const schema::ConfigEntry* e = nullptr,
+                 uint8_t ne = 0) {
   schema::NodeConfigV1 cfg;
-  cfg.op = op;
+  cfg.op    = op;
+  cfg.count = ne;
+  for (uint8_t i = 0; i < ne; ++i) cfg.entries[i] = e[i];
   uint8_t p[kMaxSchemaPayload];
   size_t  n = 0;
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
@@ -578,6 +591,36 @@ void test_answer_is_queued_whole_or_not_at_all() {
   TEST_ASSERT_EQUAL_UINT32(dropped + 1, r.eng.answers_dropped());
 }
 
+// spec 7.4, D53 - a SET's persist_status is the store's after the set: PERSISTED when the
+// node's store holds every override, APPLIED_NOT_PERSISTED when it does not, NOT_APPLIED
+// when nothing applied. Until GL3 the engine answered every applied SET
+// APPLIED_NOT_PERSISTED, which a node with a working card would have contradicted.
+void test_config_set_reports_the_stores_persistence() {
+  struct Case {
+    uint16_t      id;
+    bool          unsaved;
+    PersistStatus want;
+  };
+  const Case cases[] = {{0x1000, false, PersistStatus::Persisted},
+                        {0x1000, true, PersistStatus::AppliedNotPersisted},
+                        {0x1FFF, false, PersistStatus::NotApplied}};
+  Seq seq = 70;
+  for (const Case& k : cases) {
+    Rig r;
+    r.app.unsaved = k.unsaved;
+    schema::ConfigEntry e;
+    schema::entry_pack(&e, k.id, PType::U32, 5);
+    send_config(r, seq, ConfigOp::Set, &e, 1);
+    uint8_t     buf[kOutFrameMax];
+    const Frame f = r.next(buf);
+    schema::NodeConfigAckV1 ack;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::deserialize(f.payload, f.payload_len, &ack)));
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(k.want), static_cast<uint8_t>(ack.persist_status));
+    ++seq;
+  }
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_poll_is_answered_from_the_context);
@@ -592,6 +635,7 @@ int main(int, char**) {
   RUN_TEST(test_hex_busy_then_timeout);
   RUN_TEST(test_hex_completed_later);
   RUN_TEST(test_config_get_all_lists_the_phy_group);
+  RUN_TEST(test_config_set_reports_the_stores_persistence);
   RUN_TEST(test_get_all_splits_in_param_id_order);
   RUN_TEST(test_unsolicited_readback_takes_a_status_seq_per_message);
   RUN_TEST(test_repeated_get_all_is_answered_again);

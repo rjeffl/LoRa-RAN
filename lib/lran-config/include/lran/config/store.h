@@ -92,6 +92,10 @@ class Store {
   schema::ConfigAckEntry apply(const schema::ConfigEntry& in, bool* applied,
                                bool* persisted);
 
+  // spec 7.4 - one parameter as a GET answers it: the effective value, OK, and the
+  // OVERRIDE bit (D68). UNKNOWN_PARAM with no value when the table has no such row.
+  schema::ConfigAckEntry get(uint16_t id) const;
+
   // Puts back a value the nonvolatile store held, at boot. Clamped and refused as apply()
   // would be, so a value stored before a range changed cannot come back unchecked, but it
   // never writes the store and never opens a PHY trial: a PHY value in the store is a
