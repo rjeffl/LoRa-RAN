@@ -1,12 +1,10 @@
 # Bridge Node — session handoff
 
-**Written 2026-10-01 by the session that did group 6.** Spec v0.17 states the four B5
-readings as D73–D76, each as the code already built it, so no firmware was flashed. B0 to
-B5 are accepted. B6 and B7 wait on GateLink's hardware, so this file lists the bridge work
-that can still run without it. The engineering log's latest entry is 2026-10-01's *Spec
-v0.17*. The bridge runs `d8e45c3` and both simnodes run `be5c7c8`, as *Hardware state*
-says. Both images still print v0.16 in their boot banners. v0.17 changed those banner strings
-and three comments, and nothing else in the firmware, so no reflash is owed for it.
+**Written 2026-10-09 by a planning session**, which ordered the work left before GateLink
+deploys and changed no code. B0 to B5 are accepted. GateLink's firmware is now on the air
+with this bridge: GL3's command path and CONFIG ran against it on 2026-10-08. B6 still waits
+on GateLink's GL6, at the gate. This file now lists the bridge and Home Assistant work that
+has to be ready by the install visit.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,11 +18,12 @@ and three comments, and nothing else in the firmware, so no reflash is owed for 
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: nothing.** The operator picks the next group from *Work before GateLink*.
-Groups 1 to 4, 6 and 7 are done; group 5 remains, and it does not need GateLink.
+**Queued: group 8, before the production cutover.** Groups 1 to 4, 6 and 7 are done. Group
+5 remains, and neither group needs GateLink at the gate.
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
+| **8. Before the production cutover** | The operator's review of GateLink's 20 configuration ranges, for its first item | Host, then a bench flash |
 | **5. Documents and tools** | Nothing | Host only |
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
@@ -47,8 +46,10 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 `CONFIG` in flight to any node, for its ACK and its readback. The engineering log's two
 2026-09-25 *air-timing* entries have the rule and the bench run.
 
-**B6 and B7 need GateLink**, and GateLink GL6 gates B6. GateLink's firmware is not
-started, so every group left here is preparation for B6, not a step toward it.
+**B6 and B7 need GateLink at the gate**, and GateLink's GL6 gates B6. GateLink's handoff
+orders the node's side: a bench window with the MPPT and the WattCycle pack, then GL2, then
+the install visit. Group 8 has to be done before that visit, because B6 runs on the
+production broker (Impl Plan §11.3) and Home Assistant keeps every name it publishes.
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -59,7 +60,7 @@ refuses a long-lived token.
 
 ## Work before GateLink
 
-Each group is one session unless its line says otherwise.
+Each group is one session unless its line says otherwise. Group 8 is the one queued.
 
 ### 1. Bridge defects the bench can reach
 
@@ -158,6 +159,35 @@ reset can land. `node/health/state`'s counters moved outside its hash, host-test
 - **An answer lost before a reset is still not reproduced.** A run that makes the broker
   unreachable at the commit would hold the answer; whether that is worth a PHY change is
   the operator's call.
+
+### 8. Before the production cutover
+
+**Queued.** B6 moves the bridge to the production broker (Impl Plan §11.3), and Home
+Assistant's entity registry keeps every `unique_id` it sees there. So everything that
+changes a published name or entity goes first. The items, in order:
+
+1. **The operator reviews GateLink's 20 configuration ranges.** None is measured, and the
+   names become permanent when HA first publishes them.
+2. **Remove the "Node supply current" entity** from `firmware/bridge/src/discovery.cpp` and
+   `ha/discovery/`. Spec §7.2.4's `node_ma` carries its sentinel on GateLink (PRD R-4.4b),
+   so the entity would always read unavailable.
+3. **Answer a `config/set` of 512 bytes or more**, or document the limit. Today
+   `kMaxInboundPayloadLen` (`mqtt_transport.h`) refuses it with no `config/ack`, and a set
+   of GateLink's 23 non-PHY rows is about 660 bytes. Spec §16.7.3 expects an answer.
+4. **The operator decides whether `rxlog` shares the 32 publish slots with state** (group 3).
+5. **Clear the bench overrides** with `restore_defaults`, and keep simnode discovery off
+   the production broker.
+6. **The operator makes the production `secrets.h`**: a new master key, the production
+   broker's credentials and WiFi. The bridge and GateLink are both built from it, and
+   GateLink's production flash is its last before it leaves the bench. A password must not
+   reach argv, a log or a committed file from then on ([`traps.md`](./traps.md)).
+7. **At B6**: reflash the bridge against the production broker, and set `deployed` = 1 on
+   `lran/gatelink/config/set` once GateLink is in the field.
+
+GateLink's GL8 runs on the production broker after this: every entity present, held-open
+and FIRE events firing once only, and the configuration `number` entities reading and
+writing. No document covers HA dashboards or automations; plan them before GL8 if they are
+wanted.
 
 ## Waits on GateLink or the operator
 
@@ -272,8 +302,8 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `28dc204`, flashed over USB on 2026-10-05**, and boots in `app0`. That
-image carries `kMaxPayloadLen` 2048 and `node/health/state`'s new hash. **Both simnodes run
+**The bridge runs `ff2c092`, flashed over USB on 2026-10-08** so that it carries GateLink's
+`watchdog_timeout_s` (GateLink engineering log, 2026-10-08). That image still carries `kMaxPayloadLen` 2048 and `node/health/state`'s new hash. **Both simnodes run
 `32503d5`**, flashed over USB the same day (engineering log, *Group 7's bench evidence*).
 The bridge holds `charge_readback_interval_h` 0, `cmd_retries` 3 and
 `command_ack_timeout_ms` 3000 as overrides from bench runs; `restore_defaults` clears them.
@@ -293,7 +323,7 @@ range-test handoff owns them in its own roles.
 | Device | Called here | Told apart by | Firmware | Current state |
 |---|---|---|---|---|
 | Heltec V3, **Meshtastic flat case** | **the bridge board** | Its enclosure — flat case, not the handheld one | `firmware/bridge -e heltec`. MAC `44:1b:f6:f9:70:14` | **At its production position in the office, NW wall, desk height.** On USB as `/dev/cu.usbserial-0001`. NVS holds the configuration store — clear a bench value with `{"op":"restore_defaults"}` on its `config/set`, not by reflashing |
-| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-3` on 2026-09-25. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its port name moves across replug |
+| Heltec V3, **handheld dev-board case** | **simnode Heltec** | Its enclosure — handheld case | `firmware/simnode -e simnode-heltec`. MAC `44:1b:f6:fa:bc:2c` | In the office, about 1.5 m from the bridge board. On USB as `/dev/cu.usbserial-4` on 2026-10-05. Holds `f0` in `ROLE_RANGE` and `f2` in `ROLE_HEALTH`. Its image carries L7's BMS emulator, off at boot; `bms on 49A1` starts it. Its port name moves across replug |
 | XIAO ESP32S3 + **Wio-SX1262 Kit** | **target-radio simnode** | Different board entirely — XIAO with a B2B-connected module | `firmware/simnode -e simnode-xiao-wio`. MAC `68:ee:8f:4b:85:f4` | On USB as **`/dev/cu.usbmodem1101`** on 2026-09-27. The number moves across replugs, and it is the only `usbmodem` port. Held `f1` in `ROLE_GATELINK` alone on 2026-09-25; `f3` in `ROLE_FAULT` was not present. Add it with `id add f3 ROLE_FAULT` for a fault run |
 
 **The link ran −52 to −48 dBm on 2026-09-21**, about 12 dB weaker than the 2026-09-17

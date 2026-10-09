@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-08, at the end of the session that ran GL4's write gates on the broker.**
-It replaces the file the `vedirect_task` session wrote.
+**Written 2026-10-09 by a planning session**, which ordered the work for the bench window
+and changed no code. *What the last session established* is still the CONFIG session's.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,10 +17,20 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-| Task | Read |
-|---|---|
-| **GL4's M14 log** (needs the MPPT back on the gate's PV) | *The next job*, below; plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
-| **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
+The tasks are in the order *The next job* gives. Tier 1 needs the WattCycle pack and the
+MPPT on the bench, and Tier 3 needs neither.
+
+| Tier | Task | Read |
+|---|---|---|
+| 1 | **MPPT settings readback.** The MPPT is already set for LiFePO4, with no auto-detect (operator, 2026-10-09). Check it by HEX and BF-30's readback against the operator's VictronConnect snapshot | Plan §8.2's GL5 row; the engineering log's 2026-10-08 *Writes through the broker* entry |
+| 1 | **GL5, `bms_task`** against the live pack | Plan §8.2's GL5 row and §5.2's interlock; `lib/bms-ble/`; [`bms-protocol.md`](./bms-protocol.md) |
+| 1 | **M7**, pack current under charge and under load | Decision Register M7; plan §8.2's GL5 row |
+| 1 | **`vedirect_task`'s CPU share** beside NimBLE, and **L3's captured block** | *Open*, below |
+| 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
+| 3 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
+| 3 | **GL3, state derivation** by injection | Plan §8.2's GL3 row |
+| 3 | **The PHY trial** (spec §12.4.2), or a written decision to deploy without it | Plan §6.4; *Open*, below |
+| — | **GL4's M14 log** (needs the MPPT back on the gate's PV) | Plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -28,12 +38,55 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3's reset-cause slice can go next; GL4 waits only on M14.** GL3's CONFIG slice passed
-both legs of V-10 on the air (engineering log, 2026-10-08, *GL3's CONFIG on the air*), so
-the reset causes and state derivation are what GL3 has left. M14 needs a week logged at
-the gate, and the MPPT is on a bench supply with no PV, so it starts once the MPPT goes
-back. The node's refusals of a bad MAC, a stale `seq` and an unauthenticated Set are
-host-tested only, because the bridge always sends a valid MAC and resets `seq` itself.
+**The operator is bringing the WattCycle pack to the bench beside the MPPT, and the gate is
+down while it is here.** So the bench window does only the work that needs the pack or the
+MPPT, then both go back. GateLink has no OTA, so every firmware item left after install
+costs a walk to the gate. The tiers below finish the firmware before deploy without
+keeping the gate down for work that doesn't need the pack.
+
+**Tier 1 needs the pack and the MPPT. Do it first, in this order:**
+
+1. **Read back the MPPT's LiFePO4 settings** by HEX and BF-30, against the VictronConnect
+   snapshot. The readback is a check, not a change. The only write so far was GL4's `0xEDF0` test
+   on 2026-10-08, which set 15 A back after setting 14 A. The check may give `0xEDF4` and
+   `0xEDF2` non-zero values, which would exercise their scales for the first time.
+2. **Build GL5's `bms_task` against the live pack.** Check its decode against
+   `wattcycle-reader`, then measure the window and abort latency, which set
+   `bms_window_max_ms`'s default and range. NimBLE's logging moves onto the leveled log
+   here.
+3. **Capture M7**, pack current under charge and under load. The charge leg needs a
+   PV-side source: a current-limited lab supply at least about 5 V above the pack voltage.
+   Without one, only the load leg runs.
+4. **Measure `vedirect_task`'s CPU share with NimBLE running.**
+5. **Capture L3's raw text block** while the MPPT is connected.
+
+**Tier 2 uses the pack as realistic power.** Soak for 24 to 72 h through the real power
+chain (MPPT, pack, StamPLC), with the radio, VE.Direct, BMS polls and SD writes all active.
+It finds the faults that would otherwise cost walks to the gate. The INA226's node draw is a
+first read on the power budget. It costs gate downtime, so it is the operator's call.
+
+**Then the pack and the MPPT go back to the gate.** Once the MPPT is back on PV, its own
+daily history (yield, Vmin) can be read in VictronConnect. A week of it could stand in for
+M14's log, which would close GL4 without GateLink at the gate. Changing M14's method is the
+operator's call, and plan §9.8 changes with it.
+
+**Tier 3 runs on the StamPLC's 12 V supply**, with the simnode Heltec's BMS emulator in place
+of the pack. It must finish before deploy:
+
+- GL3's reset-cause slice, and its state derivation by injection.
+- The PHY trial, or a written decision to deploy without it.
+- The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
+  library's `log_w`.
+- Low-temperature inhibition through the BMS emulator.
+- The 1050 interface harnesses, built on the bench to shorten the install visit.
+- Last of all, the production build from the production `secrets.h`.
+
+**At the gate, each needing its own visit:** GL2 (the 1050 must be powered, so the pack has
+to be back), M23, GL6, then GL7. The bridge handoff carries the bridge and Home Assistant
+work that has to be ready by the install visit.
+
+The node's refusals of a bad MAC, a stale `seq` and an unauthenticated Set are host-tested
+only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
@@ -184,9 +237,6 @@ board's are its D-pads (expansion board §6.1).
 - **Protocol Specification §7.2.4 calls `node_ma` the "INA226 supply current"**, which
   the INA226 cannot give (PRD R-4.4b, v0.17). The field stays and carries its sentinel; the
   note waits for the next specification revision.
-- **The bridge still publishes a "Node supply current" entity**
-  (`firmware/bridge/src/discovery.cpp`, `ha/discovery/`), which will always read
-  unavailable. Removing it is a bridge change, not made on a GateLink branch.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
@@ -206,14 +256,9 @@ board's are its D-pads (expansion board §6.1).
   (`firmware/gatelink/CLAUDE.md`), and only configuration traffic with a bad card reaches it.
 - **`boot_count` and `state.json` are not built** (plan §6.4's file table). STATUS sends
   `boot_count` 0.
-- **The bench bridge runs `ff2c092`**, flashed over USB on 2026-10-08 so it carries
-  `watchdog_timeout_s`. The bridge handoff's *Hardware state* is its own to update.
 - **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
   one `beep` while listening to tie the two together.
 
-- **The bridge handoff's *Hardware state* row for the simnode Heltec** still names
-  `/dev/cu.usbserial-3` and an image without the emulator. It is the bridge's file to
-  rewrite.
 - **`wattcycle-reader`'s `loop()` ticks the reassembler with a clock read before its
   blocking write.** The library tolerates it now. GateLink's `bms_task` should read its
   clock after the write.
@@ -247,13 +292,6 @@ board's are its D-pads (expansion board §6.1).
   stops at 68 bytes. Showing the split needs the bridge to name GateLink's block for a
   `ROLE_GATELINK` simnode, which changes the simnode's discovery in HA, or needs GateLink
   itself on air. The bridge's call.
-- **The bridge answers nothing to a `config/set` of 512 bytes or more**
-  (`kMaxInboundPayloadLen`). The refusal is counted, but no `config/ack` is published.
-  A set of GateLink's 23 non-PHY rows is about 660 bytes. Spec §16.7.3 expects an answer.
-  The bridge's to fix or document.
-- **The bridge handoff's *Hardware state* row for the XIAO Kit** names
-  `/dev/cu.usbmodem1101`. On 2026-10-02 it was `/dev/cu.usbmodem2101`, running this
-  branch's simnode image.
 - **PRD R-4.3i's `antenna_gain_dbi` and envelope rows**, M21 handoff items 1–3. They are
   fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
   of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
