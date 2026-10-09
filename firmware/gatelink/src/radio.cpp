@@ -69,6 +69,11 @@ OutFrame g_tx;
 bool     g_have_tx = false;
 
 uint8_t g_rx_buf[256];  // the SX1262 accepts 255 bytes; spec 14 stage 2a must see them
+// A frame read under the SpiLock and not yet handed to the client (radio_service()).
+bool    g_rx_ready = false;
+size_t  g_rx_len   = 0;
+int16_t g_rx_rssi  = 0;
+int16_t g_rx_snr   = 0;
 
 uint32_t              g_begin_failed_ms  = 0;
 uint32_t              g_last_irq_read_ms = 0;
@@ -211,7 +216,11 @@ void service_receive(RadioClient* client, uint32_t now_ms) {
     return;
   }
   ++g_stats.rx_frames;
-  client->on_frame(g_rx_buf, len, static_cast<int16_t>(std::lround(rssi)), snr_db10(snr), now_ms);
+  // Delivered by radio_service() once the SpiLock is released (see there).
+  g_rx_len   = len;
+  g_rx_rssi  = static_cast<int16_t>(std::lround(rssi));
+  g_rx_snr   = snr_db10(snr);
+  g_rx_ready = true;
 }
 
 TxStep report_cad(RadioClient* client, CadResult result, uint32_t now_ms) {
@@ -343,23 +352,35 @@ int16_t radio_begin(void* task) {
   return try_begin(millis());
 }
 
+// A received frame reaches the client AFTER the SpiLock is released. The client runs the
+// engine, and a CONFIG SET writes the microSD on the same bus under the same lock, which
+// is not recursive: delivered inside it, the first SET deadlocked lora_task (engineering
+// log, 2026-10-08). The frame is answered on the next pass, 5 ms later at most.
 void radio_service(RadioClient* client, lran::node::Outbox* outbox, uint32_t now_ms) {
   if (g_radio == nullptr) return;
-  SpiLock lock;
-  switch (g_mode) {
-    case Mode::Down:
-      if (elapsed(now_ms, g_begin_failed_ms) >= kBeginRetryMs) (void)try_begin(now_ms);
-      break;
-    case Mode::Receive:
-      service_receive(client, now_ms);
-      if (g_mode == Mode::Receive) service_tx(client, outbox, now_ms);
-      break;
-    case Mode::Cad:
-      service_cad(client, now_ms);
-      break;
-    case Mode::Transmit:
-      service_transmit(now_ms);
-      break;
+  {
+    SpiLock lock;
+    switch (g_mode) {
+      case Mode::Down:
+        if (elapsed(now_ms, g_begin_failed_ms) >= kBeginRetryMs) (void)try_begin(now_ms);
+        break;
+      case Mode::Receive:
+        service_receive(client, now_ms);
+        if (g_mode == Mode::Receive) service_tx(client, outbox, now_ms);
+        break;
+      case Mode::Cad:
+        service_cad(client, now_ms);
+        break;
+      case Mode::Transmit:
+        service_transmit(now_ms);
+        break;
+    }
+  }
+  if (g_rx_ready) {
+    // g_rx_buf is safe to read here: only service_receive() writes it, on this task, and
+    // not until the next pass.
+    g_rx_ready = false;
+    client->on_frame(g_rx_buf, g_rx_len, g_rx_rssi, g_rx_snr, now_ms);
   }
 }
 
