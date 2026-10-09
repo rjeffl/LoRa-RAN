@@ -28,8 +28,9 @@ constexpr TaskSpec kTable[kTaskCount] = {
     // queue from GL3. 8192 is the bridge's lora_task stack, which runs the same RadioLib.
     {TaskId::Lora, "lora", kPriorityHigh, 8192, kAnyCore, 0, 0},
 
-    // State, hold tracking, detection, triggers and status assembly on a 100 ms tick. GL3
-    // makes it the task that feeds the watchdog (Impl Plan 5.2).
+    // State, hold tracking, detection, triggers and status assembly on a 100 ms tick. The
+    // one task that feeds the watchdog (Impl Plan 5.2), so its tick is fixed, not a
+    // parameter: app_feeds_well_inside_the_watchdog() reads it.
     {TaskId::App, "app", kPriorityNormal, 6144, kAnyCore, 100, 0},
 
     // NimBLE connect, read, disconnect and controller de-init. Its period is bms_poll_s.
@@ -70,6 +71,19 @@ uint32_t default_period_ms(const TaskSpec& spec) {
 uint32_t param_default(uint16_t id) {
   const lran::config::ParamDef* p = find_param(id);
   return p == nullptr ? 0 : static_cast<uint32_t>(p->def);
+}
+
+uint32_t watchdog_timeout_in_range(uint32_t seconds) {
+  const lran::config::ParamDef* p = find_param(kParamWatchdogTimeoutS);
+  const uint32_t lo = static_cast<uint32_t>(p->min);
+  const uint32_t hi = static_cast<uint32_t>(p->max);
+  return seconds < lo ? lo : (seconds > hi ? hi : seconds);
+}
+
+bool app_feeds_well_inside_the_watchdog() {
+  const lran::config::ParamDef* p = find_param(kParamWatchdogTimeoutS);
+  if (p == nullptr) return false;
+  return default_period_ms(task_spec(TaskId::App)) * 2u <= static_cast<uint32_t>(p->min) * 1000u;
 }
 
 bool io_is_strictly_highest() {

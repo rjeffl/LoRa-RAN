@@ -37,6 +37,7 @@ Implementation Plan §4.4, as the row's meaning cites.
 | `0x1050` | `display_timeout_s` | u16 | s | 60 | 10 to 3600 | read-write | Backlight inactivity timeout, PRD R-4.7b |
 | `0x1051` | `buzzer_enable` | bool |  | 0 | 0 to 1 | read-write | Panel buzzer, Impl Plan 5.2 ui_task |
 | `0x1052` | `inject_spacing_ms` | u16 | ms | 1000 | 100 to 60000 | read-write | Gap between injected inputs, PRD R-5.4b |
+| `0x1060` | `watchdog_timeout_s` | u8 | s | 10 | 5 to 60 | read-write | Task watchdog timeout, fed by app_task, Impl Plan 5.2 |
 
 ## Every node's block, `0x0100`–`0x01FF`
 
@@ -68,6 +69,6 @@ the node (D47). They are not part of the node's readback.
 
 ## What a full readback costs
 
-A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 131 and every
-node's block 68, so a full readback takes 199 bytes. It arrives as more than one message, marked
+A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 137 and every
+node's block 68, so a full readback takes 205 bytes. It arrives as more than one message, marked
 `MORE_FOLLOWS` (spec §7.4.1).
