@@ -22,10 +22,11 @@ reports the last trailing edge (plan §5.2). It does not answer `CONFIG` yet.
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
 transaction at a time (plan §4.2.4). `ui_task` shows the INA226 and LM75 on the panel's
 last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`,
-`beep`, `radio`, `lran`, `ved`, `bus <s>`, `restart`, `hang`), prints the engine's log
+`beep`, `radio`, `lran`, `lran ctx new`, `ved`, `bus <s>`, `restart`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
-refusals and commands; `ved` prints the MPPT snapshot and the VE.Direct counters. `bus <s>`
+refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
+spec §10.3's resync on the bench; `ved` prints the MPPT snapshot and the VE.Direct counters. `bus <s>`
 is GL1's SPI test. The other bodies are stubs.
 
 | File | What it holds | Native? |
