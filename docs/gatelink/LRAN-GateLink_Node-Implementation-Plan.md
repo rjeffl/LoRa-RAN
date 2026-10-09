@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.32
+**Version:** 0.33
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -1027,10 +1027,20 @@ sorts a full readback by `param_id`, and queues every message or none.
 and `tx_power_dbm`'s maximum stands in for the EIRP ceiling. Both are fleet-wide rows, not
 GateLink's, and are left for their own task (operator, 2026-10-01).
 
-**The `Persist` implementation is microSD** (**D49**, **R-4.2c**). `lran-config`'s `Store`
+**The `Persist` implementation is microSD** (**D49**, **R-4.2c**), and GL3 built it as
+`SdPersist` in `firmware/gatelink/src/config_store.{h,cpp}`. `lran-config`'s `Store`
 takes a `Persist*` that may be null, and answers `APPLIED_NOT_PERSISTED` when it is
-unusable (spec §8.11). The bridge's `Persist` is NVS and is the pattern to follow;
-GateLink's writes files.
+unusable (spec §8.11). `config.json` is one flat JSON object of overrides by name, because
+an operator reads it with the card in a laptop. Each change rewrites the whole file from
+the `Store`, through a `.tmp` file and a rename. Boot reads it before any task starts, and
+`Store::restore()` clamps each value as a `SET` would. A file that does not parse runs the
+defaults and is replaced at the next write.
+
+**The card is found missing only by a write that fails**, since nothing signals removal.
+The failure marks the store dirty, and every answer reports `APPLIED_NOT_PERSISTED` from
+then on. The next `CONFIG` or readback to reach the store remounts the card and rewrites
+the file. There is no timer, because with no card one remount attempt holds the SPI bus
+for about 1 s (engineering log, 2026-10-08).
 
 **A full readback may span several `CONFIG_ACK` messages** (Protocol Spec §7.4.1, **D57**),
 and the six PHY rows change only through §12.4's commit-and-revert (**D56**), `READ_ONLY`
@@ -1048,7 +1058,10 @@ a revert.
 | `log/*.txt` | Rotating leveled event log |
 
 **Absent-card behaviour:** defaults apply; runtime changes are applied to RAM, ACKed with
-an explicit not-persisted status, and the condition is published as a diagnostic sensor.
+an explicit not-persisted status, and the condition is published as a diagnostic sensor
+through spec §7.2.8's `node_flags` bits 0 and 1. GL3 verified both legs on the air
+(engineering log, 2026-10-08). The PHY group stays `READ_ONLY` until spec §12.4.2 is built
+here, and `config.json` never holds a PHY row.
 
 ### 6.5 Display
 
@@ -1510,6 +1523,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.33** — **GL3 answers `CONFIG`.** §6.4 records `SdPersist`, `config.json`'s format,
+  the dirty store after a failed write, and the remount on configuration traffic in place
+  of a timer.
 
 - **v0.32** — **GL3 arms the task watchdog.** §5.2 records `watchdog_timeout_s` at
   `0x1060`, its 5–60 s range and why the floor matters, and `app_task` as the only

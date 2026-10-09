@@ -291,6 +291,20 @@ PersistStatus Store::read_persist_status() const {
   return PersistStatus::Persisted;
 }
 
+schema::ConfigAckEntry Store::get(uint16_t id) const {
+  schema::ConfigAckEntry out;
+  const ParamDef*        d = find(id);
+  if (d == nullptr) {
+    out.param_id = id;
+    out.status   = ParamStatus::UnknownParam;
+    out.len      = 0;
+    return out;
+  }
+  schema::entry_pack(&out, id, ParamStatus::Ok, d->type, raw_bits(effective(id), d->type));
+  out.is_override = marked_override(id);
+  return out;
+}
+
 bool Store::next_readback_message(ReadbackCursor* cursor, ConfigOp op,
                                   schema::NodeConfigAckV1* out) const {
   if (cursor == nullptr || out == nullptr) return false;

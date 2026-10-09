@@ -659,6 +659,27 @@ void test_a_gatelink_relay_pulse_below_range_is_clamped() {
   TEST_ASSERT_EQUAL_INT32(100, s.effective(0x1000));
 }
 
+// spec 7.4, D68 - get() answers as one readback entry does: the effective value, and the
+// OVERRIDE bit only once a value is set. An id the table lacks has no value.
+void test_get_reports_the_effective_value_and_the_override() {
+  Table t = gatelink_table();
+  Store s(t, nullptr);
+  schema::ConfigAckEntry r = s.get(0x1000);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, r.status);
+  TEST_ASSERT_EQUAL(PType::U16, r.ptype);
+  TEST_ASSERT_EQUAL_UINT32(500, schema::entry_raw(r.value, r.len));
+  TEST_ASSERT_FALSE(r.is_override);
+
+  (void)s.apply(set_entry(0x1000, PType::U16, 700), nullptr, nullptr);
+  r = s.get(0x1000);
+  TEST_ASSERT_EQUAL_UINT32(700, schema::entry_raw(r.value, r.len));
+  TEST_ASSERT_TRUE(r.is_override);
+
+  r = s.get(0x1FFF);
+  TEST_ASSERT_EQUAL(ParamStatus::UnknownParam, r.status);
+  TEST_ASSERT_EQUAL_UINT8(0, r.len);
+}
+
 // The u32 row: 60 s is a legal value of detect_sequence_window_ms only because it is
 // wider than a u16.
 void test_the_detection_window_takes_values_past_a_u16() {
@@ -729,6 +750,7 @@ int main(int, char**) {
   RUN_TEST(test_only_gatelink_has_its_own_block);
   RUN_TEST(test_gatelink_names_are_unique_on_its_topic);
   RUN_TEST(test_a_gatelink_relay_pulse_below_range_is_clamped);
+  RUN_TEST(test_get_reports_the_effective_value_and_the_override);
   RUN_TEST(test_the_detection_window_takes_values_past_a_u16);
   RUN_TEST(test_a_gatelink_readback_needs_two_messages);
   return UNITY_END();

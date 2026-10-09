@@ -14,6 +14,7 @@
 #include <Wire.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "board_profile.h"
@@ -197,6 +198,58 @@ bool board_sd_append(const char* path, const char* line) {
                   f.write(static_cast<uint8_t>('\n')) == 1;
   f.close();
   return ok;
+}
+
+bool board_sd_mount(bool remount) {
+  SpiLock lock;
+  if (remount && g_sd_up) {
+    SD.end();
+    g_sd_up = false;
+  }
+  if (!g_sd_up) g_sd_up = SD.begin(kSdCs, SPI, 4000000);
+  return g_sd_up;
+}
+
+namespace {
+
+// `path` with ".tmp" appended, for board_sd_replace() and its reader.
+bool tmp_path(const char* path, char* out, size_t cap) {
+  const int w = std::snprintf(out, cap, "%s.tmp", path);
+  return w > 0 && static_cast<size_t>(w) < cap;
+}
+
+size_t read_whole(const char* path, char* out, size_t cap) {
+  if (!SD.exists(path)) return 0;
+  File f = SD.open(path, FILE_READ);
+  if (!f) return 0;
+  const size_t size = f.size();
+  const size_t n    = size <= cap ? f.read(reinterpret_cast<uint8_t*>(out), size) : 0;
+  f.close();
+  return n == size ? n : 0;
+}
+
+}  // namespace
+
+size_t board_sd_read(const char* path, char* out, size_t cap) {
+  SpiLock lock;
+  if (!g_sd_up) return 0;
+  const size_t n = read_whole(path, out, cap);
+  if (n > 0 || SD.exists(path)) return n;
+  char tmp[48];
+  return tmp_path(path, tmp, sizeof(tmp)) ? read_whole(tmp, out, cap) : 0;
+}
+
+bool board_sd_replace(const char* path, const char* text, size_t n) {
+  SpiLock lock;
+  char    tmp[48];
+  if (!g_sd_up || !tmp_path(path, tmp, sizeof(tmp))) return false;
+  File f = SD.open(tmp, FILE_WRITE);  // "w": truncates
+  if (!f) return false;
+  const bool wrote = f.write(reinterpret_cast<const uint8_t*>(text), n) == n;
+  f.close();
+  if (!wrote) return false;
+  if (SD.exists(path) && !SD.remove(path)) return false;
+  return SD.rename(tmp, path);
 }
 
 }  // namespace gatelink

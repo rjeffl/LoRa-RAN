@@ -72,6 +72,10 @@ bool radio_tx_active();
 // has reached TX_DONE or been given up on - what spec 8.1 waits for before a reset.
 bool radio_tx_idle();
 
+// spec 12.3 - cad_retries and backoff_max_ms, from lran-config. lora_task only, as
+// radio_service() is; takes effect at the next frame's media access.
+void radio_set_media_access(uint8_t cad_retries, uint32_t backoff_max_ms);
+
 bool              radio_ready();
 const RadioStats& radio_stats();
 

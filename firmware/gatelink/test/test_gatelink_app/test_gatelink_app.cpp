@@ -63,6 +63,11 @@ class FakePort final : public gatelink::GateLinkPort {
     jobs[job_count++ % 4] = job;
     return true;
   }
+  void param_changed(uint16_t id, int32_t v) override {
+    last_param = id;
+    last_value = v;
+    ++params_changed;
+  }
   bool hex_take(gatelink::HexResult* out) override {
     if (!result_ready) return false;
     result_ready = false;
@@ -87,6 +92,23 @@ class FakePort final : public gatelink::GateLinkPort {
   bool                   hex_refuse   = false;
   gatelink::HexResult    result;
   bool                   result_ready = false;
+  uint16_t               last_param     = 0;
+  int32_t                last_value     = 0;
+  int                    params_changed = 0;
+};
+
+// The card, for the CONFIG path's two legs: present, and pulled.
+class FakeCard final : public gatelink::ConfigFile {
+ public:
+  bool   mount(bool) override { return present; }
+  size_t read(char*, size_t) override { return 0; }
+  bool   write(const char* t, size_t n) override {
+    if (!present) return false;
+    text.assign(t, n);
+    return true;
+  }
+  bool        present = true;
+  std::string text;
 };
 
 struct Rig {
@@ -96,10 +118,53 @@ struct Rig {
   FakePort    port;
   GateLinkApp app{&port, counting_random, &log};
   Context     c;
-  Rig() {
+  FakeCard    card;
+  gatelink::GateLinkConfig cfg{&card};
+  explicit Rig(bool card_present = true) {
     c.id = kNodeGateLink;
     g_kdf.derive_node_key(lran_test::kTestMasterKey, kNodeGateLink, c.key);
     reset_context(c, counting_random);
+    card.present = card_present;
+    cfg.persist().load(&cfg.store());
+    app.set_config(&cfg);
+    app.apply_all(c);
+  }
+
+  void config(Seq seq, ConfigOp op, const schema::ConfigEntry* e = nullptr, uint8_t n = 0) {
+    schema::NodeConfigV1 m;
+    m.op    = op;
+    m.count = n;
+    for (uint8_t i = 0; i < n; ++i) m.entries[i] = e[i];
+    uint8_t p[kMaxPayloadPlain];
+    size_t  len = 0;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::serialize(m, p, sizeof(p), &len)));
+    Header h = to_node(MsgType::Config, seq);
+    h.schema = kSchemaNodeConfigV1;
+    rx(h, p, len);
+  }
+
+  schema::NodeConfigAckV1 next_config_ack(Seq* seq = nullptr) {
+    uint8_t     buf[kOutFrameMax];
+    const Frame f = next(buf);
+    TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(MsgType::ConfigAck),
+                            static_cast<uint8_t>(f.hdr.type));
+    if (seq != nullptr) *seq = f.hdr.seq;
+    schema::NodeConfigAckV1 a;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::deserialize(f.payload, f.payload_len, &a)));
+    return a;
+  }
+
+  schema::GateLinkStatusV1 poll_status(uint8_t flags = 0) {
+    const uint8_t p[1] = {flags};
+    rx(to_node(MsgType::Poll, 9), p, 1);
+    uint8_t     buf[kOutFrameMax];
+    const Frame f = next(buf);
+    schema::GateLinkStatusV1 s;
+    TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                          static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+    return s;
   }
 
   void rx(const Header& h, const uint8_t* payload, size_t n, const uint8_t* key = nullptr) {
@@ -189,6 +254,16 @@ void assert_sequence(uint8_t first, uint8_t second, const RelaySequence& s) {
   TEST_ASSERT_EQUAL_UINT8(first, s.first);
   TEST_ASSERT_EQUAL_UINT8(second, s.second);
 }
+
+schema::ConfigEntry set_entry(uint16_t id, PType t, uint32_t raw) {
+  schema::ConfigEntry e;
+  schema::entry_pack(&e, id, t, raw);
+  return e;
+}
+
+constexpr uint16_t kRelayPulseMs = 0x1000;
+constexpr uint8_t  kFlagPersisted    = 0x01;  // spec 7.2.8
+constexpr uint8_t  kFlagCardWritable = 0x02;
 
 }  // namespace
 
@@ -441,6 +516,138 @@ void test_late_answer_is_discarded() {
   TEST_ASSERT_TRUE(r.c.hex_pending.active);
 }
 
+// ---------------------------------------------------------------------------
+// CONFIG - Impl Plan 6.4 and V-10, with the card and without it (spec 7.4, 8.11)
+// ---------------------------------------------------------------------------
+
+// spec 7.4 - the ACK carries the effective value, the override bit, and PERSISTED once the
+// card holds it. The new value reaches the port, which carries it to its task.
+void test_config_set_with_a_card_is_persisted() {
+  Rig r;
+  const schema::ConfigEntry e = set_entry(kRelayPulseMs, PType::U16, 700);
+  r.config(50, ConfigOp::Set, &e, 1);
+  Seq                           seq = 0;
+  const schema::NodeConfigAckV1 a   = r.next_config_ack(&seq);
+  TEST_ASSERT_EQUAL_UINT16(50, seq);
+  TEST_ASSERT_EQUAL(PersistStatus::Persisted, a.persist_status);
+  TEST_ASSERT_EQUAL_UINT8(1, a.count);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, a.entries[0].status);
+  TEST_ASSERT_TRUE(a.entries[0].is_override);
+  TEST_ASSERT_EQUAL_UINT32(700, schema::entry_raw(a.entries[0].value, a.entries[0].len));
+  TEST_ASSERT_EQUAL_UINT16(kRelayPulseMs, r.port.last_param);
+  TEST_ASSERT_EQUAL_INT32(700, r.port.last_value);
+  TEST_ASSERT_FALSE(r.app.take_card_retry());  // a working card owes no retry
+  TEST_ASSERT_TRUE(r.card.text.find("\"relay_pulse_ms\": 700") != std::string::npos);
+
+  const schema::GateLinkStatusV1 s = r.poll_status();
+  TEST_ASSERT_EQUAL_HEX8(kFlagPersisted | kFlagCardWritable,
+                         s.node_flags & (kFlagPersisted | kFlagCardWritable));
+}
+
+// V-10's second leg: no card, and every answer says the change was not saved.
+void test_config_set_with_no_card_says_so() {
+  Rig r(false);
+  TEST_ASSERT_EQUAL_HEX8(kFlagPersisted, r.poll_status().node_flags & 0x03);  // nothing unsaved yet
+
+  const schema::ConfigEntry e = set_entry(kRelayPulseMs, PType::U16, 700);
+  r.config(50, ConfigOp::Set, &e, 1);
+  const schema::NodeConfigAckV1 a = r.next_config_ack();
+  TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, a.persist_status);
+  TEST_ASSERT_EQUAL(ParamStatus::Ok, a.entries[0].status);
+  TEST_ASSERT_EQUAL_INT32(700, r.port.last_value);  // applied all the same
+  TEST_ASSERT_TRUE(r.app.take_card_retry());         // lora_task tries the card once
+  TEST_ASSERT_FALSE(r.app.take_card_retry());
+
+  TEST_ASSERT_EQUAL_HEX8(0x00, r.poll_status().node_flags & 0x03);
+
+  // A read reports the same, so a readback after a lost ACK is honest too (spec 7.4, D53).
+  r.config(51, ConfigOp::GetAll);
+  TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, r.next_config_ack().persist_status);
+}
+
+// The card pulled after boot: found by the write that fails.
+void test_config_set_after_the_card_is_pulled() {
+  Rig r;
+  r.card.present = false;
+  const schema::ConfigEntry e = set_entry(kRelayPulseMs, PType::U16, 700);
+  r.config(50, ConfigOp::Set, &e, 1);
+  TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, r.next_config_ack().persist_status);
+  TEST_ASSERT_EQUAL_HEX8(0x00, r.poll_status().node_flags & 0x03);
+
+  r.card.present = true;
+  TEST_ASSERT_TRUE(r.app.take_card_retry());
+  TEST_ASSERT_TRUE(r.cfg.persist().refresh());
+  TEST_ASSERT_EQUAL_HEX8(0x03, r.poll_status().node_flags & 0x03);
+}
+
+// spec 7.4.1 - the full table, every row once, ascending, in two messages; the PHY group
+// comes from the engine and nowhere else.
+void test_config_get_all_lists_every_row_once() {
+  Rig r;
+  r.config(52, ConfigOp::GetAll);
+  const schema::NodeConfigAckV1 first  = r.next_config_ack();
+  const schema::NodeConfigAckV1 second = r.next_config_ack();
+  TEST_ASSERT_TRUE(first.more_follows);
+  TEST_ASSERT_FALSE(second.more_follows);
+  TEST_ASSERT_EQUAL_size_t(r.cfg.table().size(), first.count + second.count);
+  uint16_t prev = 0;
+  for (const schema::NodeConfigAckV1* m : {&first, &second}) {
+    for (uint8_t i = 0; i < m->count; ++i) {
+      TEST_ASSERT_TRUE(m->entries[i].param_id > prev);
+      prev = m->entries[i].param_id;
+    }
+  }
+}
+
+// spec 12.4 - the PHY group is READ_ONLY until 12.4.2 is built here.
+void test_config_phy_rows_are_read_only() {
+  Rig r;
+  const schema::ConfigEntry e = set_entry(0x0110, PType::U32, 915000000);
+  r.config(53, ConfigOp::Set, &e, 1);
+  const schema::NodeConfigAckV1 a = r.next_config_ack();
+  TEST_ASSERT_EQUAL(ParamStatus::ReadOnly, a.entries[0].status);
+  TEST_ASSERT_EQUAL(PersistStatus::NotApplied, a.persist_status);
+}
+
+// The rows the application applies itself land in the engine's context.
+void test_config_dedup_depth_reaches_the_gate() {
+  Rig r;
+  TEST_ASSERT_EQUAL_UINT8(8, r.c.gate.cache_depth());
+  const schema::ConfigEntry e[2] = {set_entry(0x0100, PType::U8, 16),
+                                    set_entry(0x0101, PType::U16, 9000)};
+  r.config(54, ConfigOp::Set, e, 2);
+  (void)r.next_config_ack();
+  TEST_ASSERT_EQUAL_UINT8(16, r.c.gate.cache_depth());
+  TEST_ASSERT_EQUAL_UINT32(9000, r.c.reassembler.timeout_ms());
+}
+
+// D52 - defaults back, the file emptied, and every row re-applied.
+void test_config_restore_defaults() {
+  Rig r;
+  const schema::ConfigEntry e = set_entry(kRelayPulseMs, PType::U16, 700);
+  r.config(55, ConfigOp::Set, &e, 1);
+  (void)r.next_config_ack();
+  r.config(56, ConfigOp::RestoreDefaults);
+  const schema::NodeConfigAckV1 a = r.next_config_ack();
+  TEST_ASSERT_EQUAL(PersistStatus::Persisted, a.persist_status);
+  (void)r.next_config_ack();
+  TEST_ASSERT_EQUAL_STRING("{}\n", r.card.text.c_str());
+  TEST_ASSERT_EQUAL_INT32(500, r.cfg.store().effective(kRelayPulseMs));
+}
+
+// spec 7.4 - REQUEST_CONFIG and POLL bit 1 are answered by the unsolicited readback.
+void test_request_config_and_poll_bit_one_read_back() {
+  Rig r;
+  r.command(60, Cmd::RequestConfig);
+  assert_result(AckResult::Accepted, r.next_ack());
+  TEST_ASSERT_TRUE(r.next_config_ack().more_follows);
+  TEST_ASSERT_FALSE(r.next_config_ack().more_follows);
+
+  (void)r.poll_status(kPollFlagConfigReadback);
+  TEST_ASSERT_TRUE(r.next_config_ack().more_follows);
+  TEST_ASSERT_FALSE(r.next_config_ack().more_follows);
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_commands_map_to_relays);
@@ -459,5 +666,13 @@ int main() {
   RUN_TEST(test_authenticated_set_is_forwarded);
   RUN_TEST(test_hex_refused_by_the_port_answers_busy);
   RUN_TEST(test_late_answer_is_discarded);
+  RUN_TEST(test_config_set_with_a_card_is_persisted);
+  RUN_TEST(test_config_set_with_no_card_says_so);
+  RUN_TEST(test_config_set_after_the_card_is_pulled);
+  RUN_TEST(test_config_get_all_lists_every_row_once);
+  RUN_TEST(test_config_phy_rows_are_read_only);
+  RUN_TEST(test_config_dedup_depth_reaches_the_gate);
+  RUN_TEST(test_config_restore_defaults);
+  RUN_TEST(test_request_config_and_poll_bit_one_read_back);
   return UNITY_END();
 }

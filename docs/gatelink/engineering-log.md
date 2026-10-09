@@ -1110,3 +1110,46 @@ first sits beside the watchdog.
 **Not built here: applying a `SET`.** GateLink has no `Store` yet, so the boot value is the
 row's default. `apply_watchdog_timeout()` is the call the CONFIG slice makes; ESP-IDF 4.4's
 `esp_task_wdt_init()` reconfigures a running watchdog, as the bridge found on 2026-09-26.
+
+## 2026-10-08 — GL3's CONFIG on the air, with the card and without it
+
+**V-10 passes on the bench, both legs** (Impl Plan §8.3, PRD R-4.2c). The StamPLC ran
+`ff2c092`, the bench bridge ran the same commit, and every request went through
+`lran/gatelink/config/set`.
+
+| Step | GateLink | `config/ack` |
+|---|---|---|
+| `SET relay_pulse_ms 700`, card in | 1 write, 0 failed | `persisted`, `ok` 700 |
+| Restart, `GET_ALL` | `1 restored` | `persisted`; `config/state` shows 700, `source` `override` |
+| Card pulled, `SET relay_pulse_ms 800` | write failed, `DIRTY` | `applied_not_persisted`, `ok` 800 |
+| Restart with no card | `NOT MOUNTED - defaults` | — |
+| `SET relay_pulse_ms 800, watchdog_timeout_s 20` | `wdt: timeout 20 s` at once | `applied_not_persisted`, both `ok` |
+| Card back, `GET_ALL` | `card back, config.json rewritten` | `applied_not_persisted`, as found |
+| `GET_ALL` again | `overrides persisted` | `persisted` |
+| Restart | `2 restored`, `wdt: timeout 20 s` from boot | — |
+| `RESTORE_DEFAULTS` | `wdt: timeout 10 s`, file emptied | two `CONFIG_ACK` frames on the bridge; harness stopped before the MQTT line |
+
+`node/state` followed: `config_persisted` and `sd_ok` were both `false` with the card out
+and both `true` once it was back (spec §7.2.8 bits 0 and 1). Before this slice, bit 0 was
+always set and bit 1 always clear.
+
+**The first `SET` deadlocked `lora_task`.** `radio_service()` held the SpiLock while it
+called `on_frame()`, so the engine ran inside the lock, and the card write took the same
+non-recursive mutex. `lora`'s pass count stopped at 1275 and `ui_task` stalled behind the
+LCD's take. The bridge reported every later `CONFIG` as outcome unknown. `91579e3` hands the
+frame over after the lock is released.
+
+**A remount with no card holds the SPI bus for about 1 s, and a failed write for about
+1.8 s.** The SD library retries `GO_IDLE_STATE` and prints each retry through the core's
+`log_w`, from `lora_task`. The first build retried every 30 s on a timer, which would stall
+the radio at a gate with no card and was a fixed timing constant besides. `ff2c092` retries
+once after a `CONFIG` or a readback finds the card unusable, so only configuration traffic
+pays. The bridge's 8 s `config_ack_timeout_ms` covers the 2.5 s the slowest `SET` took.
+
+**The bench bridge at `28dc204` answered `watchdog_timeout_s` `UNKNOWN_PARAM`.** It predates
+the row, and its `CONFIG` came back outcome unknown as well. That second result was the
+deadlock, not the bridge. Reflashed at `ff2c092` with the operator's agreement, it carries
+the row.
+
+**Still not reached: the PHY group.** It answers `READ_ONLY` because spec §12.4.2 is not
+built on GateLink, and `config.json` never holds a PHY row.

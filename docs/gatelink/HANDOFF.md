@@ -20,7 +20,6 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 | Task | Read |
 |---|---|
 | **GL4's M14 log** (needs the MPPT back on the gate's PV) | *The next job*, below; plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
-| **GL3, CONFIG** | Plan §4.4, §6.4 and §5.2's watchdog bullet (a `SET` of `0x1060` calls `apply_watchdog_timeout()`); spec §6.7, §7.4 and §12.4; PRD R-3.5f–R-3.5k for the card-removed leg |
 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -29,25 +28,25 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3's CONFIG or reset-cause slice can go next; GL4 waits only on M14.** The watchdog is
-armed and fired on the bench (engineering log, 2026-10-08), so GL3's two remaining slices
-are independent of each other; the table above lists what each reads. CONFIG also wires
-`watchdog_timeout_s`: until a `Store` exists, the watchdog runs at the row's 10 s default. M14 needs a week logged at the gate, and the MPPT
-is on a bench supply with no PV, so it starts once the MPPT goes back. The node's refusals
-of a bad MAC, a stale `seq` and an unauthenticated Set are host-tested only, because the
-bridge always sends a valid MAC and resets `seq` itself.
+**GL3's reset-cause slice can go next; GL4 waits only on M14.** GL3's CONFIG slice passed
+both legs of V-10 on the air (engineering log, 2026-10-08, *GL3's CONFIG on the air*), so
+the reset causes and state derivation are what GL3 has left. M14 needs a week logged at
+the gate, and the MPPT is on a bench supply with no PV, so it starts once the MPPT goes
+back. The node's refusals of a bad MAC, a stale `seq` and an unauthenticated Set are
+host-tested only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **Every gate command acks after its last trailing edge**, in one attempt at the
-  defaults; `close 1`'s two pulses finish inside the bridge's 3 s timeout. Engineering log,
-  2026-10-08, *GL3's command path on the air*.
-- **A retry inside the execution window goes unanswered, and a retry after it draws
-  `DUPLICATE_CACHED`** (spec §9.4). Neither pulses a relay twice.
-- **Both resyncs match spec §10.3 and D70**: a `request_status` is retried once in the
-  adopted context, and an `open` is published `unconfirmed` without a retry.
-- **Two bench faults on the console**: `lran ctx new` and `lran ack drop`
-  (`firmware/gatelink/CLAUDE.md`).
+- **`CONFIG` round-trips with the card and without it.** A `SET` with the card answers
+  `persisted`. One with the card pulled, or absent at boot, answers
+  `applied_not_persisted`, and `node_flags` bits 0 and 1 clear. After a reboot the card's
+  values come back. `watchdog_timeout_s` applies at once and arms from the card at boot.
+- **The engine ran inside the SPI lock**, and the first `SET` deadlocked `lora_task` on
+  its card write. `radio_service()` now hands a frame over after releasing the lock.
+- **With no card, a remount holds the SPI bus for about 1 s.** So a card is retried after
+  configuration traffic only, never on a timer.
+- **`lran-node` answered every applied `SET` `APPLIED_NOT_PERSISTED`**, whatever the store
+  did. It now answers with the store's state after the set (D53).
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -77,13 +76,13 @@ bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.32. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, and the task watchdog arms and fires. CONFIG, state derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
+| Done | Plan v0.33. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
 | Not started | GL2, GL5–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
-pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp, VedLink
+pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, config store
 python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
 pio test -d lib/lran-node -e native           # the node engine (L1), split readback
@@ -200,6 +199,15 @@ board's are its D-pads (expansion board §6.1).
   (engineering log, 2026-10-08). Splitting the `ved` line did not stop it.
 - **`vedirect_task` wakes about 240 times a second**, once per burst of received bytes.
   Measure its CPU share before GL5 puts NimBLE beside it.
+- **The PHY group answers `READ_ONLY` on GateLink**, because spec §12.4.2's trial is not
+  built here (plan §6.4). A fleet PHY change cannot include GateLink until it is.
+- **The SD library prints its retries to `Serial` from `lora_task`**, through the core's
+  `log_w` at `CORE_DEBUG_LEVEL=2`. That breaks *Only `log_task` writes to `Serial`*
+  (`firmware/gatelink/CLAUDE.md`), and only configuration traffic with a bad card reaches it.
+- **`boot_count` and `state.json` are not built** (plan §6.4's file table). STATUS sends
+  `boot_count` 0.
+- **The bench bridge runs `ff2c092`**, flashed over USB on 2026-10-08 so it carries
+  `watchdog_timeout_s`. The bridge handoff's *Hardware state* is its own to update.
 - **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
   one `beep` while listening to tie the two together.
 

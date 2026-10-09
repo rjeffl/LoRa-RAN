@@ -85,4 +85,19 @@ bool board_sd_begin();
 // mounted or the write fell short.
 bool board_sd_append(const char* path, const char* line);
 
+// Mounts the card, unmounting it first when `remount` is set, under the SpiLock. A card
+// pulled and put back answers only after SD.end() and a fresh SD.begin().
+bool board_sd_mount(bool remount);
+
+// A whole file into `out`, under the SpiLock. Bytes read, or 0 when the card is not
+// mounted, there is no file, or it does not fit `cap`. Falls back to `path`.tmp when
+// `path` is missing, which is where board_sd_replace() leaves a file it was cut off
+// replacing.
+size_t board_sd_read(const char* path, char* out, size_t cap);
+
+// Replaces a file with `n` bytes, under the SpiLock: writes `path`.tmp, removes `path`,
+// renames. FAT has no atomic replace, so a power loss leaves the old file or the new
+// one, never half of either. False when any step fell short.
+bool board_sd_replace(const char* path, const char* text, size_t n);
+
 }  // namespace gatelink
