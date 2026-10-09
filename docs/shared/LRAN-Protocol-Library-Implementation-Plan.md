@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.25
+**Version:** 0.26
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-08
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -776,7 +776,8 @@ named above, plus `relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms
 `buzzer_enable`, and `detect_sequence_window_ms` is a `u32`. With node-common and the PHY
 group, a readback is 199 of 193 bytes and takes two messages. `readback_bytes()` counts it,
 and `test_table` pins the figure, so a row added later moves a test rather than a
-frame.
+frame. GateLink's GL3 added the first such row, `watchdog_timeout_s`, on 2026-10-08: 20
+rows, 137 bytes, and a readback of 205, still two messages.
 
 **Two findings from the count belong to GateLink's documents, not to this one**, and are
 tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
@@ -921,6 +922,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.26** — **GateLink's block grows to 20 rows** (GateLink GL3). §4 records
+  `watchdog_timeout_s` and the readback it costs: 205 bytes, still two messages. No API
+  changes.
 
 - **v0.25** — **§5 names the four vector files** that `tools/vectors/` writes, in place of
   a single `vectors.json` that was never built. Its copy of the vector format had drifted

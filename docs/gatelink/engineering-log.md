@@ -1091,3 +1091,22 @@ passed GateLink's MAC check, and `refused 2` counts the two `REJECTED_CTX` repli
 so the loss is past the queue, in the USB CDC path the 2026-10-02 and 2026-10-08 entries
 already found. It cost one pulse width, K1's, which this run has as dispatched but not
 measured.
+
+## 2026-10-08 — GL3's task watchdog fires on a stalled `app_task` at the configured 10 s
+
+**`app_task` is the only subscriber, and the watchdog caught it.** `8fae69e` arms the task
+watchdog in `start_tasks()` from `watchdog_timeout_s`'s default, and `app_task` feeds it
+once a 100 ms pass (Impl Plan §5.2). On the StamPLC at `8fae69e`, `wdt` read
+`timeout 10 s`. `wdt stall` parks `app_task` unfed at 9.56 s; the watchdog fired at 19.54 s
+and named `app (CPU 0/1)` alone. The next boot's banner read `Reset: task_watchdog`.
+`esp_reset_reason()` reports the watchdog rather than the panic it aborts through, so spec
+§8.14's reset cause reads `Watchdog`.
+
+**Nothing else tripped it.** After that reboot the board ran 110 s idle, with `vedirect_task`
+reading the MPPT and `lora_task` listening, and no `task_wdt` line appeared. The GL1 bus
+test was not run against it, and BLE does not run until GL5, which is where the BLE window
+first sits beside the watchdog.
+
+**Not built here: applying a `SET`.** GateLink has no `Store` yet, so the boot value is the
+row's default. `apply_watchdog_timeout()` is the call the CONFIG slice makes; ESP-IDF 4.4's
+`esp_task_wdt_init()` reconfigures a running watchdog, as the bridge found on 2026-09-26.

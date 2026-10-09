@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.31
+**Version:** 0.32
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -783,13 +783,19 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   Assistant publishes it.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
-- **The watchdog is not armed yet.** L6 starts the tasks without it, because its timeout
-  is a timing constant on a node with no OTA (root rule 8). The bridge fixed its own at
-  10 s, arguing from OTA, which GateLink lacks. **Decided 2026-10-07, by the operator: a
-  parameter**, `watchdog_timeout_s` in `lib/lran-config/`'s table, default 10 s, applied
-  at boot and again when it is set.
+- **The watchdog's timeout is a parameter**, because it is a timing constant on a node
+  with no OTA (root rule 8). The bridge fixed its own at 10 s, arguing from OTA, which
+  GateLink lacks. **Decided 2026-10-07, by the operator:** `watchdog_timeout_s` in
+  `lib/lran-config/`'s table, default 10 s, applied at boot and again when it is set. GL3
+  built it at `0x1060` with a range of 5–60 s. `start_tasks()` arms it before any task
+  starts, and `apply_watchdog_timeout()` is the call the CONFIG path makes on a `SET`.
+  **The floor is the safety, not the default.** A set value survives the reset it causes,
+  so a timeout shorter than `app_task`'s pass would reset the node in a loop that only a
+  USB reflash at the gate clears. 5 s is ESP-IDF's own default, and `test_tasks` holds
+  `app_task`'s tick under half of it.
 - Watchdog fed from `app_task`, not from `io_task` — a stalled application must not be
-  masked by a healthy I/O loop.
+  masked by a healthy I/O loop. `app_task` is the only task that subscribes. The idle task
+  on core 0, which Arduino-ESP32 subscribes at boot, runs to the same timeout.
 - **`CommandGate::check()` runs in the receive path, before dispatch; `record()` runs
   after execution, and the `COMMAND_ACK` goes out after `record()`.** In the simnode both
   calls run on one loop. Here the task split puts an execution window between them:
@@ -1003,15 +1009,16 @@ every node holds from `0x0100`–`0x01FF` (Protocol Spec §7.4, **D46**). Three 
 copies drift, silently: HA offers a range the firmware clamps, or documentation describes
 a default that changed two revisions ago.
 
-**GateLink's block is `kGateLinkParams`**, 19 rows in
+**GateLink's block is `kGateLinkParams`**, 20 rows in
 `lib/lran-config/include/lran/config/table.h`, declared by task **L4** (§8.1). Fifteen are
 the parameters the PRD and §4.4 name. Four more are rows the PRD requires without naming:
-`relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms` and `buzzer_enable`. The
+`relay_min_spacing_ms`, `vedirect_stale_s`, `inject_spacing_ms` and `buzzer_enable`. GL3
+added `watchdog_timeout_s`, which §5.2 explains. The
 bridge discovers them from the table, and
 [`gatelink-config.md`](./gatelink-config.md) is generated from it and checked in CI.
 **A name in that table is permanent** once HA publishes it (spec §16.7).
 
-**A full GateLink readback is 199 bytes**, six over one `CONFIG_ACK`'s 193, so it arrives
+**A full GateLink readback is 205 bytes**, twelve over one `CONFIG_ACK`'s 193, so it arrives
 as two messages, the first marked `MORE_FOLLOWS` (spec §7.4.1). The `Store` and
 `lib/lran-node`'s engine both split it. The engine collects an answer's results whole,
 sorts a full readback by `param_id`, and queues every message or none.
@@ -1503,6 +1510,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.32** — **GL3 arms the task watchdog.** §5.2 records `watchdog_timeout_s` at
+  `0x1060`, its 5–60 s range and why the floor matters, and `app_task` as the only
+  subscriber. §6.4's block is 20 rows, and a full readback is 205 bytes, still two
+  messages.
 
 - **v0.31** — **D25 and M4 closed on 2026-10-08**: the BSS138 stays in both VE.Direct
   directions, and §2.1's contingency translator is not needed. §4.2's disagreement note is
