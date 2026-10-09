@@ -578,6 +578,8 @@ NodeView     g_view;
 // 10.3's resync, which GL3 checks on the bench. lora_task owns the context, so the
 // console only asks.
 std::atomic<bool> g_ctx_new_req{false};
+// The console's `lran ack drop`, carried to lora_task, which owns the application.
+std::atomic<bool> g_ack_drop_req{false};
 
 // lora_task waits this long on DIO1 or io_task with nothing moving, and this long while a
 // frame is in media access or on the air, whose steps are read from the IRQ register.
@@ -618,6 +620,7 @@ void lora_task(void*) {
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
 
+    if (g_ack_drop_req.exchange(false, std::memory_order_relaxed)) g_node.app().withhold_next_ack();
     if (g_ctx_new_req.exchange(false, std::memory_order_relaxed)) {
       // A command mid-execution would lose its ACK, as it would in a real reboot; the
       // check wants the resync alone.
@@ -758,6 +761,7 @@ const char* pulse_result_name(PulseResult r) {
 //   radio             radio_begin()'s status
 //   lran              the protocol node: context, frames, refusals, commands (GL3)
 //   lran ctx new      a new ctx_id, unannounced, for spec 10.3's resync on the bench
+//   lran ack drop     withhold the next fresh COMMAND_ACK, for spec 9.4's dedup hit
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   restart           a software reset
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
@@ -858,8 +862,11 @@ void console_command(char* cmd) {
       g_ctx_new_req.store(true, std::memory_order_relaxed);
       if (g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
       n = std::snprintf(line, sizeof(line), "lran: new context requested");
+    } else if (std::strcmp(arg, "ack drop") == 0) {
+      g_ack_drop_req.store(true, std::memory_order_relaxed);
+      n = std::snprintf(line, sizeof(line), "lran: next COMMAND_ACK will be withheld");
     } else {
-      n = std::snprintf(line, sizeof(line), "lran: no arguments, or ctx new");
+      n = std::snprintf(line, sizeof(line), "lran: no arguments, ctx new, or ack drop");
     }
   } else if (std::strcmp(cmd, "lran") == 0) {
     portENTER_CRITICAL(&g_view_mux);

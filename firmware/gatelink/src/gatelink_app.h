@@ -118,6 +118,13 @@ class GateLinkApp final : public lran::node::Application {
   // Answers from vedirect_task to a job the engine had already timed out (root rule 4).
   uint32_t hex_late() const { return hex_late_; }
 
+  // The console's `lran ack drop`: the next fresh COMMAND_ACK is not sent, so the bridge's
+  // retry reaches the dedup cache and draws DUPLICATE_CACHED (spec 9.4 step 4). One ACK,
+  // then the hook disarms. A cached answer is never withheld.
+  void     withhold_next_ack() { withhold_ack_ = true; }
+  uint32_t acks_withheld() const { return acks_withheld_; }
+  lran::node::AckDelivery fresh_ack(lran::node::Context& c, lran::Seq seq) override;
+
  private:
   GateLinkPort*        port_;
   lran::node::RandomFn random_;
@@ -140,6 +147,9 @@ class GateLinkApp final : public lran::node::Application {
   bool            hex_refusal_owed_ = false;
   lran::HexStatus hex_refusal_      = lran::HexStatus::Busy;
   uint32_t        hex_late_         = 0;
+
+  bool     withhold_ack_  = false;
+  uint32_t acks_withheld_ = 0;
 };
 
 }  // namespace gatelink
