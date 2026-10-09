@@ -65,12 +65,13 @@ struct TaskSpec {
 const TaskSpec& task_spec(TaskId id);
 const TaskSpec* task_table();
 
-// The period a task runs at before the Store supplies a value: its fixed tick, or the
-// default of its period parameter, scaled to milliseconds. 0 for an event-driven task.
+// A task's fixed tick, or the default of its period parameter, scaled to milliseconds. 0
+// for an event-driven task. io_task reads input_poll_ms live instead; bms_task's stub still
+// runs at bms_poll_s's default until GL5 builds it.
 uint32_t default_period_ms(const TaskSpec& spec);
 
 // The default of a GateLink parameter in lran-config's table, or 0 if the table has no such
-// row. Stands in for the Store until GL3 brings one up.
+// row. The Store's value is task_runtime's live_param(); this is the table's alone.
 uint32_t param_default(uint16_t id);
 
 // The node-common rows GateLink applies (spec 7.4, D46): two in the engine's context, two
