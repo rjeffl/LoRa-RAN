@@ -18,12 +18,15 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
 The tasks are in the order *The next job* gives. Tier 1 is done. Tier 2 needs the
-WattCycle pack and the MPPT on the bench, and Tier 3 needs neither.
+WattCycle pack and the MPPT on the bench, and Tier 3 needs neither. **The StamPLC's inputs
+read 0 while energized**, so nothing that reads an input can be checked until that is
+found; it comes first.
 
 | Tier | Task | Read |
 |---|---|---|
+| 3 | **The StamPLC's dead inputs**: an input fed from 24 V, and the board's revision against the IO schematic | The engineering log's 2026-10-10 *GL3's reset causes* entry, its R-3.5i section; plan §3.2 |
+| 3 | **GL3, R-3.5i**: FIRE and the hard-shutdown latch re-sent at boot, once an input reads | PRD R-3.5i; spec §10.7's *active alarms* |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
-| 3 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
 | 3 | **GL3, state derivation** by injection | Plan §8.2's GL3 row |
 | 3 | **The PHY trial** (spec §12.4.2), or a written decision to deploy without it | Plan §6.4; *Open*, below |
 | — | **GL4's M14 log** (needs the MPPT back on the gate's PV) | Plan §8.2's GL4 row and §9.8; the engineering log's 2026-10-08 *Writes through the broker* entry for the history read |
@@ -61,12 +64,16 @@ operator's call, and plan §9.8 changes with it.
 **Tier 3 runs on the StamPLC's 12 V supply**, with the simnode Heltec's BMS emulator in place
 of the pack. It must finish before deploy:
 
-- GL3's reset-cause slice, and its state derivation by injection.
+- The StamPLC's inputs, which read 0 with 13.4 V on them (engineering log, 2026-10-10).
+  Every input check below waits on it.
+- GL3's R-3.5i at boot, and its state derivation by injection. The rest of the reset-cause
+  slice passes (engineering log, 2026-10-10).
 - The PHY trial, or a written decision to deploy without it.
 - The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
   library's `log_w`.
 - Low-temperature inhibition through the BMS emulator.
-- The 1050 interface harnesses, built on the bench to shorten the install visit.
+- ~~The 1050 interface harnesses~~ — built and fitted to the GateLink hardware (operator,
+  2026-10-10).
 - Last of all, the production build from the production `secrets.h`.
 
 **At the gate, each needing its own visit:** GL2 (the 1050 must be powered, so the pack has
@@ -78,15 +85,18 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **`vedirect_task` takes under 1 % of a core, with the BLE window open or shut.** Over 18
-  windows it ran 196 passes a second at 0.80 % busy; its longest gap between wakes was
-  20.5 ms against its 20 ms wait, so NimBLE does not starve it. `ved cpu` prints the split.
-- **The MPPT holds a HEX answer until its text block ends.** With a Get every 50 ms, no
-  answer landed inside any of five blocks; each followed the checksum byte with no `\r\n`
-  between. `kCapturedHex` in `lib/vedirect`'s text tests holds those bytes. The bring-up
-  image's `ved raw [s] [get_reg]` made the capture.
-- **The bench unit is the production GateLink**: the StamPLC and expansion board in the
-  production enclosure (operator, 2026-10-10).
+- **Every reset cause the bench can produce reaches Home Assistant with its `detail`**:
+  `POWER_ON`, `REBOOT_COMMAND`, `SOFTWARE`, `WATCHDOG` (task and interrupt), `PANIC` and
+  `EXTERNAL`. 31 `BOOT` events carried 31 different `ctx_id`s. The `REBOOT` ACK came back
+  first, one attempt. R-3.5f, g, h and k pass.
+- **A USB reset now reads `EXTERNAL`**, where ESP-IDF 4.4 answered `UNKNOWN`. The radio's RST
+  check runs at every boot; BUSY falls in about 1.62 ms.
+- **R-3.5j has no brownout leg** (PRD v0.18, operator 2026-10-10). The BMS cuts off near
+  10 V, and the node ran at 5.25 V.
+- **No input on the StamPLC reads 1**, on this branch's image or on `main`'s, with 13.4 V and
+  4.1 mA on IN5. The AW9523 answers and is configured right. Every input measures 6.2 kΩ to
+  `EXCOM_COM` both ways, which the V1.0 IO schematic does not predict.
+- **The 1050 interface harnesses are built and fitted** to the GateLink hardware.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -116,8 +126,8 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.34. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, and `vedirect_task`'s CPU share beside NimBLE is measured; M23, the low-temperature paths and `0x8D` remain |
+| Done | Plan v0.35. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7. R-3.5i and state derivation remain, both blocked by the dead inputs. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, and `vedirect_task`'s CPU share beside NimBLE is measured; M23, the low-temperature paths and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -197,16 +207,27 @@ board's are its D-pads (expansion board §6.1).
   `radio.begin()`. Plan §4.1 and expansion board §7.1.1.
 - **The panel is landscape 240×135**, not the 135×240 its name suggests. GateLink turns it
   180° and insets each line 6 pixels; text at x = 0 is under the bezel.
+- **A power cycle on the bench can boot twice.** If `bench.py` reopens the serial port as
+  the board comes up, the open resets the chip over USB, and the console shows the second
+  boot as `Reset: usb`. A true power cycle removes USB and VIN together.
 - **A StamPLC that macOS lists but gives no `/dev/cu.usbmodem*`** needs a replug. The
   USB device shows `!registered, !matched` in `ioreg -p IOUSB` until it does.
 
 ## Open, and not closable from here
 
-- **R-3.5j's brownout leg is unverified.** The bench supply stops at 5.25 V, where the
-  MP4560 still regulates. The operator left it open on 2026-10-07: a VIN sag that deep
-  means the LiFePO4 BMS failed, which is beyond any failsafe's scope. PRD §3.5's
-  preamble still names a brownout as a reset GateLink must survive. Revise R-3.5j, or run
-  the leg with a supply that reaches the reset point.
+- **The StamPLC's inputs read 0 while energized: a deploy blocker.** GateLink reads the
+  gate through them (V-3, V-4, FIRE). The engineering log's 2026-10-10 entry has what was
+  ruled out. The bench unit is the production unit, so the fix, or a replacement, has to
+  be settled before GL2.
+- **IN5 and IN6 assume energized means asserted.** The boot re-send in `lora_task` reads
+  `input_bits` bits 4 and 5 that way. M3 meters the 1050's FIRE terminal and alarm output;
+  if either idles energized, the boot check and the live alarm path both invert.
+- **A `ctx_id` drawn after boot may not come from a true entropy source.** `ROLL_CONTEXT`
+  and `lran ctx new` call `esp_random()`, which is true random only while the RF subsystem
+  runs, and BLE is down between windows. Spec §10.1 asks for true entropy at every draw.
+- **The `BOOT` event's `input_bits` is always 0**, because it is built before `io_task`'s
+  first read. Harmless while the BOOT event carries no input state; a spec reader may
+  expect otherwise.
 - **R-3.5j's *Verified by* says "on a scope"**; GL1 used a logic analyzer on the contacts,
   which cannot see a coil glitch shorter than the operate time. Proposed: accept the
   analyzer, with that limit stated. The operator's call, then a PRD and plan §8.2 edit.
@@ -309,10 +330,6 @@ board's are its D-pads (expansion board §6.1).
   a new result, or a meaning for `detail` under `ACCEPTED`.
 - **An SD write holds the SPI bus lock for up to 59 ms**, and the radio waits behind it
   (engineering log, 2026-10-06). GL3's radio driver inherits that wait.
-- **The RST boot check** in plan §4.1 is owed by GateLink's radio driver, at GL3's
-  reset-cause slice.
-- **`Reset: unknown` after a USB-serial-JTAG reset.** `main.cpp` and `reset_cause()` have no
-  case for it, so the `BOOT` event reports `UNKNOWN`. GL3's reset-cause slice.
 - **About 7.7 kΩ of RST pull-up is unexplained**, beyond the Wio's 10 kΩ. R4 measured out
   of circuit, or RST measured with the Wio pulled, would settle it. It changes nothing
   while the boot check stands.
