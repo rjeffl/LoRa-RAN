@@ -38,6 +38,18 @@ class RadioClient {
   virtual lran::Counters* counters() = 0;
 };
 
+// The boot's RST check, plan 4.1. RST rides a Grove conductor with nothing holding it low,
+// so an open conductor leaves the radio running and radio.begin() still succeeds. Only
+// BUSY tells the two apart.
+enum class RstCheck : uint8_t {
+  NotRun,
+  Passed,
+  BusyLowInReset,   // BUSY read low with RST driven low: RST is not reaching the radio
+  BusyStuckHigh,    // BUSY did not fall within kRstBusyFallMaxUs of release
+};
+
+const char* rst_check_name(RstCheck r);
+
 struct RadioStats {
   uint32_t begin_failures    = 0;
   int16_t  last_begin_status = 0;
@@ -52,6 +64,9 @@ struct RadioStats {
   // The last RadioLib call that failed, and its status: what a count alone cannot say.
   const char* last_error_at  = "";
   int16_t     last_error     = 0;
+  // Impl Plan 4.1's RST check at boot (PRD R-3.5k). A failure is reported, not retried.
+  RstCheck rst_check        = RstCheck::NotRun;
+  uint32_t rst_busy_fall_us = 0;  // release of RST to BUSY falling
 };
 
 // Configures the radio from kCarrierRadio and lran::link::kPhy and starts receiving.

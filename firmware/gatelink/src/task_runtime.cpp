@@ -17,6 +17,8 @@
 #include "task_runtime.h"
 
 #include <Arduino.h>
+#include <bootloader_random.h>
+#include <esp32s3/rom/rtc.h>
 #include <esp_system.h>
 #include <esp_task_wdt.h>
 #include <esp_timer.h>
@@ -83,6 +85,7 @@ struct PulseRequest {
 struct IoSnapshot {
   uint8_t      inputs_raw    = 0;
   uint8_t      inputs        = 0;  // debounced
+  bool         inputs_read   = false;  // the first read has landed; the debouncer takes it as stable
   // Bit changes seen since boot, raw and after debounce. A bounce or a tap shorter than
   // input_debounce_samples polls adds to the first and not the second.
   uint32_t     raw_edges     = 0;
@@ -355,6 +358,7 @@ void io_task(void*) {
         g_io.inputs_edges += static_cast<uint32_t>(__builtin_popcount(inputs ^ g_io.inputs));
         g_io.inputs_raw = raw;
         g_io.inputs     = inputs;
+        g_io.inputs_read = true;
       } else {
         ++g_io.i2c_failures;
       }
@@ -552,6 +556,18 @@ class QueueSink final : public lran::node::Sink {
 
 uint32_t random_u32() { return esp_random(); }
 
+// PRD R-3.5h, spec 10.1. esp_random() is a true entropy source only while the RF subsystem
+// runs or bootloader_random_enable() holds the ADC's noise source on. At boot BLE has not
+// started, so start_tasks() draws this word with the source enabled, before any task runs;
+// the source must be off again before bms_task starts the controller.
+uint32_t g_boot_entropy = 0;
+
+uint32_t boot_random_u32() {
+  const uint32_t v = g_boot_entropy;
+  g_boot_entropy   = 0;
+  return v != 0 ? v : random_u32();
+}
+
 // spec 8.14. A REBOOT command resets through esp_restart(), which the chip reports as a
 // software reset; this word, which survives a software reset, tells the two apart.
 constexpr uint32_t        kRebootMarker = 0x5245424Fu;  // "REBO"
@@ -560,6 +576,7 @@ RTC_NOINIT_ATTR uint32_t g_reboot_marker;
 lran::ResetCause reset_cause() {
   const bool commanded = g_reboot_marker == kRebootMarker;
   g_reboot_marker      = 0;
+  if (usb_chip_reset()) return lran::ResetCause::External;
   switch (esp_reset_reason()) {
     case ESP_RST_POWERON:  return lran::ResetCause::PowerOn;
     case ESP_RST_SW:       return commanded ? lran::ResetCause::RebootCommand : lran::ResetCause::Software;
@@ -572,6 +589,11 @@ lran::ResetCause reset_cause() {
     default:               return lran::ResetCause::Unknown;
   }
 }
+
+// spec 10.7, D72 - FIRE and the hard-shutdown latch as spec 7.2.1's input_bits name them,
+// IN5 and IN6.
+constexpr uint8_t kInputFire         = 1u << 4;
+constexpr uint8_t kInputHardShutdown = 1u << 5;
 
 // ---------------------------------------------------------------------------
 // The LoRa/BLE interlock and bms_task's results (GL5; PRD R-3.4a-R-3.4f, R-4.3h; Impl Plan
@@ -685,7 +707,7 @@ class Node final : public RadioClient, public GateLinkPort {
   void begin(const uint8_t* key, size_t key_len) {
     ctx_.id = lran::kNodeGateLink;
     std::memcpy(ctx_.key, key, key_len < sizeof(ctx_.key) ? key_len : sizeof(ctx_.key));
-    lran::node::reset_context(ctx_, random_u32);  // spec 10.1 - a new ctx_id every boot
+    lran::node::reset_context(ctx_, boot_random_u32);  // spec 10.1 - a new ctx_id every boot
     // Impl Plan 6.4 - the card's values, read by start_tasks(), applied to every task.
     app_.set_config(&g_config);
     app_.apply_all(ctx_);
@@ -825,6 +847,18 @@ std::atomic<bool> g_ack_drop_req{false};
 constexpr uint32_t kLoraIdleWaitMs   = 100;
 constexpr uint32_t kLoraActiveWaitMs = 5;
 
+void send_boot_alarm(lran::EventType type, uint32_t now) {
+  uint8_t      payload[lran::kMaxSchemaPayload];
+  uint8_t      schema = lran::kSchemaNone;
+  const size_t n      = g_node.app().build_event(g_node.ctx(), type, 0, now, payload, sizeof(payload), &schema);
+  const bool   queued = n > 0 && g_node.engine().send_event(g_node.ctx(), lran::kNodeBridge, payload, n, schema);
+  if (!queued) g_node.engine().count_dropped();
+  char text[64];
+  std::snprintf(text, sizeof(text), "boot: %s present at boot, %s", lran::node::event_type_name(type),
+                queued ? "sent again" : "NOT QUEUED");
+  QueueSink().line(text);
+}
+
 // GL3 - waits on DIO1 and io_task, through one task notification. GL1's bus test still
 // drives the radio from here while it runs.
 void lora_task(void*) {
@@ -838,6 +872,17 @@ void lora_task(void*) {
   if (!g_node.engine().announce_boot(g_node.ctx(), g_node.app(), cause, now_ms())) {
     QueueSink().line("boot: announcement not queued");
   }
+  {
+    const RadioStats& r = radio_stats();
+    char              text[96];
+    std::snprintf(text, sizeof(text), "boot: %s, ctx_id %08lx; radio RST check %s, BUSY fell in %lu us",
+                  lran::node::reset_cause_name(cause), static_cast<unsigned long>(g_node.ctx().ctx_id),
+                  rst_check_name(r.rst_check), static_cast<unsigned long>(r.rst_busy_fall_us));
+    QueueSink().line(text);
+  }
+  // spec 10.7, D72 - an alarm present at boot is sent again after the BOOT status, once
+  // io_task's first read has landed. Before it, `inputs` reads 0 and would hide a fire.
+  bool boot_alarms_owed = true;
 
   {
     const PersistStats& k = g_config.persist().stats();
@@ -865,6 +910,11 @@ void lora_task(void*) {
     if (io.cmd_seq != cmd_seq) {
       cmd_seq = io.cmd_seq;
       g_node.engine().finish_command(g_node.ctx(), g_node.app(), now);
+    }
+    if (boot_alarms_owed && io.inputs_read) {
+      boot_alarms_owed = false;
+      if ((io.inputs & kInputFire) != 0) send_boot_alarm(lran::EventType::FireAsserted, now);
+      if ((io.inputs & kInputHardShutdown) != 0) send_boot_alarm(lran::EventType::HardShutdown, now);
     }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
@@ -1163,14 +1213,16 @@ void console_command(char* cmd) {
       portEXIT_CRITICAL(&g_view_mux);
       n = std::snprintf(line, sizeof(line),
                         "radio: RadioLib status %d - %s; begin fails %lu; rx %lu err %lu; tx %lu "
-                        "err %lu timeout %lu forced %lu; cad err %lu deferred %lu; outbox %u%s; last error %s %d",
+                        "err %lu timeout %lu forced %lu; cad err %lu deferred %lu; outbox %u%s; last error %s %d; "
+                        "RST check %s",
                         st, st == 0 ? "up" : "FAILED", static_cast<unsigned long>(r.begin_failures),
                         static_cast<unsigned long>(r.rx_frames), static_cast<unsigned long>(r.rx_driver_errors),
                         static_cast<unsigned long>(r.tx_frames), static_cast<unsigned long>(r.tx_errors),
                         static_cast<unsigned long>(r.tx_timeouts), static_cast<unsigned long>(r.tx_forced),
                         static_cast<unsigned long>(r.cad_errors), static_cast<unsigned long>(r.cad_deferred),
                         static_cast<unsigned>(v.outbox), v.tx_active ? ", sending" : "",
-                        r.last_error_at[0] != '\0' ? r.last_error_at : "none", r.last_error);
+                        r.last_error_at[0] != '\0' ? r.last_error_at : "none", r.last_error,
+                        rst_check_name(r.rst_check));
     }
   } else if (std::strcmp(cmd, "bus") == 0) {
     const unsigned long secs = arg != nullptr ? std::strtoul(arg, nullptr, 10) : 0;
@@ -1478,6 +1530,10 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   for (size_t i = 0; i < t.size(); ++i) {
     g_live[i].store(g_config.store().effective(t.at(i)->id), std::memory_order_relaxed);
   }
+  // PRD R-3.5h - the boot's ctx_id, drawn while nothing else uses the ADC or the radio.
+  bootloader_random_enable();
+  g_boot_entropy = esp_random();
+  bootloader_random_disable();
   // Armed before any task starts, so app_task subscribes at the configured timeout. A
   // watchdog that fails to arm leaves app_task unwatched; app_task logs that.
   (void)apply_watchdog_timeout(live_param(kParamWatchdogTimeoutS));
@@ -1493,6 +1549,14 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
     if (spec.id == TaskId::Bms) g_bms_handle = h;
   }
   return started;
+}
+
+bool usb_chip_reset() {
+  // ESP-IDF 4.4 has no ESP_RST_USB, and esp_reset_reason() answers ESP_RST_UNKNOWN for a
+  // reset through the USB serial/JTAG peripheral, which is what an upload or the host's
+  // DTR toggle does. The ROM's reason names it.
+  const RESET_REASON r = rtc_get_reset_reason(0);
+  return r == USB_UART_CHIP_RESET || r == USB_JTAG_CHIP_RESET;
 }
 
 bool apply_watchdog_timeout(uint32_t seconds) {
