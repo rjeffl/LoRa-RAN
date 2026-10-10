@@ -1269,7 +1269,8 @@ open (`bms-protocol` §10). The decode now takes the sign from bit 15 and the ma
 0.1 A, and the host test holds both raw values. M7 is closed in the register. W6 stays
 open in the spec, which still calls `pack_ma`'s convention pending.
 
-**The load drew 4 A, not 11 A.** The MPPT reported `load 4000 mA` throughout.
+**The load was 4 A.** The operator turned it down from 11 A to keep the load board cool,
+and the MPPT reported `load 4000 mA` throughout.
 
 **The MPPT read the battery 0.9–1.5 V below the pack.** At 4 A the MPPT reported 11.74
 and later 12.31 V while the BMS read 13.21–13.24 V. The operator measured 12.3 V at the
