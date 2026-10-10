@@ -1,0 +1,144 @@
+     0.00 CMD <run: ports ['GL'], mqtt off>
+     0.21 GL ESP-ROM:esp32s3-20210327
+     0.21 GL Build:Mar 27 2021
+     0.21 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.21 GL Saved PC:0x420906d2
+     0.21 GL SPIWP:0xee
+     0.21 GL mode:DIO, clock div:1
+     0.21 GL load:0x3fce3808,len:0x4bc
+     0.21 GL load:0x403c9700,len:0xbd8
+     0.21 GL load:0x403cc700,len:0x2a0c
+     0.21 GL entry 0x403c98d0
+     0.62 GL LRAN GateLink - node 0x01
+     0.62 GL Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+     0.62 GL Version: 0.1.0 (3f29da5)
+     0.62 GL Reset: unknown
+     0.62 GL Node key: provisioned
+     1.03 GL Tasks: 7 of 7 started
+     1.03 GL cfg: card mounted; 0 restored, 0 refused, 0 unknown
+     7.04 CMD mark d2d223
+     7.04 CMD GL ved
+     7.04 CMD GL ved cpu
+     7.13 GL ved: block, flags 0x01; batt 13250 mV -10 mA, pv 1 cV 0 W, load 0 mA
+     7.13 GL ved: cs 0 err 0 mppt 0; h19 467 h20 0 h21 0 h22 3
+     7.13 GL ved: last block 20 ms ago; text 7 ok, 0 bad, 0 unsynced, 0 interrupted, 0 overflow, 0 unparsed
+     7.13 GL ved: hex sent 0, retried 0, answered 0, timeouts 0, uart errors 0; async 0, unmatched 0, bad 0, too long 0
+     7.13 GL ved cpu: ble shut; 6211 ms, 1522 passes, 245/s; busy 0.95%, max pass 696 us, max gap 20119 us
+     7.13 GL ved cpu: ble open; 0 ms, 0 passes, 0/s; busy 0.00%, max pass 0 us, max gap 0 us
+    16.36 CMD mark 93df13
+    16.36 CMD GL bms now
+    16.49 GL bms: window now
+    30.77 CMD mark 423c3b
+    30.77 CMD GL bms
+    30.77 CMD GL ved cpu
+    30.96 GL bms: read in 1037 ms (init 40 scan 51 conn 629 hs 91 ans 219 down 7)
+    30.96 GL bms: read; polling on; window 1037 max 1037 ms; abort 0 max 0 ms; cap 5000; ends read 1; busy 0 off 0; tx waits 0 asked 0 overrun 0; rx 1 crc 0 term 0 other 0; heap 231696/222352 low 182152
+    30.96 GL ved cpu: ble shut; 22680 ms, 4940 passes, 217/s; busy 0.81%, max pass 683 us, max gap 20123 us
+    30.96 GL ved cpu: ble open; 1041 ms, 225 passes, 216/s; busy 0.94%, max pass 318 us, max gap 20492 us
+    40.50 CMD mark a0228f
+    40.50 CMD mark soak-start
+    40.50 CMD GL ved
+    40.50 CMD GL ved cpu
+    40.50 CMD mark ea9a2c
+    40.50 CMD GL bms now
+    40.51 GL alive: io=301 vedirect=6691 lora=1288 app=301 bms=2 ui=301 log=1
+    40.51 GL ved: block, flags 0x01; batt 13250 mV -10 mA, pv 1 cV 0 W, load 0 mA
+    40.51 GL ved: cs 0 err 0 mppt 0; h19 467 h20 0 h21 0 h22 3
+    40.51 GL ved: last block 480 ms ago; text 40 ok, 0 bad, 0 unsynced, 0 interrupted, 0 overflow, 0 unparsed
+    40.51 GL ved: hex sent 0, retried 0, answered 0, timeouts 0, uart errors 0; async 0, unmatched 0, bad 0, too long 0
+    40.51 GL ved cpu: ble shut; 9701 ms, 2215 passes, 228/s; busy 0.84%, max pass 121 us, max gap 20001 us
+    40.71 GL ved cpu: ble open; 0 ms, 0 passes, 0/s; busy 0.00%, max pass 0 us, max gap 0 us
+    40.71 GL bms: window now
+    41.73 GL bms: read in 1082 ms (init 4 scan 141 conn 651 hs 90 ans 190 down 6)
+    42.06 CMD mark 9ddbc6
+    42.06 CMD GL bms now
+    42.13 GL bms: window now
+    43.15 GL bms: read in 933 ms (init 4 scan 41 conn 630 hs 106 ans 139 down 12)
+    43.30 CMD mark 519c24
+    43.30 CMD GL bms now
+    43.35 GL bms: window now
+    44.57 GL bms: read in 1097 ms (init 4 scan 211 conn 625 hs 91 ans 159 down 7)
+    44.75 CMD mark f5651e
+    44.75 CMD GL bms now
+    44.77 GL bms: window now
+    45.99 GL bms: read in 1142 ms (init 4 scan 161 conn 660 hs 91 ans 219 down 7)
+    46.10 CMD mark 7ec74f
+    46.10 CMD GL bms now
+    46.20 GL bms: window now
+    60.87 GL bms: read in 1202 ms (init 4 scan 321 conn 635 hs 91 ans 139 down 12)
+    60.87 GL alive: io=601 vedirect=13381 lora=1588 app=601 bms=7 ui=601 log=2
+    61.07 CMD mark 3ba8a0
+    61.07 CMD GL bms now
+    61.28 GL bms: window now
+    62.50 GL bms: read in 1307 ms (init 4 scan 371 conn 631 hs 105 ans 190 down 6)
+    62.73 CMD mark 5097cd
+    62.73 CMD GL bms now
+    62.91 GL bms: window now
+    77.83 CMD mark 1f901e
+    77.83 CMD GL bms now
+    77.96 GL bms: read in 1052 ms (init 4 scan 161 conn 645 hs 91 ans 139 down 12)
+    77.96 GL bms: window now
+    78.14 CMD mark c5fec9
+    78.14 CMD GL bms now
+    78.17 GL bms: window now
+    91.00 GL bms: read in 1352 ms (init 5 scan 481 conn 625 hs 105 ans 130 down 6)
+    91.00 GL alive: io=901 vedirect=20071 lora=2027 app=901 bms=10 ui=901 log=3
+    91.21 CMD mark f27383
+    91.21 CMD GL bms now
+    91.41 GL bms: window now
+    92.43 GL bms: read in 1082 ms (init 4 scan 221 conn 630 hs 91 ans 129 down 7)
+    92.55 CMD mark 5b4326
+    92.55 CMD GL bms now
+    92.63 GL bms: window now
+    93.86 GL bms: read in 1142 ms (init 4 scan 261 conn 635 hs 91 ans 139 down 12)
+    94.00 CMD mark 787d3f
+    94.00 CMD GL bms now
+    95.69 GL bms: window now
+    95.69 GL bms: read in 1592 ms (init 5 scan 720 conn 625 hs 91 ans 139 down 12)
+    95.96 CMD mark 5cb1c0
+    95.96 CMD GL bms now
+    96.09 GL bms: window now
+    97.11 GL bms: read in 1038 ms (init 5 scan 140 conn 636 hs 105 ans 139 down 13)
+    97.22 CMD mark bf869b
+    97.22 CMD GL bms now
+    97.32 GL bms: window now
+    98.94 GL bms: read in 1682 ms (init 4 scan 301 conn 1120 hs 91 ans 159 down 7)
+    99.08 CMD mark 9e2dbc
+    99.08 CMD GL bms now
+    99.14 GL bms: window now
+   114.26 CMD mark b5b266
+   114.26 CMD GL bms now
+   114.43 GL bms: read in 1727 ms (init 4 scan 341 conn 1140 hs 91 ans 139 down 12)
+   114.43 GL bms: window now
+   114.56 CMD mark 6daf81
+   114.56 CMD GL bms now
+   114.63 GL bms: window now
+   114.63 GL 05 hs 0 ans 0 down 2)
+   120.94 GL alive: io=1201 vedirect=26759 lora=2327 app=1201 bms=17 ui=1201 log=4
+   129.71 CMD mark 01cbb5
+   129.71 CMD GL bms now
+   129.91 GL bms: window now
+   131.54 GL bms: read in 1772 ms (init 4 scan 351 conn 1131 hs 90 ans 184 down 12)
+   131.78 CMD mark 9ddf50
+   131.78 CMD GL bms now
+   131.95 GL bms: window now
+   132.97 GL bms: read in 1127 ms (init 4 scan 231 conn 620 hs 91 ans 169 down 12)
+   133.13 CMD mark 16d775
+   133.13 CMD GL bms now
+   133.17 GL bms: window now
+   135.00 GL bms: read in 1667 ms (init 4 scan 291 conn 1145 hs 91 ans 129 down 7)
+   135.21 CMD mark e4f44a
+   135.21 CMD GL ved cpu
+   135.21 CMD GL ved
+   135.21 CMD GL bms
+   135.23 GL ved cpu: ble sh31/s; busy 0.86%, max pass 675 us, max gap 20501 us
+   135.23 GL ved cpu: ble open; 22255 ms, 4382 passes, 196/s; busy 0.80%, max pass 716 us, max gap 20531 us
+   135.23 GL ved: block, flags 0x01; batt 13250 mV -10 mA, pv 1 cV 0 W, load 0 mA
+   135.23 GL ved: cs 0 err1 0 h22 3
+   135.23 GL ved: last block 200 ms ago; text 135 ok, 0 bad, 0 unsynced, 0 interrupted, 0 overflow, 0 unparsed
+   135.23 GL ved: hex sent 0, retried 0, answered 0, timeouts 0, uart errors 0; async 0, unmatched 0, bad 0, too long 0
+   135.43 GL bms: read; polling on; window 1667 max 1772 ms; abort 0 max 0 ms; cap 5000; ends read 18 connect 1; busy 0 off 0; tx waits 0 asked 0 overrun 0; rx 18 crc 0 term 0 other 0; heap 231296/231296 low 182128
+   150.91 GL alive: io=1501 vedirect=33449 lora=2766 app=1501 bms=20 ui=1501 log=5
+   181.00 GL alive: io=1801 vedirect=40139 lora=3066 app=1801 bms=20 ui=1801 log=6
+   210.87 GL alive: io=2101 vedirect=46829 lora=3505 app=2101 bms=20 ui=2101 log=7
+   240.93 GL alive: io=2401 vedirect=53519 lora=3805 app=2401 bms=20 ui=2401 log=8
