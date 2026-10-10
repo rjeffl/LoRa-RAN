@@ -91,6 +91,7 @@ inline constexpr uint16_t kParamHexTimeoutMs        = 0x1030;
 inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
 // And bms_task's period (GL5, PRD R-3.4a).
 inline constexpr uint16_t kParamBmsPollS            = 0x1040;
+inline constexpr uint16_t kParamBmsWindowMaxMs      = 0x1042;  // the interlock's cap, Impl Plan 5.2
 // And the task watchdog's timeout, which start_tasks() arms (GL3, Impl Plan 5.2).
 inline constexpr uint16_t kParamWatchdogTimeoutS    = 0x1060;
 

@@ -619,7 +619,7 @@ Table gatelink_table() {
 void test_the_gatelink_block_follows_node_common() {
   Table t = gatelink_table();
   TEST_ASSERT_EQUAL_UINT32(kNodeCommonParamCount + kGateLinkParamCount, t.size());
-  TEST_ASSERT_EQUAL_UINT32(20, kGateLinkParamCount);
+  TEST_ASSERT_EQUAL_UINT32(21, kGateLinkParamCount);
   TEST_ASSERT_NOT_NULL(t.find(0x1000));
 }
 
@@ -692,13 +692,13 @@ void test_the_detection_window_takes_values_past_a_u16() {
 }
 
 // spec 7.4, 7.4.1 - THE COUNT THAT PUTS GATELINK OVER ONE CONFIG_ACK. Results have 193
-// bytes; node-common and the PHY group take 68 and GateLink's block 137. A change to the
+// bytes; node-common and the PHY group take 68 and GateLink's block 144. A change to the
 // block moves this number, and Library Plan 4's table has to move with it.
 void test_a_gatelink_readback_needs_two_messages() {
   const size_t budget = kMaxSchemaPayload - schema::kConfigAckHdrLen;
   TEST_ASSERT_EQUAL_UINT32(193, budget);
   TEST_ASSERT_EQUAL_UINT32(68, readback_bytes(kNodeCommonParams, kNodeCommonParamCount));
-  TEST_ASSERT_EQUAL_UINT32(137, readback_bytes(kGateLinkParams, kGateLinkParamCount));
+  TEST_ASSERT_EQUAL_UINT32(144, readback_bytes(kGateLinkParams, kGateLinkParamCount));
 
   Table t = gatelink_table();
   Store s(t, nullptr);

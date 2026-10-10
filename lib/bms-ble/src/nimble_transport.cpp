@@ -7,6 +7,23 @@
 
 using bms::GattChar;
 
+namespace {
+
+// Refuses the peer's connection-parameter update. The pack asks for one just after the FFF1
+// subscription. A connection torn down while that procedure is pending, and the controller
+// de-initialized straight after, panicked GateLink's ESP32-S3 in the FreeRTOS timer task
+// (engineering log, 2026-10-10). The connection lasts a few seconds, so the pack's
+// parameters buy nothing.
+class RefuseParamUpdate : public NimBLEClientCallbacks {
+  public:
+    bool onConnParamsUpdateRequest(NimBLEClient*, const ble_gap_upd_params*) override {
+        return false;
+    }
+};
+RefuseParamUpdate g_refuse_param_update;
+
+}  // namespace
+
 NimBleTransport::NimBleTransport()
     : client_(nullptr), char_rx_(nullptr), char_tx_(nullptr),
       char_hs_(nullptr), notify_handler_(nullptr) {}
@@ -30,6 +47,11 @@ bool NimBleTransport::connect(const NimBLEAddress& address, uint8_t timeout_s) {
     char_rx_ = char_tx_ = char_hs_ = nullptr;
 
     client_ = NimBLEDevice::createClient();
+    client_->setClientCallbacks(&g_refuse_param_update, false);
+    // Open at the parameters the pack asks for after the subscription: a 15 ms interval
+    // (12 x 1.25 ms), no latency, a 4 s supervision timeout (400 x 10 ms). Every GATT step
+    // then runs at that interval without the update this client refuses.
+    client_->setConnectionParams(12, 12, 0, 400);
     client_->setConnectTimeout(timeout_s);
     if (!client_->connect(address)) {
         log("  connect: FAILED");
@@ -48,6 +70,10 @@ bool NimBleTransport::resolve() {
         return false;
     }
 
+    // One discovery pass for every characteristic. Asked for one by one, NimBLE discovers
+    // each separately, which took 1.4 s of a 1.9 s connect on GateLink's bench
+    // (engineering log, 2026-10-10).
+    svc->getCharacteristics(true);
     char_rx_ = svc->getCharacteristic(bms::kUuidCharRx);
     char_tx_ = svc->getCharacteristic(bms::kUuidCharTx);
     char_hs_ = svc->getCharacteristic(bms::kUuidCharHs);

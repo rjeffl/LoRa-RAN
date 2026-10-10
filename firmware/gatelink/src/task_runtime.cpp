@@ -243,6 +243,8 @@ uint32_t live_param(uint16_t id) {
              : param_default(id);
 }
 
+uint32_t bms_cap_ms() { return live_param(kParamBmsWindowMaxMs); }
+
 void publish_param(uint16_t id, int32_t v) {
   const size_t i = live_index(id);
   if (i < lran::config::kMaxTableParams) g_live[i].store(v, std::memory_order_relaxed);
@@ -539,10 +541,6 @@ lran::ResetCause reset_cause() {
 // never waiting, before each frame's media access.
 // ---------------------------------------------------------------------------
 
-// TODO(GL5): bms_window_max_ms joins lran-config's table once the window and the abort
-// latency are measured (Impl Plan 5.2). Until then this is its value, and the console's
-// `bms cap` changes it for the bench.
-std::atomic<uint32_t> g_bms_cap_ms{10000};
 
 StaticSemaphore_t     g_ble_mutex_storage;
 SemaphoreHandle_t     g_ble_mutex = nullptr;
@@ -566,7 +564,7 @@ bool ble_interlock_tx_take(const uint8_t* frame, size_t len, uint32_t now_ms) {
   }
   const bool     holds  = g_ble_holds.load();
   const uint32_t window = now_ms - g_ble_start_ms.load();
-  switch (tx_gate(holds, window, g_bms_cap_ms.load(), reply_awaited(frame, len))) {
+  switch (tx_gate(holds, window, bms_cap_ms(), reply_awaited(frame, len))) {
     case TxGate::Go:
       // bms_task is between the mutex and its flag; the next pass takes the mutex.
       return false;
@@ -926,7 +924,7 @@ void bms_task(void*) {
       portEXIT_CRITICAL(&g_bms_mux);
       continue;
     }
-    const uint32_t cap = g_bms_cap_ms.load();
+    const uint32_t cap = bms_cap_ms();
     // lora_task holds the lock for one frame's media access, at most a few backoffs.
     if (xSemaphoreTake(g_ble_mutex, pdMS_TO_TICKS(cap)) != pdTRUE) {
       portENTER_CRITICAL(&g_bms_mux);
@@ -1163,15 +1161,6 @@ void console_command(char* cmd) {
       if (g_bms_handle != nullptr) xTaskNotifyGive(g_bms_handle);
       n = at != 0 ? std::snprintf(line, sizeof(line), "bms: window now, abort at %lu ms", at)
                   : std::snprintf(line, sizeof(line), "bms: window now");
-    } else if (std::strncmp(arg, "cap", 3) == 0) {
-      const unsigned long ms = std::strtoul(arg + 3, &rest, 10);
-      if (ms < 500 || ms > 60000) {
-        n = std::snprintf(line, sizeof(line), "bms: cap 500-60000 ms; now %lu",
-                          static_cast<unsigned long>(g_bms_cap_ms.load()));
-      } else {
-        g_bms_cap_ms.store(static_cast<uint32_t>(ms));
-        n = std::snprintf(line, sizeof(line), "bms: cap %lu ms", ms);
-      }
     } else if (std::strcmp(arg, "data") == 0) {
       // The decoded fields, laid out as wattcycle-reader prints them, to check one against
       // the other.
@@ -1191,7 +1180,7 @@ void console_command(char* cmd) {
                           d.remaining_dAh, d.nominal_dAh, d.cycles, d.soh_dpct, b.rssi_dbm);
       }
     } else {
-      n = std::snprintf(line, sizeof(line), "bms: no arguments, now [abort_ms], cap <ms>, or data");
+      n = std::snprintf(line, sizeof(line), "bms: no arguments, now [abort_ms], or data");
     }
   } else if (std::strcmp(cmd, "bms") == 0) {
     portENTER_CRITICAL(&g_bms_mux);
@@ -1215,7 +1204,7 @@ void console_command(char* cmd) {
                       g_bms_polling.load() ? "on" : "SUSPENDED",
                       static_cast<unsigned long>(v.window_ms), static_cast<unsigned long>(v.window_max_ms),
                       static_cast<unsigned long>(v.abort_ms), static_cast<unsigned long>(v.abort_max_ms),
-                      static_cast<unsigned long>(g_bms_cap_ms.load()), list,
+                      static_cast<unsigned long>(bms_cap_ms()), list,
                       static_cast<unsigned long>(v.busy), static_cast<unsigned long>(v.suspended),
                       static_cast<unsigned long>(g_ble_tx_waits.load()),
                       static_cast<unsigned long>(g_ble_aborts_asked.load()),

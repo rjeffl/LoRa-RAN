@@ -37,7 +37,8 @@ class NimBleTransport : public bms::BmsTransport {
 
     // As above, by address, giving up after `timeout_s` seconds. NimBLE's own default is
     // 30 s, which would hold GateLink's LoRa/BLE interlock far past its cap (Impl Plan 5.2).
-    // The address carries its type, as a scan reports it.
+    // The address carries its type, as a scan reports it. Refuses the peer's
+    // connection-parameter update; the .cpp says why.
     bool connect(const NimBLEAddress& address, uint8_t timeout_s);
 
     // Where the failure lines go. Null, the default, prints to Serial.
