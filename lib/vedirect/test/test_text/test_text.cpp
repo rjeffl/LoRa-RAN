@@ -65,6 +65,16 @@ const char kCaptured[] =
     "\r\nPPV\t0\r\nCS\t0\r\nMPPT\t0\r\nOR\t0x00000001\r\nERR\t0\r\nLOAD\tON\r\nIL\t0"
     "\r\nH19\t467\r\nH20\t0\r\nH21\t0\r\nH22\t3\r\nH23\t26\r\nHSDS\t59\r\nChecksum\t\xDC";
 
+// The same MPPT on 2026-10-10, read by `ved raw 5 EDF7`, which sent a Get of 0xEDF7 every
+// 50 ms (GateLink engineering log). In five blocks no answer landed inside one: the MPPT
+// held each until the checksum byte, then sent it with no "\r\n" between. This is one
+// block and the first two answers after it, byte for byte.
+const char kCapturedHex[] =
+    "\r\nPID\t0xA075\r\nFW\t175\r\nSER#\tHQ25492XRJM\r\nV\t13250\r\nI\t-10\r\nVPV\t10"
+    "\r\nPPV\t0\r\nCS\t0\r\nMPPT\t0\r\nOR\t0x00000001\r\nERR\t0\r\nLOAD\tON\r\nIL\t0"
+    "\r\nH19\t467\r\nH20\t0\r\nH21\t0\r\nH22\t3\r\nH23\t26\r\nHSDS\t59\r\nChecksum\t\xE1"
+    ":7F7ED008C05D9\n:7F7ED008C05D9\n";
+
 struct Tally {
   int blocks  = 0;
   int dropped = 0;
@@ -168,6 +178,24 @@ void test_captured_block() {
   TEST_ASSERT_EQUAL_UINT32(0, m.pmax_today);
   TEST_ASSERT_EQUAL_UINT32(3, m.yield_yest);
   TEST_ASSERT_EQUAL_UINT16(59, m.day_seq);
+}
+
+void test_captured_hex_after_checksum() {
+  TextParser p;
+  Tally t = feed_all(p, std::string(kCapturedHex, sizeof(kCapturedHex) - 1));
+  TEST_ASSERT_EQUAL_INT(1, t.blocks);
+  TEST_ASSERT_EQUAL_INT(2, t.hex);
+  TEST_ASSERT_EQUAL_INT(0, t.dropped);
+  TEST_ASSERT_EQUAL_STRING("13250", p.block().find("V"));
+  TEST_ASSERT_EQUAL_STRING(":7F7ED008C05D9", p.hex_line());
+
+  // Absorption, 14.20 V, as `ved scan` read it on 2026-10-08.
+  Frame f;
+  TEST_ASSERT_TRUE(decode(p.hex_line(), p.hex_len(), &f) == Parse::Ok);
+  RegReply r;
+  TEST_ASSERT_TRUE(reg_reply(f, &r));
+  TEST_ASSERT_EQUAL_HEX16(0xEDF7, r.reg);
+  TEST_ASSERT_EQUAL_UINT32(1420, r.value);
 }
 
 void test_decode_sentinels_and_malformed() {
@@ -306,6 +334,7 @@ int main(int, char**) {
   RUN_TEST(test_every_field_of_the_block);
   RUN_TEST(test_decode_mppt);
   RUN_TEST(test_captured_block);
+  RUN_TEST(test_captured_hex_after_checksum);
   RUN_TEST(test_decode_sentinels_and_malformed);
   RUN_TEST(test_bad_checksum_rejected_and_counted);
   RUN_TEST(test_joining_mid_block_is_unsynced_not_bad);

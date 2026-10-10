@@ -528,14 +528,31 @@ void print_escaped(uint8_t b) {
   }
 }
 
-void cmd_ved_raw(uint32_t seconds) {
+// With `reg`, a Get of it goes out every kRawGetMs, unanswered or not, so the capture shows
+// where the MPPT puts a HEX answer against its text blocks (L3; handoff Open).
+constexpr uint32_t kRawGetMs = 50;
+
+void cmd_ved_raw(uint32_t seconds, int32_t reg) {
   ved_begin();
   while (Serial1.available() > 0) Serial1.read();
-  Serial.printf("ved raw: %lu s, bytes as a C string literal\n", static_cast<unsigned long>(seconds));
+  Serial.printf("ved raw: %lu s, bytes as a C string literal", static_cast<unsigned long>(seconds));
+  if (reg >= 0) Serial.printf("; a Get of 0x%04lX every %lu ms", static_cast<unsigned long>(reg),
+                              static_cast<unsigned long>(kRawGetMs));
+  Serial.println();
+  char         get[vedirect::kMaxChars];
+  const size_t get_n = reg >= 0 ? vedirect::encode_get(static_cast<uint16_t>(reg), get, sizeof(get)) : 0;
   uint32_t       bytes = 0;
   uint32_t       first = 0;
+  uint32_t       gets  = 0;
   const uint32_t t0    = millis();
+  uint32_t       next_get = t0;
   while (millis() - t0 < seconds * 1000UL) {
+    if (get_n != 0 && static_cast<int32_t>(millis() - next_get) >= 0) {
+      Serial1.write(reinterpret_cast<const uint8_t*>(get), get_n);
+      Serial1.write('\n');
+      ++gets;
+      next_get += kRawGetMs;
+    }
     while (Serial1.available() > 0) {
       if (bytes == 0) first = millis() - t0;
       print_escaped(static_cast<uint8_t>(Serial1.read()));
@@ -546,8 +563,8 @@ void cmd_ved_raw(uint32_t seconds) {
   if (bytes == 0) {
     Serial.println(F("\nved raw: NO BYTES. Meter the cable first (plan 4.2.1), then D25 (plan 4.2.2)"));
   } else {
-    Serial.printf("\nved raw: %lu bytes, the first %lu ms in\n", static_cast<unsigned long>(bytes),
-                  static_cast<unsigned long>(first));
+    Serial.printf("\nved raw: %lu bytes, the first %lu ms in; %lu Gets sent\n", static_cast<unsigned long>(bytes),
+                  static_cast<unsigned long>(first), static_cast<unsigned long>(gets));
   }
 }
 
@@ -798,7 +815,7 @@ void cmd_ved_edges(uint32_t seconds) {
 }
 
 void ved_help() {
-  Serial.println(F("ved: raw [s] | edges [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | swap | stat"));
+  Serial.println(F("ved: raw [s] [get_reg] | edges [s] | text [s] | ping | ver | pid | get <reg> | scan | send <:frame> | swap | stat"));
 }
 
 void cmd_ved(char* arg) {
@@ -809,7 +826,10 @@ void cmd_ved(char* arg) {
   if (sub == nullptr) {
     ved_help();
   } else if (std::strcmp(sub, "raw") == 0) {
-    cmd_ved_raw(n == 0 ? 5 : n);
+    char* reg_s = nullptr;
+    if (rest != nullptr) (void)std::strtoul(rest, &reg_s, 0);
+    const bool has_reg = reg_s != nullptr && std::strspn(reg_s, " ") < std::strlen(reg_s);
+    cmd_ved_raw(n == 0 ? 5 : n, has_reg ? static_cast<int32_t>(std::strtoul(reg_s, nullptr, 16)) : -1);
   } else if (std::strcmp(sub, "edges") == 0) {
     cmd_ved_edges(n == 0 ? 3 : n);
   } else if (std::strcmp(sub, "text") == 0) {

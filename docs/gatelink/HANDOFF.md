@@ -17,12 +17,11 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-The tasks are in the order *The next job* gives. Tier 1 needs the WattCycle pack and the
-MPPT on the bench, and Tier 3 needs neither.
+The tasks are in the order *The next job* gives. Tier 1 is done. Tier 2 needs the
+WattCycle pack and the MPPT on the bench, and Tier 3 needs neither.
 
 | Tier | Task | Read |
 |---|---|---|
-| 1 | **`vedirect_task`'s CPU share** beside NimBLE, and **L3's captured block** | *Open*, below |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
 | 3 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
 | 3 | **GL3, state derivation** by injection | Plan §8.2's GL3 row |
@@ -41,11 +40,8 @@ MPPT, then both go back. GateLink has no OTA, so every firmware item left after 
 costs a walk to the gate. The tiers below finish the firmware before deploy without
 keeping the gate down for work that doesn't need the pack.
 
-**Tier 1 needs the pack and the MPPT. Do it first, in this order:**
-
-1. **Measure `vedirect_task`'s CPU share with NimBLE running.** `bms_task` is built, so
-   `bms now` in a loop gives the overlap.
-2. **Capture L3's raw text block** while the MPPT is connected.
+**Tier 1 is done** (engineering log, 2026-10-10): `vedirect_task`'s CPU share beside
+NimBLE, and L3's captured block. Neither needs the pack or the MPPT on the bench again.
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it.**
 It dropped 0.88 V at 4 A, about 0.22 Ω; at 15 A that is about 50 W (engineering log,
@@ -82,14 +78,15 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **The pack current's sign is bit 15, and its unit is 0.1 A** (M7, closed). Raw `0xC028`
-  read −4.0 A under load and `0x4012` read +1.8 A on charge, matching the WattCycle app.
-  `lib/bms-ble` had read bit 14 and 10 mA, so a charging pack would have reached HA as a
-  discharge at a tenth of its size. Fixed, and confirmed on the pack at `5f0e564`.
-- **Bit 14 is set at rest, on charge and under load.** It is not the sign; what it means
-  is open (`bms-protocol` §10). `bms data` prints the raw field.
-- **A charge leg needs no PV-side source.** A LiFePO4 charger on the pack terminals did it;
-  the MPPT is only needed to read its own current.
+- **`vedirect_task` takes under 1 % of a core, with the BLE window open or shut.** Over 18
+  windows it ran 196 passes a second at 0.80 % busy; its longest gap between wakes was
+  20.5 ms against its 20 ms wait, so NimBLE does not starve it. `ved cpu` prints the split.
+- **The MPPT holds a HEX answer until its text block ends.** With a Get every 50 ms, no
+  answer landed inside any of five blocks; each followed the checksum byte with no `\r\n`
+  between. `kCapturedHex` in `lib/vedirect`'s text tests holds those bytes. The bring-up
+  image's `ved raw [s] [get_reg]` made the capture.
+- **The bench unit is the production GateLink**: the StamPLC and expansion board in the
+  production enclosure (operator, 2026-10-10).
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -120,7 +117,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.34. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, and M7 is closed; M23, the low-temperature paths and `0x8D` remain |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, and `vedirect_task`'s CPU share beside NimBLE is measured; M23, the low-temperature paths and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -133,7 +130,7 @@ pio test -d lib/lran-protocol -e native       # codec, CommandGate, schemas
 pio test -d lib/lran-config -e native         # parameter table and Store (L4)
 python3 tools/checks/config_doc.py            # gatelink-config.md against the table (L4)
 python3 tools/provision/node_key.py --self-test   # node key derivation (L5)
-pio test -d lib/vedirect -e native            # HEX codec, text parser, the captured block (L3, GL4)
+pio test -d lib/vedirect -e native            # HEX codec, text parser, the captured blocks (L3, GL4)
 pio test -d lib/bms-ble -e native            # 22 TDT protocol tests (L2, L7)
 python3 tools/checks/run_ci_local.py          # CI's checks job
 ```
@@ -237,8 +234,9 @@ board's are its D-pads (expansion board §6.1).
   specification should say what `0xFF` means.
 - **GateLink's USB console loses bytes from the middle of lines**, about one line in ten
   (engineering log, 2026-10-08). Splitting the `ved` line did not stop it.
-- **`vedirect_task` wakes about 240 times a second**, once per burst of received bytes.
-  Measure its CPU share now that NimBLE runs beside it.
+- **Some `bms now` results printed about 13 s after `window now`**, though each window
+  reported about 1.2 s (engineering log, 2026-10-10). Whether the window started late or
+  its line printed late is not established.
 - **The PHY group answers `READ_ONLY` on GateLink**, because spec §12.4.2's trial is not
   built here (plan §6.4). A fleet PHY change cannot include GateLink until it is.
 - **The SD library prints its retries to `Serial` from `lora_task`**, through the core's
@@ -301,9 +299,6 @@ board's are its D-pads (expansion board §6.1).
   before HA first publishes the names, which are permanent.
 - **The bridge's 2048-byte payload has not run on a board.** The bridge handoff's §7 owns
   the reading.
-- **L3's captured block.** Capture a raw text block, with a HEX exchange inside it if
-  one can be provoked, at GL4, and replace `kMppt7515` in `lib/vedirect/test/test_text/`.
-  Check `interrupted` against `bad_checksum` on the same run.
 - **Reporting osh-labs deviations upstream is owed**, by operator decision 2026-10-01; the
   timing is the operator's. [`lib/vedirect/osh-labs-deviations.md`](../../lib/vedirect/osh-labs-deviations.md)
   lists them. Re-check each row against upstream's latest commit first, report rows 1, 4

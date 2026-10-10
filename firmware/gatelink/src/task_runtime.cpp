@@ -433,6 +433,24 @@ SerialWriter g_ved_writer;
 VedLink      g_ved_link(&g_ved_writer);
 TaskHandle_t g_ved_handle = nullptr;
 
+// Defined with the interlock below. vedirect_task reads it to split its CPU figures.
+extern std::atomic<bool> g_ble_holds;
+
+// vedirect_task's CPU share, kept apart for passes with bms_task's BLE window open and
+// closed: it wakes about 240 times a second, once per burst of received bytes (engineering
+// log, 2026-10-08), and NimBLE shares the chip with it. A pass is timed from wake to done,
+// so a pass that io_task or lora_task preempts counts their time too: the share is an
+// upper bound. Read with `ved cpu`, under g_ved_mux.
+struct VedCpu {
+  uint64_t busy_us     = 0;  // wake to done, summed
+  uint64_t wall_us     = 0;  // wake to wake, summed
+  uint32_t passes      = 0;
+  uint32_t max_pass_us = 0;
+  uint32_t max_gap_us  = 0;  // wake to wake; much past kVedWaitMs means it waited for a CPU
+};
+VedCpu            g_ved_cpu[2];  // [0] window closed, [1] window open
+std::atomic<bool> g_ved_cpu_reset{false};
+
 // Waits on UART RX events, and wakes at least every kVedWaitMs for the HEX timers.
 void vedirect_task(void*) {
   g_ved_handle = xTaskGetCurrentTaskHandle();
@@ -444,9 +462,12 @@ void vedirect_task(void*) {
   Serial1.begin(kVedBaud, SERIAL_8N1, kVedUartRx, kVedUartTx);
   Serial1.onReceive([] { xTaskNotifyGive(g_ved_handle); });
 
+  int64_t last_wake_us = 0;
   for (;;) {
     count(TaskId::Vedirect);
     (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(kVedWaitMs));
+    const int64_t  wake_us = esp_timer_get_time();
+    const bool     ble_open = g_ble_holds.load(std::memory_order_relaxed);
     const uint32_t now = now_ms();
     // A SET of either takes effect here; a HEX transaction under way keeps its deadline.
     const VedParams live{live_param(kParamHexTimeoutMs), live_param(kParamVedirectStaleS) * 1000};
@@ -475,6 +496,23 @@ void vedirect_task(void*) {
     g_ved.link         = g_ved_link.counters();
     portEXIT_CRITICAL(&g_ved_mux);
     if (answered) xTaskNotifyGive(g_lora_handle);
+
+    const uint32_t busy = static_cast<uint32_t>(esp_timer_get_time() - wake_us);
+    const uint32_t gap  = static_cast<uint32_t>(wake_us - last_wake_us);
+    portENTER_CRITICAL(&g_ved_mux);
+    if (g_ved_cpu_reset.exchange(false)) {
+      g_ved_cpu[0] = VedCpu{};
+      g_ved_cpu[1] = VedCpu{};
+    } else if (last_wake_us != 0) {
+      VedCpu& c = g_ved_cpu[ble_open ? 1 : 0];
+      c.busy_us += busy;
+      c.wall_us += gap;
+      c.passes++;
+      if (busy > c.max_pass_us) c.max_pass_us = busy;
+      if (gap > c.max_gap_us) c.max_gap_us = gap;
+    }
+    portEXIT_CRITICAL(&g_ved_mux);
+    last_wake_us = wake_us;
   }
 }
 
@@ -1251,6 +1289,25 @@ void console_command(char* cmd) {
                       ld(v.card.write_failures), ld(v.card.mounts_failed), ld(v.card.restored),
                       ld(v.card.refused), ld(v.card.unknown),
                       v.card.file_corrupt ? ", file unreadable" : "");
+  } else if (std::strcmp(cmd, "ved") == 0 && arg != nullptr && std::strcmp(arg, "cpu") == 0) {
+    VedCpu c[2];
+    portENTER_CRITICAL(&g_ved_mux);
+    c[0] = g_ved_cpu[0];
+    c[1] = g_ved_cpu[1];
+    portEXIT_CRITICAL(&g_ved_mux);
+    g_ved_cpu_reset.store(true);
+    for (size_t i = 0; i < 2; ++i) {
+      const uint64_t w = c[i].wall_us == 0 ? 1 : c[i].wall_us;
+      n = std::snprintf(line, sizeof(line),
+                        "ved cpu: ble %s; %lu ms, %lu passes, %lu/s; busy %lu.%02lu%%, max pass %lu us, max gap %lu us",
+                        i == 1 ? "open" : "shut", static_cast<unsigned long>(c[i].wall_us / 1000),
+                        static_cast<unsigned long>(c[i].passes),
+                        static_cast<unsigned long>(uint64_t{c[i].passes} * 1000000u / w),
+                        static_cast<unsigned long>(c[i].busy_us * 100u / w),
+                        static_cast<unsigned long>(c[i].busy_us * 10000u / w % 100u),
+                        static_cast<unsigned long>(c[i].max_pass_us), static_cast<unsigned long>(c[i].max_gap_us));
+      if (i == 0) write_line(line, n, sizeof(line));
+    }
   } else if (std::strcmp(cmd, "ved") == 0) {
     const VedView      v = ved_view();
     const MpptSnapshot& m = v.mppt;

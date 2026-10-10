@@ -1281,3 +1281,61 @@ and dissipate about 50 W, and the MPPT would regulate on a voltage well below th
 **The first window after a boot ended `aborted` at about 45 ms, twice,** with `abort
 asked` and nothing yet connected. The window after it read normally. It is consistent
 with the boot's LoRa traffic asking for the radio, but that was not checked.
+
+## 2026-10-10 — `vedirect_task` takes under 1 % of a core, with or without NimBLE
+
+**The StamPLC on the bench with the MPPT on VE.Direct and the WattCycle pack in BLE range;
+no load, no charger, no PV.** Image `3f29da5`. Trace:
+[`data/ved-cpu-ble-2026-10-10.log`](data/ved-cpu-ble-2026-10-10.log).
+
+The Arduino core's FreeRTOS is built without run-time stats, so `3f29da5` times each
+`vedirect_task` pass itself, from wake to done, and keeps passes with `bms_task`'s BLE
+window open apart from the rest. `ved cpu` prints both. The share is an upper bound: a pass
+that `io_task` or `lora_task` preempts counts their time too.
+
+| BLE window | Time | Passes a second | Busy | Longest pass | Longest gap between wakes |
+|---|---|---|---|---|---|
+| Shut, no window in the interval | 9.7 s | 228 | 0.84 % | 121 µs | 20.001 ms |
+| Open, across 18 windows | 22.3 s | 196 | 0.80 % | 716 µs | 20.531 ms |
+
+Three more shut readings, of 6–23 s each, gave 0.81–0.95 % and a longest pass of 683–696 µs.
+
+**NimBLE does not starve `vedirect_task`.** The longest gap between wakes with a window open
+was 20.5 ms, against the 20 ms wait, so no pass waited more than about half a millisecond for
+a CPU. The text parser saw 135 good blocks and no bad checksum, overflow or interrupted
+block across the run. Passes fall from about 230 to 196 a second with a window open. Why
+was not looked at; it does not change the share.
+
+**Twenty `bms now` commands gave 18 windows: 17 read the pack, and one ended `connect`.**
+Windows ran 933–1772 ms.
+Those over 1.6 s spent about 1.13 s connecting, against about 0.63 s in the others.
+
+**Some `bms now` results printed about 13 s after `window now`**, though the window itself
+reported about 1.2 s. Whether the window started late or its line printed late was not
+established.
+
+## 2026-10-10 — L3: the MPPT holds a HEX answer until its text block ends
+
+**Same bench, bring-up image `7c97fe4`.** Its banner reads `-dirty`: the engineering log
+and the trace above were not yet committed. Trace:
+[`data/l3-ved-raw-hex-2026-10-10.log`](data/l3-ved-raw-hex-2026-10-10.log).
+
+L3 asked for a raw text block with a HEX exchange inside it. `7c97fe4` adds a register to
+the bring-up image's `ved raw`, which then sends a Get of it every 50 ms through the
+capture. `ved raw 5 EDF7` sent 100 Gets in 5 s and received 2537 bytes: five text blocks,
+95 answers of `:7F7ED008C05D9` (absorption, 14.20 V) and 15 asynchronous `:A` frames.
+
+**No HEX frame landed inside a text block.** A Get went out every 50 ms whether or not a
+block was being sent, and each block takes about 100 ms at 19200 baud. Even so, every
+answer came after the block's checksum byte, the first with no `\r\n` before it. The MPPT
+then sent the answers it had queued, back to back, before the next block. So this 75/15,
+FW 175, does not interleave, and a capture of a HEX frame mid-block cannot be provoked on
+it. `test_hex_inside_a_block_resumes_it` stays synthetic, as a defence against other
+firmware.
+
+One block and the first two answers after it are now `kCapturedHex` in
+`lib/vedirect/test/test_text/`. `kMppt7515` stays: its nonzero PV, charge-state and yield
+values exercise `decode_mppt()` where the bench captures read zero.
+
+`interrupted` against `bad_checksum` on one run: `vedirect_task`'s 2026-10-10 run above saw
+0 of each across 135 blocks, with no Gets in flight.
