@@ -9,8 +9,9 @@
 // carry the handshake, the poll requests and the notifications. wattcycle-reader ran all of
 // it on both the Heltec V3 and the StamPLC.
 //
-// It still logs through Serial, as the PoC did. Routing that through GateLink's leveled log
-// (GL1) is open in docs/gatelink/HANDOFF.md.
+// It logs through Serial, as the PoC did, unless the client passes a log function.
+// GateLink passes one, because only its log_task may write to Serial. log_discovery() always
+// prints to Serial, and is a bench diagnostic for wattcycle-reader.
 #ifndef BMS_BLE_NIMBLE_TRANSPORT_H
 #define BMS_BLE_NIMBLE_TRANSPORT_H
 
@@ -34,6 +35,15 @@ class NimBleTransport : public bms::BmsTransport {
     // FFF0/1/2 triple alone is not proof of protocol).
     bool connect(NimBLEAdvertisedDevice* device);
 
+    // As above, by address, giving up after `timeout_s` seconds. NimBLE's own default is
+    // 30 s, which would hold GateLink's LoRa/BLE interlock far past its cap (Impl Plan 5.2).
+    // The address carries its type, as a scan reports it.
+    bool connect(const NimBLEAddress& address, uint8_t timeout_s);
+
+    // Where the failure lines go. Null, the default, prints to Serial.
+    using LogFn = void (*)(const char* line);
+    void set_log(LogFn fn) { log_ = fn; }
+
     // Serial-logs handle + properties for FFF1/FFF2/FFFA. A bench
     // diagnostic: it shows the negotiated MTU and that all three characteristics resolved.
     void log_discovery() const;
@@ -48,12 +58,15 @@ class NimBleTransport : public bms::BmsTransport {
 
   private:
     NimBLERemoteCharacteristic* char_for(bms::GattChar ch) const;
+    bool resolve();
+    void log(const char* line) const;
 
     NimBLEClient* client_;
     NimBLERemoteCharacteristic* char_rx_;   // FFF1
     NimBLERemoteCharacteristic* char_tx_;   // FFF2
     NimBLERemoteCharacteristic* char_hs_;   // FFFA
     NotifyHandler* notify_handler_;
+    LogFn log_ = nullptr;
 };
 
 #endif  // ARDUINO

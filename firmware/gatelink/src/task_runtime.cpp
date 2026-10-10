@@ -22,6 +22,7 @@
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <atomic>
@@ -29,6 +30,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "ble_interlock.h"
+#include "bms_client.h"
+#include "bms_link.h"
 #include "board_profile.h"
 #include "board_stamplc.h"
 #include "config_store.h"
@@ -529,6 +533,115 @@ lran::ResetCause reset_cause() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// The LoRa/BLE interlock and bms_task's results (GL5; PRD R-3.4a-R-3.4f, R-4.3h; Impl Plan
+// 5.2). bms_task holds the mutex from controller start to de-init. lora_task tries it,
+// never waiting, before each frame's media access.
+// ---------------------------------------------------------------------------
+
+// TODO(GL5): bms_window_max_ms joins lran-config's table once the window and the abort
+// latency are measured (Impl Plan 5.2). Until then this is its value, and the console's
+// `bms cap` changes it for the bench.
+std::atomic<uint32_t> g_bms_cap_ms{10000};
+
+StaticSemaphore_t     g_ble_mutex_storage;
+SemaphoreHandle_t     g_ble_mutex = nullptr;
+std::atomic<bool>     g_ble_holds{false};       // bms_task holds the interlock
+std::atomic<uint32_t> g_ble_start_ms{0};        // when it took it
+std::atomic<uint32_t> g_ble_abort_ms{0};        // when lora_task asked for it back; 0 = not
+bool                  g_radio_holds = false;    // lora_task's alone
+
+// Counted on the console's `bms` line (root rule 4).
+std::atomic<uint32_t> g_ble_tx_waits{0};     // passes a frame waited for a window
+std::atomic<uint32_t> g_ble_aborts_asked{0}; // windows lora_task cut short
+std::atomic<uint32_t> g_ble_overruns{0};     // frames sent past the cap, without the lock
+
+}  // namespace
+
+bool ble_interlock_tx_take(const uint8_t* frame, size_t len, uint32_t now_ms) {
+  if (g_radio_holds) return true;
+  if (g_ble_mutex != nullptr && xSemaphoreTake(g_ble_mutex, 0) == pdTRUE) {
+    g_radio_holds = true;
+    return true;
+  }
+  const bool     holds  = g_ble_holds.load();
+  const uint32_t window = now_ms - g_ble_start_ms.load();
+  switch (tx_gate(holds, window, g_bms_cap_ms.load(), reply_awaited(frame, len))) {
+    case TxGate::Go:
+      // bms_task is between the mutex and its flag; the next pass takes the mutex.
+      return false;
+    case TxGate::Wait:
+      g_ble_tx_waits.fetch_add(1, std::memory_order_relaxed);
+      return false;
+    case TxGate::WaitAbort: {
+      uint32_t none = 0;
+      if (g_ble_abort_ms.compare_exchange_strong(none, now_ms == 0 ? 1 : now_ms)) {
+        g_ble_aborts_asked.fetch_add(1, std::memory_order_relaxed);
+      }
+      g_ble_tx_waits.fetch_add(1, std::memory_order_relaxed);
+      return false;
+    }
+    case TxGate::Overrun:
+      g_ble_overruns.fetch_add(1, std::memory_order_relaxed);
+      return true;
+  }
+  return false;
+}
+
+void ble_interlock_tx_release() {
+  if (!g_radio_holds) return;
+  g_radio_holds = false;
+  xSemaphoreGive(g_ble_mutex);
+}
+
+namespace {
+
+// What bms_task publishes, and the console's `bms` line reads.
+struct BmsView {
+  BmsSnapshot snap;
+  BmsTiming   timing;
+  BmsEnd      last_end       = BmsEnd::Count;  // Count = no window yet
+  uint32_t    window_ms      = 0;              // the last window, interlock to release
+  uint32_t    window_max_ms  = 0;
+  uint32_t    abort_ms       = 0;              // the last abort's latency, request to release
+  uint32_t    abort_max_ms   = 0;
+  uint32_t    ends[static_cast<size_t>(BmsEnd::Count)] = {};
+  uint32_t    busy           = 0;  // polls skipped because lora_task held the interlock
+  uint32_t    suspended      = 0;  // polls skipped by SET_BMS_POLLING
+};
+portMUX_TYPE g_bms_mux = portMUX_INITIALIZER_UNLOCKED;
+BmsView      g_bms;
+
+// PRD R-3.4e - the HA switch, carried from lora_task's application.
+std::atomic<bool> g_bms_polling{true};
+
+// The console's `bms now [abort_ms]`: a window at once, optionally asked to end at
+// abort_ms into it, which stands in for a reply queued at that moment.
+TaskHandle_t          g_bms_handle = nullptr;
+std::atomic<bool>     g_bms_now{false};
+std::atomic<uint32_t> g_bms_bench_abort_ms{0};  // 0 = none
+
+void bms_log(const char* line) { QueueSink().line(line); }
+
+bool ble_stop_requested() {
+  const uint32_t at = g_bms_bench_abort_ms.load();
+  if (at != 0) {
+    const uint32_t start = g_ble_start_ms.load();
+    if (now_ms() - start >= at) {
+      uint32_t none = 0;
+      (void)g_ble_abort_ms.compare_exchange_strong(none, start + at);
+    }
+  }
+  return g_ble_abort_ms.load() != 0;
+}
+
+BmsSnapshot bms_snapshot() {
+  portENTER_CRITICAL(&g_bms_mux);
+  const BmsSnapshot b = g_bms.snap;
+  portEXIT_CRITICAL(&g_bms_mux);
+  return b;
+}
+
 class Node final : public RadioClient, public GateLinkPort {
  public:
   Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
@@ -569,6 +682,8 @@ class Node final : public RadioClient, public GateLinkPort {
     n.uptime_s           = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     return n;
   }
+  BmsSnapshot bms() const override { return bms_snapshot(); }
+  void bms_polling_changed(bool on) override { g_bms_polling.store(on); }
   MpptSnapshot mppt() const override {
     portENTER_CRITICAL(&g_ved_mux);
     const MpptSnapshot m = g_ved.mppt;
@@ -797,11 +912,71 @@ void app_task(void*) {
   }
 }
 
-// GL5 - one BMS read per bms_poll_s, under the LoRa/BLE interlock (R-4.3h).
+// GL5 - one BMS read per bms_poll_s, under the LoRa/BLE interlock (PRD R-3.4a, R-4.3h).
+// R-3.4d: a failed window costs this task alone, and the next poll tries again.
 void bms_task(void*) {
   for (;;) {
     count(TaskId::Bms);
-    vTaskDelay(period_ticks(TaskId::Bms));
+    const uint32_t period_ms = live_param(kParamBmsPollS) * 1000;
+    (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(period_ms));
+    const bool forced = g_bms_now.exchange(false);
+    if (!forced && !g_bms_polling.load()) {
+      portENTER_CRITICAL(&g_bms_mux);
+      ++g_bms.suspended;
+      portEXIT_CRITICAL(&g_bms_mux);
+      continue;
+    }
+    const uint32_t cap = g_bms_cap_ms.load();
+    // lora_task holds the lock for one frame's media access, at most a few backoffs.
+    if (xSemaphoreTake(g_ble_mutex, pdMS_TO_TICKS(cap)) != pdTRUE) {
+      portENTER_CRITICAL(&g_bms_mux);
+      ++g_bms.busy;
+      portEXIT_CRITICAL(&g_bms_mux);
+      continue;
+    }
+    const uint32_t start = now_ms();
+    g_ble_abort_ms.store(0);
+    g_ble_start_ms.store(start);
+    g_ble_holds.store(true);
+
+    BmsWindowArgs args;
+    args.name     = kBmsName;
+    args.start_ms = start;
+    args.cap_ms   = cap;
+    args.stop     = ble_stop_requested;
+    args.log      = bms_log;
+    BmsSnapshot snap;
+    BmsTiming   t;
+    const BmsEnd end = bms_window(args, &snap, &t);
+
+    const uint32_t done     = now_ms();
+    const uint32_t asked_at = g_ble_abort_ms.load();
+    g_ble_holds.store(false);
+    xSemaphoreGive(g_ble_mutex);
+    g_bms_bench_abort_ms.store(0);
+
+    portENTER_CRITICAL(&g_bms_mux);
+    if (end == BmsEnd::Read) g_bms.snap = snap;
+    g_bms.timing    = t;
+    g_bms.last_end  = end;
+    g_bms.window_ms = done - start;
+    if (g_bms.window_ms > g_bms.window_max_ms) g_bms.window_max_ms = g_bms.window_ms;
+    if (asked_at != 0) {
+      g_bms.abort_ms = done - asked_at;
+      if (g_bms.abort_ms > g_bms.abort_max_ms) g_bms.abort_max_ms = g_bms.abort_ms;
+    }
+    ++g_bms.ends[static_cast<size_t>(end)];
+    portEXIT_CRITICAL(&g_bms_mux);
+
+    char text[120];
+    std::snprintf(text, sizeof(text),
+                  "bms: %s in %lu ms (init %lu scan %lu conn %lu hs %lu ans %lu down %lu)%s",
+                  bms_end_name(end), static_cast<unsigned long>(done - start),
+                  static_cast<unsigned long>(t.init_ms), static_cast<unsigned long>(t.scan_ms),
+                  static_cast<unsigned long>(t.connect_ms), static_cast<unsigned long>(t.handshake_ms),
+                  static_cast<unsigned long>(t.answer_ms), static_cast<unsigned long>(t.teardown_ms),
+                  asked_at != 0 ? "; abort asked" : "");
+    QueueSink().line(text);
   }
 }
 
@@ -901,7 +1076,7 @@ size_t bus_line(char* line, size_t cap, const char* head) {
 }
 
 void console_command(char* cmd) {
-  char line[200];
+  char line[360];
   size_t n = 0;
   char* arg = std::strchr(cmd, ' ');
   if (arg != nullptr) *arg++ = '\0';
@@ -978,6 +1153,77 @@ void console_command(char* cmd) {
       g_bus_run.store(true, std::memory_order_relaxed);
       n = std::snprintf(line, sizeof(line), "bus: %lu s started", secs);
     }
+  } else if (std::strcmp(cmd, "bms") == 0 && arg != nullptr) {
+    char* rest = nullptr;
+    if (std::strncmp(arg, "now", 3) == 0) {
+      // `bms now [abort_ms]` - a window at once; with abort_ms, asked to end that far in.
+      const unsigned long at = std::strtoul(arg + 3, &rest, 10);
+      g_bms_bench_abort_ms.store(static_cast<uint32_t>(at));
+      g_bms_now.store(true);
+      if (g_bms_handle != nullptr) xTaskNotifyGive(g_bms_handle);
+      n = at != 0 ? std::snprintf(line, sizeof(line), "bms: window now, abort at %lu ms", at)
+                  : std::snprintf(line, sizeof(line), "bms: window now");
+    } else if (std::strncmp(arg, "cap", 3) == 0) {
+      const unsigned long ms = std::strtoul(arg + 3, &rest, 10);
+      if (ms < 500 || ms > 60000) {
+        n = std::snprintf(line, sizeof(line), "bms: cap 500-60000 ms; now %lu",
+                          static_cast<unsigned long>(g_bms_cap_ms.load()));
+      } else {
+        g_bms_cap_ms.store(static_cast<uint32_t>(ms));
+        n = std::snprintf(line, sizeof(line), "bms: cap %lu ms", ms);
+      }
+    } else if (std::strcmp(arg, "data") == 0) {
+      // The decoded fields, laid out as wattcycle-reader prints them, to check one against
+      // the other.
+      const BmsSnapshot b = bms_snapshot();
+      if (!b.have) {
+        n = std::snprintf(line, sizeof(line), "bms: no read yet");
+      } else {
+        const bms::BmsData& d = b.data;
+        n = std::snprintf(line, sizeof(line),
+                          "bms: cells %u: %u %u %u %u mV (delta %u); temps %u: %d %d %d %d (0.1 C); "
+                          "pack %lu mV %ld mA (%s); SOC %u%%; %u/%u (0.1 Ah); cycles %u; SOH %u; rssi %d",
+                          d.cell_count, d.cell_mv[0], d.cell_mv[1], d.cell_mv[2], d.cell_mv[3],
+                          d.delta_cell_mv(), d.temp_count, d.temp_dc[0], d.temp_dc[1], d.temp_dc[2],
+                          d.temp_dc[3], static_cast<unsigned long>(d.pack_mv),
+                          static_cast<long>(d.current_ma),
+                          d.discharging ? "discharge flag" : "charge flag", d.soc_pct,
+                          d.remaining_dAh, d.nominal_dAh, d.cycles, d.soh_dpct, b.rssi_dbm);
+      }
+    } else {
+      n = std::snprintf(line, sizeof(line), "bms: no arguments, now [abort_ms], cap <ms>, or data");
+    }
+  } else if (std::strcmp(cmd, "bms") == 0) {
+    portENTER_CRITICAL(&g_bms_mux);
+    const BmsView v = g_bms;
+    portEXIT_CRITICAL(&g_bms_mux);
+    const BmsRxCounters k = bms_rx_counters();
+    const BmsHeap       h = bms_heap();
+    size_t ends = 0;
+    char   list[96]  = "";
+    for (size_t i = 0; i < static_cast<size_t>(BmsEnd::Count); ++i) {
+      if (v.ends[i] == 0) continue;
+      ends += std::snprintf(list + ends, sizeof(list) - ends, " %s %lu",
+                            bms_end_name(static_cast<BmsEnd>(i)), static_cast<unsigned long>(v.ends[i]));
+      if (ends >= sizeof(list)) break;
+    }
+    n = std::snprintf(line, sizeof(line),
+                      "bms: %s; polling %s; window %lu max %lu ms; abort %lu max %lu ms; cap %lu; "
+                      "ends%s; busy %lu off %lu; tx waits %lu asked %lu overrun %lu; rx %lu crc %lu "
+                      "term %lu other %lu; heap %lu/%lu low %lu",
+                      v.last_end == BmsEnd::Count ? "no window yet" : bms_end_name(v.last_end),
+                      g_bms_polling.load() ? "on" : "SUSPENDED",
+                      static_cast<unsigned long>(v.window_ms), static_cast<unsigned long>(v.window_max_ms),
+                      static_cast<unsigned long>(v.abort_ms), static_cast<unsigned long>(v.abort_max_ms),
+                      static_cast<unsigned long>(g_bms_cap_ms.load()), list,
+                      static_cast<unsigned long>(v.busy), static_cast<unsigned long>(v.suspended),
+                      static_cast<unsigned long>(g_ble_tx_waits.load()),
+                      static_cast<unsigned long>(g_ble_aborts_asked.load()),
+                      static_cast<unsigned long>(g_ble_overruns.load()),
+                      static_cast<unsigned long>(k.frames), static_cast<unsigned long>(k.crc_errors),
+                      static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded),
+                      static_cast<unsigned long>(h.before), static_cast<unsigned long>(h.after),
+                      static_cast<unsigned long>(h.low));
   } else if (std::strcmp(cmd, "lran") == 0 && arg != nullptr) {
     if (std::strcmp(arg, "ctx new") == 0) {
       g_ctx_new_req.store(true, std::memory_order_relaxed);
@@ -1178,6 +1424,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
   g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
+  g_ble_mutex = xSemaphoreCreateMutexStatic(&g_ble_mutex_storage);
   // Impl Plan 6.4 - the card before any task runs, so every task starts on its values.
   // lora_task applies them and logs what was read.
   g_config.persist().load(&g_config.store());
@@ -1197,6 +1444,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
         &g_tcb[i], spec.core == kAnyCore ? tskNO_AFFINITY : spec.core);
     if (h != nullptr) ++started;
     if (spec.id == TaskId::Lora) g_lora_handle = h;
+    if (spec.id == TaskId::Bms) g_bms_handle = h;
   }
   return started;
 }

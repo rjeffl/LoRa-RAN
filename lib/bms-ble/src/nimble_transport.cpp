@@ -18,15 +18,32 @@ bool NimBleTransport::connect(NimBLEAdvertisedDevice* device) {
 
     client_ = NimBLEDevice::createClient();
     if (!client_->connect(device)) {
-        Serial.println(F("  connect: FAILED"));
+        log("  connect: FAILED");
         NimBLEDevice::deleteClient(client_);
         client_ = nullptr;
         return false;
     }
+    return resolve();
+}
 
+bool NimBleTransport::connect(const NimBLEAddress& address, uint8_t timeout_s) {
+    char_rx_ = char_tx_ = char_hs_ = nullptr;
+
+    client_ = NimBLEDevice::createClient();
+    client_->setConnectTimeout(timeout_s);
+    if (!client_->connect(address)) {
+        log("  connect: FAILED");
+        NimBLEDevice::deleteClient(client_);
+        client_ = nullptr;
+        return false;
+    }
+    return resolve();
+}
+
+bool NimBleTransport::resolve() {
     NimBLERemoteService* svc = client_->getService(bms::kUuidService);
     if (svc == nullptr) {
-        Serial.println(F("  connect: service 0xFFF0 NOT FOUND"));
+        log("  connect: service 0xFFF0 NOT FOUND");
         disconnect();
         return false;
     }
@@ -39,12 +56,20 @@ bool NimBleTransport::connect(NimBLEAdvertisedDevice* device) {
         // The FFF0/1/2 triple alone doesn't prove this is the right device
         // (bms-protocol §2) — a device missing FFFA is not this BMS even if it wears the
         // same service/characteristic UUIDs.
-        Serial.println(F("  connect: FFF1/FFF2/FFFA incomplete — not this BMS"));
+        log("  connect: FFF1/FFF2/FFFA incomplete — not this BMS");
         disconnect();
         return false;
     }
 
     return true;
+}
+
+void NimBleTransport::log(const char* line) const {
+    if (log_ != nullptr) {
+        log_(line);
+    } else {
+        Serial.println(line);
+    }
 }
 
 void NimBleTransport::log_discovery() const {

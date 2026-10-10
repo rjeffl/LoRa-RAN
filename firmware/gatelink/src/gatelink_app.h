@@ -26,14 +26,15 @@
 // which on the board reaches the task that reads them.
 //
 // WHAT IS LEFT OUT. Gate state derivation, hold tracking and direction are app_task's, and
-// STATUS reports them as UNKNOWN until it runs. The BMS block carries its sentinels and its
-// "no data" flags until GL5 fills it.
+// STATUS reports them as UNKNOWN until it runs. The BMS block is bms_task's last read
+// (GL5), with its sentinels until the first read succeeds.
 
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
 
+#include "bms_link.h"
 #include "config_store.h"
 #include "gate_io.h"
 #include "ved_link.h"
@@ -64,6 +65,11 @@ class GateLinkPort {
 
   // vedirect_task's latest view of the MPPT, spec 7.2.2 and 7.2.6.
   virtual MpptSnapshot mppt() const = 0;
+
+  // bms_task's last successful read, spec 7.2.3. The default has none.
+  virtual BmsSnapshot bms() const { return BmsSnapshot{}; }
+  // SET_BMS_POLLING was accepted (PRD R-3.4e). bms_task reads it before each window.
+  virtual void bms_polling_changed(bool) {}
 
   // Hands a HEX_REQ's string to vedirect_task. False when it cannot take one.
   virtual bool hex_submit(const HexJob& job) = 0;

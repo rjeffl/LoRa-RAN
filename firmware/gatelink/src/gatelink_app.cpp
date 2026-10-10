@@ -23,8 +23,6 @@ constexpr uint8_t kK2Unlock    = 1;
 constexpr uint8_t kK3Open      = 2;
 constexpr uint8_t kK4CloseNow  = 3;
 
-// spec 7.2.7 bits 7:6: soc_source unknown, and bit 0 clear: no BMS read yet.
-constexpr uint8_t kBmsSocSourceUnknown = 0xC0;
 // spec 7.2.8.
 constexpr uint8_t kNodeFlagPersisted      = 0x01;
 constexpr uint8_t kNodeFlagCardWritable   = 0x02;
@@ -170,6 +168,7 @@ lran::node::CommandOutcome GateLinkApp::execute(lran::node::Context&,
         break;
       }
       bms_polling_ = cmd.arg == 1;
+      port_->bms_polling_changed(bms_polling_);
       break;
     case Cmd::Reboot:
       if (cmd.arg != lran::kRebootGuard) {
@@ -188,7 +187,7 @@ lran::node::CommandOutcome GateLinkApp::execute(lran::node::Context&,
 }
 
 size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason reason,
-                                 uint32_t, uint8_t* out, size_t cap, uint8_t* schema) {
+                                 uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) {
   const NodeSnapshot          n = port_->snapshot();
   lran::schema::GateLinkStatusV1 s;
   s.gate_state = static_cast<uint8_t>(lran::GateState::Unknown);
@@ -210,11 +209,7 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
   s.mppt_flags    = m.mppt_flags;
   s.mppt_temp_c10 = m.mppt_temp_c10;
 
-  s.bms_flags        = kBmsSocSourceUnknown;
-  s.pack_mv          = lran::kU16NotAvailable;
-  s.pack_ma          = lran::kI16NotAvailable;
-  s.bms_cycles       = lran::kU16NotAvailable;
-  s.bms_capacity_dah = lran::kU16NotAvailable;
+  fill_bms_block(port_->bms(), now_ms, &s);
 
   s.uptime_s           = n.uptime_s;
   s.boot_count         = n.boot_count;

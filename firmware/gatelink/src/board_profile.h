@@ -43,4 +43,8 @@ inline constexpr int8_t   kVedUartTx = 5;  // PORT.C yellow -> converter ch 3 ->
 inline constexpr int8_t   kVedUartRx = 4;  // PORT.C white  -> converter ch 4 -> R2 -> J4 pin 3
 inline constexpr uint32_t kVedBaud   = 19200;  // GateLink Impl Plan 4.2
 
+// The gate's pack, matched by its advertised name (bms-protocol 2). A replacement pack
+// advertises a different suffix, so replacing the pack means a reflash (handoff, Open).
+inline constexpr const char* kBmsName = "XDZN_001_49A1";
+
 }  // namespace gatelink
