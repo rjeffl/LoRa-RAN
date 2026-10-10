@@ -263,8 +263,10 @@ std::atomic<uint32_t> g_fleet_not_online{0};
 bool g_sched_deployed[kNodeCount] = {};
 
 // The most rows one topic's document can carry: a scope's own rows, or the largest set
-// the parser accepts, whichever is larger.
-inline constexpr size_t kMaxScopeRows = 32;
+// the parser accepts, whichever is larger. GateLink's node topic reached 33 rows with
+// GL5's bms_window_max_ms; 40 leaves room for a few more. test_config's
+// test_a_nodes_block_fits_one_publication is the bound on the document itself.
+inline constexpr size_t kMaxScopeRows = 40;
 static_assert(kMaxScopeRows >= kMaxConfigSetEntries, "a set's answer must fit");
 static_assert(kMaxScopeRows >= kBridgeGlobalCount, "the bridge's own block must fit");
 static_assert(kMaxScopeRows >= kBridgePerNodeCount + lran::config::kNodeCommonParamCount +
