@@ -1186,3 +1186,65 @@ one the vendor means is the operator's to settle.
 14.2–14.6 V the acceptable range. The MPPT stays at 14.20 V, because the operator expects
 the lower absorption voltage to increase cell life. [`mppt-config.md`](mppt-config.md)
 records the choice.
+
+## 2026-10-10 — GL5: `bms_task` reads the pack, and the window is measured
+
+**The StamPLC and the MPPT both on the WattCycle pack, the PV panel indoors, the sandbox
+bridge running.** Trace of the final image:
+[`data/bms-windows-2026-10-10.log`](data/bms-windows-2026-10-10.log). `bms now [abort_ms]`
+on the console runs a window at once and, with `abort_ms`, asks it to end that far in, which
+stands in for a reply queued at that moment.
+
+**The decode agrees with `wattcycle-reader`'s for this pack.** Four cells at 3330–3333 mV,
+four temperatures at 18.7–22.1 °C, 13320 mV, 0 mA with the raw discharge flag, SOC 96 %,
+95.9 of 100.0 Ah, 3 cycles, SOH 100.0 %, link RSSI −66 to −67 dBm. A reading at rest settles
+nothing about the current's sign, so M7 is still open.
+
+**The first image read the pack, then panicked in the FreeRTOS timer task**, PC 0 in
+`prvProcessReceivedCommands`: a timer whose callback was gone. With NimBLE's debug log on,
+the window read cleanly and showed why it usually did not. Straight after the FFF1
+subscription the pack asks to update the connection parameters, and our disconnect lands
+while that update is pending. The debug log's own delay was enough to avoid it. Two changes
+cleared it, each tested apart:
+
+- **The client refuses the update and opens at the parameters the pack asks for**: 15 ms,
+  latency 0, 4 s supervision. Panics fell from every window to 1 in 22 without aborts.
+- **NimBLE's callouts run on `esp_timer`** (`CONFIG_BT_NIMBLE_USE_ESP_TIMER=1`). With
+  FreeRTOS timers, a series of 26 windows with bench aborts panicked 3 times, early in a
+  window and once on the first window after a reset. On `esp_timer` the same series and a
+  second one of 26 ran clean. Why a FreeRTOS timer outlives its callout here is not
+  established. The 24–72 h soak is the check that would show the cure is not complete.
+
+**Discovering the FFF0 characteristics in one pass cut the window by more than half.**
+Asked for one by one, NimBLE discovered each separately: 1.4 s of a 1.9 s connect. After:
+
+| | Before | After, 15 reads |
+|---|---|---|
+| Window, interlock to release | 2652–3653 ms | 992–2237 ms, median 1217 |
+| Connect, with discovery | 1905–2495 ms | 625–1145 ms |
+| Scan to the pack's name | 41–461 ms | 11–701 ms |
+| Abort latency, worst | 1352 ms | 617 ms |
+
+**The abort latency is the connect.** Every other step checks for its end every 10 ms;
+NimBLE's connect is one call that cannot be interrupted. An abort asked during it waits it
+out, up to about 1.1 s. A `COMMAND_ACK` queued at the worst moment therefore leaves about
+1.9 s of the bridge's 3 s ACK timeout for media access and airtime.
+
+**`bms_window_max_ms` is in the table at `0x1042`: default 5000 ms, range 2000–30000.**
+The default is more than twice the slowest window seen. The floor sits above every window
+measured, and a cap set too low costs only BMS reads: a reply the bridge waits on still
+ends a window early. 30 s is NimBLE's own connect timeout. No overrun was counted in any
+series.
+
+**The interlock ran against real traffic.** In two earlier series a reply the bridge was
+waiting on was queued during a window: lora_task counted `asked 1`, the window ended as
+`aborted`, and the reply went out after it. A frame that is not awaited waited instead
+(`tx waits`).
+
+**The heap returns to the same figure after every window**, 231376 B on the final image,
+and the lowest free heap since boot stays near 182 KB. The controller cycle leaks nothing
+measurable over 26 windows.
+
+**NimBLE's C++ log is off.** At `CORE_DEBUG_LEVEL` 2 it printed `E NimBLEClient:` lines
+from its host task straight to the USB port, around `log_task`. `bms_task`'s own line names
+the step a failed window ended in.

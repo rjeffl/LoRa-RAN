@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.33
+**Version:** 0.34
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -11,7 +11,7 @@ firmware starts, and four measurements come before the carrier is populated.
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-08
+**Last updated:** 2026-10-10
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -777,10 +777,12 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   which R-3.4d allows. An unsolicited `STATUS` or `EVENT` waits for the window to end.
   `bms_window_max_ms` caps the window for a NimBLE stack that hangs, so the interlock is
   never held until the watchdog fires. Preemption alone could not do that, and a cap alone
-  would make every command in a window wait. GL5 measures the window and the abort latency,
-  and sets the cap's default and range from them; the parameter joins
-  `lib/lran-config/`'s table then, not before, because its name is permanent once Home
-  Assistant publishes it.
+  would make every command in a window wait. **GL5 measured both on the bench
+  (engineering log, 2026-10-10):** a window of 0.99–2.24 s, and an abort latency of up to
+  0.62 s, set by NimBLE's connect, the one call that cannot be interrupted. The cap is
+  `bms_window_max_ms` at `0x1042`, default 5000 ms, range 2000–30000. Past it, `lora_task`
+  transmits without the interlock and counts an overrun, so R-4.3h's exclusion is given up
+  for one frame rather than held until the watchdog fires.
 - `bms_task` runs at low priority and its failures are non-blocking (**R-3.4d**).
 - No task blocks on the LoRa transmit path; frames are queued.
 - **The watchdog's timeout is a parameter**, because it is a timing constant on a node
@@ -1523,6 +1525,9 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.34** — **GL5 builds `bms_task`.** §5.2 records the measured window and abort
+  latency, and `bms_window_max_ms` at `0x1042`.
 
 - **v0.33** — **GL3 answers `CONFIG`.** §6.4 records `SdPersist`, `config.json`'s format,
   the dirty store after a failed write, and the remount on configuration traffic in place

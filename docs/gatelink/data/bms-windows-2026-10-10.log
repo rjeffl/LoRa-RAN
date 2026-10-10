@@ -1,0 +1,219 @@
+     0.00 CMD <run: ports ['GL'], mqtt off>
+     0.21 GL ESP-ROM:esp32s3-20210327
+     0.21 GL Build:Mar 27 2021
+     0.21 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.21 GL Saved PC:0x42090416
+     0.21 GL SPIWP:0xee
+     0.21 GL mode:DIO, clock div:1
+     0.21 GL load:0x3fce3808,len:0x4bc
+     0.21 GL load:0x403c9700,len:0xbd8
+     0.21 GL load:0x403cc700,len:0x2a0c
+     0.21 GL entry 0x403c98d0
+     0.61 GL LRAN GateLink - node 0x01
+     0.61 GL Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+     0.61 GL Version: 0.1.0 (65281e9)
+     0.61 GL Reset: unknown
+     0.61 GL Node key: provisioned
+     0.82 GL Tasks: 7 of 7 started
+     0.94 CMD mark dcb49e
+     0.94 CMD GL cfg
+     0.94 CMD mark 772e8c
+     0.94 CMD GL bms now
+     1.02 GL cfg: card mounted; 0 restored, 0 refused, 0 unknown
+     1.02 GL cfg: card mountedisted; writes 0 failed 0, mounts failed 0; boot read 0, refused 0, unknown 0
+     1.02 GL bms: window now
+     3.26 GL bms: read in 1637 ms (init 45 scan 680 conn 641 hs 90 ans 170 down 11)
+     3.44 CMD mark 0a81f9
+     3.44 CMD GL bms
+     3.46 GL bms: read; polling on; window 1637 max 1637 ms; abort 0 max 0 ms; cap 5000; ends read 1; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 1 crc 0 term 0 other 0; heap 231736/226904 low 182260
+     6.55 CMD mark 8edd9e
+     6.55 CMD GL bms now
+     6.72 GL bms: window now
+    31.00 GL bms: read in 992 ms (init 4 scan 41 conn 645 hs 106 ans 189 down 7)
+    31.00 GL alive: io=301 vedirect=6751 lora=1133 app=301 bms=3 ui=301 log=1
+    31.26 CMD mark 1b8440
+    31.26 CMD GL bms
+    31.41 GL bms: read; polling on; window 992 max 1637 ms; abort 0 max 0 ms; cap 5000; ends read 2; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 2 crc 0 term 0 other 0; heap 231376/231376 low 182236
+    34.38 CMD mark 470a08
+    34.38 CMD GL bms now
+    34.47 GL bms: window now
+    35.89 GL bms: read in 1352 ms (init 4 scan 451 conn 640 hs 91 ans 159 down 7)
+    36.06 CMD mark 409434
+    36.06 CMD GL bms
+    36.10 GL bms: read; polling on; window 1352 max 1637 ms; abort 0 max 0 ms; cap 5000; ends read 3; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 3 crc 0 term 0 other 0; heap 231376/231376 low 182236
+    39.06 CMD mark 17f88f
+    39.06 CMD GL bms now
+    39.15 GL bms: window now
+    40.17 GL bms: read in 1082 ms (init 4 scan 211 conn 626 hs 90 ans 139 down 12)
+    40.42 CMD mark 5db0d1
+    40.42 CMD GL bms
+    40.58 GL bms: read; polling on; window 1082 max 1637 ms; abort 0 max 0 ms; cap 5000; ends read 4; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 4 crc 0 term 0 other 0; heap 231376/226904 low 182236
+    43.41 CMD mark 766886
+    43.41 CMD GL bms now
+    43.43 GL bms: window now
+    60.93 GL bms: read in 1232 ms (init 4 scan 281 conn 630 hs 91 ans 219 down 7)
+    60.93 GL alive: io=601 vedirect=13500 lora=1573 app=601 bms=6 ui=601 log=2
+    61.07 CMD mark f4dbd0
+    61.07 CMD GL bms
+    61.13 GL bms: read; polling on; window 1232 max 1637 ms; abort 0 max 0 ms; cap 5000; ends read 5; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/231376 low 182236
+    64.08 CMD mark 8cab1d
+    64.08 CMD GL bms now 75
+    64.18 GL bms: window now, abort at 75 ms
+    64.18 GL bms: aborted in 76 ms (init 4 scan 71 conn 0 hs 0 ans 0 down 1); abort asked
+    64.39 CMD mark 1f6da0
+    64.39 CMD GL bms
+    64.59 GL bms: aborted; polling on; window 76 max 1637 ms; abort 1 max 1 ms; cap 5000; ends read 5 aborted 1; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/231376 low 182236
+    67.40 CMD mark cb9590
+    67.40 CMD GL bms now 200
+    67.44 GL bms: window now, abort at 200 ms
+    67.64 GL bms: aborted in 207 ms (init 4 scan 201 conn 0 hs 0 ans 0 down 2); abort asked
+    67.92 CMD mark d85a8a
+    67.92 CMD GL bms
+    68.05 GL bms: aborted; polling on; window 207 max 1637 ms; abort 7 max 7 ms; cap 5000; ends read 5 aborted 2; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/231376 low 182236
+    70.91 CMD mark 0a8b1c
+    70.91 CMD GL bms now 400
+    71.50 GL bms: window now, abort at 400 ms
+    71.50 GL bms: aborted in 407 ms (init 4 scan 401 conn 0 hs 0 ans 0 down 2); abort asked
+    71.64 CMD mark 6e4e28
+    71.64 CMD GL bms
+    74.64 CMD mark c119d4
+    74.64 CMD GL bms now 600
+    74.77 GL bms: aborted; polling on; window 407 max 1637 ms; abort 7 max 7 ms; cap 5000; ends read 5 aborted 3; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/226904 low 182236
+    74.77 GL bms: window now, abort at 600 ms
+    90.86 GL bms: aborted in 977 ms (init 4 scan 321 conn 636 hs 0 ans 0 down 16); abort asked
+    90.86 GL alive: io=901 vedirect=20250 lora=1873 app=901 bms=10 ui=901 log=3
+    91.07 CMD mark 44225f
+    91.07 CMD GL bms
+    94.08 CMD mark 8cbba5
+    94.08 CMD GL bms now 800
+    94.12 GL bms: aborted; polling on; window 977 max 1637 ms; abort 377 max 377 ms; cap 5000; ends read 5 aborted 4; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/226904 low 182236
+    94.12 GL bms: window now, abort at 800 ms
+    95.14 GL bms: aborted in 917 ms (init 4 scan 271 conn 625 hs 0 ans 0 down 17); abort asked
+    95.43 CMD mark 5e65ba
+    95.43 CMD GL bms
+    95.55 GL bms: aborted; polling on; window 917 max 1637 ms; abort 117 max 377 ms; cap 5000; ends read 5 aborted 5; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/226904 low 182236
+    98.42 CMD mark f1534e
+    98.42 CMD GL bms now 1000
+    99.62 GL bms: window now, abort at 1000 ms
+    99.62 GL bms: aborted in 1022 ms (init 4 scan 131 conn 630 hs 91 ans 149 down 17); abort asked
+    99.78 CMD mark d8fdb5
+    99.78 CMD GL bms
+    99.82 GL bms: aborted; polling on; window 1022 max 1637 ms; abort 22 max 377 ms; cap 5000; ends read 5 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 5 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   102.77 CMD mark 272c9e
+   102.77 CMD GL bms now
+   102.87 GL bms: window now
+   103.89 GL bms: read in 1067 ms (init 4 scan 201 conn 636 hs 90 ans 129 down 7)
+   104.10 CMD mark a865ce
+   104.10 CMD GL bms
+   104.30 GL bms: read; polling on; window 1067 max 1637 ms; abort 22 max 377 ms; cap 5000; ends read 6 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 6 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   107.12 CMD mark 60cad0
+   107.12 CMD GL bms now
+   107.15 GL bms: window now
+   109.38 GL bms: read in 2237 ms (init 4 scan 261 conn 1670 hs 91 ans 199 down 12)
+   109.62 CMD mark d90695
+   109.62 CMD GL bms
+   109.79 GL bms: read; polling on; window 2237 max 2237 ms; abort 22 max 377 ms; cap 5000; ends read 7 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 7 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   112.64 CMD mark 371d55
+   112.64 CMD GL bms now
+   112.84 GL bms: window now
+   114.06 GL bms: read in 1217 ms (init 4 scan 271 conn 625 hs 91 ans 219 down 7)
+   114.19 CMD mark 0611fe
+   114.19 CMD GL bms
+   117.20 CMD mark b2f0d8
+   117.20 CMD GL bms now
+   117.32 GL bms: read; polling on; window 1217 max 2237 ms; abort 22 max 377 ms; cap 5000; ends read 8 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 8 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   117.32 GL bms: window now
+   118.54 GL bms: read in 1157 ms (init 4 scan 201 conn 635 hs 91 ans 219 down 7)
+   118.66 CMD mark 8aafc6
+   118.66 CMD GL bms
+   120.99 GL bms: read; polling on; window 1157 max 2237 ms; abort 22 max 377 ms; cap 5000; ends read 9 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 9 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   120.99 GL alive: io=1201 vedirect=26999 lora=2312 app=1201 bms=16 ui=1201 log=4
+   121.78 CMD mark e3feaa
+   121.78 CMD GL bms now
+   121.81 GL bms: window now
+   150.97 GL bms: read in 1067 ms (init 4 scan 121 conn 655 hs 91 ans 189 down 7)
+   150.97 GL alive: io=1501 vedirect=33749 lora=2612 app=1501 bms=17 ui=1501 log=5
+   151.20 CMD mark 89e828
+   151.20 CMD GL bms
+   154.20 CMD mark 1b9e49
+   154.20 CMD GL bms now 125
+   154.23 GL bms: read; polling on; window 1067 max 2237 ms; abort 22 max 377 ms; cap 5000; ends read 10 aborted 6; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   154.23 GL bms: window now, abort at 125 ms
+   154.43 GL bms: aborted in 127 ms (init 4 scan 121 conn 0 hs 0 ans 0 down 1); abort asked
+   154.72 CMD mark 5385ee
+   154.72 CMD GL bms
+   154.84 GL bms: aborted; polling on; window 127 max 2237 ms; abort 2 max 377 ms; cap 5000; ends read 10 aborted 7; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   157.73 CMD mark 27a38e
+   157.73 CMD GL bms now 325
+   158.09 GL bms: window now, abort at 325 ms
+   158.09 GL bms: aborted in 327 ms (init 4 scan 321 conn 0 hs 0 ans 0 down 2); abort asked
+   158.24 CMD mark c93bf9
+   158.24 CMD GL bms
+   158.30 GL bms: aborted; polling on; window 327 max 2237 ms; abort 2 max 377 ms; cap 5000; ends read 10 aborted 8; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   161.26 CMD mark 25ef7c
+   161.26 CMD GL bms now 525
+   161.35 GL bms: window now, abort at 525 ms
+   180.90 GL bms: aborted in 1142 ms (init 5 scan 480 conn 640 hs 0 ans 0 down 17); abort asked
+   180.90 GL alive: io=1801 vedirect=40498 lora=3050 app=1801 bms=20 ui=1801 log=6
+   181.11 CMD mark 982aef
+   181.11 CMD GL bms
+   181.31 GL bms: aborted; polling on; window 1142 max 2237 ms; abort 617 max 617 ms; cap 5000; ends read 10 aborted 9; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   184.22 CMD mark caaf06
+   184.22 CMD GL bms now 725
+   184.37 GL bms: window now, abort at 725 ms
+   185.39 GL bms: aborted in 1052 ms (init 4 scan 391 conn 640 hs 0 ans 0 down 17); abort asked
+   185.45 CMD mark 73e139
+   185.45 CMD GL bms
+   185.59 GL bms: aborted; polling on; window 1052 max 2237 ms; abort 327 max 617 ms; cap 5000; ends read 10 aborted 10; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   188.47 CMD mark d05859
+   188.47 CMD GL bms now 925
+   189.66 GL bms: window now, abort at 925 ms
+   189.66 GL bms: aborted in 1007 ms (init 4 scan 351 conn 635 hs 0 ans 0 down 17); abort asked
+   189.83 CMD mark 6e5256
+   189.83 CMD GL bms
+   189.86 GL bms: aborted; polling on; window 1007 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 10 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 10 crc 0 term 0 other 0; heap 231376/226904 low 182224
+   192.85 CMD mark c2d131
+   192.85 CMD GL bms now
+   192.91 GL bms: window now
+   194.14 GL bms: read in 1097 ms (init 4 scan 171 conn 650 hs 106 ans 154 down 12)
+   194.30 CMD mark 3ebfc8
+   194.30 CMD GL bms
+   194.34 GL bms: read; polling on; window 1097 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 11 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 11 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   197.43 CMD mark 757306
+   197.43 CMD GL bms now
+   197.60 GL bms: window now
+   210.85 GL bms: read in 1517 ms (init 4 scan 571 conn 640 hs 91 ans 199 down 12)
+   210.85 GL alive: io=2101 vedirect=47248 lora=3350 app=2101 bms=24 ui=2101 log=7
+   211.14 CMD mark 0920f9
+   211.14 CMD GL bms
+   211.26 GL bms: read; polling on; window 1517 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 12 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 12 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   214.14 CMD mark b26873
+   214.14 CMD GL bms now
+   214.30 GL bms: window now
+   215.72 GL bms: read in 1412 ms (init 4 scan 491 conn 630 hs 91 ans 189 down 7)
+   215.91 CMD mark 741425
+   215.91 CMD GL bms
+   216.13 GL bms: read; polling on; window 1412 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 13 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 13 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   218.93 CMD mark 82ec28
+   218.93 CMD GL bms now
+   218.99 GL bms: window now
+   220.61 GL bms: read in 1637 ms (init 4 scan 171 conn 1145 hs 106 ans 204 down 7)
+   220.80 CMD mark 5e90a9
+   220.80 CMD GL bms
+   220.81 GL bms: read; polling on; window 1637 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 14 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 14 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   223.92 CMD mark 3e878a
+   223.92 CMD GL bms now
+   224.08 GL bms: window now
+   225.09 GL bms: read in 1142 ms (init 4 scan 181 conn 640 hs 91 ans 219 down 7)
+   225.37 CMD mark 5c47be
+   225.37 CMD GL bms
+   225.50 GL bms: read; polling on; window 1142 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 15 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 15 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   228.38 CMD mark 363d9c
+   228.38 CMD GL bms data
+   228.38 CMD GL bms
+   228.56 GL bms: cells 4: 3331 3333 3333 3332 mV (delta 2); temps 4: 196 222 189 189 (0.1 C); pack 13320 mV 0 mA (discharge flag); SOC 96%; 959/1000 (0.1 Ah); cycles 3; SOH 1000; rssi -66
+   228.56 GL bms: read; polling on; window 1142 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 15 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 15 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   230.46 CMD mark 7dbe22
+   230.46 CMD GL bms
+   230.60 GL bms: read; polling on; window 1142 max 2237 ms; abort 82 max 617 ms; cap 5000; ends read 15 aborted 11; busy 0 off 0; tx waits 324 asked 0 overrun 0; rx 15 crc 0 term 0 other 0; heap 231376/231376 low 182224
+   240.99 GL alive: io=2401 vedirect=53998 lora=3882 app=2401 bms=27 ui=2401 log=8

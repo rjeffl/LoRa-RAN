@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.33, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.34, §5
 for the architecture and §8 for the milestones.
 **Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.17.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
@@ -22,14 +22,18 @@ io_task reports the last trailing edge (plan §5.2). `CONFIG` reads and writes l
 `READ_ONLY`, because spec §12.4.2 is not built here.
 `vedirect_task` reads the MPPT's text blocks into spec §7.2.2's status fields, sets §7.2.6
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
-transaction at a time (plan §4.2.4). `ui_task` shows the INA226 and LM75 on the panel's
-last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`,
-`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `cfg`, `bus <s>`, `wdt [stall]`, `restart`, `hang`), prints the engine's log
+transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
+the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
+INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `sense`, `sd`,
+`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `cfg`, `bms`, `bms now [abort_ms]`, `bms data`, `bus <s>`, `wdt [stall]`, `restart`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
 spec §10.3's resync on the bench, and `lran ack drop` withholds the next fresh
-`COMMAND_ACK`, for §9.4's dedup hit; `ved` prints the MPPT snapshot and the VE.Direct counters. `cfg` prints the card's state
+`COMMAND_ACK`, for §9.4's dedup hit; `ved` prints the MPPT snapshot and the VE.Direct counters.
+`bms` prints how windows ended, their length and abort latency, the interlock's counters
+and the heap; `bms now` runs a window at once, and with `abort_ms` asks it to end that far
+in; `bms data` prints the last decode as `wattcycle-reader` lays it out. `cfg` prints the card's state
 and what boot read from `config.json`. `bus <s>`
 is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` parks
 `app_task` unfed, so the watchdog resets the chip and the next banner reads
@@ -42,6 +46,9 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `task_runtime.{h,cpp}` | Static task creation, `io_task`, `lora_task`'s node, the bench console in `log_task`, and the stub bodies | no |
 | `gatelink_app.{h,cpp}` | GateLink's lran-node application: spec §8.1 commands to K1–K4, status and event bodies, PING echo, `HEX_REQ` to `vedirect_task` | yes |
 | `config_store.{h,cpp}` | The configuration: lran-config's `Store` over the node-common and GateLink blocks, and `SdPersist`, its microSD `Persist`, with `config.json`'s reader and writer | yes |
+| `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, and the interlock's decision | yes |
+| `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |
+| `ble_interlock.h` | The radio's half of the LoRa/BLE interlock; `task_runtime.cpp` holds the lock | no |
 | `ved_link.{h,cpp}` | `vedirect_task`'s logic: the text cache scaled into spec §7.2.2, staleness, and one HEX transaction with its Get retry | yes |
 | `ui_pages.{h,cpp}` | Panel text, and the node key's status | yes |
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
@@ -58,7 +65,7 @@ pins on the header board give a carrier that never answers.
 ## Build and test
 
 ```bash
-pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, config store
+pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, config store
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2
@@ -100,6 +107,10 @@ It prints one `#define` to paste into `secrets.h`. Never paste it anywhere else.
 
 ## Traps
 
+- **VictronConnect holds the StamPLC's serial port** while it runs: it opens every serial
+  port it finds, and the upload fails as busy. Quit it before flashing.
+- **NimBLE's callouts must stay on `esp_timer`** (`platformio.ini` says why). On FreeRTOS
+  timers, cycling the controller every poll panicked the timer task.
 - **`Serial` is silent without `-DARDUINO_USB_CDC_ON_BOOT=1`**, while boot ROM lines still
   appear. The flag is set; do not remove it.
 - **The StamPLC and the XIAO both enumerate as `/dev/cu.usbmodem*`.** Read the banner, and
