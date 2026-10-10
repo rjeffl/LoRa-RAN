@@ -1146,6 +1146,7 @@ const char* pulse_result_name(PulseResult r) {
 //   cfg               the configuration's card: mounted, dirty, writes and what boot read
 //   wdt stall         park app_task unfed, so the task watchdog resets the chip (GL3)
 //   restart           a software reset
+//   panic             abort(), for spec 8.14's PANIC
 //   hang              interrupts off until the interrupt watchdog resets the chip. With
 //                     `relay <k> 2000` first, it is R-3.5j's reset in the middle of a pulse
 uint32_t g_bus_seconds = 0;
@@ -1402,6 +1403,11 @@ void console_command(char* cmd) {
                         static_cast<unsigned long>(watchdog_timeout_s()),
                         watchdog_timeout_s() == 0 ? " - NOT ARMED" : "");
     }
+  } else if (std::strcmp(cmd, "panic") == 0) {
+    // GL3 - spec 8.14's PANIC, which no other bench command produces.
+    Serial.println(F("panic: abort()"));
+    Serial.flush();
+    abort();
   } else if (std::strcmp(cmd, "hang") == 0) {
     Serial.println(F("hang: interrupts off"));
     Serial.flush();
@@ -1409,7 +1415,7 @@ void console_command(char* cmd) {
     for (;;) {
     }
   } else {
-    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | wdt [stall] | restart | hang");
+    n = std::snprintf(line, sizeof(line), "commands: relay <1-4> [ms] | in | sense | sd | beep | radio | lran | ved | bus <s> | wdt [stall] | restart | panic | hang");
   }
   write_line(line, n, sizeof(line));
 }
