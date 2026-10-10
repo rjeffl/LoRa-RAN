@@ -1,0 +1,197 @@
+# GL3 reset-cause slice, 2026-10-10 (engineering log, same date). Each "CMD <run" line restarts the clock.
+# Images: 2537cb9, 7dbf50a, temporary diagnostic builds, main c362d31 for the input check, then 99cc6a6.
+# Filtered from bench.py's log: GL boot and input lines, the BOOT events and the REBOOT ACK on MQTT.
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (2537cb9)
+     0.62 GL Reset: usb
+     1.02 GL boot: EXTERNAL, ctx_id 8d34e925; radio RST check passed, BUSY fell in 1621 us
+     2.56 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2369055013,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+     4.12 CMD GL restart
+     4.69 GL Version: 0.1.0 (2537cb9)
+     4.69 GL Reset: software
+     5.09 GL boot: SOFTWARE, ctx_id 1741554e; radio RST check passed, BUSY fell in 1621 us
+     5.96 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":390157646,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+    18.31 CMD GL wdt stall
+    18.52 GL wdt: app_task parked, not feeding; reset due in 10 s
+    29.18 GL Version: 0.1.0 (2537cb9)
+    29.18 GL Reset: task_watchdog
+    29.59 GL boot: WATCHDOG, ctx_id 5dd2dc4f; radio RST check passed, BUSY fell in 1621 us
+    30.53 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1574100047,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":4,"reset_cause":"watchdog"}
+    32.72 CMD GL hang
+    32.85 GL hang: interrupts off
+    33.89 GL Version: 0.1.0 (2537cb9)
+    33.89 GL Reset: interrupt_watchdog
+    35.17 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1613919197,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":4,"reset_cause":"watchdog"}
+   146.54 CMD pub lran/gatelink/cmd/reboot/set 165
+   146.55 MQTT lran/gatelink/cmd/reboot/set 165
+   148.76 MQTT lran/gatelink/cmd/ack {"outcome":"acked","seq":1,"attempts":1,"result":0,"detail":0}
+   148.92 GL Version: 0.1.0 (2537cb9)
+   148.92 GL Reset: software
+   149.33 GL boot: REBOOT_COMMAND, ctx_id 08e007b1; radio RST check passed, BUSY fell in 1622 us
+   151.82 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":148899761,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":2,"reset_cause":"reboot_command"}
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.62 GL Version: 0.1.0 (7dbf50a)
+     0.62 GL Reset: usb
+     1.02 GL boot: EXTERNAL, ctx_id 91e02a45; radio RST check passed, BUSY fell in 1619 us
+     2.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2447387205,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+     8.05 CMD GL panic
+     8.14 GL panic: abort()
+     8.75 GL Version: 0.1.0 (7dbf50a)
+     8.75 GL Reset: panic
+     9.36 GL boot: PANIC, ctx_id 732ebfda; radio RST check passed, BUSY fell in 1622 us
+    10.17 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1932443610,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":5,"reset_cause":"panic"}
+   533.36 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3621025696,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":1,"reset_cause":"power_on"}
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.62 GL Version: 0.1.0 (7dbf50a)
+     0.62 GL Reset: usb
+     1.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":454780708,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+   783.75 CMD GL in
+   783.92 GL in: raw 0x10 debounced 0x10 edges 1/1 relays 0x00 i2c failures 0; boot relay-off ok
+   785.09 CMD GL restart
+   785.15 GL restart
+   785.55 GL Version: 0.1.0 (7dbf50a)
+   785.55 GL Reset: software
+   786.16 GL boot: SOFTWARE, ctx_id 7c0a6510; radio RST check passed, BUSY fell in 1620 us
+   787.76 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2081056016,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (7dbf50a-dirty)
+     0.61 GL Reset: usb
+     1.02 GL boot: first input read raw 0x00 debounced 0x00
+     1.87 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":461571416,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+     3.08 CMD GL restart
+     3.66 GL Version: 0.1.0 (7dbf50a-dirty)
+     3.66 GL Reset: software
+     4.06 GL boot: SOFTWARE, ctx_id 44ffd621; radio RST check passed, BUSY fell in 1618 us
+     4.06 GL boot: first input read raw 0x00 debounced 0x00
+     5.76 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1157617185,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+     8.14 CMD GL restart
+     8.14 GL restart
+     8.76 GL Version: 0.1.0 (7dbf50a-dirty)
+     8.76 GL Reset: software
+     9.17 GL boot: first input read raw 0x00 debounced 0x00
+     9.96 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2416162029,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+    13.34 CMD GL restart
+    13.43 GL restartESP-ROM:esp32s3-20210327
+    13.84 GL Version: 0.1.0 (7dbf50a-dirty)
+    13.84 GL Reset: software
+    14.25 GL boot: SOFTWARE, ctx_ll in 1620 us
+    14.25 GL boot: first input read raw 0x00 debounced 0x00
+    15.16 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2042056130,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (7dbf50a-dirty)
+     0.61 GL Reset: usb
+     1.02 GL boot: first input read raw 0x00 debounced 0x00
+     1.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1628080784,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+     3.09 CMD GL restart
+     3.67 GL Version: 0.1.0 (7dbf50a-dirty)
+     3.67 GL Reset: software
+     4.08 GL boot: first input read raw 0x00 debounced 0x00
+     5.56 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2092167119,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+    23.32 CMD GL restart
+    23.44 GL restartESP-ROM:esp32s3-20210327
+    23.85 GL Version: 0.1.0 (7dbf50a-dirty)
+    23.85 GL Reset: software
+    24.26 GL boot: first input read raw 0x00 debounced 0x00
+    26.16 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":4054960647,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+    43.56 CMD GL restart
+    43.58 GL restart
+    44.19 GL Version: 0.1.0 (7dbf50a-dirty)
+    44.19 GL Reset: software
+    44.60 GL boot: SOFTWARE, ctx_id 3e8cbd00; radio RST check passed, BUSY fell in 1619 us
+    44.60 GL boot: first input read raw 0x00 debounced 0x00
+    45.46 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1049410816,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+    70.74 CMD GL in
+    70.88 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   322.48 CMD GL in
+   322.58 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   324.55 CMD GL restart
+   324.62 GL restart
+   325.03 GL Version: 0.1.0 (7dbf50a-dirty)
+   325.03 GL Reset: software
+   325.43 GL boot: first input read raw 0x00 debounced 0x00
+   326.46 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2109171340,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+   349.77 CMD GL restart
+   350.28 GL Version: 0.1.0 (7dbf50a-dirty)
+   350.28 GL Reset: software
+   350.69 GL boot: first input read raw 0x00 debounced 0x00
+   351.84 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":142762615,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":3,"reset_cause":"software"}
+   484.85 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1398366677,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":1,"reset_cause":"power_on"}
+   487.01 GL Version: 0.1.0 (7dbf50a-dirty)
+   487.01 GL Reset: usb
+   487.41 GL boot: EXTERNAL, ctxll in 1619 us
+   487.41 GL boot: first input read raw 0x00 debounced 0x00
+   488.65 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2555311278,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+   501.84 CMD GL in
+   501.84 CMD GL sense
+   502.06 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   686.72 CMD GL in
+   686.84 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   828.89 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":2543209891,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":1,"reset_cause":"power_on"}
+   831.50 GL Version: 0.1.0 (7dbf50a-dirty)
+   831.50 GL Reset: usb
+   831.91 GL boot: EXTERNAL, ctxll in 1619 us
+   831.91 GL boot: first input read raw 0x00 debounced 0x00
+   832.80 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3613843937,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+   878.08 CMD GL in
+   878.14 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+  1481.07 CMD GL in
+  1481.22 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+  1842.42 CMD GL relay 1 1000
+  1842.44 GL relay: K1 queued
+  1842.94 CMD GL in
+  1843.06 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x01 i2c failures 0; boot relay-off ok
+  1843.67 GL relay: K1 on for 999.9 ms (expander writes)
+  1845.44 CMD GL relay 2 1000
+  1845.50 GL relay: K2 queued
+  1845.86 CMD GL in
+  1845.91 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x02 i2c failures 0; boot relay-off ok
+  1846.52 GL relay: K2 on for 999.9 ms (expander writes)
+  1848.46 CMD GL relay 3 1000
+  1848.56 GL relay: K3 queued
+  1848.86 CMD GL in
+  1848.97 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x04 i2c failures 0; boot relay-off ok
+  1849.58 GL relay: K3 on for 999.9 ms (expander writes)
+  1851.45 CMD GL relay 4 1000
+  1851.62 GL relay: K4 queued
+  1851.86 CMD GL in
+  1852.03 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x08 i2c failures 0; boot relay-off ok
+  1852.64 GL relay: K4 on for 999.9 ms (expander writes)
+  2181.51 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":1420426319,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":1,"reset_cause":"power_on"}
+  2186.40 GL Version: 0.1.0 (7dbf50a-dirty)
+  2186.40 GL Reset: usb
+  2186.81 GL boot: EXTERNAL, ctx_id 3b487dd3; radio RST check passed, BUSY fell in 1619 us
+  2186.81 GL boot: first input read raw 0x00 debounced 0x00
+  2189.58 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":994606547,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+  2305.22 CMD GL in
+  2305.41 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (7dbf50a-dirty)
+     0.61 GL Reset: usb
+     1.02 GL boot: EXTERNALll in 1618 us
+     1.02 GL boot: first input read raw 0x00 debounced 0x00
+     1.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3593361141,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
+     6.07 CMD GL regs
+     6.07 CMD GL in
+     6.49 GL regs: in 00 0f out 00 0f cfg f0 ff int ff ff gcr 10
+     6.49 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   370.71 CMD GL in
+   370.71 CMD GL regs
+   370.90 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   371.11 GL regs: in 00 0f out 00 0f cfg f0 ff int ff ff gcr 10
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (c362d31)
+     0.61 GL Reset: unknown
+     1.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":432748950,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":0,"reset_cause":"unknown"}
+     6.07 CMD GL in
+     6.08 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+   104.76 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":4122352661,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":1,"reset_cause":"power_on"}
+   108.47 GL Version: 0.1.0 (c362d31)
+   108.47 GL Reset: unknown
+   109.67 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3043237829,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":0,"reset_cause":"unknown"}
+   130.18 CMD GL in
+   130.22 GL in: raw 0x00 debounced 0x00 edges 0/0 relays 0x00 i2c failures 0; boot relay-off ok
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.61 GL Version: 0.1.0 (99cc6a6)
+     0.61 GL Reset: usb
+     1.01 GL boot: first input read raw 0x00 debounced 0x00
+     1.86 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3442188247,"event_type":"boot","event_code":10,"follow_up":false,…"input_bits":0,"detail":7,"reset_cause":"external"}
