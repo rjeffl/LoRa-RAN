@@ -1179,3 +1179,10 @@ The preset name is not in the register.
 **The pack's absorption specification contradicts itself**, as `mppt-config.md` records:
 "14.2V – 14.6V (14.6V ± 0.2V)". 14.20 V meets the first range and not the second. Which
 one the vendor means is the operator's to settle.
+
+## 2026-10-10 — Absorption stays at 14.20 V
+
+**The operator settled the pack's absorption figure.** WattCycle gives 14.6 V, with
+14.2–14.6 V the acceptable range. The MPPT stays at 14.20 V, because the operator expects
+the lower absorption voltage to increase cell life. [`mppt-config.md`](mppt-config.md)
+records the choice.

@@ -40,14 +40,14 @@ asks for a user-defined battery type, and `0xFF` is that.
 | Battery type user-defined | `0xEDF1` = `0xFF` | Met |
 | Equalization disabled | Automatic equalization off; equalization voltage disabled | Met |
 | Temperature compensation 0 mV/°C | Disabled, reads 0 | Met |
-| Absorption per the pack specification | 14.20 V | Inside 14.2–14.6 V, outside 14.6 ± 0.2 V; see below |
+| Absorption per the pack specification | 14.20 V | Met: the low end of the pack's 14.2–14.6 V, by the operator's choice |
 | Float per the pack specification | 13.50 V | Met: the pack gives 13.4–13.6 V |
 
-**The pack's absorption figure contradicts itself.** The operator supplied the WattCycle
-100Ah Mini's charging specification on 2026-10-10. It gives the recommended charge
-(absorption) voltage as "14.2V – 14.6V (14.6V ± 0.2V)". 14.20 V falls inside the first
-range and below the second, which spans 14.4–14.8 V. This record does not settle which
-the vendor means.
+**Absorption sits at the low end of the pack's range, on purpose.** The operator supplied
+the WattCycle 100Ah Mini's charging specification on 2026-10-10. It gives the recommended
+charge (absorption) voltage as "14.2V – 14.6V (14.6V ± 0.2V)". The operator reads that as
+14.6 V nominal with 14.2–14.6 V the acceptable range, and keeps 14.20 V because a lower
+absorption voltage should increase cell life (operator, 2026-10-10).
 
 The same specification recommends 20 A (0.2C) of charge current. The 75/15 is rated
 for 15 A, so the controller's 15 A setting is its own limit.

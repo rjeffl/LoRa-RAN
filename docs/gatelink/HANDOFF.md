@@ -89,7 +89,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
   readback. [`mppt-config.md`](./mppt-config.md) has the table. Nothing changed since the
   2026-10-08 readback.
 - **R-6.1b is met** for battery type, equalisation, temperature compensation and float.
-  Absorption, 14.20 V, meets one of the pack's two stated figures; see *Open*.
+  Absorption, 14.20 V, is the low end of the pack's 14.2–14.6 V, kept for cell life.
 - **`0xEDF1` reads `0xFF`** while VictronConnect names the preset *Smart Lithium
   (LiFePo4)*.
 
@@ -320,9 +320,6 @@ board's are its D-pads (expansion board §6.1).
 - **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised. The LiFePO4 settings disable both, so no readback of this configuration will exercise them.
-- **The pack's absorption specification contradicts itself**: "14.2V – 14.6V (14.6V ±
-  0.2V)". The MPPT's 14.20 V meets the first and not the second. The operator settles
-  which one applies; `mppt-config.md` records both.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
 
 ### Closed, and not to be reopened by habit
