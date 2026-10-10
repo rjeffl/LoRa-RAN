@@ -51,8 +51,6 @@ TEXT_SUFFIXES = {".md", ".c", ".cpp", ".h", ".hpp", ".py", ".ini", ".yml", ".yam
 # Planned documents: path -> what writes it.
 PLANNED = {
     "docs/gatelink/1050-config.md": "GateLink task GL2 (Implementation Plan §7.4)",
-    "docs/gatelink/mppt-config.md": "GateLink PRD R-6.1b, when the charge controller is "
-                                    "reconfigured",
 }
 
 # Citations of a path that is gone, kept on purpose: (citing file, cited path) -> reason.

@@ -1153,3 +1153,29 @@ the row.
 
 **Still not reached: the PHY group.** It answers `READ_ONLY` because spec §12.4.2 is not
 built on GateLink, and `config.json` never holds a PHY row.
+
+## 2026-10-10 — The MPPT's LiFePO4 settings read back as configured
+
+**Bridge, simnode Heltec and the StamPLC on the bench at `ff2c092`, with the sandbox
+broker; the MPPT on its bench supply with no PV, the WattCycle pack beside it.** Trace:
+[`data/mppt-readback-2026-10-10.log`](data/mppt-readback-2026-10-10.log).
+
+**The bridge's boot readback matches the operator's VictronConnect page on every setting
+the app shows.** The harness opening the bridge's port reset it, and its boot pass sent
+ten HEX Gets through GateLink. Each answered on its first attempt, about 2 s apart.
+Decoding the raw answers on GateLink's console by hand gives BF-30's published values.
+[`mppt-config.md`](mppt-config.md) has the table and starts R-6.1b's record.
+
+**Nothing changed since 2026-10-08.** Every value equals that day's readback after the
+15 A restore. So the operator's LiFePO4 setup predates GL4's write test, and the readback
+on 2026-10-08 was already reading it.
+
+**`0xEDF4` and `0xEDF2` read 0 again**, so their scales are still not exercised. The
+LiFePO4 settings disable both, and no readback of this configuration will exercise them.
+
+**`0xEDF1` reads `0xFF` while VictronConnect names the preset *Smart Lithium (LiFePo4)*.**
+The preset name is not in the register.
+
+**The pack's absorption specification contradicts itself**, as `mppt-config.md` records:
+"14.2V – 14.6V (14.6V ± 0.2V)". 14.20 V meets the first range and not the second. Which
+one the vendor means is the operator's to settle.
