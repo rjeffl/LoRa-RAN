@@ -32,6 +32,7 @@ struct BmsData {
     uint32_t pack_mv;              // pack voltage, mV
     int32_t  current_ma;           // + = charge, - = discharge  (SEE WARNING)
     bool     discharging;          // raw 0x4000 flag, before sign interpretation
+    uint16_t current_raw;          // the field as received, kept for M7's capture
 
     uint8_t  soc_pct;              // state of charge, %
     uint16_t remaining_dAh;        // 0.1 Ah
@@ -53,6 +54,7 @@ struct BmsData {
         pack_mv = 0;
         current_ma = 0;
         discharging = false;
+        current_raw = 0;
         soc_pct = 0;
         remaining_dAh = 0;
         nominal_dAh = 0;

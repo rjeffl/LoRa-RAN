@@ -1171,12 +1171,12 @@ void console_command(char* cmd) {
         const bms::BmsData& d = b.data;
         n = std::snprintf(line, sizeof(line),
                           "bms: cells %u: %u %u %u %u mV (delta %u); temps %u: %d %d %d %d (0.1 C); "
-                          "pack %lu mV %ld mA (%s); SOC %u%%; %u/%u (0.1 Ah); cycles %u; SOH %u; rssi %d",
+                          "pack %lu mV %ld mA (%s, raw 0x%04X); SOC %u%%; %u/%u (0.1 Ah); cycles %u; SOH %u; rssi %d",
                           d.cell_count, d.cell_mv[0], d.cell_mv[1], d.cell_mv[2], d.cell_mv[3],
                           d.delta_cell_mv(), d.temp_count, d.temp_dc[0], d.temp_dc[1], d.temp_dc[2],
                           d.temp_dc[3], static_cast<unsigned long>(d.pack_mv),
                           static_cast<long>(d.current_ma),
-                          d.discharging ? "discharge flag" : "charge flag", d.soc_pct,
+                          d.discharging ? "discharge flag" : "charge flag", d.current_raw, d.soc_pct,
                           d.remaining_dAh, d.nominal_dAh, d.cycles, d.soh_dpct, b.rssi_dbm);
       }
     } else {

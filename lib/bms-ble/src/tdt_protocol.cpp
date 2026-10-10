@@ -215,6 +215,7 @@ bool decode_cells_and_pack(const Frame& frame, BmsData& out) {
     // in units of 10 mA. A plain signed int16 read here gives 16384 instead of
     // zero — this is the field worth extra care (bms-protocol §6).
     const uint16_t raw_i = be16(p + tail);
+    out.current_raw = raw_i;
     const int32_t magnitude_ma = (int32_t)(raw_i & 0x3FFF) * 10;
     out.discharging = (raw_i & 0x4000) != 0;
     out.current_ma = out.discharging ? -magnitude_ma : magnitude_ma;
