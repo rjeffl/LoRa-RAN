@@ -336,44 +336,47 @@ void test_decode_0x8C_matches_reference_capture(void) {
     TEST_ASSERT_EQUAL_UINT16(1000, d.soh_dpct);       // 100.0 %
 }
 
+// Rewrites the §9 frame's current field to `raw`, with a fresh CRC, and decodes it.
+static void decode_current(uint16_t raw, BmsData& d) {
+    uint8_t f[sizeof(kRsp8C)];
+    memcpy(f, kRsp8C, sizeof(f));
+    const size_t cur = 8 + 1 + 8 + 1 + 8;   // header + N + cells + M + temps
+    f[cur] = (uint8_t)(raw >> 8);
+    f[cur + 1] = (uint8_t)(raw & 0xFF);
+    const uint16_t crc = crc16_modbus(f, sizeof(f) - 3);
+    f[sizeof(f) - 3] = (uint8_t)(crc >> 8);
+    f[sizeof(f) - 2] = (uint8_t)(crc & 0xFF);
+    FrameReassembler rx;
+    TEST_ASSERT_EQUAL(FrameReassembler::kComplete, feed_all(rx, f, sizeof(f)));
+    TEST_ASSERT_TRUE(decode_cells_and_pack(rx.frame(), d));
+    TEST_ASSERT_EQUAL_HEX16(raw, d.current_raw);
+}
+
 void test_decode_0x8C_current_encoding(void) {
-    // The field worth extra care (bms-protocol §6): raw 0x4000 is the discharge flag with
-    // zero magnitude. Read as a plain signed int16 it gives 16384, not 0.
+    // The field worth extra care (bms-protocol §6). At rest it reads 0x4000, which a plain
+    // signed int16 read turns into 16384 rather than 0.
     FrameReassembler rx;
     feed_all(rx, kRsp8C, sizeof(kRsp8C));
 
     BmsData d;
     TEST_ASSERT_TRUE(decode_cells_and_pack(rx.frame(), d));
-    TEST_ASSERT_EQUAL_INT32(0, d.current_ma);         // 0.0 A at rest
-    TEST_ASSERT_TRUE(d.discharging);                  // raw flag is set
+    TEST_ASSERT_EQUAL_INT32(0, d.current_ma);
+    TEST_ASSERT_FALSE(d.discharging);   // bit 14 alone is not the sign
 
-    // And synthesised magnitudes, since the real pack has only been seen at
-    // rest. 0x4064 -> discharge 100 * 10 mA = 1.00 A; 0x0064 -> charge 1.00 A.
-    // NOTE: the sign convention itself is unverified (bms-protocol §10) — these lock in the
-    // magnitude and flag extraction, not the polarity.
-    uint8_t f[sizeof(kRsp8C)];
-    memcpy(f, kRsp8C, sizeof(f));
-    const size_t cur = 8 + 1 + 8 + 1 + 8;   // header + N + cells + M + temps
-
-    f[cur] = 0x40; f[cur + 1] = 0x64;
-    uint16_t crc = crc16_modbus(f, sizeof(f) - 3);
-    f[sizeof(f) - 3] = (uint8_t)(crc >> 8);
-    f[sizeof(f) - 2] = (uint8_t)(crc & 0xFF);
-    FrameReassembler rx2;
-    TEST_ASSERT_EQUAL(FrameReassembler::kComplete, feed_all(rx2, f, sizeof(f)));
-    TEST_ASSERT_TRUE(decode_cells_and_pack(rx2.frame(), d));
-    TEST_ASSERT_EQUAL_INT32(-1000, d.current_ma);
+    // M7's raw values, 2026-10-10. The WattCycle app read -4.00 A and +1.8 A.
+    decode_current(0xC028, d);          // under load
+    TEST_ASSERT_EQUAL_INT32(-4000, d.current_ma);
     TEST_ASSERT_TRUE(d.discharging);
 
-    f[cur] = 0x00; f[cur + 1] = 0x64;
-    crc = crc16_modbus(f, sizeof(f) - 3);
-    f[sizeof(f) - 3] = (uint8_t)(crc >> 8);
-    f[sizeof(f) - 2] = (uint8_t)(crc & 0xFF);
-    FrameReassembler rx3;
-    TEST_ASSERT_EQUAL(FrameReassembler::kComplete, feed_all(rx3, f, sizeof(f)));
-    TEST_ASSERT_TRUE(decode_cells_and_pack(rx3.frame(), d));
-    TEST_ASSERT_EQUAL_INT32(1000, d.current_ma);
+    decode_current(0x4012, d);          // on charge
+    TEST_ASSERT_EQUAL_INT32(1800, d.current_ma);
     TEST_ASSERT_FALSE(d.discharging);
+
+    // Bit 14 clear changes nothing, and the magnitude is the low 14 bits whole.
+    decode_current(0x0012, d);
+    TEST_ASSERT_EQUAL_INT32(1800, d.current_ma);
+    decode_current(0xBFFF, d);
+    TEST_ASSERT_EQUAL_INT32(-1638300, d.current_ma);
 }
 
 void test_decode_rejects_wrong_command(void) {

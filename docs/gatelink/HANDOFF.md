@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-10 by the MPPT readback session**, which changed no code. It recorded
-the MPPT's settings in [`mppt-config.md`](./mppt-config.md).
+**Written 2026-10-10 by the M7 session.** It closed M7 and fixed `lib/bms-ble`'s
+pack-current decode, which had the sign bit and the unit wrong.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,7 +22,6 @@ MPPT on the bench, and Tier 3 needs neither.
 
 | Tier | Task | Read |
 |---|---|---|
-| 1 | **M7**, pack current under charge and under load | Decision Register M7; plan §8.2's GL5 row; the engineering log's 2026-10-10 *GL5* entry for `bms data` |
 | 1 | **`vedirect_task`'s CPU share** beside NimBLE, and **L3's captured block** | *Open*, below |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
 | 3 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
@@ -44,14 +43,13 @@ keeping the gate down for work that doesn't need the pack.
 
 **Tier 1 needs the pack and the MPPT. Do it first, in this order:**
 
-1. **Capture M7**, pack current under charge and under load, with `bms now` and
-   `bms data` on the console. At rest the pack reads 0 mA with the raw discharge flag, which
-   settles nothing. The charge leg needs a PV-side source: the panel in sun, or a
-   current-limited lab supply at least about 5 V above the pack voltage. The load leg needs
-   a load well above the node's own draw.
-2. **Measure `vedirect_task`'s CPU share with NimBLE running.** `bms_task` is built, so
+1. **Measure `vedirect_task`'s CPU share with NimBLE running.** `bms_task` is built, so
    `bms now` in a loop gives the overlap.
-3. **Capture L3's raw text block** while the MPPT is connected.
+2. **Capture L3's raw text block** while the MPPT is connected.
+
+**Fix the warm section of the MPPT's battery harness before the MPPT charges through it.**
+It dropped 0.88 V at 4 A, about 0.22 Ω; at 15 A that is about 50 W (engineering log,
+2026-10-10, *M7*). This is the operator's, and it gates the pack and MPPT going back.
 
 **Tier 2 uses the pack as realistic power.** Soak for 24 to 72 h through the real power
 chain (MPPT, pack, StamPLC), with the radio, VE.Direct, BMS polls and SD writes all active.
@@ -84,15 +82,14 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **GL5's `bms_task` reads the live pack** once per `bms_poll_s` and fills spec §7.2.3's
-  block. Its decode agrees with `wattcycle-reader`'s.
-- **A window takes 0.99–2.24 s, and an abort releases the interlock within 0.62 s.** The
-  abort latency is NimBLE's connect, which cannot be interrupted. `bms_window_max_ms` is at
-  `0x1042`, default 5000 ms (plan §5.2).
-- **Cycling the controller every poll panicked the FreeRTOS timer task** until the client
-  refused the pack's parameter update and NimBLE's callouts moved to `esp_timer`
-  (engineering log, 2026-10-10).
-- **A reply the bridge was waiting on cut a live window short** twice, on real traffic.
+- **The pack current's sign is bit 15, and its unit is 0.1 A** (M7, closed). Raw `0xC028`
+  read −4.0 A under load and `0x4012` read +1.8 A on charge, matching the WattCycle app.
+  `lib/bms-ble` had read bit 14 and 10 mA, so a charging pack would have reached HA as a
+  discharge at a tenth of its size. Fixed, and confirmed on the pack at `5f0e564`.
+- **Bit 14 is set at rest, on charge and under load.** It is not the sign; what it means
+  is open (`bms-protocol` §10). `bms data` prints the raw field.
+- **A charge leg needs no PV-side source.** A LiFePO4 charger on the pack terminals did it;
+  the MPPT is only needed to read its own current.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -123,7 +120,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.34. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured and `bms_window_max_ms` is set; M7, M23, the low-temperature paths and `0x8D` remain |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, and M7 is closed; M23, the low-temperature paths and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -329,8 +326,14 @@ board's are its D-pads (expansion board §6.1).
   VictronConnect does not show the setting. A simnode change, if anyone wants it.
 - **The StamPLC was silent on the air for 135 s before a replug** (engineering log,
   2026-10-08). Nothing explains it yet; watch for a repeat.
-- **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
-  holds their status.
+- **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23. The register holds their status.
+- **Spec W6 and §7.2.3 still call `pack_ma`'s sign pending.** M7 measured positive as
+  charge. The next spec revision states it and drops the `TODO(W6)` in the status schema
+  and the bridge's `publish.cpp`.
+- **`wattcycle-reader`'s README (its point 5) and `tools/bms_probe_v1_0.py` still decode
+  bit 14 and 10 mA.** Its firmware builds against `lib/bms-ble` and is already right.
+- **The first BMS window after a boot ended `aborted` at about 45 ms, twice** (engineering
+  log, 2026-10-10, *M7*). Probably the boot's LoRa traffic; not checked.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised. The LiFePO4 settings disable both, so no readback of this configuration will exercise them.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
 

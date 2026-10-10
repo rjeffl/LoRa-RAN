@@ -1,13 +1,14 @@
 # TDT smart BMS protocol over BLE
 
 **Document:** `bms-protocol`
-**Version:** 0.2
+**Version:** 0.3
 **Node:** `GateLink`, node ID `0x01`
-**Status:** Confirmed on hardware for one pack at rest. §10 lists what is not verified.
+**Status:** Confirmed on hardware for one pack, at rest, on charge and under load. §10
+lists what is not verified.
 **Implementation:** [`lib/bms-ble/`](../../lib/bms-ble/)
 **Source:** [`wattcycle-reader-poc_3`](../../wattcycle-reader/docs/wattcycle-reader-poc_3.md)
 §4–§5 and §10.3, lifted out by GateLink task L2
-**Last updated:** 2026-10-02
+**Last updated:** 2026-10-10
 
 > **This document covers the BLE link between GateLink and the battery's BMS.** It is not
 > part of the LRAN protocol. How GateLink carries BMS values over LoRa is the Protocol
@@ -116,7 +117,7 @@ The payload length varies with two inline counts. Every multi-byte field is big-
 | 1 | `N` × u16 cell voltage | mV |
 | 1 + 2N | Temperature sensor count `M` | — |
 | 2 + 2N | `M` × u16 temperature | 0.1 K. °C = (raw − 2731) / 10 |
-| then | u16 current | **Bit `0x4000` is read as the discharge flag** (§10). Magnitude = (raw & 0x3FFF) × 10 mA |
+| then | u16 current | **Bit 15 set means discharging.** Magnitude = (raw & 0x3FFF) × 0.1 A. Bit 14 carries no direction (§10) |
 | +2 | u16 pack voltage | × 10 mV |
 | +4 | u16 remaining capacity | × 0.1 Ah |
 | +6 | u16 nominal capacity | × 0.1 Ah |
@@ -125,7 +126,18 @@ The payload length varies with two inline counts. Every multi-byte field is big-
 | +12 | u16 SOC | % |
 
 The current field needs the most care. Read as a plain signed int16, a pack at rest reads
-16384 instead of zero.
+16384 instead of zero. GL5's M7 capture on 2026-10-10 settled it against the WattCycle app
+and the MPPT's own current:
+
+| Pack state | Raw | Decoded | WattCycle app | MPPT |
+|---|---|---|---|---|
+| At rest (§9) | `4000` | 0.0 A | 0.0 A | — |
+| 4 A load on the MPPT's load output | `C028` | −4.0 A | −4.00 A | battery −4.05 A, load 4.00 A |
+| LiFePO4 charger on the pack | `4012` | +1.8 A | +1.8 A | — |
+
+**Before M7 this document read bit 14 as the discharge flag and the magnitude in 10 mA.**
+Both were wrong. Under load the two errors gave the right sign at a tenth of the size; on
+charge they gave the wrong sign as well. `aiobmsble` 0.27 had the bit and the scale right.
 
 The worked example is the §9 capture, with payload length `0x20`, `N` = 4 and `M` = 4:
 
@@ -239,12 +251,14 @@ anything off them. In particular, a serial number cannot tell two packs apart.
 Each item below is open. The Decision Register holds the status of the measurements it
 names.
 
-- **The sign of the pack current: measurement M7, register item W6.** The pack has only
-  been seen at rest, where the current field reads `0x4000`. That value is the discharge
-  flag with zero magnitude, so a resting pack cannot tell charge from discharge.
-  `lib/bms-ble/` records the raw flag in `BmsData::discharging` and applies the assumed
-  convention in `current_ma`. The status schema's `pack_ma` carries `TODO(W6)` for the
-  same reason. Capture `0x8C` once under charge and once under load at GL5.
+- **What bit 14 of the current field means.** It was set at rest, on charge and under
+  load (§6), so it is not the direction. `BmsData::current_raw` keeps the field whole so a
+  later capture can show what clears it. The sign itself is measured (M7); the spec's
+  §7.2.3 and its item W6 still call `pack_ma`'s convention pending until a revision states
+  it.
+- **The current's scale on other BMS firmware.** `aiobmsble` reads the magnitude in whole
+  amps when the `0x92` software version is `1.1`. This pack reports
+  `WT30_10004SW14_L_01`, and 0.1 A is measured for it only.
 - **`0x8D` is only partly understood.** The leading `04 … 04 …` mirrors the cell and
   temperature counts. `0629` sits where the MOSFET and status bits appear to live, and in
   this capture both MOSFETs were on and the problem code was 0. Mapping the bitmaps needs a
@@ -300,12 +314,17 @@ aiobmsble -v                     # find and dump every reachable BMS
 
 `wattcycle-reader/tools/` keeps the PoC's probes. `bms_probe_v1_0.py` is an independent
 Python implementation of §3 to §7: `--raw` dumps each frame's bytes, and `--selftest`
-decodes the §9 frames with no hardware. It is the tool for the M7 capture, because
-`aiobmsble` decodes the current but does not show its raw bytes. `instrument.py` logs
+decodes the §9 frames with no hardware. Its current decode predates M7 and still reads
+bit 14 and 10 mA. GateLink's `bms data` prints the raw field, and took the M7 capture. `instrument.py` logs
 every BLE call `aiobmsble` makes, with its arguments and timing, and is how §3 was found.
 `scan.py` lists every advertiser in range with its RSSI and service UUIDs.
 
 ## Changelog
+
+- **v0.3** (2026-10-10) — M7 measured the current field under charge and under load. §6
+  now reads the sign from bit 15 and the magnitude in 0.1 A, and records the capture. §10
+  drops the sign item and adds bit 14 and the scale on other firmware. `lib/bms-ble/`
+  changed to match.
 
 - **v0.2** (2026-10-02) — §7's rule 5 says that a clock older than a partial frame's
   arrival is not a timeout. GateLink task L7's emulator found the defect that rule
