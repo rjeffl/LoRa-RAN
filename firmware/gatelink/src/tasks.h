@@ -66,8 +66,7 @@ const TaskSpec& task_spec(TaskId id);
 const TaskSpec* task_table();
 
 // A task's fixed tick, or the default of its period parameter, scaled to milliseconds. 0
-// for an event-driven task. io_task reads input_poll_ms live instead; bms_task's stub still
-// runs at bms_poll_s's default until GL5 builds it.
+// for an event-driven task. io_task and bms_task read their period parameters live instead.
 uint32_t default_period_ms(const TaskSpec& spec);
 
 // The default of a GateLink parameter in lran-config's table, or 0 if the table has no such
@@ -90,6 +89,9 @@ inline constexpr uint16_t kParamInputDebounceSamples = 0x1011;
 // And those vedirect_task and lora_task read (GL4).
 inline constexpr uint16_t kParamHexTimeoutMs        = 0x1030;
 inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
+// And bms_task's period (GL5, PRD R-3.4a).
+inline constexpr uint16_t kParamBmsPollS            = 0x1040;
+inline constexpr uint16_t kParamBmsWindowMaxMs      = 0x1042;  // the interlock's cap, Impl Plan 5.2
 // And the task watchdog's timeout, which start_tasks() arms (GL3, Impl Plan 5.2).
 inline constexpr uint16_t kParamWatchdogTimeoutS    = 0x1060;
 

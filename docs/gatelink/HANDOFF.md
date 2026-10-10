@@ -22,8 +22,7 @@ MPPT on the bench, and Tier 3 needs neither.
 
 | Tier | Task | Read |
 |---|---|---|
-| 1 | **GL5, `bms_task`** against the live pack | Plan §8.2's GL5 row and §5.2's interlock; `lib/bms-ble/`; [`bms-protocol.md`](./bms-protocol.md) |
-| 1 | **M7**, pack current under charge and under load | Decision Register M7; plan §8.2's GL5 row |
+| 1 | **M7**, pack current under charge and under load | Decision Register M7; plan §8.2's GL5 row; the engineering log's 2026-10-10 *GL5* entry for `bms data` |
 | 1 | **`vedirect_task`'s CPU share** beside NimBLE, and **L3's captured block** | *Open*, below |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
 | 3 | **GL3, reset causes** | Spec §8.14 and §10.7; PRD R-3.5f–R-3.5k; plan §4.1's RST boot check |
@@ -45,20 +44,20 @@ keeping the gate down for work that doesn't need the pack.
 
 **Tier 1 needs the pack and the MPPT. Do it first, in this order:**
 
-1. **Build GL5's `bms_task` against the live pack.** Check its decode against
-   `wattcycle-reader`, then measure the window and abort latency, which set
-   `bms_window_max_ms`'s default and range. NimBLE's logging moves onto the leveled log
-   here.
-2. **Capture M7**, pack current under charge and under load. The charge leg needs a
-   PV-side source: a current-limited lab supply at least about 5 V above the pack voltage.
-   Without one, only the load leg runs.
-3. **Measure `vedirect_task`'s CPU share with NimBLE running.**
-4. **Capture L3's raw text block** while the MPPT is connected.
+1. **Capture M7**, pack current under charge and under load, with `bms now` and
+   `bms data` on the console. At rest the pack reads 0 mA with the raw discharge flag, which
+   settles nothing. The charge leg needs a PV-side source: the panel in sun, or a
+   current-limited lab supply at least about 5 V above the pack voltage. The load leg needs
+   a load well above the node's own draw.
+2. **Measure `vedirect_task`'s CPU share with NimBLE running.** `bms_task` is built, so
+   `bms now` in a loop gives the overlap.
+3. **Capture L3's raw text block** while the MPPT is connected.
 
 **Tier 2 uses the pack as realistic power.** Soak for 24 to 72 h through the real power
 chain (MPPT, pack, StamPLC), with the radio, VE.Direct, BMS polls and SD writes all active.
-It finds the faults that would otherwise cost walks to the gate. The INA226's node draw is a
-first read on the power budget. It costs gate downtime, so it is the operator's call.
+It finds the faults that would otherwise cost walks to the gate. It is also the check on
+GL5's timer-task panic: the bench ran 52 windows clean on `esp_timer`, but the cause is not
+established. The INA226's node draw is a first read on the power budget. It costs gate downtime, so it is the operator's call.
 
 **Then the pack and the MPPT go back to the gate.** Once the MPPT is back on PV, its own
 daily history (yield, Vmin) can be read in VictronConnect. A week of it could stand in for
@@ -85,13 +84,15 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **The MPPT's settings agree three ways**: VictronConnect, the raw HEX answers and BF-30's
-  readback. [`mppt-config.md`](./mppt-config.md) has the table. Nothing changed since the
-  2026-10-08 readback.
-- **R-6.1b is met** for battery type, equalisation, temperature compensation and float.
-  Absorption, 14.20 V, is the low end of the pack's 14.2–14.6 V, kept for cell life.
-- **`0xEDF1` reads `0xFF`** while VictronConnect names the preset *Smart Lithium
-  (LiFePo4)*.
+- **GL5's `bms_task` reads the live pack** once per `bms_poll_s` and fills spec §7.2.3's
+  block. Its decode agrees with `wattcycle-reader`'s.
+- **A window takes 0.99–2.24 s, and an abort releases the interlock within 0.62 s.** The
+  abort latency is NimBLE's connect, which cannot be interrupted. `bms_window_max_ms` is at
+  `0x1042`, default 5000 ms (plan §5.2).
+- **Cycling the controller every poll panicked the FreeRTOS timer task** until the client
+  refused the pack's parameter update and NimBLE's callouts moved to `esp_timer`
+  (engineering log, 2026-10-10).
+- **A reply the bridge was waiting on cut a live window short** twice, on real traffic.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -121,13 +122,13 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.33. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV |
-| Not started | GL2, GL5–GL9 |
+| Done | Plan v0.34. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| In progress | GL1: done except R-3.5j's brownout leg, left open by the operator. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, and CONFIG passes with the card and without it. State derivation and the reset-cause slice remain. GL4: every criterion passes on the bench except M14, which waits for the MPPT to go back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured and `bms_window_max_ms` is set; M7, M23, the low-temperature paths and `0x8D` remain |
+| Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
 ```bash
-pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, config store
+pio test -d firmware/gatelink -e native       # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, config store
 python3 tools/checks/io_task_never_blocks.py  # R-5.2a (L6)
 pio test -d firmware/simnode -e native        # L1's regression suite; must stay green
 pio test -d lib/lran-node -e native           # the node engine (L1), split readback
@@ -240,7 +241,7 @@ board's are its D-pads (expansion board §6.1).
 - **GateLink's USB console loses bytes from the middle of lines**, about one line in ten
   (engineering log, 2026-10-08). Splitting the `ved` line did not stop it.
 - **`vedirect_task` wakes about 240 times a second**, once per burst of received bytes.
-  Measure its CPU share before GL5 puts NimBLE beside it.
+  Measure its CPU share now that NimBLE runs beside it.
 - **The PHY group answers `READ_ONLY` on GateLink**, because spec §12.4.2's trial is not
   built here (plan §6.4). A fleet PHY change cannot include GateLink until it is.
 - **The SD library prints its retries to `Serial` from `lora_task`**, through the core's
@@ -265,8 +266,19 @@ board's are its D-pads (expansion board §6.1).
   and the node ID alone, so replacing GateLink's key means a new master and a reflash of
   every node. A per-node key generation would contain it. That is a protocol question,
   not a GateLink one.
-- **`nimble_transport.cpp` logs through `Serial`**, as the PoC did. GateLink's leveled log
-  (GL1) should carry those lines before `bms_task` uses the file, at GL5.
+- **The pack is matched by its advertised name, `XDZN_001_49A1`, compiled in**
+  (`board_profile.h`). A replacement pack means a USB reflash at the gate. A parameter
+  cannot hold a name; whether to match any `XDZN_001_` instead is the operator's call.
+- **Spec §7.2.3 names no sentinel for `cell_temp_c`.** GateLink sends `INT8_MIN` for a
+  sensor the pack did not report, under root rule 6. The specification should say so.
+- **`bms_alarms` and `bms_flags` bits 1–5 are sent unavailable**, because `0x8D` is not
+  decoded (`bms-protocol.md` §9). R-3.4a and R-3.4c need it, and the decode needs a
+  capture during a protection event.
+- **A `COMMAND_ACK` queued at the worst moment of a window keeps about 1.9 s of the
+  bridge's 3 s ACK timeout** for media access and airtime: the connect can hold the abort
+  for 1.1 s. A late ACK costs one retry and a `DUPLICATE_CACHED`, not a second pulse.
+- **The scheduled poll at `bms_poll_s` was not watched on the bench.** Every bench window
+  came from `bms now`. The soak will show the scheduled one.
 - **System PRD §9.1's layout is stale** beyond the `bms-ble` and `lran-platform` lines: it
   lists `gatelink-config.md` and `THIRD_PARTY_NOTICES.md` as not yet written, and the
   bridge and GateLink firmware as planned. A System PRD style revision, not GateLink's.

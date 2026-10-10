@@ -216,6 +216,10 @@ inline constexpr ParamDef kGateLinkParams[] = {
      "BLE BMS read period, PRD R-3.4a"},
     {0x1041, "charge_inhibit_confirm_s", Owner::Node, Access::ReadWrite, PType::U16, 60, 3600,
      300, "s", "Inferred charge inhibit must hold this long, PRD R-6.4b"},
+    // GL5 measured a window at 0.96-1.52 s on the bench. The floor sits above that, and a cap
+    // set too low costs BMS reads, not the gate: an awaited reply still ends a window early.
+    {0x1042, "bms_window_max_ms", Owner::Node, Access::ReadWrite, PType::U16, 2000, 30000,
+     5000, "ms", "BLE window cap; LoRa waits no longer, Impl Plan 5.2"},
 
     // Panel and bench. The buzzer has no requirement yet, so it starts silent.
     {0x1050, "display_timeout_s", Owner::Node, Access::ReadWrite, PType::U16, 10, 3600, 60,

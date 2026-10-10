@@ -15,6 +15,7 @@
 #include <cmath>
 #include <new>
 
+#include "ble_interlock.h"
 #include "board_profile.h"
 #include "lran/link/media_access.h"
 #include "lran/link/radio_config.h"
@@ -66,7 +67,8 @@ uint32_t g_mode_start_ms = 0;
 uint32_t g_tx_timeout_ms = 0;
 
 OutFrame g_tx;
-bool     g_have_tx = false;
+bool     g_have_tx    = false;
+bool     g_tx_started = false;  // media access began, under the interlock
 
 uint8_t g_rx_buf[256];  // the SX1262 accepts 255 bytes; spec 14 stage 2a must see them
 // A frame read under the SpiLock and not yet handed to the client (radio_service()).
@@ -141,6 +143,7 @@ int16_t configure() {
 void end_tx() {
   g_access.finish();
   g_have_tx = false;
+  ble_interlock_tx_release();
 }
 
 void radio_failed(int16_t status, uint32_t now_ms) {
@@ -313,17 +316,24 @@ void service_transmit(uint32_t now_ms) {
   start_receive(now_ms);
 }
 
-// TODO(GL5): take the LoRa/BLE interlock before the CAD (R-4.3h, Impl Plan 5.2). bms_task
-// is a stub until then, so nothing holds it.
+// R-4.3h, Impl Plan 5.2 - media access starts only once the LoRa/BLE interlock is held, so
+// neither the CAD nor the transmit overlaps a BLE window. A frame waiting for it has not
+// started its backoff.
 void service_tx(RadioClient* client, lran::node::Outbox* outbox, uint32_t now_ms) {
   if (!g_have_tx) {
     if (!outbox->pop(&g_tx)) return;
-    g_have_tx = true;
+    g_have_tx    = true;
+    g_tx_started = false;
+  }
+  if (!g_tx_started) {
+    if (!ble_interlock_tx_take(g_tx.bytes, g_tx.len, now_ms)) return;
+    g_tx_started = true;
     g_access.start(now_ms);
   }
   switch (g_access.step(now_ms)) {
     case TxStep::Idle:
       g_have_tx = false;
+      ble_interlock_tx_release();
       return;
     case TxStep::Wait:
       return;
