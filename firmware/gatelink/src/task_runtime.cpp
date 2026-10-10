@@ -913,6 +913,11 @@ void lora_task(void*) {
     }
     if (boot_alarms_owed && io.inputs_read) {
       boot_alarms_owed = false;
+      // The inputs the decision rests on, so a missed alarm shows its cause on the console.
+      char text[56];
+      std::snprintf(text, sizeof(text), "boot: first input read raw 0x%02x debounced 0x%02x",
+                    io.inputs_raw, io.inputs);
+      QueueSink().line(text);
       if ((io.inputs & kInputFire) != 0) send_boot_alarm(lran::EventType::FireAsserted, now);
       if ((io.inputs & kInputHardShutdown) != 0) send_boot_alarm(lran::EventType::HardShutdown, now);
     }
