@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-09 by a planning session**, which ordered the work for the bench window
-and changed no code. *What the last session established* is still the CONFIG session's.
+**Written 2026-10-10 by the MPPT readback session**, which changed no code. It recorded
+the MPPT's settings in [`mppt-config.md`](./mppt-config.md).
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -22,7 +22,6 @@ MPPT on the bench, and Tier 3 needs neither.
 
 | Tier | Task | Read |
 |---|---|---|
-| 1 | **MPPT settings readback.** The MPPT is already set for LiFePO4, with no auto-detect (operator, 2026-10-09). Check it by HEX and BF-30's readback against the operator's VictronConnect snapshot | Plan §8.2's GL5 row; the engineering log's 2026-10-08 *Writes through the broker* entry |
 | 1 | **GL5, `bms_task`** against the live pack | Plan §8.2's GL5 row and §5.2's interlock; `lib/bms-ble/`; [`bms-protocol.md`](./bms-protocol.md) |
 | 1 | **M7**, pack current under charge and under load | Decision Register M7; plan §8.2's GL5 row |
 | 1 | **`vedirect_task`'s CPU share** beside NimBLE, and **L3's captured block** | *Open*, below |
@@ -46,19 +45,15 @@ keeping the gate down for work that doesn't need the pack.
 
 **Tier 1 needs the pack and the MPPT. Do it first, in this order:**
 
-1. **Read back the MPPT's LiFePO4 settings** by HEX and BF-30, against the VictronConnect
-   snapshot. The readback is a check, not a change. The only write so far was GL4's `0xEDF0` test
-   on 2026-10-08, which set 15 A back after setting 14 A. The check may give `0xEDF4` and
-   `0xEDF2` non-zero values, which would exercise their scales for the first time.
-2. **Build GL5's `bms_task` against the live pack.** Check its decode against
+1. **Build GL5's `bms_task` against the live pack.** Check its decode against
    `wattcycle-reader`, then measure the window and abort latency, which set
    `bms_window_max_ms`'s default and range. NimBLE's logging moves onto the leveled log
    here.
-3. **Capture M7**, pack current under charge and under load. The charge leg needs a
+2. **Capture M7**, pack current under charge and under load. The charge leg needs a
    PV-side source: a current-limited lab supply at least about 5 V above the pack voltage.
    Without one, only the load leg runs.
-4. **Measure `vedirect_task`'s CPU share with NimBLE running.**
-5. **Capture L3's raw text block** while the MPPT is connected.
+3. **Measure `vedirect_task`'s CPU share with NimBLE running.**
+4. **Capture L3's raw text block** while the MPPT is connected.
 
 **Tier 2 uses the pack as realistic power.** Soak for 24 to 72 h through the real power
 chain (MPPT, pack, StamPLC), with the radio, VE.Direct, BMS polls and SD writes all active.
@@ -90,16 +85,13 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **`CONFIG` round-trips with the card and without it.** A `SET` with the card answers
-  `persisted`. One with the card pulled, or absent at boot, answers
-  `applied_not_persisted`, and `node_flags` bits 0 and 1 clear. After a reboot the card's
-  values come back. `watchdog_timeout_s` applies at once and arms from the card at boot.
-- **The engine ran inside the SPI lock**, and the first `SET` deadlocked `lora_task` on
-  its card write. `radio_service()` now hands a frame over after releasing the lock.
-- **With no card, a remount holds the SPI bus for about 1 s.** So a card is retried after
-  configuration traffic only, never on a timer.
-- **`lran-node` answered every applied `SET` `APPLIED_NOT_PERSISTED`**, whatever the store
-  did. It now answers with the store's state after the set (D53).
+- **The MPPT's settings agree three ways**: VictronConnect, the raw HEX answers and BF-30's
+  readback. [`mppt-config.md`](./mppt-config.md) has the table. Nothing changed since the
+  2026-10-08 readback.
+- **R-6.1b is met** for battery type, equalisation, temperature compensation and float.
+  Absorption, 14.20 V, is the low end of the pack's 14.2–14.6 V, kept for cell life.
+- **`0xEDF1` reads `0xFF`** while VictronConnect names the preset *Smart Lithium
+  (LiFePo4)*.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -168,7 +160,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08 | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | **The MPPT is on the operator's bench, on a bench supply with no PV**, since 2026-10-08; the gate runs on its battery alone meanwhile. The rest is installed, not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | **The MPPT is on the operator's bench, on a bench supply with no PV**, since 2026-10-08; the gate runs on its battery alone meanwhile. The rest is installed, not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -327,7 +319,7 @@ board's are its D-pads (expansion board §6.1).
   2026-10-08). Nothing explains it yet; watch for a repeat.
 - **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23, and **M7 / W6** (`pack_ma` sign). The register
   holds their status.
-- **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised.
+- **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised. The LiFePO4 settings disable both, so no readback of this configuration will exercise them.
 - **W17** stays open until after GateLink deploys, by operator decision (D59).
 
 ### Closed, and not to be reopened by habit
