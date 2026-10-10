@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.17
+**Version:** 0.18
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-07
+**Last updated:** 2026-10-10
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -422,10 +422,12 @@ the node's side:
   status when the condition is present at boot (**D72**). An event queued at a reset is
   lost, and a second alert is the accepted price of never missing a fire.
 - **R-3.5j.** **No relay may energize from reset until the firmware drives it.** The
-  relay drivers SHALL hold every output off through the boot ROM, a watchdog reset and a
-  brownout, whatever state the ESP32's pins pass through. A pulse at boot is an
-  unauthenticated gate command. **Verified by** each relay output observed on a scope
-  through a power cycle, a watchdog reset and a brownout.
+  relay drivers SHALL hold every output off through the boot ROM and a watchdog reset,
+  whatever state the ESP32's pins pass through. A pulse at boot is an unauthenticated
+  gate command. **Verified by** each relay output observed on a scope through a power
+  cycle and a watchdog reset. A brownout is out of scope: the pack's BMS cuts off near
+  10 V and the node runs down to at least 5.25 V, so VIN reaches the reset point only if
+  the BMS and the battery have both failed.
 - **R-3.5k.** GateLink SHALL reset the SX1262 through its reset line at every boot. An
   ESP32 reset does not reset the radio, which can be left transmitting or on a PHY trial's
   settings.
@@ -1003,6 +1005,12 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.18** — **R-3.5j drops the brownout leg**, by operator decision 2026-10-10. VIN
+  comes from the WattCycle pack, whose BMS cuts off near 10 V, and GateLink ran at
+  5.25 V, the bench supply's floor, without a reset (engineering log, 2026-10-07). A VIN
+  low enough to brown the ESP32 out means the BMS and the battery have both failed, which
+  no node-side failsafe can answer.
 
 - **v0.17** — **R-4.4b drops the node's own current.** Measurement M12 found the
   INA226's shunt does not carry the node's supply, and the host's schematic puts it on the

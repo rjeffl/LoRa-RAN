@@ -82,6 +82,9 @@ uint32_t              g_last_irq_read_ms = 0;
 lran::link::RxArrival g_arrival;  // the CAD guard's view of an arriving frame
 
 constexpr uint32_t kBeginRetryMs      = 10000;
+// BUSY fell 1.6 ms after release on the carrier (bring-up image's `reset`). The SX1262
+// datasheet allows a cold start several milliseconds; 10 ms covers it with margin.
+constexpr uint32_t kRstBusyFallMaxUs  = 10000;
 constexpr uint32_t kCadTimeoutMs      = 500;   // a few 4.1 ms symbols at SF9 / 125 kHz
 constexpr uint32_t kIrqReadMs         = 1000;  // HEADER_ERR never reaches DIO1
 constexpr uint32_t kRxInProgressMaxMs = 1500;  // spec 15.1 - the longest frame at SF9 is 1107 ms
@@ -346,7 +349,41 @@ void service_tx(RadioClient* client, lran::node::Outbox* outbox, uint32_t now_ms
   }
 }
 
+// Impl Plan 4.1 - drive RST low and require BUSY high, then release it and require BUSY
+// to fall. Also PRD R-3.5k's reset: an ESP32 reset leaves the radio as it was, perhaps
+// transmitting. The caller holds the SpiLock, so no transaction sees BUSY move.
+void check_rst() {
+  const auto& p = kCarrierRadio;
+  pinMode(p.busy, INPUT);
+  pinMode(p.rst, OUTPUT);
+  digitalWrite(p.rst, LOW);
+  delayMicroseconds(2000);
+  const bool busy_in_reset = digitalRead(p.busy) == HIGH;
+  const uint32_t t0 = micros();
+  digitalWrite(p.rst, HIGH);
+  while (digitalRead(p.busy) == HIGH && micros() - t0 < kRstBusyFallMaxUs) {
+  }
+  g_stats.rst_busy_fall_us = micros() - t0;
+  if (!busy_in_reset) {
+    g_stats.rst_check = RstCheck::BusyLowInReset;
+  } else if (digitalRead(p.busy) == HIGH) {
+    g_stats.rst_check = RstCheck::BusyStuckHigh;
+  } else {
+    g_stats.rst_check = RstCheck::Passed;
+  }
+}
+
 }  // namespace
+
+const char* rst_check_name(RstCheck r) {
+  switch (r) {
+    case RstCheck::NotRun:         return "not run";
+    case RstCheck::Passed:         return "passed";
+    case RstCheck::BusyLowInReset: return "FAILED, BUSY low in reset";
+    case RstCheck::BusyStuckHigh:  return "FAILED, BUSY stuck high";
+  }
+  return "?";
+}
 
 int16_t radio_begin(void* task) {
   const auto& p = kCarrierRadio;
@@ -359,6 +396,7 @@ int16_t radio_begin(void* task) {
     g_radio = new (g_radio_storage) ProbeRadio(module);
   }
   SpiLock lock;
+  check_rst();
   return try_begin(millis());
 }
 

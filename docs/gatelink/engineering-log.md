@@ -1339,3 +1339,81 @@ values exercise `decode_mppt()` where the bench captures read zero.
 
 `interrupted` against `bad_checksum` on one run: `vedirect_task`'s 2026-10-10 run above saw
 0 of each across 135 blocks, with no Gets in flight.
+
+## 2026-10-10 — GL3's reset causes on the air, and the StamPLC's inputs read nothing
+
+**The StamPLC on its 12 V supply, the bridge on `/dev/cu.usbserial-0001`, bench.py with
+`--mqtt`.** Images `2537cb9`, then `7dbf50a` with a `panic` command, then `99cc6a6`. Trace:
+[`data/gl3-reset-causes-2026-10-10.log`](data/gl3-reset-causes-2026-10-10.log).
+
+**Every reset cause the bench can produce reached Home Assistant with the right `detail`.**
+Each boot printed `boot: <cause>, ctx_id …` and the bridge published
+`lran/gatelink/event/boot`:
+
+| Cause | Produced by | `detail` |
+|---|---|---|
+| `POWER_ON` | USB and VIN removed together | 1 |
+| `REBOOT_COMMAND` | `165` on `lran/gatelink/cmd/reboot/set` | 2 |
+| `SOFTWARE` | console `restart` | 3 |
+| `WATCHDOG` | `wdt stall` (task watchdog) and `hang` (interrupt watchdog) | 4 |
+| `PANIC` | console `panic`, new: `abort()` | 5 |
+| `EXTERNAL` | an upload, or the host opening the USB serial port | 7 |
+
+The `REBOOT` came back `acked`, one attempt, 0.4 s before the node restarted (R-3.5f).
+**31 `BOOT` events carried 31 different `ctx_id`s** (R-3.5h). The boot's word is now drawn
+in `start_tasks()` with `bootloader_random_enable()` on, before BLE or any task starts.
+
+**A USB reset reported `UNKNOWN` until this branch.** ESP-IDF 4.4 has no `ESP_RST_USB`, and
+`esp_reset_reason()` answers `ESP_RST_UNKNOWN` for a reset through the USB serial/JTAG
+peripheral. The ROM's `rtc_get_reset_reason(0)` reads `USB_UART_CHIP_RESET` or
+`USB_JTAG_CHIP_RESET`, and the node maps both to `EXTERNAL`. `main` (`c362d31`) flashed for
+the input check below printed `Reset: unknown` on the same reset where this branch prints
+`Reset: usb`.
+
+**On the bench a power-on can read `EXTERNAL`.** When the host reopens the serial port as
+the board comes up, the open resets the chip again over USB, and the second boot is the one
+the console shows. The first boot's `power_on` event still reaches the broker.
+
+**R-3.5k's RST check passes on every boot.** RST low reads BUSY high, and BUSY falls
+1618–1622 µs after release, the 1.6 ms the bring-up image's `reset` measured on
+2026-10-06. RadioLib's `begin()` pulses RST too; the check is what proves the line arrives.
+
+**The `BOOT` event's `input_bits` is always 0.** `announce_boot()` builds it before
+`io_task`'s first read lands. The alarms re-sent at boot wait for that read.
+
+### R-3.5i not verified: the StamPLC's inputs read 0 with 13.4 V on them
+
+The operator fed 12 V to IN5 with `EXCOM_COM` on 12 V−. One `in` at 783 s read raw `0x10`.
+From the next `restart` on, every read was `0x00`: the boot's first read, and every live
+read after it.
+
+What was ruled out, in order:
+
+- **Wiring.** A DVM read 13.36 V at the IN5 and IN6 screw terminals against `EXCOM_COM`,
+  ferrules crimped, polarity right. IN5 alone drew 4.1 mA in series at 12 V.
+- **A floating input supply.** Tying the input supply's negative to VIN's changed nothing.
+  IN8 fed from the VIN supply through the bench switch, the setup that worked on
+  2026-10-06, read 0 as well.
+- **The AW9523.** K1–K4 clicked on `relay`, with 0 I²C failures. Its registers, read through
+  `io_task`: input `00 0f`, output `00 0f`, config `f0 ff`, interrupt `ff ff`, GCR `10`. The
+  input pins are inputs and read low; the unused P1_0–P1_3 read high, so the register is
+  live.
+- **This branch's firmware.** `main` (`c362d31`) read IN8 as `0x00` the same way, after a
+  power-on.
+
+**The StamPLC IO board schematic (V1.0) does not match the board.** It draws each input as
+`EXCON_COM` → 6.2 kΩ → EL3H4 LED → 6.2 kΩ → `EXCON_INx`, and the output as an emitter
+follower from `SYS_3.3V` through 1 kΩ to `SYS_INx`, 5.1 kΩ to ground. Unpowered, every
+input reads 6.2 kΩ to `EXCOM_COM` in both directions, the never-wired ones included. An
+ohmmeter cannot light an LED, so a symmetric 6.2 kΩ means the measured path does not pass
+through one. And the schematic's 12.4 kΩ would allow 1 mA at 12 V, where 4.1 mA was
+measured.
+
+**Not established: why the optocouplers' outputs never rise.** One hypothesis was the
+schematic's margin: about 1 mA of LED current needs a CTR near 50 % to pull `SYS_INx` past
+the AW9523's threshold, against the EL3H4's 20–300 %. The 4.1 mA reading contradicts it.
+The next checks are an input fed from 24 V (within the board's 5–36 V), and the board's
+revision against the schematic's.
+
+**Falsified by:** any input reading 1 while energized. The firmware is then cleared, and
+R-3.5i's boot check can be run as written.

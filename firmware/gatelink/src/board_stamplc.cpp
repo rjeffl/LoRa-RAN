@@ -105,7 +105,7 @@ void board_begin() {
   // I2C's SDA (GL0 bring-up).
   SPI.begin(kCarrierRadio.sck, kCarrierRadio.miso, kCarrierRadio.mosi, -1);
   // Every relay output stayed off through this, on a logic analyzer, across power cycles
-  // and a watchdog reset (PRD R-3.5j, bench 2026-10-07). The brownout leg was not run.
+  // and a watchdog reset (PRD R-3.5j, bench 2026-10-07). PRD v0.18 drops the brownout leg.
   M5StamPLC.begin();
   M5StamPLC.setBacklight(true);
   // GateLink mounts the StamPLC upside down (bench, 2026-10-02). Turning from the library's

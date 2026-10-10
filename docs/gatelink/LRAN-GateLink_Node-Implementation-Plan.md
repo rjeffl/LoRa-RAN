@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.34
+**Version:** 0.35
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.17
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.18
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -1274,7 +1274,7 @@ L1 and L2 are the long ones. L3, L4 and L5 are independent of each other and of 
 | # | Milestone | Depends on | Acceptance criteria |
 |---|---|---|---|
 | **GL0** | **Carrier board bring-up** | Carrier BOM in hand; **measurement M4** settled; expansion board §10's checks ticked | Expansion board §11 steps 1–4 pass in order: power with no module seated, radio, DIO1 continuity, shared bus. The 3.3 V rail holds ≥3.2 V through SX1262 TX **at the D33 ceiling, −4 dBm conducted** — the power this node operates at. **If Envelope B is ever triggered, re-run this at the power it allows** (§3.4); the rail is sized for it but untested there. RadioLib initialises the radio from §3.3's `RadioPins`: TCXO 1.8 V, DIO2-as-RF-switch **and** `setRfSwitchPins(G40, NC)`. The IRQ is seen to fire on the first transmit, not inferred. Ping and loopback with the bridge succeed on the bench. **Failure here is D30 trigger 1** |
-| **GL1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle, a watchdog reset and a brownout** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
+| **GL1** | **Board layer** | L6; a StamPLC | **The LCD, the microSD and an SPI peripheral standing in for the radio work concurrently under the one lock** (§5.2), or the plan changes before anything builds on it. Relays pulse to a measured width within ±10 ms at the configured value; inputs read and debounce correctly against a bench switch; LCD, buttons, buzzer, INA226, LM75, RTC and SD all accessible through the board layer. **Every relay output stays off on a scope through a power cycle and a watchdog reset** (PRD R-3.5j), with `M5StamPLC`'s own initialisation included. **Measurement M12** says which current the INA226 sees (§3.4) |
 | **GL2** | **Controller rewire, reprogram and manual validation** | Nothing — runs in parallel | §7.4 steps 1–6 complete. `docs/gatelink/1050-config.md` written. **Measurements M1, M2, M3 and M8 captured.** The §3.2 state table confirmed by DVM through real cycles, including the handheld remote's OPEN+LOCK |
 | **GL3** | **Protocol, framing and configuration on the bench** | GL0, GL1, L1, L4, L5 | The ACK-timing question and the BLE-window bound (§5.2) are decided and recorded. Frames serialize and deserialize against the committed test vectors. MAC, sequence, context resync, the context roll after a bridge restart (Protocol Spec §10.6) and command dedup all verified. **A reset of each cause the bench can produce is verified against spec §10.7**: the ACK before a `REBOOT`, a `BOOT` event with its reset cause, no repeated `ctx_id`, active alarms sent again, and the radio reset at boot (PRD R-3.5f–R-3.5k). **`simnode` runs alongside**, validating addressing, per-node keying, availability watchdog, fragmentation and CAD/backoff. Direction classification passes injection including **30 s gaps and partial traversals**. Held-open alert fires on the first edge for all four hold sources. **Configuration round-trip passes with a card and again with the card removed**, reporting honestly in both cases |
 | **GL4** | **VE.Direct** | GL0, L3, **measurement M4** (closed 2026-10-08) | Translator selected per D25. All documented text fields parse from a real MPPT 75/15. **HEX round-trip proven** — request out, response in, correlated. Write rejected when unauthenticated, and rejected by the bridge when disarmed. Staleness flag asserts when the stream stops. The bridge's register readback (BF-30) agrees with the real MPPT, which B6 waits on. §9.8 baseline log started (**measurement M14**) |
@@ -1525,6 +1525,9 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.35** — **PRD v0.18: R-3.5j drops the brownout leg**, and §8.2's GL1 row with it.
+  The pack's BMS cuts off near 10 V, and the node ran at 5.25 V without a reset.
 
 - **v0.34** — **GL5 builds `bms_task`.** §5.2 records the measured window and abort
   latency, and `bms_window_max_ms` at `0x1042`.

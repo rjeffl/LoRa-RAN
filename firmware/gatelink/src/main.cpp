@@ -59,7 +59,7 @@ void setup() {
   Serial.begin(115200);
   delay(200);  // USB CDC enumeration on a cold boot, before the first println
 
-  const char* reset = reset_reason_name(esp_reset_reason());
+  const char* reset = gatelink::usb_chip_reset() ? "usb" : reset_reason_name(esp_reset_reason());
 
   // The banner names the specification version this firmware is built against.
   // tools/checks/spec_citation_version.py reads that line, as it reads the bridge's.

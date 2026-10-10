@@ -26,6 +26,10 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
 // a watchdog already running. Returns false if ESP-IDF refused, and the old timeout stands.
 bool apply_watchdog_timeout(uint32_t seconds);
 
+// True when the last reset came through the USB serial/JTAG peripheral: an upload, or the
+// host toggling DTR. Spec 8.14 counts it EXTERNAL; the banner and the BOOT event agree.
+bool usb_chip_reset();
+
 // The timeout in force, in seconds, or 0 if the watchdog never armed.
 uint32_t watchdog_timeout_s();
 
