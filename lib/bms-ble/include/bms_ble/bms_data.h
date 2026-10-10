@@ -30,22 +30,15 @@ struct BmsData {
     int16_t  temp_dc[kMaxTemps];   // 0.1 °C, signed
 
     uint32_t pack_mv;              // pack voltage, mV
-    int32_t  current_ma;           // + = charge, - = discharge  (SEE WARNING)
-    bool     discharging;          // raw 0x4000 flag, before sign interpretation
-    uint16_t current_raw;          // the field as received, kept for M7's capture
+    int32_t  current_ma;           // + = charge, - = discharge (M7)
+    bool     discharging;          // bit 15 of the raw field
+    uint16_t current_raw;          // the field as received; bit 14 is not yet understood
 
     uint8_t  soc_pct;              // state of charge, %
     uint16_t remaining_dAh;        // 0.1 Ah
     uint16_t nominal_dAh;          // 0.1 Ah
     uint16_t cycles;
     uint16_t soh_dpct;             // state of health, 0.1 %
-
-    // WARNING (bms-protocol §10, open question): the sign convention is NOT verified.
-    // The battery has only ever been observed at rest, where current reads raw
-    // 0x4000 — which is exactly the discharge flag with zero magnitude, so a
-    // resting pack cannot disambiguate charge from discharge. `discharging`
-    // records the raw flag; `current_ma` applies the assumed convention.
-    // Capture 0x8C under charge and under load and confirm before trusting it.
 
     void clear() {
         valid = false;

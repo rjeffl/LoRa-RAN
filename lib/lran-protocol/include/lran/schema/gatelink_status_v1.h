@@ -57,9 +57,8 @@ struct GateLinkStatusV1 {
   uint8_t  bms_flags        = 0;                 // 37  spec 7.2.7
   uint16_t pack_mv          = 0;                 // 38  mV
   int16_t  pack_ma          = 0;                 // 40  mA
-  // TODO(W6): pack_ma sign convention unconfirmed. Bit 0x4000 is believed to be the
-  // discharge flag but has only ever been observed at 0.0 A - capture once under
-  // charge and once under load.
+  // TODO(W6): M7 measured the sign on 2026-10-10: positive is charge, and lib/bms-ble
+  // decodes it so. Spec 7.2.3 still calls it pending until a revision states it.
   uint8_t  cell_count       = 0;  // 42  cells actually reported
   uint8_t  bms_rssi_neg     = 0;  // 43  magnitude of BLE RSSI; 80 means -80 dBm,
                                   //     0 means no link. Evidence for GateLink D28

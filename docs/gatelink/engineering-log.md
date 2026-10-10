@@ -1248,3 +1248,35 @@ measurable over 26 windows.
 **NimBLE's C++ log is off.** At `CORE_DEBUG_LEVEL` 2 it printed `E NimBLEClient:` lines
 from its host task straight to the USB port, around `log_task`. `bms_task`'s own line names
 the step a failed window ended in.
+
+## 2026-10-10 — M7: the pack current's sign is bit 15, and its unit is 0.1 A
+
+**`lib/bms-ble` read the pack current at a tenth of its size, and on charge with the wrong
+sign.** The bench had the WattCycle pack on the MPPT's battery terminals, the StamPLC on
+the same terminals, and a load on the MPPT's load output. Under load, `bms data` read
+−380 mA while the WattCycle app read −4.00 A and the MPPT 4.05 A out of the battery.
+`aiobmsble` 0.27's TDT decoder scales the field in 0.1 A and takes the sign from bit 15.
+`bms data` now prints the raw field (`853ba8f`), and the raw values settled it:
+
+| Pack state | Raw | Old decode | New decode | WattCycle app |
+|---|---|---|---|---|
+| At rest (`bms-protocol` §9) | `0x4000` | 0 mA | 0 mA | 0.0 A |
+| Load on the MPPT's load output | `0xC028` | −400 mA | −4000 mA | −4.00 A |
+| LiFePO4 charger on the pack, load off | `0x4012` | −180 mA | +1800 mA | +1.8 A |
+
+Bit 14 was set in all three states, so it is not the direction; what it means is still
+open (`bms-protocol` §10). The decode now takes the sign from bit 15 and the magnitude in
+0.1 A, and the host test holds both raw values. M7 is closed in the register. W6 stays
+open in the spec, which still calls `pack_ma`'s convention pending.
+
+**The load drew 4 A, not 11 A.** The MPPT reported `load 4000 mA` throughout.
+
+**The MPPT read the battery 0.9–1.5 V below the pack.** At 4 A the MPPT reported 11.74
+and later 12.31 V while the BMS read 13.21–13.24 V. The operator measured 12.3 V at the
+MPPT's terminals and 13.18 V at the pack's, and found one section of the harness warm.
+That is about 0.22 Ω, or 3.5 W at 4 A. At the controller's 15 A it would drop about 3.3 V
+and dissipate about 50 W, and the MPPT would regulate on a voltage well below the pack's.
+
+**The first window after a boot ended `aborted` at about 45 ms, twice,** with `abort
+asked` and nothing yet connected. The window after it read normally. It is consistent
+with the boot's LoRa traffic asking for the radio, but that was not checked.

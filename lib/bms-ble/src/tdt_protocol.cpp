@@ -211,13 +211,13 @@ bool decode_cells_and_pack(const Frame& frame, BmsData& out) {
         out.temp_dc[i] = (int16_t)((int32_t)be16(p + off + (size_t)i * 2) - 2731);
     }
 
-    // Current: bit 0x4000 is the discharge flag, magnitude is the low 14 bits
-    // in units of 10 mA. A plain signed int16 read here gives 16384 instead of
-    // zero — this is the field worth extra care (bms-protocol §6).
+    // Current: bit 15 is the sign, set while discharging; the low 14 bits are the
+    // magnitude in 0.1 A. Bit 14 was set at rest, on charge and under load, so it carries
+    // no direction. Measured against the WattCycle app and the MPPT (M7, bms-protocol §6).
     const uint16_t raw_i = be16(p + tail);
     out.current_raw = raw_i;
-    const int32_t magnitude_ma = (int32_t)(raw_i & 0x3FFF) * 10;
-    out.discharging = (raw_i & 0x4000) != 0;
+    const int32_t magnitude_ma = (int32_t)(raw_i & 0x3FFF) * 100;
+    out.discharging = (raw_i & 0x8000) != 0;
     out.current_ma = out.discharging ? -magnitude_ma : magnitude_ma;
 
     out.pack_mv       = (uint32_t)be16(p + tail + 2) * 10;   // x10 mV
