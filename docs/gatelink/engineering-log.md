@@ -1460,10 +1460,17 @@ as one series path. R14 explains the symmetric 6.2 kΩ an ohmmeter reads, and 13
 analysis, [`StamPLC-el3h4-input-analysis.md`](StamPLC-el3h4-input-analysis.md), has the
 arithmetic.
 
-**12 V drive works on this unit's port 0, without margin measured.** About 2.0 mA of LED
-current at 13.4 V reads high on all four. The analysis puts a minimum-CTR EL3H4 near 2.0 V
-at `SYS_INx`, below the threshold, so another unit or an aged one could fail. A dropout
-sweep on IN1–IN4 would measure the margin; it was not run.
+**IN1–IN4 hold high down to 5.24 V, the bench supply's floor.** The operator lowered
+the supply from 13.4 V in 0.5 V steps of about 5 s each, with the supply feeding only
+IN1–IN4. The edge counters stayed at 4/4 from the reflash on, so no input fell even for one
+poll. At 5.24 V the LED carries about 0.68 mA. The dropout lies below that and was not
+found. The analysis puts a minimum-CTR (20 %) EL3H4 near 2.0 V at `SYS_INx` with 2.0 mA of
+LED current, below the threshold, so this unit's parts sit well above the minimum. That is
+one unit's margin, not the design's.
+
+**A stiff 5 V source reads; a 5 V pull-up is another matter.** Each input draws about
+1.5 mA at 5.24 V, 0.85 mA of it through R14. Not tested: a pulled-up line, which sags under
+that load.
 
 **What it costs GateLink:** plan §3.2 puts the FIRE terminal on IN5 and the alarm output
 on IN6, the two inputs R-3.5i re-sends at boot. IN1–IN4 are taken by the four dry contacts.
