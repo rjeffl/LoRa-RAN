@@ -126,6 +126,13 @@ QueueHandle_t g_cmd_q = nullptr;
 // io_task tells lora_task that a sequence ended. Written before any task starts.
 TaskHandle_t g_lora_handle = nullptr;
 
+// The console's `aw`: log_task asks, io_task reads the expander on its next pass (it alone
+// owns the internal bus) and bumps the sequence.
+std::atomic<bool>     g_aw_req{false};
+std::atomic<uint32_t> g_aw_seq{0};
+uint8_t               g_aw_regs[kExpanderDumpLen];
+bool                  g_aw_ok = false;
+
 IoSnapshot io_snapshot() {
   portENTER_CRITICAL(&g_io_mux);
   const IoSnapshot copy = g_io;
@@ -364,6 +371,17 @@ void io_task(void*) {
       }
       g_io.buttons |= buttons;
       portEXIT_CRITICAL(&g_io_mux);
+    }
+
+    if (g_aw_req.exchange(false)) {
+      uint8_t    regs[kExpanderDumpLen] = {};
+      const bool ok = board_dump_expander(regs);
+      portENTER_CRITICAL(&g_io_mux);
+      std::memcpy(g_aw_regs, regs, sizeof(regs));
+      g_aw_ok = ok;
+      if (!ok) ++g_io.i2c_failures;
+      portEXIT_CRITICAL(&g_io_mux);
+      g_aw_seq.fetch_add(1);
     }
 
     if (reached(now, next_sensor)) {
@@ -1193,6 +1211,25 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(s.inputs_edges), s.relays,
                       static_cast<unsigned long>(s.i2c_failures),
                       kEarlyOff[static_cast<size_t>(board_early_off_result())]);
+  } else if (std::strcmp(cmd, "aw") == 0) {
+    const uint32_t seq = g_aw_seq.load();
+    g_aw_req.store(true);
+    for (int i = 0; i < 50 && g_aw_seq.load() == seq; ++i) vTaskDelay(pdMS_TO_TICKS(10));
+    uint8_t r[kExpanderDumpLen];
+    portENTER_CRITICAL(&g_io_mux);
+    std::memcpy(r, g_aw_regs, sizeof(r));
+    const bool ok = g_aw_ok;
+    portEXIT_CRITICAL(&g_io_mux);
+    if (g_aw_seq.load() == seq) {
+      n = std::snprintf(line, sizeof(line), "aw: no answer from io_task");
+    } else if (!ok) {
+      n = std::snprintf(line, sizeof(line), "aw: I2C failure");
+    } else {
+      n = std::snprintf(line, sizeof(line),
+                        "aw: input %02x %02x output %02x %02x dir %02x %02x int %02x %02x "
+                        "id %02x gcr %02x ledmode %02x %02x",
+                        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11]);
+    }
   } else if (std::strcmp(cmd, "sense") == 0) {
     const IoSnapshot s = io_snapshot();
     char ma[16] = "--";

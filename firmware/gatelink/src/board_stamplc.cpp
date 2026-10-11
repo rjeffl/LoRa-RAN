@@ -128,6 +128,11 @@ bool board_read_inputs(uint8_t* raw) {
   return true;
 }
 
+bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]) {
+  return m5::In_I2C.readRegister(kExpanderB, 0x00, out, 8, kI2cHz) &&
+         m5::In_I2C.readRegister(kExpanderB, 0x10, out + 8, 4, kI2cHz);
+}
+
 uint8_t board_poll_buttons() {
   M5StamPLC.update();
   uint8_t pressed = 0;
