@@ -1417,3 +1417,58 @@ revision against the schematic's.
 
 **Falsified by:** any input reading 1 while energized. The firmware is then cleared, and
 R-3.5i's boot check can be run as written.
+
+## 2026-10-11 — The StamPLC's inputs: port 0 reads, port 1 does not
+
+**The StamPLC on its 12 V supply, inputs fed from the bench supply or two 12 V SLAs in
+series, bench.py on the console.** The image already on the board, then `a890775` with an `aw` register
+dump. Board temperature 21.5–27.6 °C on the LM75. Each row is five `in` reads a second apart.
+
+**IN1–IN4 read high, and IN5–IN6 read 0, at every voltage tried.**
+
+| Energized | Drive | `EXCOM_COM` | raw |
+|---|---|---|---|
+| IN5, IN6 | 15.11 V | connected | `0x00` |
+| IN5, IN6 | 25.25 V | connected | `0x00` |
+| IN1 | 25.25 V | connected | `0x01` |
+| IN1–IN4 | 25.25 V | connected | `0x0F` |
+| IN1–IN4 | 13.4 V | **open** | `0x00` |
+| IN1–IN4 | 13.4 V | connected | `0x0F` |
+| IN1–IN6 | 13.4 V | connected | `0x0F` |
+
+In the last row the edge counters did not move, so IN5 and IN6 never rose at all. IN1–IN4
+are the AW9523's P0_4–P0_7 and IN5–IN8 its P1_4–P1_7 (IO schematic V1.0). Every input tested
+on 2026-10-10 was on port 1.
+
+**The expander's configuration is right for port 1.** `aw` with IN1–IN6 at 13.4 V:
+
+```text
+aw: input f0 0f output 00 0f dir f0 ff int ff ff id 23 gcr 10 ledmode ff ff
+```
+
+P1_4–P1_7 are inputs (`dir`, 1 = input) in GPIO mode (`ledmode`, 1 = GPIO), so no
+constant-current sink holds them low, and the ID is the AW9523's `0x23`. P1_4 and P1_5 read
+0 with their inputs energized. **So port 1's fault is in hardware:** the four opto outputs
+PC5–PC8, their `SYS_IN5`–`SYS_IN8` traces, or the expander's P1_4–P1_7. The case is sealed,
+and telling these apart needs it opened: `SYS_IN5` near 3 V with IN5 energized puts the
+fault in the expander, and near 0 V puts it before it.
+
+**Correction to 2026-10-10: the IO schematic does match the board.** R14 (6.2 kΩ) sits
+directly across each input's terminals, beside R22 and the LED. That entry read the input
+as one series path. R14 explains the symmetric 6.2 kΩ an ohmmeter reads, and 13.4 V draws
+2.2 mA through R14 and about 2.0 mA through the LED, the 4.1 mA measured. The operator's
+analysis, [`StamPLC-el3h4-input-analysis.md`](StamPLC-el3h4-input-analysis.md), has the
+arithmetic.
+
+**12 V drive works on this unit's port 0, without margin measured.** About 2.0 mA of LED
+current at 13.4 V reads high on all four. The analysis puts a minimum-CTR EL3H4 near 2.0 V
+at `SYS_INx`, below the threshold, so another unit or an aged one could fail. A dropout
+sweep on IN1–IN4 would measure the margin; it was not run.
+
+**What it costs GateLink:** plan §3.2 puts the FIRE terminal on IN5 and the alarm output
+on IN6, the two inputs R-3.5i re-sends at boot. IN1–IN4 are taken by the four dry contacts.
+R-3.5i can be run on IN1–IN4 to prove the firmware, but the deploy needs port 1 working or
+the two voltage-sense signals moved.
+
+**Falsified by:** IN5 or IN6 reading 1 while energized with `EXCOM_COM` connected, on this
+board.
