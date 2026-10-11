@@ -50,6 +50,13 @@ bool board_write_relays(uint8_t mask);
 // leaves *raw unchanged.
 bool board_read_inputs(uint8_t* raw);
 
+// The input and relay expander's registers 0x00-0x07 and 0x10-0x13, in that order: input,
+// output, direction, interrupt enable, then ID, GCR and the two LED-mode registers. The
+// bench's check on IN5-IN8, which read 0 while IN1-IN4 read (engineering log, 2026-10-11).
+// Returns false on an I2C failure.
+constexpr size_t kExpanderDumpLen = 12;
+bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]);
+
 // Reads the three front buttons. Bit 0 is A, 1 is B, 2 is C; a bit is set once per press.
 uint8_t board_poll_buttons();
 
