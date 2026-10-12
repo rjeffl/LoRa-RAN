@@ -1479,3 +1479,29 @@ the two voltage-sense signals moved.
 
 **Falsified by:** IN5 or IN6 reading 1 while energized with `EXCOM_COM` connected, on this
 board.
+
+## 2026-10-12 — GateLink deploys on four inputs, and IN3 and IN4 go through a 2N7000
+
+**The operator decided to deploy the bench StamPLC, whose IN5–IN8 read nothing** (2026-10-11
+entry). FIRE and the alarm output are no longer monitored, which leaves four signals for the
+four inputs that read. Decision Register D77 records it; PRD v0.19 and plan v0.36 carry it.
+
+**The 1050's SAFETY and EXIT lines idle at about 4.85 V, in standby too** (operator's
+meter). So the 1050 keeps its pull-ups up while it sleeps, and the lines are not stiff
+enough to drive an input directly (2026-10-11: about 1.5 mA at 5 V). The current each line
+sources into a short, which gives the pull-up's value, is not measured.
+
+**Each line drives a 2N7000, which sinks its input from a local 12 V on `EXCOM_COM`.**
+4.85 V of gate drive is above the 4.5 V at which the part's R<sub>DS(on)</sub> is specified.
+A 10 kΩ in series and 1 MΩ gate to source load the line by about 5 µA. The stage inverts:
+an idle line energizes the input. `EXCOM_COM` is shared, so IN1 and IN2 go sinking too, and
+the harnesses fitted on 2026-10-10 need rewiring. Plan §3.2 has the circuit.
+
+**The firmware turns opto levels into asserted inputs before the debounce.**
+`inputs_from_levels()` (`gate_io.h`) flips IN3 and IN4 and masks IN5–IN8 to 0. The FIRE and
+hard-shutdown path stays in `lora_task`, unreachable. `in`'s `raw` still shows the opto's
+levels; `debounced` is now asserted inputs. On the bench, with nothing on IN3 and IN4,
+`debounced` reads `0x0C`: both asserted, as a broken wire would read.
+
+**Falsified by:** a 2N7000 stage on the bench, its gate on a 4.85 V source through 10 kΩ,
+leaving its input reading 0 at `raw`.

@@ -1,17 +1,17 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.35
+**Version:** 0.36
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.18
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.19
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-12
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -239,27 +239,69 @@ is no window in which an unsecured pushbutton can assert OPEN+LOCK.
 
 ### 3.2 Gate controller — inputs
 
-All six land on the host's **opto-isolated 5–36 V DC channels** (EL3H4, read via the
-AW9523B). Eight are available; six are used.
+Four land on the host's **opto-isolated 5–36 V DC channels** (EL3H4, read via the
+AW9523B), all on the expander's port 0. **IN5–IN8 are not used (D77):** on the deploying
+StamPLC they read nothing, the AW9523's port 1 most likely (engineering log, 2026-10-11).
 
-| Input | Source | Type |
-|---|---|---|
-| **IN1** | OUT1 relay, program **OPEN** | Dry contact |
-| **IN2** | OUT2 relay, program **MOVING** | Dry contact |
-| **IN3** | Diablo DSP-7LP contact, paralleled | Dry contact |
-| **IN4** | Exit wand contact, paralleled | Dry contact |
-| **IN5** | FIRE terminal (32), sensed | **Voltage sense** |
-| **IN6** | Alarm output, sensed | **Voltage sense** |
+| Input | Source | Type | Asserted when |
+|---|---|---|---|
+| **IN1** | OUT1 relay, program **OPEN** | Dry contact | Energized |
+| **IN2** | OUT2 relay, program **MOVING** | Dry contact | Energized |
+| **IN3** | 1050 SAFETY line, from the Diablo DSP-7LP's contact | 5 V pulled up, through a 2N7000 | **De-energized** |
+| **IN4** | 1050 EXIT line, from the exit wand's contact | 5 V pulled up, through a 2N7000 | **De-energized** |
+| IN5 | *FIRE terminal (32) — placeholder, D77* | — | — |
+| IN6 | *Alarm output — placeholder, D77* | — | — |
 
-- **IN1–IN4 are dry contacts.** Wire in the high-level configuration: `EXCOM_COM` to the
-  12 V supply negative, each `INPUT` fed from 12 V+ through the contact. No internal
-  pull-ups, no GPIO-referenced grounds.
-- **IN5 and IN6 connect directly** — the inputs are specified for 5–36 V, so no divider
-  or clamp is needed. **Meter both before wiring** (**M3**, **S-13**) to establish sense
-  polarity and idle state — not to size a divider.
-- The controller's OUT1/OUT2 provide common, NO and NC contacts. **Use NO.** An earlier
-  revision held open the possibility of inverting the sense if the relays dropped out in
-  standby; they do not, because an energized OUT relay prevents standby (**D23**).
+**Every input is wired sinking.** `EXCOM_COM` is one terminal for all eight inputs: opening
+it dropped IN1–IN4 together on 2026-10-11. The EL3H4 is an AC-input part, so it reads in
+either direction. The 2N7000 stages can only sink, so `EXCOM_COM` goes to the local 12 V
+positive, and each input is pulled to 0 V to assert. IN1 and IN2's relay contacts sit
+between `INx` and 0 V. This replaces the sourcing wiring of plan v0.35 and earlier, which
+the harnesses fitted on 2026-10-10 follow. **Rewire those harnesses before GL2.**
+
+**IN3 and IN4 need a high-impedance stage.** The 1050's SAFETY and EXIT terminals are 5 V
+pulled-up lines that the loop detector's and the wand's contacts pull to the 1050's common.
+An input draws about 1.5 mA at 5 V, 0.85 mA of it through R14 (engineering log,
+2026-10-11), which a pull-up cannot supply. Each line drives a 2N7000's gate instead:
+
+```text
++12 V (local) ── EXCOM_COM
+
+EXCOM_IN3 ── drain   2N7000
+             source ──────────────── 1050 common = local 12 V negative
+             gate ──┬── 10 kΩ ────── 1050 SAFETY terminal
+                    └── 1 MΩ ─────── source
+```
+
+- **The 1050 sees about 5 µA** into the 1 MΩ, and the 2N7000's gate leaks nanoamps. The
+  1 MΩ holds the gate off if the wire breaks. The 1050's pull-up value is not known, so the
+  stage uses 1 MΩ rather than the 100 kΩ in
+  [`StamPLC-input-conditioning`](./StamPLC-input-conditioning.md). Against any pull-up up to
+  47 kΩ it costs under 5 % of the line's voltage.
+- **The 1050's lines idle at about 4.85 V, standby included** (operator, 2026-10-12). That
+  is above the 4.5 V at which the 2N7000's R<sub>DS(on)</sub> is specified (5.3 Ω maximum)
+  and the 3 V maximum threshold. At the input's 4.1 mA from 13.4 V the stage drops about
+  20 mV. The pull-up's value, from the current a line sources into a short, is not yet
+  measured.
+- **The 10 kΩ protects the gate** from the field wiring out to the wand and the loops. A
+  12–15 V zener from gate to source adds margin; the 2N7000 has no gate protection of its
+  own.
+- **The stage inverts.** An idle line holds the 2N7000 on and the input energized, so an
+  asserted SAFETY or EXIT reads as a de-energized input. The firmware flips IN3 and IN4
+  before the debounce (`inputs_from_levels()`, `gate_io.h`), so `input_bits` keeps spec
+  §7.2.1's 1 = asserted. **A broken wire, an unpowered 1050 or a missing ground reads as
+  asserted**, which HA shows, rather than as a silent idle.
+- **The grounds must be one node.** The 2N7000's source sits on the 1050's common, and the
+  local 12 V negative must be that same node. Confirm it with a meter at GL2.
+
+**IN5 and IN6 stay in the firmware as placeholders.** `inputs_from_levels()` masks IN5–IN8
+to 0, so the FIRE and hard-shutdown path in `lora_task` is kept but cannot fire, and a
+fault on port 1 cannot raise an alarm nothing sensed. A hardware revision whose IN5 and IN6
+read restores them, and **M3** applies again then.
+
+The controller's OUT1/OUT2 provide common, NO and NC contacts. **Use NO.** An earlier
+revision held open the possibility of inverting the sense if the relays dropped out in
+standby; they do not, because an energized OUT relay prevents standby (**D23**).
 
 ### 3.3 Radio carrier — pin budget
 
@@ -365,7 +407,7 @@ Deliberately unspent, recorded so future revisions know what is available.
 | **12 V moving-lamp output** | **Free** | Backup source of a motion signal if OUT2 is ever needed elsewhere. Voltage-sense, which the inputs take directly. **Not a drop-in for OUT2 unless M8 confirms it also tracks the auto-close countdown** |
 | SHADOW / LOOP1 (24), ENTRAPMENT / LOOP2 (26) | Likely free — **M11** | Additional detection inputs |
 | EDGE (28) | In use or free — **M11** | — |
-| Host inputs 7 and 8 | Free | Two spare opto-isolated channels |
+| Host inputs 5–8 | **Unusable on the deploying StamPLC** (D77) | None until the host is replaced; IN5 and IN6 are FIRE and the alarm's placeholders |
 | BSS138 channels 1–2 | Free, but no GPIO reaches them | — |
 | Host GPIO | **None free** after the carrier | — |
 | Controller protocol bus port | Untouched | Research-archive Phase 2 |
@@ -973,7 +1015,7 @@ recording who GateLink believes did it:
 | Observation | `held_open` | `hold_source` |
 |---|---|---|
 | IN1=1, IN2=0 stable, following a GateLink K1 pulse | true | `lran` |
-| IN1=1, IN2=0 stable, following an IN5 (FIRE) assertion | true | `keypad_fire` |
+| IN1=1, IN2=0 stable, following an IN5 (FIRE) assertion — **not reachable while D77 holds**; such a hold reads `manual` | true | `keypad_fire` |
 | IN1=1, IN2=0 stable, with neither of the above | true | `manual` — remote, keyswitch or panel |
 | IN1=1, IN2=1 | false | — (countdown running) |
 | IN1=0 | false | — |
@@ -990,7 +1032,7 @@ Derived locally rather than read from the controller:
 |---|---|
 | EXIT rising edge, then gate opens within `cause_window_ms` (default 10000) | Exit wand |
 | GateLink pulsed K1 or K3, then gate opens | LRAN command |
-| IN5 asserts, then gate opens | Keypad FIRE code |
+| IN5 asserts, then gate opens — **not reachable while D77 holds** | Keypad FIRE code |
 | Gate opens and settles to **IN1=1 / IN2=0** with none of the above | **Manual hold** — handheld remote, or the keyswitch |
 | Gate opens and settles to **IN1=1 / IN2=1** with none of the above | **External momentary open** — keypad, remote, or front panel |
 
@@ -1236,7 +1278,8 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
    own command will.
 4. **Characterise the 12 V lamp output** against the countdown while the meter is out
    (**M8**), so the backup option is either usable or ruled out.
-5. **Measure IN5 and IN6 levels** (**M3**) to establish idle state and sense polarity.
+5. **Confirm the 1050's common is the local 12 V negative**, and measure the current each
+   of SAFETY and EXIT sources into a short (§3.2). **M3** is dormant by D77.
 6. **Re-measure the controller branch current properly**, in all four gate states
    (**M1**). **This is the one item here that can change the power budget.**
 7. **Wire inputs only.** Read-only phase — gate 1 above.
@@ -1525,6 +1568,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.36** — **§3.2 drops to four inputs (D77, PRD v0.19).** The deploying StamPLC's
+  IN5–IN8 read nothing, so FIRE and the alarm output become placeholders. Every input is
+  wired sinking, and IN3 and IN4 read the 1050's 5 V pulled-up lines through a 2N7000, with
+  the inversion in firmware. §3.6, §6.2, §6.3 and §7.4 follow.
 
 - **v0.35** — **PRD v0.18: R-3.5j drops the brownout leg**, and §8.2's GL1 row with it.
   The pack's BMS cuts off near 10 V, and the node ran at 5.25 V without a reset.

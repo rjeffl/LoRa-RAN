@@ -184,6 +184,16 @@ void test_second_sequence_is_refused_while_one_runs() {
   TEST_ASSERT_FALSE(q.begin({1, kNoRelay}, 0));
 }
 
+// Impl Plan 3.2, D77 - IN3 and IN4 are energized at rest through the 2N7000 stage, and
+// IN5-IN8 are not wired, so a level on port 1 never reaches input_bits.
+void test_inputs_from_levels_inverts_in3_in4_and_drops_port_1() {
+  TEST_ASSERT_EQUAL_HEX8(0x00, inputs_from_levels(0x0C));  // idle: IN3, IN4 energized
+  TEST_ASSERT_EQUAL_HEX8(0x0C, inputs_from_levels(0x00));  // both contacts closed, or unpowered
+  TEST_ASSERT_EQUAL_HEX8(0x03, inputs_from_levels(0x0F));  // IN1, IN2 assert when energized
+  TEST_ASSERT_EQUAL_HEX8(0x04, inputs_from_levels(0x08));  // SAFETY alone
+  TEST_ASSERT_EQUAL_HEX8(0x00, inputs_from_levels(0xFC));  // FIRE and the alarm are ignored
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_pulse_holds_its_width_and_then_ends);
@@ -203,5 +213,6 @@ int main() {
   RUN_TEST(test_a_pulse_in_progress_delays_a_command);
   RUN_TEST(test_bad_step_is_refused_and_ends);
   RUN_TEST(test_second_sequence_is_refused_while_one_runs);
+  RUN_TEST(test_inputs_from_levels_inverts_in3_in4_and_drops_port_1);
   return UNITY_END();
 }

@@ -360,7 +360,9 @@ void io_task(void*) {
       const uint8_t buttons = board_poll_buttons();
       portENTER_CRITICAL(&g_io_mux);
       if (ok) {
-        const uint8_t inputs = debounce.update(raw, samples);
+        // `raw` stays the opto's levels for the console's `in`; everything past the
+        // debounce sees asserted inputs.
+        const uint8_t inputs = debounce.update(inputs_from_levels(raw), samples);
         g_io.raw_edges += static_cast<uint32_t>(__builtin_popcount(raw ^ g_io.inputs_raw));
         g_io.inputs_edges += static_cast<uint32_t>(__builtin_popcount(inputs ^ g_io.inputs));
         g_io.inputs_raw = raw;
@@ -609,7 +611,8 @@ lran::ResetCause reset_cause() {
 }
 
 // spec 10.7, D72 - FIRE and the hard-shutdown latch as spec 7.2.1's input_bits name them,
-// IN5 and IN6.
+// IN5 and IN6. Not wired by D77, so inputs_from_levels() holds both at 0 and neither alarm
+// is sent; the path stays for a StamPLC whose IN5 and IN6 read.
 constexpr uint8_t kInputFire         = 1u << 4;
 constexpr uint8_t kInputHardShutdown = 1u << 5;
 
