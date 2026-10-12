@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.30
+**Version:** 0.31
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-12
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D76** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D77** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -427,6 +427,7 @@ Frames from a node that is not deployed are processed as they are now.
 | **D74** | Whether a `HEX_RSP` repeats its request's `seq` | **Yes, whatever its `status`.** Operator, 2026-10-01, §3.13 | Protocol Spec §7.6; GateLink PRD R-3.3e |
 | **D75** | Whether `write_enable/set` is retained | **No.** A bridge ignores a retained one and clears it. Operator, 2026-10-01, §3.13 | Protocol Spec §16.2; Bridge PRD R-3.5c |
 | **D76** | Where the VE.Direct topics the spec did not list belong | **§16.2 lists `vedirect/charge/state`. §16.6 publishes a bench node's `hex/response`, `hex/audit` and `write_enable/state` whatever `simnode_diag_enable` says.** Operator, 2026-10-01, §3.13 | Protocol Spec §16.2, §16.6 |
+| **D77** | Whether GateLink deploys on a StamPLC whose IN5–IN8 do not read | **Yes. GateLink reads four inputs, IN1–IN4, and FIRE and the alarm output go unmonitored.** IN5 and IN6 stay in the PRD, the spec and the firmware as placeholders for a later hardware revision. Operator, 2026-10-12, §3.15 | GateLink PRD §3.2.5, R-3.5i; GateLink Impl Plan §3.2 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1168,6 +1169,28 @@ not be built. GateLink's `doc-findings` 4 and 5 raised them.
 **Rejected:** a DIN mount for the carrier. It would keep R-4.3f as written, but it would
 change expansion board §3, the design the operator adopted.
 
+### 3.15 D77 — GateLink deploys on four inputs, 2026-10-12
+
+**The bench StamPLC is the production unit, and its IN5–IN8 read nothing.** IN5 and IN6
+read 0 at 13.4 V and 25.25 V while IN1–IN4 read 1 (GateLink engineering log, 2026-10-11).
+Plan §3.2 had put the FIRE terminal on IN5 and the alarm output on IN6. On 2026-10-12 the
+operator chose to deploy this unit and stop monitoring both, which leaves four signals for
+the four inputs that read.
+
+- **What GateLink reads:** IN1 (OPEN), IN2 (MOVING), IN3 (SAFETY) and IN4 (EXIT). IN3 and
+  IN4 reach the 1050's 5 V pulled-up lines through a 2N7000 each (plan §3.2).
+- **What stays, as placeholders:** spec §7.2.1's `input_bits` bits 4 and 5, the
+  `FIRE_ASSERTED` and `HARD_SHUTDOWN` events, D72's re-send at boot, and the PRD's FIRE and
+  hard-shutdown requirements. The firmware keeps its FIRE and alarm path and masks IN5–IN8
+  to 0 before the debounce, so neither event can be sent.
+- **What does not ship:** G-9's FIRE alert and G-10's hard-shutdown state. Home Assistant's
+  *FIRE input* and *Hard-shutdown latch* entities would read a permanent "off" that no
+  hardware measured, so the bridge withdraws them while GateLink reads no FIRE or alarm.
+- **D72 and M3 go dormant**, not retired: both apply again on hardware whose IN5 and IN6
+  read.
+
+**Rejected:** holding the deploy for a replacement StamPLC.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1193,7 +1216,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 |---|---|---|---|
 | M1 | **Gate controller branch current in all four gate states**, by inline meter or shunt on a mA range, or by low-range clamp with ten turns through the jaw and the reading divided by ten. LED lights separately accounted | **The top item — power-budget credibility.** First clamp figures fail their own sanity check | GateLink Impl Plan |
 | M2 | **`MOVING` behaviour at the open limit and through the auto-close countdown** | Hold detection and the `hold_confirm_ms` default. If MOVING dips at the open limit, the confirmation timer must absorb it | GateLink Impl Plan |
-| M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert | GateLink Impl Plan |
+| M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert. **Dormant by D77 (2026-10-12):** nothing is wired to IN5 or IN6 until a hardware revision | GateLink Impl Plan |
 | ~~M4~~ | ~~**MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope~~ **CLOSED 2026-10-08 without the scope**, on the operator's decision: the carrier's own path received the MPPT's text and HEX through the BSS138 (D25). A DVM read the high side only | **D25**, closed | GateLink Impl Plan |
 | M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
 | ~~M6~~ | ~~**Range and RSSI at ~500 ft on both bearings.**~~ **CLOSED 2026-09-09. Both bearings measured, and "~500 ft" was a guess that the measurements retire — see *M6's distances* below.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. ~~**Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**~~ — **DONE 2026-09-07, all four checks PASS.** Heltec pair plus §7's Wio repeat, three tape-measured distances, traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv`. **The precondition is met and M6 is unblocked.** It also discharges §7.4's antenna-counterpoise uncertainty to the extent that check can — it rules out a *gross* gain error, not the 3.0 dBi vendor claim itself. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. ~~**The last ~46 m is unwalked — B1b**~~ — **B1b RAN 2026-09-09 and the gate bearing is answered.** The gate closed **192/192, 0 % PER at all 24 configurations** on the deployed pairing (Heltec V3 indoors at the bridge's target location, XIAO+Wio at the gate controller), at both −9 and −4 dBm conducted, zero error counters. Trace `2026-09-09-b1b-walk-gate.csv`. **Margin on the mean is 17–25 dB of SNR; the SF7 tail is not — one probe reached a 2.2 dB margin at −119.0 dBm**, which is a new constraint on D1's SF choice and pulls against W9's. **G2 is the 2026-09-04 walk's P1, and the deployed GateLink antenna lands within 6 in of it** — so B1b measured the link where the node will radiate rather than near it, which is a stronger answer to M6's question than any position on the earlier walk. **THE WELL BEARING IS ALSO ANSWERED, AND WAS ALL ALONG.** Operator confirmation 2026-09-09: **the 2026-09-04 walk's P3 is survey site 3, `welllink-well`** — a **Heltec pair**, initiator indoors at the bridge's real target location, through the NW wall plus the barn, **2.08 % PER over 192 probes** at the D33 ceiling (init −99.5 / resp −98.7 dBm). The trace's position map names no site, so the only well-bearing measurement this project has sat in a committed file under a number. **No well walk is owed.** Two corrections came with it, both in the range-test log's 2026-09-09 entry: **P3 is ~100 m out and its recorded fix is wrong rather than coarse** (two points sharing one arcsecond cell at 35N are at most 40.0 m apart), and **"the barn costs most" is false** — recomputed at 100 m its excess loss is 25.1 dB, fourth of six. **Carry into WellLink:** P3 is the thinnest margin any node site showed and the only position in that walk with any `phy_crc_err`. **M6's own wording overstates one bearing** — the gate is ~500 ft, the well is ~100 m and is obstruction-limited rather than distance-limited, so a 500 ft walk there would measure a place no node occupies. **CLOSED 2026-09-09**, on the operator's decision that the "~500 ft" in its own wording was a guess and never a measurement. Distances below. First positions recorded in decimal degrees; still not a path-loss model, because the house end is behind a wall on an arcsecond-era fix | **D1**, bridge antenna siting | Range Test Tasks |
@@ -1326,6 +1349,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.31** — **D77 resolved on 2026-10-12.** GateLink deploys on the StamPLC whose IN5–IN8
+  do not read, with four inputs. FIRE and the alarm output go unmonitored, and their
+  requirements stay as placeholders. D72 and M3 are dormant (§3.15).
 
 - **v0.30** — **M7 closed on 2026-10-10.** The pack current's sign is bit 15, not bit 14,
   and its unit is 0.1 A, not 10 mA. W6 stays open in the spec until a revision states it.

@@ -1,7 +1,7 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-11 by the StamPLC-inputs session.** It found IN5–IN8 dead in hardware
-on the bench StamPLC, and IN1–IN4 reading high from 25.25 V down to 5.24 V.
+**Written 2026-10-12 by the four-inputs session.** The operator decided to deploy the bench
+StamPLC on IN1–IN4 (D77), and IN3 and IN4 now read the 1050 through a 2N7000 each.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,16 +18,13 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
 The tasks are in the order *The next job* gives. Tier 1 is done. Tier 2 needs the
-WattCycle pack and the MPPT on the bench, and Tier 3 needs neither. **This StamPLC cannot
-deploy: IN5–IN8 are dead in hardware**, the AW9523's port 1 most likely. And the 1050's four
-auxiliary signals are 5 V pulled-up lines that the inputs cannot read directly. Both come
-first.
+WattCycle pack and the MPPT on the bench, and Tier 3 needs neither. **This StamPLC deploys
+on four inputs (D77).** FIRE and the alarm output are placeholders, and the 2N7000 stages
+for IN3 and IN4 come first.
 
 | Tier | Task | Read |
 |---|---|---|
-| — | **Replace the StamPLC** (operator). Check all eight inputs on the new unit with `in` and `aw` | The engineering log's 2026-10-11 entry |
-| 3 | **Plan §3.2's input design**: a high-impedance stage for the 1050's 5 V pulled-up signals, FIRE and the alarm included | Plan §3.2; the 2026-10-11 log entry; [`StamPLC-input-conditioning.md`](./StamPLC-input-conditioning.md) |
-| 3 | **GL3, R-3.5i**: FIRE and the hard-shutdown latch re-sent at boot. Needs IN5–IN6, so the new StamPLC | PRD R-3.5i; spec §10.7's *active alarms* |
+| 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking. Flash this branch's image and check `in` reads `debounced 0x00` with each gate on 4.85 V, and IN3 and IN4 assert as each gate drops to 0 V (operator builds) | Plan §3.2; the engineering log's 2026-10-12 entry |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h | Plan §8.2's GL9 row for what the field soak will watch |
 | 3 | **GL3, state derivation** by injection | Plan §8.2's GL3 row |
 | 3 | **The PHY trial** (spec §12.4.2), or a written decision to deploy without it | Plan §6.4; *Open*, below |
@@ -66,10 +63,9 @@ operator's call, and plan §9.8 changes with it.
 **Tier 3 runs on the StamPLC's 12 V supply**, with the simnode Heltec's BMS emulator in place
 of the pack. It must finish before deploy:
 
-- A replacement StamPLC: this one's IN5–IN8 are dead (engineering log, 2026-10-11).
-  Every input check below waits on it.
-- Plan §3.2's input design, reworked for the 1050's 5 V pulled-up signals.
-- GL3's R-3.5i at boot, and its state derivation by injection. The rest of the reset-cause
+- The 2N7000 stages for IN3 and IN4, and the IN1 and IN2 harnesses rewired sinking
+  (plan §3.2).
+- GL3's state derivation by injection. R-3.5i is deferred by D77. The rest of the reset-cause
   slice passes (engineering log, 2026-10-10).
 - The PHY trial, or a written decision to deploy without it.
 - The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
@@ -88,17 +84,18 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **IN5–IN8 are dead in hardware.** IN5 and IN6 read 0 at 13.4 V and 25.25 V with
-  `EXCOM_COM` connected, while IN1–IN4 read 1. `aw` shows port 1 configured as GPIO inputs,
-  so the fault is the opto outputs, their traces or the AW9523's P1_4–P1_7. The operator
-  suspects P1 and will not deploy this unit.
-- **IN1–IN4 read high from 25.25 V down to 5.24 V**, the bench supply's floor, from a stiff
-  source. The dropout is lower and was not found. One unit's margin, not the design's.
-- **An input draws about 1.5 mA at 5 V**, 0.85 mA of it through R14. A 5 V pull-up cannot
-  supply that, so the 1050's auxiliary signals need a high-impedance stage.
-- **The IO schematic V1.0 does match the board.** R14 across each input explains the
-  6.2 kΩ and the 4.1 mA that 2026-10-10 read as a mismatch.
-- **The console has `aw`**, a dump of the input expander's registers through `io_task`.
+- **D77: GateLink deploys on IN1–IN4.** FIRE and the alarm output stay in the PRD, the spec
+  and the firmware as placeholders for a hardware revision. PRD v0.19, plan v0.36,
+  Decision Register v0.31. D72 and M3 are dormant.
+- **IN3 and IN4 each go through a 2N7000** sinking the input from a local 12 V on
+  `EXCOM_COM`; the 1050's line drives the gate through 10 kΩ, with 1 MΩ gate to source.
+  `EXCOM_COM` is shared, so **all four inputs are wired sinking**, and the harnesses fitted
+  on 2026-10-10 need rewiring.
+- **The 1050's lines idle at about 4.85 V in standby** (operator). The pull-up's value is
+  not measured.
+- **The firmware flips IN3 and IN4 and masks IN5–IN8** before the debounce
+  (`inputs_from_levels()`, `gate_io.h`), host-tested. `in`'s `raw` stays the opto's levels.
+  With nothing on IN3 and IN4, `debounced` reads `0x0C`. Not yet flashed.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -162,7 +159,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with `aw`, flashed 2026-10-11 at `a890775`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN6 jumpered, IN1–IN4 to the bench supply. **IN5–IN8 dead; not deployable**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with `aw`, flashed 2026-10-11 at `a890775`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt` | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN6 jumpered, IN1–IN4 to the bench supply. **IN5–IN8 dead; deploys on IN1–IN4 (D77)**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -217,16 +214,15 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **The bench StamPLC's IN5–IN8 are dead: a deploy blocker.** The bench unit was the
-  production unit, so a replacement has to be in hand before GL2 (engineering log,
-  2026-10-11).
-- **The 1050's four auxiliary signals are 5 V pulled-up lines tied to dry contacts** in the
-  auxiliary devices; only the two AUX relay outputs are contacts. Plan §3.2 wires them to
-  the opto inputs directly, which would load the pull-ups. They need a high-impedance stage
-  switching each input from a local supply.
-- **IN5 and IN6 assume energized means asserted.** The boot re-send in `lora_task` reads
-  `input_bits` bits 4 and 5 that way. M3 meters the 1050's FIRE terminal and alarm output;
-  if either idles energized, the boot check and the live alarm path both invert.
+- **HA's *FIRE input*, *Hard-shutdown latch* and *Held open by keypad* entities would read
+  a permanent "off" under D77.** The bridge stops publishing them while GateLink reads no
+  FIRE or alarm (operator, 2026-10-12). The bridge's work; its handoff carries it.
+- **Spec §7.2.1 has no way to say an `input_bits` bit is not sensed.** Under D77, bits 4
+  and 5 read 0, which says "not asserted". The next spec revision could name it.
+- **The current the 1050's SAFETY and EXIT lines source into a short is not measured.** It
+  gives the pull-up's value, and so the margin the 1 MΩ leaves (plan §3.2).
+- **When IN5 and IN6 return, they assume energized means asserted.** The boot re-send in
+  `lora_task` reads `input_bits` bits 4 and 5 that way, and M3 confirms it then.
 - **A `ctx_id` drawn after boot may not come from a true entropy source.** `ROLL_CONTEXT`
   and `lran ctx new` call `esp_random()`, which is true random only while the RF subsystem
   runs, and BLE is down between windows. Spec §10.1 asks for true entropy at every draw.

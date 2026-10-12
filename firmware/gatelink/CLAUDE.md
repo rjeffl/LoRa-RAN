@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.35, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.36, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.18.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.19.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
@@ -13,7 +13,7 @@ for the architecture and §8 for the milestones.
 
 **The L6 skeleton, with GL1's board layer under `io_task` and GL3's protocol node in
 `lora_task`.** It boots, clears the relay latch, prints its banner, draws the boot page and
-starts the seven tasks of plan §5.2. `io_task` times relay pulses, debounces the inputs,
+starts the seven tasks of plan §5.2. `io_task` times relay pulses, turns IN1–IN4 into asserted inputs and debounces them,
 reads the buttons and sensors, and carries out each gate command's relay sequence.
 `lora_task` runs lran-node's engine on the carrier radio: it announces `BOOT`, answers
 `POLL`, `PING`, `ROLL_CONTEXT`, `COMMAND` and `CONFIG`, and sends each `COMMAND_ACK` after

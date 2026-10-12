@@ -62,6 +62,11 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise. Group 8 is the one queued.
 
+**Before GateLink's install, withdraw three GateLink entities (D77, 2026-10-12).** GateLink
+reads no FIRE or alarm input, so `lran_gatelink_fire_input`, `lran_gatelink_shutdown_latch`
+and the keypad-hold sensor (GateLink PRD §7.2) would read a permanent "off". Stop
+publishing them, and clear their retained discovery, until a GateLink reads IN5 and IN6.
+
 ### 1. Bridge defects the bench can reach
 
 **Done.** These came from B4b's bench runs. The three air-timing defects and the state

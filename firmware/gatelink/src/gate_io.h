@@ -99,6 +99,20 @@ class CommandSequencer {
   SequenceEnd end_      = SequenceEnd::Done;
 };
 
+// The inputs as wired, Impl Plan 3.2. IN3 and IN4 reach the 1050's 5 V pulled-up SAFETY and
+// EXIT lines through a 2N7000, which conducts while the line idles high, so their opto is
+// energized at rest. IN5-IN8 are not wired, by D77: this StamPLC's port 1 reads nothing
+// (engineering log, 2026-10-11), so FIRE and the alarm stay unmonitored. Masking them keeps
+// a future fault on port 1 from raising a FIRE or HARD_SHUTDOWN the hardware never sensed.
+inline constexpr uint8_t kInputsWired     = 0x0F;  // IN1-IN4
+inline constexpr uint8_t kInputsActiveLow = 0x0C;  // IN3, IN4
+
+// The opto's output levels, IN1-IN8 as bits 0-7, as spec 7.2.1's input_bits: 1 = asserted,
+// and 0 for an input not wired.
+constexpr uint8_t inputs_from_levels(uint8_t levels) {
+  return static_cast<uint8_t>((levels ^ kInputsActiveLow) & kInputsWired);
+}
+
 // Eight inputs, as one mask. A bit changes only after `samples` consecutive raw reads
 // agree on its new value (input_debounce_samples; Impl Plan 4.4).
 class Debouncer {
