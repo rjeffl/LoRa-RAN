@@ -189,9 +189,15 @@ lran::node::CommandOutcome GateLinkApp::execute(lran::node::Context&,
 size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason reason,
                                  uint32_t now_ms, uint8_t* out, size_t cap, uint8_t* schema) {
   const NodeSnapshot          n = port_->snapshot();
+  const GateSnapshot          g = port_->gate();
   lran::schema::GateLinkStatusV1 s;
-  s.gate_state = static_cast<uint8_t>(lran::GateState::Unknown);
-  s.input_bits = n.inputs;
+  s.gate_state           = g.gate_state;
+  s.input_bits           = n.inputs;
+  s.hold                 = g.hold;
+  s.movement_cause       = g.movement_cause;
+  s.last_direction       = g.last_direction;
+  s.detect_flags         = g.detect_flags;
+  s.last_traversal_age_s = g.last_traversal_age_s;
 
   const MpptSnapshot m = port_->mppt();
   s.batt_mv       = m.batt_mv;
@@ -231,14 +237,20 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
 size_t GateLinkApp::build_event(lran::node::Context&, lran::EventType type, uint16_t detail,
                                 uint32_t, uint8_t* out, size_t cap, uint8_t* schema) {
   const NodeSnapshot           n = port_->snapshot();
+  const GateSnapshot           g = port_->gate();
   lran::schema::GateLinkEventV1 ev;
-  ev.event_type = static_cast<uint8_t>(type);
-  ev.gate_state = static_cast<uint8_t>(lran::GateState::Unknown);
-  ev.input_bits = n.inputs;
-  ev.detail     = detail;
-  ev.event_id   = ++event_id_;
-  ev.uptime_s   = n.uptime_s;
+  ev.event_type  = static_cast<uint8_t>(type);
+  ev.hold_source = static_cast<uint8_t>((g.hold >> 1) & 0x07);  // spec 7.2.1
+  ev.gate_state  = g.gate_state;
+  ev.input_bits  = n.inputs;
+  ev.detail      = detail;
+  ev.event_id    = ids_->next();
+  ev.uptime_s    = n.uptime_s;
+  return serialize_event(ev, out, cap, schema);
+}
 
+size_t GateLinkApp::serialize_event(const lran::schema::GateLinkEventV1& ev, uint8_t* out,
+                                    size_t cap, uint8_t* schema) const {
   *schema   = lran::kSchemaGateLinkEventV1;
   size_t nw = 0;
   return lran::schema::serialize(ev, out, cap, &nw) == lran::Status::Ok ? nw : 0;

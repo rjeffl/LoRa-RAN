@@ -25,9 +25,9 @@
 // reassembly timeout and hex_timeout_ms. The rest go to GateLinkPort::param_changed(),
 // which on the board reaches the task that reads them.
 //
-// WHAT IS LEFT OUT. Gate state derivation, hold tracking and direction are app_task's, and
-// STATUS reports them as UNKNOWN until it runs. The BMS block is bms_task's last read
-// (GL5), with its sentinels until the first read succeeds.
+// THE GATE BLOCK IS app_task's. GateTracker and Detector derive it, and the port hands
+// STATUS and EVENT a copy (spec 7.2.1). Until app_task's first pass it reads UNKNOWN. The BMS
+// block is bms_task's last read (GL5), with its sentinels until the first read succeeds.
 
 #pragma once
 
@@ -36,6 +36,7 @@
 
 #include "bms_link.h"
 #include "config_store.h"
+#include "detect.h"
 #include "gate_io.h"
 #include "ved_link.h"
 #include "lran/node/application.h"
@@ -53,6 +54,16 @@ struct NodeSnapshot {
   uint16_t boot_count         = 0;  // 0 until the Store counts boots
 };
 
+// spec 7.2.1's derived fields, as app_task last published them.
+struct GateSnapshot {
+  uint8_t  gate_state           = 0;  // spec 8.3, UNKNOWN
+  uint8_t  hold                 = 0;
+  uint8_t  movement_cause       = 0;
+  uint8_t  last_direction       = 0;
+  uint8_t  detect_flags         = 0;
+  uint32_t last_traversal_age_s = UINT32_MAX;
+};
+
 class GateLinkPort {
  public:
   virtual ~GateLinkPort() = default;
@@ -62,6 +73,7 @@ class GateLinkPort {
   virtual bool dispatch(const RelaySequence& seq) = 0;
 
   virtual NodeSnapshot snapshot() const = 0;
+  virtual GateSnapshot gate() const { return GateSnapshot{}; }
 
   // vedirect_task's latest view of the MPPT, spec 7.2.2 and 7.2.6.
   virtual MpptSnapshot mppt() const = 0;
@@ -122,6 +134,13 @@ class GateLinkApp final : public lran::node::Application {
   // The configuration CONFIG reads and writes. Null answers every row but the PHY group
   // UNKNOWN_PARAM.
   void set_config(GateLinkConfig* cfg) { cfg_ = cfg; }
+  // app_task's detections draw event_ids from the same counter (spec 7.3). Null keeps the
+  // application's own.
+  void set_event_ids(EventIds* ids) { ids_ = ids != nullptr ? ids : &own_ids_; }
+  // An event app_task built whole, with its event_id drawn. Serialized as given.
+  size_t serialize_event(const lran::schema::GateLinkEventV1& ev, uint8_t* out, size_t cap,
+                         uint8_t* schema) const;
+
   // Applies every row's effective value, at boot once the card has been read.
   void apply_all(lran::node::Context& c);
 
@@ -181,7 +200,8 @@ class GateLinkApp final : public lran::node::Application {
 
   // GateLinkEventV1.event_id - monotonic per boot, so never reused within a ctx_id. HA
   // deduplicates events by it (spec 16.3).
-  uint32_t event_id_ = 0;
+  EventIds  own_ids_;
+  EventIds* ids_ = &own_ids_;
 
   uint32_t dispatched_       = 0;
   uint32_t dispatch_refused_ = 0;

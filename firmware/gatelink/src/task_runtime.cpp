@@ -38,8 +38,11 @@
 #include "board_profile.h"
 #include "board_stamplc.h"
 #include "config_store.h"
+#include "detect.h"
 #include "gate_io.h"
+#include "gate_state.h"
 #include "gatelink_app.h"
+#include "inject.h"
 #include "lran/node/engine.h"
 #include "lran/node/names.h"
 #include "mbedtls_mac.h"
@@ -91,6 +94,10 @@ struct IoSnapshot {
   uint32_t     raw_edges     = 0;
   uint32_t     inputs_edges  = 0;
   uint8_t      relays        = 0;
+  // Pulses started on K1-K4 since boot, by any path. app_task attributes holds and openings
+  // to GateLink's own K1 and K3 by them (Impl Plan 6.2, 6.3).
+  uint32_t     relay_starts[4] = {};
+  uint8_t      inject_mask   = 0;  // the inputs injection overrides, in input_bits' sense
   uint32_t     i2c_failures  = 0;  // every failed expander read or write (root rule 4)
   uint8_t      buttons       = 0;  // presses not yet taken by ui_task, bit 0 = A
   BoardSensors sensors;
@@ -125,6 +132,27 @@ QueueHandle_t g_cmd_q = nullptr;
 
 // io_task tells lora_task that a sequence ended. Written before any task starts.
 TaskHandle_t g_lora_handle = nullptr;
+
+// GL3 - input injection (PRD R-5.4b). app_task plays the script and stores the result here,
+// mask in the high byte and value in the low; io_task applies it below the debounce. The
+// console hands app_task a script through the text and the request.
+std::atomic<uint16_t> g_inject{0};
+constexpr uint8_t     kInjectStart = 1;
+constexpr uint8_t     kInjectOff   = 2;
+std::atomic<uint8_t>  g_inject_req{0};
+char                  g_inject_text[160];
+std::atomic<bool>     g_inject_running{false};
+std::atomic<uint8_t>  g_inject_step{0};
+
+// GL3 - app_task's derived gate block, for STATUS and EVENT (spec 7.2.1), and what it asks
+// lora_task to send. One event_id counter for both tasks (spec 7.3).
+EventIds      g_event_ids;
+portMUX_TYPE  g_gate_mux = portMUX_INITIALIZER_UNLOCKED;
+GateSnapshot  g_gate;
+StaticQueue_t g_push_q_storage;
+uint8_t       g_push_q_buf[8 * sizeof(Push)];
+QueueHandle_t g_push_q = nullptr;
+std::atomic<uint32_t> g_push_dropped{0};  // root rule 4: a push the queue had no room for
 
 // The console's `aw`: log_task asks, io_task reads the expander on its next pass (it alone
 // owns the internal bus) and bumps the sequence.
@@ -314,6 +342,7 @@ void io_task(void*) {
       portENTER_CRITICAL(&g_io_mux);
       g_io.relays       = pulser.mask();
       g_io.pulse_relay  = static_cast<uint8_t>(__builtin_ctz(pulser.mask()));
+      ++g_io.relay_starts[g_io.pulse_relay & 3];
       g_io.pulse_result = PulseResult::Started;
       g_io.pulse_on_us  = t;
       if (!ok) ++g_io.i2c_failures;
@@ -345,6 +374,7 @@ void io_task(void*) {
       g_io.pulse_result = r;
       if (r == PulseResult::Started) {
         g_io.relays      = pulser.mask();
+        ++g_io.relay_starts[req.relay & 3];
         g_io.pulse_on_us = t;
       } else {
         ++g_io.pulse_seq;  // refused; nothing to time
@@ -362,7 +392,12 @@ void io_task(void*) {
       if (ok) {
         // `raw` stays the opto's levels for the console's `in`; everything past the
         // debounce sees asserted inputs.
-        const uint8_t inputs = debounce.update(inputs_from_levels(raw), samples);
+        // R-5.4b - injection replaces the inputs it names, below the debounce.
+        const uint16_t inj    = g_inject.load(std::memory_order_relaxed);
+        const uint8_t  mask   = static_cast<uint8_t>(inj >> 8);
+        const uint8_t  live   = static_cast<uint8_t>((inputs_from_levels(raw) & ~mask) | (inj & mask));
+        const uint8_t  inputs = debounce.update(live, samples);
+        g_io.inject_mask = mask;
         g_io.raw_edges += static_cast<uint32_t>(__builtin_popcount(raw ^ g_io.inputs_raw));
         g_io.inputs_edges += static_cast<uint32_t>(__builtin_popcount(inputs ^ g_io.inputs));
         g_io.inputs_raw = raw;
@@ -731,6 +766,7 @@ class Node final : public RadioClient, public GateLinkPort {
     lran::node::reset_context(ctx_, boot_random_u32);  // spec 10.1 - a new ctx_id every boot
     // Impl Plan 6.4 - the card's values, read by start_tasks(), applied to every task.
     app_.set_config(&g_config);
+    app_.set_event_ids(&g_event_ids);
     app_.apply_all(ctx_);
   }
 
@@ -760,6 +796,12 @@ class Node final : public RadioClient, public GateLinkPort {
     n.enclosure_temp_c10 = io.sensors.temp_c10;
     n.uptime_s           = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
     return n;
+  }
+  GateSnapshot gate() const override {
+    portENTER_CRITICAL(&g_gate_mux);
+    const GateSnapshot g = g_gate;
+    portEXIT_CRITICAL(&g_gate_mux);
+    return g;
   }
   BmsSnapshot bms() const override { return bms_snapshot(); }
   void bms_polling_changed(bool on) override { g_bms_polling.store(on); }
@@ -942,6 +984,22 @@ void lora_task(void*) {
       if ((io.inputs & kInputFire) != 0) send_boot_alarm(lran::EventType::FireAsserted, now);
       if ((io.inputs & kInputHardShutdown) != 0) send_boot_alarm(lran::EventType::HardShutdown, now);
     }
+    // GL3 - app_task's pushes: STATUS for a gate, hold or detection change, EVENT for a
+    // detection (spec 8.7, 8.9). The outbox orders them behind anything already queued.
+    Push push;
+    while (xQueueReceive(g_push_q, &push, 0) == pdTRUE) {
+      bool queued = false;
+      if (push.kind == Push::Kind::Status) {
+        queued = g_node.engine().send_status(g_node.ctx(), g_node.app(), lran::kNodeBridge,
+                                             push.reason, now);
+      } else {
+        uint8_t      payload[lran::kMaxSchemaPayload];
+        uint8_t      schema = lran::kSchemaNone;
+        const size_t n = g_node.app().serialize_event(push.event, payload, sizeof(payload), &schema);
+        queued = n > 0 && g_node.engine().send_event(g_node.ctx(), lran::kNodeBridge, payload, n, schema);
+      }
+      if (!queued) g_node.engine().count_dropped();
+    }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
 
@@ -1007,19 +1065,148 @@ std::atomic<uint32_t> g_wdt_timeout_s{0};
 // application stall the watchdog exists for. The bench reads the next boot's reset cause.
 std::atomic<bool> g_wdt_stall{false};
 
-// GL3 - state derivation, triggers and status, and the one task that feeds the watchdog
-// (Impl Plan 5.2). A task that cannot subscribe logs it and runs unwatched: a gate
-// controller that stops for want of a watchdog protects nothing.
+const char* gate_state_name(lran::GateState g) {
+  switch (g) {
+    case lran::GateState::Unknown:       return "UNKNOWN";
+    case lran::GateState::Closed:        return "CLOSED";
+    case lran::GateState::Moving:        return "MOVING";
+    case lran::GateState::OpenCountdown: return "OPEN_COUNTDOWN";
+    case lran::GateState::OpenHeld:      return "OPEN_HELD";
+    case lran::GateState::Fault:         return "FAULT";
+  }
+  return "?";
+}
+
+const char* hold_source_name(uint8_t h) {
+  static const char* const kNames[] = {"NONE", "LRAN", "MANUAL", "KEYPAD_FIRE", "UNKNOWN"};
+  return h < 5 ? kNames[h] : "?";
+}
+
+const char* cause_name(uint8_t c) {
+  static const char* const kNames[] = {"UNKNOWN", "EXIT_WAND", "LRAN_COMMAND", "KEYPAD_FIRE",
+                                       "MANUAL_HOLD", "EXTERNAL_MOMENTARY"};
+  return c < 6 ? kNames[c] : "?";
+}
+
+const char* direction_name(uint8_t d) {
+  static const char* const kNames[] = {"NONE", "ENTRY", "EXIT", "UNDETERMINED"};
+  return d < 4 ? kNames[d] : "?";
+}
+
+// GL3 - a script from the console, played a step at a time; io_task applies the result.
+void service_injection(InjectScript& script, uint8_t* mask, uint8_t* value, uint32_t now) {
+  const uint8_t req = g_inject_req.load(std::memory_order_acquire);
+  if (req == kInjectStart) {
+    const char* bad = nullptr;
+    if (script.parse(g_inject_text, &bad)) {
+      script.start(now);
+    } else {
+      char text[64];
+      std::snprintf(text, sizeof(text), "inject: not understood at '%.24s'", bad);
+      QueueSink().line(text);
+    }
+  } else if (req == kInjectOff) {
+    script.stop();
+    *mask  = 0;
+    *value = 0;
+  }
+  if (req != 0) g_inject_req.store(0, std::memory_order_release);
+  if (script.running()) script.service(now, live_param(kParamInjectSpacingMs), mask, value);
+  g_inject.store(static_cast<uint16_t>((*mask << 8) | *value), std::memory_order_relaxed);
+  g_inject_running.store(script.running(), std::memory_order_relaxed);
+  g_inject_step.store(static_cast<uint8_t>(script.next_step()), std::memory_order_relaxed);
+}
+
+// GL3 - state derivation, detection and the pushes they cause (PRD R-3.1.4, 3.2; Impl Plan
+// 5.2, 6.2, 6.3), and the one task that feeds the watchdog. A task that cannot subscribe
+// logs it and runs unwatched: a gate controller that stops for want of a watchdog protects
+// nothing.
 void app_task(void*) {
   const bool watched = g_wdt_timeout_s.load() != 0 && esp_task_wdt_add(nullptr) == ESP_OK;
   if (!watched) QueueSink{}.line("wdt: app_task not subscribed - runs unwatched");
-  TickType_t last = xTaskGetTickCount();
+  GateTracker  tracker;
+  Detector     detector(&g_event_ids);
+  InjectScript script;
+  uint8_t      inj_mask  = 0;
+  uint8_t      inj_value = 0;
+  uint32_t     starts_seen[4] = {};
+  TickType_t   last = xTaskGetTickCount();
   for (;;) {
     count(TaskId::App);
     if (g_wdt_stall.load(std::memory_order_relaxed)) {
       for (;;) vTaskDelay(portMAX_DELAY);
     }
     if (watched) (void)esp_task_wdt_reset();
+    const uint32_t now = now_ms();
+    service_injection(script, &inj_mask, &inj_value, now);
+
+    const IoSnapshot io = io_snapshot();
+    if (io.inputs_read) {
+      for (uint8_t k = 0; k < 4; ++k) {
+        if (io.relay_starts[k] != starts_seen[k]) {
+          starts_seen[k] = io.relay_starts[k];
+          tracker.note_pulse(k, now);
+        }
+      }
+      GateParams gp;
+      gp.hold_confirm_ms = live_param(kParamHoldConfirmMs);
+      gp.cause_window_ms = live_param(kParamCauseWindowMs);
+      const uint8_t changed = tracker.update(io.inputs, now, gp);
+
+      // spec 8.7 - one STATUS per change; a change of hold is the one HA alerts on.
+      PushList out;
+      if (changed != 0) {
+        Push p;
+        p.reason = (changed & kChangedHold) != 0 ? lran::StatusReason::HoldStateChange
+                                                 : lran::StatusReason::GateStateChange;
+        out.add(p);
+      }
+      GateContext gc;
+      gc.held        = tracker.held();
+      gc.hold_source = tracker.hold_source();
+      gc.gate_state  = tracker.state();
+      gc.input_bits  = io.inputs;
+      gc.uptime_s    = static_cast<uint32_t>(esp_timer_get_time() / 1000000);
+      DetectParams dp;
+      dp.window_ms      = live_param(kParamDetectWindowMs);
+      dp.idle_ms        = live_param(kParamDetectIdleMs);
+      dp.alert_repeat_s = live_param(kParamAlertRepeatS);
+      detector.update(io.inputs, now, gc, dp, &out);
+
+      // The snapshot first, so each STATUS carries the change that caused it.
+      GateSnapshot g;
+      g.gate_state           = static_cast<uint8_t>(tracker.state());
+      g.hold                 = tracker.hold_byte();
+      g.movement_cause       = static_cast<uint8_t>(tracker.cause());
+      g.last_direction       = static_cast<uint8_t>(detector.last_direction());
+      g.detect_flags         = detector.detect_flags(io.inputs);
+      g.last_traversal_age_s = detector.last_traversal_age_s(now);
+      portENTER_CRITICAL(&g_gate_mux);
+      g_gate = g;
+      portEXIT_CRITICAL(&g_gate_mux);
+
+      if (changed != 0) {
+        char text[96];
+        std::snprintf(text, sizeof(text), "gate: %s, hold %s, cause %s, inputs 0x%02x",
+                      gate_state_name(tracker.state()), hold_source_name(g.hold >> 1),
+                      cause_name(g.movement_cause), io.inputs);
+        QueueSink().line(text);
+      }
+      for (size_t i = 0; i < out.size(); ++i) {
+        const Push& p = out[i];
+        if (p.kind == Push::Kind::Event) {
+          char text[96];
+          std::snprintf(text, sizeof(text), "detect: %s%s id %lu, direction %s, hold %s",
+                        lran::node::event_type_name(static_cast<lran::EventType>(p.event.event_type)),
+                        (p.event.event_flags & 1) != 0 ? " follow-up" : "",
+                        static_cast<unsigned long>(p.event.event_id),
+                        direction_name(p.event.direction), hold_source_name(p.event.hold_source));
+          QueueSink().line(text);
+        }
+        if (xQueueSend(g_push_q, &p, 0) != pdTRUE) g_push_dropped.fetch_add(1, std::memory_order_relaxed);
+      }
+      if (out.size() != 0 && g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
+    }
     vTaskDelayUntil(&last, period_ticks(TaskId::App));
   }
 }
@@ -1160,6 +1347,10 @@ const char* pulse_result_name(PulseResult r) {
 // bench drives the board layer:
 //   relay <1-4> [ms]  pulse K1-K4, relay_pulse_ms by default, and report the width
 //   in                inputs, raw and debounced, and their edge counts since boot
+//   gate              the derived gate block: state, hold and source, cause, direction (GL3)
+//   inject [<script>|<name>|list|off]
+//                     synthetic inputs below the debounce (PRD R-5.4b); inject.h has the
+//                     script syntax, `inject list` the named scripts
 //   sense             INA226, LM75 and RTC
 //   sd                mount the card and append a line to /gl1.txt
 //   beep              the buzzer
@@ -1214,6 +1405,42 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(s.inputs_edges), s.relays,
                       static_cast<unsigned long>(s.i2c_failures),
                       kEarlyOff[static_cast<size_t>(board_early_off_result())]);
+  } else if (std::strcmp(cmd, "gate") == 0) {
+    GateSnapshot g;
+    portENTER_CRITICAL(&g_gate_mux);
+    g = g_gate;
+    portEXIT_CRITICAL(&g_gate_mux);
+    const IoSnapshot s = io_snapshot();
+    char age[16] = "none";
+    if (g.last_traversal_age_s != UINT32_MAX) {
+      std::snprintf(age, sizeof(age), "%lus", static_cast<unsigned long>(g.last_traversal_age_s));
+    }
+    n = std::snprintf(line, sizeof(line),
+                      "gate: %s held %u source %s cause %s; last direction %s, traversal %s; "
+                      "detect_flags 0x%02x inputs 0x%02x injected 0x%02x; pushes dropped %lu",
+                      gate_state_name(static_cast<lran::GateState>(g.gate_state)), g.hold & 1u,
+                      hold_source_name(g.hold >> 1), cause_name(g.movement_cause),
+                      direction_name(g.last_direction), age, g.detect_flags, s.inputs,
+                      s.inject_mask, static_cast<unsigned long>(g_push_dropped.load()));
+  } else if (std::strcmp(cmd, "inject") == 0) {
+    const uint16_t inj = g_inject.load();
+    if (arg == nullptr) {
+      n = std::snprintf(line, sizeof(line), "inject: mask 0x%02x value 0x%02x, %s at step %u",
+                        inj >> 8, inj & 0xFF, g_inject_running.load() ? "running" : "idle",
+                        g_inject_step.load());
+    } else if (std::strcmp(arg, "list") == 0) {
+      n = std::snprintf(line, sizeof(line), "inject: %s", inject_canned_names());
+    } else if (g_inject_req.load(std::memory_order_acquire) != 0) {
+      n = std::snprintf(line, sizeof(line), "inject: busy, try again");
+    } else if (std::strcmp(arg, "off") == 0) {
+      g_inject_req.store(kInjectOff, std::memory_order_release);
+      n = std::snprintf(line, sizeof(line), "inject: off; every input back to the hardware");
+    } else {
+      const char* canned = inject_canned(arg);
+      std::snprintf(g_inject_text, sizeof(g_inject_text), "%s", canned != nullptr ? canned : arg);
+      g_inject_req.store(kInjectStart, std::memory_order_release);
+      n = std::snprintf(line, sizeof(line), "inject: %s", g_inject_text);
+    }
   } else if (std::strcmp(cmd, "aw") == 0) {
     const uint32_t seq = g_aw_seq.load();
     g_aw_req.store(true);
@@ -1571,6 +1798,7 @@ size_t start_tasks(const PageText& boot_page, const uint8_t* node_key, size_t no
   g_node_key_len = node_key_len;
   g_pulse_q = xQueueCreateStatic(4, sizeof(PulseRequest), g_pulse_q_buf, &g_pulse_q_storage);
   g_cmd_q   = xQueueCreateStatic(1, sizeof(RelaySequence), g_cmd_q_buf, &g_cmd_q_storage);
+  g_push_q  = xQueueCreateStatic(8, sizeof(Push), g_push_q_buf, &g_push_q_storage);
   g_log_q   = xQueueCreateStatic(kLogQueueDepth, sizeof(LogLine), g_log_q_buf, &g_log_q_storage);
   g_hex_q   = xQueueCreateStatic(1, sizeof(HexJob), g_hex_q_buf, &g_hex_q_storage);
   g_ble_mutex = xSemaphoreCreateMutexStatic(&g_ble_mutex_storage);
