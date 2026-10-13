@@ -1544,3 +1544,35 @@ The three host suites pass, 34 cases among the firmware's 128.
 
 **Falsified by:** a bench `inject exit` that does not end in a follow-up with direction
 EXIT, or a K1 `HOLD_OPEN` followed by `inject hold` whose hold reads anything but LRAN.
+
+## 2026-10-13 — GL3's derivation on the bench: every case passes on the air
+
+**Flashed with `d19188a`'s code and run against the bridge and the
+sandbox broker** with `tools/bench/bench.py`. The inputs were wired as they will be: COM at
++12 V, an input pulled to GND to energize it, IN3 and IN4 on GND for idle. `in` read `raw
+0x0C debounced 0x00` and `gate` read CLOSED. Twenty detection events reached MQTT, none
+dropped (`pushes dropped 0`, I²C failures 0).
+
+| Case | How | Result |
+|---|---|---|
+| EXIT with a 30 s gap | `inject exit` | First event at the EXIT edge; the follow-up, same `event_id`, `direction: exit` 30 s later |
+| ENTRY | `inject entry` | `direction: entry` |
+| Simultaneous | `inject both` | UNDETERMINED at once |
+| Partial at the wand | `inject wand-back` | UNDETERMINED 10 s after EXIT cleared (`detect_sequence_idle_ms`) |
+| Partial on the loops | `inject loop-stop` | UNDETERMINED at 60 s (`detect_sequence_window_ms`) |
+| LRAN hold | `cmd/hold_open/set` through the bridge, then `inject` | K1 pulsed; `hold_source: lran`, cause `lran_command`; SAFETY's first edge sent `vehicle_while_held_open` |
+| MANUAL hold | `inject` alone | `hold_source: manual`, cause `manual_hold`; EXIT's first edge alerted |
+| KEYPAD_FIRE hold | `inject +F` first; IN5 is not wired (D77) | `hold_source: keypad_fire`; alerted |
+| UNKNOWN hold | IN1 on GND, then `restart` | `open_held`, `hold_source: unknown` 2 s after boot; lifting IN4 alerted |
+| Real traversal | Operator lifted IN4, then IN3 | `direction: exit` |
+
+The partial traversals left `last_traversal` unchanged. A sensor already asserted at boot
+sent nothing, as designed: IN4 was off GND across the `restart`, and only its next edge
+alerted.
+
+**`held_open_alert_repeat_s` is a rate limit, and 0 alerts once per vehicle** (operator).
+Raising it would filter a double alert from a vehicle towing a trailer, which is rare.
+
+**Event to MQTT took 0.4 s to 6 s.** Most arrived within 2 s. The 6 s one, a follow-up,
+was queued before the gate's next changes, so it did not wait behind their STATUS frames.
+A BLE window is one candidate; the cause is not established. None was lost.

@@ -24,10 +24,10 @@
 // A TRAVERSAL is a detection that saw both sensors (spec 7.2.9). A partial one is not, and
 // leaves last_traversal_age_s alone.
 //
-// held_open_alert_repeat_s, read as a rate limit. At 0 every detection while held alerts. Above
-// 0, a detection within that many seconds of the last alert sends VEHICLE_DETECTED instead,
-// and sets detect_flags bit 4. PRD R-3.2.3e names the parameter without saying which it limits;
-// this reading is the one detect_flags bit 4 describes.
+// held_open_alert_repeat_s IS A RATE LIMIT (operator, 2026-10-13). At 0 every detection while
+// held alerts. Above 0, a detection within that many seconds of the last alert sends
+// VEHICLE_DETECTED instead, and sets detect_flags bit 4: a filter for the double alert from a
+// vehicle towing a trailer.
 
 #pragma once
 
