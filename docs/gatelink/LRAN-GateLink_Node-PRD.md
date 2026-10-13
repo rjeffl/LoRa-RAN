@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.19
+**Version:** 0.20
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -694,9 +694,10 @@ steel gate-controller enclosure  (outdoors, at the gate)
   settings, and both ends revert on silence. Protocol Library Plan §4 declares the six
   rows, `READ_ONLY` until that path is built. **D59** adds three points for this node
   (spec §12.4.2). A PHY change arrives only as a fleet operation from the bridge's topic.
-  **Without a usable microSD, GateLink refuses the PHY group** with `READ_ONLY`, because a
-  committed change it cannot persist would be lost at the next reboot. A revert is
-  reported with `EVENT` `PHY_REVERTED`.
+  **Without a usable nonvolatile store, GateLink refuses the PHY group** with `READ_ONLY`,
+  because a committed change it cannot persist would be lost at the next reboot. That store
+  is NVS, not the microSD, so a missing card does not block a change (operator,
+  2026-10-13). A revert is reported with `EVENT` `PHY_REVERTED`.
 - **Node ID and schema versions**, which are contractual.
 
 ### 5.4 Debug and bench tooling requirements
@@ -1015,6 +1016,10 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.20** — **§5.3: GateLink keeps its committed PHY group in NVS**, by operator
+  decision 2026-10-13, so a missing microSD no longer refuses a PHY change. A card that
+  failed after a commit would otherwise strand the node on D1's defaults.
 
 - **v0.19** — **IN5 and IN6 become placeholders**, by operator decision 2026-10-12 (D77).
   The deploying StamPLC's IN5–IN8 read nothing, so GateLink reads four inputs. G-9, G-10,

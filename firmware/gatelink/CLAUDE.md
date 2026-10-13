@@ -3,9 +3,9 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.37, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.38, §5
 for the architecture and §8 for the milestones.
-**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.19.
+**Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.20.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
 **Session state:** `docs/gatelink/HANDOFF.md`. Start there.
 
@@ -22,20 +22,23 @@ and it plays `inject` scripts, which `io_task` applies below the debounce (PRD R
 `lora_task` runs lran-node's engine on the carrier radio: it announces `BOOT`, answers
 `POLL`, `PING`, `ROLL_CONTEXT`, `COMMAND` and `CONFIG`, and sends each `COMMAND_ACK` after
 io_task reports the last trailing edge (plan §5.2). `CONFIG` reads and writes lran-config's
-`Store`, kept on the microSD as `/config.json` (plan §6.4). The PHY group answers
-`READ_ONLY`, because spec §12.4.2 is not built here.
+`Store`, kept on the microSD as `/config.json` (plan §6.4). The PHY group goes through
+lran-node's `PhyTrial` (spec §12.4.2), and the committed group is in NVS, never on the card.
 `vedirect_task` reads the MPPT's text blocks into spec §7.2.2's status fields, sets §7.2.6
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
 INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `sense`, `sd`,
-`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `bms`, `bms now [abort_ms]`, `bms data`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
+`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
 spec §10.3's resync on the bench, and `lran ack drop` withholds the next fresh
 `COMMAND_ACK`, for §9.4's dedup hit; `ved` prints the MPPT snapshot and the VE.Direct counters.
 `aw` dumps the input expander's registers through `io_task`.
+`phy` prints the PHY group on the air, the committed group and the trial's counters;
+`phy reset` puts D1's group back and erases the NVS blob, for a bench board left on a
+stranded group.
 `ved cpu` prints `vedirect_task`'s passes a second, CPU share and longest pass since the
 last `ved cpu`, split by whether `bms_task`'s BLE window was open, then starts a new count.
 `bms` prints how windows ended, their length and abort latency, the interlock's counters
@@ -64,7 +67,8 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `board_stamplc.{h,cpp}` | The board layer over M5StamPLC: relays, inputs, buttons, buzzer, sensors, RTC, panel, microSD | no |
 | `spi_bus.{h,cpp}` | The one SPI lock (plan §5.2) | no |
 | `gate_io.{h,cpp}` | Relay pulse timing, the command sequencer and input debounce, with time passed in | yes |
-| `radio.{h,cpp}` | The SX1262 driver: receive, spec §12.3 media access, transmit, and GL1's sync-word probe | no |
+| `radio.{h,cpp}` | The SX1262 driver: receive, spec §12.3 media access, transmit, the §12.4.2 retune, and GL1's sync-word probe | no |
+| `nvs_blob.{h,cpp}` | The committed PHY group in NVS, `PhyTrial`'s `BlobStore` | no |
 | `board_profile.h` | The carrier's radio as a `RadioPins` value, for the header board (p-6379), and the VE.Direct UART pins | yes |
 | `bringup.cpp` | The GL0 bring-up console, built only by `gatelink-bringup` in place of `main.cpp`. `cad [rx]` times one channel scan. `ved` reads VE.Direct text and runs read-only HEX; `ved edges` finds a crossed harness | no |
 

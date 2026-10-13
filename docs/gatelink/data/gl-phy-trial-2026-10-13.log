@@ -1,0 +1,566 @@
+     0.07 CMD <run: ports ['BRG', 'GL'], mqtt on>
+     0.15 MQTT <connected, subscribed lran/#>
+     0.16 MQTT lran/bridge/availability online
+     0.16 MQTT lran/bridge/version {"version":"0.1.0","git":"ff2c092","slot":"app0","ota_state":"verified_or_usb"}
+     0.16 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":98,"ctx_rolls":1,"ctx_roll_failed":0}
+     0.16 MQTT lran/bridge/diag/radio/state {"tx_frames":35,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":35,"rx_deaf_ms":7654,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":1,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+     0.17 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":1,"cmd_refused_busy":0,"cmd_sent":1,"cmd_retries":0,"cmd_acked":1,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     0.17 MQTT lran/bridge/diag/publish/state {"status_frames":64,"documents":111,"unchanged":209,"heartbeats":2,"event_frames":23,"events":23,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+     0.17 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"override"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+     0.17 MQTT lran/gatelink/diag/state {"rssi_dbm":-37,"snr_db":11,"last_seen_s":42,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+     0.17 MQTT lran/gatelink/availability online
+     0.17 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917400000,"source":"default"},"spreading_factor":{"value":9,"source":"default"},"bandwidth_khz":{"value":125,"source":"default"},"coding_rate_denominator":{"value":5,"source":"default"},"tx_power_dbm":{"value":-4,"source":"default"},"phy_trial_s":{"value":120,"source":"default"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+     0.17 MQTT lran/gatelink/gate/state {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"none","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":false}
+     0.17 MQTT lran/gatelink/detect/state {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":null,"traversal_persisted":false,"synthetic":false}
+     0.17 MQTT lran/gatelink/solar/state {"available":false,"batt_mv":null,"batt_ma":null,"pv_mv":null,"pv_w":null,"load_ma":null,"yield_today_kwh":null,"yield_yesterday_kwh":null,"pmax_today_w":null,"yield_total_kwh":null,"charge_state":null,"charge_state_name":null,"error":null,"error_name":null,"tracker":null,"load_on":null,"charge_inhibited":null,"temp_c":null,"hex_pending":false,"synthetic":false}
+     0.17 MQTT lran/gatelink/battery/state {"available":false,"soc":null,"soc_source":null,"pack_mv":null,"pack_ma":null,"cell_count":null,"cell1_mv":null,"cell2_mv":null,"cell3_mv":null,"cell4_mv":null,"cell1_temp_c":null,"cell2_temp_c":null,"cell3_temp_c":null,"cell4_temp_c":null,"cycles":null,"capacity_ah":null,"alarms":null,"charge_fet":null,"discharge_fet":null,"charge_inhibited":null,"protection":null,"balancing":null,"ble_rssi_dbm":null,"age_s":null,"synthetic":false}
+     0.17 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":16}
+     0.17 MQTT lran/gatelink/vedirect/write_enable/state OFF
+     0.17 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.17 MQTT lran/gatelink/vedirect/hex/audit {"request":":8F0ED009600DA","seq":3,"outcome":"answered","status":"ok","response":":8F0ED009600DA","authorization":"armed","at":"2026-10-09T01:01:56Z"}
+     0.17 MQTT lran/welllink/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     0.17 MQTT lran/welllink/availability offline
+     0.17 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.17 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.17 MQTT lran/simnode0/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     0.17 MQTT lran/simnode0/availability offline
+     0.17 MQTT lran/simnode0/vedirect/write_enable/state OFF
+     0.17 MQTT lran/simnode0/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.17 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.17 MQTT lran/simnode1/availability offline
+     0.17 MQTT lran/simnode1/diag/state {"rssi_dbm":-32,"snr_db":11,"last_seen_s":0,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+     0.17 MQTT lran/simnode1/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.17 MQTT lran/simnode1/vedirect/hex/audit {"request":":8F7ED007805EC","seq":4,"outcome":"refused_disarmed","status":null,"response":null,"authorization":"disarmed","at":"2026-09-26T00:46:35Z"}
+     0.17 MQTT lran/simnode1/vedirect/write_enable/state OFF
+     0.17 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.17 MQTT lran/simnode2/diag/state {"rssi_dbm":null,"snr_db":null,"last_seen_s":null,"missed_polls":0,"proto_ver":null,"unsupported_ver":null}
+     0.17 MQTT lran/simnode2/availability offline
+     0.17 MQTT lran/simnode2/vedirect/write_enable/state OFF
+     0.17 MQTT lran/simnode2/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.17 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     0.17 MQTT lran/simnode3/vedirect/write_enable/state OFF
+     0.17 MQTT lran/simnode3/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     0.28 BRG ESP-ROM:esp32s3-20210327
+     0.28 BRG Build:Mar 27 2021
+     0.28 BRG rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.28 BRG SPIWP:0xee
+     0.28 BRG mode:DIO, clock div:1
+     0.28 BRG load:0x3fce3808,len:0x4bc
+     0.28 BRG load:0x403c9700,len:0xbd8
+     0.28 BRG load:0x403cc700,len:0x2a0c
+     0.28 BRG entry 0x403c98d0
+     0.28 GL ESP-ROM:esp32s3-20210327
+     0.28 GL Build:Mar 27 2021
+     0.28 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.28 GL Saved PC:0x420932a6
+     0.28 GL SPIWP:0xee
+     0.28 GL mode:DIO, clock div:1
+     0.28 GL load:0x3fce3808,len:0x4bc
+     0.28 GL load:0x403c9700,len:0xbd8
+     0.28 GL load:0x403cc700,len:0x2a0c
+     0.28 GL entry 0x403c98d0
+     0.65 BRG LRAN Bridge Node - node 0x00
+     0.65 BRG Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+     0.65 BRG PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+     0.65 BRG Version: 0.1.0 (ff2c092)
+     0.65 BRG Slot: app0
+     0.65 BRG Image state: not_pending
+     0.65 BRG Reset: power_on
+     0.65 BRG Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+     0.65 BRG boot: count 95
+     0.65 BRG Config: 18 stored value(s) restored
+     0.65 BRG Tasks started: 7
+     0.68 GL LRAN GateLink - node 0x01
+     0.68 GL Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+     0.68 GL Version: 0.1.0 (82ccd83)
+     0.68 GL Reset: usb
+     0.68 GL Node key: provisioned
+     0.82 BRG WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+     0.82 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, mi[   576][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+     0.82 BRG ssed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+     0.82 BRG mqtt: stack high-water 4608 bytes free of 6144
+     0.82 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+     0.82 BRG LoRa: stack high-water 6036 bytes free
+     1.02 BRG [   745][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+     1.02 BRG [   754][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+     1.09 GL Tasks: 7 of 7 started
+     1.09 GL gate: CLOSED, hold NONE, cause UNKNOWN, inputs 0x00
+     1.09 GL boot: EXTERNAL, ctx_id b9ee1c3o RST check passed, BUSY fell in 1619 us
+     1.09 GL cfg: card mounted; 0 restored, 0 refused, 0 unknown
+     1.09 GL boot: first input read raw 0x0c debounced 0x00
+     1.39 MQTT lran/bridge/availability offline
+     1.43 BRG [  1289][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+     1.43 BRG OTA: listening as lran-bridge
+     1.43 BRG mqtt: connected, heap free 33256, lowest 28160
+     1.46 MQTT lran/bridge/availability online
+     1.46 MQTT lran/bridge/version {"version":"0.1.0","git":"ff2c092","slot":"app0","ota_state":"verified_or_usb"}
+     1.56 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+     1.56 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":0,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":1,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+     1.57 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     1.57 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+     1.66 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"override"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+     1.67 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"},"relay_pulse_ms":{"value":null,"source":"default"},"relay_min_spacing_ms":{"value":null,"source":"default"},"unlock_settle_ms":{"value":null,"source":"default"},"post_wake_settle_ms":{"value":null,"source":"default"},"command_confirm_timeout_s":{"value":null,"source":"default"},"input_poll_ms":{"value":null,"source":"default"},"input_debounce_samples":{"value":null,"source":"default"},"hold_confirm_ms":{"value":null,"source":"default"},"detect_sequence_window_ms":{"value":null,"source":"default"},"detect_sequence_idle_ms":{"value":null,"source":"default"},"held_open_alert_repeat_s":{"value":null,"source":"default"},"cause_window_ms":{"value":null,"source":"default"},"hex_timeout_ms":{"value":null,"source":"default"},"vedirect_stale_s":{"value":null,"source":"default"},"bms_poll_s":{"value":null,"source":"default"},"charge_inhibit_confirm_s":{"value":null,"source":"default"},"display_timeout_s":{"value":null,"source":"default"},"buzzer_enable":{"value":null,"source":"default"},"inject_spacing_ms":{"value":null,"source":"default"},"watchdog_timeout_s":{"value":null,"source":"default"}}
+     1.76 MQTT lran/gatelink/vedirect/write_enable/state OFF
+     1.76 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+     1.76 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+     1.76 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":4,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":0,"q_hex_dropped":0,"q_hex_high_water":0}
+     1.77 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+     1.77 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+     1.86 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.87 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.97 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     1.97 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     2.09 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+     2.65 BRG config: 01 rebooted, readback owed
+     2.65 BRG FRAME #0 rx t=2474 peer=0x01 type=4 schema=16 frag=0x01 seq=1 rssi=-36 snr=12 st=0 rx=0 deaf=0
+     2.68 MQTT lran/gatelink/gate/state {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"none","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":false}
+     2.68 MQTT lran/gatelink/detect/state {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":null,"traversal_persisted":false,"synthetic":false}
+     2.68 MQTT lran/gatelink/solar/state {"available":false,"batt_mv":null,"batt_ma":null,"pv_mv":null,"pv_w":null,"load_ma":null,"yield_today_kwh":null,"yield_yesterday_kwh":null,"pmax_today_w":null,"yield_total_kwh":null,"charge_state":null,"charge_state_name":null,"error":null,"error_name":null,"tracker":null,"load_on":null,"charge_inhibited":null,"temp_c":null,"hex_pending":false,"synthetic":false}
+     2.68 MQTT lran/gatelink/battery/state {"available":false,"soc":null,"soc_source":null,"pack_mv":null,"pack_ma":null,"cell_count":null,"cell1_mv":null,"cell2_mv":null,"cell3_mv":null,"cell4_mv":null,"cell1_temp_c":null,"cell2_temp_c":null,"cell3_temp_c":null,"cell4_temp_c":null,"cycles":null,"capacity_ah":null,"alarms":null,"charge_fet":null,"discharge_fet":null,"charge_inhibited":null,"protection":null,"balancing":null,"ble_rssi_dbm":null,"age_s":null,"synthetic":false}
+     2.68 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"boot","synthetic":false,"uptime_s":0}
+     2.76 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":0,"ms":2474,"deaf":0,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":1,"rssi":-36,"snr":12,"st":0,"rx":0}]}
+     2.77 MQTT lran/gatelink/availability online
+     2.86 BRG availability: gatelink online (missed_polls 0, threshold 3)
+     2.86 BRG FRAME #1 tx t=2680 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=25
+     2.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":1,"ms":2680,"deaf":25,"d":"tx","peer":1,"type":1,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     4.90 BRG FRAME #2 rx t=4716 peer=0x01 type=5 schema=17 frag=0x01 seq=2 rssi=-36 snr=11 st=0 rx=0 deaf=259
+     4.96 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3119389745,"event_type":"boot","event_code":10,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":7,"reset_cause":"external","uptime_s":0,"synthetic":false}
+     4.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":2,"ms":4716,"deaf":259,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+     5.66 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"gate_state_change","synthetic":false,"uptime_s":0}
+     5.66 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":3,"ms":5408,"deaf":259,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":3,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+     5.71 BRG FRAME #3 rx t=5408 peer=0x01 type=4 schema=16 frag=0x01 seq=3 rssi=-37 snr=11 st=0 rx=0 deaf=259
+     6.06 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":4,"ms":5807,"deaf":259,"d":"rx","peer":1,"type":2,"schema":0,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+     6.12 BRG FRAME #4 rx t=5807 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=259
+     6.73 BRG roll: 01 rolled to ctx 0xc31ce270 after 1 attempt(s)
+     6.73 BRG FRAME #5 tx t=6604 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=284
+     6.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":5,"ms":6604,"deaf":284,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+     7.20 CMD mark 77c218
+     7.20 CMD GL phy
+     7.20 GL roll 01 <- 00 seq 1: ctx 0xb9ee1c31 -> 0xc31ce270, ACCEPTED
+     7.40 GL phy: idle, store nvs, window 0 ms; effective 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; committed 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; trials 0 committed 0 reverted 0 abandoned 0 commit failed 0 refused 0
+     7.75 BRG FRAME #6 rx t=7548 peer=0x01 type=4 schema=16 frag=0x01 seq=2 rssi=-36 snr=11 st=0 rx=0 deaf=476
+     7.76 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":6}
+     7.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":6,"ms":7548,"deaf":476,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":2,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+     9.79 BRG FRAME #7 rx t=9596 peer=0x01 type=11 schema=18 frag=0x01 seq=3 rssi=-37 snr=12 st=0 rx=0 deaf=476
+     9.87 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":7,"ms":9596,"deaf":476,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":3,"rssi":-37,"snr":12,"st":0,"rx":0}]}
+    10.16 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":8,"ms":9922,"deaf":476,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-36,"snr":10,"st":0,"rx":0}]}
+    10.20 BRG FRAME #8 rx t=9922 peer=0x01 type=11 schema=18 frag=0x01 seq=4 rssi=-36 snr=10 st=0 rx=0 deaf=476
+    10.79 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917400000,"source":"default"},"spreading_factor":{"value":9,"source":"default"},"bandwidth_khz":{"value":125,"source":"default"},"coding_rate_denominator":{"value":5,"source":"default"},"tx_power_dbm":{"value":-4,"source":"default"},"phy_trial_s":{"value":120,"source":"default"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+    10.81 BRG config: 01 outcome 3, sched stack high-water 2528 bytes free
+    10.81 BRG mqtt: stack high-water 2276 bytes free of 6144
+    10.81 BRG FRAME #9 tx t=10595 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=497
+    10.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":9,"ms":10595,"deaf":497,"d":"tx","peer":1,"type":8,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    12.09 GL hex 01 -> 00 seq 1: status 1 
+    12.43 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":10,"ms":12053,"deaf":730,"d":"rx","peer":1,"type":9,"schema":0,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    12.44 BRG FRAME #10 rx t=12053 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=730
+    12.84 BRG hex: 01 seq 1 read -> answered status 1 result 0, sched stack 1844 bytes free
+    12.84 BRG WARN hex: 01 readback abandoned at 0xEDF7
+    13.85 BRG FRAME #11 tx t=13599 peer=0x01 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=755
+    13.87 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":11,"ms":13599,"deaf":755,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    14.67 BRG poll: 01 answered in 972 ms (window 10000 ms)
+    14.67 BRG FRAME #12 rx t=14543 peer=0x01 type=4 schema=16 frag=0x01 seq=5 rssi=-37 snr=11 st=0 rx=0 deaf=947
+    14.79 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.4,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":13}
+    14.79 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":12,"ms":14543,"deaf":947,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":5,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+    20.46 CMD mark 8b9a5c
+    20.46 CMD pub lran/bridge/config/set {"set":{"freq_hz":917000000}}
+    20.47 MQTT lran/bridge/config/set {"set":{"freq_hz":917000000}}
+    20.78 BRG phy: change started across 1 node(s)
+    20.78 BRG FRAME #13 tx t=20595 peer=0x01 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=968
+    20.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":13,"ms":20595,"deaf":968,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    21.28 GL phy 01: SET accepted, board pending, accepted 0x01 of 0x01
+    21.28 GL config 01 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+    22.00 BRG FRAME #14 rx t=21844 peer=0x01 type=11 schema=18 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=1365
+    22.06 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":14,"ms":21844,"deaf":1365,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    22.09 GL phy: retuned to 917000000 Hz SF9 BW 125 kHz CR 4/5 -4 dBm, board trial
+    22.81 BRG phy: every node accepted - retuning
+    22.81 BRG LoRa: radio up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+    22.81 BRG LoRa: stack high-water 5972 bytes free
+    25.06 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":15,"ms":24795,"deaf":1411,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    25.06 BRG FRAME #15 tx t=24795 peer=0x01 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1411
+    25.87 BRG FRAME #16 rx t=25735 peer=0x01 type=4 schema=16 frag=0x01 seq=6 rssi=-36 snr=11 st=0 rx=0 deaf=1603
+    26.04 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":24}
+    26.04 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":16,"ms":25735,"deaf":1603,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":6,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    26.69 BRG phy: every node heard - committed
+    26.86 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"freq_hz":{"status":"ok","value":917000000}}}
+    26.86 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"override"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+    26.89 BRG FRAME #17 tx t=26607 peer=0x01 type=10 schema=18 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1624
+    26.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":17,"ms":26607,"deaf":1624,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    27.16 GL config 01 <- 00 seq 2: op 2, 6 entries, 6 result(s)
+    27.70 BRG FRAME #18 rx t=27544 peer=0x01 type=11 schema=18 frag=0x01 seq=2 rssi=-37 snr=11 st=0 rx=0 deaf=1960
+    27.76 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+    27.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":18,"ms":27544,"deaf":1960,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":2,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+    30.76 BRG mqtt: stack high-water 1968 bytes free of 6144
+    31.03 GL alive: io=301 vedirect=1501 lora=2383 app=301 bms=1 ui=301 log=1
+    34.32 CMD mark c79574
+    34.32 CMD GL phy
+    34.48 GL phy: idle, store nvs, window 0 ms; effective 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; committed 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; trials 1 committed 1 reverted 0 abandoned 0 commit failed 0 refused 0
+    40.64 CMD mark 1db0fc
+    40.64 CMD reset GL
+    40.79 GL ESP-ROM:esp32s3-20210327
+    40.79 GL Build:Mar 27 2021
+    40.79 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+    40.79 GL Saved PC:0x420932a6
+    40.79 GL SPIWP:0xee
+    40.79 GL mode:DIO, clock div:1
+    40.79 GL load:0x3fce3808,len:0x4bc
+    40.79 GL load:0x403c9700,len:0xbd8
+    40.79 GL load:0x403cc700,len:0x2a0c
+    40.79 GL entry 0x403c98d0
+    41.20 GL LRAN GateLink - node 0x01
+    41.20 GL Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+    41.20 GL Version: 0.1.0 (82ccd83)
+    41.20 GL Reset: usb
+    41.20 GL Node key: provisioned
+    41.61 GL Tasks: 7 of 7 started
+    41.61 GL gate: CLOSED, hold NONE, cause UNKNOWN, inputs 0x00
+    41.61 GL boot: EXTERNAL, ctx_id d587ed18; radio RST check passed, BUSY fell in 1618 us
+    41.61 GL cfg: card mounted; 0 restored, 0 refused, 0 unknown
+    41.61 GL boot: first input read raw 0x0c debounced 0x00
+    42.15 BRG config: 01 rebooted, readback owed
+    42.26 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"boot","synthetic":false,"uptime_s":0}
+    42.36 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":19,"ms":41995,"deaf":1960,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":1,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+    42.36 BRG FRAME #19 rx t=41995 peer=0x01 type=4 schema=16 frag=0x01 seq=1 rssi=-37 snr=11 st=0 rx=0 deaf=1960
+    42.74 MQTT lran/gatelink/event/boot {"event_id":1,"ctx_id":3582455064,"event_type":"boot","event_code":10,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":7,"reset_cause":"external","uptime_s":0,"synthetic":false}
+    42.76 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":20,"ms":42437,"deaf":1960,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":2,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    42.76 BRG FRAME #20 rx t=42437 peer=0x01 type=5 schema=17 frag=0x01 seq=2 rssi=-36 snr=11 st=0 rx=0 deaf=1960
+    43.26 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"gate_state_change","synthetic":false,"uptime_s":0}
+    43.36 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":21,"ms":43010,"deaf":1960,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":3,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+    43.37 BRG FRAME #21 rx t=43010 peer=0x01 type=4 schema=16 frag=0x01 seq=3 rssi=-37 snr=11 st=0 rx=0 deaf=1960
+    43.89 CMD mark ed7c42
+    43.89 CMD GL phy
+    44.06 GL phy: idle, store nvs, window 0 ms; effective 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; committed 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; trials 0 committed 0 reverted 0 abandoned 0 commit failed 0 refused 0
+    44.40 BRG FRAME #22 tx t=44102 peer=0x01 type=3 schema=0 frag=0x01 seq=4 rssi=- snr=- st=0 rx=5 deaf=1981
+    44.48 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":22,"ms":44102,"deaf":1981,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":4,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    46.22 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":3}
+    46.22 BRG FRAME #23 rx t=45946 peer=0x01 type=4 schema=16 frag=0x01 seq=4 rssi=-36 snr=11 st=0 rx=0 deaf=2173
+    46.26 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":23,"ms":45946,"deaf":2173,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":4,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    47.24 BRG FRAME #24 rx t=47052 peer=0x01 type=11 schema=18 frag=0x01 seq=5 rssi=-36 snr=11 st=0 rx=0 deaf=2173
+    47.37 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":24,"ms":47052,"deaf":2173,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":5,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    48.87 BRG FRAME #25 rx t=48635 peer=0x01 type=11 schema=18 frag=0x01 seq=6 rssi=-36 snr=11 st=0 rx=0 deaf=2173
+    48.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":25,"ms":48635,"deaf":2173,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":6,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+    49.69 BRG config: 01 outcome 3, sched stack high-water 1216 bytes free
+    49.76 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+    61.77 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":18,"ctx_rolls":1,"ctx_roll_failed":0}
+    61.77 MQTT lran/bridge/diag/radio/state {"tx_frames":8,"cad_backoffs":2,"errors_suppressed":0,"cad_deferred":1,"cad_free":8,"rx_deaf_ms":2173,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":3,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+    61.77 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+    61.77 MQTT lran/bridge/diag/publish/state {"status_frames":8,"documents":12,"unchanged":28,"heartbeats":0,"event_frames":2,"events":2,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+    61.77 MQTT lran/gatelink/diag/state {"rssi_dbm":-36,"snr_db":11,"last_seen_s":12,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+    71.57 GL alive: io=301 vedirect=1501 lora=1396 app=301 bms=1 ui=301 log=1
+    73.91 BRG FRAME #26 tx t=73601 peer=0x01 type=3 schema=0 frag=0x01 seq=5 rssi=- snr=- st=0 rx=5 deaf=2198
+    73.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":26,"ms":73601,"deaf":2198,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":5,"rssi":null,"snr":null,"st":0,"rx":5}]}
+    74.73 BRG poll: 01 answered in 970 ms (window 10000 ms)
+    74.73 BRG FRAME #27 rx t=74541 peer=0x01 type=4 schema=16 frag=0x01 seq=7 rssi=-36 snr=11 st=0 rx=0 deaf=2390
+    74.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":27,"ms":74541,"deaf":2390,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":7,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   101.47 GL alive: io=601 vedirect=3001 lora=1835 app=601 bms=1 ui=601 log=2
+   121.76 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":19,"ctx_rolls":1,"ctx_roll_failed":0}
+   121.76 MQTT lran/bridge/diag/radio/state {"tx_frames":9,"cad_backoffs":2,"errors_suppressed":0,"cad_deferred":1,"cad_free":9,"rx_deaf_ms":2390,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":3,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   121.76 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   121.76 MQTT lran/bridge/diag/publish/state {"status_frames":9,"documents":12,"unchanged":33,"heartbeats":0,"event_frames":2,"events":2,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   121.76 MQTT lran/gatelink/diag/state {"rssi_dbm":-36,"snr_db":11,"last_seen_s":47,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   131.56 GL alive: io=901 vedirect=4501 lora=2135 app=901 bms=1 ui=901 log=3
+   133.89 BRG FRAME #28 tx t=133593 peer=0x01 type=3 schema=0 frag=0x01 seq=6 rssi=- snr=- st=0 rx=5 deaf=2411
+   133.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":28,"ms":133593,"deaf":2411,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":6,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   134.70 BRG poll: 01 answered in 962 ms (window 10000 ms)
+   134.70 BRG FRAME #29 rx t=134533 peer=0x01 type=4 schema=16 frag=0x01 seq=8 rssi=-36 snr=11 st=0 rx=0 deaf=2603
+   134.76 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":93}
+   134.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":29,"ms":134533,"deaf":2603,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":8,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   158.68 CMD mark 3edc20
+   158.68 CMD pub lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   158.68 MQTT lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   159.68 BRG phy: change started across 1 node(s)
+   160.29 BRG FRAME #30 tx t=160122 peer=0x01 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=2645
+   160.46 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":30,"ms":160122,"deaf":2645,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   160.62 GL phy 01: SET accepted, board pending, accepted 0x01 of 0x01
+   160.82 GL config 01 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+   161.30 BRG FRAME #31 rx t=161120 peer=0x01 type=11 schema=18 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=3042
+   161.43 GL phy: retuned to 917400000 Hz SF9 BW 125 kHz CR 4/5 -4 dBm, board trial
+   161.46 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":31,"ms":161120,"deaf":3042,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   161.56 CMD mark 54b2f3
+   161.56 CMD reset GL
+   161.64 GL ESP-ROM:esp32s3-20210327
+   161.64 GL Build:Mar 27 2021
+   161.64 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+   161.64 GL Saved PC:0x420932a6
+   161.64 GL SPIWP:0xee
+   161.64 GL mode:DIO, clock div:1
+   161.64 GL load:0x3fce3808,len:0x4bc
+   161.64 GL load:0x403c9700,len:0xbd8
+   161.64 GL load:0x403cc700,len:0x2a0c
+   161.64 GL entry 0x403c98d0
+   161.71 BRG phy: every node accepted - retuning
+   161.92 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   161.92 BRG LoRa: stack high-water 5972 bytes free
+   162.05 GL LRAN GateLink - node 0x01
+   162.05 GL Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+   162.05 GL Version: 0.1.0 (82ccd83)
+   162.05 GL Reset: usb
+   162.05 GL Node key: provisioned
+   162.45 GL Tasks: 7 of 7 started
+   162.45 GL D to the committed group - a reboot ended the trial
+   162.45 GL ll in 1621 us
+   162.45 GL cfg: card mounted; 0 restored, 0 refused, 0 unknown
+   162.45 GL boot: first input read raw 0x0c debounced 0x00
+   162.93 BRG FRAME #32 tx t=162600 peer=0x01 type=3 schema=0 frag=0x01 seq=7 rssi=- snr=- st=0 rx=5 deaf=3063
+   162.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":32,"ms":162600,"deaf":3063,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":7,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   171.88 BRG FRAME #33 tx t=171598 peer=0x01 type=3 schema=0 frag=0x01 seq=8 rssi=- snr=- st=0 rx=5 deaf=3275
+   171.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":33,"ms":171598,"deaf":3275,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":8,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   180.81 BRG FRAME #34 tx t=180598 peer=0x01 type=3 schema=0 frag=0x01 seq=9 rssi=- snr=- st=0 rx=5 deaf=3489
+   180.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":34,"ms":180598,"deaf":3489,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":9,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   181.76 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":21,"ctx_rolls":1,"ctx_roll_failed":0}
+   181.76 MQTT lran/bridge/diag/radio/state {"tx_frames":14,"cad_backoffs":3,"errors_suppressed":0,"cad_deferred":1,"cad_free":14,"rx_deaf_ms":3681,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":3,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   181.76 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   181.76 MQTT lran/bridge/diag/publish/state {"status_frames":10,"documents":13,"unchanged":37,"heartbeats":0,"event_frames":2,"events":2,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   181.77 MQTT lran/gatelink/diag/state {"rssi_dbm":-36,"snr_db":11,"last_seen_s":20,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   189.95 BRG FRAME #35 tx t=189601 peer=0x01 type=3 schema=0 frag=0x01 seq=10 rssi=- snr=- st=0 rx=5 deaf=3706
+   189.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":35,"ms":189601,"deaf":3706,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":10,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   192.50 GL alive: io=301 vedirect=1501 lora=1255 app=301 bms=1 ui=301 log=1
+   198.90 BRG FRAME #36 tx t=198691 peer=0x01 type=3 schema=0 frag=0x01 seq=11 rssi=- snr=- st=0 rx=5 deaf=3944
+   199.06 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":36,"ms":198691,"deaf":3944,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":11,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   207.85 BRG FRAME #37 tx t=207604 peer=0x01 type=3 schema=0 frag=0x01 seq=12 rssi=- snr=- st=0 rx=5 deaf=4161
+   207.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":37,"ms":207604,"deaf":4161,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":12,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   216.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":38,"ms":216593,"deaf":4374,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":13,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   216.97 BRG FRAME #38 tx t=216593 peer=0x01 type=3 schema=0 frag=0x01 seq=13 rssi=- snr=- st=0 rx=5 deaf=4374
+   222.40 GL alive: io=601 vedirect=3001 lora=1555 app=601 bms=1 ui=601 log=2
+   225.90 BRG FRAME #39 tx t=225602 peer=0x01 type=3 schema=0 frag=0x01 seq=14 rssi=- snr=- st=0 rx=5 deaf=4587
+   225.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":39,"ms":225602,"deaf":4587,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":14,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   234.87 BRG FRAME #40 tx t=234605 peer=0x01 type=3 schema=0 frag=0x01 seq=15 rssi=- snr=- st=0 rx=5 deaf=4804
+   234.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":40,"ms":234605,"deaf":4804,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":15,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   241.76 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":21,"ctx_rolls":1,"ctx_roll_failed":0}
+   241.76 MQTT lran/bridge/diag/radio/state {"tx_frames":20,"cad_backoffs":4,"errors_suppressed":0,"cad_deferred":1,"cad_free":20,"rx_deaf_ms":4996,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":3,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   241.76 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   241.76 MQTT lran/bridge/diag/publish/state {"status_frames":10,"documents":13,"unchanged":37,"heartbeats":0,"event_frames":2,"events":2,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   241.76 MQTT lran/gatelink/diag/state {"rssi_dbm":-36,"snr_db":11,"last_seen_s":80,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   243.79 BRG FRAME #41 tx t=243594 peer=0x01 type=3 schema=0 frag=0x01 seq=16 rssi=- snr=- st=0 rx=5 deaf=5017
+   243.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":41,"ms":243594,"deaf":5017,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":16,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   252.45 GL alive: io=901 vedirect=4501 lora=1855 app=901 bms=1 ui=901 log=3
+   252.94 BRG FRAME #42 tx t=252593 peer=0x01 type=3 schema=0 frag=0x01 seq=17 rssi=- snr=- st=0 rx=5 deaf=5230
+   252.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":42,"ms":252593,"deaf":5230,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":17,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   261.88 BRG FRAME #43 tx t=261602 peer=0x01 type=3 schema=0 frag=0x01 seq=18 rssi=- snr=- st=0 rx=5 deaf=5443
+   261.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":43,"ms":261602,"deaf":5443,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":18,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   270.81 BRG FRAME #44 tx t=270605 peer=0x01 type=3 schema=0 frag=0x01 seq=19 rssi=- snr=- st=0 rx=5 deaf=5660
+   270.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":44,"ms":270605,"deaf":5660,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":19,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   273.86 MQTT lran/bridge/event/phy_reverted {"boot":95,"event_id":1,"reason":"not_heard","node":"gatelink"}
+   273.86 BRG WARN phy: change abandoned (not_heard, node 01), retuning back
+   273.86 BRG LoRa: radio up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   273.86 BRG LoRa: stack high-water 5972 bytes free
+   273.86 MQTT lran/bridge/config/ack {"op":"set","persist":"not_applied","results":{"freq_hz":{"status":"reverted","value":917000000}}}
+   274.88 BRG FRAME #45 tx t=274602 peer=0x01 type=3 schema=0 frag=0x01 seq=20 rssi=- snr=- st=0 rx=5 deaf=5873
+   274.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":45,"ms":274602,"deaf":5873,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":20,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   275.01 GL phy 01: EVENT PHY_REVERTED detail 0x0002
+   275.47 MQTT lran/gatelink/event/phy_reverted {"event_id":2,"ctx_id":3305332785,"event_type":"phy_reverted","event_code":11,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":2,"uptime_s":113,"synthetic":false}
+   275.49 BRG poll: 01 answered in 680 ms (window 10000 ms)
+   275.49 BRG FRAME #46 rx t=275251 peer=0x01 type=5 schema=17 frag=0x01 seq=4 rssi=-36 snr=11 st=0 rx=0 deaf=6065
+   275.56 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":46,"ms":275251,"deaf":6065,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":4,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   276.05 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"config_change","synthetic":false,"uptime_s":113}
+   276.10 BRG config: 01 rebooted, readback owed
+   276.10 BRG FRAME #47 rx t=275823 peer=0x01 type=4 schema=16 frag=0x01 seq=5 rssi=-36 snr=11 st=0 rx=0 deaf=6065
+   276.16 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":47,"ms":275823,"deaf":6065,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":5,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   276.71 BRG FRAME #48 tx t=276596 peer=0x01 type=3 schema=0 frag=0x01 seq=21 rssi=- snr=- st=0 rx=5 deaf=6086
+   276.85 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":48,"ms":276596,"deaf":6086,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":21,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   279.75 BRG FRAME #49 rx t=279586 peer=0x01 type=4 schema=16 frag=0x01 seq=6 rssi=-36 snr=11 st=0 rx=0 deaf=6278
+   279.86 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":115}
+   279.86 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":49,"ms":279586,"deaf":6278,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":6,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   282.53 GL alive: io=1201 vedirect=6001 lora=3374 app=1201 bms=1 ui=1201 log=4
+   282.79 BRG FRAME #50 rx t=282614 peer=0x01 type=11 schema=18 frag=0x01 seq=7 rssi=-36 snr=11 st=0 rx=0 deaf=6278
+   282.96 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":50,"ms":282614,"deaf":6278,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":7,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   283.60 BRG FRAME #51 rx t=283338 peer=0x01 type=11 schema=18 frag=0x01 seq=8 rssi=-36 snr=11 st=0 rx=0 deaf=6278
+   283.66 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":51,"ms":283338,"deaf":6278,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":8,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   283.76 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+   283.80 BRG config: 01 outcome 3, sched stack high-water 1216 bytes free
+   288.72 CMD mark 119577
+   288.72 CMD pub lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   288.72 MQTT lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   289.71 BRG phy: change started across 1 node(s)
+   289.91 BRG FRAME #52 tx t=289600 peer=0x01 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=6299
+   289.95 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":52,"ms":289600,"deaf":6299,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   290.27 GL phy 01: SET accepted, board pending, accepted 0x01 of 0x01
+   290.27 GL config 01 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+   292.11 GL phy: retuned to 917400000 Hz SF9 BW 125 kHz CR 4/5 -4 dBm, board trial
+   292.15 BRG FRAME #53 rx t=291817 peer=0x01 type=11 schema=18 frag=0x01 seq=1 rssi=-35 snr=11 st=0 rx=0 deaf=6696
+   292.16 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":53,"ms":291817,"deaf":6696,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-35,"snr":11,"st":0,"rx":0}]}
+   292.96 BRG phy: every node accepted - retuning
+   292.96 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   292.96 BRG LoRa: stack high-water 5972 bytes free
+   293.05 CMD mark 209bae
+   293.05 CMD hold BRG
+   312.44 GL alive: io=1501 vedirect=7501 lora=4204 app=1501 bms=1 ui=1501 log=5
+   338.18 MQTT lran/bridge/availability offline
+   342.49 GL alive: io=1801 vedirect=9001 lora=4504 app=1801 bms=1 ui=1801 log=6
+   372.59 GL alive: io=2101 vedirect=10501 lora=4804 app=2101 bms=1 ui=2101 log=7
+   402.47 GL alive: io=2401 vedirect=12001 lora=5104 app=2401 bms=1 ui=2401 log=8
+   412.02 GL phy: REVERTED to the committed group - the window expired
+   412.22 GL phy: retuned to 917000000 Hz SF9 BW 125 kHz CR 4/5 -4 dBm, board idle
+   432.57 GL alive: io=2701 vedirect=13501 lora=5404 app=2701 bms=1 ui=2701 log=9
+   436.83 CMD mark 307ac7
+   436.83 CMD release BRG
+   437.00 BRG ESP-ROM:esp32s3-20210327
+   437.00 BRG Build:Mar 27 2021
+   437.00 BRG rst:0x1 (POWERON),boot:0x9 (SPI_FAST_FLASH_BOOT)
+   437.00 BRG SPIWP:0xee
+   437.00 BRG mode:DIO, clock div:1
+   437.00 BRG load:0x3fce3808,len:0x4bc
+   437.00 BRG load:0x403c9700,len:0xbd8
+   437.00 BRG load:0x403cc700,len:0x2a0c
+   437.00 BRG entry 0x403c98d0
+   437.40 BRG LRAN Bridge Node - node 0x00
+   437.40 BRG Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)
+   437.40 BRG PHY: 917.4 MHz, SF9, BW 125 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi
+   437.40 BRG Version: 0.1.0 (ff2c092)
+   437.40 BRG Slot: app0
+   437.40 BRG Image state: not_pending
+   437.40 BRG Reset: power_on
+   437.40 BRG Registry: 0x01 0x02 0xF0(bench) 0xF1(bench) 0xF2(bench) 0xF3(bench)
+   437.40 BRG boot: count 96
+   437.55 BRG Config: 18 stored value(s) restored
+   437.55 BRG Tasks started: 7
+   437.55 BRG WiFi, MQTT, OTA, the radio link, the registry and HA discovery.
+   437.55 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, mi[   583][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+   437.55 BRG ssed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+   437.55 BRG mqtt: stack high-water 4608 bytes free of 6144
+   437.76 BRG LoRa: radio up - 917000000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   437.76 BRG LoRa: stack high-water 6036 bytes free
+   437.76 BRG [   752][I][esp32-hal-i2c.c:75] i2cInit(): Initialising I2C Master: sda=17 scl=18 freq=100000
+   437.76 BRG [   761][W][Wire.cpp:301] begin(): Bus already started in Master Mode.
+   438.16 BRG [  1295][I][ArduinoOTA.cpp:141] begin(): OTA server at: lran-bridge.local:3232
+   438.16 BRG OTA: listening as lran-bridge
+   438.34 MQTT lran/bridge/availability online
+   438.35 MQTT lran/bridge/version {"version":"0.1.0","git":"ff2c092","slot":"app0","ota_state":"verified_or_usb"}
+   438.35 MQTT lran/bridge/event/phy_reverted {"boot":96,"event_id":1,"reason":"restart","node":null}
+   438.36 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   438.36 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":0,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":1,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   438.36 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   438.37 BRG mqtt: connected, heap free 33036, lowest 29232
+   438.43 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   438.53 MQTT lran/gatelink/vedirect/write_enable/state OFF
+   438.53 MQTT lran/gatelink/vedirect/charge/state {"charge_absorption_voltage_v":null,"charge_float_voltage_v":null,"charge_equalisation_voltage_v":null,"charge_auto_equalisation":null,"charge_temp_compensation_mv_k":null,"charge_battery_type":null,"charge_max_current_a":null,"charge_absorption_time_limit_h":null,"charge_system_voltage_v":null,"charge_low_temp_level_c":null}
+   438.53 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   438.53 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":4,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   438.53 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   438.53 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   438.64 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"override"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+   438.64 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"},"relay_pulse_ms":{"value":null,"source":"default"},"relay_min_spacing_ms":{"value":null,"source":"default"},"unlock_settle_ms":{"value":null,"source":"default"},"post_wake_settle_ms":{"value":null,"source":"default"},"command_confirm_timeout_s":{"value":null,"source":"default"},"input_poll_ms":{"value":null,"source":"default"},"input_debounce_samples":{"value":null,"source":"default"},"hold_confirm_ms":{"value":null,"source":"default"},"detect_sequence_window_ms":{"value":null,"source":"default"},"detect_sequence_idle_ms":{"value":null,"source":"default"},"held_open_alert_repeat_s":{"value":null,"source":"default"},"cause_window_ms":{"value":null,"source":"default"},"hex_timeout_ms":{"value":null,"source":"default"},"vedirect_stale_s":{"value":null,"source":"default"},"bms_poll_s":{"value":null,"source":"default"},"charge_inhibit_confirm_s":{"value":null,"source":"default"},"display_timeout_s":{"value":null,"source":"default"},"buzzer_enable":{"value":null,"source":"default"},"inject_spacing_ms":{"value":null,"source":"default"},"watchdog_timeout_s":{"value":null,"source":"default"}}
+   438.75 MQTT lran/welllink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   438.76 MQTT lran/simnode0/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   438.85 MQTT lran/simnode1/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   438.85 MQTT lran/simnode2/config/state {"poll_interval_s":{"value":60,"source":"override"},"deployed":{"value":0,"source":"override"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   438.94 MQTT lran/simnode3/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":null,"source":"default"},"frag_reassembly_timeout_ms":{"value":null,"source":"default"},"cad_retries":{"value":null,"source":"default"},"backoff_max_ms":{"value":null,"source":"default"},"freq_hz":{"value":null,"source":"default"},"spreading_factor":{"value":null,"source":"default"},"bandwidth_khz":{"value":null,"source":"default"},"coding_rate_denominator":{"value":null,"source":"default"},"tx_power_dbm":{"value":null,"source":"default"},"phy_trial_s":{"value":null,"source":"default"}}
+   447.51 BRG mqtt: stack high-water 2276 bytes free of 6144
+   467.57 GL alive: io=3001 vedirect=15001 lora=5704 app=3001 bms=1 ui=3001 log=10
+   467.57 GL bms: cap in 5011 ms (init 38 scan 4970 conn 0 hs 0 ans 0 down 2)
+   492.59 GL alive: io=3301 vedirect=16501 lora=6004 app=3301 bms=2 ui=3301 log=11
+   498.53 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   498.53 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   498.53 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   498.53 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   522.49 GL alive: io=3601 vedirect=18001 lora=6304 app=3601 bms=2 ui=3601 log=12
+   552.61 GL alive: io=3901 vedirect=19501 lora=6604 app=3901 bms=2 ui=3901 log=13
+   558.52 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+   558.53 MQTT lran/bridge/diag/radio/state {"tx_frames":0,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":0,"rx_deaf_ms":0,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":0,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":0,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":0,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   558.53 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   558.53 MQTT lran/bridge/diag/publish/state {"status_frames":0,"documents":0,"unchanged":0,"heartbeats":0,"event_frames":0,"events":0,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   560.99 CMD mark cbba1e
+   560.99 CMD GL phy
+   561.15 GL phy: idle, store nvs, window 0 ms; effective 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; committed 917000000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; trials 1 committed 0 reverted 2 abandoned 0 commit failed 0 refused 0
+   582.50 GL alive: io=4201 vedirect=21001 lora=6904 app=4201 bms=2 ui=4201 log=14
+   587.43 CMD mark 594b24
+   587.43 CMD GL inject
+   587.60 GL inject: mask 0x00 value 0x00, idle at step 0
+   600.03 CMD mark b6fadd
+   600.03 CMD GL inject both
+   600.23 GL inject: +S,+E @2000 -S,-E
+   600.43 GL detect: VEHICLE_DETECTED id 3, direction UNDETERMINED, hold NONE
+   600.43 GL detect: VEHICLE_DETECTED follow-up id 3, direction UNDETERMINED, hold NONE
+   600.68 BRG FRAME #0 rx t=163761 peer=0x01 type=5 schema=17 frag=0x01 seq=9 rssi=-37 snr=11 st=0 rx=0 deaf=0
+   600.73 MQTT lran/gatelink/event/vehicle_detected {"event_id":3,"ctx_id":3305332785,"event_type":"vehicle_detected","event_code":4,"follow_up":false,"hold_source":"none","direction":"undetermined","gate_state":"closed","input_bits":12,"detail":0,"uptime_s":438,"synthetic":false}
+   600.83 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":0,"ms":163761,"deaf":0,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":9,"rssi":-37,"snr":11,"st":0,"rx":0}]}
+   601.03 MQTT lran/gatelink/event/vehicle_detected {"event_id":3,"ctx_id":3305332785,"event_type":"vehicle_detected","event_code":4,"follow_up":true,"hold_source":"none","direction":"undetermined","gate_state":"closed","input_bits":12,"detail":0,"uptime_s":438,"synthetic":false}
+   601.08 BRG FRAME #1 rx t=164046 peer=0x01 type=5 schema=17 frag=0x01 seq=10 rssi=-36 snr=11 st=0 rx=0 deaf=0
+   601.14 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":1,"ms":164046,"deaf":0,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":10,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   601.49 BRG availability: gatelink online (missed_polls 0, threshold 3)
+   601.49 BRG FRAME #2 tx t=164612 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=25
+   601.53 MQTT lran/gatelink/availability online
+   601.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":2,"ms":164612,"deaf":25,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   601.65 GL phy 01: EVENT PHY_REVERTED detail 0x0001
+   602.83 MQTT lran/gatelink/gate/state {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"undetermined","in_open":false,"in_moving":false,"in_safety":true,"in_exit":true,"in_fire":false,"in_alarm":false,"input_bits":12,"synthetic":false}
+   602.83 MQTT lran/gatelink/detect/state {"safety":true,"exit":true,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-10-13T22:30:04Z","traversal_persisted":false,"synthetic":false}
+   602.83 MQTT lran/gatelink/solar/state {"available":false,"batt_mv":null,"batt_ma":null,"pv_mv":null,"pv_w":null,"load_ma":null,"yield_today_kwh":null,"yield_yesterday_kwh":null,"pmax_today_w":null,"yield_total_kwh":null,"charge_state":null,"charge_state_name":null,"error":null,"error_name":null,"tracker":null,"load_on":null,"charge_inhibited":null,"temp_c":null,"hex_pending":false,"synthetic":false}
+   602.83 MQTT lran/gatelink/battery/state {"available":false,"soc":null,"soc_source":null,"pack_mv":null,"pack_ma":null,"cell_count":null,"cell1_mv":null,"cell2_mv":null,"cell3_mv":null,"cell4_mv":null,"cell1_temp_c":null,"cell2_temp_c":null,"cell3_temp_c":null,"cell4_temp_c":null,"cycles":null,"capacity_ah":null,"alarms":null,"charge_fet":null,"discharge_fet":null,"charge_inhibited":null,"protection":null,"balancing":null,"ble_rssi_dbm":null,"age_s":null,"synthetic":false}
+   602.83 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.9,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"vehicle_detected","synthetic":false,"uptime_s":438}
+   602.91 BRG poll: 01 answered in 1296 ms (window 10000 ms)
+   602.91 BRG FRAME #3 rx t=165873 peer=0x01 type=4 schema=16 frag=0x01 seq=11 rssi=-36 snr=11 st=0 rx=0 deaf=217
+   602.92 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":3,"ms":165873,"deaf":217,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":11,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   603.52 BRG FRAME #4 tx t=166605 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=238
+   603.62 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":4,"ms":166605,"deaf":238,"d":"tx","peer":1,"type":1,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   603.68 GL roll 01 <- 00 seq 1: ctx 0xc5036031 -> 0xac70824c, ACCEPTED
+   604.53 MQTT lran/gatelink/event/phy_reverted {"event_id":4,"ctx_id":3305332785,"event_type":"phy_reverted","event_code":11,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":12,"detail":1,"uptime_s":440,"synthetic":false}
+   604.54 BRG FRAME #5 rx t=167565 peer=0x01 type=5 schema=17 frag=0x01 seq=12 rssi=-36 snr=11 st=0 rx=0 deaf=471
+   604.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":5,"ms":167565,"deaf":471,"d":"rx","peer":1,"type":5,"schema":17,"frag":1,"seq":12,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   605.13 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.9,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"config_change","synthetic":false,"uptime_s":440}
+   605.15 BRG FRAME #6 rx t=168137 peer=0x01 type=4 schema=16 frag=0x01 seq=13 rssi=-36 snr=11 st=0 rx=0 deaf=471
+   605.23 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":6,"ms":168137,"deaf":471,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":13,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   606.72 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":7,"ms":169640,"deaf":471,"d":"rx","peer":1,"type":2,"schema":0,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   606.77 BRG FRAME #7 rx t=169640 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=471
+   607.58 BRG roll: 01 rolled to ctx 0xac70824c after 1 attempt(s)
+   607.58 BRG FRAME #8 tx t=170603 peer=0x01 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=492
+   607.62 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":8,"ms":170603,"deaf":492,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   607.84 CMD mark 6a0da4
+   607.84 CMD GL inject off
+   607.96 GL inject: off; every input back to the hardware
+   608.52 MQTT lran/gatelink/gate/state {"state":"closed","held_open":false,"hold_source":"none","movement_cause":"unknown","last_direction":"undetermined","in_open":false,"in_moving":false,"in_safety":false,"in_exit":false,"in_fire":false,"in_alarm":false,"input_bits":0,"synthetic":false}
+   608.53 MQTT lran/gatelink/detect/state {"safety":false,"exit":false,"classifying":false,"vehicle_while_held":false,"suppressed":false,"last_traversal":"2026-10-13T22:30:04Z","traversal_persisted":false,"synthetic":false}
+   608.53 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.9,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":446}
+   608.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":9,"ms":171540,"deaf":684,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":2,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   608.59 BRG FRAME #9 rx t=171540 peer=0x01 type=4 schema=16 frag=0x01 seq=2 rssi=-36 snr=11 st=0 rx=0 deaf=684
+   609.82 BRG FRAME #10 rx t=172817 peer=0x01 type=11 schema=18 frag=0x01 seq=3 rssi=-36 snr=11 st=0 rx=0 deaf=684
+   609.84 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":10,"ms":172817,"deaf":684,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":3,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   611.22 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":11,"ms":174157,"deaf":684,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":4,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   611.24 BRG FRAME #11 rx t=174157 peer=0x01 type=11 schema=18 frag=0x01 seq=4 rssi=-36 snr=11 st=0 rx=0 deaf=684
+   611.52 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917000000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+   611.62 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":12,"ms":174614,"deaf":709,"d":"tx","peer":1,"type":8,"schema":0,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   611.65 BRG config: 01 outcome 3, sched stack high-water 1104 bytes free
+   611.65 BRG FRAME #12 tx t=174614 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=709
+   612.43 GL alive: io=4501 vedirect=22501 lora=8969 app=4501 bms=2 ui=4501 log=15
+   612.84 GL hex 01 -> 00 seq 1: status 1 
+   613.07 BRG FRAME #13 rx t=176072 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=942
+   613.12 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":13,"ms":176072,"deaf":942,"d":"rx","peer":1,"type":9,"schema":0,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   613.69 BRG hex: 01 seq 1 read -> answered status 1 result 0, sched stack 1104 bytes free
+   613.69 BRG WARN hex: 01 readback abandoned at 0xEDF7
+   615.66 CMD mark ac3bf7
+   615.66 CMD pub lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   615.67 MQTT lran/bridge/config/set {"set":{"freq_hz":917400000}}
+   616.53 BRG phy: change started across 1 node(s)
+   616.53 BRG FRAME #14 tx t=179608 peer=0x01 type=10 schema=18 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=967
+   616.62 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":14,"ms":179608,"deaf":967,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":1,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   616.91 GL phy 01: SET accepted, board pending, accepted 0x01 of 0x01
+   616.91 GL config 01 <- 00 seq 1: op 1, 6 entries, 6 result(s)
+   617.52 GL phy: retuned to 917400000 Hz SF9 BW 125 kHz CR 4/5 -4 dBm, board trial
+   617.55 BRG FRAME #15 rx t=180606 peer=0x01 type=11 schema=18 frag=0x01 seq=1 rssi=-36 snr=11 st=0 rx=0 deaf=1364
+   617.63 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":15,"ms":180606,"deaf":1364,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":1,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   618.57 BRG phy: every node accepted - retuning
+   618.57 BRG LoRa: radio up - 917400000 Hz, SF9, BW 125.0 kHz, CR 4/5, -4 dBm conducted, 3.0 dBi antenna
+   618.57 BRG LoRa: stack high-water 5972 bytes free
+   618.63 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":11,"ctx_rolls":1,"ctx_roll_failed":0}
+   618.64 MQTT lran/bridge/diag/radio/state {"tx_frames":5,"cad_backoffs":0,"errors_suppressed":0,"cad_deferred":0,"cad_free":5,"rx_deaf_ms":1364,"cad_errors":0,"tx_forced":0,"tx_errors":0,"tx_timeouts":0,"tx_dropped_no_radio":0,"rx_driver_errors":0,"rx_no_interrupt":0,"rx_wake_empty":0,"begin_failures":0,"last_begin_status":0,"q_rx_dropped":0,"q_rx_high_water":1,"q_publish_dropped":0,"q_publish_high_water":6,"q_tx_dropped":0,"q_tx_high_water":1,"q_log_dropped":0,"q_log_high_water":2,"q_command_dropped":0,"q_command_high_water":0,"q_config_dropped":0,"q_config_high_water":1,"q_event_dropped":0,"q_event_high_water":1,"q_hex_dropped":0,"q_hex_high_water":0}
+   618.64 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":1,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+   618.64 MQTT lran/bridge/diag/publish/state {"status_frames":3,"documents":9,"unchanged":6,"heartbeats":0,"event_frames":3,"events":3,"event_repeats":0,"bench_withheld":0,"queue_refused":0,"undecodable":0}
+   618.64 MQTT lran/gatelink/diag/state {"rssi_dbm":-36,"snr_db":11,"last_seen_s":0,"missed_polls":0,"proto_ver":2,"unsupported_ver":null}
+   619.59 BRG FRAME #16 tx t=182606 peer=0x01 type=3 schema=0 frag=0x01 seq=3 rssi=- snr=- st=0 rx=5 deaf=1385
+   619.62 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":16,"ms":182606,"deaf":1385,"d":"tx","peer":1,"type":3,"schema":0,"frag":1,"seq":3,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   620.52 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":28.8,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"poll_response","synthetic":false,"uptime_s":458}
+   620.53 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":17,"ms":183546,"deaf":1577,"d":"rx","peer":1,"type":4,"schema":16,"frag":1,"seq":5,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   620.61 BRG FRAME #17 rx t=183546 peer=0x01 type=4 schema=16 frag=0x01 seq=5 rssi=-36 snr=11 st=0 rx=0 deaf=1577
+   620.61 BRG phy: every node heard - committed
+   620.62 MQTT lran/bridge/config/ack {"op":"set","persist":"persisted","results":{"freq_hz":{"status":"ok","value":917400000}}}
+   620.63 MQTT lran/bridge/config/state {"simnode_diag_enable":{"value":0,"source":"override"},"diag_interval_s":{"value":60,"source":"override"},"missed_poll_threshold":{"value":3,"source":"default"},"poll_reply_timeout_ms":{"value":10000,"source":"default"},"command_ack_timeout_ms":{"value":3000,"source":"override"},"cmd_retries":{"value":3,"source":"override"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"error_min_interval_ms":{"value":1000,"source":"default"},"config_readback_timeout_ms":{"value":15000,"source":"default"},"config_ack_timeout_ms":{"value":8000,"source":"default"},"republish_interval_s":{"value":900,"source":"override"},"bms_stale_s":{"value":600,"source":"default"},"cell_mv_deadband":{"value":5,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"mppt_write_arm_timeout_s":{"value":300,"source":"default"},"hex_rsp_timeout_ms":{"value":3000,"source":"default"},"charge_readback_interval_h":{"value":0,"source":"override"}}
+   620.72 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":18,"ms":183752,"deaf":1602,"d":"tx","peer":1,"type":10,"schema":18,"frag":1,"seq":2,"rssi":null,"snr":null,"st":0,"rx":5}]}
+   620.82 BRG FRAME #18 tx t=183752 peer=0x01 type=10 schema=18 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=1602
+   620.97 GL config 01 <- 00 seq 2: op 2, 6 entries, 6 result(s)
+   621.82 MQTT lran/bridge/diag/rxlog/log {"lost":0,"f":[{"i":19,"ms":184689,"deaf":1938,"d":"rx","peer":1,"type":11,"schema":18,"frag":1,"seq":2,"rssi":-36,"snr":11,"st":0,"rx":0}]}
+   621.83 BRG FRAME #19 rx t=184689 peer=0x01 type=11 schema=18 frag=0x01 seq=2 rssi=-36 snr=11 st=0 rx=0 deaf=1938
+   622.52 MQTT lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"},"dedup_cache_depth":{"value":8,"source":"default"},"frag_reassembly_timeout_ms":{"value":5000,"source":"default"},"cad_retries":{"value":5,"source":"default"},"backoff_max_ms":{"value":1500,"source":"default"},"freq_hz":{"value":917400000,"source":"override"},"spreading_factor":{"value":9,"source":"override"},"bandwidth_khz":{"value":125,"source":"override"},"coding_rate_denominator":{"value":5,"source":"override"},"tx_power_dbm":{"value":-4,"source":"override"},"phy_trial_s":{"value":120,"source":"override"},"relay_pulse_ms":{"value":500,"source":"default"},"relay_min_spacing_ms":{"value":500,"source":"default"},"unlock_settle_ms":{"value":500,"source":"default"},"post_wake_settle_ms":{"value":500,"source":"default"},"command_confirm_timeout_s":{"value":5,"source":"default"},"input_poll_ms":{"value":100,"source":"default"},"input_debounce_samples":{"value":2,"source":"default"},"hold_confirm_ms":{"value":2000,"source":"default"},"detect_sequence_window_ms":{"value":60000,"source":"default"},"detect_sequence_idle_ms":{"value":10000,"source":"default"},"held_open_alert_repeat_s":{"value":0,"source":"default"},"cause_window_ms":{"value":10000,"source":"default"},"hex_timeout_ms":{"value":1000,"source":"default"},"vedirect_stale_s":{"value":5,"source":"default"},"bms_poll_s":{"value":300,"source":"default"},"charge_inhibit_confirm_s":{"value":300,"source":"default"},"display_timeout_s":{"value":60,"source":"default"},"buzzer_enable":{"value":0,"source":"default"},"inject_spacing_ms":{"value":1000,"source":"default"},"watchdog_timeout_s":{"value":10,"source":"default"}}
+   623.91 CMD mark 7846f3
+   623.91 CMD GL phy
+   624.02 GL phy: idle, store nvs, window 0 ms; effective 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; committed 917400000 Hz SF9 BW 125 CR 4/5 -4 dBm trial 120 s; trials 2 committed 1 reverted 2 abandoned 0 commit failed 0 refused 0
+   627.51 BRG mqtt: stack high-water 1968 bytes free of 6144
+   634.35 CMD mark 8118a5
+   634.35 CMD quit

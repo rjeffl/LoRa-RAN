@@ -188,8 +188,8 @@ bool SdPersist::write_all() {
   size_t n = 0;
   for (size_t i = 0; i < table_.size(); ++i) {
     const ParamDef* d = table_.at(i);
-    // A PHY row is never written here: the Store holds no committed PHY override while
-    // spec 12.4.2 is unbuilt, and a trial value must never reach the card (step 2).
+    // A PHY row is never written here: the committed group is in NVS (nvs_blob.h), and a
+    // trial value must never reach the card (spec 12.4.2 step 2).
     if (d == nullptr || d->access == lran::config::Access::Phy || !store_->is_override(d->id)) {
       continue;
     }

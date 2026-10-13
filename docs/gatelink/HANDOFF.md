@@ -24,7 +24,6 @@ the StamPLC's 12 V bench supply.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **The PHY trial** (spec §12.4.2), or a written decision to deploy without it | Plan §6.4; spec §12.4.2; *Open*, below |
 | 3 | **Low-temperature inhibition** through the simnode Heltec's BMS emulator | PRD R-6.4b; plan §8.2's GL5 row |
 | 3 | **The relay at a watchdog reset, `AckResult` for a failed pulse, and `0xFF`** — each a written proposal, the last two for the next spec revision; and the SD library's `log_w` | *Open*, below |
 | 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
@@ -44,7 +43,6 @@ direction, partial traversals and the held-open alert passed on the air (enginee
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
 
-- The PHY trial, or a written decision to deploy without it.
 - Low-temperature inhibition through the BMS emulator.
 - The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
   library's `log_w`.
@@ -69,16 +67,15 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **`app_task` derives spec §7.2.1's gate block** (`gate_state.cpp`, `detect.cpp`). STATUS
-  goes out on each gate, hold or detection change, and an EVENT per detection with a
-  follow-up carrying the direction. `gate` on the console prints the block.
-- **`inject` drives the inputs below the debounce** (PRD R-5.4b), with named scripts for
-  the 30 s gap and both partial traversals; `inject list` names them.
-- **`held_open_alert_repeat_s` is a rate limit; 0 alerts once per vehicle** (operator).
-- **K3 and K4 drive Radio Open (39) and Radio Close (40)**, plan v0.37 §3.1. Their wake is
-  predicted, not measured.
-- **The 1050's 5 V lines rest at 4.75 V and source 2.95 mA into a short**, about 1.6 kΩ.
-  The 2N7000 stage costs them under 10 mV.
+- **GateLink takes a fleet PHY change** through `lib/lran-node`'s `PhyTrial` (spec
+  §12.4.2). A commit, a revert after a reboot and a revert at the window all passed on the
+  air (engineering log, 2026-10-13). `phy` and `phy reset` are on the console.
+- **The committed PHY group is in NVS, not on the microSD** (operator, 2026-10-13; plan
+  v0.38 §6.4, PRD v0.20 §5.3). A missing card no longer refuses a PHY change.
+- **The bench fleet is back on 917.4 MHz**, D1's group, committed in the bridge's and
+  GateLink's NVS.
+- **What the commit's NVS write costs `io_task` is not measured.** The soak's relay timing
+  would show it.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -108,7 +105,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.37. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.38. The PHY trial, on the air 2026-10-13. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i remains, deferred by D77. GL4: every criterion passes on the bench except M14, now possible with the MPPT back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, and `vedirect_task`'s CPU share beside NimBLE is measured; M23, the low-temperature paths and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
@@ -244,8 +241,9 @@ board's are its D-pads (expansion board §6.1).
 - **Some `bms now` results printed about 13 s after `window now`**, though each window
   reported about 1.2 s (engineering log, 2026-10-10). Whether the window started late or
   its line printed late is not established.
-- **The PHY group answers `READ_ONLY` on GateLink**, because spec §12.4.2's trial is not
-  built here (plan §6.4). A fleet PHY change cannot include GateLink until it is.
+- **Decision Register D49 says `APPLIED_NOT_PERSISTED` means no usable store, "microSD on
+  GateLink"**. GateLink's PHY group is now in NVS (plan §6.4), so D49's wording may need an
+  amendment. The register's owner should decide.
 - **The SD library prints its retries to `Serial` from `lora_task`**, through the core's
   `log_w` at `CORE_DEBUG_LEVEL=2`. That breaks *Only `log_task` writes to `Serial`*
   (`firmware/gatelink/CLAUDE.md`), and only configuration traffic with a bad card reaches it.

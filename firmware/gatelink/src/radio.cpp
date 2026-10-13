@@ -26,7 +26,6 @@ namespace gatelink {
 namespace {
 
 using lran::link::CadResult;
-using lran::link::kPhy;
 using lran::link::MediaAccess;
 using lran::link::TxStep;
 using lran::node::OutFrame;
@@ -81,6 +80,13 @@ uint32_t              g_begin_failed_ms  = 0;
 uint32_t              g_last_irq_read_ms = 0;
 lran::link::RxArrival g_arrival;  // the CAD guard's view of an arriving frame
 
+// spec 12.4.2 - the settings the radio runs, and a retune lora_task asked for. The simnode's
+// radio.cpp keeps the same three.
+lran::link::PhyConfig g_phy{};
+lran::link::PhyConfig g_phy_next{};
+bool                  g_phy_requested = false;
+bool                  g_phy_retuned   = false;
+
 constexpr uint32_t kBeginRetryMs      = 10000;
 // BUSY fell 1.6 ms after release on the carrier (bring-up image's `reset`). The SX1262
 // datasheet allows a cold start several milliseconds; 10 ms covers it with margin.
@@ -122,12 +128,12 @@ lran::link::RxArrivalState observe_arrival(uint32_t irq, uint32_t now_ms) {
 // caller holds the SpiLock.
 int16_t configure() {
   const auto& p = kCarrierRadio;
-  int16_t st = g_radio->begin(static_cast<float>(kPhy.freq_hz) / 1000000.0f,
-                              static_cast<float>(kPhy.bw_khz10) / 10.0f, kPhy.sf, kPhy.cr_denom,
-                              kPhy.sync_word, kPhy.conducted_dbm, kPhy.preamble_symbols,
+  int16_t st = g_radio->begin(static_cast<float>(g_phy.freq_hz) / 1000000.0f,
+                              static_cast<float>(g_phy.bw_khz10) / 10.0f, g_phy.sf, g_phy.cr_denom,
+                              g_phy.sync_word, g_phy.conducted_dbm, g_phy.preamble_symbols,
                               static_cast<float>(p.tcxo_mv) / 1000.0f, false);
   if (st != RADIOLIB_ERR_NONE) return st;
-  st = g_radio->setOutputPower(kPhy.conducted_dbm, true);
+  st = g_radio->setOutputPower(g_phy.conducted_dbm, true);
   if (st != RADIOLIB_ERR_NONE) return st;
   st = g_radio->setDio2AsRfSwitch(p.dio2_as_rf_switch);
   if (st != RADIOLIB_ERR_NONE) return st;
@@ -167,8 +173,8 @@ int16_t try_begin(uint32_t now_ms) {
   g_stats.last_begin_status = st;
   g_dio1                    = false;
   g_arrival.reset();
-  g_arrival.set_bounds(lran::link::preamble_to_header_ms(kPhy), kRxInProgressMaxMs,
-                       lran::link::burst_holdoff_ms(kPhy));
+  g_arrival.set_bounds(lran::link::preamble_to_header_ms(g_phy), kRxInProgressMaxMs,
+                       lran::link::burst_holdoff_ms(g_phy));
   g_mode = Mode::Receive;
   return st;
 }
@@ -385,9 +391,10 @@ const char* rst_check_name(RstCheck r) {
   return "?";
 }
 
-int16_t radio_begin(void* task) {
+int16_t radio_begin(void* task, const lran::link::PhyConfig& phy) {
   const auto& p = kCarrierRadio;
   g_task        = static_cast<TaskHandle_t>(task);
+  g_phy         = phy;
   if (g_radio == nullptr) {
     ArduinoHal* hal    = new (g_hal_storage) ArduinoHal(SPI);
     Module*     module = new (g_module_storage)
@@ -414,6 +421,17 @@ void radio_service(RadioClient* client, lran::node::Outbox* outbox, uint32_t now
         break;
       case Mode::Receive:
         service_receive(client, now_ms);
+        // spec 12.4 step 3 - a retune waits until nothing of ours is queued or moving and no
+        // frame is arriving, so the CONFIG_ACK that caused it goes out on the old settings.
+        // A received frame not yet handed over was received on the old settings too.
+        if (g_mode == Mode::Receive && g_phy_requested && !g_have_tx && outbox->size() == 0 &&
+            !g_rx_ready && !g_arrival.arriving(now_ms)) {
+          g_phy           = g_phy_next;
+          g_phy_requested = false;
+          g_phy_retuned   = true;
+          (void)try_begin(now_ms);
+          break;
+        }
         if (g_mode == Mode::Receive) service_tx(client, outbox, now_ms);
         break;
       case Mode::Cad:
@@ -442,6 +460,25 @@ void radio_set_media_access(uint8_t cad_retries, uint32_t backoff_max_ms) {
   cfg.backoff_max_ms = backoff_max_ms;
   g_access.set_config(cfg);
 }
+
+void radio_request_phy(const lran::link::PhyConfig& phy) {
+  g_phy_next      = phy;
+  g_phy_requested = true;
+  // A radio that is down takes the new settings at its next begin().
+  if (g_mode == Mode::Down) {
+    g_phy           = phy;
+    g_phy_requested = false;
+    g_phy_retuned   = true;
+  }
+}
+
+bool radio_take_retuned() {
+  const bool r  = g_phy_retuned;
+  g_phy_retuned = false;
+  return r;
+}
+
+const lran::link::PhyConfig& radio_phy() { return g_phy; }
 
 bool radio_ready() { return g_mode != Mode::Down; }
 

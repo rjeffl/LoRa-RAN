@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.37
+**Version:** 0.38
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.19
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.20
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -1091,11 +1091,19 @@ the file. There is no timer, because with no card one remount attempt holds the 
 for about 1 s (engineering log, 2026-10-08).
 
 **A full readback may span several `CONFIG_ACK` messages** (Protocol Spec §7.4.1, **D57**),
-and the six PHY rows change only through §12.4's commit-and-revert (**D56**), `READ_ONLY`
-until it is built. **Spec §12.4.2 (D59) is GateLink's half**: it answers on the old
-settings, retunes, and commits only on an authenticated frame received on the new ones. It
-refuses the group while the microSD is unusable, and it sends `EVENT` `PHY_REVERTED` after
-a revert.
+and the six PHY rows change only through §12.4's commit-and-revert (**D56**). **Spec
+§12.4.2 (D59) is GateLink's half**, and it is `lib/lran-node`'s `PhyTrial`, as on the
+simnode: it answers on the old settings, retunes, and commits only on an authenticated
+frame received on the new ones. It sends `EVENT` `PHY_REVERTED` after a revert. It passed
+on the air on 2026-10-13: a commit, a revert at the window and a revert after a reboot
+(engineering log, same date).
+
+**The committed PHY group is in NVS, not on the microSD** (operator, 2026-10-13), in
+`firmware/gatelink/src/nvs_blob.cpp`. If the group were on the card, a card that failed
+after a committed change would boot the node on D1's defaults while the bridge stayed on
+the new settings. That is the stranded node spec §12.4 exists to prevent, and at the gate
+it costs a walk. So a missing card does not block a PHY change. GateLink answers the group
+`READ_ONLY` only when NVS refuses its namespace (spec §12.4.2 step 2).
 
 **microSD contents:**
 
@@ -1108,8 +1116,7 @@ a revert.
 **Absent-card behaviour:** defaults apply; runtime changes are applied to RAM, ACKed with
 an explicit not-persisted status, and the condition is published as a diagnostic sensor
 through spec §7.2.8's `node_flags` bits 0 and 1. GL3 verified both legs on the air
-(engineering log, 2026-10-08). The PHY group stays `READ_ONLY` until spec §12.4.2 is built
-here, and `config.json` never holds a PHY row.
+(engineering log, 2026-10-08). `config.json` never holds a PHY row.
 
 ### 6.5 Display
 
@@ -1572,6 +1579,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.38** — **§6.4: spec §12.4.2's PHY trial is built and passed on the air, and the
+  committed group is in NVS** (operator, 2026-10-13; PRD v0.20). A missing microSD no
+  longer blocks a PHY change.
 
 - **v0.37** — **§3.1 moves K3 and K4 to Radio Open (39) and Radio Close (40)**, which were
   free, off the Guard Station inputs the keypad uses (operator, 2026-10-13). §3.6 and §6.1

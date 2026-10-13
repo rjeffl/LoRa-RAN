@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "lran/counters.h"
+#include "lran/link/radio_config.h"
 #include "lran/node/outbox.h"
 
 namespace gatelink {
@@ -69,11 +70,12 @@ struct RadioStats {
   uint32_t rst_busy_fall_us = 0;  // release of RST to BUSY falling
 };
 
-// Configures the radio from kCarrierRadio and lran::link::kPhy and starts receiving.
-// `task` is lora_task's handle, which DIO1 notifies. Returns RadioLib's status: 0 is
+// Configures the radio from kCarrierRadio and `phy` and starts receiving. `phy` is the PHY
+// group lora_task committed last, which is lran::link::kPhy until a change commits (spec
+// 12.4.2 step 7). `task` is lora_task's handle, which DIO1 notifies. Returns RadioLib's status: 0 is
 // success, -2 CHIP_NOT_FOUND, -705 SPI_CMD_TIMEOUT (BUSY never fell), -707 SPI_CMD_FAILED.
 // After a failure, radio_service() tries again every 10 s.
-int16_t radio_begin(void* task);
+int16_t radio_begin(void* task, const lran::link::PhyConfig& phy);
 
 // One pass: hand a received frame to the client, then move the next outgoing frame through
 // media access.
@@ -90,6 +92,13 @@ bool radio_tx_idle();
 // spec 12.3 - cad_retries and backoff_max_ms, from lran-config. lora_task only, as
 // radio_service() is; takes effect at the next frame's media access.
 void radio_set_media_access(uint8_t cad_retries, uint32_t backoff_max_ms);
+
+// spec 12.4.2 step 3 - retune to `phy` once the outbox is empty and the radio idle, so
+// what is queued goes out on the settings it was answered on. radio_take_retuned() is true
+// once, on the pass after the radio applied it; a radio that is down takes it at once.
+void                         radio_request_phy(const lran::link::PhyConfig& phy);
+bool                         radio_take_retuned();
+const lran::link::PhyConfig& radio_phy();
 
 bool              radio_ready();
 const RadioStats& radio_stats();
