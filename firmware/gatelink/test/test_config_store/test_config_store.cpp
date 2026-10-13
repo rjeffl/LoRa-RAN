@@ -135,7 +135,7 @@ void test_load_restores_the_card() {
   TEST_ASSERT_FALSE(cfg.unpersisted());
 }
 
-// spec 12.4 step 2 - a PHY value in the file is not put back while 12.4.2 is unbuilt.
+// spec 12.4 step 2 - a PHY value in the file is not put back: the committed group is NVS's.
 void test_load_refuses_a_phy_row() {
   FakeCard card;
   card.has_file = true;

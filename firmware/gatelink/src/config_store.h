@@ -100,8 +100,8 @@ class SdPersist final : public lran::config::Persist {
   bool usable() const override { return mounted_ && !dirty_; }
   bool save(uint16_t, lran::config::Value) override { return write_all(); }
   bool clear_all() override { return write_all(); }
-  // The PHY group is not persisted here: spec 12.4.2 is not built, so the Store answers
-  // those rows READ_ONLY and never calls this.
+  // The PHY group is not persisted here. The engine's PhyTrial keeps it in NVS (nvs_blob.h),
+  // and this Store answers those rows READ_ONLY and never calls this.
   bool save_group(const uint16_t*, const lran::config::Value*, size_t) override { return false; }
 
   bool mounted() const { return mounted_; }

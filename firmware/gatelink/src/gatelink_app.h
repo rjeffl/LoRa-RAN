@@ -20,8 +20,8 @@
 // itself, so the engine's deadline is only a backstop for a task that stopped answering.
 //
 // CONFIG IS ANSWERED FROM GateLinkConfig's Store (spec 7.4, Impl Plan 6.4). The engine
-// answers the PHY group itself, READ_ONLY while spec 12.4.2 is unbuilt; every other row is
-// the Store's. A row the application can apply itself, it applies: the dedup depth, the
+// answers the PHY group itself, through lran-node's PhyTrial (spec 12.4.2); every other row
+// is the Store's. A row the application can apply itself, it applies: the dedup depth, the
 // reassembly timeout and hex_timeout_ms. The rest go to GateLinkPort::param_changed(),
 // which on the board reaches the task that reads them.
 //

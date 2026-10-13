@@ -599,14 +599,76 @@ void test_config_get_all_lists_every_row_once() {
   }
 }
 
-// spec 12.4 - the PHY group is READ_ONLY until 12.4.2 is built here.
-void test_config_phy_rows_are_read_only() {
+// spec 12.4.2 step 2 - an engine with no store answers the PHY group READ_ONLY. The board
+// always has one unless NVS refused its namespace.
+void test_config_phy_rows_without_a_store_are_read_only() {
   Rig r;
   const schema::ConfigEntry e = set_entry(0x0110, PType::U32, 915000000);
   r.config(53, ConfigOp::Set, &e, 1);
   const schema::NodeConfigAckV1 a = r.next_config_ack();
   TEST_ASSERT_EQUAL(ParamStatus::ReadOnly, a.entries[0].status);
   TEST_ASSERT_EQUAL(PersistStatus::NotApplied, a.persist_status);
+}
+
+// The board's NVS, in RAM.
+class RamBlob final : public lran::node::BlobStore {
+ public:
+  bool   usable() const override { return true; }
+  size_t read(uint8_t* out, size_t cap) const override {
+    if (len_ == 0 || len_ > cap) return 0;
+    std::memcpy(out, bytes_, len_);
+    return len_;
+  }
+  bool write(const uint8_t* b, size_t n) override {
+    if (n > sizeof(bytes_)) return false;
+    std::memcpy(bytes_, b, n);
+    len_ = n;
+    return true;
+  }
+  bool erase() override {
+    len_ = 0;
+    return true;
+  }
+
+ private:
+  uint8_t bytes_[64] = {};
+  size_t  len_       = 0;
+};
+
+// spec 12.4.2 - GateLink's whole PHY group, as the bridge sends it (12.4.1 step 3): every
+// entry OK, the answer APPLIED_NOT_PERSISTED (D60), a retune owed, and nothing on the card.
+// An authenticated frame on the new settings commits it to the blob.
+void test_config_phy_group_opens_a_trial_and_stays_off_the_card() {
+  Rig                    r;
+  RamBlob                blob;
+  lran::node::PhyPersist persist(&blob);
+  lran::node::PhyTrial   phy(&persist);
+  TEST_ASSERT_EQUAL(lran::node::RevertCause::None, phy.begin());
+  r.eng.set_phy(&phy);
+
+  const schema::ConfigEntry e[6] = {
+      set_entry(0x0110, PType::U32, 915000000), set_entry(0x0111, PType::U8, 10),
+      set_entry(0x0112, PType::U16, 125),       set_entry(0x0113, PType::U8, 5),
+      set_entry(0x0114, PType::I16, -4),        set_entry(0x0115, PType::U16, 60)};
+  r.config(53, ConfigOp::Set, e, 6);
+  const schema::NodeConfigAckV1 a = r.next_config_ack();
+  TEST_ASSERT_EQUAL_UINT8(6, a.count);
+  for (uint8_t i = 0; i < a.count; ++i) TEST_ASSERT_EQUAL(ParamStatus::Ok, a.entries[i].status);
+  TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, a.persist_status);
+  TEST_ASSERT_TRUE(phy.retune_due());
+  TEST_ASSERT_TRUE(r.card.text.find("freq_hz") == std::string::npos);
+
+  phy.on_retuned(1000);
+  TEST_ASSERT_EQUAL(lran::node::PhyState::Trial, phy.state());
+  // Any authenticated frame confirms (spec 12.4.2 step 5); a readback stands in for the
+  // bridge's GET.
+  r.config(54, ConfigOp::GetAll);
+  (void)r.next_config_ack();
+  (void)r.next_config_ack();
+  TEST_ASSERT_EQUAL(lran::node::PhyState::Idle, phy.state());
+  TEST_ASSERT_EQUAL_INT32(915000000, phy.committed().v[0]);
+  TEST_ASSERT_EQUAL_INT32(10, phy.committed().v[1]);
+  TEST_ASSERT_TRUE(r.card.text.find("freq_hz") == std::string::npos);
 }
 
 // The rows the application applies itself land in the engine's context.
@@ -670,7 +732,8 @@ int main() {
   RUN_TEST(test_config_set_with_no_card_says_so);
   RUN_TEST(test_config_set_after_the_card_is_pulled);
   RUN_TEST(test_config_get_all_lists_every_row_once);
-  RUN_TEST(test_config_phy_rows_are_read_only);
+  RUN_TEST(test_config_phy_rows_without_a_store_are_read_only);
+  RUN_TEST(test_config_phy_group_opens_a_trial_and_stays_off_the_card);
   RUN_TEST(test_config_dedup_depth_reaches_the_gate);
   RUN_TEST(test_config_restore_defaults);
   RUN_TEST(test_request_config_and_poll_bit_one_read_back);

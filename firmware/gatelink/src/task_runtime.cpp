@@ -45,7 +45,9 @@
 #include "inject.h"
 #include "lran/node/engine.h"
 #include "lran/node/names.h"
+#include "lran/node/phy_trial.h"
 #include "mbedtls_mac.h"
+#include "nvs_blob.h"
 #include "radio.h"
 #include "ved_link.h"
 
@@ -756,6 +758,12 @@ BmsSnapshot bms_snapshot() {
   return b;
 }
 
+// spec 12.4.2 - the committed PHY group in NVS (nvs_blob.h says why not the card), and the
+// trial that changes it. lora_task owns all three once it starts.
+NvsBlob                g_phy_blob;
+lran::node::PhyPersist g_phy_persist(&g_phy_blob);
+lran::node::PhyTrial   g_phy(&g_phy_persist);
+
 class Node final : public RadioClient, public GateLinkPort {
  public:
   Node() : engine_(&outbox_, &mac_, &sink_), app_(this, random_u32, &sink_) {}
@@ -893,6 +901,13 @@ struct NodeView {
   bool         card_dirty   = false;
   bool         unpersisted  = false;
   PersistStats card;
+  // spec 12.4.2, for the console's `phy`.
+  lran::node::PhyState      phy_state     = lran::node::PhyState::Idle;
+  bool                      phy_writable  = false;
+  uint32_t                  phy_window_ms = 0;
+  lran::node::PhyGroup      phy_effective{};
+  lran::node::PhyGroup      phy_committed{};
+  lran::node::PhyTrialStats phy_stats;
 };
 portMUX_TYPE g_view_mux = portMUX_INITIALIZER_UNLOCKED;
 NodeView     g_view;
@@ -904,6 +919,48 @@ NodeView     g_view;
 std::atomic<bool> g_ctx_new_req{false};
 // The console's `lran ack drop`, carried to lora_task, which owns the application.
 std::atomic<bool> g_ack_drop_req{false};
+// The console's `phy reset`, carried to lora_task, which owns the trial.
+std::atomic<bool> g_phy_reset_req{false};
+
+// spec 12.4.2 steps 6 and 8 - a revert, logged and owed to the bridge as PHY_REVERTED.
+void note_phy_revert(lran::node::RevertCause cause) {
+  lran::node::Engine::note_phy_revert(g_node.ctx(), cause);
+  QueueSink().line(cause == lran::node::RevertCause::Reboot
+                       ? "phy: REVERTED to the committed group - a reboot ended the trial"
+                       : "phy: REVERTED to the committed group - the window expired");
+}
+
+// spec 12.4.2 step 3 - hands an owed retune to the radio, and opens the window once the
+// radio reports it applied. radio_service() waits for an empty outbox first, so the
+// CONFIG_ACK that caused the retune goes out on the old settings. The simnode's
+// phy_service() is the same.
+bool g_retune_requested = false;
+
+void phy_service(uint32_t now) {
+  const lran::node::RevertCause reverted = g_phy.tick(now);
+  if (reverted != lran::node::RevertCause::None) note_phy_revert(reverted);
+  if (g_phy.retune_due() && !g_retune_requested) {
+    lran::link::PhyConfig next = radio_phy();
+    if (!lran::node::phy_config_from(g_phy.group(), radio_phy(), &next)) {
+      // Unreachable while the table caps tx_power_dbm at D33's ceiling. The radio keeps its
+      // settings; the window still opens, and silence reverts it.
+      QueueSink().line("phy: group breaks D33's EIRP ceiling - radio NOT retuned");
+    }
+    radio_request_phy(next);
+    g_retune_requested = true;
+  }
+  if (g_retune_requested && radio_take_retuned()) {
+    g_retune_requested = false;
+    g_phy.on_retuned(now);
+    const lran::link::PhyConfig& p = radio_phy();
+    char text[112];
+    std::snprintf(text, sizeof(text), "phy: retuned to %lu Hz SF%u BW %u kHz CR 4/%u %d dBm, board %s",
+                  static_cast<unsigned long>(p.freq_hz), static_cast<unsigned>(p.sf),
+                  static_cast<unsigned>(p.bw_khz10 / 10), static_cast<unsigned>(p.cr_denom),
+                  static_cast<int>(p.conducted_dbm), lran::node::phy_state_name(g_phy.state()));
+    QueueSink().line(text);
+  }
+}
 
 // lora_task waits this long on DIO1 or io_task with nothing moving, and this long while a
 // frame is in media access or on the air, whose steps are read from the IRQ register.
@@ -926,7 +983,18 @@ void send_boot_alarm(lran::EventType type, uint32_t now) {
 // drives the radio from here while it runs.
 void lora_task(void*) {
   g_node.begin(g_node_key, g_node_key_len);
-  const int16_t st = radio_begin(xTaskGetCurrentTaskHandle());
+
+  // spec 12.4.2 step 7 - the radio boots on the committed group, which is D1's until a
+  // change commits. A trial the reboot ended is owed to the bridge as PHY_REVERTED.
+  if (!g_phy_blob.begin()) QueueSink().line("phy: NVS refused - no store, every PHY row answers READ_ONLY");
+  const lran::node::RevertCause boot_revert = g_phy.begin();
+  g_node.engine().set_phy(&g_phy);
+  if (boot_revert != lran::node::RevertCause::None) note_phy_revert(boot_revert);
+  lran::link::PhyConfig boot_phy = lran::link::kPhy;
+  if (!lran::node::phy_config_from(g_phy.group(), lran::link::kPhy, &boot_phy)) {
+    QueueSink().line("phy: stored group breaks D33's EIRP ceiling - booting on kPhy");
+  }
+  const int16_t st = radio_begin(xTaskGetCurrentTaskHandle(), boot_phy);
   g_radio_status.store(st, std::memory_order_relaxed);
 
   // spec 10.7 - STATUS with BOOT, then the BOOT event with its cause. Queued now; media
@@ -960,7 +1028,7 @@ void lora_task(void*) {
   uint32_t cmd_seq = io_snapshot().cmd_seq;
   for (;;) {
     count(TaskId::Lora);
-    const bool active = radio_tx_active() || g_node.outbox().size() != 0 ||
+    const bool active = radio_tx_active() || g_node.outbox().size() != 0 || g_retune_requested ||
                         g_bus_run.load(std::memory_order_relaxed);
     (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(active ? kLoraActiveWaitMs : kLoraIdleWaitMs));
     const uint32_t now = now_ms();
@@ -1002,6 +1070,11 @@ void lora_task(void*) {
     }
     g_node.app().poll_hex(g_node.engine(), g_node.ctx());
     g_node.engine().tick(g_node.ctx(), now);
+    if (g_phy_reset_req.exchange(false, std::memory_order_relaxed)) {
+      QueueSink().line(g_phy.reset_to_defaults() ? "phy: reset - D1's group, store erased, retuning"
+                                                 : "phy: reset refused - no usable store");
+    }
+    phy_service(now);
 
     if (g_ack_drop_req.exchange(false, std::memory_order_relaxed)) g_node.app().withhold_next_ack();
     if (g_ctx_new_req.exchange(false, std::memory_order_relaxed)) {
@@ -1051,6 +1124,12 @@ void lora_task(void*) {
     v.card_dirty   = g_config.persist().dirty();
     v.unpersisted  = g_config.unpersisted();
     v.card         = g_config.persist().stats();
+    v.phy_state     = g_phy.state();
+    v.phy_writable  = g_phy.writable();
+    v.phy_window_ms = g_phy.window_left_ms(now);
+    v.phy_effective = g_phy.group();
+    v.phy_committed = g_phy.committed();
+    v.phy_stats     = g_phy.stats();
     portENTER_CRITICAL(&g_view_mux);
     g_view = v;
     portEXIT_CRITICAL(&g_view_mux);
@@ -1601,6 +1680,35 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(v.dispatched), static_cast<unsigned long>(v.busy),
                       static_cast<unsigned long>(v.cmd_i2c), static_cast<unsigned long>(v.dropped),
                       static_cast<unsigned long>(g_log_dropped.load(std::memory_order_relaxed)));
+  } else if (std::strcmp(cmd, "phy") == 0 && arg != nullptr) {
+    if (std::strcmp(arg, "reset") == 0) {
+      g_phy_reset_req.store(true, std::memory_order_relaxed);
+      if (g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
+      n = std::snprintf(line, sizeof(line), "phy: reset requested");
+    } else {
+      n = std::snprintf(line, sizeof(line), "phy: no arguments, or reset");
+    }
+  } else if (std::strcmp(cmd, "phy") == 0) {
+    // spec 12.4.2 - the group on the air, the one committed, and the trial between them.
+    portENTER_CRITICAL(&g_view_mux);
+    const NodeView v = g_view;
+    portEXIT_CRITICAL(&g_view_mux);
+    const auto ld = [](uint32_t x) { return static_cast<unsigned long>(x); };
+    const auto& e = v.phy_effective.v;
+    const auto& c = v.phy_committed.v;
+    const auto& k = v.phy_stats;
+    n = std::snprintf(line, sizeof(line),
+                      "phy: %s, store %s, window %lu ms; effective %ld Hz SF%ld BW %ld CR 4/%ld %ld dBm "
+                      "trial %ld s; committed %ld Hz SF%ld BW %ld CR 4/%ld %ld dBm trial %ld s; "
+                      "trials %lu committed %lu reverted %lu abandoned %lu commit failed %lu refused %lu",
+                      lran::node::phy_state_name(v.phy_state),
+                      v.phy_writable ? "nvs" : "NONE (PHY rows READ_ONLY)", ld(v.phy_window_ms),
+                      static_cast<long>(e[0]), static_cast<long>(e[1]), static_cast<long>(e[2]),
+                      static_cast<long>(e[3]), static_cast<long>(e[4]), static_cast<long>(e[5]),
+                      static_cast<long>(c[0]), static_cast<long>(c[1]), static_cast<long>(c[2]),
+                      static_cast<long>(c[3]), static_cast<long>(c[4]), static_cast<long>(c[5]),
+                      ld(k.trials), ld(k.committed), ld(k.reverted), ld(k.abandoned),
+                      ld(k.commit_failed), ld(k.refused_in_trial));
   } else if (std::strcmp(cmd, "cfg") == 0) {
     portENTER_CRITICAL(&g_view_mux);
     const NodeView v = g_view;
