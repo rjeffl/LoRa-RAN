@@ -1576,3 +1576,41 @@ Raising it would filter a double alert from a vehicle towing a trailer, which is
 **Event to MQTT took 0.4 s to 6 s.** Most arrived within 2 s. The 6 s one, a follow-up,
 was queued before the gate's next changes, so it did not wait behind their STATUS frames.
 A BLE window is one candidate; the cause is not established. None was lost.
+
+## 2026-10-13 — Spec §12.4.2's PHY trial on GateLink: commit and both reverts pass on the air
+
+**GateLink now takes a fleet PHY change.** It runs `lib/lran-node`'s `PhyTrial`, as the
+simnode does. The committed group is in NVS (`firmware/gatelink/src/nvs_blob.cpp`), not on
+the microSD (operator, same date). If the group were on the card, a card that failed after
+a commit would boot the node on D1's defaults while the bridge stayed on the new settings.
+Plan §6.4 records the choice.
+
+**Flashed with `82ccd83`** over USB and run against the bridge (`ff2c092`) and the sandbox
+broker. The trace is [`gl-phy-trial-2026-10-13.log`](./data/gl-phy-trial-2026-10-13.log),
+with the bridge's per-second `CHAN` lines removed. Times are seconds from its start.
+GateLink was the only node in the fleet: `simnode_diag_enable` was 0, and every simnode
+row read `deployed` 0.
+
+| Check | What was done | What happened |
+|---|---|---|
+| Commit | `{"set":{"freq_hz":917000000}}` on `lran/bridge/config/set` at 20.78 | GateLink accepted the `SET` at 21.28 and retuned at 22.09, after its `CONFIG_ACK` left. The bridge retuned at 22.81 and committed at 26.69. `config/ack` read `ok`, `persisted`. The bridge's confirming `GET` reached GateLink at 27.16, and `phy` then read 917.0 MHz committed, `trials 1 committed 1` |
+| The commit outlives a reset | `reset GL` at about 41 | GateLink booted on 917.0 MHz. The bridge received its `BOOT` status and event, then polled it as before |
+| Revert after a reboot | 917.0 → 917.4 MHz at 159.68, and `reset GL` 0.13 s after GateLink logged `board trial` at 161.43 | GateLink booted on 917.0 and logged the revert as `a reboot ended the trial`. The bridge polled it on 917.4 MHz unanswered, and reverted at 273.86, 112.6 s after GateLink's `CONFIG_ACK`: `phy_trial_s` 120 less one 8000 ms `config_ack_timeout_ms` (spec §12.4.1 step 8). `config/ack` read `reverted`, and `lran/bridge/event/phy_reverted` `not_heard`. The bridge's next `POLL` drew `EVENT PHY_REVERTED detail 0x0002` at 275.01, which reached `lran/gatelink/event/phy_reverted` with `detail` 2 |
+| Revert at the window | 917.0 → 917.4 MHz at 289.71. `hold BRG` after the bridge logged `every node accepted - retuning` at 292.96, and `release BRG` at 436.83 | GateLink retuned at 292.11 and logged `the window expired` at 412.02, 119.9 s later. It was back on 917.0 MHz at 412.22. The bridge booted on 917.0 and published `phy_reverted` `restart`. Its first `POLL` to GateLink drew `PHY_REVERTED detail 0x0001` at 601.65, which reached MQTT with `detail` 1 |
+| Back to the bench's group | 917.0 → 917.4 MHz at about 615 | `config/ack` `ok`, `persisted`, at 620.62. GateLink and the bridge both hold 917.4 MHz committed, which is D1's group |
+
+**After its restart the bridge sent nothing for 163 s**, until `inject both` made GateLink
+transmit at 600. GateLink's `deployed` reads 0, so the bridge does not poll it from boot,
+and an idle GateLink sends nothing of its own. The bridge handoff records the same for the
+simnode rows. The `PHY_REVERTED` therefore waited for GateLink's next push. With
+`deployed` 1 the bridge would poll from boot; that path was not run here.
+
+**The boot after a USB reset lost the start of two console lines** at 162.45: `D to the
+committed group - a reboot ended the trial` and `ll in 1621 us`. The earlier reset at 41
+printed whole. Each line reached `log_task`'s queue whole, since the revert was reported
+correctly, so the loss is on the USB CDC side. The cause is not established.
+
+**Not measured: what the commit's NVS write costs `io_task`.** A flash write stalls the
+cache on both cores. No relay command ran during a trial, and the bridge sends no other authenticated
+frame during one (`phy_change.h`'s `blocks_traffic()`). The bench soak's relay timing
+is the check that would show a cost.
