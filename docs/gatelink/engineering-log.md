@@ -1505,3 +1505,74 @@ levels; `debounced` is now asserted inputs. On the bench, with nothing on IN3 an
 
 **Falsified by:** a 2N7000 stage on the bench, its gate on a 4.85 V source through 10 kΩ,
 leaving its input reading 0 at `raw`.
+
+## 2026-10-13 — The 1050's lines measured, K3 and K4 move to the Radio inputs, and GL3 derives the gate
+
+**The pack and the MPPT are back at the gate** (operator). Tier 2's soak waits for the
+2N7000 board and the rewired harnesses, which change the production node mechanically.
+
+**The 1050's 5 V inputs source 2.95 mA into a short and rest at about 4.75 V**, with the
+1050 active and in standby (operator's meter, at the gate). That is a source of about
+1.6 kΩ. GateLink reads SAFETY and EXIT. The 2N7000 stage's 10 kΩ and 1 MΩ cost such a line
+under 10 mV, so plan §3.2's margin question closes. The 4.85 V of 2026-10-12 and today's
+4.75 V differ by 0.1 V; both clear the 4.5 V at which the 2N7000's R<sub>DS(on)</sub> is
+specified.
+
+**K3 and K4 move to Radio Open (39) and Radio Close (40)** (operator). They do what Guard
+Station Open and Close do, they were free, and the keypad keeps the Guard Station inputs to
+itself. Plan v0.37 §3.1 records it. §9.2's wake test did not include them. Its model says
+a command input wakes the board, so they should; GL2 checks it.
+
+**`app_task` now derives the gate block.** Until today STATUS sent `gate_state` UNKNOWN.
+
+- `gate_state.cpp` maps IN1 and IN2 to spec §8.3, and holds 1/0 for `hold_confirm_ms`
+  before declaring OPEN_HELD. A hold is LRAN if a K1 pulse claimed it, KEYPAD_FIRE after a
+  FIRE edge, UNKNOWN if it was there at boot, MANUAL otherwise. A K1 claim lapses when the
+  gate closes, when K2 pulses, or when nothing changes within `cause_window_ms`, so a K1
+  that moved nothing cannot claim a later manual hold.
+- `detect.cpp` classifies EXIT-then-SAFETY as EXIT and SAFETY-then-EXIT as ENTRY. The
+  first edge sends VEHICLE_DETECTED, or VEHICLE_WHILE_HELD_OPEN under a hold, at once and
+  with direction UNDETERMINED. The follow-up, with the same `event_id`, carries the result.
+  `detect_sequence_window_ms` and `detect_sequence_idle_ms` resolve partial traversals.
+- **`held_open_alert_repeat_s` is read as a rate limit.** PRD R-3.2.3e names it without
+  saying what it repeats, and spec §7.2.5 bit 4, "suppressed by the re-alert interval",
+  reads as a limit. At its default, 0, every detection under a hold alerts.
+- `inject` (PRD R-5.4b) overrides inputs below the debounce. Named scripts cover the
+  30 s EXIT-to-SAFETY gap (`exit`) and both partial traversals (`wand-back`, `loop-stop`).
+
+The three host suites pass, 34 cases among the firmware's 128.
+
+**Falsified by:** a bench `inject exit` that does not end in a follow-up with direction
+EXIT, or a K1 `HOLD_OPEN` followed by `inject hold` whose hold reads anything but LRAN.
+
+## 2026-10-13 — GL3's derivation on the bench: every case passes on the air
+
+**Flashed with `d19188a`'s code and run against the bridge and the
+sandbox broker** with `tools/bench/bench.py`. The inputs were wired as they will be: COM at
++12 V, an input pulled to GND to energize it, IN3 and IN4 on GND for idle. `in` read `raw
+0x0C debounced 0x00` and `gate` read CLOSED. Twenty detection events reached MQTT, none
+dropped (`pushes dropped 0`, I²C failures 0).
+
+| Case | How | Result |
+|---|---|---|
+| EXIT with a 30 s gap | `inject exit` | First event at the EXIT edge; the follow-up, same `event_id`, `direction: exit` 30 s later |
+| ENTRY | `inject entry` | `direction: entry` |
+| Simultaneous | `inject both` | UNDETERMINED at once |
+| Partial at the wand | `inject wand-back` | UNDETERMINED 10 s after EXIT cleared (`detect_sequence_idle_ms`) |
+| Partial on the loops | `inject loop-stop` | UNDETERMINED at 60 s (`detect_sequence_window_ms`) |
+| LRAN hold | `cmd/hold_open/set` through the bridge, then `inject` | K1 pulsed; `hold_source: lran`, cause `lran_command`; SAFETY's first edge sent `vehicle_while_held_open` |
+| MANUAL hold | `inject` alone | `hold_source: manual`, cause `manual_hold`; EXIT's first edge alerted |
+| KEYPAD_FIRE hold | `inject +F` first; IN5 is not wired (D77) | `hold_source: keypad_fire`; alerted |
+| UNKNOWN hold | IN1 on GND, then `restart` | `open_held`, `hold_source: unknown` 2 s after boot; lifting IN4 alerted |
+| Real traversal | Operator lifted IN4, then IN3 | `direction: exit` |
+
+The partial traversals left `last_traversal` unchanged. A sensor already asserted at boot
+sent nothing, as designed: IN4 was off GND across the `restart`, and only its next edge
+alerted.
+
+**`held_open_alert_repeat_s` is a rate limit, and 0 alerts once per vehicle** (operator).
+Raising it would filter a double alert from a vehicle towing a trailer, which is rare.
+
+**Event to MQTT took 0.4 s to 6 s.** Most arrived within 2 s. The 6 s one, a follow-up,
+was queued before the gate's next changes, so it did not wait behind their STATUS frames.
+A BLE window is one candidate; the cause is not established. None was lost.
