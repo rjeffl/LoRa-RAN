@@ -75,7 +75,7 @@ pins on the header board give a carrier that never answers.
 ## Build and test
 
 ```bash
-pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, config store
+pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, config store, gate state, detection, injection
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2
