@@ -1608,7 +1608,8 @@ simnode rows. The `PHY_REVERTED` therefore waited for GateLink's next push. With
 **The boot after a USB reset lost the start of two console lines** at 162.45: `D to the
 committed group - a reboot ended the trial` and `ll in 1621 us`. The earlier reset at 41
 printed whole. Each line reached `log_task`'s queue whole, since the revert was reported
-correctly, so the loss is on the USB CDC side. The cause is not established.
+correctly, so the loss is on the USB CDC side. The cause is not established; the handoff's
+*Open* already carries lost console bytes from 2026-10-08.
 
 **Not measured: what the commit's NVS write costs `io_task`.** A flash write stalls the
 cache on both cores. No relay command ran during a trial, and the bridge sends no other authenticated
