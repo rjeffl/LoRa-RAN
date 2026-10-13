@@ -1505,3 +1505,42 @@ levels; `debounced` is now asserted inputs. On the bench, with nothing on IN3 an
 
 **Falsified by:** a 2N7000 stage on the bench, its gate on a 4.85 V source through 10 kΩ,
 leaving its input reading 0 at `raw`.
+
+## 2026-10-13 — The 1050's lines measured, K3 and K4 move to the Radio inputs, and GL3 derives the gate
+
+**The pack and the MPPT are back at the gate** (operator). Tier 2's soak waits for the
+2N7000 board and the rewired harnesses, which change the production node mechanically.
+
+**The 1050's 5 V inputs source 2.95 mA into a short and rest at about 4.75 V**, with the
+1050 active and in standby (operator's meter, at the gate). That is a source of about
+1.6 kΩ. GateLink reads SAFETY and EXIT. The 2N7000 stage's 10 kΩ and 1 MΩ cost such a line
+under 10 mV, so plan §3.2's margin question closes. The 4.85 V of 2026-10-12 and today's
+4.75 V differ by 0.1 V; both clear the 4.5 V at which the 2N7000's R<sub>DS(on)</sub> is
+specified.
+
+**K3 and K4 move to Radio Open (39) and Radio Close (40)** (operator). They do what Guard
+Station Open and Close do, they were free, and the keypad keeps the Guard Station inputs to
+itself. Plan v0.37 §3.1 records it. §9.2's wake test did not include them. Its model says
+a command input wakes the board, so they should; GL2 checks it.
+
+**`app_task` now derives the gate block.** Until today STATUS sent `gate_state` UNKNOWN.
+
+- `gate_state.cpp` maps IN1 and IN2 to spec §8.3, and holds 1/0 for `hold_confirm_ms`
+  before declaring OPEN_HELD. A hold is LRAN if a K1 pulse claimed it, KEYPAD_FIRE after a
+  FIRE edge, UNKNOWN if it was there at boot, MANUAL otherwise. A K1 claim lapses when the
+  gate closes, when K2 pulses, or when nothing changes within `cause_window_ms`, so a K1
+  that moved nothing cannot claim a later manual hold.
+- `detect.cpp` classifies EXIT-then-SAFETY as EXIT and SAFETY-then-EXIT as ENTRY. The
+  first edge sends VEHICLE_DETECTED, or VEHICLE_WHILE_HELD_OPEN under a hold, at once and
+  with direction UNDETERMINED. The follow-up, with the same `event_id`, carries the result.
+  `detect_sequence_window_ms` and `detect_sequence_idle_ms` resolve partial traversals.
+- **`held_open_alert_repeat_s` is read as a rate limit.** PRD R-3.2.3e names it without
+  saying what it repeats, and spec §7.2.5 bit 4, "suppressed by the re-alert interval",
+  reads as a limit. At its default, 0, every detection under a hold alerts.
+- `inject` (PRD R-5.4b) overrides inputs below the debounce. Named scripts cover the
+  30 s EXIT-to-SAFETY gap (`exit`) and both partial traversals (`wand-back`, `loop-stop`).
+
+The three host suites pass, 34 cases among the firmware's 128.
+
+**Falsified by:** a bench `inject exit` that does not end in a follow-up with direction
+EXIT, or a K1 `HOLD_OPEN` followed by `inject hold` whose hold reads anything but LRAN.

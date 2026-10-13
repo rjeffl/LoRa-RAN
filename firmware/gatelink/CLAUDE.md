@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.36, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.37, §5
 for the architecture and §8 for the milestones.
 **Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.19.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.17** (`ver = 2`).
@@ -15,6 +15,10 @@ for the architecture and §8 for the milestones.
 `lora_task`.** It boots, clears the relay latch, prints its banner, draws the boot page and
 starts the seven tasks of plan §5.2. `io_task` times relay pulses, turns IN1–IN4 into asserted inputs and debounces them,
 reads the buttons and sensors, and carries out each gate command's relay sequence.
+`app_task` derives the gate block from the debounced inputs: state, hold and its source,
+movement cause, and the EXIT/SAFETY direction classifier with the held-open alert (plan
+§6.2, §6.3; PRD §3.2). It queues each STATUS and EVENT that a change causes to `lora_task`,
+and it plays `inject` scripts, which `io_task` applies below the debounce (PRD R-5.4b).
 `lora_task` runs lran-node's engine on the carrier radio: it announces `BOOT`, answers
 `POLL`, `PING`, `ROLL_CONTEXT`, `COMMAND` and `CONFIG`, and sends each `COMMAND_ACK` after
 io_task reports the last trailing edge (plan §5.2). `CONFIG` reads and writes lran-config's
@@ -24,7 +28,7 @@ io_task reports the last trailing edge (plan §5.2). `CONFIG` reads and writes l
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
-INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `aw`, `sense`, `sd`,
+INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `sense`, `sd`,
 `beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `bms`, `bms now [abort_ms]`, `bms data`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
@@ -48,6 +52,9 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `tasks.{h,cpp}` | The task table and its invariants | yes |
 | `task_runtime.{h,cpp}` | Static task creation, `io_task`, `lora_task`'s node, the bench console in `log_task`, and the stub bodies | no |
 | `gatelink_app.{h,cpp}` | GateLink's lran-node application: spec §8.1 commands to K1–K4, status and event bodies, PING echo, `HEX_REQ` to `vedirect_task` | yes |
+| `gate_state.{h,cpp}` | `app_task`'s gate state, hold and its source, and movement cause, from IN1–IN4 | yes |
+| `detect.{h,cpp}` | `app_task`'s direction classifier, held-open alert and their pushes; the shared `event_id` counter | yes |
+| `inject.{h,cpp}` | Input injection scripts and the named bench scripts | yes |
 | `config_store.{h,cpp}` | The configuration: lran-config's `Store` over the node-common and GateLink blocks, and `SdPersist`, its microSD `Persist`, with `config.json`'s reader and writer | yes |
 | `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, and the interlock's decision | yes |
 | `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |

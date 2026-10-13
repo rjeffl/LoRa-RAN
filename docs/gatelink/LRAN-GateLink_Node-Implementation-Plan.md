@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.36
+**Version:** 0.37
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -193,11 +193,16 @@ The host's four onboard relays (SPDT, COM/NO/NC, DC 5 A @ 28 V), driven through 
 |---|---|---|---|
 | **K1** | AUX1 (16) | **OPEN and LOCK** | Open and hold (G-2) |
 | **K2** | AUX2 (18) | **UNLOCK** | Release hold (G-3) |
-| **K3** | Guard Station Open (34) | *(fixed function)* | Momentary open (G-1) |
-| **K4** | Guard Station Close (36) | *(fixed function)* | Immediate close (G-3) |
+| **K3** | Radio Open (39) | *(fixed function)* | Momentary open (G-1) |
+| **K4** | Radio Close (40) | *(fixed function)* | Immediate close (G-3) |
 
 All contacts wired **normally-open**, so a de-energized or unpowered GateLink asserts
 nothing.
+
+**K3 and K4 land on the Radio inputs, which were free**, not on the Guard Station inputs the
+keypad already uses. The Radio inputs open and close as the Guard Station inputs do
+(operator, 2026-10-13), and the wiring stays one pair per terminal. §9.2 did not test them
+for wake. As command inputs, its model predicts they wake the board; GL2 confirms it.
 
 **Three consequences of the relays being behind an I²C expander:**
 
@@ -278,11 +283,11 @@ EXCOM_IN3 ── drain   2N7000
   stage uses 1 MΩ rather than the 100 kΩ in
   [`StamPLC-input-conditioning`](./StamPLC-input-conditioning.md). Against any pull-up up to
   47 kΩ it costs under 5 % of the line's voltage.
-- **The 1050's lines idle at about 4.85 V, standby included** (operator, 2026-10-12). That
-  is above the 4.5 V at which the 2N7000's R<sub>DS(on)</sub> is specified (5.3 Ω maximum)
-  and the 3 V maximum threshold. At the input's 4.1 mA from 13.4 V the stage drops about
-  20 mV. The pull-up's value, from the current a line sources into a short, is not yet
-  measured.
+- **The 1050's lines idle at about 4.75 V, active and in standby, and source 2.95 mA into
+  a short** (operator, at the gate, 2026-10-13; 4.85 V on 2026-10-12). That is a source of
+  about 1.6 kΩ, so the 10 kΩ and 1 MΩ cost the line under 10 mV. 4.75 V is above the 4.5 V
+  at which the 2N7000's R<sub>DS(on)</sub> is specified (5.3 Ω maximum) and the 3 V maximum
+  threshold. At the input's 4.1 mA from 13.4 V the stage drops about 20 mV.
 - **The 10 kΩ protects the gate** from the field wiring out to the wand and the loops. A
   12–15 V zener from gate to source adds margin; the 2N7000 has no gate protection of its
   own.
@@ -402,7 +407,6 @@ Deliberately unspent, recorded so future revisions know what is available.
 
 | Terminal / resource | Status | Possible use |
 |---|---|---|
-| Radio Open (39), Radio Close (40) | Free | Step-by-step if tied together; or two more command inputs |
 | Guard Station Stop (35) | Free (jumpered to GND) | Stop, **with caution below** |
 | **12 V moving-lamp output** | **Free** | Backup source of a motion signal if OUT2 is ever needed elsewhere. Voltage-sense, which the inputs take directly. **Not a drop-in for OUT2 unless M8 confirms it also tracks the auto-close countdown** |
 | SHADOW / LOOP1 (24), ENTRAPMENT / LOOP2 (26) | Likely free — **M11** | Additional detection inputs |
@@ -973,11 +977,11 @@ the extraction changed nothing.
 
 Every pulse is `relay_pulse_ms` wide.
 
-**Case 1 — momentary open.** Pulse **K3** (Guard Station Open). The gate opens to full
+**Case 1 — momentary open.** Pulse **K3** (Radio Open). The gate opens to full
 open with auto-close enabled; the controller closes it after the auto-close timeout,
 measured at **60 s**.
 
-- Confirmed wake input — it is what the keypad drives.
+- A wake input by §9.2's model, since it is a command; not yet tested (§3.1).
 - No hold state is entered. IN1/IN2 settle at **1/1**.
 - If the gate is already open and unlocked, the pulse **restarts the auto-close
   countdown** — harmless, and a useful way to extend the window without holding.
@@ -1568,6 +1572,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.37** — **§3.1 moves K3 and K4 to Radio Open (39) and Radio Close (40)**, which were
+  free, off the Guard Station inputs the keypad uses (operator, 2026-10-13). §3.6 and §6.1
+  follow. **§3.2 records the 1050's lines** at 4.75 V and 2.95 mA into a short, about
+  1.6 kΩ.
 
 - **v0.36** — **§3.2 drops to four inputs (D77, PRD v0.19).** The deploying StamPLC's
   IN5–IN8 read nothing, so FIRE and the alarm output become placeholders. Every input is
