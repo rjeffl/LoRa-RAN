@@ -35,6 +35,7 @@
 #include "ble_interlock.h"
 #include "bms_client.h"
 #include "bms_link.h"
+#include "charge_inhibit.h"
 #include "board_profile.h"
 #include "board_stamplc.h"
 #include "config_store.h"
@@ -155,6 +156,12 @@ StaticQueue_t g_push_q_storage;
 uint8_t       g_push_q_buf[8 * sizeof(Push)];
 QueueHandle_t g_push_q = nullptr;
 std::atomic<uint32_t> g_push_dropped{0};  // root rule 4: a push the queue had no room for
+
+// GL5 - app_task's charge-inhibited indication (PRD R-6.4a, R-6.4b), for spec 7.2.6 bit 3
+// and the console's `chg`. The source and path are ChargeSource values.
+std::atomic<bool>    g_charge_inhibited{false};
+std::atomic<uint8_t> g_charge_source{0};
+std::atomic<uint8_t> g_charge_path{0};
 
 // The console's `aw`: log_task asks, io_task reads the expander on its next pass (it alone
 // owns the internal bus) and bumps the sequence.
@@ -812,6 +819,7 @@ class Node final : public RadioClient, public GateLinkPort {
     return g;
   }
   BmsSnapshot bms() const override { return bms_snapshot(); }
+  bool charge_inhibited() const override { return g_charge_inhibited.load(std::memory_order_relaxed); }
   void bms_polling_changed(bool on) override { g_bms_polling.store(on); }
   MpptSnapshot mppt() const override {
     portENTER_CRITICAL(&g_ved_mux);
@@ -1205,6 +1213,7 @@ void app_task(void*) {
   if (!watched) QueueSink{}.line("wdt: app_task not subscribed - runs unwatched");
   GateTracker  tracker;
   Detector     detector(&g_event_ids);
+  ChargeInhibit charge;
   InjectScript script;
   uint8_t      inj_mask  = 0;
   uint8_t      inj_value = 0;
@@ -1252,6 +1261,37 @@ void app_task(void*) {
       dp.alert_repeat_s = live_param(kParamAlertRepeatS);
       detector.update(io.inputs, now, gc, dp, &out);
 
+      // GL5 - charge inhibition from the MPPT and the BMS (PRD R-6.4a, R-6.4b). Its own
+      // list, because a detection can fill `out`.
+      ChargeParams cp;
+      cp.confirm_ms = live_param(kParamChargeConfirmS) * 1000;
+      cp.temp_c     = static_cast<int16_t>(static_cast<int32_t>(live_param(kParamChargeTempC)));
+      cp.band_ma    = live_param(kParamChargeBandMa);
+      cp.rise_mv    = live_param(kParamChargeRiseMv);
+      cp.bms_poll_s = live_param(kParamBmsPollS);
+      portENTER_CRITICAL(&g_ved_mux);
+      const MpptSnapshot mppt = g_ved.mppt;
+      portEXIT_CRITICAL(&g_ved_mux);
+      PushList charge_out;
+      const bool charge_changed =
+          charge.update(mppt, bms_snapshot(), now, cp, gc, &g_event_ids, &charge_out);
+      // The flag first, so the STATUS it causes carries it.
+      g_charge_inhibited.store(charge.inhibited(), std::memory_order_relaxed);
+      g_charge_source.store(static_cast<uint8_t>(charge.source()), std::memory_order_relaxed);
+      g_charge_path.store(static_cast<uint8_t>(charge.path()), std::memory_order_relaxed);
+      if (charge_changed) {
+        char text[64];
+        std::snprintf(text, sizeof(text), "charge: %s, by %s",
+                      charge.inhibited() ? "INHIBITED" : "no longer inhibited",
+                      charge_source_name(charge.inhibited() ? charge.source() : charge.path()));
+        QueueSink().line(text);
+      }
+      for (size_t i = 0; i < charge_out.size(); ++i) {
+        if (xQueueSend(g_push_q, &charge_out[i], 0) != pdTRUE) {
+          g_push_dropped.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+
       // The snapshot first, so each STATUS carries the change that caused it.
       GateSnapshot g;
       g.gate_state           = static_cast<uint8_t>(tracker.state());
@@ -1284,7 +1324,9 @@ void app_task(void*) {
         }
         if (xQueueSend(g_push_q, &p, 0) != pdTRUE) g_push_dropped.fetch_add(1, std::memory_order_relaxed);
       }
-      if (out.size() != 0 && g_lora_handle != nullptr) xTaskNotifyGive(g_lora_handle);
+      if ((out.size() != 0 || charge_out.size() != 0) && g_lora_handle != nullptr) {
+        xTaskNotifyGive(g_lora_handle);
+      }
     }
     vTaskDelayUntil(&last, period_ticks(TaskId::App));
   }
@@ -1439,6 +1481,7 @@ const char* pulse_result_name(PulseResult r) {
 //   lran ack drop     withhold the next fresh COMMAND_ACK, for spec 9.4's dedup hit
 //   bus <s>           GL1's bus test for s seconds, 1-600; see BusStats
 //   wdt               the task watchdog's timeout
+//   chg               charge inhibition: the indication, its source and the path deciding (GL5)
 //   cfg               the configuration's card: mounted, dirty, writes and what boot read
 //   wdt stall         park app_task unfed, so the task watchdog resets the chip (GL3)
 //   restart           a software reset
@@ -1741,6 +1784,17 @@ void console_command(char* cmd) {
                         static_cast<unsigned long>(c[i].max_pass_us), static_cast<unsigned long>(c[i].max_gap_us));
       if (i == 0) write_line(line, n, sizeof(line));
     }
+  } else if (std::strcmp(cmd, "chg") == 0) {
+    const auto src = [](const std::atomic<uint8_t>& a) {
+      return charge_source_name(static_cast<ChargeSource>(a.load(std::memory_order_relaxed)));
+    };
+    n = std::snprintf(line, sizeof(line), "chg: %s, source %s, deciding path %s; temp <= %ld C, band %lu mA, rise %lu mV, confirm %lu s",
+                      g_charge_inhibited.load() ? "INHIBITED" : "not inhibited", src(g_charge_source),
+                      src(g_charge_path), static_cast<long>(static_cast<int32_t>(live_param(kParamChargeTempC))),
+                      static_cast<unsigned long>(live_param(kParamChargeBandMa)),
+                      static_cast<unsigned long>(live_param(kParamChargeRiseMv)),
+                      static_cast<unsigned long>(live_param(kParamChargeConfirmS)));
+    write_line(line, n, sizeof(line));
   } else if (std::strcmp(cmd, "ved") == 0) {
     const VedView      v = ved_view();
     const MpptSnapshot& m = v.mppt;
