@@ -24,7 +24,6 @@ the StamPLC's 12 V bench supply.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Low-temperature inhibition** through the simnode Heltec's BMS emulator | PRD R-6.4b; plan §8.2's GL5 row |
 | 3 | **The relay at a watchdog reset, `AckResult` for a failed pulse, and `0xFF`** — each a written proposal, the last two for the next spec revision; and the SD library's `log_w` | *Open*, below |
 | 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
@@ -40,10 +39,15 @@ section and *The next job*.
 direction, partial traversals and the held-open alert passed on the air (engineering log,
 2026-10-13). GL6 confirms them against real gate cycles, after GL2.
 
+**Low-temperature inhibition is built, and its BMS path passed on the air** through the
+emulator's `bms temp` (engineering log, 2026-10-14). Its VE.Direct path, R-6.4b, is
+host-tested only and waits for the MPPT. HA cannot show the indication while VE.Direct is
+down, and its three thresholds are constants until the bridge can carry more GateLink
+rows. Both are the bridge's to fix before the install visit (*Open*).
+
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
 
-- Low-temperature inhibition through the BMS emulator.
 - The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
   library's `log_w`.
 - The 2N7000 stages for IN3 and IN4 and the IN1 and IN2 harnesses rewired sinking, when the
@@ -197,14 +201,16 @@ board's are its D-pads (expansion board §6.1).
 - **HA cannot see the derived charge-inhibited indication while VE.Direct is down.** The
   bridge publishes spec §7.2.6 bit 3 only in `solar/state`, which is unavailable without an
   MPPT, and discovery has no entity for it (engineering log, 2026-10-14). The bridge's work.
-- **The bridge must be rebuilt to learn `0x1043`–`0x1045`**, the charge-inhibition
-  thresholds. The bench bridge's `config/state` lacks them.
+- **The charge-inhibition thresholds are constants, against PRD R-5.3a**, because any new
+  GateLink row pushes the bridge's `config/state` past `kMaxPayloadLen`, and raising it
+  overflows the bridge's DRAM (engineering log, 2026-10-14). The rows return after the
+  bridge stops sizing every queue slot for that document. The bridge's work first.
 - **PRD R-6.4c's Ah drawn since charging was last active has no field in spec v0.17.**
   Proposed for the next spec revision; nothing computes it yet.
 - **Spec §8.9 does not define `CHARGE_INHIBITED`'s `detail`.** GateLink sends 0. It could
   name the deciding path, 1 for BMS and 2 for VE.Direct, in the next spec revision.
-- **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
-  defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
+- **The pack's real low-temperature cut-off is not measured**, so `kChargeInhibitTempC`
+  is PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.

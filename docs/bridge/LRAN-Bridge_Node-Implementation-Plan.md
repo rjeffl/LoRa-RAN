@@ -7,7 +7,7 @@
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.28 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.27 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-10-14
 
@@ -3100,9 +3100,7 @@ that drifts is the one that gets followed.
 
 ## 12. Changelog
 
-- **v0.88** — **Cites Protocol Library Plan v0.28, and §10.4 and §10.9.4 add `bms temp`.**
-  The library revision adds GateLink's three charge-inhibition rows, which the bridge
-  discovers from the table once it is rebuilt. `bms temp` makes the emulated pack read cold
+- **v0.88** — **§10.4 and §10.9.4 add `bms temp`**, which makes the emulated pack read cold
   for GateLink's GL5.
 
 - **v0.87** — **Cites Protocol Library Plan v0.27.** That revision adds GateLink's

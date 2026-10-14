@@ -1651,3 +1651,27 @@ condition, the rising-voltage restart, the stale-BMS handover and the clear.
 **The bench bridge lacks the three new rows** (`0x1043`–`0x1045`): its `config/state`
 listed every other GateLink row. The bridge compiles lran-config's table into its image,
 so it learns them when it is rebuilt.
+
+## 2026-10-14 — The charge-inhibition thresholds become constants: the bridge cannot carry the rows
+
+**Any new GateLink row overflows the bridge, so the three thresholds are constants for now**
+(operator, 2026-10-14). `charge_inhibit_temp_c`, `charge_inhibit_band_ma` and
+`charge_inhibit_rise_mv` were rows `0x1043`–`0x1045` in the run above. They are now
+`kChargeInhibitTempC`, `kChargeInhibitBandMa` and `kChargeInhibitRiseMv` in
+`charge_inhibit.h`, at the same values. That breaches PRD R-5.3a until the rows return,
+and changing one means a USB reflash at the gate.
+
+**The bridge's `test_config` found it.** It builds GateLink's worst-case `config/state`,
+every value at its widest, and the document must fit `kMaxPayloadLen`, 2048 bytes:
+
+| GateLink rows on the topic | `config/state` | `get_all` answer |
+|---|---|---|
+| Three new rows, 36 in all | 2200 bytes | 2045 bytes |
+| The temperature row alone, 34 in all | 2068 bytes | 1925 bytes |
+
+**Raising the cap to 2560 does not link.** The bridge's `dram0_0_seg` overflowed by
+10,816 bytes. The publish queue's 32 slots, the event queue's 8 and about seven static
+`PublishMessage`s each grow by 512 bytes, about 24 KB in all. The operator chose constants
+over cutting the publish queue to 24 slots. The rows can return once the bridge no longer
+sizes every queue slot for `config/state`, for example by building that document in
+`mqtt_task` from one static buffer, as discovery is built.

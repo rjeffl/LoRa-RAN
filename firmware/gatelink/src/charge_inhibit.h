@@ -8,11 +8,11 @@
 // snapshots each pass, and queues the pushes it asks for.
 //
 // TWO PATHS, AND THE BMS ONE WINS WHEN IT HAS A FRESH READ.
-//   BMS (R-6.4a)        the coldest pack sensor at or below charge_inhibit_temp_c, and the
+//   BMS (R-6.4a)        the coldest pack sensor at or below kChargeInhibitTempC, and the
 //                       pack not charging. The pack's own inhibit flag is in 0x8D, which is
 //                       not decoded (bms-protocol 10), so temperature stands in for it.
 //   VE.Direct (R-6.4b)  PV power present, the charger in bulk or absorption, battery current
-//                       within charge_inhibit_band_ma of zero and battery voltage not rising,
+//                       within kChargeInhibitBandMa of zero and battery voltage not rising,
 //                       all held for charge_inhibit_confirm_s. Used only while the BMS has no
 //                       read younger than three polls, the case R-6.4b was written for.
 //
@@ -35,13 +35,24 @@ namespace gatelink {
 // spec 7.2.6.
 inline constexpr uint8_t kMpptFlagChargeInhibited = 0x08;
 
-// lran-config 0x1041 and 0x1043-0x1045, and bms_poll_s for the BMS read's freshness.
+// TODO(R-5.3a): these three are constants until the bridge can carry more GateLink rows.
+// Any new row pushes GateLink's config/state past the bridge's kMaxPayloadLen, and raising
+// that overflows the bridge's DRAM (engineering log, 2026-10-14). R-5.3a wants each one a
+// parameter; until then a change here is a USB reflash at the gate.
+//
+// PRD 6.4 says "approximately 0 C"; the pack's real cut-off is not measured.
+inline constexpr int16_t  kChargeInhibitTempC  = 0;
+// One count of the pack's 0.1 A current.
+inline constexpr uint32_t kChargeInhibitBandMa = 100;
+inline constexpr uint32_t kChargeInhibitRiseMv = 20;
+
+// lran-config 0x1041 and 0x1040, and the thresholds above. The tests vary them all.
 struct ChargeParams {
-  uint32_t confirm_ms = 300000;  // 0x1041 charge_inhibit_confirm_s
-  int16_t  temp_c     = 0;       // 0x1043 charge_inhibit_temp_c
-  uint32_t band_ma    = 100;     // 0x1044 charge_inhibit_band_ma
-  uint32_t rise_mv    = 20;      // 0x1045 charge_inhibit_rise_mv
-  uint32_t bms_poll_s = 300;     // 0x1040 bms_poll_s
+  uint32_t confirm_ms = 300000;                // 0x1041 charge_inhibit_confirm_s
+  int16_t  temp_c     = kChargeInhibitTempC;
+  uint32_t band_ma    = kChargeInhibitBandMa;
+  uint32_t rise_mv    = kChargeInhibitRiseMv;
+  uint32_t bms_poll_s = 300;                   // 0x1040 bms_poll_s
 };
 
 enum class ChargeSource : uint8_t { None, Bms, VeDirect };

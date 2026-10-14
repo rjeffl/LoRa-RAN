@@ -220,15 +220,6 @@ inline constexpr ParamDef kGateLinkParams[] = {
     // set too low costs BMS reads, not the gate: an awaited reply still ends a window early.
     {0x1042, "bms_window_max_ms", Owner::Node, Access::ReadWrite, PType::U16, 2000, 30000,
      5000, "ms", "BLE window cap; LoRa waits no longer, Impl Plan 5.2"},
-    // Charge inhibition's thresholds, which R-5.3a makes parameters. 0 C is PRD 6.4's
-    // "approximately 0 C"; the pack's real cut-off is not measured. 100 mA is one count of
-    // the pack's 0.1 A current.
-    {0x1043, "charge_inhibit_temp_c", Owner::Node, Access::ReadWrite, PType::I16, -20, 10, 0,
-     "\u00b0C", "Coldest pack sensor at or below this inhibits charging, PRD R-6.4a"},
-    {0x1044, "charge_inhibit_band_ma", Owner::Node, Access::ReadWrite, PType::U16, 0, 1000,
-     100, "mA", "Battery current this close to zero is not charging, PRD R-6.4"},
-    {0x1045, "charge_inhibit_rise_mv", Owner::Node, Access::ReadWrite, PType::U16, 0, 500, 20,
-     "mV", "Battery rise that reads as charging, PRD R-6.4b"},
 
     // Panel and bench. The buzzer has no requirement yet, so it starts silent.
     {0x1050, "display_timeout_s", Owner::Node, Access::ReadWrite, PType::U16, 10, 3600, 60,

@@ -6,7 +6,7 @@
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
 **Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.88
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.28
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.27
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-10-14
 
@@ -329,9 +329,8 @@ only against the bridge, a cached value republished as current.
 
 ## 11. Changelog
 
-- **v0.75** — **Cites Protocol Library Plan v0.28 and Impl Plan v0.88.** Neither changes a
-  task here: the library plan adds GateLink's three charge-inhibition rows, which the bridge
-  discovers from the table, and the Impl Plan adds the simnode's `bms temp`.
+- **v0.75** — **Cites Impl Plan v0.88**, which adds the simnode's `bms temp`. No task here
+  changes.
 
 - **v0.74** — **Cites Protocol Library Plan v0.27 and Impl Plan v0.87.** Neither changes a
   task here: the library plan adds GateLink's `bms_window_max_ms` row, which the bridge
