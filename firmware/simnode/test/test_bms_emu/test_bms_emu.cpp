@@ -380,6 +380,70 @@ void test_bms_status_and_other_commands() {
   TEST_ASSERT_FALSE(bms_command(g_argv, split(other), &emu, &ctl, &out));
 }
 
+// --- bms temp: a cold pack, for GateLink PRD R-6.4a ------------------------------------
+
+// The emulator's own CRC reproduces the capture's, so a rewritten frame is sealed as the
+// pack would seal it.
+void test_crc16_matches_the_capture() {
+  const uint8_t head[] = {0x7e, 0x00, 0x01, 0x03, 0x00, 0x8c, 0x00, 0x20, 0x04, 0x0d, 0x89,
+                          0x0d, 0xa1, 0x0d, 0x9c, 0x0d, 0x9b, 0x04, 0x0b, 0x82, 0x0b, 0x9d,
+                          0x0b, 0x7f, 0x0b, 0x7e, 0x40, 0x00, 0x05, 0x70, 0x03, 0xe7, 0x03,
+                          0xe8, 0x00, 0x01, 0x03, 0xe8, 0x00, 0x64};
+  TEST_ASSERT_EQUAL_HEX16(0x55a3, bms_crc16(head, sizeof(head)));
+}
+
+// The client decodes every sensor at the override, and the rest of the capture unchanged.
+void test_temp_override_decodes_cold() {
+  FakeLink link;
+  BmsEmu   emu(&link);
+  emu.set_temp(-50);
+  ready(emu, 512);
+  request(emu, bms::tdt::kCmdCellsPack);
+  bms::tdt::FrameReassembler rx;
+  TEST_ASSERT_EQUAL(bms::tdt::FrameReassembler::kComplete, reassemble(link, rx));
+  bms::BmsData d;
+  TEST_ASSERT_TRUE(bms::tdt::decode_cells_and_pack(rx.frame(), d));
+  TEST_ASSERT_EQUAL(4, d.temp_count);
+  for (uint8_t i = 0; i < 4; ++i) TEST_ASSERT_EQUAL_INT16(-50, d.temp_dc[i]);
+  TEST_ASSERT_EQUAL(3465, d.cell_mv[0]);
+  TEST_ASSERT_EQUAL(13920, d.pack_mv);
+  TEST_ASSERT_EQUAL(0, d.current_ma);
+}
+
+// A fault still applies on top of the override: bad_crc corrupts the rewritten frame.
+void test_temp_override_and_bad_crc() {
+  FakeLink link;
+  BmsEmu   emu(&link);
+  emu.set_temp(-50);
+  emu.arm(BmsFault::BadCrc, 1);
+  ready(emu, 512);
+  request(emu, bms::tdt::kCmdCellsPack);
+  bms::tdt::FrameReassembler rx;
+  TEST_ASSERT_NOT_EQUAL(bms::tdt::FrameReassembler::kComplete, reassemble(link, rx));
+}
+
+void test_bms_temp_command() {
+  FakeLink    link;
+  BmsEmu      emu(&link);
+  FakeControl ctl;
+  Transcript  out;
+  char set[] = "bms temp -5";
+  bms_command(g_argv, split(set), &emu, &ctl, &out);
+  TEST_ASSERT_TRUE(emu.temp_overridden());
+  TEST_ASSERT_EQUAL_INT16(-50, emu.temp_c10());
+  char bad[] = "bms temp -41";
+  bms_command(g_argv, split(bad), &emu, &ctl, &out);
+  TEST_ASSERT_EQUAL(0, std::strncmp(out.last, "ERR", 3));
+  TEST_ASSERT_EQUAL_INT16(-50, emu.temp_c10());
+  char off[] = "bms temp off";
+  bms_command(g_argv, split(off), &emu, &ctl, &out);
+  TEST_ASSERT_FALSE(emu.temp_overridden());
+  emu.set_temp(-50);
+  char bms_off[] = "bms off";
+  bms_command(g_argv, split(bms_off), &emu, &ctl, &out);
+  TEST_ASSERT_FALSE(emu.temp_overridden());
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_8c_decodes_to_the_captured_values);
@@ -401,5 +465,9 @@ int main() {
   RUN_TEST(test_bms_on_uses_the_default_suffix_or_the_given_one);
   RUN_TEST(test_bms_fault_arms_and_refuses_unknown_names);
   RUN_TEST(test_bms_status_and_other_commands);
+  RUN_TEST(test_crc16_matches_the_capture);
+  RUN_TEST(test_temp_override_decodes_cold);
+  RUN_TEST(test_temp_override_and_bad_crc);
+  RUN_TEST(test_bms_temp_command);
   return UNITY_END();
 }

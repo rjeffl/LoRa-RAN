@@ -54,6 +54,12 @@ constexpr Exchange kExchanges[] = {
 };
 constexpr size_t kRequestLen = sizeof(kReq8C);
 
+// bms-protocol 6 - in the 0x8C capture, N = 4 cells puts the sensor count at byte 17 and
+// the four temperatures at 18-25, each u16 big-endian in 0.1 K.
+constexpr size_t   kTempCountAt = 17;
+constexpr size_t   kTempAt      = 18;
+constexpr uint16_t kKelvin10    = 2731;
+
 struct FaultName {
   BmsFault    fault;
   const char* name;
@@ -65,6 +71,15 @@ constexpr FaultName kFaultNames[] = {
 };
 
 }  // namespace
+
+uint16_t bms_crc16(const uint8_t* data, size_t len) {
+  uint16_t crc = 0xFFFF;
+  for (size_t i = 0; i < len; ++i) {
+    crc ^= data[i];
+    for (int b = 0; b < 8; ++b) crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xA001 : crc >> 1;
+  }
+  return crc;
+}
 
 const char* bms_fault_name(BmsFault f) {
   for (const FaultName& n : kFaultNames) {
@@ -153,6 +168,16 @@ void BmsEmu::tick(uint32_t now_ms) {
 void BmsEmu::respond(const uint8_t* capture, size_t len) {
   uint8_t frame[kBmsMaxFrame];
   std::memcpy(frame, capture, len);  // a byte copy of the capture, so a fault leaves it intact
+  if (temp_on_ && capture == kRsp8C) {
+    const uint16_t raw = static_cast<uint16_t>(temp_c10_ + kKelvin10);
+    for (uint8_t i = 0; i < frame[kTempCountAt]; ++i) {
+      frame[kTempAt + 2 * i]     = static_cast<uint8_t>(raw >> 8);
+      frame[kTempAt + 2 * i + 1] = static_cast<uint8_t>(raw & 0xFF);
+    }
+    const uint16_t crc = bms_crc16(frame, len - 3);
+    frame[len - 3] = static_cast<uint8_t>(crc >> 8);
+    frame[len - 2] = static_cast<uint8_t>(crc & 0xFF);
+  }
   // bms-protocol 7 - one frame per notification at a large MTU; MTU - 3 bytes each otherwise.
   size_t chunk = mtu_ > 3 ? static_cast<size_t>(mtu_ - 3) : kBmsMinChunk;
 
@@ -221,6 +246,7 @@ bool bms_command(char** argv, int argc, BmsEmu* emu, BmsControl* ctl, Sink* out)
     ctl->stop();
     emu->on_disconnect();
     emu->disarm();
+    emu->clear_temp();
     sink_printf(out, "OK bms off");
     return true;
   }
@@ -250,13 +276,31 @@ bool bms_command(char** argv, int argc, BmsEmu* emu, BmsControl* ctl, Sink* out)
                 static_cast<unsigned long>(count));
     return true;
   }
+  if (std::strcmp(sub, "temp") == 0 && argc == 3) {
+    if (std::strcmp(argv[2], "off") == 0) {
+      emu->clear_temp();
+      sink_printf(out, "OK bms temp off, the capture's temperatures");
+      return true;
+    }
+    char*      end = nullptr;
+    const long c   = std::strtol(argv[2], &end, 10);
+    if (*end != '\0' || c < kBmsTempMinC || c > kBmsTempMaxC) {
+      sink_printf(out, "ERR bms temp: whole degrees C, %d to %d, or off", kBmsTempMinC, kBmsTempMaxC);
+      return true;
+    }
+    emu->set_temp(static_cast<int16_t>(c * 10));
+    sink_printf(out, "OK bms temp %ld C on every sensor", c);
+    return true;
+  }
   if (std::strcmp(sub, "status") == 0 && argc <= 2) {
     const BmsEmuStats& s = emu->stats();
-    sink_printf(out, "OK bms %s, %s, handshake %s, FFF1 %s, MTU %u, fault %s x%lu",
+    char temp[16] = "capture";
+    if (emu->temp_overridden()) std::snprintf(temp, sizeof(temp), "%d C", emu->temp_c10() / 10);
+    sink_printf(out, "OK bms %s, %s, handshake %s, FFF1 %s, MTU %u, fault %s x%lu, temp %s",
                 ctl->running() ? "on" : "off", emu->connected() ? "connected" : "no link",
                 emu->handshaken() ? "done" : "no", emu->subscribed() ? "subscribed" : "off",
                 static_cast<unsigned>(emu->mtu()), bms_fault_name(emu->fault()),
-                static_cast<unsigned long>(emu->fault_left()));
+                static_cast<unsigned long>(emu->fault_left()), temp);
     sink_printf(out, "  connects %lu handshakes %lu hs_rejected %lu ignored_before_hs %lu dropped_no_hs %lu",
                 static_cast<unsigned long>(s.connects), static_cast<unsigned long>(s.handshakes),
                 static_cast<unsigned long>(s.handshake_rejected),
@@ -269,7 +313,7 @@ bool bms_command(char** argv, int argc, BmsEmu* emu, BmsControl* ctl, Sink* out)
                 static_cast<unsigned long>(s.faults_applied));
     return true;
   }
-  sink_printf(out, "ERR usage: bms on [suffix] | off | status | fault <name> [count] | fault off");
+  sink_printf(out, "ERR usage: bms on [suffix] | off | status | temp <C> | temp off | fault <name> [count] | fault off");
   return true;
 }
 
