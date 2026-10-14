@@ -92,11 +92,13 @@ captured Set replays; and `HEX_RSP` repeats the request's `seq`. The HEX frame c
 
 **The board can emulate the gate battery's BMS over BLE (GateLink task L7, 2026-10-02)**:
 `bms_emu.{h,cpp}` (Arduino-free, `test/test_bms_emu`) and `bms_ble_peripheral.cpp` (**the
-only file that includes NimBLE**), driven by `bms on [suffix] | off | status | fault <name>
-[count] | fault off`; Impl Plan §10.9.4. **Keep three things:** it is off at boot and is not
+only file that includes NimBLE**), driven by `bms on [suffix] | off | status | temp <C> | temp off |
+fault <name> [count] | fault off`; Impl Plan §10.9.4. **Keep three things:** it is off at boot and is not
 a role, so it holds no identity; its answers are `bms-protocol` §9's bytes replayed, and it
 never includes `lib/bms-ble/`, the client's codec; and `bms on` disables
-`bootloader_random` before the controller starts, and `bms off` enables it again.
+`bootloader_random` before the controller starts, and `bms off` enables it again. `bms temp`
+is the one place it builds bytes: it rewrites the `0x8C` temperatures and reseals the frame
+with its own `bms_crc16()`, never the client's.
 
 **`tools/simctl/` drives this console** and judges the catalogue from the bridge's
 counters (Impl Plan §7.2.1). **`tools/checks/simctl_catalogue.py` fails when a fault added

@@ -35,6 +35,7 @@
 #include <cstdint>
 
 #include "bms_link.h"
+#include "charge_inhibit.h"
 #include "config_store.h"
 #include "detect.h"
 #include "gate_io.h"
@@ -80,6 +81,8 @@ class GateLinkPort {
 
   // bms_task's last successful read, spec 7.2.3. The default has none.
   virtual BmsSnapshot bms() const { return BmsSnapshot{}; }
+  // app_task's charge-inhibited indication, spec 7.2.6 bit 3 (PRD R-6.4a, R-6.4b).
+  virtual bool charge_inhibited() const { return false; }
   // SET_BMS_POLLING was accepted (PRD R-3.4e). bms_task reads it before each window.
   virtual void bms_polling_changed(bool) {}
 

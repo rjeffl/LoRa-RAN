@@ -58,6 +58,7 @@ class FakePort final : public gatelink::GateLinkPort {
     return s;
   }
   gatelink::MpptSnapshot mppt() const override { return mppt_view; }
+  bool charge_inhibited() const override { return inhibited; }
   bool hex_submit(const gatelink::HexJob& job) override {
     if (hex_refuse) return false;
     jobs[job_count++ % 4] = job;
@@ -87,6 +88,7 @@ class FakePort final : public gatelink::GateLinkPort {
   int                    count  = 0;
   bool                   refuse = false;
   gatelink::MpptSnapshot mppt_view;
+  bool                   inhibited = false;
   gatelink::HexJob       jobs[4];
   int                    job_count    = 0;
   bool                   hex_refuse   = false;
@@ -423,6 +425,22 @@ void test_ping_is_echoed() {
   TEST_ASSERT_EQUAL_MEMORY(p, f.payload, n);
 }
 
+// spec 7.2.6 bit 3 - app_task's indication joins vedirect_task's flags (PRD R-6.4a).
+void test_status_carries_charge_inhibited() {
+  Rig r;
+  r.port.mppt_view.mppt_flags = gatelink::kMpptFlagLoadOn;
+  r.port.inhibited            = true;
+  const uint8_t p[1] = {0};
+  r.rx(r.to_node(MsgType::Poll, 9), p, 1);
+  uint8_t     buf[kOutFrameMax];
+  const Frame f = r.next(buf);
+  schema::GateLinkStatusV1 s;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Status::Ok),
+                        static_cast<int>(schema::deserialize(f.payload, f.payload_len, &s)));
+  TEST_ASSERT_EQUAL_HEX8(gatelink::kMpptFlagLoadOn | gatelink::kMpptFlagChargeInhibited,
+                         s.mppt_flags);
+}
+
 // spec 7.2.2 - the MPPT block is vedirect_task's snapshot, passed through.
 void test_status_carries_the_mppt_snapshot() {
   Rig r;
@@ -723,6 +741,7 @@ int main() {
   RUN_TEST(test_poll_answers_status_with_sentinels);
   RUN_TEST(test_ping_is_echoed);
   RUN_TEST(test_status_carries_the_mppt_snapshot);
+  RUN_TEST(test_status_carries_charge_inhibited);
   RUN_TEST(test_hex_get_round_trip);
   RUN_TEST(test_unauthenticated_set_never_reaches_the_mppt);
   RUN_TEST(test_authenticated_set_is_forwarded);

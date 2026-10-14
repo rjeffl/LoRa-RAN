@@ -212,7 +212,9 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
   s.charge_state  = m.charge_state;
   s.mppt_err      = m.mppt_err;
   s.mppt_tracker  = m.mppt_tracker;
-  s.mppt_flags    = m.mppt_flags;
+  // spec 7.2.6 bit 3 is app_task's, from both paths (PRD R-6.4a, R-6.4b).
+  s.mppt_flags    = static_cast<uint8_t>(m.mppt_flags |
+                                         (port_->charge_inhibited() ? kMpptFlagChargeInhibited : 0));
   s.mppt_temp_c10 = m.mppt_temp_c10;
 
   fill_bms_block(port_->bms(), now_ms, &s);

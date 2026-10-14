@@ -19,6 +19,8 @@ reads the buttons and sensors, and carries out each gate command's relay sequenc
 movement cause, and the EXIT/SAFETY direction classifier with the held-open alert (plan
 §6.2, §6.3; PRD §3.2). It queues each STATUS and EVENT that a change causes to `lora_task`,
 and it plays `inject` scripts, which `io_task` applies below the debounce (PRD R-5.4b).
+It also derives low-temperature charge inhibition (PRD R-6.4a, R-6.4b) into spec §7.2.6 bit 3,
+from a cold BMS read or, with no fresh read, from VE.Direct alone.
 `lora_task` runs lran-node's engine on the carrier radio: it announces `BOOT`, answers
 `POLL`, `PING`, `ROLL_CONTEXT`, `COMMAND` and `CONFIG`, and sends each `COMMAND_ACK` after
 io_task reports the last trailing edge (plan §5.2). `CONFIG` reads and writes lran-config's
@@ -29,7 +31,7 @@ bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPP
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
 INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `sense`, `sd`,
-`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
+`beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
@@ -43,7 +45,8 @@ stranded group.
 last `ved cpu`, split by whether `bms_task`'s BLE window was open, then starts a new count.
 `bms` prints how windows ended, their length and abort latency, the interlock's counters
 and the heap; `bms now` runs a window at once, and with `abort_ms` asks it to end that far
-in; `bms data` prints the last decode as `wattcycle-reader` lays it out. `cfg` prints the card's state
+in; `bms data` prints the last decode as `wattcycle-reader` lays it out. `chg` prints the
+charge-inhibited indication, its source, the path deciding it and the thresholds. `cfg` prints the card's state
 and what boot read from `config.json`. `bus <s>`
 is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` parks
 `app_task` unfed, so the watchdog resets the chip and the next banner reads
@@ -59,6 +62,7 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `detect.{h,cpp}` | `app_task`'s direction classifier, held-open alert and their pushes; the shared `event_id` counter | yes |
 | `inject.{h,cpp}` | Input injection scripts and the named bench scripts | yes |
 | `config_store.{h,cpp}` | The configuration: lran-config's `Store` over the node-common and GateLink blocks, and `SdPersist`, its microSD `Persist`, with `config.json`'s reader and writer | yes |
+| `charge_inhibit.{h,cpp}` | `app_task`'s charge inhibition: the BMS path, the VE.Direct inference and their pushes | yes |
 | `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, and the interlock's decision | yes |
 | `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |
 | `ble_interlock.h` | The radio's half of the LoRa/BLE interlock; `task_runtime.cpp` holds the lock | no |
@@ -79,7 +83,7 @@ pins on the header board give a carrier that never answers.
 ## Build and test
 
 ```bash
-pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, config store, gate state, detection, injection
+pio test -d firmware/gatelink -e native        # task table, boot page, pulse, sequencer, GateLinkApp, VedLink, BMS block, charge inhibition, config store, gate state, detection, injection
 pio run  -d firmware/gatelink -e gatelink      # target; needs LRAN_GATELINK_NODE_KEY
 pio run  -d firmware/gatelink -e gatelink-bringup  # GL0 console; no secrets.h
 python3 tools/checks/io_task_never_blocks.py   # R-5.2a, plan §5.2

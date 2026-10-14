@@ -11,6 +11,11 @@
 // with the client's codec would agree with any defect in that codec, and the test would
 // pass on both ends. A fault corrupts a copy of the capture, never the capture.
 //
+// ONE EXCEPTION BUILDS BYTES: `bms temp`. A cold pack was never captured, so the override
+// rewrites the temperatures in a copy of the 0x8C capture and recomputes the CRC with
+// bms_crc16() here, not with the client's. It is a condition the pack is in, like `mppt set`,
+// not a fault, so it holds until `bms temp off` or `bms off` (GateLink PRD R-6.4a).
+//
 // OUTSIDE THE IDENTITY TABLE. The emulator holds no node ID, no key and no role, and the
 // LoRa side never sees it. It is off at boot; `bms on` starts it (Impl Plan 8.1, L7).
 
@@ -22,6 +27,15 @@
 #include "sink.h"
 
 namespace simnode {
+
+// bms-protocol 4 - CRC-16/MODBUS over every byte from the head to the CRC. The frame carries
+// it high byte first.
+uint16_t bms_crc16(const uint8_t* data, size_t len);
+
+// `bms temp`'s range in whole degrees: the span a LiFePO4 pack at the gate could plausibly
+// report, and well inside the field's 0.1 K encoding.
+inline constexpr int16_t kBmsTempMinC = -40;
+inline constexpr int16_t kBmsTempMaxC = 60;
 
 // bms-protocol 2 - the three characteristics of service 0xFFF0 that carry the data path.
 enum class BmsChar : uint8_t { Rx, Tx, Handshake };  // FFF1, FFF2, FFFA
@@ -100,6 +114,12 @@ class BmsEmu {
   void arm(BmsFault f, uint32_t count);
   void disarm() { arm(BmsFault::None, 0); }
 
+  // Every sensor in the 0x8C answer reads `c10` tenths of a degree, until cleared.
+  void set_temp(int16_t c10) { temp_on_ = true; temp_c10_ = c10; }
+  void clear_temp() { temp_on_ = false; }
+  bool    temp_overridden() const { return temp_on_; }
+  int16_t temp_c10() const { return temp_c10_; }
+
   bool               connected() const { return connected_; }
   bool               handshaken() const { return handshaken_; }
   bool               subscribed() const { return subscribed_; }
@@ -123,6 +143,8 @@ class BmsEmu {
   size_t      owed_len_    = 0;
   BmsFault    fault_       = BmsFault::None;
   uint32_t    fault_left_  = 0;
+  bool        temp_on_     = false;
+  int16_t     temp_c10_    = 0;
 };
 
 // The advertised name: "XDZN_001_" and `suffix`, which is 1 to 4 characters (bms-protocol 2).

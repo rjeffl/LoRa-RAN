@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.87
+**Version:** 0.88
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.27 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-14
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -2404,6 +2404,7 @@ serial, driven by hand or by `/tools/simctl/`.
 | `mppt <hex> <mode>` | The simulated MPPT behind a `ROLE_GATELINK` identity: `list` \| `set <reg> <value>` \| `timeout [count]` \| `hex_timeout <ms>` \| `reset` — HEX proxy tests (§10.9.3), added 2026-09-25 |
 | `bms on [suffix]` / `bms off` | Start or stop the BMS emulator, a BLE peripheral outside the identity table (§10.9.4). Off at boot — added 2026-10-02, GateLink task L7 |
 | `bms status` / `bms fault <name> [count]` / `bms fault off` | The emulator's link state and counters, and its faults: `bad_crc`, `bad_term`, `split`, `no_response`, `drop_mid` |
+| `bms temp <C>` / `bms temp off` | Every sensor in the `0x8C` answer reads `<C>`, −40 to 60, until `bms temp off` or `bms off`. A cold pack for GateLink PRD R-6.4a — added 2026-10-14, GateLink GL5 |
 | `log <level>` | Serial verbosity |
 
 `/tools/simctl/` scripts these into repeatable scenarios so a regression run is one
@@ -2916,6 +2917,11 @@ emulator does not include `lib/bms-ble/`, so a defect in that codec cannot appea
 ends and pass. A fault corrupts a copy of the capture. The host tests use `lib/bms-ble/` as
 the client, so each half checks the other.
 
+**`bms temp` is the one exception, because no cold pack was ever captured.** It rewrites the
+temperatures in a copy of the `0x8C` capture and reseals the frame with the emulator's own
+CRC-16/MODBUS, which its tests pin against the capture's. It is a condition the pack is in,
+like `mppt set`, not a fault, so it does not disarm itself.
+
 | Behaviour | Source |
 |---|---|
 | Advertises `XDZN_001_` and a suffix: the tail of the board's BT MAC, or the one `bms on` gives. `bms on 49A1` matches the pack's name exactly, which is what `wattcycle-reader` scans for | `bms-protocol` §2 |
@@ -3093,6 +3099,9 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.88** — **§10.4 and §10.9.4 add `bms temp`**, which makes the emulated pack read cold
+  for GateLink's GL5.
 
 - **v0.87** — **Cites Protocol Library Plan v0.27.** That revision adds GateLink's
   `bms_window_max_ms` row. The bridge discovers it from the table like every other row,
