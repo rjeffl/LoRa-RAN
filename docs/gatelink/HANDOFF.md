@@ -194,6 +194,21 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **HA cannot see the derived charge-inhibited indication while VE.Direct is down.** The
+  bridge publishes spec §7.2.6 bit 3 only in `solar/state`, which is unavailable without an
+  MPPT, and discovery has no entity for it (engineering log, 2026-10-14). The bridge's work.
+- **The bridge must be rebuilt to learn `0x1043`–`0x1045`**, the charge-inhibition
+  thresholds. The bench bridge's `config/state` lacks them.
+- **PRD R-6.4c's Ah drawn since charging was last active has no field in spec v0.17.**
+  Proposed for the next spec revision; nothing computes it yet.
+- **Spec §8.9 does not define `CHARGE_INHIBITED`'s `detail`.** GateLink sends 0. It could
+  name the deciding path, 1 for BMS and 2 for VE.Direct, in the next spec revision.
+- **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
+  defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
+  morning at the gate would set it and start mapping `0x8D`'s bits.
+- **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
+  and an event on every poll, every 300 s at most.
+
 - **HA's *FIRE input*, *Hard-shutdown latch* and *Held open by keypad* entities would read
   a permanent "off" under D77.** The bridge stops publishing them while GateLink reads no
   FIRE or alarm (operator, 2026-10-12). The bridge's work; its handoff carries it.

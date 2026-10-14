@@ -1,0 +1,43 @@
+# GL5 charge inhibition, BMS path, on the air - 2026-10-14
+# Bridge (BRG), GateLink (GL) and the simnode's BMS emulator (SIM) on the bench.
+# tools/bench/bench.py; CHAN capture lines and the rxlog diagnostic topic removed.
+    14.15 CMD mark a4d38d
+    14.15 CMD SIM bms on 49A1
+    14.15 CMD SIM bms temp -5
+    14.40 SIM OK bms on, advertising XDZN_001_49A1
+    14.40 SIM OK bms temp -5 C on every sensor
+    19.44 CMD mark 96459a
+    19.44 CMD GL bms now
+    19.61 GL bms: window now
+    20.01 GL in 422 ms (init 40 scan 61 conn 184 hs 91 ans 39 down 7)
+    20.01 GL charge: INHIBITED, by bms
+    20.77 BRG FRAME #13 rx t=20624 peer=0x01 type=4 schema=16 frag=0x01 seq=6 rssi=-37 snr=11 st=0 rx=0 deaf=938
+    20.89 MQTT lran/gatelink/battery/state {"available":true,"soc":100,"soc_source":"bms_ble","pack_mv":13920,"pack_ma":0,"cell_count":4,"cell1_mv":3465,"cell2_mv":3489,"cell3_mv":3484,"cell4_mv":3483,"cell1_temp_c":-5,"cell2_temp_c":-5,"cell3_temp_c":-5,"cell4_temp_c":-5,"cycles":1,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-71,"age_s":0,"synthetic":false}
+    20.90 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":25.9,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"charge_inhibited","synthetic":false,"uptime_s":19}
+    22.56 MQTT lran/gatelink/event/charge_inhibited {"event_id":2,"ctx_id":3197612920,"event_type":"charge_inhibited","event_code":9,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":12,"detail":0,"uptime_s":19,"synthetic":false}
+    22.60 BRG FRAME #14 rx t=22304 peer=0x01 type=5 schema=17 frag=0x01 seq=7 rssi=-38 snr=11 st=0 rx=0 deaf=938
+    32.27 CMD mark bb761c
+    32.27 CMD SIM bms temp off
+    32.27 CMD GL bms now
+    32.32 SIM OK bms temp off, the capture's temperatures
+    32.42 GL alive: io=301 vedirect=1501 lora=2182 app=301 bms=2 ui=301 log=1
+    32.42 GL bms: window now
+    32.83 GL bms: read in 392 ms (init 4 scan 51 conn 185 hs 91 ans 39 down 22)
+    32.83 GL charge: no longer inhibited, by bms
+    34.59 BRG FRAME #15 rx t=34396 peer=0x01 type=4 schema=16 frag=0x01 seq=8 rssi=-38 snr=11 st=0 rx=0 deaf=938
+    34.69 MQTT lran/gatelink/battery/state {"available":true,"soc":100,"soc_source":"bms_ble","pack_mv":13920,"pack_ma":0,"cell_count":4,"cell1_mv":3465,"cell2_mv":3489,"cell3_mv":3484,"cell4_mv":3483,"cell1_temp_c":22,"cell2_temp_c":24,"cell3_temp_c":21,"cell4_temp_c":21,"cycles":1,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-90,"age_s":0,"synthetic":false}
+    38.08 CMD mark 441a45
+    38.08 CMD GL chg
+    38.08 CMD SIM bms temp -5
+    38.08 CMD GL bms now
+    38.13 GL chg: not inhibited, source none,  band 100 mA, rise 20 mV, confirm 300 s
+    38.13 GL chg: not inhibited, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+    38.13 GL bms: window now
+    38.23 SIM OK bms temp -5 C on every sensor
+    38.54 GL bms: read in 347 ms (init 5 scan 20 conn 186 hs 90 ans 40 down 6)
+    38.54 GL charge: INHIBITED, by bms
+    40.26 MQTT lran/gatelink/battery/state {"available":true,"soc":100,"soc_source":"bms_ble","pack_mv":13920,"pack_ma":0,"cell_count":4,"cell1_mv":3465,"cell2_mv":3489,"cell3_mv":3484,"cell4_mv":3483,"cell1_temp_c":-5,"cell2_temp_c":-5,"cell3_temp_c":-5,"cell4_temp_c":-5,"cycles":1,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-79,"age_s":0,"synthetic":false}
+    40.26 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":12143,"node_ma":-32768,"enclosure_temp_c":25.8,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"reason":"charge_inhibited","synthetic":false,"uptime_s":38}
+    40.29 BRG FRAME #16 rx t=40051 peer=0x01 type=4 schema=16 frag=0x01 seq=9 rssi=-38 snr=12 st=0 rx=0 deaf=938
+    40.49 BRG FRAME #17 rx t=40337 peer=0x01 type=5 schema=17 frag=0x01 seq=10 rssi=-38 snr=11 st=0 rx=0 deaf=938
+    40.56 MQTT lran/gatelink/event/charge_inhibited {"event_id":3,"ctx_id":3197612920,"event_type":"charge_inhibited","event_code":9,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":12,"detail":0,"uptime_s":38,"synthetic":false}

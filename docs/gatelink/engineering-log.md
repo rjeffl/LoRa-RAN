@@ -1615,3 +1615,39 @@ correctly, so the loss is on the USB CDC side. The cause is not established; the
 cache on both cores. No relay command ran during a trial, and the bridge sends no other authenticated
 frame during one (`phy_change.h`'s `blocks_traffic()`). The bench soak's relay timing
 is the check that would show a cost.
+
+## 2026-10-14 — Low-temperature charge inhibition passes through the BMS emulator
+
+**GL5's BMS path for PRD R-6.4a works on the air.** GateLink `d0eebee` and the simnode
+`a49a90a` were flashed over USB and run against the bench bridge and the sandbox broker.
+The trace is [`gl5-charge-inhibit-2026-10-14.log`](./data/gl5-charge-inhibit-2026-10-14.log),
+with the bridge's `CHAN` lines and its rxlog diagnostic removed. Times are seconds from its
+start.
+
+| Check | What was done | What happened |
+|---|---|---|
+| Onset | `SIM bms on 49A1`, `SIM bms temp -5`, then `GL bms now` at 19.44 | The read took 422 ms. GateLink logged `charge: INHIBITED, by bms` at 20.01. The bridge published `node/state` with reason `charge_inhibited` at 20.90 and `event/charge_inhibited`, event_id 2, at 22.56 |
+| Clear | `SIM bms temp off`, then `GL bms now` at 32.27 | GateLink logged `charge: no longer inhibited, by bms` at 32.83. The bridge received its STATUS at 34.59 and republished `battery/state` with the cells at 22 °C. No event, as designed |
+| Onset again | `SIM bms temp -5`, then `GL bms now` at 38.08 | A STATUS and event_id 3 at 40.26 and 40.56 |
+
+**The pack's own inhibit flag is still unread.** `0x8D` is not decoded (bms-protocol §10),
+so the BMS path uses the coldest sensor at or below `charge_inhibit_temp_c` with the pack
+not charging. `battery/state.charge_inhibited` comes from spec §7.2.7 bit 3, the BMS's own
+flag, and so read `false` throughout. The derived indication is §7.2.6 bit 3.
+
+**The clear is invisible in MQTT on this bench.** The bridge publishes §7.2.6 bit 3 only
+inside `solar/state`, and with no MPPT on the UART that topic reads `available: false` with
+`charge_inhibited: null`. The bridge did not republish `node/state` for the clearing
+STATUS, whose reason matched the onset's; it appears to publish that topic only when it
+changes, which was not checked in its code. The onset showed only through its reason and
+its event. With
+VE.Direct down, a BMS-path inhibit therefore never reaches HA as a state, which is the case
+R-6.4a exists for. The handoff carries it for the bridge.
+
+**The VE.Direct path (R-6.4b) is host-tested only.** The MPPT is at the gate, so nothing
+fed GateLink's UART. `test_charge_inhibit` covers the confirm time, each part of the
+condition, the rising-voltage restart, the stale-BMS handover and the clear.
+
+**The bench bridge lacks the three new rows** (`0x1043`–`0x1045`): its `config/state`
+listed every other GateLink row. The bridge compiles lran-config's table into its image,
+so it learns them when it is rebuilt.
