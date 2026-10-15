@@ -25,6 +25,9 @@ WHAT THIS CHECKS. Two kinds of line.
     root CLAUDE.md's "Currently vX.Y", the System PRD's document-set row, and the
     firmware's own "Binding protocol" comments. Each must name the version in the
     specification's header.
+  - The "description" of each lib/*/library.json, read with the same patterns. A
+    .json file is not scanned line by line, so four library descriptions sat at
+    v0.3, v0.11, v0.12 and v0.16 against v0.17 while this check reported OK.
 
 A citation of the specification that also states a wire version must name the one
 in the specification's header. A role header line with no version after its link
@@ -39,6 +42,7 @@ here too; the trigger list is deliberately explicit rather than a guess at inten
     python3 tools/checks/spec_citation_version.py
 """
 
+import json
 import pathlib
 import re
 import sys
@@ -105,6 +109,8 @@ WIRE_PATTERN = re.compile(r"ver\s*=\s*(?P<wire>\d+)")
 # skipped rather than the bullet line, because entries wrap and the version often
 # lands on a continuation line. Skipping the file instead would lose the header
 # citation that sits above the changelog in the same document.
+LIBRARY_JSON = "lib/*/library.json"
+
 HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+(?P<title>.*)$")
 CHANGELOG_TITLE = re.compile(r"changelog\b", re.I)
 
@@ -133,6 +139,20 @@ def doc_version(path: pathlib.Path) -> str | None:
 
 def skipped(rel: pathlib.Path) -> bool:
     return any(rel == p or p in rel.parents for p in SKIP_PATHS)
+
+
+def citation_problem(text: str, want_doc: str, want_wire: str) -> tuple[bool, str | None]:
+    """Return (whether text cites the specification, what is wrong with it or None)."""
+    match = next((m for p in CITATION_PATTERNS if (m := p.search(text))), None)
+    if not match:
+        return False, None
+    found_doc = match.group("ver")
+    wire = WIRE_PATTERN.search(text)
+    if found_doc != want_doc:
+        return True, f"cites v{found_doc}, specification is v{want_doc}"
+    if wire and wire.group("wire") != want_wire:
+        return True, f"cites ver = {wire.group('wire')}, specification is ver = {want_wire}"
+    return True, None
 
 
 def main() -> int:
@@ -194,18 +214,22 @@ def main() -> int:
                         )
                 continue
 
-            match = next((m for p in CITATION_PATTERNS if (m := p.search(line))), None)
-            if not match:
-                continue
-            checked += 1
-            found_doc = match.group("ver")
-            wire = WIRE_PATTERN.search(line)
-            if found_doc != want_doc:
-                stale.append(f"{rel}:{n}: cites v{found_doc}, specification is v{want_doc}")
-            elif wire and wire.group("wire") != want_wire:
-                stale.append(
-                    f"{rel}:{n}: cites ver = {wire.group('wire')}, specification is ver = {want_wire}"
-                )
+            cites, problem = citation_problem(line, want_doc, want_wire)
+            checked += cites
+            if problem:
+                stale.append(f"{rel}:{n}: {problem}")
+
+    for path in sorted(ROOT.glob(LIBRARY_JSON)):
+        rel = path.relative_to(ROOT)
+        try:
+            description = json.loads(path.read_text()).get("description", "")
+        except json.JSONDecodeError as err:
+            stale.append(f"{rel}: cannot parse: {err}")
+            continue
+        cites, problem = citation_problem(description, want_doc, want_wire)
+        checked += cites
+        if problem:
+            stale.append(f"{rel}: description {problem}")
 
     if known:
         print(f"Known stale, listed in KNOWN_STALE ({len(known)}):")

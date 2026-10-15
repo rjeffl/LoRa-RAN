@@ -2,8 +2,7 @@
 
 **Written 2026-10-09 by a planning session**, which ordered the work left before GateLink
 deploys and changed no code. **Updated 2026-10-15**: the config publish queue and spec
-§7.2.6 bit 3 are done and passed on the bench, and a documentation-sync session added the
-`library.json` item under *Documents and tools*. B0 to B5 are accepted. GateLink's firmware is now on the air
+§7.2.6 bit 3 are done and passed on the bench. B0 to B5 are accepted. GateLink's firmware is now on the air
 with this bridge: GL3's command path and CONFIG ran against it on 2026-10-08. B6 still waits
 on GateLink's GL6, at the gate. This file now lists the bridge and Home Assistant work that
 has to be ready by the install visit.
@@ -139,10 +138,11 @@ is not shown, because the simulated MPPT has no path for making that change.
   `include/lran/schema/` and `src/schema/`. §20 also owes an entry for the 2026-10-03 path
   fixes in §1, §7.2.3 and §7.4, made at v0.17 without one.
 - **The whole-document style passes** are owed, on a branch of their own.
-- **Four `lib/*/library.json` descriptions cite old specification versions**: `lran-protocol`
-  v0.3, `lran-sim` v0.11, `lran-config` v0.12 and `lran-link` v0.16, against v0.17.
-  `spec_citation_version.py` does not read them. Reconcile each library against the
-  intervening revisions before moving its citation, and extend the check to `library.json`.
+- **Two comments are stale, found while reconciling the `library.json` citations.**
+  `lib/lran-protocol/include/lran/lran.h` says no enumeration value has moved since v0.6,
+  but v0.13 to v0.16 added `ROLL_CONTEXT`, `PHY_REVERTED`, `INVALID_VALUE` and
+  `reset_cause`. `lib/lran-config`'s `bandwidth_khz` rows read "125 until an envelope
+  decision", and D1 and D33 closed on Envelope A on 2026-09-10.
 - **Spec §7.2.6 owes a note** that bit 3 is not an MPPT entity's value, so its SHOULD on
   bit 1 does not reach it. The bridge reads it that way since 2026-10-15.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
