@@ -29,7 +29,7 @@ no session of their own. Neither remaining group needs GateLink at the gate.
 |---|---|---|
 | **5. Documents and tools** | Nothing | Host only |
 
-**Group 8's bridge items are done** (2026-10-15, engineering log, the four *Group 8*
+**Group 8's bridge items are done** (2026-10-15, engineering log, the three *Group 8*
 entries). The operator approved GateLink's configuration rows, and `hex_timeout_ms` now
 stops at 1000. The "Node supply current" entity is gone. A `config/set` of 512 bytes or
 more is answered with `config/ack`'s `error`, shown on the bench. `rxlog` keeps sharing
@@ -183,7 +183,7 @@ reset can land. `node/health/state`'s counters moved outside its hash, host-test
 
 ### 8. Before the production cutover
 
-**Items 1 to 5 done 2026-10-15** (engineering log, the four *Group 8* entries). B6 moves
+**Items 1 to 5 done 2026-10-15** (engineering log, the three *Group 8* entries). B6 moves
 the bridge to the production broker (Impl Plan §11.3), and Home Assistant's entity
 registry keeps every `unique_id` it sees there, so every change to a published name went
 first. Left:
