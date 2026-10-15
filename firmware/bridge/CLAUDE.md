@@ -4,8 +4,8 @@
 specific to the bridge.
 
 **Primary documents:** `docs/bridge/LRAN-Bridge_Node-PRD` v0.19 (requirements,
-`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.92
-(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.79 (**the `BF-*` task order**).
+`R-*`/`BG-*`/`BS-*`/`V-B*`), `docs/bridge/LRAN-Bridge_Node-Implementation-Plan` v0.93
+(build) and `docs/bridge/LRAN-Bridge-Firmware-Tasks` v0.80 (**the `BF-*` task order**).
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.18** (`ver = 2`).
 
 **Hardware:** Heltec WiFi LoRa 32 V3. No hardware build — firmware, antenna and siting

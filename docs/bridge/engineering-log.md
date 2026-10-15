@@ -1859,3 +1859,74 @@ are this image's, so it touches only a broker with documents from before `d2118a
 D78 needed no code. A host test shows an `ACTUATOR_FAULT` resolves the command with that
 result and sends nothing more. The bridge stays on `d2118ad` in `app0`, and the sandbox
 broker holds synthetic GateLink documents until GateLink's next `STATUS`.
+
+## 2026-10-15 — Group 8, host half: no supply-current entity, and an oversized `config/set` is answered
+
+Group 8's items 2 and 3, host-tested and not yet flashed.
+
+**The "Node supply current" entity is gone** from `discovery.cpp` and `ha/discovery/`.
+GateLink cannot measure its own current (PRD R-4.4b, M12), so `node_ma` always carries its
+sentinel and the entity would read unavailable for good. `node_ma` stays in `node/state`,
+because spec §7.2.4 carries it. The production broker has never seen the entity, so no
+`unique_id` is left behind. The sandbox broker still holds its retained discovery config,
+which an empty retained publish to that topic clears.
+
+**A `config/set` of 512 bytes or more now gets a `config/ack`.** Before, the transport
+refused it whole and nothing answered, against spec §16.7.3. The assembler now hands the
+sink a notice on the first piece, marked `oversized`, with the topic and no payload. The
+router answers a `config/set` with `error` = `payload is larger than the bridge accepts;
+split the set` and drops any other topic, counted as before. The answer's `op` is `set`,
+because the payload was never kept and every refusal here echoes `set`.
+
+**The 512-byte cap is not the only limit on a large set.** `kMaxConfigSetEntries` refuses
+a set naming more than 8 parameters, with its own reason. So the handoff's case, a set of
+GateLink's 23 non-PHY rows at about 660 bytes, is now refused with an answer either way. A
+set that fits in 511 bytes and names 9 or more gets the entry-count reason.
+
+## 2026-10-15 — Group 8, item 1: GateLink's configuration rows approved, `hex_timeout_ms` capped at 1000
+
+The operator approved GateLink's configuration rows as proposed, with one change. The
+handoff counted 20 rows; GateLink's own block has 24, plus the 10 every node holds and the
+2 the bridge holds for it. **None is measured.** The names are now the ones the production
+broker will keep.
+
+**`hex_timeout_ms` now stops at 1000, its default**, down from 2000. The bridge's
+`hex_rsp_timeout_ms` (3000) has to outlast GateLink's own wait plus a frame each way at
+SF9 and a CAD backoff of up to 1500 ms, so that GateLink's TIMEOUT answer arrives before
+the bridge retries. At 2000 the wait and the backoff alone reach 3500 ms. The table's old
+comment compared 2000 with 3000 and left out the air and the backoff.
+
+**The margin at 1000 is thin, not proven.** Two frames of about 40 bytes at SF9 take about
+0.6 s, so one full backoff puts the worst case near 3.1 s, just past 3000. A second busy
+CAD makes it longer. Read the bench's HEX round trips before raising either row.
+
+## 2026-10-15 — Group 8 on the bench: the oversized-set answer, and the bridge back on its defaults
+
+The bridge was flashed over USB with `c9d3667`, and its banner and `lran/bridge/version`
+read that commit. Each step below published from `tools/bench/bench.py` to the sandbox
+broker. Times are seconds from the harness start.
+
+**An oversized `config/set` is answered.** At 76 s, a 640-byte set on
+`lran/bridge/config/set` drew `{"op":"set","persist":"not_applied","error":"payload is
+larger than the bridge accepts; split the set"}` within 0.1 s. The next set was handled
+normally.
+
+**`restore_defaults` cleared the bridge's bench overrides** at 84 s, `persisted`.
+`config/state` then read every bridge row as `default` except the six PHY rows. Those still
+read `override`, holding Envelope A's values (917.4 MHz, SF9, 125 kHz, CR 4/5, −4 dBm,
+120 s). This is deliberate: `restore_defaults` does not reach the PHY group, because a PHY
+change is a fleet operation (spec §12.4, D59). `simnode_diag_enable` reads 0, so simnode
+discovery stays off.
+
+**The simnodes' overrides could not be cleared.** `restore_defaults` on
+`lran/simnode0/config/set` drew `error` = `context_roll_pending`. A node restore reaches
+the node too (D52), so it waits for the node's context roll, and no simnode has been heard
+since the bridge booted. Their overrides hold `deployed` 0 and `poll_interval_s` 60, the
+defaults' own values, so the bridge behaves the same either way. Clearing them needs each
+simnode powered and heard.
+
+**The removed entity's retained discovery config was cleared** on the sandbox broker,
+with an empty retained publish to `homeassistant/sensor/lran_gatelink_node_current/config`.
+
+**GateLink was on the air.** The bridge heard it at −35 dBm and +11 dB SNR and marked it
+`online` at 110 s, with `deployed` 0. Nothing in this run addressed it.
