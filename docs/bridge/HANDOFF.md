@@ -5,7 +5,8 @@ deploys and changed no code. **Updated 2026-10-15**: the config publish queue an
 §7.2.6 bit 3 are done and passed on the bench. B0 to B5 are accepted. GateLink's firmware is now on the air
 with this bridge: GL3's command path and CONFIG ran against it on 2026-10-08. B6 still waits
 on GateLink's GL6, at the gate. This file now lists the bridge and Home Assistant work that
-has to be ready by the install visit.
+has to be ready by the install visit. **Spec v0.18 merged the same day** (D78–D82), and
+group 9 is the bridge's side of it.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -28,7 +29,7 @@ same day (engineering log, that date's two entries).
 |---|---|---|
 | **8. Before the production cutover** | The operator's review of GateLink's 20 configuration ranges, for its first item | Host, then a bench flash |
 | **5. Documents and tools** | Nothing | Host only |
-| **9. Spec v0.18's bridge side** | The citation sweep on spec v0.18's branch | Host, then a bench flash |
+| **9. Spec v0.18's bridge side** | Nothing | Host, then a bench flash |
 
 **Group 9, from spec v0.18 (D78–D82, 2026-10-15).** Decode schema `0x13` beside `0x10`
 and publish `ah_drawn_dah` (spec §7.2.10). Publish `0xFF` in `charge_state`, `mppt_err`
@@ -141,18 +142,14 @@ is not shown, because the simulated MPPT has no path for making that change.
 
 ### 5. Documents and tools
 
-- **Owed to the next specification revision**, by operator decision 2026-10-03: §7.1 says
+- **Owed to spec v0.19**, by operator decision 2026-10-03, and missed by v0.18: §7.1 says
   schema definitions live in `/lib/lran-protocol/schemas/`, and they are in
   `include/lran/schema/` and `src/schema/`. §20 also owes an entry for the 2026-10-03 path
   fixes in §1, §7.2.3 and §7.4, made at v0.17 without one.
 - **The whole-document style passes** are owed, on a branch of their own.
-- **Two comments are stale, found while reconciling the `library.json` citations.**
-  `lib/lran-protocol/include/lran/lran.h` says no enumeration value has moved since v0.6,
-  but v0.13 to v0.16 added `ROLL_CONTEXT`, `PHY_REVERTED`, `INVALID_VALUE` and
-  `reset_cause`. `lib/lran-config`'s `bandwidth_khz` rows read "125 until an envelope
-  decision", and D1 and D33 closed on Envelope A on 2026-09-10.
-- **Spec §7.2.6 owes a note** that bit 3 is not an MPPT entity's value, so its SHOULD on
-  bit 1 does not reach it. The bridge reads it that way since 2026-10-15.
+- **A comment is stale, found while reconciling the `library.json` citations.**
+  `lib/lran-config`'s `bandwidth_khz` rows read "125 until an envelope decision", and D1
+  and D33 closed on Envelope A on 2026-09-10.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
   called the Davis "not periodic" on the day that confirmed its clock to half a second.
   Left unfixed by operator direction. Fix it before any future capture, because that
@@ -275,7 +272,7 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D76**. **Protocol Spec v0.17** and its citation sweep. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **Group 7**, the bench evidence, run on the bench 2026-10-05: the task watchdog tripped on each watched task, and an OTA upload waited out a command. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D76**. **Protocol Spec v0.17** and its citation sweep. **Protocol Spec v0.18**, D78–D82, and its citation sweep. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **Group 7**, the bench evidence, run on the bench 2026-10-05: the task watchdog tripped on each watched task, and an OTA upload waited out a command. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **B6**, **B7**, which wait on GateLink. **M26**. The whole-document style passes |
 | Queue | Empty; the operator picks from *Work before GateLink* |
 
