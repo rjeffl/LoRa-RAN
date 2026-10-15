@@ -1,17 +1,17 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.38
+**Version:** 0.39
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.20
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.21
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-15
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -302,7 +302,9 @@ EXCOM_IN3 ── drain   2N7000
 **IN5 and IN6 stay in the firmware as placeholders.** `inputs_from_levels()` masks IN5–IN8
 to 0, so the FIRE and hard-shutdown path in `lora_task` is kept but cannot fire, and a
 fault on port 1 cannot raise an alarm nothing sensed. A hardware revision whose IN5 and IN6
-read restores them, and **M3** applies again then.
+read restores them, and **M3** applies again then. Masked bits read "not asserted", so
+spec v0.18 has GateLink set `node_flags` bit 7 while they are not sensed (§7.2.8,
+**D80**), which is still to be built.
 
 The controller's OUT1/OUT2 provide common, NO and NC contacts. **Use NO.** An earlier
 revision held open the possibility of inverting the sense if the relays dropped out in
@@ -460,7 +462,7 @@ restated. Implementation obligations for this node:
 | Item | Value |
 |---|---|
 | Node ID | `0x01` |
-| Schemas emitted | `0x10` status, `0x11` event, `0x12` config, `0xF0` health |
+| Schemas emitted | `0x10` status, `0x11` event, `0x12` config, `0xF0` health. **Spec v0.18 adds status `0x13`** (§7.2.10, **D82**): `0x10` plus `ah_drawn_dah`, for PRD R-6.4c. GateLink sends `0x10` until that is built |
 | Driver | RadioLib, SX1262, **pinned at the fleet's version** (`jgromes/RadioLib@7.7.1`, **D32**, root rule 9) |
 | Pin map / TCXO / RF switch | **Injected by configuration**, never compiled in (spec §12.2). A `lran::link::RadioPins` value: §3.3's pins, `tcxo_mv` 1800, `dio2_as_rf_switch` true, `rf_sw` G40 |
 | PHY | `lran::link::kPhy` is the default (spec §12.1, Envelope A). The committed group replaces it at boot and at each retune (spec §12.4, **D56**) |
@@ -667,8 +669,8 @@ protocol** (§9.6).
   on every `bms_poll_s`. The PoC's `src/main.cpp` is its wiring, not GateLink's. GateLink's
   `bms_task` (§5.2) is written against the PRD and reuses only `lib/bms-ble/`.
 - **`0x8D` (alarms) is not decoded**, deliberately. Mapping its bitmaps needs a capture
-  taken during a real protection event. **M7** (the `pack_ma` sign) is the protocol's
-  other open item.
+  taken during a real protection event. **M7** measured the `pack_ma`
+  sign: positive is charge, which closed W6 in spec v0.18.
 - **Cell-voltage jitter.** Readings move 1–2 mV between polls from ADC noise. **The
   bridge** rounds or publishes on change; the node transmits what it read.
 
@@ -860,10 +862,10 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   window is an immediate close: a `relay_min_spacing_ms` wait, K2, `unlock_settle_ms`, K4,
   each 500 ms, so 2 s inside the 3 s timeout. Near the ranges' upper ends a retry lands
   in the window and goes unanswered, and the next retry gets `DUPLICATE_CACHED`
-  (Protocol Spec §9.4). **A pulse the expander did not carry out has no `AckResult`.**
-  Spec §8.2 holds that a pulse either happens or the node is not running, but an I²C
-  write can fail. GateLink counts the failure and answers `ACCEPTED`. Whether the ACK
-  should say so is a question for the specification (handoff, *Open*).
+  (Protocol Spec §9.4). **A pulse the expander did not carry out is
+  `ACTUATOR_FAULT`** (spec §8.2, **D78**): an I²C write can fail while the node runs on.
+  GateLink counts the failure and still answers `ACCEPTED`; answering `ACTUATOR_FAULT`,
+  with the value cached for a `DUPLICATE_CACHED` replay, is still to be built.
 - **`ROLL_CONTEXT` bypasses `CommandGate::check()`** (Protocol Spec §9.4, §10.6,
   **D58**, PRD R-3.5e). While any entry is in flight, GateLink answers `ACTUATOR_BUSY`
   and changes nothing. Otherwise it takes a new random `ctx_id`, calls
@@ -946,8 +948,8 @@ code.
 
 | Concern | Built in | State |
 |---|---|---|
-| Frame codec, MAC, CRC, reassembly, counters, `CommandGate` | `lib/lran-protocol/` | Built (Library P1–P8); 72 W4 vectors pass on host and target |
-| Schemas `0x10`, `0x11`, `0x12`, `0xF0` | `lib/lran-protocol/include/lran/schema/` | Built: `gatelink_status_v1`, `gatelink_event_v1`, `node_config_v1`, `node_health_v1` |
+| Frame codec, MAC, CRC, reassembly, counters, `CommandGate` | `lib/lran-protocol/` | Built (Library P1–P8). 72 W4 vectors passed on host and target; spec v0.18 brings the set to 83 |
+| Schemas `0x10`, `0x11`, `0x12`, `0x13`, `0xF0` | `lib/lran-protocol/include/lran/schema/` | Built: `gatelink_status_v1`, `gatelink_event_v1`, `node_config_v1`, `gatelink_status_v2`, `node_health_v1` |
 | HMAC on target | `lib/lran-protocol/platform/esp32/` | Built. GateLink uses HMAC only; it never derives a key (spec §9.1) |
 | Media access, `PhyConfig`, `RadioPins`, RX arrival | `lib/lran-link/` | Built, shared by the bridge and the simnode |
 | Parameter table, `Store`, PHY blob | `lib/lran-config/` | Built. **GateLink's `0x1000` block is not declared** (L4) |
@@ -1579,6 +1581,13 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.39** — **Protocol specification v0.17 → v0.18.** §5.2's failed relay pulse is now
+  `ACTUATOR_FAULT` (**D78**), which GateLink does not send yet. §3.2 says GateLink sets
+  `node_flags` bit 7 for its masked FIRE and alarm inputs (**D80**). §4.1 names status
+  schema `0x13` (**D82**), and §5.4 lists its library type. §4.3 records that M7's sign
+  closed W6. D79's `0xFF` is what `ved_link.h` already sends, and D81 changes no line
+  here.
 
 - **v0.38** — **§6.4: spec §12.4.2's PHY trial is built and passed on the air, and the
   committed group is in NVS** (operator, 2026-10-13; PRD v0.20). A missing microSD no

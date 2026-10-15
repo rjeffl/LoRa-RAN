@@ -1,13 +1,13 @@
 # LRAN Bridge Node PRD
 
 **Document:** `LRAN-Bridge_Node-PRD`
-**Version:** 0.18
+**Version:** 0.19
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Status:** Requirements settled. **PHY parameters fixed by D1** and **the antenna chosen**, 2026-09-10; the bridge's position is still open.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Companion:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-15
 
 > **This document states goals and requirements only.** Library selection, task
 > structure, OTA partitioning and bring-up procedure live in the implementation plan.
@@ -124,7 +124,9 @@ obligations:
 - **R-3.1f.** A node running an unsupported version SHALL be marked unavailable with a
   **distinct reason**, never silently ignored.
 - **R-3.1g.** The bridge SHALL retry an unacknowledged command with backoff, and SHALL
-  stop after a bounded number of attempts rather than looping.
+  stop after a bounded number of attempts rather than looping. An `ACTUATOR_FAULT` is an
+  answer, not a lost ACK: the bridge SHALL report the command failed and SHALL NOT send it
+  again under a new `seq` (spec §8.2, **D78**).
 - **R-3.1h.** After its own boot, the bridge SHALL move every node onto a new context with
   `ROLL_CONTEXT`, and SHALL send a node no `COMMAND` and no `CONFIG` until that node's roll
   completes (spec §10.6, **D58**). A restart resets the bridge's command `seq`, so without
@@ -345,11 +347,19 @@ publish and when** (Protocol Spec §16.4).
   age exceeding a threshold, the affected entities SHALL be marked **unavailable**. **The
   last good value SHALL NOT be republished as though current.**
 - **R-5.2c. Absence is not zero.** Sentinel values indicating "not available" SHALL NOT
-  be published as numeric readings.
+  be published as numeric readings. `0xFF` in `charge_state`, `mppt_err` or
+  `mppt_tracker` is one, and an `mppt_err` of `0xFF` is not a charger error (spec §7.2.2,
+  **D79**). An input a node says it does not sense is another: while `node_flags` bit 7
+  is set, the FIRE, hard-shutdown and keypad-hold entities are unavailable (spec §7.2.8,
+  **D80**).
 - **R-5.2d. Propagate synthetic marking.** Frames marked as debug-synthetic SHALL be
   marked as such all the way into HA history.
 - **R-5.2e. Event topics are never retained** (Protocol Spec §16.3), and the bridge SHALL
   deduplicate on the node's event ID so a retransmitted event publishes once.
+- **R-5.2f.** The bridge SHALL decode GateLink status schemas `0x10` and `0x13` both,
+  publish `0x13`'s `ah_drawn_dah`, and name `CHARGE_INHIBITED`'s `detail` (spec §7.2.10,
+  §8.9, **D81**, **D82**). A node in the field is reflashed only by a walk to it, so the
+  two schemas coexist (spec §13.1).
 
 > **R-5.2b is the requirement most easily lost in implementation**, because republishing
 > the cached value is the path of least resistance and produces a dashboard that looks
@@ -505,6 +515,12 @@ the position is committed and recorded with its measured RSSI and SNR on both be
 ---
 
 ## 9. Changelog
+
+- **v0.19** — **Protocol specification v0.17 → v0.18.** R-3.1g takes **D78**: an
+  `ACTUATOR_FAULT` is reported and never resent. R-5.2c takes **D79**'s `0xFF` and
+  **D80**'s `node_flags` bit 7. New **R-5.2f** decodes status schema `0x13` beside `0x10`
+  (**D82**) and names `CHARGE_INHIBITED`'s `detail` (**D81**). The bridge already met D78;
+  the rest is its handoff's group 9.
 
 - **v0.18** — **Protocol specification v0.16 → v0.17.** R-3.5c takes **D75**: a retained
   `write_enable/set` does not arm writes. The bridge already ignores and clears one. D76's

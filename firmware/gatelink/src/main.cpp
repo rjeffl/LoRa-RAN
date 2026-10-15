@@ -64,7 +64,7 @@ void setup() {
   // The banner names the specification version this firmware is built against.
   // tools/checks/spec_citation_version.py reads that line, as it reads the bridge's.
   Serial.println(F("LRAN GateLink - node 0x01"));
-  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.17 (ver = 2)"));
+  Serial.println(F("Binding spec: LRAN-Protocol-Specification v0.18 (ver = 2)"));
 
   // At the gate, this line is how anyone tells which image is running. A -dirty commit
   // matches no commit in the repository.

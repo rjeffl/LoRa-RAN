@@ -1,7 +1,7 @@
 {
   "name": "lran-sim",
   "version": "0.1.0",
-  "description": "LRAN malformed-frame primitives for the simnode fault catalogue - a patch applied after the real encoder, never a second serializer (Bridge Impl Plan 10.5.2, 10.6). Arduino-free. Binding specification: LRAN-Protocol-Specification v0.17 (ver = 2).",
+  "description": "LRAN malformed-frame primitives for the simnode fault catalogue - a patch applied after the real encoder, never a second serializer (Bridge Impl Plan 10.5.2, 10.6). Arduino-free. Binding specification: LRAN-Protocol-Specification v0.18 (ver = 2).",
   "keywords": ["lora", "lran", "fault-injection"],
   "license": "MIT",
   "frameworks": "*",

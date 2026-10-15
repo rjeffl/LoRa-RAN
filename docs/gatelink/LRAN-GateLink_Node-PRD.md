@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.20
+**Version:** 0.21
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-15
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -396,16 +396,21 @@ fragmentation and media-access behaviour is defined in
 [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) and is **not restated
 here**. Node-specific obligations:
 
-- **R-3.5a.** GateLink is node `0x01` and emits status schema `0x10`, event schema
-  `0x11`, config schema `0x12` and health schema `0xF0`.
+- **R-3.5a.** GateLink is node `0x01` and emits status schema `0x13`, event schema
+  `0x11`, config schema `0x12` and health schema `0xF0`. Schema `0x13` is `0x10` plus
+  R-6.4c's count (Protocol Spec §7.2.10, **D82**). GateLink sends `0x10` until that count
+  is built.
 - **R-3.5b.** GateLink SHALL transmit on: a poll request; gate or hold state change;
-  non-zero charger error; vehicle detection; FIRE assertion; hard-shutdown alarm; BMS
+  non-zero charger error, where `0xFF` means not available and is not an error (Protocol
+  Spec §7.2.2, **D79**); vehicle detection; FIRE assertion; hard-shutdown alarm; BMS
   alarm; configuration change; boot.
 - **R-3.5c.** GateLink SHALL verify MAC, context and sequence before pulsing any relay,
   before applying a configuration change, and before passing a HEX write.
 - **R-3.5d.** GateLink SHALL deduplicate commands on `(ctx_id, seq)` and return the
   cached ACK rather than pulsing twice. **A relay pulse is not idempotent**; the bridge
-  retrying an ACK it never received must not move the gate again.
+  retrying an ACK it never received must not move the gate again. A command whose relay
+  write failed SHALL be answered `ACTUATOR_FAULT`, and its cached ACK carries that result
+  (Protocol Spec §8.2, **D78**).
 - **R-3.5e.** GateLink SHALL take a new context when the bridge sends `ROLL_CONTEXT`, and
   SHALL refuse the roll with `ACTUATOR_BUSY` while a command is still executing (Protocol
   Spec §10.6, **D58**). A bridge restart resets the bridge's command `seq`; without the
@@ -440,6 +445,10 @@ the node's side:
 - **R-3.5k.** GateLink SHALL reset the SX1262 through its reset line at every boot. An
   ESP32 reset does not reset the radio, which can be left transmitting or on a PHY trial's
   settings.
+- **R-3.5l.** GateLink SHALL set `node_flags` bit 7 while its FIRE and alarm inputs are
+  not sensed (Protocol Spec §7.2.8, **D80**), which under **D77** is always. Otherwise
+  `input_bits` bits 4 and 5 read 0, which says "not asserted" about inputs nothing
+  measured.
 
 ---
 
@@ -803,8 +812,14 @@ failing panel or charge controller.
 
 - **R-6.4c.** GateLink SHALL maintain a **cumulative Ah drawn since charging was last
   active**, so a multi-day cold event shows consumed reserve rather than just a boolean.
+  It travels as `ah_drawn_dah` in status schema `0x13` (Protocol Spec §7.2.10, **D82**),
+  which leaves this document to define "charging active" and the current integrated.
+  **Neither is defined yet**; that comes before the count is built.
 - **R-6.4d.** Upgrading the panel does not help while charging is inhibited, and the
   documentation SHALL say so where a panel upgrade is discussed.
+- **R-6.4e.** GateLink SHALL name the path that decided an inhibition in
+  `CHARGE_INHIBITED`'s `detail`: `1` for the BMS (R-6.4a), `2` for VE.Direct (R-6.4b)
+  (Protocol Spec §8.9, **D81**).
 
 ---
 
@@ -1016,6 +1031,14 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.21** — **Protocol specification v0.17 → v0.18.** R-3.5a names status schema
+  `0x13` (**D82**), and R-6.4c names its `ah_drawn_dah` field but does not yet define
+  "charging active" or the current integrated. R-3.5b takes **D79**: `0xFF` in
+  `mppt_err` is not a charger error. R-3.5d takes **D78**'s `ACTUATOR_FAULT` for a failed
+  relay write. New **R-3.5l** sets `node_flags` bit 7 while D77 holds (**D80**), and new
+  **R-6.4e** names the deciding path in `CHARGE_INHIBITED` (**D81**). W6's sign, positive
+  for charge, needs no requirement here.
 
 - **v0.20** — **§5.3: GateLink keeps its committed PHY group in NVS**, by operator
   decision 2026-10-13, so a missing microSD no longer refuses a PHY change. A card that
