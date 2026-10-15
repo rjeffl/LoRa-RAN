@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.91
+**Version:** 0.92
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -368,7 +368,7 @@ obligations:
 |---|---|
 | Node ID | `0x00` |
 | Driver | RadioLib, SX1262 |
-| Schemas decoded | `0x10`, `0x11`, `0x12`, `0xF0`, `0xFE`; unknown → `ERROR(UNKNOWN_SCHEMA)` and a counter. Spec v0.18 adds `0x13` (§7.2.10, **D82**), which the bridge MUST decode beside `0x10`; it is not built yet (§6.3.1) |
+| Schemas decoded | `0x10`, `0x11`, `0x12`, `0x13`, `0xF0`, `0xFE`; unknown → `ERROR(UNKNOWN_SCHEMA)` and a counter. `0x13` is spec v0.18's GateLink status v2 (§7.2.10, **D82**), decoded beside `0x10` (§6.3.1) |
 | Header extensions | None implemented. `hdr_flags` bit 7 set → discard + `ERROR(UNKNOWN_HDR_EXT)` (Protocol Spec §5.8, §14 stage 5a) |
 | Version tolerance | Accept **N and N−1**; downgrade per node on the version last heard |
 | Poll discipline | **Serialized across the fleet** — one outstanding poll at a time |
@@ -1239,17 +1239,17 @@ No GateLink exists yet, so no document has been published from a real frame. The
 values it reads are bridge rows `0x000D`–`0x000F` (Library Plan §4), and they reach
 `app_task` on BF-23's lever board.
 
-**Schema `0x10` becomes five retained documents**, one per spec §16.1 domain. Spec §16.2.1
+**Schema `0x10` or `0x13` becomes five retained documents**, one per spec §16.1 domain. Spec §16.2.1
 leaves their payloads to the bridge, so the keys below are this document's choice. Home
 Assistant's value templates read them, so a key published is a key frozen:
 
 | Topic | Keys |
 |---|---|
-| `lran/<node>/gate/state` | `state`, `held_open`, `hold_source`, `movement_cause`, `last_direction`, `in_open`, `in_moving`, `in_safety`, `in_exit`, `in_fire`, `in_alarm`, `input_bits`, `synthetic` |
+| `lran/<node>/gate/state` | `state`, `held_open`, `hold_source`, `movement_cause`, `last_direction`, `in_open`, `in_moving`, `in_safety`, `in_exit`, `in_fire`, `in_alarm`, `fire_inputs_sensed`, `input_bits`, `synthetic` |
 | `lran/<node>/detect/state` | `safety`, `exit`, `classifying`, `vehicle_while_held`, `suppressed`, `last_traversal`, `traversal_persisted`, `synthetic` |
 | `lran/<node>/solar/state` | `available`, `batt_mv`, `batt_ma`, `pv_mv`, `pv_w`, `load_ma`, `yield_today_kwh`, `yield_yesterday_kwh`, `pmax_today_w`, `yield_total_kwh`, `charge_state`, `charge_state_name`, `error`, `error_name`, `tracker`, `load_on`, `charge_inhibited`, `temp_c`, `hex_pending`, `synthetic` |
-| `lran/<node>/battery/state` | `available`, `soc`, `soc_source`, `pack_mv`, `pack_ma`, `cell_count`, `cell1_mv`–`cell4_mv`, `cell1_temp_c`–`cell4_temp_c`, `cycles`, `capacity_ah`, `alarms`, `charge_fet`, `discharge_fet`, `charge_inhibited`, `protection`, `balancing`, `ble_rssi_dbm`, `age_s`, `synthetic` |
-| `lran/<node>/node/state` | `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `reason`, `synthetic`, `uptime_s` |
+| `lran/<node>/battery/state` | `available`, `soc`, `soc_source`, `pack_mv`, `pack_ma`, `cell_count`, `cell1_mv`–`cell4_mv`, `cell1_temp_c`–`cell4_temp_c`, `cycles`, `capacity_ah`, `alarms`, `charge_fet`, `discharge_fet`, `charge_inhibited`, `protection`, `balancing`, `ble_rssi_dbm`, `age_s`, `ah_drawn`, `synthetic` |
+| `lran/<node>/node/state` | `boot_count`, `node_mv`, `node_ma`, `enclosure_temp_c`, `config_persisted`, `sd_ok`, `dry_run`, `bms_ble`, `debug`, `shutdown_latch`, `fire_inputs_sensed`, `reason`, `synthetic`, `uptime_s` |
 | `lran/<node>/node/health/state` | Schema `0xF0`: `boot_count`, `rx_dropped`, `cad_backoffs`, `proto_ver`, `debug`, then outside the hash `rx_frames`, `tx_frames`, `last_rssi_dbm`, `last_snr_db`, `uptime_s` |
 
 | Choice | Why |
@@ -1268,13 +1268,15 @@ Assistant's value templates read them, so a key published is a key frozen:
 | **A bench node's `STATUS` is decoded, counted as `bench_withheld` and never published**, whichever way `simnode_diag_enable` is set | Spec §16.6 allows a bench node `diag/state` and `availability` alone. `make_publish()` also refuses `lran/simnode<N>/{gate,detect,battery,solar,event}/`, the second check on the path every publication takes |
 | **A broker connect makes every document due again** | The retained documents may be gone. Each is republished on its node's next frame, from that frame |
 
-**Spec v0.18 changes what these documents carry, and none of it is built yet** (handoff
-group 9). Schema `0x13` decodes as `0x10` plus `ah_drawn_dah` (§7.2.10, **D82**); its key
-is chosen when it is built. `0xFF` in `charge_state`, `error` or `tracker` publishes
-`null`, and an `error` of `0xFF` pushes nothing (§7.2.2, **D79**). While `node_flags`
-bit 7 is set, the FIRE, hard-shutdown and keypad-hold entities are unavailable (§7.2.8,
-**D80**). `CHARGE_INHIBITED`'s `detail` gets a name (§8.9, **D81**). `pack_ma` needs no
-change: positive is charge, which closed W6.
+**Spec v0.18's changes to these documents were built on 2026-10-15** (engineering log,
+that date's *Spec v0.18's bridge side* entry):
+
+| Choice | Why |
+|---|---|
+| **Schema `0x13` decodes into the same five documents**, and `battery/state` gains `ah_drawn`, in Ah to one decimal (§7.2.10, **D82**). It is `null` for `0x10` and for the sentinel | One key on both schemas, so an entity's template never reads an undefined name. `ah_drawn` stays readable while the BMS block is stale: the node's sentinel says whether it holds a total, and the figure matters most in a cold spell, when the pack may not answer |
+| **`0xFF` in `charge_state`, `error` or `tracker` publishes `null`**, as a number and as a name (§7.2.2, **D79**) | No Victron code is 255. The bridge raises no push or event of its own on `error`, so nothing else changes |
+| **While `node_flags` bit 7 is set, `in_fire`, `in_alarm` and `shutdown_latch` are `null`**, and `gate/state` and `node/state` carry `fire_inputs_sensed` false (§7.2.8, **D80**) | Discovery lists that key as the three entities' second availability topic, the R-5.2b mechanism, so HA shows them unavailable rather than off. The rule reads the node's flag and names no node type. A retained document from before this key reads as not sensed until the node's next `STATUS` |
+| **`pack_ma` is unchanged** | Positive is charge, which closed W6 |
 
 **The counts go to `lran/bridge/diag/publish/state`**, published with the other bridge
 diagnostics: `status_frames`, `documents`, `unchanged`, `heartbeats`, `bench_withheld`,
@@ -1318,6 +1320,7 @@ keys, so these keys are frozen:
 | `follow_up` | `event_flags` bit 0 |
 | `hold_source`, `direction`, `gate_state` | §8's names, `null` when unlisted, as in §6.3.1 |
 | `input_bits`, `detail`, `uptime_s` | Passed through. `detail` is event-specific (§7.3) |
+| `inhibit_path` | `CHARGE_INHIBITED` only: spec §8.9's `detail`, as `not_stated`, `bms` or `vedirect`, and `null` for a value §8.9 does not list (**D81**). Added 2026-10-15 |
 | `reset_cause` | `BOOT` only: spec §8.14's name for `detail`'s low byte, lower case. A value §8.14 does not list reads `unknown`, as §8.14 directs. It lets an automation catch a boot loop without a lookup table. Added 2026-09-27, chosen with the operator |
 | `synthetic` | `true` for BF-27's dummy publish, `false` for a frame from the radio. Spec §7.3 gives an `EVENT` no `status_reason`, so the mark is the caller's, not the frame's (§6.6.2). Added 2026-09-23 |
 
@@ -1604,9 +1607,13 @@ the host.
 dummy help
 dummy show
 dummy set <field>=<value> [<field>=<value> ...]    `na` sets the field's sentinel
+dummy set ah_drawn_dah=<n>|na|off                  sends schema 0x13; `off` returns to 0x10
 dummy status <node>
-dummy event <node> <type> [follow]                 spec §8.9's name in lower case, or its number
+dummy event <node> <type> [follow] [detail=<n>]    spec §8.9's name in lower case, or its number
 ```
+
+`ah_drawn_dah` is the one field outside schema `0x10`, so it is not in the field table.
+Setting it switches the console to `0x13` (§6.3.1). Added 2026-10-15.
 
 | Decision | What was built | Why not the obvious alternative |
 |---|---|---|
@@ -3110,6 +3117,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.92** — **Spec v0.18's bridge side is built** (handoff group 9). §4.1's schema row
+  adds `0x13`. §6.3.1's key table adds `ah_drawn` and `fire_inputs_sensed`, and a table
+  replaces the note saying D79, D80 and D82 were not built. §6.3.2 adds `inhibit_path`
+  (D81). §6.6.2: the dummy's `set ah_drawn_dah` sends schema `0x13`.
 
 - **v0.91** — **Protocol specification v0.17 → v0.18**, with Bridge PRD v0.19 and
   Protocol Library Plan v0.29. §4.1's schema row and §6.3.1 name what D79–D82 change and

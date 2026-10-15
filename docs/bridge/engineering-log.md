@@ -1832,3 +1832,30 @@ reach MQTT at all. The BMS entity, `binary_sensor.gatelink_charging_inhibited_bm
 `off` throughout, as it did then, because `0x8D`'s flag is still undecoded.
 
 The emulator was left with `bms off`. The bridge stays on `d895194` in `app0`.
+
+## 2026-10-15 — Spec v0.18's bridge side on the bench: 0x13, `0xFF` and bit 7 reach HA
+
+Group 9, built in `d2118ad` (D78–D82; PRD R-3.1g, R-5.2c, R-5.2f). The bridge was flashed
+over USB with that commit. GateLink was not on the air, so the frames came from the dummy
+console, which gained `set ah_drawn_dah=<n>|na|off` to send schema `0x13`. The trace is
+[`spec-v018-group9-2026-10-15.log`](./data/spec-v018-group9-2026-10-15.log), with `CHAN`
+lines and the rxlog diagnostic removed. Times are seconds from its start.
+
+| Check | What was sent | What MQTT and HA showed |
+|---|---|---|
+| `0x13` (§7.2.10) | `ah_drawn_dah=42` at 52.42 | `battery/state` carried `"ah_drawn":4.2` at 52.67. `sensor.gatelink_charge_drawn_since_charging` read `4.2 Ah` |
+| `0xFF` (§7.2.2) | `charge_state`, `mppt_err` and `mppt_tracker` at 255 | `solar/state` carried null for all three and both names, with `"available":true`. The MPPT charge state and error entities read `unknown` |
+| Bit 7 (§7.2.8) | `node_flags=0x83`, `input_bits=0x31` | `in_fire`, `in_alarm` and `shutdown_latch` were null, `fire_inputs_sensed` false on both documents, `in_open` still true. All three entities read `unavailable` |
+| `detail` (§8.9) | `event gatelink charge_inhibited detail=1` | `event/charge_inhibited` carried `"inhibit_path":"bms"` at 52.66 |
+| Return to `0x10` | `ah_drawn_dah=off node_flags=0x03 input_bits=0x00` at 247.83 | The three entities read `off`, the charge drawn sensor `unknown`, the MPPT entities `bulk` and `no_error` |
+
+**The three entities went unavailable before any frame carried bit 7.** HA's history puts
+them at `unavailable` from 20:38:01 UTC, the bridge's boot, and the dummy status at
+20:39:07. The rediscovered configs read `value_json.fire_inputs_sensed`, and the retained
+`gate/state` and `node/state` were from the previous image, without that key. They stay
+unavailable until the node's next `STATUS`. On the production broker the first documents
+are this image's, so it touches only a broker with documents from before `d2118ad`.
+
+D78 needed no code. A host test shows an `ACTUATOR_FAULT` resolves the command with that
+result and sends nothing more. The bridge stays on `d2118ad` in `app0`, and the sandbox
+broker holds synthetic GateLink documents until GateLink's next `STATUS`.
