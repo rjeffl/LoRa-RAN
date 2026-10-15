@@ -12,8 +12,8 @@
 // here, and discovery.cpp's value templates read them, so A KEY PUBLISHED IS A KEY FROZEN
 // for the same reason a unique_id is. Impl Plan 6.3.1 lists them.
 //
-// FIVE DOCUMENTS FROM SCHEMA 0x10, one per spec 16.1 domain: `gate`, `detect`, `solar`
-// (the MPPT block), `battery` (the BMS block) and `node`. Schema 0xF0 goes to
+// FIVE DOCUMENTS FROM SCHEMA 0x10 OR 0x13, one per spec 16.1 domain: `gate`, `detect`,
+// `solar` (the MPPT block), `battery` (the BMS block) and `node`. Schema 0xF0 goes to
 // `lran/<node>/node/health/state`, a document of its own, so a node that sends both never
 // overwrites one with the other.
 //
@@ -77,7 +77,32 @@ inline bool key_survives_staleness(const char* state_suffix, const char* key) {
     return state_suffix != nullptr && std::strcmp(state_suffix, "solar/state") == 0;
   }
   return std::strcmp(key, "ble_rssi_dbm") == 0 || std::strcmp(key, "age_s") == 0 ||
-         std::strcmp(key, "hex_pending") == 0 || std::strcmp(key, "synthetic") == 0;
+         std::strcmp(key, "hex_pending") == 0 || std::strcmp(key, "synthetic") == 0 ||
+         std::strcmp(key, "ah_drawn") == 0;
+}
+
+// The readings spec 7.2.8 bit 7 says the node does not sense (D80): `input_bits` bits 4
+// and 5 on gate/state, and `node_flags` bit 5 on node/state. While the bit is set they are
+// null, and `fire_inputs_sensed` is false in both documents.
+inline bool key_follows_fire_sensing(const char* state_suffix, const char* key) {
+  if (state_suffix == nullptr || key == nullptr) return false;
+  if (std::strcmp(state_suffix, "gate/state") == 0) {
+    return std::strcmp(key, "in_fire") == 0 || std::strcmp(key, "in_alarm") == 0;
+  }
+  return std::strcmp(state_suffix, "node/state") == 0 &&
+         std::strcmp(key, "shutdown_latch") == 0;
+}
+
+// The boolean in an entity's state document that discovery.cpp adds as its second
+// availability topic, or nullptr when the entity follows its node alone. Spec 16.4's
+// staleness gives `available`; spec 7.2.8 bit 7 gives `fire_inputs_sensed`, so those
+// entities read unavailable rather than a permanent off (PRD R-5.2c). The rule is the
+// node's flag, never a node type (spec 7.2.8, BG-2).
+inline const char* availability_key(const char* state_suffix, const char* key) {
+  if (state_carries_availability(state_suffix)) {
+    return key_survives_staleness(state_suffix, key) ? nullptr : "available";
+  }
+  return key_follows_fire_sensing(state_suffix, key) ? "fire_inputs_sensed" : nullptr;
 }
 
 // The values the policy reads from /lib/lran-config/ (Library Plan 4, rows 0x000D-0x000F).

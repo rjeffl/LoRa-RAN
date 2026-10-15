@@ -19,6 +19,7 @@
 
 #include "config_path.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/schema/node_health_v1.h"
 
 using namespace bridge;
@@ -325,8 +326,8 @@ void test_a_readback_only_job_sends_no_config() {
   TEST_ASSERT_EQUAL_UINT32(1, path.stats().readbacks_requested);
 }
 
-// The detector reads status_reason from schema 0x10 and its bench mirror 0xFE, and from
-// nothing else.
+// The detector reads status_reason from schema 0x10, its bench mirror 0xFE and 0x13, which
+// is 0x10 with one field appended (spec 7.2.10), and from nothing else.
 void test_config_change_is_read_from_a_status() {
   schema::GateLinkStatusV1 st;
   st.status_reason = static_cast<uint8_t>(StatusReason::ConfigChange);
@@ -348,6 +349,13 @@ void test_config_change_is_read_from_a_status() {
   st.status_reason = static_cast<uint8_t>(StatusReason::PollResponse);
   TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(st, buf, sizeof(buf), &n));
   TEST_ASSERT_FALSE(status_reports_config_change(h, buf, n));
+
+  schema::GateLinkStatusV2 v2;
+  v2.v1.status_reason = static_cast<uint8_t>(StatusReason::ConfigChange);
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(v2, buf, sizeof(buf), &n));
+  h.schema = kSchemaGateLinkStatusV2;
+  TEST_ASSERT_TRUE(status_reports_config_change(h, buf, n));
+  TEST_ASSERT_FALSE(status_reports_config_change(h, buf, schema::kGateLinkStatusV1Len));
 }
 
 // RebootWatch - a node reboot owes a readback, and a context roll does not.

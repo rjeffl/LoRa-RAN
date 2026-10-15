@@ -11,6 +11,7 @@
 #include "json_writer.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/schema/node_health_v1.h"
 #include "net_policy.h"
 
@@ -54,6 +55,10 @@ constexpr uint8_t kNodeBmsBle             = 0x08;
 constexpr uint8_t kNodeDebug              = 0x10;
 constexpr uint8_t kNodeShutdownLatch      = 0x20;
 constexpr uint8_t kNodeTraversalVolatile  = 0x40;
+constexpr uint8_t kNodeFireUnsensed       = 0x80;
+
+// spec 7.2.2 - no Victron CS, ERR or MPPT code is 255, so it says the node has none (D79).
+constexpr uint8_t kMpptCodeNotAvailable = 0xFF;
 
 // spec 7.2.9 - the bridge turns an age into an absolute time. The node's age is whole
 // seconds, and the frame spends a fraction of one in the air and in the queues, so the
@@ -190,6 +195,16 @@ const char* reset_cause_name(uint16_t detail) {
   return "unknown";  // spec 8.14 - a receiver treats a value it does not know as UNKNOWN
 }
 
+// Spec 8.9's CHARGE_INHIBITED `detail` (D81), the path that decided the inhibition.
+const char* inhibit_path_name(uint16_t detail) {
+  switch (detail) {
+    case 0: return "not_stated";
+    case 1: return "bms";
+    case 2: return "vedirect";
+  }
+  return nullptr;
+}
+
 const char* soc_source_name(uint8_t bms_flags) {
   switch (bms_flags >> 6) {
     case 0: return "bms_ble";
@@ -214,6 +229,15 @@ void i16_or_null(JsonObject& j, const char* key, int16_t v) {
     j.null(key);
   } else {
     j.i32(key, v);
+  }
+}
+
+// spec 7.2.2 - one of the three VE.Direct code fields, or null for 0xFF (D79).
+void code_or_null(JsonObject& j, const char* key, uint8_t v) {
+  if (v == kMpptCodeNotAvailable) {
+    j.null(key);
+  } else {
+    j.u32(key, v);
   }
 }
 
@@ -413,9 +437,13 @@ void PublicationPolicy::on_event(const NodeInfo& info, const lran::Header& hdr,
   str_or_null(j, "gate_state", gate_state_name(e.gate_state));
   j.u32("input_bits", e.input_bits);
   j.u32("detail", e.detail);  // spec 7.3 - event-specific, passed through
-  // Only BOOT's detail has a name. It is what shows a boot loop in HA (spec 8.14).
+  // BOOT's detail has a name, because it is what shows a boot loop in HA (spec 8.14), and
+  // so does CHARGE_INHIBITED's (spec 8.9, D81).
   if (e.event_type == static_cast<uint8_t>(lran::EventType::Boot)) {
     j.str("reset_cause", reset_cause_name(e.detail));
+  }
+  if (e.event_type == static_cast<uint8_t>(lran::EventType::ChargeInhibited)) {
+    str_or_null(j, "inhibit_path", inhibit_path_name(e.detail));
   }
   j.u32("uptime_s", e.uptime_s);
   j.boolean("synthetic", synthetic);  // R-5.2d - see on_event() in publish.h
@@ -485,16 +513,27 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     return;
   }
 
-  if (hdr.schema != lran::kSchemaGateLinkStatusV1 &&
-      hdr.schema != lran::kSchemaSimnodeStatusV1) {
+  // Spec 7.2.10 - 0x13 is 0x10 and `ah_drawn_dah`, and a node sends one of the two. The
+  // bridge decodes both, because a node in the field changes schema only at a walk to it
+  // (spec 13.1, PRD R-5.2f).
+  lran::schema::GateLinkStatusV2 v2;
+  bool                           has_ah_drawn = false;
+  lran::Status                   decoded      = lran::Status::BadLength;
+  if (hdr.schema == lran::kSchemaGateLinkStatusV2) {
+    decoded      = lran::schema::deserialize(payload, payload_len, &v2);
+    has_ah_drawn = true;
+  } else if (hdr.schema == lran::kSchemaGateLinkStatusV1 ||
+             hdr.schema == lran::kSchemaSimnodeStatusV1) {
+    decoded = lran::schema::deserialize(payload, payload_len, &v2.v1);
+  } else {
     ++stats_.undecodable;  // 0x20 is reserved and undefined (spec 7.1)
     return;
   }
-  lran::schema::GateLinkStatusV1 s;
-  if (lran::schema::deserialize(payload, payload_len, &s) != lran::Status::Ok) {
+  if (decoded != lran::Status::Ok) {
     ++stats_.undecodable;
     return;
   }
+  const lran::schema::GateLinkStatusV1& s = v2.v1;
   // Spec 16.6 axis 1. 0xFE is bench-only by definition, and a bench node's 0x10 is still a
   // bench node's. make_publish() refuses these topics as well (bench_topic_forbidden).
   if (info.is_bench) {
@@ -506,6 +545,11 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
   // document is a separate history in Home Assistant.
   const bool synthetic =
       s.status_reason == static_cast<uint8_t>(lran::StatusReason::DebugSynthetic);
+
+  // Spec 7.2.8 bit 7 (D80) - the node does not sense FIRE or the alarm input, so those
+  // bits and the hard-shutdown latch carry no reading. They are null, never off, and
+  // discovery makes `fire_inputs_sensed` their second availability topic (publish.h).
+  const bool fire_sensed = (s.node_flags & kNodeFireUnsensed) == 0;
 
   // --- gate, spec 7.2.1 ---
   {
@@ -519,8 +563,14 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     j.boolean("in_moving", (s.input_bits & kInMoving) != 0);
     j.boolean("in_safety", (s.input_bits & kInSafety) != 0);
     j.boolean("in_exit", (s.input_bits & kInExit) != 0);
-    j.boolean("in_fire", (s.input_bits & kInFire) != 0);
-    j.boolean("in_alarm", (s.input_bits & kInAlarm) != 0);
+    if (fire_sensed) {
+      j.boolean("in_fire", (s.input_bits & kInFire) != 0);
+      j.boolean("in_alarm", (s.input_bits & kInAlarm) != 0);
+    } else {
+      j.null("in_fire");
+      j.null("in_alarm");
+    }
+    j.boolean("fire_inputs_sensed", fire_sensed);
     j.u32("input_bits", s.input_bits);
     j.boolean("synthetic", synthetic);
     offer(ni, Domain::Gate, token, j.finish(), now_ms, sink);
@@ -576,11 +626,13 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       j.decimal("yield_yesterday_kwh", s.yield_yest, 2);
       j.u32("pmax_today_w", s.pmax_today);
       j.decimal("yield_total_kwh", s.yield_total, 2);
-      j.u32("charge_state", s.charge_state);  // spec 7.2.2 - Victron's, passed through
+      // spec 7.2.2 - Victron's, passed through. Neither name table lists 255, so a code
+      // the node does not have is null as a number and as a name (D79).
+      code_or_null(j, "charge_state", s.charge_state);
       str_or_null(j, "charge_state_name", mppt_charge_state_name(s.charge_state));
-      j.u32("error", s.mppt_err);
+      code_or_null(j, "error", s.mppt_err);
       str_or_null(j, "error_name", mppt_error_name(s.mppt_err));
-      j.u32("tracker", s.mppt_tracker);
+      code_or_null(j, "tracker", s.mppt_tracker);
       j.boolean("load_on", (s.mppt_flags & kMpptLoadOn) != 0);
       tenths_or_null(j, "temp_c", s.mppt_temp_c10);
     } else {
@@ -661,6 +713,15 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     // spec 7.2.3 - 0 is no link; otherwise the magnitude of a negative RSSI.
     if (s.bms_rssi_neg == 0) j.null("ble_rssi_dbm"); else j.i32("ble_rssi_dbm", -s.bms_rssi_neg);
     if (s.bms_age_s == lran::kU16NotAvailable) j.null("age_s"); else j.u32("age_s", s.bms_age_s);
+    // Spec 7.2.10 - the node's own count of charge drawn since charging was last active,
+    // which matters most while charging is inhibited. The node, not the BMS link, says
+    // whether it holds a total, through the sentinel, so a stale BMS block does not hide it
+    // (publish.h, key_survives_staleness). Null for schema 0x10, which has no such field.
+    if (!has_ah_drawn || v2.ah_drawn_dah == lran::kU16NotAvailable) {
+      j.null("ah_drawn");
+    } else {
+      j.decimal("ah_drawn", v2.ah_drawn_dah, 1);  // 0.1 Ah on the wire
+    }
     j.boolean("synthetic", synthetic);
     offer(ni, Domain::Battery, token, j.finish(), now_ms, sink);
   }
@@ -677,7 +738,12 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     j.boolean("dry_run", (s.node_flags & kNodeDryRun) != 0);
     j.boolean("bms_ble", (s.node_flags & kNodeBmsBle) != 0);
     j.boolean("debug", (s.node_flags & kNodeDebug) != 0);
-    j.boolean("shutdown_latch", (s.node_flags & kNodeShutdownLatch) != 0);
+    if (fire_sensed) {
+      j.boolean("shutdown_latch", (s.node_flags & kNodeShutdownLatch) != 0);
+    } else {
+      j.null("shutdown_latch");
+    }
+    j.boolean("fire_inputs_sensed", fire_sensed);
     str_or_null(j, "reason", status_reason_name(s.status_reason));
     j.boolean("synthetic", synthetic);
     // Impl Plan 6.6.2 - uptime_s moves on every poll, so hashing it published this document

@@ -239,6 +239,52 @@ void test_the_derived_charge_inhibit_follows_the_node_alone() {
   TEST_ASSERT_TRUE(bms);
 }
 
+// Spec 7.2.8 bit 7 (D80) - the three entities whose readings the bit withdraws list their
+// document's `fire_inputs_sensed` as a second availability topic, so HA shows them
+// unavailable rather than off. Their neighbours on the same documents follow the node.
+void test_the_fire_entities_follow_fire_inputs_sensed() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  char   id[80];
+  size_t gated = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    if (value_of(w.configs[i], "uniq_id", id, sizeof(id)) == nullptr) continue;
+    const bool fire = std::strcmp(id, "lran_gatelink_fire_input") == 0 ||
+                      std::strcmp(id, "lran_gatelink_alarm_input") == 0 ||
+                      std::strcmp(id, "lran_gatelink_shutdown_latch") == 0;
+    const bool neighbour = std::strcmp(id, "lran_gatelink_held_open") == 0 ||
+                           std::strcmp(id, "lran_gatelink_dry_run") == 0;
+    if (fire) {
+      TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(w.configs[i], "value_json.fire_inputs_sensed"),
+                                   id);
+      TEST_ASSERT_NOT_NULL(std::strstr(w.configs[i], "\"avty_mode\":\"all\""));
+      ++gated;
+    } else if (neighbour) {
+      TEST_ASSERT_TRUE_MESSAGE(has_key(w.configs[i], "avty_t"), id);
+    }
+  }
+  TEST_ASSERT_EQUAL(3, gated);
+}
+
+// Spec 7.2.10 - the node's sentinel says whether it holds a total, so `ah_drawn` reads
+// while the BMS block is stale (publish.h, key_survives_staleness).
+void test_ah_drawn_follows_the_node_alone() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  char id[80];
+  bool seen = false;
+  for (size_t i = 0; i < w.n; ++i) {
+    if (value_of(w.configs[i], "uniq_id", id, sizeof(id)) == nullptr) continue;
+    if (std::strcmp(id, "lran_gatelink_ah_drawn") != 0) continue;
+    TEST_ASSERT_TRUE(has_key(w.configs[i], "avty_t"));
+    TEST_ASSERT_FALSE(has_key(w.configs[i], "avty"));
+    seen = true;
+  }
+  TEST_ASSERT_TRUE(seen);
+}
+
 void test_the_availability_payloads_are_the_tokens_the_bridge_publishes() {
   // These two strings are spec 16.5's, and node_availability.cpp publishes them. An
   // entity that expects different words stays unavailable forever with nothing logged.
@@ -872,6 +918,8 @@ int main() {
   RUN_TEST(test_the_discovery_topic_matches_the_unique_id);
   RUN_TEST(test_a_node_entity_points_at_its_own_availability_topic);
   RUN_TEST(test_the_derived_charge_inhibit_follows_the_node_alone);
+  RUN_TEST(test_the_fire_entities_follow_fire_inputs_sensed);
+  RUN_TEST(test_ah_drawn_follows_the_node_alone);
   RUN_TEST(test_the_availability_payloads_are_the_tokens_the_bridge_publishes);
   RUN_TEST(test_a_bench_node_produces_no_discovery_while_the_flag_is_clear);
   RUN_TEST(test_every_bench_entity_is_diagnostic_and_reads_only_diag_state);

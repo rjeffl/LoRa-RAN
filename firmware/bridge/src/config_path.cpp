@@ -8,6 +8,7 @@
 #include <cstdio>
 
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/schema/node_health_v1.h"
 
 namespace bridge {
@@ -64,15 +65,32 @@ bool ConfigPath::submit(const ConfigJob& job, lran::CtxId ctx, lran::Seq seq,
   return true;
 }
 
-bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payload,
-                                  size_t len) {
-  if (hdr.type != lran::MsgType::Status) return false;
+namespace {
+
+// Schema 0x10, 0xFE or 0x13 into the 0x10 fields they share (spec 7.2.10). False for any
+// other schema or a payload that does not decode.
+bool decode_node_status(const lran::Header& hdr, const uint8_t* payload, size_t len,
+                        lran::schema::GateLinkStatusV1* out) {
+  if (hdr.schema == lran::kSchemaGateLinkStatusV2) {
+    lran::schema::GateLinkStatusV2 v2;
+    if (lran::schema::deserialize(payload, len, &v2) != lran::Status::Ok) return false;
+    *out = v2.v1;
+    return true;
+  }
   if (hdr.schema != lran::kSchemaGateLinkStatusV1 &&
       hdr.schema != lran::kSchemaSimnodeStatusV1) {
     return false;
   }
+  return lran::schema::deserialize(payload, len, out) == lran::Status::Ok;
+}
+
+}  // namespace
+
+bool status_reports_config_change(const lran::Header& hdr, const uint8_t* payload,
+                                  size_t len) {
+  if (hdr.type != lran::MsgType::Status) return false;
   lran::schema::GateLinkStatusV1 s;
-  if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
+  if (!decode_node_status(hdr, payload, len, &s)) return false;
   return s.status_reason == static_cast<uint8_t>(lran::StatusReason::ConfigChange);
 }
 
@@ -87,9 +105,10 @@ bool RebootWatch::on_status(const lran::Header& hdr, const uint8_t* payload, siz
   uint16_t boot_count = 0;
   bool     says_boot  = false;
   if (hdr.schema == lran::kSchemaGateLinkStatusV1 ||
+      hdr.schema == lran::kSchemaGateLinkStatusV2 ||
       hdr.schema == lran::kSchemaSimnodeStatusV1) {
     lran::schema::GateLinkStatusV1 s;
-    if (lran::schema::deserialize(payload, len, &s) != lran::Status::Ok) return false;
+    if (!decode_node_status(hdr, payload, len, &s)) return false;
     uptime_s   = s.uptime_s;
     boot_count = s.boot_count;
     says_boot  = s.status_reason == static_cast<uint8_t>(lran::StatusReason::Boot);

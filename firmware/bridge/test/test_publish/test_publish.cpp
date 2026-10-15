@@ -20,6 +20,7 @@
 #include <initializer_list>
 
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/schema/node_health_v1.h"
 #include "mqtt_transport.h"
 #include "net_policy.h"
@@ -542,6 +543,110 @@ void test_other_types_are_ignored() {
   TEST_ASSERT_EQUAL(0, p.stats().status_frames);
 }
 
+// Spec 7.2.10, D82, PRD R-5.2f - schema 0x13 publishes the same five documents as 0x10,
+// with `ah_drawn` in Ah on battery/state. 0x10 and the sentinel publish null. The node's
+// sentinel, not the BMS block, decides it, so it reads while that block is stale.
+void test_status_v2_publishes_ah_drawn() {
+  PublicationPolicy        p;
+  Recorder                 r;
+  schema::GateLinkStatusV2 v2;
+  v2.v1           = healthy();
+  v2.ah_drawn_dah = 123;
+  uint8_t buf[schema::kGateLinkStatusV2Len];
+  size_t  n = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(v2, buf, sizeof(buf), &n));
+  p.on_status(gatelink(), status_hdr(kNodeGateLink, kSchemaGateLinkStatusV2), buf, n, 1000,
+              kNow, r);
+  TEST_ASSERT_EQUAL(5, r.n);
+  expect(r.find("lran/gatelink/battery/state"), "ah_drawn", "12.3");
+  expect(r.find("lran/gatelink/gate/state"), "state", "\"closed\"");
+
+  r.clear();
+  v2.v1.bms_age_s = 60000;  // stale
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(v2, buf, sizeof(buf), &n));
+  p.on_status(gatelink(), status_hdr(kNodeGateLink, kSchemaGateLinkStatusV2), buf, n, 2000,
+              kNow, r);
+  expect(r.find("lran/gatelink/battery/state"), "available", "false");
+  expect(r.find("lran/gatelink/battery/state"), "ah_drawn", "12.3");
+
+  r.clear();
+  v2.ah_drawn_dah = UINT16_MAX;
+  TEST_ASSERT_EQUAL(Status::Ok, schema::serialize(v2, buf, sizeof(buf), &n));
+  p.on_status(gatelink(), status_hdr(kNodeGateLink, kSchemaGateLinkStatusV2), buf, n, 3000,
+              kNow, r);
+  expect(r.find("lran/gatelink/battery/state"), "ah_drawn", "null");
+
+  PublicationPolicy q;
+  r.clear();
+  offer(q, gatelink(), healthy(), 1000, r);
+  expect(r.find("lran/gatelink/battery/state"), "ah_drawn", "null");
+
+  // spec 7.2.10 - 78 bytes under 0x13 is a bad length, never read as a v1.
+  r.clear();
+  q.on_status(gatelink(), status_hdr(kNodeGateLink, kSchemaGateLinkStatusV2), buf,
+              schema::kGateLinkStatusV1Len, 5000, kNow, r);
+  TEST_ASSERT_EQUAL(0, r.n);
+  TEST_ASSERT_EQUAL(1, q.stats().undecodable);
+}
+
+// Spec 7.2.2, D79, PRD R-5.2c - 0xFF in a VE.Direct code field is no code, so it publishes
+// null as a number and as a name. 0 is a real code and keeps its number.
+void test_mppt_code_0xff_is_null() {
+  PublicationPolicy        p;
+  Recorder                 r;
+  schema::GateLinkStatusV1 s = healthy();
+  s.charge_state = 0xFF;
+  s.mppt_err     = 0xFF;
+  s.mppt_tracker = 0xFF;
+  offer(p, gatelink(), s, 1000, r);
+  const char* doc = r.find("lran/gatelink/solar/state");
+  expect(doc, "available", "true");
+  expect(doc, "charge_state", "null");
+  expect(doc, "charge_state_name", "null");
+  expect(doc, "error", "null");
+  expect(doc, "error_name", "null");
+  expect(doc, "tracker", "null");
+
+  r.clear();
+  s.charge_state = 0;
+  s.mppt_err     = 0;
+  s.mppt_tracker = 0;
+  offer(p, gatelink(), s, 2000, r);
+  doc = r.find("lran/gatelink/solar/state");
+  expect(doc, "charge_state", "0");
+  expect(doc, "error", "0");
+  expect(doc, "error_name", "\"no_error\"");
+  expect(doc, "tracker", "0");
+}
+
+// Spec 7.2.8 bit 7, D80, PRD R-5.2c - a node that does not sense FIRE or the alarm input
+// publishes those readings and the hard-shutdown latch as null, never off, with
+// `fire_inputs_sensed` false in both documents. Discovery reads that key.
+void test_unsensed_fire_inputs_are_null() {
+  PublicationPolicy        p;
+  Recorder                 r;
+  schema::GateLinkStatusV1 s = healthy();
+  offer(p, gatelink(), s, 1000, r);
+  expect(r.find("lran/gatelink/gate/state"), "in_fire", "false");
+  expect(r.find("lran/gatelink/gate/state"), "fire_inputs_sensed", "true");
+  expect(r.find("lran/gatelink/node/state"), "shutdown_latch", "false");
+  expect(r.find("lran/gatelink/node/state"), "fire_inputs_sensed", "true");
+
+  r.clear();
+  s.node_flags = static_cast<uint8_t>(s.node_flags | 0x80 | 0x20);
+  s.input_bits = 0x10 | 0x20 | 0x01;  // receive ignores bits 4 and 5 under bit 7
+  offer(p, gatelink(), s, 2000, r);
+  const char* gate = r.find("lran/gatelink/gate/state");
+  const char* node = r.find("lran/gatelink/node/state");
+  expect(gate, "in_fire", "null");
+  expect(gate, "in_alarm", "null");
+  expect(gate, "in_open", "true");
+  expect(gate, "fire_inputs_sensed", "false");
+  expect(node, "shutdown_latch", "null");
+  expect(node, "fire_inputs_sensed", "false");
+  expect(node, "config_persisted", "true");
+}
+
 // The largest document every key of can produce still fits a PublishMessage.
 void test_worst_documents_fit() {
   PublicationPolicy p;
@@ -599,6 +704,9 @@ int main(int, char**) {
   RUN_TEST(test_reconnect_republishes_everything);
   RUN_TEST(test_other_types_are_ignored);
   RUN_TEST(test_worst_documents_fit);
+  RUN_TEST(test_status_v2_publishes_ah_drawn);
+  RUN_TEST(test_mppt_code_0xff_is_null);
+  RUN_TEST(test_unsensed_fire_inputs_are_null);
   RUN_TEST(test_format_utc);
   return UNITY_END();
 }

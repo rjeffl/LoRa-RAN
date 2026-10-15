@@ -184,6 +184,24 @@ void test_a_rejection_is_not_retried() {
   TEST_ASSERT_EQUAL_UINT32(1, c.stats().sent);
 }
 
+// spec 8.2, D78, PRD R-3.1g - an ACTUATOR_FAULT is the node's answer that the relay write
+// failed, not a lost ACK. It resolves the command with that result and sends nothing more.
+void test_an_actuator_fault_is_reported_and_not_resent() {
+  CommandPath c;
+  TEST_ASSERT_TRUE(c.submit(open_gate(), kCtx, 3, 0));
+  send_now(c, 0);
+  c.on_ack(kTarget, ack_of(3, AckResult::ActuatorFault), kCtx, 10);
+
+  const CmdStep st = c.next(10);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdAction::Resolve), static_cast<int>(st.action));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CmdOutcome::Acked), static_cast<int>(st.outcome));
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(AckResult::ActuatorFault), st.result);
+  // Long past every retry window, still nothing more on the air.
+  TEST_ASSERT_NOT_EQUAL(static_cast<int>(CmdAction::Send),
+                        static_cast<int>(c.next(100000).action));
+  TEST_ASSERT_EQUAL_UINT32(1, c.stats().sent);
+}
+
 // spec 6.2 - exhausted. The ACK never came, so nothing is known about execution:
 // NoAck is its own outcome and is not reported as a rejection.
 void test_exhaustion_resolves_as_no_ack_and_stops() {
@@ -568,6 +586,7 @@ int main() {
   RUN_TEST(test_an_accepted_ack_resolves_the_command);
   RUN_TEST(test_duplicate_cached_carries_the_cached_result_in_detail);
   RUN_TEST(test_a_rejection_is_not_retried);
+  RUN_TEST(test_an_actuator_fault_is_reported_and_not_resent);
   RUN_TEST(test_exhaustion_resolves_as_no_ack_and_stops);
   RUN_TEST(test_rejected_ctx_adopts_the_acks_context_and_retries_once);
   RUN_TEST(test_a_second_rejected_ctx_stops_rather_than_looping);

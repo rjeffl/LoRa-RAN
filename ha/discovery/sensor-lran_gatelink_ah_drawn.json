@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Charge drawn since charging","uniq_id":"lran_gatelink_ah_drawn","stat_t":"~/battery/state","val_tpl":"{{ value_json.ah_drawn }}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","unit_of_meas":"Ah","stat_cla":"measurement","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}
