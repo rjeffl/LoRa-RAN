@@ -24,7 +24,6 @@ the StamPLC's 12 V bench supply.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Return the three charge-inhibition rows** (R-5.3a), now that the bridge has room. Rebuild the bridge too | *Open*, below; the bridge engineering log's 2026-10-15 entry |
 | 3 | **The relay at a watchdog reset, `AckResult` for a failed pulse, and `0xFF`** — each a written proposal, the last two for the next spec revision; and the SD library's `log_w` | *Open*, below |
 | 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
@@ -42,9 +41,9 @@ direction, partial traversals and the held-open alert passed on the air (enginee
 
 **Low-temperature inhibition is built, and its BMS path passed on the air** through the
 emulator's `bms temp` (engineering log, 2026-10-14). Its VE.Direct path, R-6.4b, is
-host-tested only and waits for the MPPT. HA cannot show the indication while VE.Direct is
-down, and its three thresholds are constants until the bridge can carry more GateLink
-rows. Both are the bridge's to fix before the install visit (*Open*).
+host-tested only and waits for the MPPT. Its three thresholds are rows `0x1043`–`0x1045`
+again, settable from HA, and passed on the air (engineering log, 2026-10-15). The bridge
+shows the indication while VE.Direct is down since the same date (bridge engineering log).
 
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
@@ -199,16 +198,12 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **The charge-inhibition thresholds are constants, against PRD R-5.3a** (engineering
-  log, 2026-10-14). The bridge has room for them since 2026-10-15 (bridge engineering log,
-  that date), so rows `0x1043`–`0x1045` can return to `lran-config` and `charge_inhibit.h`.
-  The bridge learns them when it is rebuilt.
 - **PRD R-6.4c's Ah drawn since charging was last active has no field in spec v0.17.**
   Proposed for the next spec revision; nothing computes it yet.
 - **Spec §8.9 does not define `CHARGE_INHIBITED`'s `detail`.** GateLink sends 0. It could
   name the deciding path, 1 for BMS and 2 for VE.Direct, in the next spec revision.
-- **The pack's real low-temperature cut-off is not measured**, so `kChargeInhibitTempC`
-  is PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
+- **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
+  defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.

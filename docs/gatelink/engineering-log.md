@@ -1689,6 +1689,22 @@ log, 2026-10-15). The 2200-byte worst case from the 2026-10-14 entry fits
 restored table, and all 531 tests pass. GateLink's block is 24 rows and its readback 233
 bytes, still two `CONFIG_ACK` messages (Library Plan v0.28 §4).
 
-**Host-tested and built only.** Both images link: GateLink at 98,320 bytes of static RAM,
-the bridge's `heltec` at 253,140, unchanged by the table. The check on the air is a
-`config/set` of each row through Home Assistant after both boards are flashed.
+Both images link: GateLink at 98,320 bytes of static RAM, the bridge's `heltec` at
+253,140, unchanged by the table.
+
+**On the air, each row sets and persists.** Both boards were flashed over USB from this
+branch, and each row was set on `lran/gatelink/config/set` through `tools/bench/bench.py`:
+
+| Row | Set to | `config/ack` |
+|---|---|---|
+| `charge_inhibit_temp_c` | −5 | `ok`, `persisted` |
+| `charge_inhibit_band_ma` | 250 | `ok`, `persisted` |
+| `charge_inhibit_rise_mv` | 35 | `ok`, `persisted` |
+
+GateLink's console then read `temp <= -5 C, band 250 mA, rise 35 mV`, so `app_task` takes
+the new values without a reboot. The bridge's next `config/state` was 1957 bytes, over the
+old 1024-byte cap, and carried all three with `source` `override`. The bridge's connect
+banner read `heap free 58536, lowest 53440`.
+
+**Not checked:** the three `number` entities in Home Assistant, because the harness logs
+only `lran/#`. `tools/checks/ha_examples.py` covers their discovery payloads.
