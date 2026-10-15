@@ -3,6 +3,8 @@
 **Written 2026-10-15 by a documentation-sync session**, which changed no firmware. The
 sessions before it built low-temperature charge inhibition and passed its BMS path on the
 air (2026-10-14), then restored its three thresholds as parameter rows (2026-10-15).
+**Updated 2026-10-15 by the spec v0.18 session**: D78–D82 answered the `AckResult`, `0xFF`
+and three other spec questions below, and GateLink's side of them is now a task.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -25,7 +27,8 @@ the StamPLC's 12 V bench supply.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **The relay at a watchdog reset, `AckResult` for a failed pulse, and `0xFF`** — each a written proposal, the last two for the next spec revision; and the SD library's `log_w` | *Open*, below |
+| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82). R-6.4c needs the PRD to define "charging active" and the current integrated first | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 | 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
 | — | **GL4's M14**: the MPPT is on the gate's PV again, so a week of its VictronConnect history could stand in. The operator's call | Plan §8.2's GL4 row and §9.8 |
@@ -49,8 +52,8 @@ shows the indication while VE.Direct is down since the same date (bridge enginee
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
 
-- The relay-at-watchdog, `AckResult` and `0xFF` questions under *Open*, and the SD
-  library's `log_w`.
+- Spec v0.18's GateLink side (D78, D80–D82), the relay-at-watchdog question under
+  *Open*, and the SD library's `log_w`.
 - The 2N7000 stages for IN3 and IN4 and the IN1 and IN2 harnesses rewired sinking, when the
   board arrives (plan §3.2).
 - The three charge-inhibition rows set back from the 2026-10-15 test values (*Hardware
@@ -205,10 +208,6 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **PRD R-6.4c's Ah drawn since charging was last active has no field in spec v0.17.**
-  Proposed for the next spec revision; nothing computes it yet.
-- **Spec §8.9 does not define `CHARGE_INHIBITED`'s `detail`.** GateLink sends 0. It could
-  name the deciding path, 1 for BMS and 2 for VE.Direct, in the next spec revision.
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
   defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
@@ -218,8 +217,6 @@ board's are its D-pads (expansion board §6.1).
 - **HA's *FIRE input*, *Hard-shutdown latch* and *Held open by keypad* entities would read
   a permanent "off" under D77.** The bridge stops publishing them while GateLink reads no
   FIRE or alarm (operator, 2026-10-12). The bridge's work; its handoff carries it.
-- **Spec §7.2.1 has no way to say an `input_bits` bit is not sensed.** Under D77, bits 4
-  and 5 read 0, which says "not asserted". The next spec revision could name it.
 - **PRD R-3.2.3e does not say `held_open_alert_repeat_s` is a rate limit.** The operator
   confirmed it is (2026-10-13), and `detect.h` says so. The next PRD revision states it.
 - **Event to MQTT took up to 6 s on the bench**, most under 2 s (engineering log,
@@ -246,17 +243,10 @@ board's are its D-pads (expansion board §6.1).
   so the loss is in the USB CDC path. It hid one pulse width on the bench.
 - **`bench.py run` exits when it writes to a port that has disappeared**
   (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not.
-- **Protocol Specification §7.2.4 calls `node_ma` the "INA226 supply current"**, which
-  the INA226 cannot give (PRD R-4.4b, v0.17). The field stays and carries its sentinel; the
-  note waits for the next specification revision.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
   path, or confirm the supply was off.
-- **Spec §7.2.2 names no sentinel for its `uint8` code fields** (`charge_state`, `mppt_err`,
-  `mppt_tracker`). GateLink sends `0xFF` for one missing from a good block
-  (`ved_link.h`, `kCodeNotAvailable`). A non-zero `mppt_err` triggers a push, so the
-  specification should say what `0xFF` means.
 - **GateLink's USB console loses bytes from the middle of lines**, about one line in ten
   (engineering log, 2026-10-08). Splitting the `ved` line did not stop it.
 - **Some `bms now` results printed about 13 s after `window now`**, though each window
@@ -322,10 +312,6 @@ board's are its D-pads (expansion board §6.1).
   timing is the operator's. [`lib/vedirect/osh-labs-deviations.md`](../../lib/vedirect/osh-labs-deviations.md)
   lists them. Re-check each row against upstream's latest commit first, report rows 1, 4
   and 5 and defects D1 and D2, and put each issue link in the row's *Reported* column.
-- **Spec §8.2 has no `AckResult` for a relay pulse the expander did not carry out.** It
-  holds that a pulse "either happens or the node is not running", but an I²C write can
-  fail. GateLink counts the failure and answers `ACCEPTED` (plan §5.2). A spec question:
-  a new result, or a meaning for `detail` under `ACCEPTED`.
 - **An SD write holds the SPI bus lock for up to 59 ms**, and the radio waits behind it
   (engineering log, 2026-10-06). GL3's radio driver inherits that wait.
 - **About 7.7 kΩ of RST pull-up is unexplained**, beyond the Wio's 10 kΩ. R4 measured out
@@ -337,9 +323,6 @@ board's are its D-pads (expansion board §6.1).
 - **The StamPLC was silent on the air for 135 s before a replug** (engineering log,
   2026-10-08). Nothing explains it yet; watch for a repeat.
 - **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23. The register holds their status.
-- **Spec W6 and §7.2.3 still call `pack_ma`'s sign pending.** M7 measured positive as
-  charge. The next spec revision states it and drops the `TODO(W6)` in the status schema
-  and the bridge's `publish.cpp`.
 - **The first BMS window after a boot ended `aborted` at about 45 ms, twice** (engineering
   log, 2026-10-10, *M7*). Probably the boot's LoRa traffic; not checked.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised. The LiFePO4 settings disable both, so no readback of this configuration will exercise them.

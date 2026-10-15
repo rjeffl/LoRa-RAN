@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.17
+**Version:** 0.18
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-15
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -575,6 +575,7 @@ register semantics; see §7.6 for the payload and the authentication rule.
 | `0x10` | **GateLink status v1** | `STATUS` | 78 B |
 | `0x11` | **GateLink event v1** | `EVENT` | 16 B |
 | `0x12` | **Node config v1** — any node (§7.4) | `CONFIG`, `CONFIG_ACK` | variable |
+| `0x13` | **GateLink status v2** (§7.2.10) | `STATUS` | 80 B |
 | `0x20` | WellLink status v1 — *reserved, not defined* | `STATUS` | — |
 | `0x21` | WellLink event v1 — *reserved, not defined* | `EVENT` | — |
 | `0xF0` | **Generic node health** — all nodes | `STATUS` | 20 B |
@@ -626,6 +627,11 @@ diagnosed from a logged frame without a firmware change or a walk to the gate. I
 serves the same purpose `gate_raw_state` served in wire-format v0.1, in a form that
 suits discrete inputs rather than a bus status byte.
 
+**A bit for an input the node does not read is written `0`, and `0` alone does not say
+"not asserted".** While `node_flags` bit 7 is set (§7.2.8), bits 4 and 5 carry no reading,
+and neither does `node_flags` bit 5. A receiver MUST NOT read them as the inputs being
+clear. Added in v0.18 (**D80**), for a GateLink built without IN5 and IN6 under **D77**.
+
 `last_traversal_age_s` is an **age, not a timestamp**. The node has an RTC but no
 guaranteed time sync, and an age is correct on the bridge the moment it arrives
 regardless of clock skew.
@@ -659,6 +665,13 @@ Victron owns those enumerations; re-mapping them here would create a translation
 to maintain in two places, and the bridge can map to text on the MQTT side where it is
 cheap to change.
 
+**`0xFF` in `charge_state`, `mppt_err` or `mppt_tracker` means not available**: the
+node has had no value for that label since boot, or the last text block that passed its
+checksum lacked it. No Victron `CS`, `ERR` or `MPPT` code uses 255. The bridge publishes
+the field as unavailable, and an `mppt_err` of `0xFF` is not an MPPT error: it triggers no
+push and no `MPPT_ERROR` event. Added in v0.18 (**D79**). Before it, the push rule read a
+missing `ERR` as a non-zero one.
+
 #### 7.2.3 BMS block — offsets 36–63
 
 Populated from the TDT BLE client. Frame formats and the register decode live in
@@ -669,7 +682,7 @@ Populated from the TDT BLE client. Frame formats and the register decode live in
 | 36 | `uint8` | `bms_soc` | % | `0xFF` = not available |
 | 37 | `uint8` | `bms_flags` | — | §7.2.7 |
 | 38 | `uint16` | `pack_mv` | mV | |
-| 40 | `int16` | `pack_ma` | mA | Sign convention pending — see §18, W6 |
+| 40 | `int16` | `pack_ma` | mA | Positive = charge, negative = discharge. Measured as M7, 2026-10-10 (W6) |
 | 42 | `uint8` | `cell_count` | — | Cells actually reported. `>4` requires a new schema ID |
 | 43 | `uint8` | `bms_rssi_neg` | −dBm | Magnitude of the BLE RSSI, e.g. `80` means −80 dBm. `0` = no link. Ongoing evidence for GateLink **D28** |
 | 44 | `uint16` | `cell_mv[0]` | mV | |
@@ -702,10 +715,15 @@ the MPPT side.
 | 64 | `uint32` | `uptime_s` | s | |
 | 68 | `uint16` | `boot_count` | — | From nonvolatile storage; `0` if unavailable |
 | 70 | `uint16` | `node_mv` | mV | INA226 supply voltage — the node measures its own rail |
-| 72 | `int16` | `node_ma` | mA | INA226 supply current |
+| 72 | `int16` | `node_ma` | mA | Supply current. `INT16_MIN` = not available |
 | 74 | `int16` | `enclosure_temp_c10` | 0.1 °C | LM75. First of three thermal reference points |
 | 76 | `uint8` | `node_flags` | — | §7.2.8 |
 | 77 | `uint8` | `status_reason` | — | §8.7 — why this frame was sent |
+
+**`node_ma` is `INT16_MIN` on GateLink.** v0.17 called the field the "INA226 supply
+current". The StamPLC's INA226 gives the supply voltage, but its shunt sits on the
+host's 5 V output, which GateLink does not use (GateLink PRD R-4.4b, measurement M12). The field stays for a node that can measure it. Corrected
+in v0.18.
 
 #### 7.2.5 `detect_flags`
 
@@ -736,6 +754,12 @@ Bit 1 matters: without it, a dead VE.Direct link is indistinguishable from a hea
 MPPT reporting unchanged values, and HA would show plausible stale data indefinitely.
 **The bridge SHOULD mark all MPPT entities unavailable when it is set.**
 
+**Bit 3 is not an MPPT value, and bit 1 does not make it stale.** The node derives it
+from the BMS or from VE.Direct, whichever has a fresh reading (GateLink PRD R-6.4a,
+R-6.4b), so it stays valid while VE.Direct is down. The bridge keeps the charge-inhibited
+indication readable while bit 1 is set. Stated in v0.18; the bridge has read it so since
+2026-10-15.
+
 #### 7.2.7 `bms_flags`
 
 | Bit | Meaning |
@@ -763,7 +787,12 @@ than no SOC figure.
 | 4 | Any debug mode active |
 | 5 | Hard-shutdown / entrapment latch asserted |
 | 6 | **Traversal age not persisted** — `last_traversal_age_s` is uptime-bounded, not restored from nonvolatile storage (§7.2.9) |
-| 7 | Reserved — write `0` |
+| 7 | **FIRE and alarm inputs not sensed** — `input_bits` bits 4 and 5 and bit 5 here carry no reading (§7.2.1, **D80**) |
+
+**Bit 7 is optional meaning in a bit that was reserved**, so §13.2 requires no bump. A
+receiver that predates v0.18 ignores it and reads the inputs as clear, which is what it
+did before. The bridge SHOULD mark the entities those bits feed unavailable while bit 7 is
+set, rather than withhold them by a rule naming one node.
 
 ---
 
@@ -810,6 +839,33 @@ recorder then own days, weeks and months of traversal history durably, across bo
 node reboots and bridge restarts. The node's field only has to be correct across the
 gap — but it has to be correct across a gap measured in days, which is what the
 widening and the persistence together provide.
+
+#### 7.2.10 Schema `0x13` — GateLink status v2 (80 bytes)
+
+**Offsets 0–77 are schema `0x10`'s, byte for byte, and every rule in §7.2.1 to §7.2.9
+applies to them.** v2 appends one field. Added in v0.18 (**D82**).
+
+| Off | Type | Field | Unit | Notes |
+|---:|---|---|---|---|
+| 78 | `uint16` | `ah_drawn_dah` | 0.1 Ah | Charge drawn from the pack since charging was last active (GateLink PRD R-6.4c). `UINT16_MAX` = not available. Saturates at `0xFFFE` |
+
+**The field exists for a cold spell.** While charging is inhibited (§7.2.6 bit 3), the
+inhibit flag says only that the pack is not charging. `ah_drawn_dah` says how much reserve
+the inhibition has cost, so a cold event of several days shows a falling margin rather
+than an unchanged boolean.
+
+- **The node defines "charging active" and the current it integrates**, in its PRD.
+  The count returns to 0 while charging is active.
+- **`UINT16_MAX` is sent until the node has a total it can stand behind**: before its
+  first current reading, and after a reset that lost the running total, until charging
+  is next active. A node MUST NOT restart the count from 0 at a reset, because that
+  understates the reserve the cold spell has used.
+- **0.1 Ah in a `uint16`** matches `bms_capacity_dah`, and its 6553.4 Ah ceiling is far
+  above any pack a node carries.
+
+**A new field takes a new schema ID** (§13.2), so `0x10` stays valid and unchanged. A
+node sends one of the two. **The bridge MUST decode both**, because a node in the field is
+reflashed only by a walk to it (§13.1). The simnode's `0xFE` still mirrors `0x10`.
 
 ### 7.3 Schema `0x11` — GateLink event v1 (16 bytes)
 
@@ -1214,9 +1270,20 @@ what confirm the reboot.
 | `0x10` | `DRY_RUN` | Accepted and logged, but no output was energized |
 | `0x11` | `ACTUATOR_BUSY` | A pulse or sequence was already in progress |
 | `0x12` | `REJECTED_UNSAFE` | Refused by a local safety rule |
+| `0x13` | `ACTUATOR_FAULT` | Dispatched, and a write to an output failed, so the node cannot say the sequence ran as commanded (**D78**) |
 
 > **Retired from v0.1:** `BUST4_ERROR`, `BUST4_TIMEOUT`, `BUST4_UNAVAILABLE`. There is
-> no bus to fail. A relay pulse either happens or the node is not running.
+> no BusT4 to fail.
+
+**`ACTUATOR_FAULT` replaces v0.17's "a relay pulse either happens or the node is not
+running".** GateLink drives its relays through an I²C expander, and an I²C write can fail
+while the node runs on. The node sends `ACTUATOR_FAULT` when any write in the command's
+relay sequence failed. To know that, it sends the `COMMAND_ACK` after the sequence's last
+edge, as GateLink does (GateLink Impl Plan §5.2). `detail` is `0`. A bridge that predates
+v0.18 reads the value as unknown (§13.2). A retry draws `DUPLICATE_CACHED` with `ACTUATOR_FAULT` in `detail`
+(§10.4), so it repeats nothing. The bridge reports the command failed, and MUST NOT send it
+again under a new `seq`: part of the sequence may have run. A `STATUS` shows what the gate
+did. Added in v0.18; before it, GateLink answered `ACCEPTED` and counted the failure.
 
 ### 8.3 `gate_state`
 
@@ -1336,7 +1403,7 @@ bit 1 (§6.4), and republishes `config/state` from it (§16.7.4).
 | `0x06` | `HOLD_STATE_CHANGE` | Normal |
 | `0x07` | `BMS_ALARM` | High |
 | `0x08` | `MPPT_ERROR` | Normal |
-| `0x09` | `CHARGE_INHIBITED` | Low |
+| `0x09` | `CHARGE_INHIBITED` | Low. `detail` names the path that decided it: `0` = not stated, `1` = BMS, `2` = VE.Direct (**D81**) |
 | `0x0A` | `BOOT` | Low. `detail` carries the reset cause, §8.14 (**D71**) |
 | `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Added in v0.14 (D59)** |
 
@@ -2723,6 +2790,7 @@ Computed for BW 125 kHz, CR 4/5, explicit header, CRC on, 8-symbol preamble.
 | `EVENT` (`0x11`) | 34 | 77 ms | 134 ms | 247 ms |
 | Node health (`0xF0`) | 38 | 82 ms | 144 ms | 267 ms |
 | **`STATUS` (`0x10`)** | **96** | **164 ms** | **297 ms** | **534 ms** |
+| `STATUS` (`0x13`) | 98 | 169 ms | 297 ms | 534 ms |
 | `PING`, maximum | 222 | 348 ms | 615 ms | 1107 ms |
 
 Figures are the LoRa time-on-air formula applied to the frame sizes in §19, rounded to
@@ -3225,7 +3293,7 @@ simulated peers plus GateLink. Their MQTT exposure is governed by §16.6.
 | W3 | ~~Partial-open preset count~~ | — | **Closed.** Partial open is out of scope; the command is retired (§8.1) |
 | W4 | ~~Test vectors~~ | — | **Closed.** `/tools/vectors/` exists: an independent Python generator, a self-check and **72** vectors, cross-checked against a C++ suite on host and on target with zero divergence. The generator was written from this document alone, with the codec off limits, and the four disagreements it produced are the substance of v0.5. Provenance is recorded per vector — 66 derived, 6 adjudicated — so a reader can tell which agreements are evidence and which are bookkeeping. The v0.5 and v0.6 regenerations each changed **no existing frame byte**, independently confirming that neither altered a header field, the authentication scope or a schema layout. §14.1 is enforced by the generator and the checker independently. §13.2's standing requirement to regenerate on every protocol change is unaffected and applies to v0.6 |
 | W5 | ~~FCC Part 15 operating mode~~ | — | **Closed, and the outcome still holds.** Single fixed channel, no hopping, operating at or below the §15.249 power provisions. **§18.1's *reasoning* was substantially replaced in v0.9** — M21 found that neither module is certified under §15.249, that the grants do not transfer at all, and that the operative frame is §15.23 home-built. **D33 is reopened in the register on that basis; W5 is not.** W5 asked which mode to build against and the answer is unchanged. See §18.1 and §18.2 |
-| W6 | **BMS `pack_ma` sign convention** | §7.2.3 | Bit `0x4000` is believed to be the discharge flag but has only ever been observed at 0.0 A. Capture once under charge and once under load. Tracked in the measurement backlog |
+| W6 | ~~BMS `pack_ma` sign convention~~ | — | **Closed in v0.18.** Positive is charge and negative is discharge (§7.2.3). M7 captured the pack under load and under charge on 2026-10-10: the BMS flags discharge with bit 15, not bit `0x4000`, and counts in 0.1 A, not 10 mA. GateLink scales the reading into `pack_ma`'s mA. Opened in v0.3 |
 | W7 | ~~Airtime table regeneration~~ | — | **Closed 2026-09-10 with D1** (SF9 / BW125 / CR 4/5). The table was already on that basis, so it was **confirmed rather than recomputed**, and §12.3's window was set against its maximum-`PING` row in the same motion — 1107 ms at SF9, window raised to 1500. Original wording: recompute once **D1** fixes SF/BW/CR. The v0.3 table corrects a systematic ~4 % understatement in v0.2 (omitted 4.25-symbol sync interval) and reflects the 16-byte header. **v0.8:** W9's bench run measured a 222-byte frame at SF7 at **348 ms**, matching this table's own figure, so the table has now been checked against a real transmission at one point. The regeneration must be done **with §12.3's backoff window in hand** rather than in isolation — the maximum-`PING` row is what that window is checked against, and at the table's own SF8 and SF9 figures the default window no longer covers a frame |
 | W8 | **Header extension registry** | §5.8 | `hdr_flags` bit 7 is defined but denotes no extension yet. The first assignment must also define how a receiver identifies *which* extension is present — most likely from bits 6:0. Not needed until an extension exists, but the mechanism must be settled before one is designed |
 | W9 | ~~Full-size and fragmented `PING` bench runs~~ | — | **Closed 2026-09-05. Both runs passed over RF**, on the range test firmware as planned. §6.6.1's 222-byte maximum frame: 32 PINGs, 32 echoes, no faults. §6.6.2's fragmented set at `frag_chunk = 14`: 32 PINGs across **480 frames**, 32 echoes, no faults. The responder's own inbound tally reconciles at 64 sets and 512 frames, so both ends agree on every frame of both runs. **No pattern divergence in 64 round trips**, so the buffer path, the CRC path and the SX1262 FIFO write are exercised at `LRAN_MAX_FRAME` and index permutation, out-of-order arrival and the 15-fragment ceiling are exercised over the air — neither had been before. **v0.4's `frag_chunk` override is confirmed as a working mechanism**: the split is driven entirely from the sender, and the responder recovers the chunk to echo with by inference from the largest fragment in the received set, since §11.1 fixes every non-final fragment to one length and nothing carries the chunk on the wire. **Two caveats on the scope.** The path was ~1 m of bench: this is a protocol result, not a link one. And **no late fragments were observed in either direction** across 512 frames — §11.2's rule was chosen against a hypothesised RF echo, and a bench negative at 1 m is not evidence about the 500 ft path the rule exists for. The run also produced a media-access finding that is **not** W9's to resolve — see §12.3 and W7 |
@@ -3398,6 +3466,7 @@ COMMAND      (30 B)  header + [cmd][arg][arg2:2]                 + mac:8 + crc:2
 COMMAND_ACK  (24 B)  header + [ack_seq:2][result][detail][rsv:2]          + crc:2
 POLL         (19 B)  header + [poll_flags]                                + crc:2
 STATUS 0x10  (96 B)  header + [ 78-byte payload, §7.2 ]                   + crc:2
+STATUS 0x13  (98 B)  header + [ 80-byte payload, §7.2.10 ]                + crc:2
 EVENT  0x11  (34 B)  header + [ 16-byte payload, §7.3 ]                   + crc:2
 CONFIG 0x12  (var )  header + [op][count][ entries... ]          + mac:8 + crc:2
 CONFIG_ACK   (var )  header + [op][persist][count][ results... ]          + crc:2
@@ -3434,6 +3503,21 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.18 (2026-10-15)** — **D78–D82: what GateLink's build found the specification did
+  not say.** `ver` stays at `2`; **no header field or authentication scope changes, and no
+  existing schema's layout changes.** The operator decided all five on 2026-10-15.
+  **New schema `0x13`, GateLink status v2** (§7.2.10, D82): schema `0x10`'s 78 bytes and
+  `ah_drawn_dah`, the charge drawn since charging was last active, for GateLink PRD R-6.4c.
+  **§8.2 gains `ACTUATOR_FAULT`, `0x13`** (D78), for a relay sequence with a failed write.
+  **`0xFF` means not available** in §7.2.2's three VE.Direct code fields (D79).
+  **`node_flags` bit 7 says the FIRE and alarm inputs are not sensed** (§7.2.8, D80), for
+  a GateLink built under D77. **`CHARGE_INHIBITED`'s `detail` names the deciding path**
+  (§8.9, D81). Three statements needed no decision. **W6 closes** on M7's sign: positive
+  is charge (§7.2.3). §7.2.4 drops "INA226" from `node_ma`, which GateLink cannot measure.
+  §7.2.6 says bit 3 is not an MPPT value and stays readable while bit 1 is set. A schema
+  ID, an enumeration value and a reserved bit were added, so §13.2 requires no version
+  bump. **The W4 vectors gain schema `0x13`**, and no existing frame byte moved.
 
 - **v0.17 (2026-10-01)** — **D73–D76: four readings B5's code chose, made normative.**
   `ver` stays at `2`; **no frame layout, header field, schema, enumeration value or

@@ -41,10 +41,8 @@ inline constexpr uint8_t kMpptFlagLoadOn      = 0x01;
 inline constexpr uint8_t kMpptFlagStale       = 0x02;
 inline constexpr uint8_t kMpptFlagHexPending  = 0x04;
 
-// spec 7.2.2 has no sentinel for its uint8 code fields. A label missing from a block that
-// passed its checksum reads as this, which no Victron code uses; the handoff carries the
-// question for the specification.
-inline constexpr uint8_t kCodeNotAvailable = 0xFF;
+// spec 7.2.2, D79 - a label missing from a block that passed its checksum reads as this.
+inline constexpr uint8_t kCodeNotAvailable = lran::kCodeNotAvailable;
 
 // The MPPT block of spec 7.2.2, in its units. Sentinels until a block arrives (root rule 6).
 // A stale snapshot keeps the last block's values: bit 1 says they are old, and the bridge

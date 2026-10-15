@@ -253,9 +253,8 @@ names.
 
 - **What bit 14 of the current field means.** It was set at rest, on charge and under
   load (§6), so it is not the direction. `BmsData::current_raw` keeps the field whole so a
-  later capture can show what clears it. The sign itself is measured (M7); the spec's
-  §7.2.3 and its item W6 still call `pack_ma`'s convention pending until a revision states
-  it.
+  later capture can show what clears it. The sign itself is measured (M7), and spec
+  v0.18's §7.2.3 states it: positive `pack_ma` is charge.
 - **The current's scale on other BMS firmware.** `aiobmsble` reads the magnitude in whole
   amps when the `0x92` software version is `1.1`. This pack reports
   `WT30_10004SW14_L_01`, and 0.1 A is measured for it only.

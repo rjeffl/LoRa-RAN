@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.17",
+  "spec": "LRAN-Protocol-Specification v0.18",
   "wire_ver": 2,
   "group": "single",
   "generated_by": "tools/vectors/generate.py",
@@ -450,6 +450,62 @@
         "expect_ctx_id": 0,
         "status": "Ok",
         "payload": "000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffff000000020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff008000804009",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_gatelink_0x13_nominal",
+      "spec_ref": "§7.2.10, §7.1, §19",
+      "origin": "derived",
+      "note": "98-byte frame. Offsets 0-77 are 0x10's; ah_drawn_dah 0x1234 is 466.0 Ah, with §7.2.6 bit 3 (charging inhibited) set.",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 1,
+        "dst": 0,
+        "seq": 103,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x13",
+        "hdr_flags": "0x00"
+      },
+      "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000109f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b003412",
+      "key": null,
+      "frame": "020401006700efcdab89011300000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000109f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b0034127e51",
+      "frame_len": 98,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000109f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b003412",
+        "mac_present": false
+      }
+    },
+    {
+      "name": "status_gatelink_0x13_all_unavailable",
+      "spec_ref": "§4.6, §7.2.2, §7.2.8, §7.2.10",
+      "origin": "derived",
+      "note": "v0.18's sentinels: 0xFF in the three VE.Direct code fields (D79), node_flags bit 7 with bit 6 (D80), UINT16_MAX ah_drawn_dah (D82).",
+      "header": {
+        "ver": 2,
+        "type": "STATUS",
+        "src": 1,
+        "dst": 0,
+        "seq": 104,
+        "ctx_id": 2309737967,
+        "frag": "0x01",
+        "schema": "0x13",
+        "hdr_flags": "0x00"
+      },
+      "payload": "000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffffffffff020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff00800080c009ffff",
+      "key": null,
+      "frame": "020401006800efcdab89011300000000000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffffffffff020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff00800080c009ffff4e2b",
+      "frame_len": 98,
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "Ok",
+        "payload": "000000000000ffffffffffff0080ffffffff0080ffffffffffffffffffffffffff020080ffc0ffff00800000ffffffffffffffff80808080ffffffff0000ffff3d0000000000ffff00800080c009ffff",
         "mac_present": false
       }
     },

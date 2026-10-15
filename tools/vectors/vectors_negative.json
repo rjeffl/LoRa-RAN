@@ -1,6 +1,6 @@
 {
   "format": "lran-test-vectors/1",
-  "spec": "LRAN-Protocol-Specification v0.17",
+  "spec": "LRAN-Protocol-Specification v0.18",
   "wire_ver": 2,
   "group": "negative",
   "generated_by": "tools/vectors/generate.py",
@@ -207,6 +207,20 @@
       "origin": "derived",
       "note": "76 bytes is v0.2's status length. Schema 0x10 is 78 B in v0.3+ (§7.2.9), so the old size must be rejected, not truncated-parsed.",
       "frame": "020401004a12efcdab89011000000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b018ab6",
+      "decode": {
+        "self": 0,
+        "expect_ctx_id": 0,
+        "status": "BadLength",
+        "counter": "rx_bad_length",
+        "stage": "8"
+      }
+    },
+    {
+      "name": "status_0x13_78_bytes",
+      "spec_ref": "§7.2.10, §14 stage 8, §14.1",
+      "origin": "derived",
+      "note": "A 0x10 payload announced as 0x13. The schema ID, not the length, says which layout a frame carries (§7.1), so 78 bytes under 0x13 is rejected.",
+      "frame": "020401005c12efcdab89011300000000030300050103d2040000e03356fa28072a00360139005b003d0040e2010003000101f1005707ea3356fa0450f90cfb0cf80cfe0c151516142500e80300000c00bd5101000700db335f001b010b0020ce",
       "decode": {
         "self": 0,
         "expect_ctx_id": 0,

@@ -1,13 +1,13 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.90
+**Version:** 0.91
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.28 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.19
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.29 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-10-15
 
@@ -368,7 +368,7 @@ obligations:
 |---|---|
 | Node ID | `0x00` |
 | Driver | RadioLib, SX1262 |
-| Schemas decoded | `0x10`, `0x11`, `0x12`, `0xF0`, `0xFE`; unknown → `ERROR(UNKNOWN_SCHEMA)` and a counter |
+| Schemas decoded | `0x10`, `0x11`, `0x12`, `0xF0`, `0xFE`; unknown → `ERROR(UNKNOWN_SCHEMA)` and a counter. Spec v0.18 adds `0x13` (§7.2.10, **D82**), which the bridge MUST decode beside `0x10`; it is not built yet (§6.3.1) |
 | Header extensions | None implemented. `hdr_flags` bit 7 set → discard + `ERROR(UNKNOWN_HDR_EXT)` (Protocol Spec §5.8, §14 stage 5a) |
 | Version tolerance | Accept **N and N−1**; downgrade per node on the version last heard |
 | Poll discipline | **Serialized across the fleet** — one outstanding poll at a time |
@@ -1267,6 +1267,14 @@ Assistant's value templates read them, so a key published is a key frozen:
 | **R-5.2d: `synthetic` is in every document**, true when `status_reason` is `DEBUG_SYNTHETIC` | Each document is a separate history in HA, so each carries the mark. One diagnostic binary sensor shows it |
 | **A bench node's `STATUS` is decoded, counted as `bench_withheld` and never published**, whichever way `simnode_diag_enable` is set | Spec §16.6 allows a bench node `diag/state` and `availability` alone. `make_publish()` also refuses `lran/simnode<N>/{gate,detect,battery,solar,event}/`, the second check on the path every publication takes |
 | **A broker connect makes every document due again** | The retained documents may be gone. Each is republished on its node's next frame, from that frame |
+
+**Spec v0.18 changes what these documents carry, and none of it is built yet** (handoff
+group 9). Schema `0x13` decodes as `0x10` plus `ah_drawn_dah` (§7.2.10, **D82**); its key
+is chosen when it is built. `0xFF` in `charge_state`, `error` or `tracker` publishes
+`null`, and an `error` of `0xFF` pushes nothing (§7.2.2, **D79**). While `node_flags`
+bit 7 is set, the FIRE, hard-shutdown and keypad-hold entities are unavailable (§7.2.8,
+**D80**). `CHARGE_INHIBITED`'s `detail` gets a name (§8.9, **D81**). `pack_ma` needs no
+change: positive is charge, which closed W6.
 
 **The counts go to `lran/bridge/diag/publish/state`**, published with the other bridge
 diagnostics: `status_frames`, `documents`, `unchanged`, `heartbeats`, `bench_withheld`,
@@ -3102,6 +3110,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.91** — **Protocol specification v0.17 → v0.18**, with Bridge PRD v0.19 and
+  Protocol Library Plan v0.29. §4.1's schema row and §6.3.1 name what D79–D82 change and
+  say none of it is built. D78's `ACTUATOR_FAULT` changes no line: the bridge already
+  reports it and does not resend it.
 
 - **v0.90** — **Cites Protocol Library Plan v0.28**, which returns GateLink's three
   charge-inhibition rows. The bridge discovers them from the table once it is rebuilt, and

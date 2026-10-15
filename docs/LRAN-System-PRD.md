@@ -1,7 +1,7 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.33
+**Version:** 0.34
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
 **Last updated:** 2026-10-15
@@ -704,24 +704,24 @@ assumed now.
 | Document | Covers | Status |
 |---|---|---|
 | **`LRAN-System-PRD`** *(this document)* | System architecture, node overviews, protocol overview, repo and build, licenses | v0.33 |
-| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.17** (`ver = 2`) |
-| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D77** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.31 |
-| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.28 |
+| [`LRAN-Protocol-Specification`](./shared/LRAN-Protocol-Specification.md) | All LoRa frame and MQTT protocol definitions. **Referenced by every node document** | **v0.18** (`ver = 2`) |
+| [`LRAN-Decision-Register`](./shared/LRAN-Decision-Register.md) | **D1–D82** and the measurement backlog **M1–M26**. Single source of truth for decision status | v0.32 |
+| [`LRAN-Protocol-Library-Implementation-Plan`](./shared/LRAN-Protocol-Library-Implementation-Plan.md) | `/lib/lran-protocol/` API, tests and milestones. **P1–P8 complete** | v0.29 |
 | [`LRAN-D1-PHY-Decision-Brief`](./shared/LRAN-D1-PHY-Decision-Brief.md) | **Superseded 2026-09-10 by Decision Register §3.4**, which closed D1 on this brief's recommendation. Kept as the dated record of how the choice was framed | v0.1 |
 | [`LRAN-P8-CommandGate-Brief`](./shared/LRAN-P8-CommandGate-Brief.md) | **Superseded 2026-09-11 by Decision Register §3.2.1**, which amended D34 on this brief's recommendations. Kept as the reasoning: the `seq` high-water timing that would double-execute a retry, the in-flight window, cache sizing | v0.2 |
 | [`LRAN-Spec-v0.12-Brief`](./shared/LRAN-Spec-v0.12-Brief.md) | **Superseded 2026-09-16 by Decision Register §3.5**, which resolved **D35–D42** on this brief's recommendations. Kept as the reasoning, including the options not taken: the `ERROR` reflection vector and the config-fragmentation contradiction | v0.2 |
 | [`LRAN-Config-Set-Brief`](./shared/LRAN-Config-Set-Brief.md) | **Superseded 2026-09-19 by Decision Register §3.6**, which resolved **D43–D49** on this brief's recommendations. Kept as the reasoning, including the five passages v0.12 left stale and the readback option not taken | v0.2 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
-| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.18 |
-| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.90 |
-| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.77 |
+| [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.19 |
+| [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.91 |
+| [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.78 |
 | [`docs/bridge/HANDOFF.md`](./bridge/HANDOFF.md) | Bridge session handoff — next job, traps, hardware state. **Rewritten wholesale each session** | 2026-10-15 |
-| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.20 |
-| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.38 |
+| [`LRAN-GateLink_Node-PRD`](./gatelink/LRAN-GateLink_Node-PRD.md) | GateLink goals and requirements | v0.21 |
+| [`LRAN-GateLink_Node-Implementation-Plan`](./gatelink/LRAN-GateLink_Node-Implementation-Plan.md) | GateLink BOM, interconnect, firmware architecture, milestones, integration observations | v0.39 |
 | [`bms-protocol`](./gatelink/bms-protocol.md) | The TDT smart BMS's BLE access sequence, frames, decode and reference capture. Not part of the LRAN protocol | v0.3 |
 | [`gatelink-expansion-board`](./gatelink/gatelink-expansion-board.md) | GateLink carrier board: schematic intent, net assignments, BOM, mechanical | rev 0.3 |
-| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.13 |
+| [`LRAN-WellLink_Node-PRD`](./welllink/LRAN-WellLink_Node-PRD.md) | WellLink — placeholder, to be developed | v0.14 |
 | [`LRAN-Range-Test-Firmware-Pass1-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass1-Tasks.md) | Range test firmware task list, pass 1 — **complete**. Answered D1's inputs; hosted W9, M6 and M20 | pass 1 |
 | [`LRAN-Range-Test-Firmware-Pass2-Tasks`](./rangetest/LRAN-Range-Test-Firmware-Pass2-Tasks.md) | Range test pass 2 — the XIAO + Wio-SX1262 Kit board profile | rev 0.1 |
 | [`LRAN-Research-Archive`](./archive/LRAN-Research-Archive.md) | BusT4 bench findings and Phase 2 design, superseded design history, BMS investigation dead ends | v0.1 |
@@ -752,6 +752,11 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.34** — **Protocol specification v0.17 → v0.18.** §12's version column follows the
+  citation sweep: the specification, the Decision Register at D82, and the seven node and
+  library documents v0.18 reached. No requirement here changes: D78–D82 bind GateLink and
+  the bridge, and §5's rule that a new field takes a new schema ID is the one D82 follows.
 
 - **v0.33** — **§9.1's layout and §12's version column catch up with the repository.**
   §9.1 marked the bridge and GateLink firmware planned and `LICENSE`,

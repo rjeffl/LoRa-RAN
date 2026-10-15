@@ -1,8 +1,12 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.17 (`ver = 2`)
-**Vectors last regenerated against:** v0.17, on 2026-10-01. Every vector kept its bytes;
-only each file's `spec` field changed. v0.17 moves no byte on the wire: D73–D76 settle
+**Binding specification:** `LRAN-Protocol-Specification` v0.18 (`ver = 2`)
+**Vectors last regenerated against:** v0.18, on 2026-10-15: **83 vectors**. v0.18 adds
+schema `0x13`, GateLink status v2 (D82), and three vectors cover it:
+`status_gatelink_0x13_nominal`, `status_gatelink_0x13_all_unavailable`, which carries
+D79's and D80's sentinels too, and the negative `status_0x13_78_bytes`. Every earlier
+vector kept its bytes; only each file's `spec` field changed.
+**At v0.17**, on 2026-10-01, likewise only the `spec` field changed. v0.17 moves no byte on the wire: D73–D76 settle
 which frame refuses a write-class `HEX_REQ`, `HEX_RSP`'s `seq`, and three MQTT topics.
 **At v0.16**, on 2026-09-25, likewise only the `spec` field changed. v0.16 adds §8.14's `reset_cause`, which travels in
 an event's `detail`, a field the codec carries opaque, so no vector was added for it.
@@ -356,7 +360,7 @@ Everything downstream is meaningless if key derivation is wrong.
 - The 222-byte maximum `PING` (§6.6.1) — `LRAN_MAX_FRAME` exactly.
 - Both `HEX_REQ` sizes: `20 + N` plain and `28 + N` write-class authenticated (§19).
 - `HEX_RSP` at `20 + N` (§19 — the v0.3 errata).
-- `STATUS` `0x10` (96 B), `STATUS` `0xF0` (38 B), `EVENT` `0x11` (34 B),
+- `STATUS` `0x10` (96 B), `STATUS` `0x13` (98 B), `STATUS` `0xF0` (38 B), `EVENT` `0x11` (34 B),
   `COMMAND` (30 B), `COMMAND_ACK` (24 B), `POLL` (19 B), `ERROR` (22 B).
 
 **`frag`**

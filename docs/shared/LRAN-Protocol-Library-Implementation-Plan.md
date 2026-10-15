@@ -1,9 +1,9 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.28
+**Version:** 0.29
 **Artifact:** `/lib/lran-protocol/` — the shared codec
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
@@ -435,6 +435,10 @@ Status deserialize(const uint8_t* in, size_t len, GateLinkStatusV1* out);
 
 }  // namespace lran::schema
 ```
+
+**Schema `0x13`, GateLink status v2, holds a `GateLinkStatusV1` and appends
+`ah_drawn_dah`** (spec §7.2.10, **D82**), 80 bytes. Holding v1 rather than repeating its
+fields means a field added to `0x10`'s layout cannot be missed in v2.
 
 Serialization goes through bounds-checked helpers, never raw pointer arithmetic:
 
@@ -926,6 +930,12 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.29** — **Protocol specification v0.17 → v0.18.** §3.9 records schema `0x13`'s
+  `GateLinkStatusV2` (**D82**). `types.h` gains `AckResult::ActuatorFault` (**D78**),
+  `ChargeInhibitPath` (**D81**) and `kCodeNotAvailable` (**D79**), each a value the
+  specification names; no API changes otherwise. D80's `node_flags` bit 7 is the node's
+  to set.
 
 - **v0.28** — **GateLink's block grows to 24 rows** (PRD R-5.3a). §4 records the three
   charge-inhibition thresholds and the readback they cost: 233 bytes, still two messages.

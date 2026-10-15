@@ -1,12 +1,12 @@
 # LRAN WellLink Node PRD
 
 **Document:** `LRAN-WellLink_Node-PRD`
-**Version:** 0.13
+**Version:** 0.14
 **Node:** `WellLink`, node ID `0x02`
 **Status:** **PLACEHOLDER.** Scope and reserved allocations only. Not ready for design or build.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Last updated:** 2026-10-01
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
+**Last updated:** 2026-10-15
 
 > **This document exists to hold ground, not to specify a node.** It records what is
 > already known, what the rest of the system has reserved on WellLink's behalf, and what
@@ -228,6 +228,11 @@ choices that look over-engineered against a one-node system:
 ---
 
 ## 10. Changelog
+
+- **v0.14** — **Citation refresh; no requirement changed.** Protocol specification
+  **v0.17 → v0.18**. D78's `ACTUATOR_FAULT` answers any command whose output write failed,
+  so it reaches WellLink once WellLink drives an output. D79–D82 bind GateLink's status
+  schemas, its events and the bridge.
 
 - **v0.13** — **Citation refresh; no requirement changed.** Protocol specification
   **v0.16 → v0.17**. D73–D76 settle the VE.Direct HEX proxy's refusals, its `seq` and its

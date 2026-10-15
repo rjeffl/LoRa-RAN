@@ -47,7 +47,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 
 FORMAT = "lran-test-vectors/1"          # README, common envelope
-SPEC = "LRAN-Protocol-Specification v0.17"
+SPEC = "LRAN-Protocol-Specification v0.18"
 WIRE_VER = 2                            # §5.1 - `ver` = 2, unchanged since v0.3
 
 DERIVED = "derived"
@@ -383,7 +383,7 @@ def p_status_0x10(**f) -> bytes:
     w.u8(36, f["bms_soc"])                    # 0xFF = not available
     w.u8(37, f["bms_flags"])                  # §7.2.7
     w.u16(38, f["pack_mv"])
-    w.i16(40, f["pack_ma"])                   # sign convention pending, W6
+    w.i16(40, f["pack_ma"])                   # positive = charge (W6, closed v0.18)
     w.u8(42, f["cell_count"])
     w.u8(43, f["bms_rssi_neg"])               # 0 = no link
     for i in range(4):
@@ -403,6 +403,14 @@ def p_status_0x10(**f) -> bytes:
     w.u8(76, f["node_flags"])                 # §7.2.8
     w.u8(77, f["status_reason"])              # §8.7
     return w.done(78)
+
+
+def p_status_0x13(**f) -> bytes:
+    """§7.2.10 - GateLink status v2, 80 bytes: 0x10's 78 bytes, then ah_drawn_dah."""
+    w = Payload()
+    w.raw(0, p_status_0x10(**f))
+    w.u16(78, f["ah_drawn_dah"])              # 0.1 Ah, UINT16_MAX = not available
+    return w.done(80)
 
 
 def p_event_0x11(**f) -> bytes:
@@ -495,6 +503,7 @@ EXPECTED_FRAME_LEN = {
     ("POLL", 0x00): 19,
     ("STATUS", 0x10): 96,
     ("STATUS", 0xFE): 96,      # §7.1 - mirrors 0x10
+    ("STATUS", 0x13): 98,      # §7.2.10
     ("STATUS", 0xF0): 38,
     ("EVENT", 0x11): 34,
     ("ERROR", 0x00): 22,
@@ -906,6 +915,23 @@ def build_single():
                     ctx_id=GATE_CTX, schema=0x10, payload=p_status_0x10(**STATUS_UNAVAILABLE),
                     self_id=NODE_BRIDGE,
                     note="Sentinels, not zero: UINT32_MAX traversal age, INT16_MIN load_ma, 0xFF SOC, 0 RSSI."))
+    v.append(single("status_gatelink_0x13_nominal", "§7.2.10, §7.1, §19",
+                    type_name="STATUS", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=103,
+                    ctx_id=GATE_CTX, schema=0x13,
+                    payload=p_status_0x13(**dict(STATUS_NOMINAL, mppt_flags=0x09,
+                                                 ah_drawn_dah=0x1234)),
+                    self_id=NODE_BRIDGE,
+                    note="98-byte frame. Offsets 0-77 are 0x10's; ah_drawn_dah 0x1234 is 466.0 Ah, "
+                         "with §7.2.6 bit 3 (charging inhibited) set."))
+    v.append(single("status_gatelink_0x13_all_unavailable", "§4.6, §7.2.2, §7.2.8, §7.2.10",
+                    type_name="STATUS", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=104,
+                    ctx_id=GATE_CTX, schema=0x13,
+                    payload=p_status_0x13(**dict(STATUS_UNAVAILABLE, charge_state=0xFF,
+                                                 mppt_err=0xFF, mppt_tracker=0xFF,
+                                                 node_flags=0xC0, ah_drawn_dah=UINT16_MAX)),
+                    self_id=NODE_BRIDGE,
+                    note="v0.18's sentinels: 0xFF in the three VE.Direct code fields (D79), "
+                         "node_flags bit 7 with bit 6 (D80), UINT16_MAX ah_drawn_dah (D82)."))
     v.append(single("status_health_0xf0", "§7.5, §7.1, §19",
                     type_name="STATUS", src=NODE_GATELINK, dst=NODE_BRIDGE, seq=102,
                     ctx_id=GATE_CTX, schema=0xF0,
@@ -1316,6 +1342,12 @@ def build_negative():
     v.append(negative("status_0x10_76_bytes", "§7.2, §14 stage 8", frame=short_status,
                       self_id=NODE_BRIDGE, status="BadLength", counter="rx_bad_length", stage="8",
                       note="76 bytes is v0.2's status length. Schema 0x10 is 78 B in v0.3+ (§7.2.9), so the old size must be rejected, not truncated-parsed."))
+    v1_under_v2 = build_frame(type_id=MSG_TYPE["STATUS"], src=NODE_GATELINK, dst=NODE_BRIDGE, seq=4700,
+                              ctx_id=GATE_CTX, frag=0x01, schema=0x13,
+                              payload=p_status_0x10(**STATUS_NOMINAL))
+    v.append(negative("status_0x13_78_bytes", "§7.2.10, §14 stage 8", frame=v1_under_v2,
+                      self_id=NODE_BRIDGE, status="BadLength", counter="rx_bad_length", stage="8",
+                      note="A 0x10 payload announced as 0x13. The schema ID, not the length, says which layout a frame carries (§7.1), so 78 bytes under 0x13 is rejected."))
 
     # stage 8a - type is fragmentable
     frag_hex = build_frame(type_id=MSG_TYPE["HEX_REQ"], src=NODE_BRIDGE, dst=NODE_GATELINK, seq=4683,

@@ -617,9 +617,7 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       if (s.bms_soc == lran::kSocNotAvailable) j.null("soc"); else j.u32("soc", s.bms_soc);
       j.str("soc_source", soc_source_name(s.bms_flags));
       j.u32("pack_mv", s.pack_mv);
-      // TODO(W6): published as the node sends it. M7 measured positive as charge; the
-      // schema's TODO(W6) says what is left.
-      j.i32("pack_ma", s.pack_ma);
+      j.i32("pack_ma", s.pack_ma);  // spec 7.2.3 - positive = charge
       j.u32("cell_count", s.cell_count);
 
       // R-5.2a - a cell voltage moves in the document only when it has moved at least
