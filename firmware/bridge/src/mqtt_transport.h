@@ -25,14 +25,15 @@ namespace bridge {
 // BY VALUE, like RxMessage and for the same reason: the producer's buffer is gone by
 // the time mqtt_task runs, and a queue is where a pointer becomes a dangling one.
 //
-// SIZES. 2048 bytes of payload. The largest thing this firmware builds is a discovery
-// config, and discovery does NOT pass
-// through this queue - it is generated inside mqtt_task (Impl Plan 5.2) and published
-// from there, so the queue is sized for state and diagnostics rather than for the one
-// payload that dwarfs them. 32 slots x ~2150 bytes is ~69 KB of static RAM, which is
-// the cost of never blocking a producer.
+// TWO SIZES, BECAUSE ONE SIZE COST 24 KB PER 512 BYTES. State, events and diagnostics
+// ride a PublishMessage of kMaxPayloadLen. Spec 16.7's config/state and config/ack ride
+// a ConfigPublishMessage of kMaxConfigPayloadLen, on a queue of their own. Until
+// 2026-10-15 every slot of the publish and event queues, and every static message, was
+// sized for config/state. A cap of 2560 for GateLink's 34th row overflowed dram0_0_seg
+// by 10,816 bytes (GateLink engineering log, 2026-10-14). Discovery passes
+// through neither queue: mqtt_task builds and publishes it (Impl Plan 5.2).
 //
-// IT HAS MOVED THREE TIMES AND EACH MOVE HAD A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
+// THE STATE CAP HAS MOVED FIVE TIMES, EACH WITH A MEASUREMENT BEHIND IT. 512 to 768 at BF-19,
 // when lran/bridge/diag/state gained all 21 spec 14.1 counters by name - 681 bytes with
 // every one at UINT32_MAX. 768 to 1024 at BF-32, when two documents arrived close to
 // the old line at once: the radio document gained a sixth queue's pair of counters, and
@@ -43,37 +44,60 @@ namespace bridge {
 // PHY rows: test_config failed on the bridge's get_all answer, which an offline count put
 // at about 1.2 KB for 21 rows, and config/state close behind it. 1536 to 2048 at L4, when
 // GateLink's block put 31 rows on lran/gatelink: config/state counts to about 1.9 KB with
-// every value at its widest, and the get_all answer to about 1.8 KB.
+// every value at its widest, and the get_all answer to about 1.8 KB. Back to 1024 on
+// 2026-10-15, when the config documents left for their own type: each move past 1024
+// was made for a config document.
 //
-// test_diag and test_config are the checks. Each builds the worst document its table can
-// produce and fails here rather than at the broker.
+// THE CONFIG CAP is 3072. A config/state with every value at its widest was 2200 bytes
+// for GateLink's 36 rows (2026-10-14), about 61 bytes a row, so 3072 holds about 50.
+//
+// test_diag, test_publish and test_config are the checks. Each builds the worst document
+// its table can produce and fails here rather than at the broker.
 //
 // A payload that does not fit is REFUSED AND COUNTED, never truncated. Truncated JSON
 // is worse than absent: Home Assistant logs a parse error against a topic that looks
 // alive, and the entity keeps its last good value while the real one drifts away.
 // ---------------------------------------------------------------------------
 
-inline constexpr size_t kMaxTopicLen   = 96;
-inline constexpr size_t kMaxPayloadLen = 2048;
+inline constexpr size_t kMaxTopicLen         = 96;
+inline constexpr size_t kMaxPayloadLen       = 1024;
+inline constexpr size_t kMaxConfigPayloadLen = 3072;
 
 // How many publications the transport may hold unfinished before mqtt_task stops handing
 // it more (MqttTransport::pending()). Eight covers the events in flight at QoS 1 and one
 // tick's state. The transport's pool, sized in platformio.ini, is what this protects.
 inline constexpr size_t kMaxPendingPublishes = 8;
 
-struct PublishMessage {
-  char   topic[kMaxTopicLen]     = {0};
-  char   payload[kMaxPayloadLen] = {0};
-  size_t payload_len             = 0;
-  bool   retain                  = false;
-  uint8_t qos                    = 0;  // spec 16.3 requires QoS 1 for events
+// What the transport sends: a view of either message type, valid while the message is.
+struct PublishRef {
+  const char* topic       = nullptr;
+  const char* payload     = nullptr;
+  size_t      payload_len = 0;
+  bool        retain      = false;
+  uint8_t     qos         = 0;
 };
+
+template <size_t N>
+struct BasicPublishMessage {
+  char   topic[kMaxTopicLen] = {0};
+  char   payload[N]          = {0};
+  size_t payload_len         = 0;
+  bool   retain              = false;
+  uint8_t qos                = 0;  // spec 16.3 requires QoS 1 for events
+
+  operator PublishRef() const { return {topic, payload, payload_len, retain, qos}; }
+};
+
+using PublishMessage       = BasicPublishMessage<kMaxPayloadLen>;
+using ConfigPublishMessage = BasicPublishMessage<kMaxConfigPayloadLen>;
 
 // Fills `out` from C strings, refusing rather than truncating. False also when the
 // retain flag or the QoS would violate spec 16.3 (`lran/<node>/event/` is never retained,
 // and is QoS 1) - see net_policy.h for why that check lives on the path rather than in a
 // comment.
 bool make_publish(PublishMessage* out, const char* topic, const char* payload,
+                  bool retain, uint8_t qos);
+bool make_publish(ConfigPublishMessage* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos);
 
 // ---------------------------------------------------------------------------
@@ -181,7 +205,7 @@ class MqttTransport {
   // tick, never from lora_task.
   virtual void loop() = 0;
 
-  virtual bool publish(const PublishMessage& msg) = 0;
+  virtual bool publish(const PublishRef& msg) = 0;
   virtual bool subscribe(const char* topic, uint8_t qos) = 0;
 
   // Where loop() delivers what arrives. Null detaches. Set it BEFORE the first

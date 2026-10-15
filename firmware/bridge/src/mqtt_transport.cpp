@@ -14,7 +14,11 @@
 
 namespace bridge {
 
-bool make_publish(PublishMessage* out, const char* topic, const char* payload,
+namespace {
+
+// One body for both sizes, so the two cannot drift apart on spec 16.3's rules.
+template <size_t N>
+bool fill_publish(BasicPublishMessage<N>* out, const char* topic, const char* payload,
                   bool retain, uint8_t qos) {
   if (out == nullptr || topic == nullptr || payload == nullptr) {
     return false;
@@ -22,7 +26,7 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
 
   const size_t tlen = std::strlen(topic);
   const size_t plen = std::strlen(payload);
-  if (tlen == 0 || tlen >= kMaxTopicLen || plen >= kMaxPayloadLen) {
+  if (tlen == 0 || tlen >= kMaxTopicLen || plen >= N) {
     return false;  // refused, never truncated
   }
 
@@ -47,6 +51,18 @@ bool make_publish(PublishMessage* out, const char* topic, const char* payload,
   out->retain      = retain;
   out->qos         = qos;
   return true;
+}
+
+}  // namespace
+
+bool make_publish(PublishMessage* out, const char* topic, const char* payload,
+                  bool retain, uint8_t qos) {
+  return fill_publish(out, topic, payload, retain, qos);
+}
+
+bool make_publish(ConfigPublishMessage* out, const char* topic, const char* payload,
+                  bool retain, uint8_t qos) {
+  return fill_publish(out, topic, payload, retain, qos);
 }
 
 // BF-18. A payload from the wire is NOT NUL-terminated and its length is the only

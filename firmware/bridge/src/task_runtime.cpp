@@ -88,6 +88,14 @@ uint8_t      g_event_storage[queue_storage_bytes(kEventQueueDepth, sizeof(Publis
 StaticQueue_t g_event_queue_buf;
 QueueHandle_t g_event_queue = nullptr;
 
+// sched_task's config/ack and config/state, apart from state because they are three
+// times its size (mqtt_transport.h). Its sends and drops count against QueueId::Publish:
+// to Home Assistant a drop from either is the same failure, a publication that never came.
+uint8_t      g_config_pub_storage[queue_storage_bytes(kConfigPublishQueueDepth,
+                                                     sizeof(ConfigPublishMessage))];
+StaticQueue_t g_config_pub_queue_buf;
+QueueHandle_t g_config_pub_queue = nullptr;
+
 // BF-18. mqtt_task parses a command topic into one of these; sched_task runs it.
 uint8_t      g_command_storage[queue_storage_bytes(kCommandQueueDepth,
                                                    sizeof(CommandRequest))];
@@ -384,8 +392,8 @@ UtcSeconds utc_at(uint32_t rx_millis) {
 ConfigSetRequest g_cfg_req;
 ConfigResult     g_cfg_results[kMaxScopeRows];
 ConfigStateEntry g_cfg_state_rows[kMaxScopeRows];
-PublishMessage   g_cfg_msg;
-char             g_cfg_doc[kMaxPayloadLen];
+ConfigPublishMessage g_cfg_msg;
+char                 g_cfg_doc[kMaxConfigPayloadLen];
 
 struct ConfigInboundStats {
   uint32_t received    = 0;
@@ -628,8 +636,8 @@ void sched_polls(uint32_t now_ms) {
 }
 
 // ---------------------------------------------------------------------------
-// sched_task's publications. One static message and one JSON buffer, not locals: at ~872
-// and 768 bytes they would take over half of sched_task's 3072-byte stack. Only sched_task
+// sched_task's publications. One static message and one JSON buffer, not locals: at ~1.1 KB
+// and 1 KB they would take over half of sched_task's 3072-byte stack. Only sched_task
 // touches them.
 // ---------------------------------------------------------------------------
 
@@ -885,9 +893,12 @@ void sched_roll(uint32_t now_ms) {
 // ---------------------------------------------------------------------------
 
 // Static for the reason g_sched_msg is: sched_task's stack is 3072 and these are large.
+// The message is a ConfigPublishMessage and goes on the config publish queue
+// (mqtt_transport.h on the two sizes).
 ConfigResult     g_sched_cfg_results[kMaxScopeRows];
 ConfigStateEntry g_sched_cfg_state[kMaxScopeRows];
-char             g_sched_cfg_doc[kMaxPayloadLen];
+char             g_sched_cfg_doc[kMaxConfigPayloadLen];
+ConfigPublishMessage g_sched_cfg_msg;
 
 void publish_config_resolution(const ConfigStep& step) {
   // sched_task's deepest path, reported the way lora_task reports its own. This node's
@@ -914,8 +925,8 @@ void publish_config_resolution(const ConfigStep& step) {
     if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
         build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
                            sizeof(g_sched_cfg_doc)) > 0 &&
-        make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
-      (void)send_publish(g_sched_msg);
+        make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+      (void)send_publish(g_sched_cfg_msg);
     } else {
       g_accounting.record_dropped(QueueId::Publish);
     }
@@ -964,8 +975,8 @@ void publish_config_resolution(const ConfigStep& step) {
   if (topic_config(token, "ack", topic, sizeof(topic)) > 0 &&
       build_config_ack(step.op, persist, g_sched_cfg_results, n, nullptr, g_sched_cfg_doc,
                        sizeof(g_sched_cfg_doc)) > 0 &&
-      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
-    (void)send_publish(g_sched_msg);
+      make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+    (void)send_publish(g_sched_cfg_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
@@ -993,8 +1004,8 @@ void publish_config_resolution(const ConfigStep& step) {
   if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
       build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc,
                          sizeof(g_sched_cfg_doc)) > 0 &&
-      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
-    (void)send_publish(g_sched_msg);
+      make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_cfg_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
@@ -1166,8 +1177,8 @@ bool publish_phy_resolution(bool committed, bool persisted) {
   if (topic_config(kTopicBridgeToken, "ack", topic, sizeof(topic)) > 0 &&
       build_config_ack(lran::ConfigOp::Set, persist, g_sched_cfg_results, n, nullptr,
                        g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
-      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
-    queued = send_publish(g_sched_msg);
+      make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+    queued = send_publish(g_sched_cfg_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
@@ -1180,8 +1191,8 @@ bool publish_phy_resolution(bool committed, bool persisted) {
   }
   if (topic_config(kTopicBridgeToken, "state", topic, sizeof(topic)) > 0 &&
       build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
-      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
-    (void)send_publish(g_sched_msg);
+      make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_cfg_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
@@ -1203,11 +1214,11 @@ bool publish_owed_phy_ack() {
   if (topic_config(kTopicBridgeToken, "ack", topic, sizeof(topic)) == 0 ||
       build_config_ack(lran::ConfigOp::Set, AckPersist::Persisted, g_sched_cfg_results, n,
                        nullptr, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) == 0 ||
-      !make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
+      !make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/false, /*qos=*/0)) {
     g_accounting.record_dropped(QueueId::Publish);
     return false;
   }
-  return send_publish(g_sched_msg);
+  return send_publish(g_sched_cfg_msg);
 }
 
 // spec 16.7.5 - each node's config/state, from its answer to the confirming GET.
@@ -1223,8 +1234,8 @@ void publish_phy_node_state(const PhyStep& st) {
   }
   if (topic_config(token, "state", topic, sizeof(topic)) > 0 &&
       build_config_state(g_sched_cfg_state, rows, g_sched_cfg_doc, sizeof(g_sched_cfg_doc)) > 0 &&
-      make_publish(&g_sched_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
-    (void)send_publish(g_sched_msg);
+      make_publish(&g_sched_cfg_msg, topic, g_sched_cfg_doc, /*retain=*/true, /*qos=*/0)) {
+    (void)send_publish(g_sched_cfg_msg);
   } else {
     g_accounting.record_dropped(QueueId::Publish);
   }
@@ -2152,14 +2163,18 @@ void sched_task(void*) {
 // The node's next frame publishes it afresh.
 bool transport_has_room() { return g_mqtt.pending() < kMaxPendingPublishes; }
 
+// Static, as g_discovery_msg is: beside `msg` it would put 3 KB more on mqtt_task's stack.
+ConfigPublishMessage g_drain_cfg_msg;
+
 void drain_publish_queue() {
   PublishMessage msg;
   while (transport_has_room() && xQueuePeek(g_event_queue, &msg, 0) == pdTRUE) {
     if (!g_mqtt.publish(msg)) return;
     (void)xQueueReceive(g_event_queue, &msg, 0);
   }
-  while (transport_has_room() && xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
-    if (!g_mqtt.publish(msg)) {
+  while (transport_has_room() &&
+         xQueueReceive(g_config_pub_queue, &g_drain_cfg_msg, 0) == pdTRUE) {
+    if (!g_mqtt.publish(g_drain_cfg_msg)) {
       g_accounting.record_dropped(QueueId::Publish);
       // The refused one may be an owed PHY answer, so sched_task queues it again.
       uint8_t queued = kPhyAckQueued;
@@ -2167,9 +2182,15 @@ void drain_publish_queue() {
       return;
     }
   }
-  // spec 16.7.5 - the queue is empty and the transport has sent all it held, so an answer
-  // queued before now has left the bridge. Only then does the blob stop owing it.
-  if (g_phy_ack_state == kPhyAckQueued && uxQueueMessagesWaiting(g_publish_queue) == 0 &&
+  while (transport_has_room() && xQueueReceive(g_publish_queue, &msg, 0) == pdTRUE) {
+    if (!g_mqtt.publish(msg)) {
+      g_accounting.record_dropped(QueueId::Publish);
+      return;
+    }
+  }
+  // spec 16.7.5 - the config queue is empty and the transport has sent all it held, so an
+  // answer queued before now has left the bridge. Only then does the blob stop owing it.
+  if (g_phy_ack_state == kPhyAckQueued && uxQueueMessagesWaiting(g_config_pub_queue) == 0 &&
       g_mqtt.pending() == 0) {
     bool cleared = false;
     {
@@ -2245,7 +2266,7 @@ class CommandInbound final : public MqttInbound {
 // both, and it is not here yet.
 //
 // THE DOCUMENTS ARE STATIC, for the reason BF-19 gives for sched_task's PublishMessage.
-// A PublishMessage is ~2.2 KB and a config/ack is up to 2 KB more; mqtt_task's stack
+// A ConfigPublishMessage is ~3.2 KB and a config/ack is up to 3 KB more; mqtt_task's stack
 // is 6144 and the transport's callback already sits inside it. mqtt_task is the only task
 // that touches any of these.
 // ---------------------------------------------------------------------------
@@ -3290,6 +3311,9 @@ bool start_tasks() {
                                        g_publish_storage, &g_publish_queue_buf);
   g_event_queue = xQueueCreateStatic(kEventQueueDepth, sizeof(PublishMessage),
                                      g_event_storage, &g_event_queue_buf);
+  g_config_pub_queue =
+      xQueueCreateStatic(kConfigPublishQueueDepth, sizeof(ConfigPublishMessage),
+                         g_config_pub_storage, &g_config_pub_queue_buf);
   g_config_queue = xQueueCreateStatic(kConfigQueueDepth, sizeof(ConfigJob),
                                       g_config_storage, &g_config_queue_buf);
   g_command_queue = xQueueCreateStatic(kCommandQueueDepth, sizeof(CommandRequest),
@@ -3299,7 +3323,7 @@ bool start_tasks() {
   g_log_queue = xQueueCreateStatic(kLogQueueDepth, sizeof(LogMessage), g_log_storage,
                                    &g_log_queue_buf);
   if (g_rx_queue == nullptr || g_tx_queue == nullptr || g_publish_queue == nullptr ||
-      g_event_queue == nullptr || g_command_queue == nullptr || g_hex_queue == nullptr ||
+      g_event_queue == nullptr || g_config_pub_queue == nullptr || g_command_queue == nullptr || g_hex_queue == nullptr ||
       g_config_queue == nullptr || g_log_queue == nullptr) {
     return false;
   }
@@ -3460,6 +3484,16 @@ bool send_publish(const PublishMessage& msg) {
     return false;
   }
   g_accounting.record_sent(id, static_cast<size_t>(uxQueueMessagesWaiting(q)));
+  return true;
+}
+
+bool send_publish(const ConfigPublishMessage& msg) {
+  if (g_config_pub_queue == nullptr || xQueueSend(g_config_pub_queue, &msg, 0) != pdTRUE) {
+    g_accounting.record_dropped(QueueId::Publish);
+    return false;
+  }
+  g_accounting.record_sent(QueueId::Publish,
+                           static_cast<size_t>(uxQueueMessagesWaiting(g_config_pub_queue)));
   return true;
 }
 

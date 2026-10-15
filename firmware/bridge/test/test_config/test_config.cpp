@@ -5,7 +5,7 @@
 //
 // WHAT THIS COVERS. Spec 16.7.2's payload, read strictly; the two kinds of refusal it
 // separates; 16.7.3's combination rule for a set with two halves; and that the largest
-// document either table can produce still fits kMaxPayloadLen.
+// document either table can produce still fits kMaxConfigPayloadLen.
 //
 // WHAT IT CANNOT. That Home Assistant's `command_template` produces what the parser
 // accepts, or that a `number` entity reads `config/state` back. Those need a broker and
@@ -256,7 +256,7 @@ void test_the_ack_carries_op_persist_and_one_result_per_name() {
   results[1].has_value = true;
   results[1].value     = 32;
 
-  char doc[kMaxPayloadLen];
+  char doc[kMaxConfigPayloadLen];
   TEST_ASSERT_TRUE(build_config_ack(ConfigOp::Set, AckPersist::AppliedNotPersisted,
                                     results, 2, nullptr, doc, sizeof(doc)) > 0);
   TEST_ASSERT_EQUAL_STRING(
@@ -274,7 +274,7 @@ void test_an_unknown_outcome_carries_a_null_value() {
   r.status    = ResultStatus::Unknown;
   r.has_value = false;
 
-  char doc[kMaxPayloadLen];
+  char doc[kMaxConfigPayloadLen];
   TEST_ASSERT_TRUE(build_config_ack(ConfigOp::Set, AckPersist::Unknown, &r, 1, nullptr,
                                     doc, sizeof(doc)) > 0);
   TEST_ASSERT_NOT_NULL(std::strstr(doc, "\"status\":\"unknown\",\"value\":null"));
@@ -284,7 +284,7 @@ void test_an_unknown_outcome_carries_a_null_value() {
 void test_a_rejected_payload_carries_an_error_and_no_results() {
   // An empty `results` object would read as "every parameter was considered and none
   // had an outcome", which is a different claim from "nothing was read at all".
-  char doc[kMaxPayloadLen];
+  char doc[kMaxConfigPayloadLen];
   TEST_ASSERT_TRUE(build_config_ack(ConfigOp::Set, AckPersist::NotApplied, nullptr, 0,
                                     "payload is not a JSON object", doc, sizeof(doc)) > 0);
   TEST_ASSERT_EQUAL_STRING(
@@ -362,7 +362,7 @@ void test_the_state_names_a_value_and_where_it_came_from() {
   e[1].has_value = true;
   e[1].value     = 5;
 
-  char doc[kMaxPayloadLen];
+  char doc[kMaxConfigPayloadLen];
   TEST_ASSERT_TRUE(build_config_state(e, 2, doc, sizeof(doc)) > 0);
   TEST_ASSERT_EQUAL_STRING(
       "{\"poll_interval_s\":{\"value\":120,\"source\":\"override\"},"
@@ -376,7 +376,7 @@ void test_a_value_never_read_back_is_null() {
   std::snprintf(e.name, sizeof(e.name), "dedup_cache_depth");
   e.has_value = false;
 
-  char doc[kMaxPayloadLen];
+  char doc[kMaxConfigPayloadLen];
   TEST_ASSERT_TRUE(build_config_state(&e, 1, doc, sizeof(doc)) > 0);
   TEST_ASSERT_EQUAL_STRING("{\"dedup_cache_depth\":{\"value\":null,\"source\":\"default\"}}",
                            doc);
@@ -385,7 +385,7 @@ void test_a_value_never_read_back_is_null() {
 // ---------------------------------------------------------------------------
 // THE PREMISE THIS WHOLE PATH RESTS ON, and the check that would falsify it.
 //
-// Every document above is published on one MQTT topic and capped at kMaxPayloadLen.
+// Every document above is published on one MQTT topic and capped at kMaxConfigPayloadLen.
 // A get_all answer carries one result per row of a whole table, so the cap is not
 // obviously satisfied - it is satisfied because spec 16.7.1 splits the rows across two
 // topics by owner. If a block grows past the cap, the publication is DROPPED and the
@@ -448,11 +448,11 @@ void test_the_bridges_own_block_fits_one_publication() {
   const size_t            n = rows_for_owner(config::Owner::BridgeGlobal, rows);
   TEST_ASSERT_TRUE(n > 0);
 
-  static char  doc[kMaxPayloadLen];
+  static char  doc[kMaxConfigPayloadLen];
   const size_t ack = ack_document_for(rows, n, doc, sizeof(doc));
-  TEST_ASSERT_TRUE_MESSAGE(ack > 0, "the bridge's get_all answer no longer fits kMaxPayloadLen");
+  TEST_ASSERT_TRUE_MESSAGE(ack > 0, "the bridge's get_all answer no longer fits kMaxConfigPayloadLen");
   const size_t state = state_document_for(rows, n, doc, sizeof(doc));
-  TEST_ASSERT_TRUE_MESSAGE(state > 0, "lran/bridge/config/state no longer fits kMaxPayloadLen");
+  TEST_ASSERT_TRUE_MESSAGE(state > 0, "lran/bridge/config/state no longer fits kMaxConfigPayloadLen");
 }
 
 // The worst answer of all is not a table's - it is a `set` naming parameters the table
@@ -468,7 +468,7 @@ void test_the_largest_refusable_set_still_fits_its_answer() {
     results[i].status                     = ResultStatus::UnknownParam;
     results[i].has_value                  = false;
   }
-  static char  doc[kMaxPayloadLen];
+  static char  doc[kMaxConfigPayloadLen];
   const size_t n = build_config_ack(ConfigOp::Set, AckPersist::NotApplied, results,
                                     kMaxConfigSetEntries, nullptr, doc, sizeof(doc));
   TEST_ASSERT_TRUE_MESSAGE(n > 0, "kMaxConfigSetEntries is too large for one config/ack");
@@ -491,11 +491,45 @@ void test_a_nodes_block_fits_one_publication() {
     }
   }
 
-  static char  buf[kMaxPayloadLen];
+  static char  buf[kMaxConfigPayloadLen];
   const size_t ack = ack_document_for(rows, n, buf, sizeof(buf));
-  TEST_ASSERT_TRUE_MESSAGE(ack > 0, "a node's get_all answer no longer fits kMaxPayloadLen");
+  TEST_ASSERT_TRUE_MESSAGE(ack > 0, "a node's get_all answer no longer fits kMaxConfigPayloadLen");
   const size_t state = state_document_for(rows, n, buf, sizeof(buf));
-  TEST_ASSERT_TRUE_MESSAGE(state > 0, "a node's config/state no longer fits kMaxPayloadLen");
+  TEST_ASSERT_TRUE_MESSAGE(state > 0, "a node's config/state no longer fits kMaxConfigPayloadLen");
+}
+
+// The room the 2026-10-14 overflow asked for. GateLink's charge-inhibition rows became
+// constants because three more rows did not fit (GateLink engineering log, 2026-10-14).
+// This keeps the node topic's worst case with kRoomForRows more rows, each at the
+// longest name this parser accepts, inside the cap.
+void test_a_nodes_block_has_room_for_more_rows() {
+  constexpr size_t        kRoomForRows = 8;
+  static config::ParamDef rows[config::kMaxTableParams + kRoomForRows];
+  static char             names[kRoomForRows][kMaxParamNameLen];
+  size_t                  n = 0;
+  for (size_t i = 0; i < config::kNodeCommonParamCount; ++i) {
+    rows[n++] = config::kNodeCommonParams[i];
+  }
+  const config::ParamBlock own = config::node_block(kNodeGateLink);
+  for (size_t i = 0; i < own.n; ++i) rows[n++] = own.rows[i];
+  for (size_t i = 0; i < config::kBridgeParamCount; ++i) {
+    if (config::kBridgeParams[i].owner == config::Owner::BridgePerNode) {
+      rows[n++] = config::kBridgeParams[i];
+    }
+  }
+  for (size_t k = 0; k < kRoomForRows; ++k) {
+    std::memset(names[k], 'x', kMaxParamNameLen - 1);
+    names[k][0]                    = static_cast<char>('a' + k);
+    names[k][kMaxParamNameLen - 1] = '\0';
+    rows[n]                        = own.rows[0];
+    rows[n++].name                 = names[k];
+  }
+
+  static char  buf[kMaxConfigPayloadLen];
+  const size_t ack = ack_document_for(rows, n, buf, sizeof(buf));
+  TEST_ASSERT_TRUE_MESSAGE(ack > 0, "a node's get_all answer has lost its room for rows");
+  const size_t state = state_document_for(rows, n, buf, sizeof(buf));
+  TEST_ASSERT_TRUE_MESSAGE(state > 0, "a node's config/state has lost its room for rows");
 }
 
 // Spec 16.7.5, D63, D67 - the bridge's own event carries `boot`, and a commit that failed
@@ -560,6 +594,7 @@ int main(int, char**) {
   RUN_TEST(test_the_bridges_own_block_fits_one_publication);
   RUN_TEST(test_the_largest_refusable_set_still_fits_its_answer);
   RUN_TEST(test_a_nodes_block_fits_one_publication);
+  RUN_TEST(test_a_nodes_block_has_room_for_more_rows);
   RUN_TEST(test_phy_reverted_carries_boot_and_commit_failed);
 
   return UNITY_END();

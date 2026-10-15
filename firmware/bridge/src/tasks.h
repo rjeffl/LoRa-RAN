@@ -154,8 +154,15 @@ inline constexpr size_t kPublishQueueDepth = 32;
 
 // app_task -> mqtt_task, events alone (BF-38, queues.h). Eight, because an event is an
 // edge at the gate and not a stream: eight unpublished is a broker outage during a
-// busy few minutes, and it costs 13 KB of static RAM at ~1640 bytes a slot.
+// busy few minutes, and it costs about 9 KB of static RAM at ~1130 bytes a slot.
 inline constexpr size_t kEventQueueDepth = 8;
+
+// sched_task -> mqtt_task, spec 16.7's config/ack and config/state alone (mqtt_transport.h
+// on the two sizes). Four, because one resolution queues an ack and a state back to back,
+// and a PHY change queues the bridge's pair and then each node's state as its confirming
+// GET answers. Each slot is
+// ~3.2 KB, which is why config documents no longer size the publish queue's 32.
+inline constexpr size_t kConfigPublishQueueDepth = 4;
 
 // anything -> lora_task. The TX side: polls, commands, ACKs.
 //

@@ -127,7 +127,7 @@ void EspMqttTransport::loop() { client_.loop(); }
 
 size_t EspMqttTransport::pending() { return client_.queueSize(); }
 
-bool EspMqttTransport::publish(const PublishMessage& msg) {
+bool EspMqttTransport::publish(const PublishRef& msg) {
   // Checked again here, not only in make_publish. This is the last point before the
   // wire, and spec 16.3's rule is one where being caught twice costs nothing and
   // being missed once sends a 2 AM SMS about last Tuesday.

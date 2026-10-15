@@ -31,7 +31,7 @@ class EspMqttTransport final : public MqttTransport {
   bool   connect_once() override;
   bool   connected() override;
   void   loop() override;
-  bool   publish(const PublishMessage& msg) override;
+  bool   publish(const PublishRef& msg) override;
   bool   subscribe(const char* topic, uint8_t qos) override;
   void   set_inbound(MqttInbound* sink) override;
   size_t pending() override;
