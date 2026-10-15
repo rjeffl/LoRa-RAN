@@ -294,6 +294,18 @@ void test_a_rejected_payload_carries_an_error_and_no_results() {
   TEST_ASSERT_NULL(std::strstr(doc, "results"));
 }
 
+// The answer to a set the transport refused for size (mqtt_transport.h). Its reason has
+// no number in it, so it cannot drift from kMaxInboundPayloadLen.
+void test_an_oversized_set_is_answered_with_a_reason() {
+  char doc[kMaxConfigPayloadLen];
+  TEST_ASSERT_TRUE(build_config_ack(ConfigOp::Set, AckPersist::NotApplied, nullptr, 0,
+                                    kConfigSetTooLarge, doc, sizeof(doc)) > 0);
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"op\":\"set\",\"persist\":\"not_applied\","
+      "\"error\":\"payload is larger than the bridge accepts; split the set\"}",
+      doc);
+}
+
 void test_a_document_that_does_not_fit_reports_zero() {
   // json_writer refuses rather than truncates, and the caller drops the publication.
   ConfigResult r = {};
@@ -580,6 +592,7 @@ int main(int, char**) {
   RUN_TEST(test_the_ack_carries_op_persist_and_one_result_per_name);
   RUN_TEST(test_an_unknown_outcome_carries_a_null_value);
   RUN_TEST(test_a_rejected_payload_carries_an_error_and_no_results);
+  RUN_TEST(test_an_oversized_set_is_answered_with_a_reason);
   RUN_TEST(test_a_document_that_does_not_fit_reports_zero);
   RUN_TEST(test_a_read_is_never_a_change);
   RUN_TEST(test_a_set_changes_only_what_it_applied);

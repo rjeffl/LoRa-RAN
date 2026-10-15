@@ -51,6 +51,12 @@ inline constexpr size_t kMaxParamNameLen = 40;
 // produce and fails here rather than at the broker.
 inline constexpr size_t kMaxConfigSetEntries = 8;
 
+// Spec 16.7.3's `error` for a `config/set` larger than kMaxInboundPayloadLen
+// (mqtt_transport.h). The transport keeps none of the payload, so the answer cannot name
+// a parameter; it says how to make the set fit.
+inline constexpr const char* kConfigSetTooLarge =
+    "payload is larger than the bridge accepts; split the set";
+
 // One parameter a `config/set` named.
 struct ConfigSetEntry {
   char name[kMaxParamNameLen] = {0};

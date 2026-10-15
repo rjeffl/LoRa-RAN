@@ -363,17 +363,35 @@ void test_a_whole_publication_in_one_piece_and_an_empty_one_pass() {
   TEST_ASSERT_EQUAL_UINT32(0, a.refused());
 }
 
-// Refused whole on its first piece, counted once, and its later pieces ignored.
+// Refused whole on its first piece, counted once, and its later pieces ignored. The sink
+// hears of it once, by topic alone, so a `config/set` can be answered (spec 16.7.3).
 void test_an_oversized_publication_is_refused_once() {
   InboundAssembler a;
   InboundMessage   out;
   static uint8_t   big[kMaxInboundPayloadLen] = {0};
   const size_t     total                      = kMaxInboundPayloadLen;
-  TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", big, 300, 0, total, &out));
+  TEST_ASSERT_TRUE(a.add("lran/bridge/config/set", big, 300, 0, total, &out));
+  TEST_ASSERT_TRUE(out.oversized);
+  TEST_ASSERT_EQUAL_STRING("lran/bridge/config/set", out.topic);
+  TEST_ASSERT_EQUAL_size_t(0, out.payload_len);
   TEST_ASSERT_FALSE(a.add("lran/bridge/config/set", big, total - 300, 300, total, &out));
   TEST_ASSERT_EQUAL_UINT32(1, a.refused());
-  // The next publication is unaffected.
+  // The next publication is unaffected, and is not marked.
   TEST_ASSERT_TRUE(a.add("lran/gatelink/cmd/open/set", bytes("PRESS"), 5, 0, 5, &out));
+  TEST_ASSERT_FALSE(out.oversized);
+  TEST_ASSERT_EQUAL_STRING("PRESS", out.payload);
+}
+
+// A topic that does not fit is refused in silence even when oversized: there is nothing
+// real to answer.
+void test_an_oversized_publication_on_a_long_topic_is_not_delivered() {
+  InboundAssembler a;
+  InboundMessage   out;
+  char             long_topic[kMaxTopicLen + 8];
+  std::memset(long_topic, 'a', sizeof(long_topic) - 1);
+  long_topic[sizeof(long_topic) - 1] = '\0';
+  TEST_ASSERT_FALSE(a.add(long_topic, nullptr, 0, 0, kMaxInboundPayloadLen, &out));
+  TEST_ASSERT_EQUAL_UINT32(1, a.refused());
 }
 
 // A connection that drops mid-publication leaves it part-assembled. The next first piece
@@ -428,6 +446,7 @@ int main() {
   RUN_TEST(test_pieces_assemble_into_one_publication);
   RUN_TEST(test_a_whole_publication_in_one_piece_and_an_empty_one_pass);
   RUN_TEST(test_an_oversized_publication_is_refused_once);
+  RUN_TEST(test_an_oversized_publication_on_a_long_topic_is_not_delivered);
   RUN_TEST(test_an_abandoned_publication_is_counted_and_not_spliced);
   RUN_TEST(test_a_piece_out_of_order_is_refused);
   return UNITY_END();

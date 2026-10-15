@@ -2728,9 +2728,20 @@ class InboundRouter final : public MqttInbound {
         ++g_cfg_inbound.bad_topic;
         return;
       }
+      if (msg.oversized) {
+        // spec 16.7.3 - answered whole, as any unreadable set is. The payload was never
+        // kept, so `op` cannot be read; `set` is what every refusal here echoes.
+        ++g_cfg_inbound.bad_payload;
+        publish_config_ack(config_target.is_bridge, config_target.node_id,
+                           lran::ConfigOp::Set, AckPersist::NotApplied, nullptr, 0,
+                           kConfigSetTooLarge);
+        return;
+      }
       handle_config_set(config_target, msg);
       return;
     }
+    // Nothing else answers an oversized publication; the assembler has counted it.
+    if (msg.oversized) return;
     VedirectTopic vedirect_target;
     if (parse_vedirect_topic(msg.topic, &vedirect_target)) {
       vedirect_.on_message(msg);

@@ -1859,3 +1859,26 @@ are this image's, so it touches only a broker with documents from before `d2118a
 D78 needed no code. A host test shows an `ACTUATOR_FAULT` resolves the command with that
 result and sends nothing more. The bridge stays on `d2118ad` in `app0`, and the sandbox
 broker holds synthetic GateLink documents until GateLink's next `STATUS`.
+
+## 2026-10-15 — Group 8, host half: no supply-current entity, and an oversized `config/set` is answered
+
+Group 8's items 2 and 3, host-tested and not yet flashed.
+
+**The "Node supply current" entity is gone** from `discovery.cpp` and `ha/discovery/`.
+GateLink cannot measure its own current (PRD R-4.4b, M12), so `node_ma` always carries its
+sentinel and the entity would read unavailable for good. `node_ma` stays in `node/state`,
+because spec §7.2.4 carries it. The production broker has never seen the entity, so no
+`unique_id` is left behind. The sandbox broker still holds its retained discovery config,
+which an empty retained publish to that topic clears.
+
+**A `config/set` of 512 bytes or more now gets a `config/ack`.** Before, the transport
+refused it whole and nothing answered, against spec §16.7.3. The assembler now hands the
+sink a notice on the first piece, marked `oversized`, with the topic and no payload. The
+router answers a `config/set` with `error` = `payload is larger than the bridge accepts;
+split the set` and drops any other topic, counted as before. The answer's `op` is `set`,
+because the payload was never kept and every refusal here echoes `set`.
+
+**The 512-byte cap is not the only limit on a large set.** `kMaxConfigSetEntries` refuses
+a set naming more than 8 parameters, with its own reason. So the handoff's case, a set of
+GateLink's 23 non-PHY rows at about 660 bytes, is now refused with an answer either way. A
+set that fits in 511 bytes and names 9 or more gets the entry-count reason.

@@ -88,6 +88,7 @@ bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload
   }
   out->payload[payload_len] = '\0';  // the parsers take a length, but a log does not
   out->payload_len          = payload_len;
+  out->oversized            = false;
   return true;
 }
 
@@ -100,10 +101,18 @@ bool InboundAssembler::add(const char* topic, const uint8_t* piece, size_t len,
     skipping_ = false;
     // make_inbound() with no payload checks the topic, and the total is checked here,
     // before any piece is copied: refused whole, never truncated.
-    if (total >= kMaxInboundPayloadLen || !make_inbound(&msg_, topic, nullptr, 0)) {
+    if (!make_inbound(&msg_, topic, nullptr, 0)) {
       ++refused_;
       skipping_ = true;
       return false;
+    }
+    if (total >= kMaxInboundPayloadLen) {
+      // The topic fits, so the sink hears of it once, now, and the pieces are skipped.
+      ++refused_;
+      skipping_      = true;
+      msg_.oversized = true;
+      if (out != nullptr) *out = msg_;
+      return true;
     }
     expected_ = total;
     active_   = true;

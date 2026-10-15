@@ -118,6 +118,11 @@ bool make_publish(ConfigPublishMessage* out, const char* topic, const char* payl
 //
 // REFUSED, NOT TRUNCATED, like every other size limit here. A truncated topic
 // addresses something real and wrong, and a truncated payload is a different command.
+//
+// REFUSED, BUT NOT IN SILENCE. Spec 16.7.3 owes every `config/set` an answer, and a set of
+// GateLink's 23 non-PHY rows is about 660 bytes. So an oversized publication whose topic
+// fits still reaches the sink, once, marked `oversized` and with no payload; the router
+// answers a `config/set` with `config/ack`'s `error` and drops the rest, counted.
 // ---------------------------------------------------------------------------
 
 inline constexpr size_t kMaxInboundPayloadLen = 512;
@@ -129,6 +134,9 @@ struct InboundMessage {
   // The broker delivered it from its retained store rather than live. BF-29 refuses to arm
   // the MPPT write switch from one, because a retained `ON` would re-arm at every connect.
   bool   retained                       = false;
+  // The payload exceeded kMaxInboundPayloadLen and was not kept: `payload` is empty and
+  // only `topic` is real. Never parse one; answer it or drop it.
+  bool   oversized                      = false;
 };
 
 // Fills `out` from what the transport received, refusing rather than truncating.
@@ -145,8 +153,9 @@ bool make_inbound(InboundMessage* out, const char* topic, const uint8_t* payload
 // ignored rather than counted again.
 class InboundAssembler {
  public:
-  // Returns true when `out` holds a complete publication. `refused` counts each whole
-  // publication refused.
+  // Returns true when `out` holds a complete publication, or an oversized one's notice
+  // (`out->oversized`, on its first piece). `refused` counts each whole publication
+  // refused, an oversized one included.
   bool add(const char* topic, const uint8_t* piece, size_t len, size_t index, size_t total,
            InboundMessage* out);
 

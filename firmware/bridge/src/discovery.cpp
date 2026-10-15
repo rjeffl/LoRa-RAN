@@ -229,8 +229,9 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
 
     {"node_voltage", "Node supply voltage", "sensor", "node/state", "node_mv",
      "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
-    {"node_current", "Node supply current", "sensor", "node/state", "node_ma",
-     "mA", "current", "measurement", nullptr, nullptr, 0, true},
+    // node_ma stays in node/state, as spec 7.2.4 carries it, but has no entity: GateLink
+    // cannot measure its own current and always sends the sentinel (PRD R-4.4b, M12). An
+    // entity would read unavailable forever, and HA keeps its unique_id once published.
     {"enclosure_temperature", "Enclosure temperature", "sensor", "node/state",
      "enclosure_temp_c", "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, true},
     {"boot_count", "Boot count", "sensor", "node/state", "boot_count",
