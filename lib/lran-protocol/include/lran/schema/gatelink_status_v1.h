@@ -17,6 +17,10 @@ namespace schema {
 inline constexpr size_t kGateLinkStatusV1Len = 78;  // spec 7.1 registry
 inline constexpr uint8_t kMaxCells = 4;  // spec 7.2.3 - >4 requires a new schema ID
 
+// spec 7.2.8, D80 - input_bits bits 4 and 5 and node_flags bit 5 carry no reading while
+// set, so a 0 there does not mean the FIRE or alarm input is clear.
+inline constexpr uint8_t kNodeFlagInputsNotSensed = 0x80;
+
 struct GateLinkStatusV1 {
   // --- Gate block, offsets 0-9 (spec 7.2.1) ---
   uint8_t gate_state     = 0;  // 0   spec 8.3, derived from IN1/IN2
@@ -56,9 +60,7 @@ struct GateLinkStatusV1 {
   uint8_t  bms_soc          = kSocNotAvailable;  // 36  %
   uint8_t  bms_flags        = 0;                 // 37  spec 7.2.7
   uint16_t pack_mv          = 0;                 // 38  mV
-  int16_t  pack_ma          = 0;                 // 40  mA
-  // TODO(W6): M7 measured the sign on 2026-10-10: positive is charge, and lib/bms-ble
-  // decodes it so. Spec 7.2.3 still calls it pending until a revision states it.
+  int16_t  pack_ma          = 0;                 // 40  mA, positive = charge (spec 7.2.3, M7)
   uint8_t  cell_count       = 0;  // 42  cells actually reported
   uint8_t  bms_rssi_neg     = 0;  // 43  magnitude of BLE RSSI; 80 means -80 dBm,
                                   //     0 means no link. Evidence for GateLink D28

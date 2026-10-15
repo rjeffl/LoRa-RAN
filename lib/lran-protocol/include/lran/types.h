@@ -53,6 +53,7 @@ inline constexpr SchemaId kSchemaNone             = 0x00;
 inline constexpr SchemaId kSchemaGateLinkStatusV1 = 0x10;  // 78 B, spec 7.2
 inline constexpr SchemaId kSchemaGateLinkEventV1  = 0x11;  // 16 B, spec 7.3
 inline constexpr SchemaId kSchemaNodeConfigV1     = 0x12;  // variable, spec 7.4 - any node (D46)
+inline constexpr SchemaId kSchemaGateLinkStatusV2 = 0x13;  // 80 B, spec 7.2.10 (D82)
 inline constexpr SchemaId kSchemaNodeHealthV1     = 0xF0;  // 20 B, spec 7.5
 inline constexpr SchemaId kSchemaSimnodeStatusV1  = 0xFE;  // 78 B, mirrors 0x10
 
@@ -219,6 +220,7 @@ enum class AckResult : uint8_t {
   DryRun               = 0x10,
   ActuatorBusy         = 0x11,
   RejectedUnsafe       = 0x12,
+  ActuatorFault        = 0x13,  // spec 8.2, D78 - a write in the relay sequence failed
 };
 
 // spec 8.3
@@ -303,6 +305,13 @@ enum class EventType : uint8_t {
   PhyReverted          = 0x0B,  // spec 12.4.2 step 8, D59
 };
 
+// spec 8.9, D81 - a CHARGE_INHIBITED event's `detail`: the path that decided it.
+enum class ChargeInhibitPath : uint8_t {
+  NotStated = 0x00,
+  Bms       = 0x01,
+  VeDirect  = 0x02,
+};
+
 // spec 8.14, D71 - a BOOT event's `detail`, low byte. The high byte is reserved.
 enum class ResetCause : uint8_t {
   Unknown       = 0x00,
@@ -367,5 +376,7 @@ inline constexpr int16_t  kI16NotAvailable = INT16_MIN;
 inline constexpr uint16_t kU16NotAvailable = UINT16_MAX;
 inline constexpr uint32_t kU32NotAvailable = UINT32_MAX;
 inline constexpr uint8_t  kSocNotAvailable = 0xFF;  // spec 7.2.3
+// spec 7.2.2, D79 - charge_state, mppt_err and mppt_tracker. No Victron code uses 255.
+inline constexpr uint8_t  kCodeNotAvailable = 0xFF;
 
 }  // namespace lran

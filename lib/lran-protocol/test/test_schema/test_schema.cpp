@@ -92,6 +92,9 @@ void test_schema_lengths_match_registry() {
   TEST_ASSERT_EQUAL_UINT32(20, kNodeHealthV1Len);
   TEST_ASSERT_EQUAL_UINT32(78, fixed_payload_len(MsgType::Status, kSchemaGateLinkStatusV1));
   TEST_ASSERT_EQUAL_UINT32(78, fixed_payload_len(MsgType::Status, kSchemaSimnodeStatusV1));
+  TEST_ASSERT_EQUAL_UINT32(80, kGateLinkStatusV2Len);
+  TEST_ASSERT_EQUAL_UINT32(80, fixed_payload_len(MsgType::Status, kSchemaGateLinkStatusV2));
+  TEST_ASSERT_EQUAL_UINT32(98, frame_len(80, false));  // spec 19 - STATUS 0x13
   TEST_ASSERT_EQUAL_UINT32(16, fixed_payload_len(MsgType::Event, kSchemaGateLinkEventV1));
   TEST_ASSERT_EQUAL_UINT32(20, fixed_payload_len(MsgType::Status, kSchemaNodeHealthV1));
   // spec 19 - STATUS 0x10 is a 96-byte frame.
@@ -121,6 +124,9 @@ void test_schema_type_pairing_matches_registry() {
   TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaNodeHealthV1));
   // 0xFE simnode synthetic status -> STATUS, mirroring 0x10
   TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaSimnodeStatusV1));
+  // 0x13 GateLink status v2 -> STATUS, and nothing else
+  TEST_ASSERT_TRUE(schema_is_known(MsgType::Status, kSchemaGateLinkStatusV2));
+  TEST_ASSERT_FALSE(schema_is_known(MsgType::Event, kSchemaGateLinkStatusV2));
 
   // Rejected at §14 stage 7 with ERROR(UNKNOWN_SCHEMA) rather than misparsed at
   // stage 8, which is the whole point of validating the pair.
@@ -250,6 +256,33 @@ void test_status_defaults_are_sentinels() {
   TEST_ASSERT_EQUAL_INT16(INT16_MIN, s.enclosure_temp_c10);
   TEST_ASSERT_EQUAL_HEX16(UINT16_MAX, s.bms_age_s);
   TEST_ASSERT_EQUAL_HEX8(0xFF, s.bms_soc);
+}
+
+// spec 7.2.10 - offsets 0-77 are 0x10's byte for byte, and ah_drawn_dah lands at 78.
+void test_gatelink_status_v2_offsets() {
+  GateLinkStatusV2 s;
+  s.v1           = distinct_status();
+  s.ah_drawn_dah = 0x1234;
+  uint8_t v2[kGateLinkStatusV2Len] = {};
+  uint8_t v1[kGateLinkStatusV1Len] = {};
+  size_t  n2 = 0, n1 = 0;
+  TEST_ASSERT_EQUAL(Status::Ok, serialize(s, v2, sizeof(v2), &n2));
+  TEST_ASSERT_EQUAL(Status::Ok, serialize(s.v1, v1, sizeof(v1), &n1));
+  TEST_ASSERT_EQUAL_UINT32(80, n2);
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(v1, v2, kGateLinkStatusV1Len);
+  assert_u16_at(v2, 78, 0x1234);
+
+  GateLinkStatusV2 b;
+  TEST_ASSERT_EQUAL(Status::Ok, deserialize(v2, n2, &b));
+  TEST_ASSERT_EQUAL_HEX16(0x1234, b.ah_drawn_dah);
+  TEST_ASSERT_EQUAL_HEX32(s.v1.last_traversal_age_s, b.v1.last_traversal_age_s);
+  TEST_ASSERT_EQUAL_HEX8(s.v1.status_reason, b.v1.status_reason);
+
+  // The schema ID says which layout a frame carries, so a v1 length is refused.
+  TEST_ASSERT_EQUAL(Status::BadLength, deserialize(v2, kGateLinkStatusV1Len, &b));
+  TEST_ASSERT_EQUAL(Status::BadLength, deserialize(v2, 81, &b));
+  TEST_ASSERT_EQUAL(Status::BufferTooSmall, serialize(s, v2, 79, &n2));
+  TEST_ASSERT_EQUAL_HEX16(UINT16_MAX, GateLinkStatusV2{}.ah_drawn_dah);  // spec 4.6
 }
 
 // spec 7.3 - offsets 0..15.
@@ -553,6 +586,7 @@ int run_all() {
   RUN_TEST(test_gatelink_status_offsets);
   RUN_TEST(test_gatelink_status_roundtrip);
   RUN_TEST(test_status_defaults_are_sentinels);
+  RUN_TEST(test_gatelink_status_v2_offsets);
   RUN_TEST(test_gatelink_event_offsets);
   RUN_TEST(test_node_health_offsets);
   RUN_TEST(test_config_entry_offsets);

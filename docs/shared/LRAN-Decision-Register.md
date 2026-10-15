@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.31
+**Version:** 0.32
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-12
+**Last updated:** 2026-10-15
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -428,6 +428,11 @@ Frames from a node that is not deployed are processed as they are now.
 | **D75** | Whether `write_enable/set` is retained | **No.** A bridge ignores a retained one and clears it. Operator, 2026-10-01, §3.13 | Protocol Spec §16.2; Bridge PRD R-3.5c |
 | **D76** | Where the VE.Direct topics the spec did not list belong | **§16.2 lists `vedirect/charge/state`. §16.6 publishes a bench node's `hex/response`, `hex/audit` and `write_enable/state` whatever `simnode_diag_enable` says.** Operator, 2026-10-01, §3.13 | Protocol Spec §16.2, §16.6 |
 | **D77** | Whether GateLink deploys on a StamPLC whose IN5–IN8 do not read | **Yes. GateLink reads four inputs, IN1–IN4, and FIRE and the alarm output go unmonitored.** IN5 and IN6 stay in the PRD, the spec and the firmware as placeholders for a later hardware revision. Operator, 2026-10-12, §3.15 | GateLink PRD §3.2.5, R-3.5i; GateLink Impl Plan §3.2 |
+| **D78** | A relay sequence whose output write failed | **`ACTUATOR_FAULT`, `0x13` in §8.2.** The bridge reports the command failed and sends it under no new `seq`. Operator, 2026-10-15, §3.16 | Protocol Spec §8.2 |
+| **D79** | A sentinel for §7.2.2's `uint8` VE.Direct code fields | **`0xFF` = not available.** An `mppt_err` of `0xFF` triggers no push. Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.2 |
+| **D80** | How a node says an input is not sensed | **`node_flags` bit 7: the FIRE and alarm inputs are not sensed.** Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.1, §7.2.8 |
+| **D81** | What `CHARGE_INHIBITED`'s `detail` carries | **The deciding path: `0` not stated, `1` BMS, `2` VE.Direct.** Operator, 2026-10-15, §3.16 | Protocol Spec §8.9 |
+| **D82** | Where GateLink PRD R-6.4c's Ah drawn travels | **A new schema, `0x13`, GateLink status v2: `0x10` and `ah_drawn_dah`.** Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.10 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1191,6 +1196,32 @@ the four inputs that read.
 
 **Rejected:** holding the deploy for a replacement StamPLC.
 
+### 3.16 D78–D82 — the spec v0.18 set, 2026-10-15
+
+**GateLink's build met five places where spec v0.17 said nothing.** Its handoff carried
+each as a question for the next specification revision. The operator chose an answer for
+each on 2026-10-15, and spec v0.18 carries the text. None needs a version bump (§13.2).
+
+- **D78.** GateLink's relays sit behind an I²C expander, so a pulse can fail while the
+  node runs on. GateLink answered `ACCEPTED` and counted the failure (GateLink Impl Plan
+  §5.2). `ACTUATOR_FAULT` puts the failure on the wire, and a dedup replay carries it in
+  `detail`. **Rejected:** `ACCEPTED` with a fault code in `detail`, which §6.3 loses on a
+  `DUPLICATE_CACHED` replay and which reads as success to a bridge that does not check it.
+- **D79.** GateLink already sends `0xFF` for a code missing from a good text block. Without
+  the rule, an `mppt_err` of `0xFF` would trigger the non-zero push as an MPPT error. No
+  Victron `CS`, `ERR` or `MPPT` code uses 255. **Rejected:** leaving the value unnamed.
+- **D80.** Under D77, `input_bits` bits 4 and 5 read 0, which says "not asserted" about
+  inputs nothing measured. The flag lets the bridge withhold those entities from the frame,
+  in place of a rule naming GateLink. **Rejected:** a text-only rule, which tells the bridge
+  nothing on the wire.
+- **D81.** GateLink decides the inhibition from the BMS or from VE.Direct and sent `0`.
+  Naming the path costs nothing and tells HA which source to trust.
+- **D82.** A field added to a schema takes a new schema ID (§13.2), so R-6.4c could not go
+  into `0x10`. v2 keeps `0x10`'s 78 bytes and appends the field, and the bridge decodes
+  both. **Rejected:** deferring R-6.4c as an open item. The rules for when the count is
+  unavailable, and that a reset never restarts it from 0, are this revision's drafting;
+  GateLink's PRD defines "charging active" and the current it integrates.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1349,6 +1380,10 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.32** — **D78–D82 resolved on 2026-10-15**, the spec v0.18 set: `ACTUATOR_FAULT`,
+  `0xFF` for the VE.Direct code fields, `node_flags` bit 7, `CHARGE_INHIBITED`'s `detail`,
+  and schema `0x13` for R-6.4c. §3.16 has the reasoning, and spec v0.18 carries the text.
 
 - **v0.31** — **D77 resolved on 2026-10-12.** GateLink deploys on the StamPLC whose IN5–IN8
   do not read, with four inputs. FIRE and the alarm output go unmonitored, and their

@@ -60,6 +60,7 @@ SCHEMA_CARRIERS = {
     0x10: {"STATUS"},
     0x11: {"EVENT"},
     0x12: {"CONFIG", "CONFIG_ACK"},
+    0x13: {"STATUS"},
     0xF0: {"STATUS"},
     0xFE: {"STATUS"},
 }
@@ -69,13 +70,13 @@ SCHEMALESS_TYPES = {"COMMAND", "COMMAND_ACK", "POLL", "ERROR", "PING", "HEX_REQ"
 FIXED_PAYLOAD_LEN = {
     ("COMMAND", 0x00): 4, ("COMMAND_ACK", 0x00): 6, ("POLL", 0x00): 1,
     ("ERROR", 0x00): 4, ("STATUS", 0x10): 78, ("STATUS", 0xFE): 78,
-    ("STATUS", 0xF0): 20, ("EVENT", 0x11): 16,
+    ("STATUS", 0xF0): 20, ("EVENT", 0x11): 16, ("STATUS", 0x13): 80,
 }
 # §19 - single-frame sizes, re-declared here as a second reading of the table
 EXPECTED_FRAME_LEN = {
     ("COMMAND", 0x00): 30, ("COMMAND_ACK", 0x00): 24, ("POLL", 0x00): 19,
     ("STATUS", 0x10): 96, ("STATUS", 0xFE): 96, ("STATUS", 0xF0): 38,
-    ("EVENT", 0x11): 34, ("ERROR", 0x00): 22,
+    ("EVENT", 0x11): 34, ("ERROR", 0x00): 22, ("STATUS", 0x13): 98,
 }
 FRAGMENTABLE = {"CONFIG", "CONFIG_ACK", "PING", "STATUS", "EVENT"}         # §11.4
 

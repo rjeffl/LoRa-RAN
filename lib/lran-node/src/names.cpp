@@ -129,6 +129,7 @@ const char* ack_result_name(AckResult r) {
     case AckResult::DryRun:               return "DRY_RUN";
     case AckResult::ActuatorBusy:         return "ACTUATOR_BUSY";
     case AckResult::RejectedUnsafe:       return "REJECTED_UNSAFE";
+    case AckResult::ActuatorFault:        return "ACTUATOR_FAULT";
   }
   return "?";
 }

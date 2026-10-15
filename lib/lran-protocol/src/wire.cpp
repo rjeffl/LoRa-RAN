@@ -55,8 +55,8 @@ bool schema_is_known(MsgType type, SchemaId schema) {
   }
   switch (type) {
     case MsgType::Status:
-      return schema == kSchemaGateLinkStatusV1 || schema == kSchemaNodeHealthV1 ||
-             schema == kSchemaSimnodeStatusV1;
+      return schema == kSchemaGateLinkStatusV1 || schema == kSchemaGateLinkStatusV2 ||
+             schema == kSchemaNodeHealthV1 || schema == kSchemaSimnodeStatusV1;
     case MsgType::Event:
       return schema == kSchemaGateLinkEventV1;
     case MsgType::Config:
@@ -87,6 +87,7 @@ size_t fixed_payload_len(MsgType type, SchemaId schema) {
       switch (schema) {
         case kSchemaGateLinkStatusV1: return 78;  // spec 7.2
         case kSchemaSimnodeStatusV1:  return 78;  // spec 7.1 - mirrors 0x10
+        case kSchemaGateLinkStatusV2: return 80;  // spec 7.2.10
         case kSchemaGateLinkEventV1:  return 16;  // spec 7.3
         case kSchemaNodeHealthV1:     return 20;  // spec 7.5
         default:                      return kVariableLen;
