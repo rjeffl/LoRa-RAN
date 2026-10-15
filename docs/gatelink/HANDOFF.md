@@ -24,6 +24,7 @@ the StamPLC's 12 V bench supply.
 
 | Tier | Task | Read |
 |---|---|---|
+| 3 | **Return the three charge-inhibition rows** (R-5.3a), now that the bridge has room. Rebuild the bridge too | *Open*, below; the bridge engineering log's 2026-10-15 entry |
 | 3 | **The relay at a watchdog reset, `AckResult` for a failed pulse, and `0xFF`** — each a written proposal, the last two for the next spec revision; and the SD library's `log_w` | *Open*, below |
 | 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
@@ -198,13 +199,10 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **HA cannot see the derived charge-inhibited indication while VE.Direct is down.** The
-  bridge publishes spec §7.2.6 bit 3 only in `solar/state`, which is unavailable without an
-  MPPT, and discovery has no entity for it (engineering log, 2026-10-14). The bridge's work.
-- **The charge-inhibition thresholds are constants, against PRD R-5.3a**, because any new
-  GateLink row pushes the bridge's `config/state` past `kMaxPayloadLen`, and raising it
-  overflows the bridge's DRAM (engineering log, 2026-10-14). The rows return after the
-  bridge stops sizing every queue slot for that document. The bridge's work first.
+- **The charge-inhibition thresholds are constants, against PRD R-5.3a** (engineering
+  log, 2026-10-14). The bridge has room for them since 2026-10-15 (bridge engineering log,
+  that date), so rows `0x1043`–`0x1045` can return to `lran-config` and `charge_inhibit.h`.
+  The bridge learns them when it is rebuilt.
 - **PRD R-6.4c's Ah drawn since charging was last active has no field in spec v0.17.**
   Proposed for the next spec revision; nothing computes it yet.
 - **Spec §8.9 does not define `CHARGE_INHIBITED`'s `detail`.** GateLink sends 0. It could

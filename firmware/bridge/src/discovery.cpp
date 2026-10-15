@@ -190,6 +190,10 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
     {"mppt_temperature", "MPPT temperature", "sensor", "solar/state", "temp_c",
      "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, true},
+    // Spec 7.2.6 bit 3, GateLink's derived indication (PRD R-6.4a). It follows the node
+    // alone, so it reads while VE.Direct is stale (publish.h, key_survives_staleness).
+    {"charge_inhibited", "Charging inhibited", "binary_sensor", "solar/state",
+     "charge_inhibited", nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
 
     {"soc", "Battery", "sensor", "battery/state", "soc",
      "%", "battery", "measurement", nullptr, nullptr, 0, false},
@@ -685,7 +689,7 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   // the node is still online. HA takes an entity as available only when every topic in the
   // list says so (`avty_mode` all). `avty_t` and `avty` cannot both be given. A list entry
   // takes HA's default payloads, `online` and `offline`, which are spec 16.5's.
-  if (state_carries_availability(d.state_suffix) && !key_survives_staleness(d.value_key)) {
+  if (state_carries_availability(d.state_suffix) && !key_survives_staleness(d.state_suffix, d.value_key)) {
     char list[192];
     std::snprintf(list, sizeof(list),
                   "[{\"t\":\"~/availability\"},{\"t\":\"~/%s\",\"val_tpl\":"

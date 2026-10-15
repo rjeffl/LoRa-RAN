@@ -37,13 +37,14 @@ inline constexpr size_t kMaxParamNameLen = 40;
 // A `set` naming more parameters than this is refused whole, with a reason.
 //
 // EIGHT IS NOT A ROUND NUMBER - IT IS WHAT THE ANSWER CAN CARRY. Every name in a `set`
-// gets a result in the one `config/ack` that answers it, and that document is capped at
-// kMaxPayloadLen like every other publication. The worst case is a set of names the
+// gets a result in the one `config/ack` that answers it, and that document has a cap,
+// kMaxConfigPayloadLen since 2026-10-15. The worst case is a set of names the
 // table does not hold: each costs its own length plus about 43 bytes of
 // `{"status":"unknown_param","value":null}`, and at the longest name this parser accepts
-// that is ~82 bytes a row against ~700 bytes of room. Nine rows would not fit, and a
-// document that does not fit is DROPPED - the operator would see nothing at all rather
-// than an answer.
+// that is ~82 bytes a row. When this bound was set the room was ~700 bytes and nine rows
+// would not fit; a document that does not fit is DROPPED - the operator would see nothing
+// at all rather than an answer. The room has since grown, and kMaxInboundPayloadLen
+// (mqtt_transport.h) was sized for eight names at the longest.
 //
 // A Home Assistant `number` entity sends one name, so this bound is far from the way of
 // anything the fleet does. test_config.cpp builds the largest document each table can

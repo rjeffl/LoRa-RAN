@@ -582,18 +582,20 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
       str_or_null(j, "error_name", mppt_error_name(s.mppt_err));
       j.u32("tracker", s.mppt_tracker);
       j.boolean("load_on", (s.mppt_flags & kMpptLoadOn) != 0);
-      j.boolean("charge_inhibited", (s.mppt_flags & kMpptChargeInhibited) != 0);
       tenths_or_null(j, "temp_c", s.mppt_temp_c10);
     } else {
       static const char* const kKeys[] = {
           "batt_mv", "batt_ma", "pv_mv", "pv_w", "load_ma", "yield_today_kwh",
           "yield_yesterday_kwh", "pmax_today_w", "yield_total_kwh", "charge_state", "charge_state_name", "error", "error_name",
-          "tracker", "load_on", "charge_inhibited", "temp_c"};
+          "tracker", "load_on", "temp_c"};
       for (const char* k : kKeys) j.null(k);
     }
-    // Not a reading: whether the bridge's own HEX transaction is outstanding is true of the
-    // node whatever the link to the MPPT is doing.
+    // Not readings, so neither follows `available`. Whether the bridge's own HEX transaction
+    // is outstanding is true of the node whatever the link to the MPPT is doing, and bit 3
+    // is GateLink's derivation, which its BMS path makes while VE.Direct is down (PRD
+    // R-6.4a; publish.h, key_survives_staleness).
     j.boolean("hex_pending", (s.mppt_flags & kMpptHexPending) != 0);
+    j.boolean("charge_inhibited", (s.mppt_flags & kMpptChargeInhibited) != 0);
     j.boolean("synthetic", synthetic);
     offer(ni, Domain::Solar, token, j.finish(), now_ms, sink);
   }

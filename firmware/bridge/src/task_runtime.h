@@ -56,6 +56,7 @@ bool take_tx(TxMessage* out);
 // refuses an oversized payload, a retained event topic (spec 16.3) and a bench node's
 // production topic (spec 16.6). BF-24's policy (publish.h) decides what reaches it.
 bool send_publish(const PublishMessage& msg);
+bool send_publish(const ConfigPublishMessage& msg);  // the config publish queue
 
 // BF-11a - a leveled line for log_task to print. Formats on the caller's stack, about
 // 200 bytes of it, and queues without waiting; a full queue drops the line and counts it

@@ -19,7 +19,9 @@ of these lines, then read this section and the sections the table names — not 
 file:
 
 **Queued: group 8, before the production cutover.** Groups 1 to 4, 6 and 7 are done. Group
-5 remains, and neither group needs GateLink at the gate.
+5 remains, and neither group needs GateLink at the gate. The config publish queue and
+spec §7.2.6 bit 3 were done on 2026-10-15, outside the groups, and passed on the bench the
+same day (engineering log, that date's two entries).
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
@@ -135,6 +137,8 @@ is not shown, because the simulated MPPT has no path for making that change.
   `include/lran/schema/` and `src/schema/`. §20 also owes an entry for the 2026-10-03 path
   fixes in §1, §7.2.3 and §7.4, made at v0.17 without one.
 - **The whole-document style passes** are owed, on a branch of their own.
+- **Spec §7.2.6 owes a note** that bit 3 is not an MPPT entity's value, so its SHOULD on
+  bit 1 does not reach it. The bridge reads it that way since 2026-10-15.
 - **`rssi_report.py`'s periodicity verdict is not to be trusted on a long capture.** It
   called the Davis "not periodic" on the day that confirmed its clock to half a second.
   Left unfixed by operator direction. Fix it before any future capture, because that

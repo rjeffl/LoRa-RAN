@@ -173,7 +173,8 @@ void test_an_oversized_topic_is_refused() {
 
 void test_null_arguments_are_refused() {
   PublishMessage msg;
-  TEST_ASSERT_FALSE(make_publish(nullptr, "lran/bridge/diag/state", "{}", false, 0));
+  TEST_ASSERT_FALSE(make_publish(static_cast<PublishMessage*>(nullptr), "lran/bridge/diag/state",
+                                 "{}", false, 0));
   TEST_ASSERT_FALSE(make_publish(&msg, nullptr, "{}", false, 0));
   TEST_ASSERT_FALSE(make_publish(&msg, "lran/bridge/diag/state", nullptr, false, 0));
 }
