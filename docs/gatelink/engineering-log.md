@@ -1675,3 +1675,36 @@ every value at its widest, and the document must fit `kMaxPayloadLen`, 2048 byte
 over cutting the publish queue to 24 slots. The rows can return once the bridge no longer
 sizes every queue slot for `config/state`, for example by building that document in
 `mqtt_task` from one static buffer, as discovery is built.
+
+## 2026-10-15 — The charge-inhibition thresholds are parameters again
+
+**Rows `0x1043`–`0x1045` are back in `lran-config`, and PRD R-5.3a is met again.**
+`charge_inhibit_temp_c`, `charge_inhibit_band_ma` and `charge_inhibit_rise_mv` keep the
+ranges and defaults they had on 2026-10-14, so the constants' values carry over unchanged.
+`app_task` reads them live each pass, and the console's `chg` line prints the live values.
+
+**The bridge carries them because `config/state` has its own cap now** (bridge engineering
+log, 2026-10-15). The 2200-byte worst case from the 2026-10-14 entry fits
+`kMaxConfigPayloadLen`, 3072. The bridge's native suite builds that document from the
+restored table, and all 531 tests pass. GateLink's block is 24 rows and its readback 233
+bytes, still two `CONFIG_ACK` messages (Library Plan v0.28 §4).
+
+Both images link: GateLink at 98,320 bytes of static RAM, the bridge's `heltec` at
+253,140, unchanged by the table.
+
+**On the air, each row sets and persists.** Both boards were flashed over USB from this
+branch, and each row was set on `lran/gatelink/config/set` through `tools/bench/bench.py`:
+
+| Row | Set to | `config/ack` |
+|---|---|---|
+| `charge_inhibit_temp_c` | −5 | `ok`, `persisted` |
+| `charge_inhibit_band_ma` | 250 | `ok`, `persisted` |
+| `charge_inhibit_rise_mv` | 35 | `ok`, `persisted` |
+
+GateLink's console then read `temp <= -5 C, band 250 mA, rise 35 mV`, so `app_task` takes
+the new values without a reboot. The bridge's next `config/state` was 1957 bytes, over the
+old 1024-byte cap, and carried all three with `source` `override`. The bridge's connect
+banner read `heap free 58536, lowest 53440`.
+
+**Not checked:** the three `number` entities in Home Assistant, because the harness logs
+only `lran/#`. `tools/checks/ha_examples.py` covers their discovery payloads.

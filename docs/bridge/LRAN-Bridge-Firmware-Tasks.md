@@ -1,12 +1,12 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.76
+**Version:** 0.77
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.18
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.89
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.90
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.27
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.28
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Last updated:** 2026-10-15
 
@@ -328,6 +328,10 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.77** — **Cites Protocol Library Plan v0.28 and Impl Plan v0.90.** Neither changes a
+  task here: the library plan returns GateLink's three charge-inhibition rows, which the
+  bridge discovers from the table.
 
 - **v0.76** — **Cites Impl Plan v0.89**, which splits the payload cap and gives config
   documents their own queue. BF-38's 32 slots stand, so no task here changes.

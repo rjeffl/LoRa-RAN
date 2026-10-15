@@ -165,7 +165,7 @@ void test_vedirect_needs_every_part() {
   }
 }
 
-// A voltage rising past kChargeInhibitRiseMv is charge going in, so the clock restarts.
+// A voltage rising past charge_inhibit_rise_mv is charge going in, so the clock restarts.
 void test_rising_voltage_restarts_the_clock() {
   Rig r;
   const BmsSnapshot none;

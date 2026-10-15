@@ -35,6 +35,9 @@ Implementation Plan §4.4, as the row's meaning cites.
 | `0x1040` | `bms_poll_s` | u16 | s | 300 | 60 to 3600 | read-write | BLE BMS read period, PRD R-3.4a |
 | `0x1041` | `charge_inhibit_confirm_s` | u16 | s | 300 | 60 to 3600 | read-write | Inferred charge inhibit must hold this long, PRD R-6.4b |
 | `0x1042` | `bms_window_max_ms` | u16 | ms | 5000 | 2000 to 30000 | read-write | BLE window cap; LoRa waits no longer, Impl Plan 5.2 |
+| `0x1043` | `charge_inhibit_temp_c` | i16 | °C | 0 | -20 to 10 | read-write | Coldest pack sensor at or below this inhibits charging, PRD R-6.4a |
+| `0x1044` | `charge_inhibit_band_ma` | u16 | mA | 100 | 0 to 1000 | read-write | Battery current this close to zero is not charging, PRD R-6.4 |
+| `0x1045` | `charge_inhibit_rise_mv` | u16 | mV | 20 | 0 to 500 | read-write | Battery rise that reads as charging, PRD R-6.4b |
 | `0x1050` | `display_timeout_s` | u16 | s | 60 | 10 to 3600 | read-write | Backlight inactivity timeout, PRD R-4.7b |
 | `0x1051` | `buzzer_enable` | bool |  | 0 | 0 to 1 | read-write | Panel buzzer, Impl Plan 5.2 ui_task |
 | `0x1052` | `inject_spacing_ms` | u16 | ms | 1000 | 100 to 60000 | read-write | Gap between injected inputs, PRD R-5.4b |
@@ -70,6 +73,6 @@ the node (D47). They are not part of the node's readback.
 
 ## What a full readback costs
 
-A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 144 and every
-node's block 68, so a full readback takes 212 bytes. It arrives as more than one message, marked
+A `CONFIG_ACK` has 193 bytes for results (spec §7.4). GateLink's block takes 165 and every
+node's block 68, so a full readback takes 233 bytes. It arrives as more than one message, marked
 `MORE_FOLLOWS` (spec §7.4.1).

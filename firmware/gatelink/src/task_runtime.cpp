@@ -1265,6 +1265,9 @@ void app_task(void*) {
       // list, because a detection can fill `out`.
       ChargeParams cp;
       cp.confirm_ms = live_param(kParamChargeConfirmS) * 1000;
+      cp.temp_c     = static_cast<int16_t>(static_cast<int32_t>(live_param(kParamChargeTempC)));
+      cp.band_ma    = live_param(kParamChargeBandMa);
+      cp.rise_mv    = live_param(kParamChargeRiseMv);
       cp.bms_poll_s = live_param(kParamBmsPollS);
       portENTER_CRITICAL(&g_ved_mux);
       const MpptSnapshot mppt = g_ved.mppt;
@@ -1787,9 +1790,9 @@ void console_command(char* cmd) {
     };
     n = std::snprintf(line, sizeof(line), "chg: %s, source %s, deciding path %s; temp <= %ld C, band %lu mA, rise %lu mV, confirm %lu s",
                       g_charge_inhibited.load() ? "INHIBITED" : "not inhibited", src(g_charge_source),
-                      src(g_charge_path), static_cast<long>(kChargeInhibitTempC),
-                      static_cast<unsigned long>(kChargeInhibitBandMa),
-                      static_cast<unsigned long>(kChargeInhibitRiseMv),
+                      src(g_charge_path), static_cast<long>(static_cast<int32_t>(live_param(kParamChargeTempC))),
+                      static_cast<unsigned long>(live_param(kParamChargeBandMa)),
+                      static_cast<unsigned long>(live_param(kParamChargeRiseMv)),
                       static_cast<unsigned long>(live_param(kParamChargeConfirmS)));
     write_line(line, n, sizeof(line));
   } else if (std::strcmp(cmd, "ved") == 0) {
