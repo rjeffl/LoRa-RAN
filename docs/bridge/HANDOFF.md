@@ -20,8 +20,8 @@ file:
 
 **Queued: group 8, before the production cutover.** Groups 1 to 4, 6 and 7 are done. Group
 5 remains, and neither group needs GateLink at the gate. The config publish queue and
-spec §7.2.6 bit 3 were done on 2026-10-15, outside the groups (engineering log, that date);
-group 7 holds the two readings they owe.
+spec §7.2.6 bit 3 were done on 2026-10-15, outside the groups, and passed on the bench the
+same day (engineering log, that date's two entries).
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
@@ -165,12 +165,6 @@ The 2048 build leaves the connect banner's lowest heap at about 26.5 KB. A reset
 commit line still did not lose the answer, because the answer leaves before a host-timed
 reset can land. `node/health/state`'s counters moved outside its hash, host-tested only.
 
-- **The config publish queue's heap, at the next bridge flash.** Static RAM fell
-  26,936 bytes (engineering log, 2026-10-15), so the connect banner's lowest heap should
-  rise by about that. Read `mqtt_task`'s high-water mark beside it.
-- **Spec §7.2.6 bit 3 on the air.** Repeat GL5's BMS run (GateLink engineering log,
-  2026-10-14) with this bridge: `solar/state.charge_inhibited` should set and clear with
-  VE.Direct down, and `binary_sensor.lran_gatelink_charge_inhibited` follow it.
 - **An answer lost before a reset is still not reproduced.** A run that makes the broker
   unreachable at the commit would hold the answer; whether that is worth a PHY change is
   the operator's call.

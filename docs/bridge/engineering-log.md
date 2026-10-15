@@ -1804,3 +1804,31 @@ MQTT at all. Host-tested only. The on-air check is GL5's BMS run again with this
 Spec §7.2.6 says the bridge SHOULD mark all MPPT entities unavailable while bit 1 is set.
 This change reads bit 3 as not being an MPPT entity's value. The spec does not say so, so
 a note under §7.2.6 is proposed for its next revision.
+
+## 2026-10-15 — The config publish queue and bit 3 on the bench: heap back, and the clear reaches HA
+
+The bridge was flashed over USB with `d895194` and run with GateLink and the simnode's BMS
+emulator, with VE.Direct not connected. The trace is
+[`config-queue-bit3-2026-10-15.log`](./data/config-queue-bit3-2026-10-15.log), with
+`CHAN` lines and the rxlog diagnostic removed. Times are seconds from its start.
+
+**The heap came back.** The connect banner read `heap free 58584, lowest 53480` at 1.43.
+On 2026-10-05, with `kMaxPayloadLen` at 2048, it read 32964 and 26576. The lowest rose
+26,904 bytes, against the 26,936 bytes of static RAM the change freed. `mqtt_task` read
+2528 bytes free of 6144 at 11.00, after a GateLink readback; the 2026-10-05 low was 1920,
+with three nodes rolling. `sched_task` read 1844 free of 5120 after a HEX read at 12.82.
+None of the three runs matched the earlier ones' load, so they are not a like-for-like
+comparison.
+
+| Check | What was done | What happened |
+|---|---|---|
+| Onset | `SIM bms on 49A1`, `SIM bms temp -5`, then `GL bms now` at 96.23 | GateLink logged `charge: INHIBITED, by bms` at 96.78. `solar/state` published `"available":false` with `"charge_inhibited":true` at 98.87, and `event/charge_inhibited`, event_id 2, followed at 99.16 |
+| Clear | `SIM bms temp off`, then `GL bms now` at 104.72 | GateLink logged `charge: no longer inhibited, by bms` at 105.32. `solar/state` published `"charge_inhibited":false` at 105.85 |
+
+**Home Assistant followed both.** The sandbox HA's history for
+`binary_sensor.gatelink_charging_inhibited` reads `on` at 17:44:33 UTC and `off` at
+17:44:40, while every MPPT entity stayed unavailable. On 2026-10-14 the clear did not
+reach MQTT at all. The BMS entity, `binary_sensor.gatelink_charging_inhibited_bms`, read
+`off` throughout, as it did then, because `0x8D`'s flag is still undecoded.
+
+The emulator was left with `bms off`. The bridge stays on `d895194` in `app0`.
