@@ -28,6 +28,14 @@ same day (engineering log, that date's two entries).
 |---|---|---|
 | **8. Before the production cutover** | The operator's review of GateLink's 20 configuration ranges, for its first item | Host, then a bench flash |
 | **5. Documents and tools** | Nothing | Host only |
+| **9. Spec v0.18's bridge side** | The citation sweep on spec v0.18's branch | Host, then a bench flash |
+
+**Group 9, from spec v0.18 (D78–D82, 2026-10-15).** Decode schema `0x13` beside `0x10`
+and publish `ah_drawn_dah` (spec §7.2.10). Publish `0xFF` in `charge_state`, `mppt_err`
+or `mppt_tracker` as unavailable, with no push (§7.2.2). Mark the FIRE, hard-shutdown and
+keypad-hold entities unavailable while `node_flags` bit 7 is set (§7.2.8), which can stand
+in for D77's withdrawal below. Name `CHARGE_INHIBITED`'s `detail` (§8.9). The bridge
+already reports `ACTUATOR_FAULT` and never retries it, so D78 needs only a host test.
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
