@@ -30,7 +30,7 @@ Implementation Plan §4.4, as the row's meaning cites.
 | `0x1021` | `detect_sequence_idle_ms` | u16 | ms | 10000 | 1000 to 60000 | read-write | Quiet time that resets classification, PRD R-3.2.3e |
 | `0x1022` | `held_open_alert_repeat_s` | u16 | s | 0 | 0 to 3600 | read-write | Held-open alert repeat, PRD R-3.2.3e; 0 = one per detection |
 | `0x1023` | `cause_window_ms` | u16 | ms | 10000 | 1000 to 60000 | read-write | EXIT edge to gate opening, read as the wand, Impl Plan 6.3 |
-| `0x1030` | `hex_timeout_ms` | u16 | ms | 1000 | 200 to 2000 | read-write | MPPT HEX reply wait before TIMEOUT, PRD R-3.3d |
+| `0x1030` | `hex_timeout_ms` | u16 | ms | 1000 | 200 to 1000 | read-write | MPPT HEX reply wait before TIMEOUT, PRD R-3.3d |
 | `0x1031` | `vedirect_stale_s` | u8 | s | 5 | 2 to 60 | read-write | No complete text block for this long is stale, PRD R-3.3f |
 | `0x1040` | `bms_poll_s` | u16 | s | 300 | 60 to 3600 | read-write | BLE BMS read period, PRD R-3.4a |
 | `0x1041` | `charge_inhibit_confirm_s` | u16 | s | 300 | 60 to 3600 | read-write | Inferred charge inhibit must hold this long, PRD R-6.4b |

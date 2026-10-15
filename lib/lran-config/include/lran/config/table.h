@@ -204,9 +204,11 @@ inline constexpr ParamDef kGateLinkParams[] = {
     {0x1023, "cause_window_ms", Owner::Node, Access::ReadWrite, PType::U16, 1000, 60000,
      10000, "ms", "EXIT edge to gate opening, read as the wand, Impl Plan 6.3"},
 
-    // VE.Direct. hex_timeout_ms stops at 2000 so that it stays under the bridge's
-    // hex_rsp_timeout_ms default of 3000, which assumes GateLink answers first.
-    {0x1030, "hex_timeout_ms", Owner::Node, Access::ReadWrite, PType::U16, 200, 2000, 1000,
+    // VE.Direct. hex_timeout_ms stops at its default because the bridge's
+    // hex_rsp_timeout_ms (3000) must cover it plus a frame each way at SF9 and one CAD
+    // backoff of up to 1500 ms, so GateLink's TIMEOUT answer arrives first. At 2000 the
+    // sum passed 3000 (operator, 2026-10-15). Raise both rows together or neither.
+    {0x1030, "hex_timeout_ms", Owner::Node, Access::ReadWrite, PType::U16, 200, 1000, 1000,
      "ms", "MPPT HEX reply wait before TIMEOUT, PRD R-3.3d"},
     {0x1031, "vedirect_stale_s", Owner::Node, Access::ReadWrite, PType::U8, 2, 60, 5, "s",
      "No complete text block for this long is stale, PRD R-3.3f"},

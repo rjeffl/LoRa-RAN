@@ -1882,3 +1882,20 @@ because the payload was never kept and every refusal here echoes `set`.
 a set naming more than 8 parameters, with its own reason. So the handoff's case, a set of
 GateLink's 23 non-PHY rows at about 660 bytes, is now refused with an answer either way. A
 set that fits in 511 bytes and names 9 or more gets the entry-count reason.
+
+## 2026-10-15 — Group 8, item 1: GateLink's configuration rows approved, `hex_timeout_ms` capped at 1000
+
+The operator approved GateLink's configuration rows as proposed, with one change. The
+handoff counted 20 rows; GateLink's own block has 24, plus the 10 every node holds and the
+2 the bridge holds for it. **None is measured.** The names are now the ones the production
+broker will keep.
+
+**`hex_timeout_ms` now stops at 1000, its default**, down from 2000. The bridge's
+`hex_rsp_timeout_ms` (3000) has to outlast GateLink's own wait plus a frame each way at
+SF9 and a CAD backoff of up to 1500 ms, so that GateLink's TIMEOUT answer arrives before
+the bridge retries. At 2000 the wait and the backoff alone reach 3500 ms. The table's old
+comment compared 2000 with 3000 and left out the air and the backoff.
+
+**The margin at 1000 is thin, not proven.** Two frames of about 40 bytes at SF9 take about
+0.6 s, so one full backoff puts the worst case near 3.1 s, just past 3000. A second busy
+CAD makes it longer. Read the bench's HEX round trips before raising either row.
