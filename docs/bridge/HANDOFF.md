@@ -6,7 +6,8 @@ deploys and changed no code. **Updated 2026-10-15**: the config publish queue an
 with this bridge: GL3's command path and CONFIG ran against it on 2026-10-08. B6 still waits
 on GateLink's GL6, at the gate. This file now lists the bridge and Home Assistant work that
 has to be ready by the install visit. **Spec v0.18 merged the same day** (D78–D82), and
-group 9, the bridge's side of it, was built and passed on the bench that day too.
+group 9, the bridge's side of it, was built and passed on the bench that day too. **Group
+8's bridge items were done the same day**; what is left of it is the operator's and B6's.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -20,23 +21,20 @@ group 9, the bridge's side of it, was built and passed on the bench that day too
 of these lines, then read this section and the sections the table names — not the whole
 file:
 
-**Queued: group 8, before the production cutover.** Groups 1 to 4, 6, 7 and 9 are done.
-Group 5 remains, and neither group needs GateLink at the gate. The config publish queue and
-spec §7.2.6 bit 3 were done on 2026-10-15, outside the groups, and passed on the bench the
-same day (engineering log, that date's two entries).
+**Queued: group 5, documents and tools.** Groups 1 to 4, 6, 7 and 9 are done. Group 8's
+bridge items, 1 to 5, are done; its items 6 and 7 are the operator's and B6's, and need
+no session of their own. Neither remaining group needs GateLink at the gate.
 
 | Group | Needs before it starts | Kind of session |
 |---|---|---|
-| **8. Before the production cutover** | The operator's review of GateLink's 20 configuration ranges, for its first item | Host, then a bench flash |
 | **5. Documents and tools** | Nothing | Host only |
 
-**Group 9 is done** (2026-10-15, engineering log, *Spec v0.18's bridge side on the
-bench*). Schema `0x13` decodes beside `0x10` and publishes `ah_drawn`. `0xFF` in the three
-VE.Direct code fields publishes `null`. While `node_flags` bit 7 is set, the FIRE, alarm
-and hard-shutdown entities read unavailable. `CHARGE_INHIBITED` events carry
-`inhibit_path`. D78 has its host test. Every path ran from the dummy console, because
-GateLink was not on the air. **No real `0x13` or bit 7 has been received**; they wait on
-GateLink's tier 3.
+**Group 8's bridge items are done** (2026-10-15, engineering log, the four *Group 8*
+entries). The operator approved GateLink's configuration rows, and `hex_timeout_ms` now
+stops at 1000. The "Node supply current" entity is gone. A `config/set` of 512 bytes or
+more is answered with `config/ack`'s `error`, shown on the bench. `rxlog` keeps sharing
+the publish queue, by the operator's decision (Impl Plan §5.2.1). `restore_defaults`
+cleared the bridge's bench overrides; the simnodes' did not clear (*Hardware state*).
 
 **The cleanup the task produced is part of the task**: stale comments and document lines
 it made wrong, `TODO(<id>)` markers it closed, rows here it finished, merged branches and
@@ -60,8 +58,9 @@ from a new `ctx_id`, because a roll makes one (spec §10.1).
 
 **B6 and B7 need GateLink at the gate**, and GateLink's GL6 gates B6. GateLink's handoff
 orders the node's side: a bench window with the MPPT and the WattCycle pack, then GL2, then
-the install visit. Group 8 has to be done before that visit, because B6 runs on the
-production broker (Impl Plan §11.3) and Home Assistant keeps every name it publishes.
+the install visit. Group 8's bridge items are done. Before that visit the operator still
+makes the production `secrets.h` (group 8, item 6), because B6 runs on the production
+broker (Impl Plan §11.3).
 
 **For any PHY run:** set `simnode_diag_enable` to 1, and set `deployed` to 1 on each bench
 row you want in the fleet. Clear both afterwards. A change may start at any time now.
@@ -72,7 +71,7 @@ refuses a long-lived token.
 
 ## Work before GateLink
 
-Each group is one session unless its line says otherwise. Group 8 is the one queued.
+Each group is one session unless its line says otherwise. Group 5 is the one queued.
 
 **D77's three entities need no withdrawal now** (2026-10-15). GateLink reads no FIRE or
 alarm input, so `lran_gatelink_fire_input`, `lran_gatelink_alarm_input` and
@@ -184,27 +183,21 @@ reset can land. `node/health/state`'s counters moved outside its hash, host-test
 
 ### 8. Before the production cutover
 
-**Queued.** B6 moves the bridge to the production broker (Impl Plan §11.3), and Home
-Assistant's entity registry keeps every `unique_id` it sees there. So everything that
-changes a published name or entity goes first. The items, in order:
+**Items 1 to 5 done 2026-10-15** (engineering log, the four *Group 8* entries). B6 moves
+the bridge to the production broker (Impl Plan §11.3), and Home Assistant's entity
+registry keeps every `unique_id` it sees there, so every change to a published name went
+first. Left:
 
-1. **The operator reviews GateLink's 20 configuration ranges.** None is measured, and the
-   names become permanent when HA first publishes them.
-2. **Remove the "Node supply current" entity** from `firmware/bridge/src/discovery.cpp` and
-   `ha/discovery/`. Spec §7.2.4's `node_ma` carries its sentinel on GateLink (PRD R-4.4b),
-   so the entity would always read unavailable.
-3. **Answer a `config/set` of 512 bytes or more**, or document the limit. Today
-   `kMaxInboundPayloadLen` (`mqtt_transport.h`) refuses it with no `config/ack`, and a set
-   of GateLink's 23 non-PHY rows is about 660 bytes. Spec §16.7.3 expects an answer.
-4. **The operator decides whether `rxlog` shares the 32 publish slots with state** (group 3).
-5. **Clear the bench overrides** with `restore_defaults`, and keep simnode discovery off
-   the production broker.
 6. **The operator makes the production `secrets.h`**: a new master key, the production
    broker's credentials and WiFi. The bridge and GateLink are both built from it, and
    GateLink's production flash is its last before it leaves the bench. A password must not
    reach argv, a log or a committed file from then on ([`traps.md`](./traps.md)).
 7. **At B6**: reflash the bridge against the production broker, and set `deployed` = 1 on
    `lran/gatelink/config/set` once GateLink is in the field.
+
+- **The margin between `hex_timeout_ms` and `hex_rsp_timeout_ms` is thin.** At 1000 and
+  3000, one full CAD backoff puts the worst case near 3.1 s. Read the bench's HEX round
+  trips at B6 before raising either row (engineering log, 2026-10-15, item 1's entry).
 
 GateLink's GL8 runs on the production broker after this: every entity present, held-open
 and FIRE events firing once only, and the configuration `number` entities reading and
@@ -274,9 +267,9 @@ worth a targeted read: the log's latest entry for the task, and one section of t
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D76**. **Protocol Spec v0.17** and its citation sweep. **Protocol Spec v0.18**, D78–D82, and its citation sweep. **Group 9**, spec v0.18's bridge side, run from the dummy on the bench 2026-10-15. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **Group 7**, the bench evidence, run on the bench 2026-10-05: the task watchdog tripped on each watched task, and an OTA upload waited out a command. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
+| Done | Library **P1–P8**. Range test **pass 1** and **pass 2**. **B1a**, **B1b**, **B2**, **B0**, **B3a**, **B3b**. **M6**, **M19**–**M22**, **M24**, **M25**. **D1** and **D33**, register §3.4.1. **D34 amended**; **D35–D76**. **Protocol Spec v0.17** and its citation sweep. **Protocol Spec v0.18**, D78–D82, and its citation sweep. **Group 9**, spec v0.18's bridge side, run from the dummy on the bench 2026-10-15. **Group 8's items 1 to 5**, the oversized-set answer and `restore_defaults` run on the bench 2026-10-15. **W4**, **W7**, **W9**, **W10**, **W12**. **V-B3**, **V-B9**, **V-B10**, **V-B12**. **BF-2**–**BF-9**, **BF-15**–**BF-22**, **BF-27**'s frame log, **BF-23** both halves, the lever half **confirmed on air**, **BF-32 entire**. **BF-34 confirmed on air** and merged. **BF-24** and **BF-25** built, host-tested and shown at the broker and in HA. **B4 accepted** 2026-09-24, Impl Plan §8.2. **B4b accepted** 2026-09-24, BF-33 entire. **The poll clash**, fixed and shown on air 2026-09-24. **BF-35**, built and shown in the sandbox HA 2026-09-25. **The `vectors_data.h` check**, in CI 2026-09-25. **`spec_citation_version.py` reads role header lines**, and **the six stale citations it found are reconciled**, 2026-09-25. **BF-27's dummy publish** built and on air. **Spec v0.15's code confirmed on air** 2026-09-25, with the `not_applied` and `CLAMPED` fixes and the simnode's `CONFIG_CHANGE`. **BF-26 confirmed on air**, and the bench restored after V-B12. **BF-37** and **BF-38**, built and shown at the broker 2026-09-25, with the HA synthetic filter. **BF-36** and **BF-28**–**BF-30** built, **V-B6** passed on the bench, and **B5 accepted** 2026-09-25. **Group 1's three air-timing defects**, fixed and run on the bench 2026-09-25. **The state mirror's readback after a node reboot**, the same day. **Group 1's three restart edges**, host-tested 2026-09-26. **BF-11a**, **BF-11b**, `mqtt_task`'s high-water mark and `phy reset`'s overrides, host-tested 2026-09-26. **The simnode's real reset**, run on the bench 2026-09-26. **The lost `BOOT` event**, fixed in both radio drivers and run on the bench 2026-09-26. **The OTA gap**, R-5.3d, host-tested 2026-09-26. **The owed PHY `config/ack`**, run on the bench 2026-09-26. **BF-27's GateLink simulator and internal loopback**, run on the bench 2026-09-26. **BF-27's RF echo** and **the task watchdog on four tasks**, run on the bench 2026-09-26. **Group 4**, HA before GateLink, run on the bench 2026-09-27. **Group 7**, the bench evidence, run on the bench 2026-10-05: the task watchdog tripped on each watched task, and an OTA upload waited out a command. **B0 to B5 accepted.** `firmware/chan-capture/`, `lib/lran-link`'s `ChanMonitor`, `lib/lran-config/` |
 | Not done | **B6**, **B7**, which wait on GateLink. **M26**. The whole-document style passes |
-| Queue | Empty; the operator picks from *Work before GateLink* |
+| Queue | Group 5; group 8's items 6 and 7 wait on the operator and B6 |
 
 ```bash
 pio test -d lib/lran-protocol -e native         # library host suite
@@ -324,22 +317,23 @@ them before closing a session.
 
 ## Hardware state
 
-**The bridge runs `d2118ad`, flashed over USB on 2026-10-15** for group 9 (engineering
-log, *Spec v0.18's bridge side on the bench*). **Both simnodes run
-`32503d5`**, flashed over USB the same day (engineering log, *Group 7's bench evidence*).
-The bridge holds `charge_readback_interval_h` 0, `cmd_retries` 3 and
-`command_ack_timeout_ms` 3000 as overrides from bench runs; `restore_defaults` clears them.
-The broker retains GateLink's documents from group 9's last dummy `STATUS`, all marked
-synthetic, as schema `0x10` with bit 7 clear. It retains `simnode1`'s
-`vedirect/charge/state`, `hex/audit` and `write_enable/state` from V-B6, and no
-`write_enable/set`. On 2026-10-05 the bridge was `/dev/cu.usbserial-0001`, the Heltec
-simnode `/dev/cu.usbserial-4` and the XIAO `/dev/cu.usbmodem1101`, and each board's MAC
-matched the table below. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
-their committed group in NVS, with `phy_trial_s` 120. **`simnode_diag_enable` is 0**, and `deployed` reads 0 and
-`poll_interval_s` 60 as overrides on `simnode0` to `simnode2`, so the bridge polls no node
-from boot. It reaches
-the sandbox broker. The broker still retains the simnode discovery configs from an earlier
-enabled run, so Home Assistant shows simnode devices whose entities read unavailable. **This table names the devices in this subproject's terms**; the
+**The bridge runs `c9d3667`, flashed over USB on 2026-10-15** for group 8 (engineering
+log, *Group 8 on the bench*). **Both simnodes run `32503d5`**, flashed over USB the same
+day (engineering log, *Group 7's bench evidence*). **`restore_defaults` cleared the
+bridge's rows**, apart from the six PHY rows. Those read `override` at Envelope A's values,
+because `restore_defaults` does not reach the PHY group. `simnode0` to `simnode2` still
+read `deployed` 0 and `poll_interval_s` 60 as overrides, the defaults' own values: their
+restore drew `context_roll_pending`, and clearing it needs each simnode powered and heard.
+**`simnode_diag_enable` is 0**, so the bridge polls no simnode from boot. **GateLink was
+on the air** that day, heard at −35 dBm with `deployed` 0. The broker retains GateLink's
+documents, `simnode1`'s `vedirect/charge/state`, `hex/audit` and `write_enable/state` from
+V-B6, and no `write_enable/set`. The retained `node_current` discovery config was cleared.
+The bridge was `/dev/cu.usbserial-0001` on 2026-10-15, and its MAC matched the table
+below. On 2026-10-05 the Heltec simnode was `/dev/cu.usbserial-4` and the XIAO
+`/dev/cu.usbmodem1101`. **The fleet is on 917.4 MHz**, and both simnode boards hold it as
+their committed group in NVS, with `phy_trial_s` 120. The bridge reaches the sandbox
+broker. The broker still retains the simnode discovery configs from an earlier enabled
+run, so Home Assistant shows simnode devices whose entities read unavailable. **This table names the devices in this subproject's terms**; the
 range-test handoff owns them in its own roles.
 
 | Device | Called here | Told apart by | Firmware | Current state |
