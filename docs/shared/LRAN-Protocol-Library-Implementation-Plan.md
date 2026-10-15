@@ -1,14 +1,14 @@
 # LRAN Protocol Library Implementation Plan
 
 **Document:** `LRAN-Protocol-Library-Implementation-Plan`
-**Version:** 0.27
+**Version:** 0.28
 **Artifact:** `/lib/lran-protocol/` — the shared codec
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.17**
 **Consumers:** `lran-bridge`, `lran-simnode`, `lran-gatelink`, `/tools/`
 **Status:** **Built — P1 through P8 complete.** The record is
 [`/docs/protocol-lib/engineering-log.md`](../protocol-lib/engineering-log.md); this document
 remains the owning specification for the API and its tests.
-**Last updated:** 2026-10-10
+**Last updated:** 2026-10-15
 
 > **This library is the contract three firmware targets and the host tooling all depend
 > on.** It is specified separately, and built first, because an API invented as a side
@@ -779,7 +779,9 @@ and `test_table` pins the figure, so a row added later moves a test rather than 
 frame. GateLink's GL3 added the first such row, `watchdog_timeout_s`, on 2026-10-08: 20
 rows, 137 bytes, and a readback of 205, still two messages. GateLink's GL5 added
 `bms_window_max_ms` on 2026-10-10: 21 rows, 144 bytes, and a readback of 212, still two
-messages.
+messages. GateLink's three charge-inhibition thresholds, `charge_inhibit_temp_c`,
+`charge_inhibit_band_ma` and `charge_inhibit_rise_mv`, returned on 2026-10-15, once the
+bridge could carry them: 24 rows, 165 bytes, and a readback of 233, still two messages.
 
 **Two findings from the count belong to GateLink's documents, not to this one**, and are
 tracked in [`docs/gatelink/doc-findings.md`](../gatelink/doc-findings.md). GateLink
@@ -924,6 +926,10 @@ is RF or software.
 ---
 
 ## 8. Changelog
+
+- **v0.28** — **GateLink's block grows to 24 rows** (PRD R-5.3a). §4 records the three
+  charge-inhibition thresholds and the readback they cost: 233 bytes, still two messages.
+  No API changes.
 
 - **v0.27** — **GateLink's block grows to 21 rows** (GateLink GL5). §4 records
   `bms_window_max_ms` and the readback it costs: 212 bytes, still two messages. No API
