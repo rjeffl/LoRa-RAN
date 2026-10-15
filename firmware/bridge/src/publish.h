@@ -61,12 +61,23 @@ inline bool state_carries_availability(const char* state_suffix) {
 }
 
 // The keys of those documents that stay readable while `available` is false, because they
-// say why the block is stale: the BMS link's RSSI and age, and whether a HEX transaction is
-// outstanding. An entity reading one of these follows its node's availability alone.
-inline bool key_survives_staleness(const char* key) {
-  return key != nullptr &&
-         (std::strcmp(key, "ble_rssi_dbm") == 0 || std::strcmp(key, "age_s") == 0 ||
-          std::strcmp(key, "hex_pending") == 0 || std::strcmp(key, "synthetic") == 0);
+// are not the block's readings: the BMS link's RSSI and age, which say why it is stale,
+// whether a HEX transaction is outstanding, and solar/state's `charge_inhibited`. An
+// entity reading one of these follows its node's availability alone.
+//
+// BY TOPIC AS WELL AS KEY, because `charge_inhibited` is in both documents and means two
+// things. On solar/state it is spec 7.2.6 bit 3, which GateLink derives from the BMS or
+// from VE.Direct (PRD R-6.4a, R-6.4b), so a stale VE.Direct link must not hide it: the
+// BMS path is the one R-6.4a needs while VE.Direct is down (GateLink engineering log,
+// 2026-10-14). On battery/state it is spec 7.2.7 bit 3, the pack's own flag, a BMS
+// reading like any other.
+inline bool key_survives_staleness(const char* state_suffix, const char* key) {
+  if (key == nullptr) return false;
+  if (std::strcmp(key, "charge_inhibited") == 0) {
+    return state_suffix != nullptr && std::strcmp(state_suffix, "solar/state") == 0;
+  }
+  return std::strcmp(key, "ble_rssi_dbm") == 0 || std::strcmp(key, "age_s") == 0 ||
+         std::strcmp(key, "hex_pending") == 0 || std::strcmp(key, "synthetic") == 0;
 }
 
 // The values the policy reads from /lib/lran-config/ (Library Plan 4, rows 0x000D-0x000F).

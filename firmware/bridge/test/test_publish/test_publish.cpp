@@ -337,6 +337,24 @@ void test_stale_mppt_is_unavailable_with_no_reading() {
   TEST_ASSERT_NULL(std::strstr(solar, "13250"));
 }
 
+// Spec 7.2.6 bit 3 is not an MPPT reading. GateLink's BMS path sets it while VE.Direct is
+// down, so it survives a stale link, and its clear changes the document and republishes it
+// (GateLink engineering log, 2026-10-14).
+void test_charge_inhibit_reads_while_mppt_is_stale() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.mppt_flags      = 0x02 | 0x08;
+  offer(p, gatelink(), s, 1000, r);
+  const char* solar = r.find("lran/gatelink/solar/state");
+  expect(solar, "available", "false");
+  expect(solar, "charge_inhibited", "true");
+  r.clear();
+  s.mppt_flags = 0x02;
+  offer(p, gatelink(), s, 2000, r);
+  expect(r.find("lran/gatelink/solar/state"), "charge_inhibited", "false");
+}
+
 void test_bms_age_above_threshold_is_unavailable() {
   PublicationPolicy p;
   p.set_levers(PublishLevers{900, 120, 5});
@@ -567,6 +585,7 @@ int main(int, char**) {
   RUN_TEST(test_deadband_zero_publishes_every_change);
   RUN_TEST(test_heartbeat_republishes_unchanged_state);
   RUN_TEST(test_stale_mppt_is_unavailable_with_no_reading);
+  RUN_TEST(test_charge_inhibit_reads_while_mppt_is_stale);
   RUN_TEST(test_bms_age_above_threshold_is_unavailable);
   RUN_TEST(test_bms_never_read_is_unavailable);
   RUN_TEST(test_sentinels_are_null);
