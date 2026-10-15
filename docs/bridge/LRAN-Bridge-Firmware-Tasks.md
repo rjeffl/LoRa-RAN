@@ -1,10 +1,10 @@
 # LRAN bridge firmware — prioritized task list
 
 **Document:** `LRAN-Bridge-Firmware-Tasks`
-**Version:** 0.79
+**Version:** 0.80
 **For:** Claude Code, working in `firmware/bridge/` and `firmware/simnode/`
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.19
-**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.92
+**Build source:** [`LRAN-Bridge_Node-Implementation-Plan`](./LRAN-Bridge_Node-Implementation-Plan.md) v0.93
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.29
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -328,6 +328,9 @@ only against the bridge, a cached value republished as current.
 ---
 
 ## 11. Changelog
+
+- **v0.80** — **Cites Impl Plan v0.93**, which records handoff group 8's queue decision
+  and inbound size limit. No task here changes.
 
 - **v0.79** — **Cites Impl Plan v0.92**, which records spec v0.18's bridge side as built
   (handoff group 9). No task here changes.

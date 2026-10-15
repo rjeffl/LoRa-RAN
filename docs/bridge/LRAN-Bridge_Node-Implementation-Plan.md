@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.92
+**Version:** 0.93
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -585,6 +585,7 @@ as `lran/bridge/version`'s was (BF-13).
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
 | `kMaxPayloadLen` | **1024**, for state, events and diagnostics. It was 768 from BF-19, when the §14.1 document reached 681 bytes with every counter at `UINT32_MAX`, then 1024 at BF-32, 1536 at BF-33 and 2048 at GateLink's L4. Each move past 1024 was for a config document, and on 2026-10-15 those moved to `kMaxConfigPayloadLen`. `mqtt_transport.h` records each move and its measurement |
 | `kMaxConfigPayloadLen` | **3072**, for spec §16.7's `config/state` and `config/ack`, which ride a `ConfigPublishMessage` on a queue of their own. Sizing every publish and event slot for `config/state` cost about 24 KB of DRAM per 512 bytes, and GateLink's three charge-inhibition rows did not link (GateLink engineering log, 2026-10-14). `test_config` keeps room for eight more rows on a node's topic |
+| `kMaxInboundPayloadLen` | **512**, for what the bridge receives. A larger publication is refused whole, never truncated, and its topic alone reaches the router: a `config/set` is answered with spec §16.7.3's `error`, and anything else is dropped and counted (handoff group 8) |
 | A refused publication | Not retried; the next interval carries newer numbers |
 | `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), and confirmed on air the same day**: one reply per §14 stage that names one, read at the simnode. Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
 | Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
@@ -855,9 +856,13 @@ separation is the other. Neither rescues a design that publishes inline.
 
 **Queue depths: RX 8, publish 32, event 8, config publish 4, TX 4, log 16.** The config
 publish queue carries `sched_task`'s `config/ack` and `config/state` alone, because each is
-three times a state document. The publish queue is the deep one
-because a single status frame fans out into a dozen entities and because it is what
-rides out a broker reconnect. **The TX queue is shallow on purpose**: the bridge
+three times a state document. The publish queue is the deep one because a single
+status frame fans out into a dozen entities. **It rides out a broker restart, not a long
+outage**: on the bench it filled in about 80 s, with three simnodes polled every 15 s and
+`lran/bridge/diag/rxlog/log` making 32 of 46 publications (engineering log, 2026-10-05).
+**`rxlog` shares the 32 slots with state, by the operator's decision of 2026-10-15.**
+Events and `config/*` have queues of their own, and a state document dropped in an outage
+is replaced by the node's next `STATUS`. **The TX queue is shallow on purpose**: the bridge
 serializes polls fleet-wide (§6.1, R-3.1d), so depth there would mean something
 upstream had stopped honouring that, and a queue is the wrong place to discover it.
 
@@ -3117,6 +3122,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.93** — **Handoff group 8, before the production cutover.** §5.2.1: the publish
+  queue rides out a broker restart, not a long outage, and `rxlog` keeps sharing its
+  slots, by the operator's decision. §4.3.2's size table adds `kMaxInboundPayloadLen` and
+  how an oversized `config/set` is answered.
 
 - **v0.92** — **Spec v0.18's bridge side is built** (handoff group 9). §4.1's schema row
   adds `0x13`. §6.3.1's key table adds `ah_drawn` and `fire_inputs_sensed`, and a table
