@@ -412,17 +412,20 @@ All verified against a live capture; details in §5.
 4. **Frame on the length byte, never the terminator.** A `0x8C` response contains
    four literal `0x0D` bytes and a literal `0x7E` in its payload. Both are
    covered by tests.
-5. **Current is not a signed int16.** Bit `0x4000` is a flag; magnitude is the
-   low 14 bits in units of 10 mA. Read naively, a resting pack reports 16384.
+5. **Current is not a signed int16.** Bit 15 (`0x8000`) set means discharging;
+   magnitude is the low 14 bits in units of 0.1 A. Bit 14 (`0x4000`) is set at
+   rest, on charge and under load, so it carries no direction. Read naively, a
+   resting pack reports 16384. GateLink's M7 measured this on 2026-10-10
+   (`docs/gatelink/engineering-log.md`); an earlier revision of this list read
+   bit 14 as the sign and the unit as 10 mA.
 
 ## Known-unverified
 
-**The current sign convention** (§5.8) is the one open protocol question. The
-pack has only ever been observed at rest, where current reads raw `0x4000` —
-the discharge flag with zero magnitude — which cannot disambiguate charge from
-discharge. `BmsData::discharging` carries the raw flag; `current_mA` applies the
-assumed convention. Capture `0x8C` under charge and again under load before
-trusting the polarity.
+**The current sign convention** (§5.8) was open here until GateLink's M7
+answered it on 2026-10-10. Captures under load (`0xC028`, −4.0 A) and on charge
+(`0x4012`, +1.8 A) put the sign in bit 15 and the unit at 0.1 A.
+`lib/bms-ble`, which this firmware builds against, decodes it that way. What bit
+14 means is still open (`docs/gatelink/bms-protocol.md` §10).
 
 ## Ready to merge (M8)
 

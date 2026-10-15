@@ -110,8 +110,10 @@ def decode_status(p: bytes) -> dict:
     m = p[i]; i += 1
     temps = [round((u16(p, i + 2 * k) - 2731) / 10, 1) for k in range(m)]; i += 2 * m
     cur = u16(p, i)
-    discharging = bool(cur & 0x4000)
-    amps = (cur & 0x3FFF) / 100
+    # Bit 15 is the sign and the unit is 0.1 A; bit 14 carries no direction
+    # (GateLink M7, docs/gatelink/engineering-log.md, 2026-10-10).
+    discharging = bool(cur & 0x8000)
+    amps = (cur & 0x3FFF) / 10
     return {
         "cells_V": cells,
         "delta_mV": round((max(cells) - min(cells)) * 1000),
