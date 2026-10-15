@@ -1,7 +1,7 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.88
+**Version:** 0.89
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
@@ -9,7 +9,7 @@
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.17**
 **Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.27 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-14
+**Last updated:** 2026-10-15
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -583,7 +583,8 @@ as `lran/bridge/version`'s was (BF-13).
 | Sentinels | `null`, never a number (root rule 6) |
 | `diag_publish_interval_s` | **60**, runtime-settable. No document gave a cadence; one default poll interval |
 | Consistency | `lora_task` copies its counters under a spinlock once a second; readers take that copy (`lora_diag_snapshot`), so `rx_dropped` always agrees with the counters beside it |
-| `kMaxPayloadLen` | **2048**. It was 768 from BF-19, when the §14.1 document reached 681 bytes with every counter at `UINT32_MAX`, then 1024 at BF-32 and 1536 at BF-33. GateLink's L4 raised it to 2048 for a GateLink `config/state` of about 1.9 KB. `mqtt_transport.h` records each move and its measurement |
+| `kMaxPayloadLen` | **1024**, for state, events and diagnostics. It was 768 from BF-19, when the §14.1 document reached 681 bytes with every counter at `UINT32_MAX`, then 1024 at BF-32, 1536 at BF-33 and 2048 at GateLink's L4. Each move past 1024 was for a config document, and on 2026-10-15 those moved to `kMaxConfigPayloadLen`. `mqtt_transport.h` records each move and its measurement |
+| `kMaxConfigPayloadLen` | **3072**, for spec §16.7's `config/state` and `config/ack`, which ride a `ConfigPublishMessage` on a queue of their own. Sizing every publish and event slot for `config/state` cost about 24 KB of DRAM per 512 bytes, and GateLink's three charge-inhibition rows did not link (GateLink engineering log, 2026-10-14). `test_config` keeps room for eight more rows on a node's topic |
 | A refused publication | Not retried; the next interval carries newer numbers |
 | `ERROR` replies (spec §14) | **Built 2026-09-16 (BF-19a), and confirmed on air the same day**: one reply per §14 stage that names one, read at the simnode. Spec §14.2: registered sources only, rate-limited by `error_min_interval_ms` (default 1000, runtime-settable), `src` the bridge, `ctx_id` `0`, `ref_seq` the offending frame's. A frame from an unknown source is discarded at stage 9a and never answered. `error_reply.{h,cpp}` decides; `lora_task` builds and queues, so a reply takes its turn at media access like any other frame. **`BAD_CRC` and `BAD_VERSION` stay optional and unbuilt** — a frame that failed CRC has a `src` that cannot be trusted to name its sender, and an unreadable `ver` is **BF-22**'s to answer |
 | Replies the rate limit withheld | `errors_suppressed`, on `lran/bridge/diag/radio/state` with the queue statistics. **Not a §14.1 counter and not a discard**: the frame that provoked it is already counted by the stage that discarded it |
@@ -852,7 +853,9 @@ radio level. **M22 found no PER cost from saturated WiFi on the bench** (§8.1.3
 at the gate degrades with WiFi load, this pinning is one of the two levers, and antenna
 separation is the other. Neither rescues a design that publishes inline.
 
-**Queue depths: RX 8, publish 32, event 8, TX 4, log 16.** The publish queue is the deep one
+**Queue depths: RX 8, publish 32, event 8, config publish 4, TX 4, log 16.** The config
+publish queue carries `sched_task`'s `config/ack` and `config/state` alone, because each is
+three times a state document. The publish queue is the deep one
 because a single status frame fans out into a dozen entities and because it is what
 rides out a broker reconnect. **The TX queue is shallow on purpose**: the bridge
 serializes polls fleet-wide (§6.1, R-3.1d), so depth there would mean something
@@ -1254,7 +1257,7 @@ Assistant's value templates read them, so a key published is a key frozen:
 | **Enumerations are spec §8's names in lower case**; a value the table does not list is `null` | One term names one concept from HA to the wire, as the command tokens do. A newer node's value reads as unknown rather than as a guess, and `input_bits` keeps the raw evidence |
 | **Victron's `CS` and `ERR` codes are named too**, as `charge_state_name` and `error_name` beside the raw codes. The names come from osh-labs' `VeDirect_Arduino_Spec.md` §3.3 and §3.5. Chosen with the operator on 2026-09-27 | The bridge holds the MPPT's semantics (spec §7.6), and HA showed `3` for bulk. The raw code stays, so an unlisted code reads `null` by name and keeps its number |
 | **Units are converted exactly**: 10 mV to mV, 10 Wh to kWh with two decimals, 0.1 °C and 0.1 Ah to one decimal | Integer arithmetic, so no float round trip reaches HA's history |
-| **R-5.2b: a stale block publishes `available: false` with every reading `null`** | `mppt_flags` bit 1 stales `solar`. `battery` is stale when `bms_flags` bit 0 is clear, `bms_age_s` is the sentinel, or it exceeds `bms_stale_s`. The entities list that document as a second availability topic with `avty_mode: all`, so HA shows them unavailable while the node is online. `ble_rssi_dbm`, `age_s` and `hex_pending` stay readable, because they say why |
+| **R-5.2b: a stale block publishes `available: false` with every reading `null`** | `mppt_flags` bit 1 stales `solar`. `battery` is stale when `bms_flags` bit 0 is clear, `bms_age_s` is the sentinel, or it exceeds `bms_stale_s`. The entities list that document as a second availability topic with `avty_mode: all`, so HA shows them unavailable while the node is online. `ble_rssi_dbm`, `age_s` and `hex_pending` stay readable, because they are not the block's readings. So does `solar/state`'s `charge_inhibited`, spec §7.2.6 bit 3: GateLink derives it from the BMS or from VE.Direct (GateLink PRD R-6.4a, R-6.4b), and the BMS path is the one that works while VE.Direct is down. `battery/state`'s `charge_inhibited` is spec §7.2.7 bit 3, the pack's own flag, and goes stale with its block |
 | **R-5.2a: publish on change compares whole documents**, by an FNV-1a hash | A document is queued when any value in it changes, or when `republish_interval_s` has passed since it was last queued. HA records an entity's state only when its own value changes, so the deadband is what keeps jitter out of history. The hash replaces a kilobyte per node and domain; a collision delays one change to the heartbeat, once in 2³² |
 | **`uptime_s` is outside the hash.** `node/state` and `node/health/state` write it last and hash only what comes before it. Chosen with the operator on 2026-09-27 | It changes on every poll, so hashing it published both documents on every frame. The heartbeat keeps it current to `republish_interval_s`. A reboot still publishes, because `boot_count` changes with it |
 | **`node/health/state`'s frame counters and link figures are outside the hash too.** `rx_frames`, `tx_frames`, `last_rssi_dbm` and `last_snr_db` follow the hashed fields. Chosen with the operator on 2026-10-05 | They move on every poll, as `uptime_s` does, so the document published on every frame. It now publishes on a change to `boot_count`, `rx_dropped`, `cad_backoffs`, `proto_ver` or `debug`, and otherwise on the heartbeat. No board has shown it: §16.6 withholds a bench node's `0xF0`, so GateLink is the first node that can |
@@ -1892,7 +1895,7 @@ answer. None is common. Each now survives the restart in NVS.
 
 | Edge | What went wrong | What the bridge does now |
 |---|---|---|
-| **A committed PHY change's `config/ack`** (spec §16.7.5) | A reset 150 ms after the commit beat `mqtt_task` to the broker, and the set got no answer | The commit's one blob write also records the answer as owed, with two bits per PHY row for its status. `mqtt_task` clears the record only once the publish queue is empty and the transport has sent what it held. After a reset, `sched_task` rebuilds the answer from the record and the committed group |
+| **A committed PHY change's `config/ack`** (spec §16.7.5) | A reset 150 ms after the commit beat `mqtt_task` to the broker, and the set got no answer | The commit's one blob write also records the answer as owed, with two bits per PHY row for its status. `mqtt_task` clears the record only once the config publish queue is empty and the transport has sent what it held. After a reset, `sched_task` rebuilds the answer from the record and the committed group |
 | **A `restore_defaults` during a PHY trial** | `NvsPersist::clear_all()` erased the `cfg` namespace, and `Store::restore_defaults()` rewrote the group with the trial marker clear. A restart in that trial went unreported | `clear_all()` removes the table's keys one at a time and never touches the blob. `Store::restore_defaults()` no longer rewrites the group. The erase and rewrite also left a moment with no group on flash, and that is gone too |
 | **A retained bench `online` after a reboot** (§4.2a.1) | A flag set `applied_not_persisted` came back clear, and nothing withdrew the `online` published before the reboot | NVS keeps a mask of the bench topics holding a retained `online`, one bit per address from `0xF0`, written only when the mask changes. A boot with the flag clear queues `offline` for each topic in the mask |
 
@@ -3099,6 +3102,12 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.89** — **§4.3.2 splits the payload cap in two.** `kMaxPayloadLen` returns to 1024,
+  and `config/state` and `config/ack` get `kMaxConfigPayloadLen`, 3072, on a config publish
+  queue of depth 4 (§5.2.1). The image uses 26,936 bytes less static RAM, and GateLink's
+  node topic has room for eight more rows. **§6.3.1 keeps spec §7.2.6 bit 3 readable while
+  VE.Direct is stale**, with an entity of its own.
 
 - **v0.88** — **§10.4 and §10.9.4 add `bms temp`**, which makes the emulated pack read cold
   for GateLink's GL5.
