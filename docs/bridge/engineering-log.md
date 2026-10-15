@@ -1899,3 +1899,34 @@ comment compared 2000 with 3000 and left out the air and the backoff.
 **The margin at 1000 is thin, not proven.** Two frames of about 40 bytes at SF9 take about
 0.6 s, so one full backoff puts the worst case near 3.1 s, just past 3000. A second busy
 CAD makes it longer. Read the bench's HEX round trips before raising either row.
+
+## 2026-10-15 — Group 8 on the bench: the oversized-set answer, and the bridge back on its defaults
+
+The bridge was flashed over USB with `c9d3667`, and its banner and `lran/bridge/version`
+read that commit. Each step below published from `tools/bench/bench.py` to the sandbox
+broker. Times are seconds from the harness start.
+
+**An oversized `config/set` is answered.** At 76 s, a 640-byte set on
+`lran/bridge/config/set` drew `{"op":"set","persist":"not_applied","error":"payload is
+larger than the bridge accepts; split the set"}` within 0.1 s. The next set was handled
+normally.
+
+**`restore_defaults` cleared the bridge's bench overrides** at 84 s, `persisted`.
+`config/state` then read every bridge row as `default` except the six PHY rows. Those still
+read `override`, holding Envelope A's values (917.4 MHz, SF9, 125 kHz, CR 4/5, −4 dBm,
+120 s). This is deliberate: `restore_defaults` does not reach the PHY group, because a PHY
+change is a fleet operation (spec §12.4, D59). `simnode_diag_enable` reads 0, so simnode
+discovery stays off.
+
+**The simnodes' overrides could not be cleared.** `restore_defaults` on
+`lran/simnode0/config/set` drew `error` = `context_roll_pending`. A node restore reaches
+the node too (D52), so it waits for the node's context roll, and no simnode has been heard
+since the bridge booted. Their overrides hold `deployed` 0 and `poll_interval_s` 60, the
+defaults' own values, so the bridge behaves the same either way. Clearing them needs each
+simnode powered and heard.
+
+**The removed entity's retained discovery config was cleared** on the sandbox broker,
+with an empty retained publish to `homeassistant/sensor/lran_gatelink_node_current/config`.
+
+**GateLink was on the air.** The bridge heard it at −35 dBm and +11 dB SNR and marked it
+`online` at 110 s, with `deployed` 0. Nothing in this run addressed it.
