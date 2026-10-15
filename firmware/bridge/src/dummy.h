@@ -30,6 +30,7 @@
 
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
+#include "lran/schema/gatelink_status_v2.h"
 #include "lran/types.h"
 #include "queues.h"
 
@@ -53,7 +54,9 @@ class DummyPublisher {
   //
   //   dummy help
   //   dummy show
-  //   dummy set <field>=<value> [<field>=<value> ...]    `na` is the field's sentinel
+  //   dummy set <field>=<value> [<field>=<value> ...]    `na` is the field's sentinel.
+  //                                                      `ah_drawn_dah` sends schema 0x13,
+  //                                                      and `ah_drawn_dah=off` 0x10 again
   //   dummy status <node>
   //   dummy event <node> <type> [follow]                 <type> is spec 8.9's name, lower
   //                                                      case, or its number
@@ -74,6 +77,9 @@ class DummyPublisher {
                    lran::CtxId ctx_id, uint32_t now_ms, RxMessage* out);
 
   lran::schema::GateLinkStatusV1 status_;
+  // Spec 7.2.10 - set, the console sends schema 0x13 with this field; clear, 0x10.
+  bool                           v2_           = false;
+  uint16_t                       ah_drawn_dah_ = lran::kU16NotAvailable;
   bool                           clock_valid_ = false;
   uint32_t                       clock_ms_    = 0;  // now_ms at the last advance()
   uint32_t                       carry_ms_    = 0;  // the part of a second not yet counted
@@ -91,6 +97,10 @@ class DummyPublisher {
 // DEBUG_SYNTHETIC here, whatever `s` holds, so no path to the policy skips R-5.2d.
 bool synthetic_status(lran::schema::GateLinkStatusV1 s, lran::NodeId node, lran::CtxId ctx_id,
                       lran::Seq seq, uint32_t now_ms, RxMessage* out);
+
+// The same as schema 0x13, spec 7.2.10, with `ah_drawn_dah` appended.
+bool synthetic_status_v2(lran::schema::GateLinkStatusV2 s, lran::NodeId node,
+                         lran::CtxId ctx_id, lran::Seq seq, uint32_t now_ms, RxMessage* out);
 
 // One EVENT as app_task receives it, marked `dummy`. app_task marks the published event
 // through on_event()'s own flag, because spec 7.3 gives an EVENT no status_reason.

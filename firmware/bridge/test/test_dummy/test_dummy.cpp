@@ -112,6 +112,27 @@ void test_status_publishes_every_document_marked() {
   TEST_ASSERT_NOT_NULL(r.payload_of("lran/gatelink/battery/state"));
 }
 
+// Spec 7.2.10 - `ah_drawn_dah` switches the console to schema 0x13, still marked, and `off`
+// switches it back to 0x10.
+void test_ah_drawn_sends_schema_0x13() {
+  DummyPublisher    d;
+  PublicationPolicy p;
+  Recorder          r;
+  RxMessage         m;
+  TEST_ASSERT_EQUAL(DummyOutcome::Refused, run(d, "dummy set ah_drawn_dah=65535", &m));
+  TEST_ASSERT_EQUAL(DummyOutcome::Reply, run(d, "dummy set ah_drawn_dah=42", &m));
+  TEST_ASSERT_EQUAL(DummyOutcome::Inject, run(d, "dummy status gatelink", &m));
+  TEST_ASSERT_EQUAL_HEX8(kSchemaGateLinkStatusV2, m.hdr.schema);
+  deliver(p, m, r);
+  TEST_ASSERT_EQUAL(5, r.n);
+  TEST_ASSERT_TRUE(has(r.payload_of("lran/gatelink/battery/state"), "\"ah_drawn\":4.2"));
+  TEST_ASSERT_TRUE(has(r.payload_of("lran/gatelink/node/state"), "\"synthetic\":true"));
+
+  TEST_ASSERT_EQUAL(DummyOutcome::Reply, run(d, "dummy set ah_drawn_dah=off", &m));
+  TEST_ASSERT_EQUAL(DummyOutcome::Inject, run(d, "dummy status gatelink", &m));
+  TEST_ASSERT_EQUAL_HEX8(kSchemaGateLinkStatusV1, m.hdr.schema);
+}
+
 // Nothing on the console reaches status_reason, so nothing can clear the mark.
 void test_status_reason_cannot_be_set() {
   DummyPublisher d;
@@ -265,6 +286,7 @@ int main(int, char**) {
   RUN_TEST(test_not_a_dummy_line_is_left_alone);
   RUN_TEST(test_status_publishes_every_document_marked);
   RUN_TEST(test_status_reason_cannot_be_set);
+  RUN_TEST(test_ah_drawn_sends_schema_0x13);
   RUN_TEST(test_sentinel_publishes_null);
   RUN_TEST(test_set_is_all_or_nothing);
   RUN_TEST(test_bench_node_is_refused);

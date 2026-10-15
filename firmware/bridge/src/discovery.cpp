@@ -129,7 +129,7 @@ constexpr size_t kNodeCommandEntityCount =
     sizeof(kNodeCommandEntities) / sizeof(kNodeCommandEntities[0]);
 
 // ---------------------------------------------------------------------------
-// GateLink's state - schema 0x10's five documents (BF-24, publish.h).
+// GateLink's state - the five documents of schema 0x10 or 0x13 (BF-24, publish.h).
 //
 // THE VALUE KEYS ARE publish.cpp's, and they are frozen with the object ids here. A key
 // renamed there is an entity here that reads an undefined name and shows unknown forever.
@@ -156,6 +156,8 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"last_direction", "Last direction", "sensor", "gate/state", "last_direction",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    // Spec 7.2.8 bit 7 makes these two and shutdown_latch unavailable (D80; publish.h,
+    // availability_key).
     {"fire_input", "FIRE input", "binary_sensor", "gate/state", "in_fire",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"alarm_input", "ALARM input", "binary_sensor", "gate/state", "in_alarm",
@@ -215,6 +217,11 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
     {"bms_charge_inhibited", "Charging inhibited (BMS)", "binary_sensor", "battery/state",
      "charge_inhibited", nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    // Spec 7.2.10, schema 0x13 only (D82). HA has no device class for ampere-hours. It
+    // follows the node alone, as solar/state's charge_inhibited does, because the node's
+    // sentinel says whether it holds a total (publish.h, key_survives_staleness).
+    {"ah_drawn", "Charge drawn since charging", "sensor", "battery/state", "ah_drawn",
+     "Ah", nullptr, "measurement", nullptr, nullptr, 0, false},
     {"bms_ble_rssi", "BMS link RSSI", "sensor", "battery/state", "ble_rssi_dbm",
      "dBm", "signal_strength", "measurement", nullptr, nullptr, 0, true},
     {"bms_age", "BMS reading age", "sensor", "battery/state", "age_s",
@@ -688,13 +695,15 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   // `available`, so a stale VE.Direct or BMS link shows its entities as unavailable while
   // the node is still online. HA takes an entity as available only when every topic in the
   // list says so (`avty_mode` all). `avty_t` and `avty` cannot both be given. A list entry
-  // takes HA's default payloads, `online` and `offline`, which are spec 16.5's.
-  if (state_carries_availability(d.state_suffix) && !key_survives_staleness(d.state_suffix, d.value_key)) {
+  // takes HA's default payloads, `online` and `offline`, which are spec 16.5's. Spec 7.2.8
+  // bit 7 uses the same list, with `fire_inputs_sensed` in place of `available` (D80).
+  const char* avail_key = availability_key(d.state_suffix, d.value_key);
+  if (avail_key != nullptr) {
     char list[192];
     std::snprintf(list, sizeof(list),
                   "[{\"t\":\"~/availability\"},{\"t\":\"~/%s\",\"val_tpl\":"
-                  "\"{{ 'online' if value_json.available else 'offline' }}\"}]",
-                  d.state_suffix);
+                  "\"{{ 'online' if value_json.%s else 'offline' }}\"}]",
+                  d.state_suffix, avail_key);
     j.raw("avty", list);
     j.str("avty_mode", "all");
   } else {

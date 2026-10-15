@@ -115,7 +115,8 @@ const Field* find_field(const char* name) {
 }
 
 constexpr const char* kUsage =
-    "dummy: help | show | set <field>=<value>|na ... | status <node> | "
+    "dummy: help | show | set <field>=<value>|na ... | set ah_drawn_dah=<n>|na|off | "
+    "status <node> | "
     "event <node> <type> [follow] [detail=<n>]";
 
 }  // namespace
@@ -178,6 +179,12 @@ void DummyPublisher::advance(uint32_t now_ms) {
 bool DummyPublisher::build_status(lran::NodeId node, lran::CtxId ctx_id, uint32_t now_ms,
                                   RxMessage* out) {
   advance(now_ms);
+  if (v2_) {
+    lran::schema::GateLinkStatusV2 v2;
+    v2.v1           = status_;
+    v2.ah_drawn_dah = ah_drawn_dah_;
+    return synthetic_status_v2(v2, node, ctx_id, ++seq_, now_ms, out);
+  }
   return synthetic_status(status_, node, ctx_id, ++seq_, now_ms, out);
 }
 
@@ -232,6 +239,12 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
       if (r < 0 || static_cast<size_t>(r) >= cap - at) break;
       at += static_cast<size_t>(r);
     }
+    if (!v2_) {
+      std::snprintf(reply + at, at < cap ? cap - at : 0, " ah_drawn_dah=off");
+    } else {
+      std::snprintf(reply + at, at < cap ? cap - at : 0, " ah_drawn_dah=%u",
+                    static_cast<unsigned>(ah_drawn_dah_));
+    }
     return DummyOutcome::Reply;
   }
 
@@ -242,7 +255,9 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
     }
     // Every pair is checked before any is applied, so a typo in the third leaves the first
     // two unset rather than half a change.
-    GateLinkStatusV1 next = status_;
+    GateLinkStatusV1 next       = status_;
+    bool             next_v2    = v2_;
+    uint16_t         next_drawn = ah_drawn_dah_;
     for (size_t i = 2; i < n; ++i) {
       char* eq = std::strchr(w[i], '=');
       if (eq == nullptr) {
@@ -255,6 +270,24 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
       if (std::strcmp(name, "status_reason") == 0) {
         std::snprintf(reply, cap, "dummy: status_reason is DEBUG_SYNTHETIC, always (R-5.2d)");
         return DummyOutcome::Refused;
+      }
+      // Spec 7.2.10 - not a 0x10 field, so it is not in the table. Setting it switches
+      // the console to 0x13, and `off` switches it back.
+      if (std::strcmp(name, "ah_drawn_dah") == 0) {
+        int64_t v = 0;
+        if (std::strcmp(value, "off") == 0) {
+          next_v2 = false;
+          continue;
+        }
+        if (std::strcmp(value, "na") == 0) {
+          v = lran::kU16NotAvailable;
+        } else if (!console_int(value, &v) || v < 0 || v > 0xFFFE) {
+          std::snprintf(reply, cap, "dummy: ah_drawn_dah takes 0..65534, na or off");
+          return DummyOutcome::Refused;
+        }
+        next_v2    = true;
+        next_drawn = static_cast<uint16_t>(v);
+        continue;
       }
       size_t cell = 0;
       bool   temp = false;
@@ -293,7 +326,9 @@ DummyOutcome DummyPublisher::handle(const char* line, lran::CtxId ctx_id, uint32
       }
       f->set(next, v);
     }
-    status_ = next;
+    status_       = next;
+    v2_           = next_v2;
+    ah_drawn_dah_ = next_drawn;
     std::snprintf(reply, cap, "dummy: set; `dummy status <node>` sends it");
     return DummyOutcome::Reply;
   }
@@ -389,6 +424,21 @@ bool synthetic_status(lran::schema::GateLinkStatusV1 s, lran::NodeId node, lran:
   out->hdr.schema  = lran::kSchemaGateLinkStatusV1;
   out->rx_millis   = now_ms;
   out->dummy       = true;
+  return true;
+}
+
+bool synthetic_status_v2(lran::schema::GateLinkStatusV2 s, lran::NodeId node,
+                         lran::CtxId ctx_id, lran::Seq seq, uint32_t now_ms, RxMessage* out) {
+  // synthetic_status() fills the header. The payload is then encoded again as 0x13, marked
+  // here too because `s` is this function's own copy (R-5.2d).
+  if (!synthetic_status(s.v1, node, ctx_id, seq, now_ms, out)) return false;
+  s.v1.status_reason = static_cast<uint8_t>(lran::StatusReason::DebugSynthetic);
+  size_t n = 0;
+  if (lran::schema::serialize(s, out->payload, sizeof(out->payload), &n) != lran::Status::Ok) {
+    return false;
+  }
+  out->payload_len = n;
+  out->hdr.schema  = lran::kSchemaGateLinkStatusV2;
   return true;
 }
 
