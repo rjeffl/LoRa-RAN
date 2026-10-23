@@ -241,6 +241,11 @@ board's are its D-pads (expansion board §6.1).
 - **The GateLink console loses the middle of a line under load** (engineering log,
   2026-10-08, *GL3's command path on the air*). `log 0` shows the queue dropped nothing,
   so the loss is in the USB CDC path. It hid one pulse width on the bench.
+- **The console's `sd` hangs the node when no card is fitted** (replacement StamPLC, no
+  card and no carrier, 2026-10-23, at `969cdf7`). Twice, `sd` printed nothing, and the
+  console then stayed silent, with no `alive:` line for over 30 s and no watchdog reset. A
+  USB reset recovered it. Boot's own mount fails without hanging. The cause is not
+  established; a second `SD.begin()` after a failed one is the first suspect.
 - **`bench.py run` exits when it writes to a port that has disappeared**
   (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
