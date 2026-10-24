@@ -31,7 +31,11 @@ constexpr int32_t kInsetX = 6;
 // address). Relays are P0_0-P0_3; inputs are P0_4-P0_7 and P1_4-P1_7 (M5StamPLC.cpp).
 constexpr uint8_t  kExpanderB  = 0x59;
 constexpr uint8_t  kRegInput0  = 0x00;
+constexpr uint8_t  kRegInput1  = 0x01;
 constexpr uint8_t  kRegOutput0 = 0x02;
+constexpr uint8_t  kRegOutput1 = 0x03;
+constexpr uint8_t  kRegConfig1 = 0x05;  // 1 = input, AW9523B datasheet
+constexpr uint8_t  kIn5To8Bits = 0xF0;  // P1_4-P1_7, the pins IN5-IN8 read through
 constexpr uint32_t kI2cHz      = 400000;
 constexpr uint8_t  kRelayBits  = 0x0F;
 
@@ -126,6 +130,30 @@ bool board_read_inputs(uint8_t* raw) {
   }
   *raw = static_cast<uint8_t>((port[0] >> 4) | (port[1] & 0xF0));
   return true;
+}
+
+bool board_probe_port1(bool level, uint8_t* port1) {
+  uint8_t cfg = 0;
+  uint8_t out = 0;
+  if (!m5::In_I2C.readRegister(kExpanderB, kRegConfig1, &cfg, 1, kI2cHz) ||
+      !m5::In_I2C.readRegister(kExpanderB, kRegOutput1, &out, 1, kI2cHz)) {
+    return false;
+  }
+
+  // Set the output latch before the direction, so the pins never drive the old latch value.
+  const uint8_t want = static_cast<uint8_t>(level ? (out | kIn5To8Bits)
+                                                  : (out & ~kIn5To8Bits));
+  bool ok = m5::In_I2C.writeRegister8(kExpanderB, kRegOutput1, want, kI2cHz) &&
+            m5::In_I2C.writeRegister8(kExpanderB, kRegConfig1,
+                                      static_cast<uint8_t>(cfg & ~kIn5To8Bits), kI2cHz);
+
+  // The AW9523B's input register reads the pin, not the latch, so this is the pin's state.
+  if (ok) ok = m5::In_I2C.readRegister(kExpanderB, kRegInput1, port1, 1, kI2cHz);
+
+  // Restore both registers whatever happened above: io_task reads these pins every pass.
+  const bool restored = m5::In_I2C.writeRegister8(kExpanderB, kRegConfig1, cfg, kI2cHz) &&
+                        m5::In_I2C.writeRegister8(kExpanderB, kRegOutput1, out, kI2cHz);
+  return ok && restored;
 }
 
 bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]) {

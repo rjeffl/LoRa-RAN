@@ -1457,3 +1457,82 @@ of −5, 250 and 35 are gone. The three rows are the 3 that boot restores.
 
 **The RTC reads `2049-12-01 01:18:15`.** It reports itself set. Nothing read from it is on
 the wire yet.
+
+### The shared common is measured, and everything outside the StamPLC is eliminated
+
+**All eight inputs read about 6.1 kΩ to `EXCON_COM`** (operator, 2026-10-24, on the
+original unit). That is R14 across each input's terminals, so the eight inputs do share
+the one common and IN5–IN8's input networks are intact. The separate-common hypothesis
+above is falsified, by the test this entry named for it.
+
+The operator also reports the input board bench-tested on all four channels before it was
+installed, and the IN5 and IN6 connections buzzed good after it. The direct drive of 2026-10-11 had
+already run at 13.4 V, 15.11 V and 25.25 V. Nothing outside the StamPLC remains: the board
+works, the harness is continuous, the common is shared and R14 is in place.
+
+**Port 1 is not dead as a port.** P1_0–P1_3 are unconnected on this board and read `0x0f`,
+which is their real floating state, so the register path and port 1 both work. Only
+P1_4–P1_7 are in question.
+
+**The next test needs no meter and does not need the case opened.** Driving P1_4–P1_7 as
+outputs and reading the input register back separates the two remaining candidates. A
+readback that follows the drive confines the fault to the opto output stages PC5–PC8. A
+readback that stays 0 puts it at the expander's own P1_4–P1_7. The expander pin reaches
+the opto emitter through R38, 1 kΩ, with R30's 5.1 kΩ to ground, so driving 3.3 V costs
+about 0.54 mA.
+
+### Superseded the same day: IN5 and IN6 read, and the fault was in their connections
+
+**This subsection overturns the conclusion above.** Everything earlier in this entry
+stands as measured, but "a second StamPLC's IN5–IN8 do not read" is wrong for this unit.
+IN5 and IN6 read, and they track the bench supply.
+
+The operator buzzed the IN5 and IN6 connections, reporting both good, and the firmware was
+reflashed with the hard reset that upload ends on. The next `aw` read `c0 3f`, where every
+earlier sample this session had read `c0 0f`. Port 1 bits 4 and 5 are IN5 and IN6.
+
+A toggle of all four input-board channels then tracked cleanly, 26 samples at 3 s:
+
+| Samples | `aw` input registers | State |
+|---|---|---|
+| 11 | `c0 3f` | IN3–IN6 energized |
+| 8 | `00 0f` | all four off |
+| 7 | `c0 3f` | IN3–IN6 energized again |
+
+**The expander was never at fault, and the new `aw drive` command proves it separately.**
+Driving P1_4–P1_7 as outputs and reading the input register back gave `ff` with those bits
+`f0` when driven 1, and `0f` with those bits `00` when driven 0, three times running. The
+pins, their traces to R38 and the register path all work.
+
+**What changed is not established, and that matters more than it looks.** Buzzing a
+connection does not energize it, so either a terminal was loose and reseating it during the
+check fixed it, or a conductor was not landed where the buzz suggested. The reading moved
+across a reflash and a hard reset as well, so a boot-time cause cannot be ruled out from
+here. **A node 87 m away with no OTA should not deploy on a connection that started
+working during a continuity check:** re-land both conductors deliberately and confirm the
+toggle again before the soak.
+
+**The original unit's 2026-10-11 result is not overturned by this.** That board was driven
+directly at 13.4 V, 15.11 V and 25.25 V through different wiring, and its reading is its
+own record. This entry says only that the unit now in service reads all six inputs.
+
+### What restoring IN5 and IN6 now needs
+
+D77 chose to deploy on four inputs because the then-deploying StamPLC read four. The unit
+in service reads six, so that premise is gone and the decision needs the operator. The work
+behind it, none of it done:
+
+- **The firmware mask.** `kInputsWired` goes `0x0F` to `0x3F`. `kInputsActiveLow` goes
+  `0x0C` to `0x1C`, not `0x3C`: IN3, IN4 and IN5 invert and IN6 does not, because the
+  1050's alarm output drives 12 V on an alarm.
+- **G-9 and G-10 have no edge-triggered path.** `FIRE_ASSERTED` and `HARD_SHUTDOWN` are
+  sent only by R-3.5i's boot re-send. `gate_state.cpp` already consumes both bits for the
+  movement cause, the hold source and FAULT.
+- **R-3.5l and D80's `node_flags` bit 7** describe inputs nothing senses, which stops being
+  true.
+- **M3 applies again**, and D72 with it.
+- **The bridge's withdrawn entities.** *FIRE input* and *Hard-shutdown latch* come back,
+  which the bridge handoff owns.
+- **Plan §3.2, PRD G-9, G-10, §3.2.5, R-3.5i, R-3.5l and the §7 entity table** all describe
+  the four-input deploy.
+- **Whether the 1050's alarm output carries a pull-down** is unknown, and one may be needed.

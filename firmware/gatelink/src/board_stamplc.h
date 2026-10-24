@@ -57,6 +57,20 @@ bool board_read_inputs(uint8_t* raw);
 constexpr size_t kExpanderDumpLen = 12;
 bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]);
 
+// Drives P1_4-P1_7, the expander pins IN5-IN8 read through, as outputs at `level`, reads
+// the input register back, then restores them to inputs. The bench test that tells the two
+// remaining candidates apart on a board whose IN5-IN8 never read (engineering log,
+// 2026-10-24): a readback that follows the drive confines the fault to the opto output
+// stages PC5-PC8, and one that stays 0 puts it at P1_4-P1_7 themselves.
+//
+// Safe on the wired board. Each pin reaches its opto emitter through R38, 1 kOhm, with
+// R30's 5.1 kOhm to ground, so driving 3.3 V costs about 0.54 mA
+// (StamPLC-el3h4-input-analysis).
+//
+// *port1 takes the whole input register, so the caller sees the unused lower nibble too.
+// Returns false on an I2C failure, having tried to restore the direction either way.
+bool board_probe_port1(bool level, uint8_t* port1);
+
 // Reads the three front buttons. Bit 0 is A, 1 is B, 2 is C; a bit is set once per press.
 uint8_t board_poll_buttons();
 

@@ -23,14 +23,14 @@ Continue from docs/gatelink/HANDOFF.md: task L<n>.
 **The input board is built and fitted, and a replacement StamPLC is in service**
 (2026-10-24). The pack and the MPPT are on the bench with it, so VE.Direct, the BMS and the
 radio all ran together through the real power chain. Everything below runs on the StamPLC's
-12 V bench supply. **The soak no longer waits on hardware**, but what the node deploys on
-is unsettled while IN5 and IN6 read nothing.
+12 V bench supply. **The soak no longer waits on hardware.** All six inputs
+read, so what the node deploys on is the operator's decision rather than a hardware limit.
 
 | Tier | Task | Read |
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82). R-6.4c needs the PRD to define "charging active" and the current integrated first | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **Decide what GateLink deploys on, now that a second StamPLC's IN5–IN8 also read nothing.** The input board is built and its stages on IN3 and IN4 work. Take the two terminal measurements under *Open* first; they say whether IN5 and IN6 are recoverable | *Open*, below; the engineering log's 2026-10-24 and 2026-10-11 entries; plan §3.2 |
+| 3 | **Restore IN5 and IN6, once the operator settles D77.** All six inputs read on the unit in service. The mask, `kInputsActiveLow`'s IN6 exception, G-9 and G-10's missing edge path, R-3.5l, M3, both documents and the bridge's entities are the work | The engineering log's 2026-10-24 entry, last two subsections; plan §3.2; PRD G-9, G-10, R-3.5i, R-3.5l |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
 | — | **GL4's M14**: the MPPT is on the gate's PV again, so a week of its VictronConnect history could stand in. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
@@ -207,13 +207,16 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **A second StamPLC's IN5–IN8 do not read either** (engineering log, 2026-10-24). The
-  replacement unit, MAC `ac:a7:04:03:52:0c`, reads IN3 and IN4 but not IN5 or IN6 with all
-  four driven from the new input board. D77 was decided on one unit; its premise now covers
-  two, and no published M5Stack report matches the symptom. **Two measurements would settle
-  it, both at the StamPLC's terminals:** about 12 V from `EXCOM_IN5` to `EXCON_COM` while
-  that channel is driven, which says current reaches the opto, and about 6.2 kΩ between the
-  same two terminals unpowered, which says they share the common. The operator's.
+- **IN5 and IN6 read on the unit in service, so D77's premise is gone** (engineering log,
+  2026-10-24). All four input-board channels toggle cleanly, and `aw drive` proved the
+  expander's P1_4–P1_7 sound on their own. **Whether GateLink deploys on six inputs is the
+  operator's decision**, and the firmware, both documents and the bridge's withdrawn
+  entities all still describe four; the log entry lists the work.
+- **IN5 and IN6 started reading during a continuity check, and the cause is not
+  established** (engineering log, 2026-10-24). Buzzing a connection does not energize it, so
+  a loose terminal reseated or a conductor was not landed where the buzz suggested; the
+  reading also moved across a reflash and a hard reset. **Re-land both conductors
+  deliberately and confirm the toggle again before the soak** — this node gets no OTA.
 - **The 1050's alarm output does not invert, so IN6 is not IN3's stage** (operator,
   2026-10-24). It is a 12 V output that goes active on an alarm, so IN6 reads asserted when
   the alarm is active, and `kInputsActiveLow` cannot simply widen to `0x3C`. Whether that
