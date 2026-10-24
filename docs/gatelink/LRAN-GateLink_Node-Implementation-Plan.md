@@ -1,17 +1,17 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.39
+**Version:** 0.40
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.21
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.22
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-24
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -244,9 +244,11 @@ is no window in which an unsecured pushbutton can assert OPEN+LOCK.
 
 ### 3.2 Gate controller — inputs
 
-Four land on the host's **opto-isolated 5–36 V DC channels** (EL3H4, read via the
-AW9523B), all on the expander's port 0. **IN5–IN8 are not used (D77):** on the deploying
-StamPLC they read nothing, the AW9523's port 1 most likely (engineering log, 2026-10-11).
+Six land on the host's **opto-isolated 5–36 V DC channels** (EL3H4, read via the
+AW9523B): IN1–IN4 on the expander's port 0, IN5 and IN6 on port 1 (**D83**). Port 1's pins
+do not sample until its direction register is written, though the register reads back as
+all inputs either way, so `io_task` writes it on its first pass (engineering log,
+2026-10-24). IN7 and IN8 are not used.
 
 | Input | Source | Type | Asserted when |
 |---|---|---|---|
@@ -254,8 +256,8 @@ StamPLC they read nothing, the AW9523's port 1 most likely (engineering log, 202
 | **IN2** | OUT2 relay, program **MOVING** | Dry contact | Energized |
 | **IN3** | 1050 SAFETY line, from the Diablo DSP-7LP's contact | 5 V pulled up, through a 2N7000 | **De-energized** |
 | **IN4** | 1050 EXIT line, from the exit wand's contact | 5 V pulled up, through a 2N7000 | **De-energized** |
-| IN5 | *FIRE terminal (32) — placeholder, D77* | — | — |
-| IN6 | *Alarm output — placeholder, D77* | — | — |
+| **IN5** | 1050 FIRE terminal (32) | 5 V pulled up, through a 2N7000 | **De-energized** |
+| **IN6** | 1050 alarm output | 12 V when active, through a 2N7000 | Energized |
 
 **Every input is wired sinking.** `EXCOM_COM` is one terminal for all eight inputs: opening
 it dropped IN1–IN4 together on 2026-10-11. The EL3H4 is an AC-input part, so it reads in
@@ -299,12 +301,19 @@ EXCOM_IN3 ── drain   2N7000
 - **The grounds must be one node.** The 2N7000's source sits on the 1050's common, and the
   local 12 V negative must be that same node. Confirm it with a meter at GL2.
 
-**IN5 and IN6 stay in the firmware as placeholders.** `inputs_from_levels()` masks IN5–IN8
-to 0, so the FIRE and hard-shutdown path in `lora_task` is kept but cannot fire, and a
-fault on port 1 cannot raise an alarm nothing sensed. A hardware revision whose IN5 and IN6
-read restores them, and **M3** applies again then. Masked bits read "not asserted", so
-spec v0.18 has GateLink set `node_flags` bit 7 while they are not sensed (§7.2.8,
-**D80**), which is still to be built.
+**IN5 inverts and IN6 does not.** The FIRE terminal is a pulled-up line like SAFETY and
+EXIT, so its stage inverts as theirs do. The alarm output drives 12 V on an alarm, by the
+operator's description, so an asserted alarm holds the 2N7000 on and energizes IN6.
+`inputs_from_levels()` flips IN3, IN4 and IN5 (`kInputsActiveLow` `0x1C`) and masks IN7 and
+IN8. **M3 confirms both polarities before IN5 and IN6 are connected at the gate.** Whether
+the alarm output idles low enough to hold the 2N7000 off, or needs a pull-down, is part of
+it.
+
+**FIRE and the hard-shutdown latch are sent on their edges.** `AlarmWatch`, in `app_task`,
+sends a STATUS on each edge of IN5 or IN6, with reason `FIRE` or `HARD_SHUTDOWN`, and the
+event on the rising edge (PRD G-9, G-10, R-3.2.5a). Its first read is a baseline: an alarm
+present at boot is R-3.5i's re-send alone. `node_flags` bit 5 follows IN6, and GateLink
+never sets bit 7 (spec §7.2.8, **D80**).
 
 The controller's OUT1/OUT2 provide common, NO and NC contacts. **Use NO.** An earlier
 revision held open the possibility of inverting the sense if the relays dropped out in
@@ -413,7 +422,7 @@ Deliberately unspent, recorded so future revisions know what is available.
 | **12 V moving-lamp output** | **Free** | Backup source of a motion signal if OUT2 is ever needed elsewhere. Voltage-sense, which the inputs take directly. **Not a drop-in for OUT2 unless M8 confirms it also tracks the auto-close countdown** |
 | SHADOW / LOOP1 (24), ENTRAPMENT / LOOP2 (26) | Likely free — **M11** | Additional detection inputs |
 | EDGE (28) | In use or free — **M11** | — |
-| Host inputs 5–8 | **Unusable on the deploying StamPLC** (D77) | None until the host is replaced; IN5 and IN6 are FIRE and the alarm's placeholders |
+| Host inputs 7–8 | Free | Additional voltage-sense inputs. IN5 and IN6 carry FIRE and the alarm (D83) |
 | BSS138 channels 1–2 | Free, but no GPIO reaches them | — |
 | Host GPIO | **None free** after the carrier | — |
 | Controller protocol bus port | Untouched | Research-archive Phase 2 |
@@ -1021,7 +1030,7 @@ recording who GateLink believes did it:
 | Observation | `held_open` | `hold_source` |
 |---|---|---|
 | IN1=1, IN2=0 stable, following a GateLink K1 pulse | true | `lran` |
-| IN1=1, IN2=0 stable, following an IN5 (FIRE) assertion — **not reachable while D77 holds**; such a hold reads `manual` | true | `keypad_fire` |
+| IN1=1, IN2=0 stable, following an IN5 (FIRE) assertion | true | `keypad_fire` |
 | IN1=1, IN2=0 stable, with neither of the above | true | `manual` — remote, keyswitch or panel |
 | IN1=1, IN2=1 | false | — (countdown running) |
 | IN1=0 | false | — |
@@ -1038,7 +1047,7 @@ Derived locally rather than read from the controller:
 |---|---|
 | EXIT rising edge, then gate opens within `cause_window_ms` (default 10000) | Exit wand |
 | GateLink pulsed K1 or K3, then gate opens | LRAN command |
-| IN5 asserts, then gate opens — **not reachable while D77 holds** | Keypad FIRE code |
+| IN5 asserts, then gate opens | Keypad FIRE code |
 | Gate opens and settles to **IN1=1 / IN2=0** with none of the above | **Manual hold** — handheld remote, or the keyswitch |
 | Gate opens and settles to **IN1=1 / IN2=1** with none of the above | **External momentary open** — keypad, remote, or front panel |
 
@@ -1292,7 +1301,7 @@ Ordered, and safe to perform incrementally. **No LRAN hardware is required for s
 4. **Characterise the 12 V lamp output** against the countdown while the meter is out
    (**M8**), so the backup option is either usable or ruled out.
 5. **Confirm the 1050's common is the local 12 V negative**, and measure the current each
-   of SAFETY and EXIT sources into a short (§3.2). **M3** is dormant by D77.
+   of SAFETY and EXIT sources into a short (§3.2). Measure IN5's and IN6's idle and asserted voltages before connecting them (**M3**).
 6. **Re-measure the controller branch current properly**, in all four gate states
    (**M1**). **This is the one item here that can change the power budget.**
 7. **Wire inputs only.** Read-only phase — gate 1 above.
@@ -1581,6 +1590,11 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.40** — **§3.2 reads six inputs (D83, PRD v0.22).** D77's dead port 1 was a firmware
+  defect: P1_4–P1_7 do not sample until P1's direction register is written. IN5 (FIRE)
+  inverts through a 2N7000 and IN6 (alarm) does not. `AlarmWatch` sends FIRE and
+  `HARD_SHUTDOWN` on their edges, and M3 applies again at GL2.
 
 - **v0.39** — **Protocol specification v0.17 → v0.18.** §5.2's failed relay pulse is now
   `ACTUATOR_FAULT` (**D78**), which GateLink does not send yet. §3.2 says GateLink sets

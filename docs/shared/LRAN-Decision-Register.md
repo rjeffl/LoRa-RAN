@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.32
+**Version:** 0.33
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-24
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D77** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D83** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -427,12 +427,13 @@ Frames from a node that is not deployed are processed as they are now.
 | **D74** | Whether a `HEX_RSP` repeats its request's `seq` | **Yes, whatever its `status`.** Operator, 2026-10-01, §3.13 | Protocol Spec §7.6; GateLink PRD R-3.3e |
 | **D75** | Whether `write_enable/set` is retained | **No.** A bridge ignores a retained one and clears it. Operator, 2026-10-01, §3.13 | Protocol Spec §16.2; Bridge PRD R-3.5c |
 | **D76** | Where the VE.Direct topics the spec did not list belong | **§16.2 lists `vedirect/charge/state`. §16.6 publishes a bench node's `hex/response`, `hex/audit` and `write_enable/state` whatever `simnode_diag_enable` says.** Operator, 2026-10-01, §3.13 | Protocol Spec §16.2, §16.6 |
-| **D77** | Whether GateLink deploys on a StamPLC whose IN5–IN8 do not read | **Yes. GateLink reads four inputs, IN1–IN4, and FIRE and the alarm output go unmonitored.** IN5 and IN6 stay in the PRD, the spec and the firmware as placeholders for a later hardware revision. Operator, 2026-10-12, §3.15 | GateLink PRD §3.2.5, R-3.5i; GateLink Impl Plan §3.2 |
+| **D77** | Whether GateLink deploys on a StamPLC whose IN5–IN8 do not read | **Superseded by D83 (2026-10-24):** the premise was a firmware defect, and both StamPLCs read IN5–IN8. Was: **Yes. GateLink reads four inputs, IN1–IN4, and FIRE and the alarm output go unmonitored.** IN5 and IN6 stay in the PRD, the spec and the firmware as placeholders for a later hardware revision. Operator, 2026-10-12, §3.15 | GateLink PRD §3.2.5, R-3.5i; GateLink Impl Plan §3.2 |
 | **D78** | A relay sequence whose output write failed | **`ACTUATOR_FAULT`, `0x13` in §8.2.** The bridge reports the command failed and sends it under no new `seq`. Operator, 2026-10-15, §3.16 | Protocol Spec §8.2 |
 | **D79** | A sentinel for §7.2.2's `uint8` VE.Direct code fields | **`0xFF` = not available.** An `mppt_err` of `0xFF` triggers no push. Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.2 |
 | **D80** | How a node says an input is not sensed | **`node_flags` bit 7: the FIRE and alarm inputs are not sensed.** Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.1, §7.2.8 |
 | **D81** | What `CHARGE_INHIBITED`'s `detail` carries | **The deciding path: `0` not stated, `1` BMS, `2` VE.Direct.** Operator, 2026-10-15, §3.16 | Protocol Spec §8.9 |
 | **D82** | Where GateLink PRD R-6.4c's Ah drawn travels | **A new schema, `0x13`, GateLink status v2: `0x10` and `ah_drawn_dah`.** Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.10 |
+| **D83** | Which inputs GateLink deploys on, now that IN5–IN8 read | **Six. FIRE on IN5 and the 1050's alarm output on IN6**, each sent as an event on its rising edge (PRD G-9, G-10). GateLink never sets `node_flags` bit 7; D80's bit stays in the spec for a node that cannot sense them. D72 and M3 apply again. Supersedes D77. Operator, 2026-10-24, §3.17 | GateLink PRD §3.1.4, §3.2.5, R-3.5i, R-3.5l; GateLink Impl Plan §3.2 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1196,6 +1197,9 @@ the four inputs that read.
 
 **Rejected:** holding the deploy for a replacement StamPLC.
 
+**Superseded by D83 on 2026-10-24** (§3.17). This section is the record of the decision as
+taken and is not edited to agree.
+
 ### 3.16 D78–D82 — the spec v0.18 set, 2026-10-15
 
 **GateLink's build met five places where spec v0.17 said nothing.** Its handoff carried
@@ -1222,6 +1226,30 @@ each on 2026-10-15, and spec v0.18 carries the text. None needs a version bump (
   unavailable, and that a reset never restarts it from 0, are this revision's drafting;
   GateLink's PRD defines "charging active" and the current it integrates.
 
+### 3.17 D83 — GateLink deploys on six inputs, 2026-10-24
+
+**D77's premise was a firmware defect.** The AW9523's P1_4–P1_7, the pins IN5–IN8 read
+through, do not sample until P1's direction register is written, though the register reads
+back as all inputs either way. `io_task` now writes it on its first pass. With that write,
+the replacement StamPLC and the original both read IN5 and IN6, and both follow their drive
+(GateLink engineering log, 2026-10-24). No StamPLC in hand has a dead port 1.
+
+- **What GateLink reads:** IN1–IN6. IN5, the FIRE terminal, reaches the 1050 through a
+  2N7000 like IN3 and IN4, so it inverts. IN6, the alarm output, drives 12 V on an alarm
+  and does not invert (GateLink Impl Plan §3.2).
+- **What ships:** G-9's FIRE alert and G-10's hard-shutdown state. `FIRE_ASSERTED` and
+  `HARD_SHUTDOWN` are sent on the rising edge, and a STATUS on each edge carries
+  `input_bits` and `node_flags` bit 5.
+- **`node_flags` bit 7 stays in the spec, and GateLink never sets it.** D80 is unchanged:
+  the bit describes any node that cannot sense these inputs, and the bridge already makes
+  the FIRE and hard-shutdown entities available while it is clear.
+- **D72 and M3 apply again.** M3's measurement of IN5's and IN6's idle and asserted
+  voltages is still needed before either is connected at the gate.
+
+**Rejected:** keeping four inputs and restoring IN5 and IN6 later. Every firmware change
+after install costs a walk to the gate, and FIRE is the one signal the system routes
+separately (spec §8.9).
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1247,7 +1275,7 @@ Ordered by consequence. Every `TBM` in the document set has a row here.
 |---|---|---|---|
 | M1 | **Gate controller branch current in all four gate states**, by inline meter or shunt on a mA range, or by low-range clamp with ten turns through the jaw and the reading divided by ten. LED lights separately accounted | **The top item — power-budget credibility.** First clamp figures fail their own sanity check | GateLink Impl Plan |
 | M2 | **`MOVING` behaviour at the open limit and through the auto-close countdown** | Hold detection and the `hold_confirm_ms` default. If MOVING dips at the open limit, the confirmation timer must absorb it | GateLink Impl Plan |
-| M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert. **Dormant by D77 (2026-10-12):** nothing is wired to IN5 or IN6 until a hardware revision | GateLink Impl Plan |
+| M3 | **IN5 (FIRE) and IN6 (alarm) idle and asserted voltages** | Sense polarity and idle state. Not a damage risk — the inputs are rated 5–36 V — but wiring them the wrong way round inverts an emergency alert. **Active again by D83 (2026-10-24)**, after dormancy under D77. Run it before IN5 and IN6 are connected at the gate: `kInputsActiveLow`'s `0x1C` rests on the operator's description of the 1050's alarm output, not on a measurement | GateLink Impl Plan |
 | ~~M4~~ | ~~**MPPT VE.Direct TX low excursion under a 10 kΩ load to GND**, preferably on a scope~~ **CLOSED 2026-10-08 without the scope**, on the operator's decision: the carrier's own path received the MPPT's text and HEX through the BSS138 (D25). A DVM read the high side only | **D25**, closed | GateLink Impl Plan |
 | M5 | ~~**BLE RSSI to the BMS from the final StamPLC mounting position**~~ | **Superseded by M23 (2026-09-06)**, which asks the question the confirmed enclosure stack actually poses: multiple positions and orientations inside a reverberant steel cavity, with the Stamp-S3A's own antenna. M5's single-position wording predates that | GateLink Impl Plan |
 | ~~M6~~ | ~~**Range and RSSI at ~500 ft on both bearings.**~~ **CLOSED 2026-09-09. Both bearings measured, and "~500 ft" was a guess that the measurements retire — see *M6's distances* below.** Procedure for the §7.6 precondition is `docs/rangetest/EIRP-SANITY-CHECK.md`; the reader is `tools/rangetest/eirp_check.py`. **Record conducted TX power in dBm**, not a RadioLib power index — the Heltec (≈13.9 dBm) and Wio (≈19.6 dBm) certified powers differ by ~6 dB and an index does not carry between them. ~~**Run the M21 findings note §7.6 short-range RSSI/EIRP sanity check first**~~ — **DONE 2026-09-07, all four checks PASS.** Heltec pair plus §7's Wio repeat, three tape-measured distances, traces `2026-09-07-eirp-sanity{,-xiao,-swap}.csv`. **The precondition is met and M6 is unblocked.** It also discharges §7.4's antenna-counterpoise uncertainty to the extent that check can — it rules out a *gross* gain error, not the 3.0 dBi vendor claim itself. **Partly answered:** the 2026-09-04 walk closed at six positions to 106 m along the gate bearing at the −4 dBm ceiling. ~~**The last ~46 m is unwalked — B1b**~~ — **B1b RAN 2026-09-09 and the gate bearing is answered.** The gate closed **192/192, 0 % PER at all 24 configurations** on the deployed pairing (Heltec V3 indoors at the bridge's target location, XIAO+Wio at the gate controller), at both −9 and −4 dBm conducted, zero error counters. Trace `2026-09-09-b1b-walk-gate.csv`. **Margin on the mean is 17–25 dB of SNR; the SF7 tail is not — one probe reached a 2.2 dB margin at −119.0 dBm**, which is a new constraint on D1's SF choice and pulls against W9's. **G2 is the 2026-09-04 walk's P1, and the deployed GateLink antenna lands within 6 in of it** — so B1b measured the link where the node will radiate rather than near it, which is a stronger answer to M6's question than any position on the earlier walk. **THE WELL BEARING IS ALSO ANSWERED, AND WAS ALL ALONG.** Operator confirmation 2026-09-09: **the 2026-09-04 walk's P3 is survey site 3, `welllink-well`** — a **Heltec pair**, initiator indoors at the bridge's real target location, through the NW wall plus the barn, **2.08 % PER over 192 probes** at the D33 ceiling (init −99.5 / resp −98.7 dBm). The trace's position map names no site, so the only well-bearing measurement this project has sat in a committed file under a number. **No well walk is owed.** Two corrections came with it, both in the range-test log's 2026-09-09 entry: **P3 is ~100 m out and its recorded fix is wrong rather than coarse** (two points sharing one arcsecond cell at 35N are at most 40.0 m apart), and **"the barn costs most" is false** — recomputed at 100 m its excess loss is 25.1 dB, fourth of six. **Carry into WellLink:** P3 is the thinnest margin any node site showed and the only position in that walk with any `phy_crc_err`. **M6's own wording overstates one bearing** — the gate is ~500 ft, the well is ~100 m and is obstruction-limited rather than distance-limited, so a 500 ft walk there would measure a place no node occupies. **CLOSED 2026-09-09**, on the operator's decision that the "~500 ft" in its own wording was a guess and never a measurement. Distances below. First positions recorded in decimal degrees; still not a path-loss model, because the house end is behind a wall on an arcsecond-era fix | **D1**, bridge antenna siting | Range Test Tasks |
@@ -1380,6 +1408,12 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.33** — **D83 resolved on 2026-10-24, superseding D77.** GateLink deploys on six
+  inputs. D77's premise was a firmware defect: IN5–IN8 do not sample until P1's direction
+  register is written, and both StamPLCs read them once it is. D72 and M3 apply again
+  (§3.17). The *Adding a decision* line named D77 as the highest issued, which D78–D82 had
+  overtaken; it now names D83.
 
 - **v0.32** — **D78–D82 resolved on 2026-10-15**, the spec v0.18 set: `ACTUATOR_FAULT`,
   `0xFF` for the VE.Direct code fields, `node_flags` bit 7, `CHARGE_INHIBITED`'s `detail`,

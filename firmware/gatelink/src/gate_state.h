@@ -24,8 +24,8 @@ inline constexpr uint8_t kInOpen   = 1u << 0;  // IN1, OUT1 programmed OPEN
 inline constexpr uint8_t kInMoving = 1u << 1;  // IN2, OUT2 programmed MOVING
 inline constexpr uint8_t kInSafety = 1u << 2;  // IN3
 inline constexpr uint8_t kInExit   = 1u << 3;  // IN4
-inline constexpr uint8_t kInFire   = 1u << 4;  // IN5, a placeholder under D77
-inline constexpr uint8_t kInAlarm  = 1u << 5;  // IN6, a placeholder under D77
+inline constexpr uint8_t kInFire   = 1u << 4;  // IN5, the FIRE terminal
+inline constexpr uint8_t kInAlarm  = 1u << 5;  // IN6, the alarm output: the hard-shutdown latch
 
 // The relays, as io_task numbers them (Impl Plan 3.1).
 inline constexpr uint8_t kRelayOpenLock = 0;  // K1

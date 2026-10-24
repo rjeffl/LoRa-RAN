@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.21
+**Version:** 0.22
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-24
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -97,8 +97,8 @@ Four consequences shape requirements elsewhere in this document:
   safety-loop and exit-wand contacts, tapped directly.
 - **G-8. Alert on vehicle detection while the gate is being held open.** This is the
   **primary operational requirement** behind G-7.
-- **G-9. Immediate, separately routable alert on any FIRE assertion.** **Deferred by D77:** no input senses it in the first release (§3.1.4).
-- **G-10. Hard-shutdown / entrapment alarm state** reported. **Deferred by D77:** no input senses it in the first release (§3.1.4).
+- **G-9. Immediate, separately routable alert on any FIRE assertion.**
+- **G-10. Hard-shutdown / entrapment alarm state** reported.
 - **G-11. Full charge-controller status**, plus **read/write access to all its
   configuration registers**, with GateLink acting as transport only.
 - **G-12. Battery health and state of charge** from the pack BMS.
@@ -193,11 +193,9 @@ command is also the pulse that wakes the board** (**D21**).
 | IN5 | FIRE terminal, sensed | Someone used the keypad FIRE code |
 | IN6 | Alarm output, sensed | Hard shutdown / entrapment latch |
 
-> **IN5 and IN6 are placeholders in the first release (D77, 2026-10-12).** The StamPLC that
-> deploys reads IN1–IN4 only, so nothing is wired to IN5 or IN6. The requirements that rest
-> on them are G-9, G-10, §3.2.5, R-3.5i, the keypad-hold and FIRE entities in §7, and S-13.
-> Each stands for a hardware revision whose IN5 and IN6 read, and is not verified before.
-> Until then a hold made by the keypad FIRE code cannot be told from any other hold.
+> **GateLink reads all six inputs (D83, 2026-10-24).** D77 had made IN5 and IN6
+> placeholders because the deploying StamPLC's IN5–IN8 read nothing. That was a firmware
+> defect, and both StamPLCs read them once it was fixed (Implementation Plan §3.2).
 
 **R-3.1.4a. Gate and hold state SHALL be derived from IN1 and IN2 as follows:**
 
@@ -320,8 +318,6 @@ email and SMS from HA.*
 
 #### 3.2.5 FIRE is an emergency, not a mode
 
-**Deferred by D77:** IN5 is not wired in the first release (§3.1.4).
-
 The keypad's FIRE code is used **only for testing and in a real fire emergency.** It is
 not a routine hold-open mechanism, and treating an assertion as merely another way to
 hold the gate open understates it.
@@ -433,8 +429,7 @@ the node's side:
   §8.14 that the bench can produce, with no repeat.
 - **R-3.5i.** GateLink SHALL send `FIRE_ASSERTED` or `HARD_SHUTDOWN` after its `BOOT`
   status when the condition is present at boot (**D72**). An event queued at a reset is
-  lost, and a second alert is the accepted price of never missing a fire. **Deferred by
-  D77** (§3.1.4); the firmware keeps the path and holds IN5 and IN6 at 0.
+  lost, and a second alert is the accepted price of never missing a fire.
 - **R-3.5j.** **No relay may energize from reset until the firmware drives it.** The
   relay drivers SHALL hold every output off through the boot ROM and a watchdog reset,
   whatever state the ESP32's pins pass through. A pulse at boot is an unauthenticated
@@ -446,7 +441,8 @@ the node's side:
   ESP32 reset does not reset the radio, which can be left transmitting or on a PHY trial's
   settings.
 - **R-3.5l.** GateLink SHALL set `node_flags` bit 7 while its FIRE and alarm inputs are
-  not sensed (Protocol Spec §7.2.8, **D80**), which under **D77** is always. Otherwise
+  not sensed (Protocol Spec §7.2.8, **D80**). Under **D83** they are sensed, so GateLink
+  does not set it. Otherwise
   `input_bits` bits 4 and 5 read 0, which says "not asserted" about inputs nothing
   measured.
 
@@ -866,9 +862,9 @@ as unavailable.
 | Close immediately | `switch` (config) | — |
 | Gate state | `sensor` (text, diagnostic) | IN1/IN2 |
 | Auto-close pending | `binary_sensor` | IN2 while IN1 asserted |
-| Held open by keypad | `binary_sensor` | IN5. **Not published while D77 holds** |
-| **FIRE asserted** | **`event`, non-retained** | IN5 — **route separately**. **Not published while D77 holds** |
-| Hard shutdown | `binary_sensor` (problem) | IN6. **Not published while D77 holds** |
+| Held open by keypad | `binary_sensor` | IN5 |
+| **FIRE asserted** | **`event`, non-retained** | IN5 — **route separately** |
+| Hard shutdown | `binary_sensor` (problem) | IN6 |
 | Movement cause | `sensor` (text) | derived |
 
 **Vehicle detection**
@@ -971,8 +967,8 @@ being 40% open is worse than one reporting discrete states.**
 - **S-13. Measure IN5 and IN6 before connecting them** (**M3**). Both are voltage-sense,
   not dry contact, and the alarm output supplies fused 12 V. The inputs are rated
   5–36 V so there is no damage risk, but the measurement is required to get the sense
-  polarity right — and IN5 is an emergency signal. **Dormant by D77**: neither is wired in
-  the first release.
+  polarity right — and IN5 is an emergency signal. **Active again by D83**: run it before
+  IN5 and IN6 are connected at the gate.
 - **S-14. The host is operated outside its temperature rating** (R-4.5a). This is a
   deliberate, instrumented exceedance. **If seasonal logging shows sustained excursions,
   mitigate — vents, shade, fan — or revisit the platform. Do not rationalise.**
@@ -1031,6 +1027,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.22** — **IN5 and IN6 are read again**, by operator decision 2026-10-24 (**D83**,
+  superseding D77). D77's dead port 1 was a firmware defect. G-9, G-10, §3.2.5, R-3.5i, S-13
+  and the three IN5/IN6 entities in §7 apply to the first release. R-3.5l stands, and
+  GateLink does not set the bit.
 
 - **v0.21** — **Protocol specification v0.17 → v0.18.** R-3.5a names status schema
   `0x13` (**D82**), and R-6.4c names its `ah_drawn_dah` field but does not yet define

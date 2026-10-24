@@ -141,7 +141,6 @@ void test_k2_releases_the_claim() {
   TEST_ASSERT_EQUAL(HoldSource::Manual, g.hold_source());
 }
 
-// FIRE is a placeholder under D77; the path stays for a revision whose IN5 reads.
 void test_fire_hold_is_keypad_fire() {
   GateTracker g;
   uint32_t    t = 0;
