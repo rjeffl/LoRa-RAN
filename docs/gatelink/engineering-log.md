@@ -1321,3 +1321,139 @@ banner read `heap free 58536, lowest 53440`.
 
 **Not checked:** the three `number` entities in Home Assistant, because the harness logs
 only `lran/#`. `tools/checks/ha_examples.py` covers their discovery payloads.
+
+---
+
+## 2026-10-24 — The replacement StamPLC's IN5–IN8 do not read either
+
+**A second StamPLC fails port 1 the same way, so D77's premise is no longer one bad
+unit.** The 2026-10-11 entry set the falsifying observation as "IN5 or IN6 reading 1 while
+energized with `EXCOM_COM` connected, **on this board**". That test now has a second board,
+and the reading did not change.
+
+The two units are physically different: the replacement reads MAC `ac:a7:04:03:52:0c`
+against `50:78:7d:cd:c9:94` on the unit D77 was decided on.
+
+| State | `aw` input registers | Reads |
+|---|---|---|
+| Nothing driven | `00 0f` | IN1–IN8 de-energized |
+| IN3–IN6 driven together | `c0 0f` | IN3, IN4 energized; IN5–IN8 still 0 |
+
+Port 0 bits 6 and 7 are IN3 and IN4, so the new input board's two stages on those channels
+work. `M5StamPLC.cpp`'s `_in_pin_list = {4, 5, 6, 7, 12, 13, 14, 15}` maps IN5–IN8 to port
+1's upper nibble. That nibble stayed 0 while the same board drove all four channels from
+the same supply and the same common.
+
+**The drive is proven good by the channels that do read.** The operator measured 13.6 V at
+each MOSFET gate and 0 V from drain to ground, with `EXCON_COM` at +12 V, so each
+energized input sees the full 12 V across the opto. IN3 and IN4 register that; IN5 and
+IN6, driven identically on the same board, do not.
+
+**The expander configuration is right, and there is no second input path.** `dir f0 ff`
+makes P0_4–P0_7 and all of port 1 inputs, `ledmode ff ff` puts both ports in GPIO mode,
+and the ID reads the AW9523's `0x23`. Expander A at `0x43` drives only the status light
+and the backlight (`io_expander_a_init()`), so no input reaches the MCU through it.
+
+**The register read is not an addressing artifact.** `board_read_inputs()` takes the two
+input registers in one 2-byte read from `0x00`, so `Input_Port1` at `0x01` arrives only if
+the part auto-increments. It does: the bytes differ, `00` then `0f`, where a part that did
+not would have returned `00 00` idle and `c0 c0` energized. Port 1's `0x0f` is coherent on
+its own terms. P1_0–P1_3 are unconnected here and float high, and P1_4–P1_7 sit on the
+opto emitters with R30 pulling them down, so a working register reads `0x0f` with those
+four optos off. The expander at `0x59` also answers with the AW9523's ID `0x23` and holds
+the relay directions this firmware drives, and one AW9523 carries all 16 lines the board
+needs, so the inputs have no second expander to sit on.
+
+**One hypothesis is left, and neither board has tested it:** whether IN5–IN8 share
+`EXCON_COM` with IN1–IN4. The 2026-10-11 test opened that terminal and dropped IN1–IN4
+together, which establishes the common for those four only.
+[`StamPLC-input-conditioning`](./StamPLC-input-conditioning.md) calls it "almost certainly
+shared", an assumption rather than a measurement. A separate, unwired common for IN5–IN8
+would leave those optos with no return path and read 0 at any drive voltage, which is what
+both boards show.
+
+**The operator's readings do not yet prove current reaches the opto.** 13.6 V at the gate
+and 0 V from drain to ground say the MOSFET is on. An open conductor between that drain
+and the `EXCOM_IN5` terminal gives the same two readings, because a MOSFET on with no load
+also sits at 0 V. Measuring at the StamPLC's own terminal separates the two: about 12 V
+from `EXCOM_IN5` to `EXCON_COM` means current is flowing through the opto, and roughly 0 V
+across them means the terminal is still sitting at the common and nothing is driving it.
+
+**Falsified by:** about 6.2 kΩ between `EXCOM_IN5` and `EXCON_COM`, R14 across the input
+terminals as [`StamPLC-el3h4-input-analysis`](./StamPLC-el3h4-input-analysis.md) §1
+measures it on IN1. An open circuit there says the common is elsewhere, and a wire
+recovers the inputs. About 6.2 kΩ with the register still reading 0 puts the fault in the
+opto outputs PC5–PC8, their `SYS_IN5`–`SYS_IN8` traces, or the expander's P1_4–P1_7, on
+two units.
+
+**M5's own documentation weakens the hypothesis without closing it.** The StamPLC page
+lists one common terminal, `EXCOM_COM`, for all eight inputs, and names the input expander
+`AW9523B (0x59)`, the address this firmware reads. It carries no pinout row pairing each
+input with a pin, and it never states that the eight inputs share the one common.
+
+**The IO schematic could not be read here.** `K141_sch_StamPLC_V10_IO.pdf` carries no
+usable text layer, and the host has no `pdftotext` or `pdftoppm`.
+
+**No published report matches the symptom.** A search of M5Stack's documentation, its
+community forum and the `m5stack/M5StamPLC` issue tracker found nothing describing IN5–IN8
+reading 0 while IN1–IN4 read. The two issues that touch the inputs both describe every
+input failing: issue 15 is about AW9523 interrupts and was answered with an example, and
+issue 17, "Cannot read inputs !!!", was resolved by a jumper between `-` and `COM`. That
+resolution does not apply here, because IN1–IN4 read through the same common. The absence
+of a report is weak evidence either way, since few builds use more than four inputs.
+
+### When IN5 and IN6 return, IN6 does not invert
+
+The operator states the 1050's alarm output is a 12 V output that goes active on an alarm
+condition, so IN6 reads asserted when the alarm is active and its stage does not invert.
+Whether that output has a pull-down is not known, and one may have to be supplied.
+`kInputsActiveLow` therefore cannot widen to `0x3C`: IN3, IN4 and IN5 invert and IN6 does
+not, on the signals as described.
+
+**The edge-triggered events are not built.** `FIRE_ASSERTED` and `HARD_SHUTDOWN` are sent
+only by the boot re-send of R-3.5i (`task_runtime.cpp`, `send_boot_alarm`). PRD G-9 and
+G-10 need a path that sends them on an edge, which no masking hid because it was never
+written. `gate_state.cpp` already consumes both bits for the movement cause, the hold
+source and FAULT.
+
+### What the new hardware did pass
+
+Everything below ran on the firmware at `969cdf7`, flashed before this session.
+
+- **VE.Direct works through the changed J4 connector, in both directions.** 62 text blocks
+  with 0 bad, 0 unsynced and 0 unparsed; 10 HEX transactions sent and answered with 0
+  retries and 0 timeouts; 129 async frames, 0 bad. `batt 13340 mV -10 mA, pv 1534 cV 0 W`,
+  `cs 3 err 0 mppt 2`. The MPPT's battery voltage and the INA226's both read 13340 mV.
+- **The pack reads.** One window in 1622 ms (`init 42 scan 171 conn 1137 hs 91 ans 169
+  down 12`). Cells 3342, 3344, 3345, 3344 mV, delta 3; temps 18.6, 20.9, 16.8, 17.1 °C;
+  pack 13370 mV 0 mA; SOC 99 %; 99.9 of 100.0 Ah; 4 cycles; SOH 100.0 %; RSSI −62. The
+  interlock logged 0 tx waits, 0 aborts and 0 overruns.
+- **All four relays pulse.** K1–K4 each held 299.9 ms against a 300 ms request, with 0 I²C
+  failures and the boot relay-off check passing.
+- **The radio is clean.** RST check passed with BUSY falling in 1620 µs; rx 13, tx 18, 0
+  errors, 0 timeouts, 0 forced, 0 CAD errors.
+- **The card mounts and the store persists.** 3 rows restored at boot, 0 refused, 0
+  unknown, 0 failed writes, 0 failed mounts.
+- **The command path runs end to end.** `lran/gatelink/cmd/open/set` returned
+  `{"outcome":"acked","seq":2,"attempts":1,"result":0,"detail":0}` and pulsed K3 for
+  499.9 ms.
+- **The buzzer sounds.** The operator heard `beep`, which still logs `LEDC is not
+  initialized` first. That error is cosmetic.
+
+### The split readback has now been seen on air
+
+**One `get_all` returned 34 results in two `CONFIG_ACK` frames**, which the handoff had
+recorded as never observed. The bridge logged `FRAME #41 tx` for the request, then `FRAME
+#42 rx` and `#43 rx` for the replies, both `type=11 schema=18`. GateLink logged `config 01
+<- 00 seq 1: op 3, 0 entries, 34 result(s)`. The outcome
+was 1. Both replies arrived at RSSI −39 and SNR 11.
+
+### Two smaller things
+
+**The charge-inhibition rows are back at their default values.** The readback shows
+`charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20,
+which are the defaults, each still carrying `source: override`. The 2026-10-15 test values
+of −5, 250 and 35 are gone. The three rows are the 3 that boot restores.
+
+**The RTC reads `2049-12-01 01:18:15`.** It reports itself set. Nothing read from it is on
+the wire yet.

@@ -20,16 +20,17 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**Tier 2, the soak, waits for the 2N7000 board and the rewired harnesses** (operator,
-2026-10-13). They change the production node mechanically, so the soak runs on the
-hardware that deploys. The pack and the MPPT are back at the gate. Everything below runs on
-the StamPLC's 12 V bench supply.
+**The input board is built and fitted, and a replacement StamPLC is in service**
+(2026-10-24). The pack and the MPPT are on the bench with it, so VE.Direct, the BMS and the
+radio all ran together through the real power chain. Everything below runs on the StamPLC's
+12 V bench supply. **The soak no longer waits on hardware**, but what the node deploys on
+is unsettled while IN5 and IN6 read nothing.
 
 | Tier | Task | Read |
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82). R-6.4c needs the PRD to define "charging active" and the current integrated first | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **Build and bench the two 2N7000 stages**, and rewire IN1 and IN2's harnesses sinking, once the board is in hand (operator builds). Check `in` reads `debounced 0x00` at idle, then repeat a real traversal | Plan §3.2; the engineering log's 2026-10-12 entry |
+| 3 | **Decide what GateLink deploys on, now that a second StamPLC's IN5–IN8 also read nothing.** The input board is built and its stages on IN3 and IN4 work. Take the two terminal measurements under *Open* first; they say whether IN5 and IN6 are recoverable | *Open*, below; the engineering log's 2026-10-24 and 2026-10-11 entries; plan §3.2 |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
 | — | **GL4's M14**: the MPPT is on the gate's PV again, so a week of its VictronConnect history could stand in. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
@@ -56,8 +57,6 @@ install costs a walk to the gate:
   *Open*, and the SD library's `log_w`.
 - The 2N7000 stages for IN3 and IN4 and the IN1 and IN2 harnesses rewired sinking, when the
   board arrives (plan §3.2).
-- The three charge-inhibition rows set back from the 2026-10-15 test values (*Hardware
-  state*).
 - Last of all, the production build from the production `secrets.h`.
 
 **Tier 2's soak follows the board**: 24 to 72 h through the MPPT, the pack and the StamPLC,
@@ -153,7 +152,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, the node image with the charge-inhibition rows, flashed 2026-10-15 from the firmware at `884e840`. MAC `50:78:7d:cd:c9:94` | A 128 GB microSD card, formatted FAT32 on the board, holding the bus tests' `/gl0bus.bin` and `/gl1bus.txt`. **Overrides from the 2026-10-15 test:** `charge_inhibit_temp_c` −5, `charge_inhibit_band_ma` 250, `charge_inhibit_rise_mv` 35. No reset is recorded; set them back to the defaults in `gatelink-config.md` before deploy | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN5–IN8 dead; deploys on IN1–IN4 (D77)**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, flashed from the firmware at `969cdf7`. **Replacement unit, MAC `ac:a7:04:03:52:0c`**, in service 2026-10-24; the unit D77 was decided on was MAC `50:78:7d:cd:c9:94` | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN5–IN8 dead; deploys on IN1–IN4 (D77)**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -208,6 +207,23 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **A second StamPLC's IN5–IN8 do not read either** (engineering log, 2026-10-24). The
+  replacement unit, MAC `ac:a7:04:03:52:0c`, reads IN3 and IN4 but not IN5 or IN6 with all
+  four driven from the new input board. D77 was decided on one unit; its premise now covers
+  two, and no published M5Stack report matches the symptom. **Two measurements would settle
+  it, both at the StamPLC's terminals:** about 12 V from `EXCOM_IN5` to `EXCON_COM` while
+  that channel is driven, which says current reaches the opto, and about 6.2 kΩ between the
+  same two terminals unpowered, which says they share the common. The operator's.
+- **The 1050's alarm output does not invert, so IN6 is not IN3's stage** (operator,
+  2026-10-24). It is a 12 V output that goes active on an alarm, so IN6 reads asserted when
+  the alarm is active, and `kInputsActiveLow` cannot simply widen to `0x3C`. Whether that
+  output carries a pull-down is unknown, and one may have to be supplied.
+- **`FIRE_ASSERTED` and `HARD_SHUTDOWN` have no edge-triggered path.** Only R-3.5i's boot
+  re-send sends them (`task_runtime.cpp`, `send_boot_alarm`). PRD G-9 and G-10 need that
+  path, which no masking hid, because it was never written. `gate_state.cpp` already
+  consumes both input bits.
+- **The RTC reads `2049-12-01`** and reports itself set (engineering log, 2026-10-24).
+  Nothing on the wire reads it yet.
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
   defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
@@ -265,8 +281,8 @@ board's are its D-pads (expansion board §6.1).
   (`firmware/gatelink/CLAUDE.md`), and only configuration traffic with a bad card reaches it.
 - **`boot_count` and `state.json` are not built** (plan §6.4's file table). STATUS sends
   `boot_count` 0.
-- **`beep` logs `LEDC is not initialized` on first use**, though the buzzer was heard. Send
-  one `beep` while listening to tie the two together.
+- ~~**`beep` logs `LEDC is not initialized` on first use.**~~ **Closed 2026-10-24:** the
+  operator heard the buzzer while `beep` logged the error, so the error is cosmetic.
 
 - **`wattcycle-reader`'s `loop()` ticks the reassembler with a clock read before its
   blocking write.** The library tolerates it now. GateLink's `bms_task` should read its
@@ -300,11 +316,9 @@ board's are its D-pads (expansion board §6.1).
   `lran-prd-v0_5` §5.7 citation, and the bridge's note on B0's P6-only gating. The
   2026-10-03 prompt audit proposed removing them. That is a style pass, and it waits for
   the operator to ask for one.
-- **No split readback has been seen on air.** The bridge names GateLink's rows only for
-  `0x01` (`node_block()`), and a simnode cannot take that ID, so `simnode1`'s readback
-  stops at 68 bytes. Showing the split needs the bridge to name GateLink's block for a
-  `ROLE_GATELINK` simnode, which changes the simnode's discovery in HA, or needs GateLink
-  itself on air. The bridge's call.
+- ~~**No split readback has been seen on air.**~~ **Closed 2026-10-24:** GateLink itself
+  answered one `get_all` with 34 results in two `CONFIG_ACK` frames (engineering log,
+  2026-10-24).
 - **PRD R-4.3i's `antenna_gain_dbi` and envelope rows**, M21 handoff items 1–3. They are
   fleet-wide, so they go in node-common and the bridge's block, not GateLink's. Kept out
   of L4 by operator decision, 2026-10-01. Until then `tx_power_dbm`'s maximum is the
