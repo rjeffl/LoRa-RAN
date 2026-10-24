@@ -5,9 +5,9 @@ StamPLC, the new MOSFET input board, the new SD card and the changed VE.Direct c
 It also found why IN5–IN8 never read: P1's direction register must be written before those
 pins sample. `io_task` now writes it, and all six inputs read.
 
-**A follow-up session the same day reflashed the original StamPLC, and its IN5–IN8 read
-too.** Neither board was ever faulty, so D77 was never about hardware. It is the operator's
-to settle.
+**Two follow-up sessions the same day** found that the original StamPLC's IN5–IN8 read
+too, and then settled D77 as **D83: GateLink deploys on six inputs.** IN5 and IN6 are read,
+FIRE and `HARD_SHUTDOWN` go out on their edges, and R-3.5i passed on the air.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -23,17 +23,15 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The input board is built and fitted, and a replacement StamPLC is in service**
+**The input board is built and fitted, and the original StamPLC is back in service**
 (2026-10-24). The pack and the MPPT are on the bench with it, so VE.Direct, the BMS and the
 radio all ran together through the real power chain. Everything below runs on the StamPLC's
-12 V bench supply. **The soak no longer waits on hardware.** All six inputs
-read since the direction-register fix, so what the node deploys on is the operator's
-decision rather than a hardware limit.
+12 V bench supply. **The soak no longer waits on hardware**, and GateLink
+deploys on six inputs (D83).
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Settle D77, then restore IN5 and IN6.** `kInputsWired` goes `0x0F` to `0x3F`; `kInputsActiveLow` goes `0x0C` to **`0x1C`, not `0x3C`** — IN3, IN4 and IN5 invert and IN6 does not. G-9 and G-10 have no edge-triggered path at all | Plan §3.2; PRD G-9, G-10, §3.2.5, R-3.5i, R-3.5l; spec §7.2.1, §7.2.8 |
-| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80 — reconsider, since the inputs now read), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 | 2 | **Bench soak through the real power chain**, 24 to 72 h. Fix `bench.py`'s write-side defect first if the soak is to be watched unattended | Plan §8.2's GL9 row; *Open*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
@@ -44,7 +42,7 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**GL3 is done but for R-3.5i, which D77 defers.** State derivation, hold sources,
+**GL3 is done, R-3.5i included** (engineering log, 2026-10-24, *D83*). State derivation, hold sources,
 direction, partial traversals and the held-open alert passed on the air (engineering log,
 2026-10-13). GL6 confirms them against real gate cycles, after GL2.
 
@@ -57,7 +55,7 @@ shows the indication while VE.Direct is down since the same date (bridge enginee
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
 
-- Spec v0.18's GateLink side (D78, D80–D82), the relay-at-watchdog question under
+- Spec v0.18's GateLink side (D78, D81, D82), the relay-at-watchdog question under
   *Open*, and the SD library's `log_w`.
 - The 2N7000 stages for IN3 and IN4 and the IN1 and IN2 harnesses rewired sinking, when the
   board arrives (plan §3.2).
@@ -123,7 +121,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.38. The PHY trial, on the air 2026-10-13. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i remains, deferred by D77. GL4: every criterion passes on the bench except M14, now possible with the MPPT back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, `vedirect_task`'s CPU share beside NimBLE is measured, and low-temperature inhibition passes on the air by the BMS path; M23, the VE.Direct path on the air and `0x8D` remain |
+| In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i passes on the air (2026-10-24). GL4: every criterion passes on the bench except M14, now possible with the MPPT back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, `vedirect_task`'s CPU share beside NimBLE is measured, and low-temperature inhibition passes on the air by the BMS path; M23, the VE.Direct path on the air and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -156,7 +154,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `6ae730d`, flashed 2026-10-24. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware still masks IN5 and IN6 under D77. At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `2afa0d7`, flashed 2026-10-24. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -212,23 +210,18 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
-- **D77 rests on a firmware defect, and all six inputs read now** (engineering log,
-  2026-10-24). P1_4–P1_7 do not sample until P1's direction register is written, though it
-  reads back as all inputs either way; one write from `io_task`'s first pass fixes it, and a
-  fresh boot now reads `raw 0x3c` on both StamPLCs. **D77 is the operator's to settle**, and the firmware,
-  both documents and the bridge's withdrawn entities still describe four inputs.
 - **Why the direction write is lost is not established.** The same write in `board_begin()`
   did not hold. M5GFX pulses GPIO 3 inside `M5.begin()`, and M5StamPLC's
   `io_expander_b_init()` calls `configureDirection(0x0)`, which sets every pin to output
   despite its `// all inputs!` comment. The write is a fix, not an explanation.
-- **The 1050's alarm output does not invert, so IN6 is not IN3's stage** (operator,
-  2026-10-24). It is a 12 V output that goes active on an alarm, so IN6 reads asserted when
-  the alarm is active, and `kInputsActiveLow` cannot simply widen to `0x3C`. Whether that
-  output carries a pull-down is unknown, and one may have to be supplied.
-- **`FIRE_ASSERTED` and `HARD_SHUTDOWN` have no edge-triggered path.** Only R-3.5i's boot
-  re-send sends them (`task_runtime.cpp`, `send_boot_alarm`). PRD G-9 and G-10 need that
-  path, which no masking hid, because it was never written. `gate_state.cpp` already
-  consumes both input bits.
+- **IN5's and IN6's polarities are the operator's description, not a measurement.**
+  `kInputsActiveLow` `0x1C` has IN5 invert and IN6 not, because the 1050's alarm output
+  drives 12 V on an alarm. M3 measures both at the gate before they are connected, and
+  whether the alarm output needs a pull-down to hold the 2N7000 off.
+- **The console splices lines under load.** Two `alarm:` lines arrived cut short and
+  joined to the next `gate:` line (`FIgate: CLOSED`), as a boot line did earlier
+  (`BUSY fell itored`). Whether `log_task` or `bench.py` drops the bytes is not
+  established.
 - **The RTC reads `2049-12-01`** and reports itself set (engineering log, 2026-10-24).
   Nothing on the wire reads it yet.
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
@@ -237,15 +230,10 @@ board's are its D-pads (expansion board §6.1).
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.
 
-- **HA's *FIRE input*, *Hard-shutdown latch* and *Held open by keypad* entities would read
-  a permanent "off" under D77.** The bridge stops publishing them while GateLink reads no
-  FIRE or alarm (operator, 2026-10-12). The bridge's work; its handoff carries it.
 - **PRD R-3.2.3e does not say `held_open_alert_repeat_s` is a rate limit.** The operator
   confirmed it is (2026-10-13), and `detect.h` says so. The next PRD revision states it.
 - **Event to MQTT took up to 6 s on the bench**, most under 2 s (engineering log,
   2026-10-13). Not lost, and the cause is not established.
-- **When IN5 and IN6 return, they assume energized means asserted.** The boot re-send in
-  `lora_task` reads `input_bits` bits 4 and 5 that way, and M3 confirms it then.
 - **A `ctx_id` drawn after boot may not come from a true entropy source.** `ROLL_CONTEXT`
   and `lran ctx new` call `esp_random()`, which is true random only while the RF subsystem
   runs, and BLE is down between windows. Spec §10.1 asks for true entropy at every draw.

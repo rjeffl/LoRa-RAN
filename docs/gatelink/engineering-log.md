@@ -1624,3 +1624,46 @@ do not read, holds for neither board. Settling D77 stays the operator's.
 
 **Falsified by:** this unit reading `aw` input `c0 0f` with IN5 and IN6 energized, after a
 boot of an image carrying `aaf87e8`, without an `aw redir`.
+
+## 2026-10-24 — D83: IN5 and IN6 read, and FIRE and HARD_SHUTDOWN go out on the air
+
+**The operator settled D77 as six inputs (D83).** `firmware/gatelink -e gatelink` at
+`2afa0d7` flashed to the original StamPLC. The bridge was on its bench port, and `bench.py`
+logged both consoles and `lran/#`. IN3–IN6 were energized from the input board.
+
+**R-3.5i passes on the air for the first time.** IN6 energized at boot is an asserted
+alarm, so boot read `raw 0x3c debounced 0x20`. GateLink then sent the alarm again after
+`BOOT`, and the bridge published it after `event/boot`:
+
+```text
+GL   boot: HARD_SHUTDOWN present at boot, sent again
+MQTT lran/gatelink/event/boot          {"event_id":1, ... "gate_state":"fault","input_bits":32,"detail":7,"reset_cause":"external" ...}
+MQTT lran/gatelink/event/hard_shutdown {"event_id":2, ... "gate_state":"fault","input_bits":32 ...}
+```
+
+**Every edge sends what `AlarmWatch` promises.** The operator removed and restored IN5's
+drive, then IN6's, about 5 s apart:
+
+| Edge | Console | STATUS reason | Event |
+|---|---|---|---|
+| IN5 drive removed | `inputs 0x30 - FIRE ASSERTED` | `fire` | `fire_asserted`, id 3 |
+| IN5 drive restored | `inputs 0x20 - FIRE clear` | `fire` | none |
+| IN6 drive removed | `inputs 0x00` | `hard_shutdown`, `shutdown_latch` false | none |
+| IN6 drive restored | `inputs 0x20` | `hard_shutdown`, `shutdown_latch` true | `hard_shutdown`, ids 4 and 5 |
+
+Each STATUS reached MQTT before its event, with `fire_inputs_sensed: true` throughout, so
+the bridge shows the three FIRE and alarm entities without any change of its own.
+`node_flags` bit 5 followed IN6 as `shutdown_latch`.
+
+**IN6's two events were the restore's contact bounce**, by the operator's account: the
+conductor was re-landed by hand. The debounced inputs read `0x20`, `0x00` and `0x20` within
+610 ms, longer than the 200 ms that `input_debounce_samples` 2 at `input_poll_ms` 100
+spans. The 1050's alarm output drives the input electronically, so this says nothing about
+the installed signal.
+
+**What this does not establish.** The polarities in `kInputsActiveLow` (`0x1C`) are the
+bench's: IN5 inverts like IN3 and IN4, and IN6 does not, on the operator's description of
+the 1050's alarm output. M3 measures both at the gate before they are connected.
+
+**Falsified by:** a rising edge on IN5 or IN6 after boot with no event on
+`lran/gatelink/event/fire_asserted` or `event/hard_shutdown`.

@@ -73,12 +73,11 @@ refuses a long-lived token.
 
 Each group is one session unless its line says otherwise. Group 5 is the one queued.
 
-**D77's three entities need no withdrawal now** (2026-10-15). GateLink reads no FIRE or
-alarm input, so `lran_gatelink_fire_input`, `lran_gatelink_alarm_input` and
-`lran_gatelink_shutdown_latch` would read a permanent "off". Group 9 shows them
-unavailable while `node_flags` bit 7 is set, which spec §7.2.8 prefers to a rule naming
-one node. **That holds only once GateLink sets bit 7** (D80, GateLink's tier 3). If its
-production image goes out without it, the withdrawal is owed again.
+**GateLink reads FIRE and the alarm input again** (D83, 2026-10-24, superseding D77), and
+never sets `node_flags` bit 7. `lran_gatelink_fire_input`, `lran_gatelink_alarm_input` and
+`lran_gatelink_shutdown_latch` are therefore available, and `event/fire_asserted` and
+`event/hard_shutdown` published on the air the same day (GateLink engineering log). No
+bridge change was needed.
 
 ### 1. Bridge defects the bench can reach
 
