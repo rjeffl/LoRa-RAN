@@ -33,8 +33,32 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **Bench soak through the real power chain**, 24 to 72 h. Fix `bench.py`'s write-side defect first if the soak is to be watched unattended | Plan §8.2's GL9 row; *Open*, below |
+| 2 | **Bench soak through the real power chain**, 24 to 36 h, **run from the Kubuntu laptop on branch `gl-bench-soak`**. `bench.py`'s write-side defect is fixed there. The setup is below | Plan §8.2's GL9 row; *The soak's setup*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
+
+### The soak's setup
+
+The operator chose this on 2026-10-24: the gate is already down, the MPPT runs from a
+30 W panel, and the Mac cannot stay attached.
+
+- **Keep USB off the StamPLC during the soak.** With 12 V on, USB carries all but 3.1 mA of
+  the board's load, so a soak with USB attached does not test the power chain. Flash it
+  over USB, then unplug. A cable with VBUS cut, through the USB 2.0 hub, would keep the
+  console without powering the board; that is the only way to catch a panic's backtrace.
+- **The `BOOT` event names the reset cause** (`reset_cause()` in `task_runtime.cpp`), so
+  an unplanned panic, watchdog or brownout reset shows in the MQTT log without a console.
+- **The bridge goes on its own USB supply, and the simnode is unplugged**, so GateLink
+  is the only node on the air.
+- **The pack charges through M7's warm harness section.** At 30 W that is about 2.3 A, or about
+  1.2 W in the 0.22 Ω. The fix is still owed before a larger panel.
+- **Log with `bench.py run --mqtt --dir <soak dir>`**, with a `--port` only for a board
+  whose console is attached without powering it. The run needs the bench `secrets.h` in
+  that checkout, which the operator copies.
+- **Watch for:** any `BOOT` after the first; a steady STATUS rate; BMS polls at
+  `bms_poll_s`, never yet watched on a schedule; VE.Direct never stale; and the overnight
+  ΔSOC.
+- **Build from a clean tree**, so the banner does not read `-dirty`. OTA uploads are the
+  operator's. Quit VictronConnect before the USB upload.
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -257,11 +281,9 @@ board's are its D-pads (expansion board §6.1).
   console then stayed silent, with no `alive:` line for over 30 s and no watchdog reset. A
   USB reset recovered it. Boot's own mount fails without hanging. The cause is not
   established; a second `SD.begin()` after a failed one is the first suspect.
-- **`bench.py run` exits when it writes to a port that has disappeared**
-  (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not. It
-  killed the harness twice on 2026-10-24, on a flash and on a power cycle, and the StamPLC
-  took about 24 s to re-enumerate each time. **Fix it before any unattended soak**, since
-  the harness is what would be watching.
+- ~~**`bench.py run` exits when it writes to a port that has disappeared.**~~ **Closed
+  2026-10-24:** the write side now logs `<TAG not written: …>` and carries on, and
+  `reader()` reopens the port. `test_bench.py` covers it.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the

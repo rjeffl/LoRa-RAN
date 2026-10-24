@@ -135,6 +135,17 @@ class CommandTest(unittest.TestCase):
         self.b.command("release SIM")
         self.assertFalse(self.port.rts)
 
+    def test_write_to_a_gone_port_is_logged_not_fatal(self):
+        class GonePort(FakePort):
+            def write(self, b):
+                raise OSError("Attempting to use a port that is not open")
+
+        self.b.ports["SIM"] = GonePort()
+        self.assertTrue(self.b.command("SIM status"))
+        self.b.out.flush()
+        log = open(os.path.join(self.tmp.name, "bench.log")).read()
+        self.assertIn("<SIM not written: Attempting", log)
+
     def test_pub_without_mqtt_is_logged_not_dropped(self):
         self.b.command("pub -r lran/x 1")
         self.b.out.flush()
