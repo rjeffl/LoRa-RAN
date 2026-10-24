@@ -1590,3 +1590,37 @@ while the register reads correct is not pinned down. The write is a fix, not an 
 **IN5 and IN6 are still masked in firmware.** `kInputsWired` is unchanged, so `input_bits`
 and the `in` line still report four inputs and only `aw` shows the other two. Restoring
 them is the work the subsection above lists, and D77 is the operator's to settle first.
+
+## 2026-10-24 — The original StamPLC's IN5–IN8 read: that unit was never faulty
+
+**The original StamPLC, MAC `50:78:7d:cd:c9:94` from `esptool read_mac`, reads all six
+inputs once flashed with the direction-register fix.** It was flashed with `firmware/gatelink
+-e gatelink` at `6ae730d`, which carries `aaf87e8`. It ran on its 12 V supply, with IN3–IN6
+energized and `EXCOM_COM` connected, and `bench.py` on the console. This answers the first
+item in the subsection above headed *What this does not establish*.
+
+| Boot | IN5, IN6 | Boot line | `in` | `aw` input |
+|---|---|---|---|---|
+| After the flash | energized | `raw 0x3c` | `raw 0x3C`, edges 4/0 | — |
+| `restart` | energized | `raw 0x3c` | `raw 0x3C`, edges 4/0 | `c0 3f` |
+| Same boot | drive removed | — | `raw 0x0C`, edges 6/0 | `c0 0f` |
+| Same boot | drive restored | — | `raw 0x3C`, edges 8/0 | `c0 3f` |
+| After removing 12 V and USB | energized | not captured | `raw 0x3C`, edges 4/0 | `c0 3f` |
+
+No row used `aw redir` or `aw drive`, so `io_task`'s direction write is the only one made.
+IN5 and IN6 fall when their drive is removed and rise when it returns, so they follow the
+input rather than sticking high. `i2c failures` stayed 0 throughout.
+
+**The power-cycle row booted twice.** The harness crashed on the cold boot (the write-side
+`PortNotOpenError`, *Open* in the handoff), so the power-on boot printed to a closed port.
+Restarting the harness reset the chip over USB, and that second boot reads `Reset: usb`.
+Every boot passes through M5StamPLC's `configureDirection(0x0)`, which the same day's fix
+follows. A software-reset boot therefore tests the fix as hard as a power-on boot does,
+though the power-on boot's own line was not seen.
+
+**So the 2026-10-11 entry's fault in hardware was this firmware defect**, on this unit as
+on the replacement. Both StamPLCs read IN1–IN6, and D77's premise, a StamPLC whose IN5–IN8
+do not read, holds for neither board. Settling D77 stays the operator's.
+
+**Falsified by:** this unit reading `aw` input `c0 0f` with IN5 and IN6 energized, after a
+boot of an image carrying `aaf87e8`, without an `aw redir`.
