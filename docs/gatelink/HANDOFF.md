@@ -1,10 +1,13 @@
 # `gatelink` — session handoff
 
-**Written 2026-10-15 by a documentation-sync session**, which changed no firmware. The
-sessions before it built low-temperature charge inhibition and passed its BMS path on the
-air (2026-10-14), then restored its three thresholds as parameter rows (2026-10-15).
-**Updated 2026-10-15 by the spec v0.18 session**: D78–D82 answered the `AckResult`, `0xFF`
-and three other spec questions below, and GateLink's side of them is now a task.
+**Written 2026-10-24 by the new-hardware bringup session.** It benched the replacement
+StamPLC, the new MOSFET input board, the new SD card and the changed VE.Direct connector.
+It also found why IN5–IN8 never read: P1's direction register must be written before those
+pins sample. `io_task` now writes it, and all six inputs read.
+
+The operator is swapping the original StamPLC back in. **The next session's first job is to
+reflash that board and see whether its IN5 and IN6 read too.** That decides whether D77 was
+ever about hardware.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -29,11 +32,12 @@ decision rather than a hardware limit.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82). R-6.4c needs the PRD to define "charging active" and the current integrated first | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **Reflash the original StamPLC and confirm IN5 and IN6.** It is back on the bench and carries an image from before the fix. Flash `firmware/gatelink -e gatelink` at `aaf87e8` or later, then read `aw`: `input c0 3f`, or `raw 0x3c` on the boot line, says its IN5–IN8 read too and that unit was never faulty. `aw redir` and `aw drive <0|1>` are there if it still reads `0f` | The engineering log's 2026-10-24 entry, last subsection, and its 2026-10-11 entry |
+| 3 | **Settle D77, then restore IN5 and IN6.** `kInputsWired` goes `0x0F` to `0x3F`; `kInputsActiveLow` goes `0x0C` to **`0x1C`, not `0x3C`** — IN3, IN4 and IN5 invert and IN6 does not. G-9 and G-10 have no edge-triggered path at all | Plan §3.2; PRD G-9, G-10, §3.2.5, R-3.5i, R-3.5l; spec §7.2.1, §7.2.8 |
+| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), set `node_flags` bit 7 under D77 (D80 — reconsider, since the inputs now read), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **Restore IN5 and IN6, once the operator settles D77.** All six inputs read since the direction-register fix. The mask, `kInputsActiveLow`'s IN6 exception, G-9 and G-10's missing edge path, R-3.5l, M3, both documents and the bridge's entities are the work | The engineering log's 2026-10-24 entry, last three subsections; plan §3.2; PRD G-9, G-10, R-3.5i, R-3.5l |
-| 2 | **Bench soak through the real power chain**, 24 to 72 h, after the board | Plan §8.2's GL9 row |
-| — | **GL4's M14**: the MPPT is on the gate's PV again, so a week of its VictronConnect history could stand in. The operator's call | Plan §8.2's GL4 row and §9.8 |
+| 2 | **Bench soak through the real power chain**, 24 to 72 h. Fix `bench.py`'s write-side defect first if the soak is to be watched unattended | Plan §8.2's GL9 row; *Open*, below |
+| — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -153,7 +157,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | `firmware/gatelink -e gatelink`, flashed from the firmware at `969cdf7`. **Replacement unit, MAC `ac:a7:04:03:52:0c`**, in service 2026-10-24; the unit D77 was decided on was MAC `50:78:7d:cd:c9:94` | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN5–IN8 dead; deploys on IN1–IN4 (D77)**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **Being swapped back to the original unit, MAC `50:78:7d:cd:c9:94`** (operator, 2026-10-24), which holds an image from before the direction-register fix and needs reflashing. The replacement, MAC `ac:a7:04:03:52:0c`, ran this session's bench work on `firmware/gatelink -e gatelink` at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN5–IN8 dead; deploys on IN1–IN4 (D77)**. Reached through a USB 2.0 hub, at `/dev/cu.usbmodem11301` on 2026-10-08, after a replug. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -214,8 +218,8 @@ board's are its D-pads (expansion board §6.1).
   fresh boot now reads `raw 0x3c`. **D77 is the operator's to settle**, and the firmware,
   both documents and the bridge's withdrawn entities still describe four inputs.
 - **Whether the original StamPLC's IN5–IN8 also read is unknown.** It was never tested
-  after a direction write. One bench hour would say, if that board is still to hand, and it
-  decides whether the first unit was ever faulty.
+  after a direction write. **This is the next session's first task**, now that the operator
+  is swapping that board back in, and it decides whether the first unit was ever faulty.
 - **Why the direction write is lost is not established.** The same write in `board_begin()`
   did not hold. M5GFX pulses GPIO 3 inside `M5.begin()`, and M5StamPLC's
   `io_expander_b_init()` calls `configureDirection(0x0)`, which sets every pin to output
@@ -269,7 +273,10 @@ board's are its D-pads (expansion board §6.1).
   USB reset recovered it. Boot's own mount fails without hanging. The cause is not
   established; a second `SD.begin()` after a failed one is the first suspect.
 - **`bench.py run` exits when it writes to a port that has disappeared**
-  (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not.
+  (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not. It
+  killed the harness twice on 2026-10-24, on a flash and on a power cycle, and the StamPLC
+  took about 24 s to re-enumerate each time. **Fix it before any unattended soak**, since
+  the harness is what would be watching.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
