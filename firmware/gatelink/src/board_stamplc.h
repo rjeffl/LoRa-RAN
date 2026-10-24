@@ -71,6 +71,13 @@ bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]);
 // Returns false on an I2C failure, having tried to restore the direction either way.
 bool board_probe_port1(bool level, uint8_t* port1);
 
+// Writes P1_4-P1_7's direction as inputs again, without driving them, and reads the input
+// register back. The pins report pin state only once the direction register is written,
+// though it already reads back as input, so a boot that loses that write leaves IN5-IN8
+// stuck at 0 (engineering log, 2026-10-24). This says whether the write alone is the fix,
+// which board_probe_port1()'s output phase would otherwise mask.
+bool board_redirect_port1_inputs(uint8_t* port1);
+
 // Reads the three front buttons. Bit 0 is A, 1 is B, 2 is C; a bit is set once per press.
 uint8_t board_poll_buttons();
 

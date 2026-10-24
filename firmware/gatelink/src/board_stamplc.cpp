@@ -116,6 +116,7 @@ void board_begin() {
   // landscape default keeps that default's offset and panel size, whatever M5GFX sets.
   auto& d = M5StamPLC.Display;
   d.setRotation((d.getRotation() + 2) & 3);
+
 }
 
 bool board_write_relays(uint8_t mask) {
@@ -154,6 +155,17 @@ bool board_probe_port1(bool level, uint8_t* port1) {
   const bool restored = m5::In_I2C.writeRegister8(kExpanderB, kRegConfig1, cfg, kI2cHz) &&
                         m5::In_I2C.writeRegister8(kExpanderB, kRegOutput1, out, kI2cHz);
   return ok && restored;
+}
+
+bool board_redirect_port1_inputs(uint8_t* port1) {
+  uint8_t cfg = 0;
+  if (!m5::In_I2C.readRegister(kExpanderB, kRegConfig1, &cfg, 1, kI2cHz)) return false;
+  // The same value the register already reads back. The write is what the pins need.
+  if (!m5::In_I2C.writeRegister8(kExpanderB, kRegConfig1,
+                                 static_cast<uint8_t>(cfg | kIn5To8Bits), kI2cHz)) {
+    return false;
+  }
+  return m5::In_I2C.readRegister(kExpanderB, kRegInput1, port1, 1, kI2cHz);
 }
 
 bool board_dump_expander(uint8_t (&out)[kExpanderDumpLen]) {

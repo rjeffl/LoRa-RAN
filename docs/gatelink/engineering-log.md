@@ -1536,3 +1536,57 @@ behind it, none of it done:
 - **Plan §3.2, PRD G-9, G-10, §3.2.5, R-3.5i, R-3.5l and the §7 entity table** all describe
   the four-input deploy.
 - **Whether the 1050's alarm output carries a pull-down** is unknown, and one may be needed.
+
+### The cause: P1_4–P1_7 do not sample until P1's direction register is written
+
+**Both subsections above are superseded, and D77 rests on a firmware defect rather than
+dead silicon.** The operator asked whether the port had to be toggled from output to input
+mode before it would read. It does, and that is the whole of it.
+
+**The register already reads back correct while the pins are inert.** `dir f0 ff` says
+P1_4–P1_7 are inputs in every dump this session, in the states where IN5–IN8 read and in
+the states where they do not. That is why every configuration check made here looked right
+and proved nothing.
+
+A write to the register is what the pins need, and `aw redir` writes the value the register
+already holds, with no output phase:
+
+```text
+aw: input c0 0f                                     IN5, IN6 dead after a fresh boot
+aw redir: P1_4-P1_7 set input again, input reg 3f, those bits 30 - IN5-IN8 read
+aw: input c0 3f                                     and they stay read
+```
+
+`aw drive 1` does it too, through its restore, which is why the window after the earlier
+reflash worked: that boot happened to leave the register written, and the reading held
+until a power cycle took it away. **The operator's re-landing of the IN5 and IN6
+conductors was not the cause of anything**, and neither was a marginal EL3H4 at 12 V: the
+behaviour is digital, all four channels at once, and it switches on one I2C write.
+
+**The fix is one write, and where it goes matters.** In `board_begin()`, straight after
+`M5StamPLC.begin()`, it did not hold: the next boot read `raw 0x0c` again, so something
+between that call and the first pass leaves the register's value intact while the pins stay
+inert. From `io_task`'s first pass it holds. With that write in place, a fresh boot reads:
+
+```text
+boot: first input read raw 0x3c debounced 0x00
+aw: input c0 3f
+in: raw 0x3C debounced 0x00 edges 4/0 relays 0x00 i2c failures 0
+```
+
+`raw 0x3c` is IN3, IN4, IN5 and IN6 energized at the first read, against `raw 0x0c` before
+the fix. The write costs no I2C failures. `debounced 0x00` is still right, because
+`inputs_from_levels()` inverts IN3 and IN4 and masks IN5–IN8 under D77, which has not
+changed.
+
+**What this does not establish.** The original unit was never tested after a direction
+write, so whether its IN5–IN8 also read is unknown and worth one bench hour if that board
+is still to hand. The mechanism behind the lost write is not established either: M5GFX
+pulses GPIO 3 inside `M5.begin()` and M5StamPLC's `io_expander_b_init()` calls
+`configureDirection(0x0)`, which sets every pin to output despite its `// all inputs!`
+comment, before `pinMode` puts the input pins back. Which of those leaves the pins inert
+while the register reads correct is not pinned down. The write is a fix, not an explanation.
+
+**IN5 and IN6 are still masked in firmware.** `kInputsWired` is unchanged, so `input_bits`
+and the `in` line still report four inputs and only `aw` shows the other two. Restoring
+them is the work the subsection above lists, and D77 is the operator's to settle first.

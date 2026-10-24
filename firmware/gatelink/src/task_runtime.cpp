@@ -174,6 +174,7 @@ bool                  g_aw_ok = false;
 // so the console asks for the probe the way it asks for the dump.
 std::atomic<bool>     g_p1_req{false};
 std::atomic<bool>     g_p1_level{false};
+std::atomic<bool>     g_p1_redir{false};  // `aw redir`: the direction write alone
 std::atomic<uint32_t> g_p1_seq{0};
 uint8_t               g_p1_readback = 0;
 bool                  g_p1_ok       = false;
@@ -324,8 +325,21 @@ void io_task(void*) {
   TickType_t last        = xTaskGetTickCount();
   uint32_t   next_poll   = now_ms();
   uint32_t   next_sensor = now_ms();
+
+  // IN5-IN8 do not sample until P1's direction register is written, though it already reads
+  // back as all inputs (engineering log, 2026-10-24). The same write from board_begin() did
+  // not hold: something between it and the first pass leaves the register's value intact
+  // while the pins stay inert. Writing it here, from the task that owns the bus, is what
+  // made IN5 and IN6 read on the bench. D77 was decided without this write.
+  bool port1_ready = false;
+
   for (;;) {
     count(TaskId::Io);
+    if (!port1_ready) {
+      uint8_t port1 = 0;
+      port1_ready   = board_redirect_port1_inputs(&port1);
+      if (!port1_ready) ++g_io.i2c_failures;
+    }
     const uint32_t now        = now_ms();
     const uint32_t poll_ms    = live_param(kParamInputPollMs);
     const uint32_t width_ms   = live_param(kParamRelayPulseMs);
@@ -440,7 +454,9 @@ void io_task(void*) {
 
     if (g_p1_req.exchange(false)) {
       uint8_t    readback = 0;
-      const bool ok       = board_probe_port1(g_p1_level.load(), &readback);
+      // level 2 asks for the direction write alone, without driving the pins.
+      const bool ok = g_p1_redir.load() ? board_redirect_port1_inputs(&readback)
+                                        : board_probe_port1(g_p1_level.load(), &readback);
       portENTER_CRITICAL(&g_io_mux);
       g_p1_readback = readback;
       g_p1_ok       = ok;
@@ -1581,6 +1597,28 @@ void console_command(char* cmd) {
       std::snprintf(g_inject_text, sizeof(g_inject_text), "%s", canned != nullptr ? canned : arg);
       g_inject_req.store(kInjectStart, std::memory_order_release);
       n = std::snprintf(line, sizeof(line), "inject: %s", g_inject_text);
+    }
+  } else if (std::strcmp(cmd, "aw") == 0 && arg != nullptr &&
+             std::strncmp(arg, "redir", 5) == 0) {
+    const uint32_t seq = g_p1_seq.load();
+    g_p1_redir.store(true);
+    g_p1_req.store(true);
+    for (int i = 0; i < 50 && g_p1_seq.load() == seq; ++i) vTaskDelay(pdMS_TO_TICKS(10));
+    portENTER_CRITICAL(&g_io_mux);
+    const uint8_t readback = g_p1_readback;
+    const bool    ok       = g_p1_ok;
+    portEXIT_CRITICAL(&g_io_mux);
+    g_p1_redir.store(false);
+    if (g_p1_seq.load() == seq) {
+      n = std::snprintf(line, sizeof(line), "aw redir: no answer from io_task");
+    } else if (!ok) {
+      n = std::snprintf(line, sizeof(line), "aw redir: I2C failure");
+    } else {
+      n = std::snprintf(line, sizeof(line),
+                        "aw redir: P1_4-P1_7 set input again, input reg %02x, those bits %02x"
+                        " - IN5-IN8 %s",
+                        readback, static_cast<uint8_t>(readback & 0xF0),
+                        (readback & 0xF0) != 0 ? "read" : "still 0");
     }
   } else if (std::strcmp(cmd, "aw") == 0 && arg != nullptr &&
              std::strncmp(arg, "drive", 5) == 0) {
