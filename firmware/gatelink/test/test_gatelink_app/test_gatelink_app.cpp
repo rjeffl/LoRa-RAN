@@ -51,7 +51,7 @@ class FakePort final : public gatelink::GateLinkPort {
   }
   gatelink::NodeSnapshot snapshot() const override {
     gatelink::NodeSnapshot s;
-    s.inputs             = 0x05;
+    s.inputs             = inputs;
     s.node_mv            = 12040;
     s.enclosure_temp_c10 = 287;
     s.uptime_s           = 42;
@@ -89,6 +89,7 @@ class FakePort final : public gatelink::GateLinkPort {
   bool                   refuse = false;
   gatelink::MpptSnapshot mppt_view;
   bool                   inhibited = false;
+  uint8_t                inputs    = 0x05;
   gatelink::HexJob       jobs[4];
   int                    job_count    = 0;
   bool                   hex_refuse   = false;
@@ -583,6 +584,17 @@ void test_config_set_with_no_card_says_so() {
   TEST_ASSERT_EQUAL(PersistStatus::AppliedNotPersisted, r.next_config_ack().persist_status);
 }
 
+// spec 7.2.8 bit 5 follows IN6, the hard-shutdown latch, and bit 7 stays clear: GateLink
+// senses FIRE and the alarm input (D83, D80).
+void test_node_flags_follow_the_shutdown_latch() {
+  Rig r;
+  TEST_ASSERT_EQUAL_HEX8(0x00, r.poll_status().node_flags & 0xA0);
+  r.port.inputs = 0x25;
+  const schema::GateLinkStatusV1 s = r.poll_status();
+  TEST_ASSERT_EQUAL_HEX8(0x20, s.node_flags & 0xA0);
+  TEST_ASSERT_EQUAL_HEX8(0x25, s.input_bits);
+}
+
 // The card pulled after boot: found by the write that fails.
 void test_config_set_after_the_card_is_pulled() {
   Rig r;
@@ -755,6 +767,7 @@ int main() {
   RUN_TEST(test_config_phy_group_opens_a_trial_and_stays_off_the_card);
   RUN_TEST(test_config_dedup_depth_reaches_the_gate);
   RUN_TEST(test_config_restore_defaults);
+  RUN_TEST(test_node_flags_follow_the_shutdown_latch);
   RUN_TEST(test_request_config_and_poll_bit_one_read_back);
   return UNITY_END();
 }

@@ -7,6 +7,7 @@
 
 #include <cstring>
 
+#include "gate_state.h"
 #include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "tasks.h"
@@ -29,6 +30,7 @@ constexpr uint8_t kNodeFlagCardWritable   = 0x02;
 constexpr uint8_t kNodeFlagDryRun         = 0x04;
 constexpr uint8_t kNodeFlagBmsPolling     = 0x08;
 constexpr uint8_t kNodeFlagDebug          = 0x10;
+constexpr uint8_t kNodeFlagHardShutdown   = 0x20;  // spec 7.2.8 bit 5, from IN6
 constexpr uint8_t kNodeFlagAgeNotPersisted = 0x40;
 
 // spec 6.6 - PING's echo. A responder swaps src and dst and keeps seq, the flags and the
@@ -228,7 +230,8 @@ size_t GateLinkApp::build_status(const lran::node::Context&, lran::StatusReason 
       (cfg_ == nullptr || !cfg_->unpersisted() ? kNodeFlagPersisted : 0) |
       (cfg_ != nullptr && cfg_->persist().usable() ? kNodeFlagCardWritable : 0) |
       kNodeFlagAgeNotPersisted | (dry_run_ ? kNodeFlagDryRun : 0) |
-      (bms_polling_ ? kNodeFlagBmsPolling : 0) | (debug_modes_ != 0 ? kNodeFlagDebug : 0));
+      (bms_polling_ ? kNodeFlagBmsPolling : 0) | (debug_modes_ != 0 ? kNodeFlagDebug : 0) |
+      ((n.inputs & kInAlarm) != 0 ? kNodeFlagHardShutdown : 0));
   s.status_reason = static_cast<uint8_t>(reason);
 
   *schema   = lran::kSchemaGateLinkStatusV1;

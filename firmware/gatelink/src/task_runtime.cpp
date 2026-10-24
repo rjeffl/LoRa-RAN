@@ -32,6 +32,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "alarm_watch.h"
 #include "ble_interlock.h"
 #include "bms_client.h"
 #include "bms_link.h"
@@ -330,7 +331,7 @@ void io_task(void*) {
   // back as all inputs (engineering log, 2026-10-24). The same write from board_begin() did
   // not hold: something between it and the first pass leaves the register's value intact
   // while the pins stay inert. Writing it here, from the task that owns the bus, is what
-  // made IN5 and IN6 read on the bench. D77 was decided without this write.
+  // made IN5 and IN6 read on the bench.
   bool port1_ready = false;
 
   for (;;) {
@@ -690,8 +691,7 @@ lran::ResetCause reset_cause() {
 }
 
 // spec 10.7, D72 - FIRE and the hard-shutdown latch as spec 7.2.1's input_bits name them,
-// IN5 and IN6. Not wired by D77, so inputs_from_levels() holds both at 0 and neither alarm
-// is sent; the path stays for a StamPLC whose IN5 and IN6 read.
+// IN5 and IN6. An edge after boot is AlarmWatch's, in app_task.
 constexpr uint8_t kInputFire         = 1u << 4;
 constexpr uint8_t kInputHardShutdown = 1u << 5;
 
@@ -1249,6 +1249,7 @@ void app_task(void*) {
   GateTracker  tracker;
   Detector     detector(&g_event_ids);
   ChargeInhibit charge;
+  AlarmWatch   alarms;
   InjectScript script;
   uint8_t      inj_mask  = 0;
   uint8_t      inj_value = 0;
@@ -1295,6 +1296,24 @@ void app_task(void*) {
       dp.idle_ms        = live_param(kParamDetectIdleMs);
       dp.alert_repeat_s = live_param(kParamAlertRepeatS);
       detector.update(io.inputs, now, gc, dp, &out);
+
+      // D83, PRD G-9 and G-10 - FIRE and the hard-shutdown latch on their edges. Its own
+      // list, because a detection can fill `out`, and queued at once: FIRE_ASSERTED is the
+      // highest-priority alert (spec 8.9). Its STATUS reads input_bits from io_task's
+      // snapshot, so it does not wait for the gate snapshot below.
+      PushList alarm_out;
+      if (alarms.update(io.inputs, gc, &g_event_ids, &alarm_out)) {
+        char text[64];
+        std::snprintf(text, sizeof(text), "alarm: inputs 0x%02x - FIRE %s, shutdown %s", io.inputs,
+                      (io.inputs & kInFire) != 0 ? "ASSERTED" : "clear",
+                      (io.inputs & kInAlarm) != 0 ? "ASSERTED" : "clear");
+        QueueSink().line(text);
+      }
+      for (size_t i = 0; i < alarm_out.size(); ++i) {
+        if (xQueueSend(g_push_q, &alarm_out[i], 0) != pdTRUE) {
+          g_push_dropped.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
 
       // GL5 - charge inhibition from the MPPT and the BMS (PRD R-6.4a, R-6.4b). Its own
       // list, because a detection can fill `out`.
@@ -1359,7 +1378,8 @@ void app_task(void*) {
         }
         if (xQueueSend(g_push_q, &p, 0) != pdTRUE) g_push_dropped.fetch_add(1, std::memory_order_relaxed);
       }
-      if ((out.size() != 0 || charge_out.size() != 0) && g_lora_handle != nullptr) {
+      if ((out.size() != 0 || charge_out.size() != 0 || alarm_out.size() != 0) &&
+          g_lora_handle != nullptr) {
         xTaskNotifyGive(g_lora_handle);
       }
     }

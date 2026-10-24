@@ -99,13 +99,13 @@ class CommandSequencer {
   SequenceEnd end_      = SequenceEnd::Done;
 };
 
-// The inputs as wired, Impl Plan 3.2. IN3 and IN4 reach the 1050's 5 V pulled-up SAFETY and
-// EXIT lines through a 2N7000, which conducts while the line idles high, so their opto is
-// energized at rest. IN5-IN8 are not wired, by D77: this StamPLC's port 1 reads nothing
-// (engineering log, 2026-10-11), so FIRE and the alarm stay unmonitored. Masking them keeps
-// a future fault on port 1 from raising a FIRE or HARD_SHUTDOWN the hardware never sensed.
-inline constexpr uint8_t kInputsWired     = 0x0F;  // IN1-IN4
-inline constexpr uint8_t kInputsActiveLow = 0x0C;  // IN3, IN4
+// The inputs as wired, Impl Plan 3.2 and D83. IN3, IN4 and IN5 reach the 1050's 5 V
+// pulled-up SAFETY, EXIT and FIRE lines through a 2N7000, which conducts while the line idles
+// high, so their opto is energized at rest. IN6 is the 1050's alarm output through the same
+// stage, but that output drives 12 V on an alarm, so it does not invert. IN7 and IN8 are not
+// wired, and masking them keeps a stray level from reaching input_bits.
+inline constexpr uint8_t kInputsWired     = 0x3F;  // IN1-IN6
+inline constexpr uint8_t kInputsActiveLow = 0x1C;  // IN3, IN4, IN5
 
 // The opto's output levels, IN1-IN8 as bits 0-7, as spec 7.2.1's input_bits: 1 = asserted,
 // and 0 for an input not wired.
