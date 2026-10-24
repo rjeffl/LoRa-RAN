@@ -249,17 +249,31 @@ class Bench:
             p = self.ports.get(rest.strip())
             if p is None:
                 self.log("CMD", f"<no port {rest.strip()!r}>")
-            elif verb == "reset":
-                p.rts = True
-                time.sleep(0.15)
-                p.rts = False
             else:
-                p.rts = verb == "hold"
+                self._port_op(rest.strip(), lambda: self._rts(p, verb))
         elif verb in self.ports:
-            self.ports[verb].write((rest + "\n").encode())
+            self._port_op(verb, lambda: self.ports[verb].write((rest + "\n").encode()))
         else:
             self.log("CMD", f"<unknown command {verb!r}>")
         return True
+
+    @staticmethod
+    def _rts(p, verb):
+        if verb == "reset":
+            p.rts = True
+            time.sleep(0.15)
+            p.rts = False
+        else:
+            p.rts = verb == "hold"
+
+    def _port_op(self, tag, op):
+        # A port that has re-enumerated raises here, and the StamPLC takes about 24 s to come
+        # back after a flash or a power cycle. Log the command as dropped and let reader()
+        # reopen the port; dying here ended two runs (engineering log, 2026-10-24).
+        try:
+            op()
+        except Exception as e:
+            self.log("CMD", f"<{tag} not written: {e}>")
 
 
 def cmd_run(a):
