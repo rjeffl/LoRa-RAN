@@ -30,14 +30,20 @@ lran-node's `PhyTrial` (spec §12.4.2), and the committed group is in NVS, never
 bit 1 after `vedirect_stale_s` without a block, and carries `HEX_REQ` to the MPPT one
 transaction at a time (plan §4.2.4). `bms_task` reads the pack once per `bms_poll_s` under
 the LoRa/BLE interlock and fills spec §7.2.3's block (GL5, plan §5.2). `ui_task` shows the
-INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `sense`, `sd`,
+INA226 and LM75 on the panel's last line. `log_task` runs a bench console (`relay <1-4> [ms]`, `in`, `gate`, `inject`, `aw`, `aw drive <0|1>`, `aw redir`, `sense`, `sd`,
 `beep`, `radio`, `lran`, `lran ctx new`, `lran ack drop`, `ved`, `ved cpu`, `cfg`, `phy`, `phy reset`, `bms`, `bms now [abort_ms]`, `bms data`, `chg`, `bus <s>`, `wdt [stall]`, `restart`, `panic`, `hang`), prints the engine's log
 lines, and prints the pass counts every 30 s as an `alive:` line. `radio` prints the
 driver's counters and its last RadioLib error; `lran` prints the context, frame counts,
 refusals and commands, and `lran ctx new` takes a new `ctx_id` without announcing it, for
 spec §10.3's resync on the bench, and `lran ack drop` withholds the next fresh
 `COMMAND_ACK`, for §9.4's dedup hit; `ved` prints the MPPT snapshot and the VE.Direct counters.
-`aw` dumps the input expander's registers through `io_task`.
+`io_task`'s first pass writes P1's direction register, without which IN5-IN8 never sample
+though the register reads back as all inputs (engineering log, 2026-10-24).
+`aw` dumps the input expander's registers through `io_task`, `aw redir` writes that
+direction register again and reads the inputs back, and `aw drive <0|1>` drives
+P1_4-P1_7, the pins IN5-IN8 read through, as outputs and reads the input register back,
+which tells an opto-stage fault from an expander-pin one without opening the case
+(engineering log, 2026-10-24).
 `phy` prints the PHY group on the air, the committed group and the trial's counters;
 `phy reset` puts D1's group back and erases the NVS blob, for a bench board left on a
 stranded group.
