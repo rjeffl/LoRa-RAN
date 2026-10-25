@@ -1667,3 +1667,78 @@ the 1050's alarm output. M3 measures both at the gate before they are connected.
 
 **Falsified by:** a rising edge on IN5 or IN6 after boot with no event on
 `lran/gatelink/event/fire_asserted` or `event/hard_shutdown`.
+
+## 2026-10-25 — Bench soak, 24 h: GateLink did not reset, and `bench.py` lost its keepalive, then its host
+
+**The soak ran on branch `gl-bench-soak`**, with the setup in the handoff's *The soak's
+setup*. `bench.py --dir ~/lran-soak/2026-10-24 run --mqtt` created `bench.log` at 18:30:13
+EDT on 2026-10-24. The kernel logged the StamPLC's USB disconnect at 18:32:05, log time
+about 112 s, so the power-chain soak dates from then and reached 24 h at 18:32:05 on
+2026-10-25. The log's mark at 529.88 s was written at 18:39:03, after the unplug it
+records. Log times below are seconds from 18:30:13.
+
+**GateLink did not reset in 24 h.** `uptime_s` in `lran/gatelink/node/state` rose from 71
+to 70,931 by the log's last line, staying 95 s ahead of the log clock, so it booted at
+about 18:28:38 on 2026-10-24. A live capture at 18:38:50 on 2026-10-25 read 87,011, the same
+boot to the second, and `event_frames` stayed at 2, both from the boot. The one apparent
+reset in the log, 64,151 to 63,011 at 65,502 s, was a stale retained `node/state` that the
+broker restored after its reboot; the backlog that followed it read 64,271 onwards.
+
+**The log covers 19.6 h of the 24, to 70,861 s (14:11:14).** The last 4.3 h are covered
+by the bridge's cumulative counters and GateLink's uptime, read in the live capture:
+
+| Watched for | Result |
+|---|---|
+| `BOOT` after the first | none: `uptime_s` continuous, `event_frames` 2 throughout |
+| STATUS rate | `status_frames` 1,186 at 70,861 s, 1,452 at 18:38; one per `poll_interval_s` 60 through the unlogged hours too. `missed_polls` 0 in every `diag/state` |
+| Link | RSSI −42 to −59 dBm, SNR 11 dB. `rx_no_interrupt` and `rx_wake_empty` went 0 → 1 near 47,584 s and to 4 by 18:38; not cleared up |
+| VE.Direct | never unavailable in 418 `solar/state` documents, nor in the live capture |
+| BMS | reachable throughout the log; one missed poll about every 3.7 h, below. The unlogged hours are not covered |
+| Overnight ΔSOC | 0: SOC 99 % throughout, pack 13,340 → 13,310 mV over 24 h, `pack_ma` 0 throughout |
+
+**The BMS misses one poll about every 3.7 h, and each miss reaches the bridge's stale
+limit.** `age_s` climbed past `bms_poll_s` 300 to 600 four times, peaking at 13,776, 27,036,
+53,856 and 66,817 s, and once to 301 at 39,998 s. A fresh reading followed each time. 600 is
+the bridge's `bms_stale_s`, so on each of those four the battery came within one publish of
+being marked unavailable. Why every 3.7 h is not established. The BLE side's own
+counters were not logged.
+
+**`pack_ma` read 0 for the whole soak**, with the StamPLC on the pack, so the board's draw
+is presumably below the BMS's current resolution. `charge_fet` and `discharge_fet` read
+false and `alarms` 65535 throughout. Whether those are this pack's real states or a
+decoding gap is not established. The MPPT's `load_on` went false at 50,736 s (08:35 EDT),
+and read true again in the live capture at dusk. It charged in `bulk` from 63,156 s, at
+1 W and up to 70 mA, and was `off` again by 18:38.
+
+**The broker went down once in the log, from 64,056 to 65,502 s** (12:17 to 12:41 EDT).
+The operator reports more than one reboot; the log shows only that outage. The bridge
+buffered publishes through it and flushed on reconnect. `q_publish_high_water` reached 32,
+and `q_publish_dropped` went 0 → 233 at 65,521 s, all of it that backlog.
+
+**Since the broker returned, it has closed `bench.py`'s connection every 96 s**: 55 times
+by 70,783 s. The cause is in `Mqtt._ping`, which catches only `OSError`. While the broker
+was down, `self.sock` was `None`, so `self.sock.sendall` raised `AttributeError` and the
+ping thread died; the run's own output kept the traceback. With no PINGREQ, the broker drops
+each new connection at 1.5 × the 60 s keepalive. Each cycle loses about 5 s of `lran/#`, or
+about 5 %. A reset in one of those gaps would still show as an `uptime_s` drop in the next
+`node/state`.
+
+**The log stopped at 14:11 because its host went away, not the bench.** `bench.py` ran as a
+background task of a Claude Code session, and that task's output ends `[killed]` at
+14:11:19, when the session ended. Nothing in the system journal marks 14:11; the laptop's
+Wi-Fi dropped later, from 14:38 to 15:49, and did not affect the log.
+
+**What the restart needs** (the plan: fix, then restart for 12 to 18 h):
+
+- `_ping` must survive a missing socket, so a broker outage cannot end the keepalive.
+- `bench.py` must run outside any Claude Code session, under `nohup`, `systemd-run --user`
+  or a terminal that stays open.
+- `bench.log` should carry wall-clock time, or a wall-clock mark at start. Every time in
+  this entry was converted from the log's relative seconds, and the first conversion went
+  wrong by 7 min.
+- `bench.py` should mark a retained message as retained, so a stale retained value restored
+  by the broker cannot read as a reset.
+- The BMS poll outcome per window, if GateLink publishes it, so the 3.7 h miss has a cause.
+
+**Falsified by:** an `uptime_s` in `lran/gatelink/node/state` that does not place GateLink's
+boot at about 18:28:38 on 2026-10-24, read before its next intentional reset.

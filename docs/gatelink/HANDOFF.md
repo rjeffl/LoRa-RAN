@@ -9,6 +9,11 @@ pins sample. `io_task` now writes it, and all six inputs read.
 too, and then settled D77 as **D83: GateLink deploys on six inputs.** IN5 and IN6 are read,
 FIRE and `HARD_SHUTDOWN` go out on their edges, and R-3.5i passed on the air.
 
+**Updated 2026-10-25 by the bench-soak session.** The first soak ran 24 h through the
+real power chain, and GateLink did not reset (engineering log, 2026-10-25, *Bench soak,
+24 h*). It also found that `bench.py` cannot yet log a soak unattended. The restart, for
+12 to 18 h, waits on those fixes.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -33,7 +38,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **Bench soak through the real power chain**, 24 to 36 h, **run from the Kubuntu laptop on branch `gl-bench-soak`**. `bench.py`'s write-side defect is fixed there. The setup is below | Plan §8.2's GL9 row; *The soak's setup*, below |
+| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed. Before restarting, fix `bench.py`: its keepalive, wall-clock time in the log, and retained messages marked. Then run it outside any Claude Code session. Whether GateLink publishes each BMS poll's outcome first is the operator's call | Engineering log, 2026-10-25, *What the restart needs*; *The soak's setup*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -51,9 +56,13 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
   is the only node on the air.
 - **The pack charges through M7's warm harness section.** At 30 W that is about 2.3 A, or about
   1.2 W in the 0.22 Ω. The fix is still owed before a larger panel.
-- **Log with `bench.py run --mqtt --dir <soak dir>`**, with a `--port` only for a board
-  whose console is attached without powering it. The run needs the bench `secrets.h` in
-  that checkout, which the operator copies.
+- **Log with `bench.py --dir <soak dir> run --mqtt`** (`--dir` goes before the
+  subcommand), with a `--port` only for a board whose console is attached without
+  powering it. The run needs the bench `secrets.h` in that checkout, which the operator
+  copies.
+- **Start the logger outside any Claude Code session**, with `nohup`, `systemd-run --user`
+  or a terminal that stays open. The first run was a session's background task, and it was
+  killed when that session ended, 4.3 h before the 24 h mark.
 - **Watch for:** any `BOOT` after the first; a steady STATUS rate; BMS polls at
   `bms_poll_s`, never yet watched on a schedule; VE.Direct never stale; and the overnight
   ΔSOC.
@@ -85,10 +94,10 @@ install costs a walk to the gate:
   board arrives (plan §3.2).
 - Last of all, the production build from the production `secrets.h`.
 
-**Tier 2's soak follows the board**: 24 to 72 h through the MPPT, the pack and the StamPLC,
-with the radio, VE.Direct, BMS polls and SD writes all active. It is also the check on GL5's
-timer-task panic, whose cause is not established. It costs gate downtime, so it is the
-operator's call.
+**Tier 2's soak has run once, for 24 h**, through the MPPT, the pack and the StamPLC, with
+the radio, VE.Direct, BMS polls and SD writes all active. GateLink did not reset, so GL5's
+timer-task panic did not recur in that time; its cause is still not established. A second
+run of 12 to 18 h follows the `bench.py` fixes.
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it**
 (engineering log, 2026-10-10, *M7*: about 0.22 Ω, about 50 W at 15 A). The operator's.
@@ -102,19 +111,17 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **Low-temperature charge inhibition works by the BMS path** (PRD R-6.4a). With the
-  emulator's `bms temp -5`, GateLink set §7.2.6 bit 3 and the bridge published the reason
-  and `event/charge_inhibited`; the clear followed (engineering log, 2026-10-14). The
-  VE.Direct path, R-6.4b, is host-tested only.
-- **Its thresholds are rows `0x1043`–`0x1045` again**, after a day as constants, because
-  the bridge now caps `config/state` at 3072 bytes on its own (engineering log,
-  2026-10-15). Each row set and persisted on the air, and `app_task` took the new values
-  without a reboot. **Those test values are still stored on the StamPLC**; see
-  *Hardware state*.
-- **Home Assistant's three `number` entities for the rows were not checked.**
-  `ha_examples.py` covers their discovery payloads.
-- **The engineering log was split on 2026-10-15.** Entries for 2026-10-01 and 2026-10-02
-  are in `engineering-log-2026-10-01_2026-10-02.md`.
+- **GateLink ran 24 h through the real power chain without a reset** (engineering log,
+  2026-10-25). `uptime_s` places its boot at 18:28:38 on 2026-10-24, and a live read after
+  the 24 h mark agreed. STATUS arrived once per 60 s throughout, with `missed_polls` 0, and
+  VE.Direct never went stale. ΔSOC over the night was 0.
+- **The BMS misses one poll about every 3.7 h**, and each miss takes `age_s` to 600, the
+  bridge's `bms_stale_s`. See *Open*.
+- **`bench.py` lost its MQTT keepalive in a broker outage.** `Mqtt._ping` catches only
+  `OSError`, and `self.sock` was `None`. Since then the broker has dropped every connection
+  after 96 s. Not fixed yet.
+- **The first run's log covers 19.6 h of the 24**, because its host session ended at
+  14:11. The bridge's counters and GateLink's uptime cover the rest.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -251,6 +258,14 @@ board's are its D-pads (expansion board §6.1).
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
   defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
+- **The BMS misses one poll about every 3.7 h** in the bench soak, and each miss reaches
+  the bridge's `bms_stale_s` of 600 (engineering log, 2026-10-25). The cause is not
+  established. One more miss in a row would mark the battery unavailable.
+- **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
+  and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
+  established.
+- **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the soak.**
+  Not looked into.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.
 
