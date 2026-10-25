@@ -200,8 +200,10 @@ first. Left:
 
 GateLink's GL8 runs on the production broker after this: every entity present, held-open
 and FIRE events firing once only, and the configuration `number` entities reading and
-writing. No document covers HA dashboards or automations; plan them before GL8 if they are
-wanted.
+writing. HA dashboards and automations are planned in
+[`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
+whose tasks H0–H9 come before GL8. Its §5 lists three discovery gaps, F1–F3, that are
+bridge work: the D8 `cover` and hold `switch` first among them.
 
 ## Waits on GateLink or the operator
 
