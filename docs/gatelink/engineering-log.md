@@ -1742,3 +1742,43 @@ Wi-Fi dropped later, from 14:38 to 15:49, and did not affect the log.
 
 **Falsified by:** an `uptime_s` in `lran/gatelink/node/state` that does not place GateLink's
 boot at about 18:28:38 on 2026-10-24, read before its next intentional reset.
+
+## 2026-10-25 — Input board v1.1: R9 holds Q4's gate low when the 1050's alarm output is off
+
+**The 1050's alarm output does not pull down when off.** With the 1050 unpowered, the
+operator measured about 3.2 MΩ from its alarm output to ground. The operator takes that to
+mean a high-side P-channel FET stage, likely able to source about 500 mA at 12 V, that goes
+open when off. On the v1.0 input board, that output reaches Q4's gate only through R4 (1K),
+and nothing else connects to the gate. With the alarm off, Q4's gate therefore floats.
+
+**v1.1 adds R9, 10K from Q4's gate to `Gnd`.** The schematic and netlist carry it, and the
+operator is fitting it to the existing hand-built perfboard. The values follow from the
+2N7000's datasheet limits:
+
+| Condition | Q4 gate | 2N7000 limit |
+|---|---|---|
+| Alarm on, 12 V | 10.9 V, from R4 and R9 as a divider | V<sub>GS</sub> ±20 V |
+| Alarm on, 14.4 V on a charging battery | 13.1 V | V<sub>GS</sub> ±20 V |
+| Alarm off | under 0.8 V while the output leaks under 80 µA | V<sub>GS(th)</sub> 0.8 V minimum |
+
+The alarm output sources about 1.1 mA into R4 and R9 when on. A P-FET switched off
+typically leaks in the nA to low-µA range, so the off-state margin is wide. A larger R9
+would cut that margin and weaken the node against noise on the field wire, for current
+that does not need saving.
+
+**The other three input stages, Q1–Q3, get no pulldown.** By the operator's description,
+the 1050's other inputs to the board are 5 V lines pulled up inside the 1050 and driven
+low when asserted, so the 1050 sets both of their states.
+
+**No gate clamp.** A zener from gate to source would guard against an inductive load's
+turn-off kickback on the alarm line. The alarm output has never been used, and GateLink
+will be its only load, so the board leaves the clamp out.
+
+**The 2026-10-24 bench run predates R9.** Q4's gate floated each time IN6's drive was
+removed in that run, and nothing recorded what discharged it.
+
+**Not yet measured:** J3 pin 2 to ground with the 1050 powered, its alarm off and R9
+fitted. Expect under 0.1 V.
+
+**Falsified by:** Q4's gate reading 0.8 V or more to ground with R9 fitted, the 1050
+powered and its alarm output off.
