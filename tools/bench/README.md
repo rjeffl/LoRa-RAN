@@ -59,8 +59,11 @@ terminal that stays open. A session's background task ends with the session, and
 first GateLink soak's log stopped 4.3 h short that way (GateLink engineering log,
 2026-10-25).
 
+`nohup`'s redirect needs the directory to exist first:
+
 ```bash
-nohup $PY tools/bench/bench.py --dir ~/lran-soak/<date> run --mqtt > ~/lran-soak/<date>/run.out 2>&1 &
+D=~/lran-soak/$(date +%F); mkdir -p "$D"
+nohup $PY tools/bench/bench.py --dir "$D" run --mqtt > "$D/run.out" 2>&1 &
 ```
 
 ## Control-file commands
