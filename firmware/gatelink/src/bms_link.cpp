@@ -6,6 +6,7 @@
 #include "bms_link.h"
 
 #include <climits>
+#include <cstdio>
 
 #include "lran/config.h"
 #include "lran/types.h"
@@ -117,6 +118,24 @@ const char* bms_end_name(BmsEnd e) {
     case BmsEnd::Count:         break;
   }
   return "?";
+}
+
+size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
+                           uint32_t window_ms, const BmsTiming& t, bool abort_asked,
+                           const BmsRxCounters& k) {
+  // key=value, so the card's file reads in a text editor and splits with awk.
+  const int w = std::snprintf(
+      out, cap,
+      "uptime_s=%lu end=%s ms=%lu init=%lu scan=%lu conn=%lu hs=%lu ans=%lu down=%lu "
+      "abort=%d frames=%lu crc=%lu bad_term=%lu undecoded=%lu",
+      static_cast<unsigned long>(uptime_s), bms_end_name(end),
+      static_cast<unsigned long>(window_ms), static_cast<unsigned long>(t.init_ms),
+      static_cast<unsigned long>(t.scan_ms), static_cast<unsigned long>(t.connect_ms),
+      static_cast<unsigned long>(t.handshake_ms), static_cast<unsigned long>(t.answer_ms),
+      static_cast<unsigned long>(t.teardown_ms), abort_asked ? 1 : 0,
+      static_cast<unsigned long>(k.frames), static_cast<unsigned long>(k.crc_errors),
+      static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded));
+  return w > 0 && static_cast<size_t>(w) < cap ? static_cast<size_t>(w) : 0;
 }
 
 }  // namespace gatelink

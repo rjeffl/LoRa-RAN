@@ -1811,3 +1811,35 @@ restart's first broker outage, or a broker restart forced at its start, is the t
 
 **Falsified by:** the restarted soak's log showing the broker closing `bench.py`'s
 connection at 96 s intervals after a broker outage.
+
+## 2026-10-25 — `/bms.log`: each BMS window's outcome on the card, for the restarted soak
+
+**The operator chose the card over the air** for the restart. GateLink already counted how
+each BLE window ended (`BmsEnd`), but only the console's `bms` line showed it, and the soak
+runs with USB unplugged. On the air it would need a new schema ID or `event_type`, a spec
+revision. The card needs neither.
+
+**`bms_task` appends one line per window to `/bms.log`**, read or not, after it releases
+the interlock:
+
+```text
+uptime_s=87011 end=not_found ms=3070 init=40 scan=3000 conn=0 hs=0 ans=0 down=25 abort=0 frames=287 crc=1 bad_term=0 undecoded=0
+```
+
+`end` is `bms_end_name()`'s word. The timings are `BmsTiming`'s, and the last four counts
+are the notification path's, cumulative since boot. A miss in the first soak would have
+read as one line whose `end` is not `read`. The RTC still reads 2049, so `uptime_s` is the
+only clock; a drop in it is a reboot.
+
+The append takes the SPI lock for up to 59 ms, as a `config.json` write does. With no card
+mounted it fails at once and counts; it never remounts, because a remount with no card
+holds the bus for about 1 s. The `bms` console line gains the written and failed counts
+and `bms_task`'s free stack, since FATFS now runs on that 6 KB stack. The line buffer is
+static.
+
+`format_bms_log_line()` is in `bms_link.cpp`, and the native suite tests it; `BmsTiming`
+and `BmsRxCounters` moved to `bms_link.h` with it. The target builds. **Not yet run on the
+board**: nobody has checked the file's lines or the stack headroom on the StamPLC.
+
+**Falsified by:** a `/bms.log` with fewer lines since a boot than the `bms` line's `ends`
+add up to, while its failed count reads 0.

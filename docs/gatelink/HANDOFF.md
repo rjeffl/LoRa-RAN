@@ -13,7 +13,8 @@ FIRE and `HARD_SHUTDOWN` go out on their edges, and R-3.5i passed on the air.
 real power chain, and GateLink did not reset (engineering log, 2026-10-25, *Bench soak,
 24 h*). It also found that `bench.py` could not log a soak unattended. A follow-up session
 the same day fixed `bench.py`'s keepalive, put wall-clock times in its log and marked
-retained messages, so the 12 to 18 h restart is the operator's to start.
+retained messages, and GateLink now writes each BMS window's outcome to the card's
+`/bms.log`. The 12 to 18 h restart is the operator's to start, from a fresh flash.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -39,7 +40,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed, and `bench.py`'s fixes for the restart are in: the keepalive, wall-clock times and `<retained>`. Start it outside any Claude Code session, then read the log. Whether GateLink publishes each BMS poll's outcome first is the operator's call | Engineering log, 2026-10-25, *`bench.py` before the soak's restart*; *The soak's setup*, below |
+| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed, and the restart's fixes are in: `bench.py`'s keepalive, wall-clock times and `<retained>`, and GateLink's `/bms.log`. Flash from a clean tree, check `bms` shows a line written, unplug USB, and start `bench.py` outside any Claude Code session. Afterwards, read the log and the card's `/bms.log` | Engineering log, 2026-10-25, *`bench.py` before the soak's restart* and *`/bms.log`*; *The soak's setup*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -65,6 +66,8 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
 - **Start the logger outside any Claude Code session**, with `nohup`, `systemd-run --user`
   or a terminal that stays open. The first run was a session's background task, and it was
   killed when that session ended, 4.3 h before the 24 h mark.
+- **Read the card's `/bms.log` after the soak**, one line per BLE window, for why each
+  missed poll ended. The `bms` line counts lines written and failed.
 - **Watch for:** any `BOOT` after the first; a steady STATUS rate; BMS polls at
   `bms_poll_s`, never yet watched on a schedule; VE.Direct never stale; and the overnight
   ΔSOC.
@@ -262,7 +265,10 @@ board's are its D-pads (expansion board §6.1).
   morning at the gate would set it and start mapping `0x8D`'s bits.
 - **The BMS misses one poll about every 3.7 h** in the bench soak, and each miss reaches
   the bridge's `bms_stale_s` of 600 (engineering log, 2026-10-25). The cause is not
-  established. One more miss in a row would mark the battery unavailable.
+  established. One more miss in a row would mark the battery unavailable. The restart's
+  `/bms.log` names how each missed window ended.
+- **`/bms.log` has not run on the board**, and `bms_task`'s stack headroom with FATFS on
+  it is unmeasured. The `bms` line's `stack free` reads it.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
   and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
   established.

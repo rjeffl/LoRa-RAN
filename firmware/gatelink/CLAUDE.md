@@ -3,7 +3,7 @@
 **Subordinate to `/CLAUDE.md`.** Everything there applies. This file adds only what is
 specific to GateLink's firmware.
 
-**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.40, §5
+**Primary document:** `docs/gatelink/LRAN-GateLink_Node-Implementation-Plan` v0.41, §5
 for the architecture and §8 for the milestones.
 **Requirements:** `docs/gatelink/LRAN-GateLink_Node-PRD` v0.22.
 **Binding protocol:** `docs/shared/LRAN-Protocol-Specification` **v0.18** (`ver = 2`).
@@ -50,8 +50,9 @@ which tells an opto-stage fault from an expander-pin one without opening the cas
 stranded group.
 `ved cpu` prints `vedirect_task`'s passes a second, CPU share and longest pass since the
 last `ved cpu`, split by whether `bms_task`'s BLE window was open, then starts a new count.
-`bms` prints how windows ended, their length and abort latency, the interlock's counters
-and the heap; `bms now` runs a window at once, and with `abort_ms` asks it to end that far
+`bms` prints how windows ended, their length and abort latency, the interlock's counters,
+the heap, the `/bms.log` lines written and failed, and `bms_task`'s free stack. Each window
+appends one line to the card's `/bms.log` (plan §6.4); `bms now` runs a window at once, and with `abort_ms` asks it to end that far
 in; `bms data` prints the last decode as `wattcycle-reader` lays it out. `chg` prints the
 charge-inhibited indication, its source, the path deciding it and the thresholds. `cfg` prints the card's state
 and what boot read from `config.json`. `bus <s>`
@@ -71,7 +72,7 @@ is GL1's SPI test. `wdt` prints the task watchdog's timeout, and `wdt stall` par
 | `config_store.{h,cpp}` | The configuration: lran-config's `Store` over the node-common and GateLink blocks, and `SdPersist`, its microSD `Persist`, with `config.json`'s reader and writer | yes |
 | `charge_inhibit.{h,cpp}` | `app_task`'s charge inhibition: the BMS path, the VE.Direct inference and their pushes | yes |
 | `alarm_watch.{h,cpp}` | `app_task`'s FIRE and hard-shutdown edges and their pushes | yes |
-| `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, and the interlock's decision | yes |
+| `bms_link.{h,cpp}` | `bms_task`'s logic: spec §7.2.3's block from a read, the replies that end a BLE window, the interlock's decision, and each window's `/bms.log` line | yes |
 | `bms_client.{h,cpp}` | One BLE window: controller up, scan, connect, handshake, `0x8C`, controller down | no |
 | `ble_interlock.h` | The radio's half of the LoRa/BLE interlock; `task_runtime.cpp` holds the lock | no |
 | `ved_link.{h,cpp}` | `vedirect_task`'s logic: the text cache scaled into spec §7.2.2, staleness, and one HEX transaction with its Get retry | yes |
