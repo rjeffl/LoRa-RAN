@@ -1,10 +1,10 @@
 # LRAN System PRD
 
 **Document:** `LRAN-System-PRD`
-**Version:** 0.34
+**Version:** 0.35
 **Status:** Architecture settled. **PHY parameters fixed by D1, 2026-09-10.** Several field measurements remain open.
 **Supersedes:** `lran-prd-v0_8` §1–3, §7.1, §10, §12 (that document is retired — see §13)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-25
 
 ---
 
@@ -713,6 +713,7 @@ assumed now.
 | [`LRAN-Config-Set-Brief`](./shared/LRAN-Config-Set-Brief.md) | **Superseded 2026-09-19 by Decision Register §3.6**, which resolved **D43–D49** on this brief's recommendations. Kept as the reasoning, including the five passages v0.12 left stale and the readback option not taken | v0.2 |
 | [`LRAN-M21-FCC-Grant-Findings`](./shared/LRAN-M21-FCC-Grant-Findings.md) | Both SX1262 modules' FCC grant conditions, and the two operating envelopes they permit | v0.3 |
 | [`LRAN-M21-Handoff`](./shared/LRAN-M21-Handoff.md) | M21 session state | v0.3 |
+| [`LRAN-HA-Integration-Implementation-Plan`](./shared/LRAN-HA-Integration-Implementation-Plan.md) | Home Assistant dashboards, helpers, notification routing and automations, built in the sandbox and ported to production as files. **Draft** | v0.1 |
 | [`LRAN-Bridge_Node-PRD`](./bridge/LRAN-Bridge_Node-PRD.md) | Bridge Node goals and requirements | v0.19 |
 | [`LRAN-Bridge_Node-Implementation-Plan`](./bridge/LRAN-Bridge_Node-Implementation-Plan.md) | Bridge Node BOM, firmware architecture, milestones; also owns `lran-simnode` (§10) | v0.91 |
 | [`LRAN-Bridge-Firmware-Tasks`](./bridge/LRAN-Bridge-Firmware-Tasks.md) | Bridge and simnode task breakdown under B0–B7, work order, and model suitability per task. **Owns no requirement** | v0.78 |
@@ -752,6 +753,9 @@ assumed now.
 ---
 
 ## 13. Changelog
+
+- **v0.35** — **§12 lists `LRAN-HA-Integration-Implementation-Plan`**, the first document
+  covering HA dashboards and automations. No requirement here changes.
 
 - **v0.34** — **Protocol specification v0.17 → v0.18.** §12's version column follows the
   citation sweep: the specification, the Decision Register at D82, and the seven node and
