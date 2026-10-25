@@ -43,9 +43,25 @@ PY=~/.platformio/penv/bin/python
 5. **Stop it** with `send quit`. Copy the log you want to keep into the engineering log
    or a committed trace.
 
+Each log line reads `<local time with UTC offset> <seconds since start> <tag> <text>`,
+for example `2026-10-25T18:30:13-0400    112.04 MQTT lran/gatelink/node/state {...}`. An
+MQTT line starting `<retained>` is one the broker replayed from its store, on a subscribe
+or a reconnect, not one a node just sent.
+
 `bench.log` and `ctl.txt` live in `--dir`. The default is `$LRAN_BENCH_DIR`, or
 `/tmp/lran-bench` when that's unset. Give each session its own directory, or the next
 session's `wait` finds this session's lines.
+
+## A soak, or any run that outlives the session
+
+Start `run` outside any Claude Code session, under `nohup`, `systemd-run --user` or a
+terminal that stays open. A session's background task ends with the session, and the
+first GateLink soak's log stopped 4.3 h short that way (GateLink engineering log,
+2026-10-25).
+
+```bash
+nohup $PY tools/bench/bench.py --dir ~/lran-soak/<date> run --mqtt > ~/lran-soak/<date>/run.out 2>&1 &
+```
 
 ## Control-file commands
 

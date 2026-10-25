@@ -1782,3 +1782,32 @@ fitted. Expect under 0.1 V.
 
 **Falsified by:** Q4's gate reading 0.8 V or more to ground with R9 fitted, the 1050
 powered and its alarm output off.
+
+## 2026-10-25 — `bench.py` before the soak's restart: the keepalive, wall-clock times, retained messages
+
+Three of the five items in *What the restart needs*, above, are now in `tools/bench/bench.py`,
+with tests in `test_bench.py` that need no board:
+
+- **`Mqtt._ping` skips the PINGREQ while `self.sock` is `None`**, so a broker outage no
+  longer ends the keepalive. Any error other than `OSError` is logged and the thread keeps
+  pinging. `test_keepalive_survives_a_missing_socket` starts the thread with no socket,
+  which killed the old one, and checks that it pings once a socket appears.
+- **Every log line now leads with local wall-clock time and its UTC offset**, ahead of the
+  relative seconds: `2026-10-25T18:30:13-0400    112.04 MQTT …`. The offset keeps a run
+  across the 1 November DST change readable. `wait --tag` reads the tag from the third
+  field now. Logs written before this change have no wall-clock field, so `wait --tag`
+  does not match them.
+- **A PUBLISH the broker replays from its store is logged with `<retained>`** before the
+  topic, from the retain flag of the received packet. MQTT 3.1.1 §3.3.1.3 has the broker
+  set that flag on a stored message sent to a new subscription, so the first soak's stale
+  `node/state`, restored after the broker's reboot, should have carried it.
+
+Running `bench.py` outside a Claude Code session is an operating step, not a code change.
+`tools/bench/README.md` now gives the `nohup` line. Whether GateLink publishes each BMS
+poll's outcome is still the operator's call, and the restart does not wait on it.
+
+**Not yet run against the broker.** The fixes are tested against a fake broker only. The
+restart's first broker outage, or a broker restart forced at its start, is the test.
+
+**Falsified by:** the restarted soak's log showing the broker closing `bench.py`'s
+connection at 96 s intervals after a broker outage.

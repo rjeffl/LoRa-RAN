@@ -11,8 +11,9 @@ FIRE and `HARD_SHUTDOWN` go out on their edges, and R-3.5i passed on the air.
 
 **Updated 2026-10-25 by the bench-soak session.** The first soak ran 24 h through the
 real power chain, and GateLink did not reset (engineering log, 2026-10-25, *Bench soak,
-24 h*). It also found that `bench.py` cannot yet log a soak unattended. The restart, for
-12 to 18 h, waits on those fixes.
+24 h*). It also found that `bench.py` could not log a soak unattended. A follow-up session
+the same day fixed `bench.py`'s keepalive, put wall-clock times in its log and marked
+retained messages, so the 12 to 18 h restart is the operator's to start.
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -38,7 +39,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed. Before restarting, fix `bench.py`: its keepalive, wall-clock time in the log, and retained messages marked. Then run it outside any Claude Code session. Whether GateLink publishes each BMS poll's outcome first is the operator's call | Engineering log, 2026-10-25, *What the restart needs*; *The soak's setup*, below |
+| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed, and `bench.py`'s fixes for the restart are in: the keepalive, wall-clock times and `<retained>`. Start it outside any Claude Code session, then read the log. Whether GateLink publishes each BMS poll's outcome first is the operator's call | Engineering log, 2026-10-25, *`bench.py` before the soak's restart*; *The soak's setup*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -57,7 +58,8 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
 - **The pack charges through M7's warm harness section.** At 30 W that is about 2.3 A, or about
   1.2 W in the 0.22 Ω. The fix is still owed before a larger panel.
 - **Log with `bench.py --dir <soak dir> run --mqtt`** (`--dir` goes before the
-  subcommand), with a `--port` only for a board whose console is attached without
+  subcommand). Its lines lead with wall-clock time, and `<retained>` marks a message the
+  broker replayed. Add a `--port` only for a board whose console is attached without
   powering it. The run needs the bench `secrets.h` in that checkout, which the operator
   copies.
 - **Start the logger outside any Claude Code session**, with `nohup`, `systemd-run --user`
@@ -322,6 +324,10 @@ board's are its D-pads (expansion board §6.1).
 - **`wattcycle-reader`'s `loop()` ticks the reassembler with a clock read before its
   blocking write.** The library tolerates it now. GateLink's `bms_task` should read its
   clock after the write.
+
+- ~~**`bench.py` loses its MQTT keepalive in a broker outage.**~~ **Closed 2026-10-25:**
+  `_ping` skips a missing socket and logs any error but `OSError`. Tested against a fake
+  broker only; the restarted soak's first broker outage is the real test.
 
 - **The bench `secrets.h` is temporary.** It holds bench WiFi, the sandbox broker's
   credentials and a bench master key, and the operator creates a production `secrets.h`
