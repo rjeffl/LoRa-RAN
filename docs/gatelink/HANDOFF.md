@@ -40,7 +40,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed, and the restart's fixes are in: `bench.py`'s keepalive, wall-clock times and `<retained>`, and GateLink's `/bms.log`. Flash from a clean tree, check `bms` shows a line written, unplug USB, and start `bench.py` outside any Claude Code session. Afterwards, read the log and the card's `/bms.log` | Engineering log, 2026-10-25, *`bench.py` before the soak's restart* and *`/bms.log`*; *The soak's setup*, below |
+| 2 | **The soak's second run, 12 to 18 h, on branch `gl-bench-soak`.** The first 24 h passed, and the restart's fixes are in: `bench.py`'s keepalive, wall-clock times and `<retained>`, and GateLink's `/bms.log`. GateLink is flashed at `1049387` and its `bms` line showed a line written. Unplug USB, and start `bench.py` outside any Claude Code session. Afterwards, read the log and the card's `/bms.log` | Engineering log, 2026-10-25, *`bench.py` before the soak's restart* and *`/bms.log`*; *The soak's setup*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -267,8 +267,9 @@ board's are its D-pads (expansion board §6.1).
   the bridge's `bms_stale_s` of 600 (engineering log, 2026-10-25). The cause is not
   established. One more miss in a row would mark the battery unavailable. The restart's
   `/bms.log` names how each missed window ended.
-- **`/bms.log` has not run on the board**, and `bms_task`'s stack headroom with FATFS on
-  it is unmeasured. The `bms` line's `stack free` reads it.
+- **`/bms.log`'s text has not been read back.** On the board, one window wrote one line
+  with none failed, and `bms_task` kept 3252 bytes of stack free (engineering log,
+  2026-10-25). Read the file from the card after the soak.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
   and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
   established.

@@ -1843,3 +1843,15 @@ board**: nobody has checked the file's lines or the stack headroom on the StamPL
 
 **Falsified by:** a `/bms.log` with fewer lines since a boot than the `bms` line's `ends`
 add up to, while its failed count reads 0.
+
+## 2026-10-25 — `/bms.log` on the board: one line written, 3252 bytes of stack free
+
+GateLink was flashed over USB from a clean tree at `1049387`, and the banner read
+`Version: 0.1.0 (1049387)`. With the 12 V on and USB attached, `cfg` read the card
+mounted, and `bms now` ran one window: `read in 1052 ms`. The `bms` line then read
+`/bms.log 1 failed 0; stack free 3252`, so the line reached the card, and `bms_task` kept
+3252 of its 6144 bytes free through a full BLE window and the append. The file's text was
+not read back; the operator can read it with the card in a laptop after the soak.
+
+**Falsified by:** a `bms` line whose failed count rises while `cfg` reads the card
+mounted.
