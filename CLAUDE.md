@@ -91,8 +91,9 @@ firmware/   bridge/, range-test/, simnode/, chan-capture/    [built]
             welllink/                                       [planned]
 tools/      vectors/, checks/, simctl/, rangetest/, ha/, provision/,
             bench/, docs/                                   [built]
-docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ archive/
-            <node>/engineering-log.md — protocol-lib, rangetest, bridge and gatelink have one
+docs/       shared/ bridge/ gatelink/ welllink/ rangetest/ protocol-lib/ ha/ archive/
+            <node>/engineering-log.md — protocol-lib, rangetest, bridge, gatelink and ha have one
+ha/packages/  the HA layer: helpers, scripts, derived sensors   [built]
 ha/         discovery payloads, GENERATED from the firmware   [built]
 wattcycle-reader/  BMS BLE proof of concept, self-contained, its own CLAUDE.md. Not
             part of the LRAN build. It builds against lib/bms-ble; its protocol

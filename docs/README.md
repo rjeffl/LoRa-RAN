@@ -16,6 +16,7 @@ has not been reconciled with the intervening revisions.**
 | [`welllink/`](./welllink/) | WellLink (`0x02`) PRD — **placeholder**, scope and reserved allocations only |
 | [`rangetest/`](./rangetest/) | Range test firmware tasks (pass 1 and pass 2) and engineering log. Answered **M6**, **M20** and **W9**, and gathered D1's inputs |
 | [`protocol-lib/`](./protocol-lib/) | Engineering log for `/lib/lran-protocol/` |
+| [`ha/`](./ha/) | Engineering log and [session handoff](./ha/HANDOFF.md) for the Home Assistant layer, `ha/packages/` and `ha/dashboards/`. Its plan is in `shared/`, because it binds the bridge and GateLink both |
 | [`archive/`](./archive/) | Superseded revisions and the Research Archive. **Retained, not deleted:** old material references these by name, and a reader following such a reference needs to land on an explanation rather than a gap |
 
 ## Conventions
