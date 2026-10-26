@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.41
+**Version:** 0.42
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -11,7 +11,7 @@ firmware starts, and four measurements come before the carrier is populated.
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-26
 
 > **This document is the basis for hardware build and firmware development, and is what
 > is handed to Claude Code for this node.** Requirement identifiers (`R-*`, `G-*`,
@@ -830,8 +830,10 @@ there, so `lib/bms-ble/`'s reassembler is guarded the way `wattcycle-reader`'s
   reply the bridge is waiting on cuts the window short, and a runtime cap bounds it.** A
   `COMMAND_ACK`, `CONFIG_ACK`, `HEX_RSP`, or a `STATUS` answering a `POLL`, queued while
   `bms_task` holds the interlock, makes `bms_task` abort: disconnect, de-init the
-  controller, release the interlock. That BMS read is skipped until the next `bms_poll_s`,
-  which R-3.4d allows. An unsolicited `STATUS` or `EVENT` waits for the window to end.
+  controller, release the interlock. That BMS read is retried once, `bms_retry_s` later
+  (`0x1046`, default 5 s), and a retry aborted in turn waits for the next `bms_poll_s`.
+  The poll's own reply aborts a window about every 3.6 h, and a whole period's wait after
+  it let `age_s` reach the bridge's `bms_stale_s` (engineering log, 2026-10-26). An unsolicited `STATUS` or `EVENT` waits for the window to end.
   `bms_window_max_ms` caps the window for a NimBLE stack that hangs, so the interlock is
   never held until the watchdog fires. Preemption alone could not do that, and a cap alone
   would make every command in a window wait. **GL5 measured both on the bench
@@ -1591,6 +1593,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.42** — **§5.2 retries an aborted BMS window once, `bms_retry_s` later** (`0x1046`),
+  instead of waiting `bms_poll_s`. The bench soak's five BMS misses were all windows the
+  poll's reply aborted (engineering log, 2026-10-26). Nothing on the wire changes.
 
 - **v0.41** — **§6.4's card holds `bms.log`**, one line per BLE window, so the bench soak
   can tell why a BMS poll missed with no console attached (engineering log, 2026-10-25).

@@ -1,0 +1,66 @@
+     0.01 CMD <run: ports ['GL'], mqtt off>
+     0.11 CMD mark ce5cd2
+     0.11 CMD GL cfg
+     0.11 CMD GL bms
+     0.21 GL ESP-ROM:esp32s3-20210327
+     0.21 GL Build:Mar 27 2021
+     0.21 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     0.21 GL Saved PC:0x420429d2
+     0.21 GL SPIWP:0xee
+     0.21 GL mode:DIO, clock div:1
+     0.21 GL load:0x3fce3808,len:0x4bc
+     0.21 GL load:0x403c9700,len:0xbd8
+     0.21 GL load:0x403cc700,len:0x2a0c
+     0.21 GL entry 0x403c98d0
+     0.62 GL LRAN GateLink - node 0x01
+     0.62 GL Binding spec: LRAN-Protocol-Specification v0.18 (ver = 2)
+     0.62 GL Version: 0.1.0 (a1de65d)
+     0.62 GL Reset: usb
+     0.62 GL Node key: provisioned
+     1.02 GL Tasks: 7 of 7 started
+     1.02 GL gate: CLOSED, hold NONE, cause UNKNOWN, inputs 0x1c
+     1.02 GL cfg: card NOT MOUNTED, overrides persisted; writes 0 failed 0, mounts failed 0; boot read 0, refused 0, unknown 0
+     1.02 GL bms: no window yet; polling on; window 0 max 0 ms; abort 0 max 0 ms; cap 5000; ends; busy 0 off 0; tx waits 0 asked 0 overrun 0; rx 0 crc 0 term 0 other 0; heap 0/0 low 0; /bms.log 0 failed 0; stack free 5076
+     1.02 GL n
+     1.02 GL boot: first input read raw 0x00 debounced 0x1c
+     1.02 GL boot: FIRE_ASSERTED present at boot, sent again
+     8.78 CMD mark cfcff7
+     8.78 CMD GL restart
+     8.97 GL rESP-ROM:esp32s3-20210327
+     8.97 GL Build:Mar 27 2021
+     8.97 GL rst:0xc (RTC_SW_CPU_RST),boot:0x9 (SPI_FAST_FLASH_BOOT)
+     8.97 GL Saved PC:0x40377c80
+     8.97 GL SPIWP:0xee
+     8.97 GL mode:DIO, clock div:1
+     8.97 GL load:0x3fce3808,len:0x4bc
+     8.97 GL load:0x403c9700,len:0xbd8
+     8.97 GL load:0x403cc700,len:0x2a0c
+     8.97 GL entry 0x403c98d0
+     9.37 GL LRAN GateLink - node 0x01
+     9.37 GL Binding spec: LRAN-Protocol-Specification v0.18 (ver = 2)
+     9.37 GL Version: 0.1.0 (a1de65d)
+     9.37 GL Reset: software
+     9.37 GL Node key: provisioned
+     9.78 GL Tasks: 7 of 7 started
+     9.78 GL gate: CLOSED, hold NONE, cause UNKNOWN, inputs 0x1c
+     9.78 GL boot: SOFTWARE, ct radio RST check passed, BUSY fell in 1623 us
+     9.78 GL cfg: card mounted; 3 restored, 0 refused, 0 unknown
+     9.78 GL boot: first input read raw 0x00 debounced 0x1c
+     9.78 GL boot: FIRE_ASSERTED present at boot, sent again
+     9.92 CMD mark 195ab7
+     9.92 CMD GL cfg
+     9.98 GL cfg: card mounted, overrides persisted; writes 0 failed 0, mounts failed 0; boot read 3, refused 0, unknown 0
+    18.63 CMD mark cb83cd
+    18.63 CMD mark t1
+    18.63 CMD GL bms
+    18.63 CMD GL bms now 400
+    18.74 GL bms: no window yet; polling on; window 0 max 0 ms; abort 0 max 0 ms; cap 5000; ends; busy 0 off 0; tx waits 0 asked 0 overrun 0; rx 0 crc 0 term 0 other 0; heap 0/0 low 0; /bms.log 0 failed 0; stack free 5076
+    18.74 GL bms: window now, abort at 400 ms
+    19.14 GL bms: aborted in 402 ms (init 41 scan 360 conn 0 hs 0 ans 0 down 1); abort asked
+    19.25 CMD mark 7d6ab6
+    19.25 CMD mark t1b
+    25.24 GL bms: read in 1082 ms (init 4 scan 161 conn 646 hs 90 ans 169 down 12)
+    28.40 CMD mark 58182d
+    28.40 CMD GL bms
+    28.49 GL bms: read; polling on; window 1082 max 1082 ms; abort 2 max 2 ms; cap 5000; ends read 1 aborted 1; busy 0 off 0; tx waits 0 asked 0 overrun 0; rx 1 crc 0 term 0 other 0; heap 229260/229260 low 180132; /bms.log 2 failed 0; stack free 3252
+    39.69 GL alive: io=301 vedirect=1501 lora=616 app=301 bms=3 ui=301 log=1

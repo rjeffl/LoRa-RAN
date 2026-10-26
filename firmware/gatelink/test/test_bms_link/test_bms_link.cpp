@@ -194,6 +194,16 @@ void test_tx_gate() {
   TEST_ASSERT_EQUAL(TxGate::Overrun, gatelink::tx_gate(true, 5000, 1000, true));
 }
 
+// The 2026-10-26 soak: a poll's reply aborted one window about every 3.6 h. One retry each,
+// and none for a retry a reply aborts again.
+void test_an_aborted_window_is_retried_once() {
+  TEST_ASSERT_TRUE(gatelink::bms_retry_next(gatelink::BmsEnd::Aborted, false));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::Aborted, true));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::Read, false));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::NotFound, false));
+  TEST_ASSERT_FALSE(gatelink::bms_retry_next(gatelink::BmsEnd::Cap, false));
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_no_read_sends_sentinels);
@@ -205,6 +215,7 @@ int main(int, char**) {
   RUN_TEST(test_unmeasured_rssi_reads_no_link);
   RUN_TEST(test_awaited_replies);
   RUN_TEST(test_tx_gate);
+RUN_TEST(test_an_aborted_window_is_retried_once);
   RUN_TEST(test_log_line_names_the_end_and_its_stages);
   RUN_TEST(test_log_line_too_long_returns_zero);
   return UNITY_END();

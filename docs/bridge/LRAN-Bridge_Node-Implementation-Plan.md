@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.93
+**Version:** 0.94
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
 **Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.19
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.29 — **built first, gates this node**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.30 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-26
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -3122,6 +3122,11 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.94** — **Cites Library Plan v0.30**, whose GateLink block adds `bms_retry_s`
+  (`0x1046`): 25 rows, and a 240-byte readback, still two messages. The bridge carries the
+  row in `config/state` and as a discovery entity once it is rebuilt against the table. No
+  section here changes.
 
 - **v0.93** — **Handoff group 8, before the production cutover.** §5.2.1: the publish
   queue rides out a broker restart, not a long outage, and `rxlog` keeps sharing its

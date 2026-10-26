@@ -1910,3 +1910,127 @@ does not filter on topic.
 **Falsified by:** a `/bms.log` whose lines at `uptime_s` near 2,410, 14,770, 27,430,
 40,390 and 66,310, give or take one `bms_poll_s`, all read `end=read`. The stale ages
 would then come from the path after the window, not from the BLE side.
+
+## 2026-10-26 — `/bms.log` read: all five misses were windows the poll reply aborted
+
+**The operator took the card out and the Mac read it.** `/bms.log` held 239 lines. The
+first three, at `uptime_s` 14 to 617, come from a boot before the soak's. `uptime_s` then
+drops to 302 and climbs without a drop to 71,134, past the logger's stop: the board ran on
+until the card came out. Of the soak boot's 236 windows, 231 read `end=read` and five
+read `end=aborted`. None is `not_found`, a connect failure or a timeout:
+
+```text
+uptime_s=2110 end=aborted ms=1112 init=4 scan=441 conn=650 hs=0 ans=0 down=17 abort=1 frames=6 crc=0 bad_term=0 undecoded=0
+uptime_s=14470 end=aborted ms=2628 init=4 scan=821 conn=1650 hs=121 ans=0 down=32 abort=1 frames=46 crc=0 bad_term=0 undecoded=0
+uptime_s=27130 end=aborted ms=1142 init=4 scan=281 conn=630 hs=91 ans=129 down=7 abort=1 frames=87 crc=0 bad_term=0 undecoded=0
+uptime_s=40090 end=aborted ms=677 init=4 scan=21 conn=635 hs=0 ans=0 down=17 abort=1 frames=129 crc=0 bad_term=0 undecoded=0
+uptime_s=66010 end=aborted ms=247 init=4 scan=241 conn=0 hs=0 ans=0 down=2 abort=1 frames=214 crc=0 bad_term=0 undecoded=0
+```
+
+These lines are the five misses the previous entry predicted, each one `bms_poll_s` before the
+`uptime_s` it estimated from the stale-age peaks. That entry's falsifier did not fire: the
+misses are on the BLE side.
+
+**`aborted` means `lora_task` asked for the radio back** (`TxGate::WaitAbort`,
+`bms_link.cpp`), and it asks only for a frame the bridge awaits. Every abort's line reads
+`uptime_s mod 60` = 10, so the frame is the poll's STATUS reply. The bridge polls every
+60 s, and the polls land at a fixed phase of GateLink's uptime.
+
+**The window walks into that phase about every 3.5 h, because `bms_task` waits
+`bms_poll_s` after a window ends rather than from when it began.** Its period is 300 s plus
+the window, and successive lines step 301 s (142 times), 302 s (89) or 303 s (4). The mean
+window is 1,394 ms, so the window's phase against the 60 s poll cycle advances about 1.4 s
+per window. It crosses the poll's phase once in about 43 windows, about 3.6 h, and the
+logged spacing is 12,360 to 12,960 s. The pass expected near 10:03 did not abort: its
+window logged `uptime_s` 53,350, phase 10, and read in 1,292 ms. At one-second resolution
+the line cannot show whether the poll fell just after that window or the window stepped
+over it.
+
+**A miss costs a whole period because R-3.4d retries at the next poll.** `age_s` then
+reaches about 600, the bridge's `bms_stale_s`. Whether a miss marks the battery unavailable
+depends on where the bridge's publish falls against the next read; two of five did.
+
+**Proposed, the operator's call, Tier 3 since it is a reflash:**
+
+- After `end=aborted`, run the next window a few seconds after the reply goes out instead
+  of `bms_poll_s` later. The abort keeps the radio's priority, and a miss costs seconds
+  rather than a period.
+- Or raise the bridge's `bms_stale_s` above twice `bms_poll_s`, so one miss of any kind
+  never marks the battery unavailable. A bridge row, with no walk to the gate.
+
+Scheduling from the window's start (`vTaskDelayUntil`) is not a fix. The phase would then
+move only with the two crystals' drift, so a collision, once reached, could repeat for
+hours.
+
+**Falsified by:** with the abort retry built, a soak whose `/bms.log` shows an `aborted`
+line followed by a window more than one `bms_poll_s` later.
+
+## 2026-10-26 — `bms_retry_s`: an aborted BMS window is retried once, seconds later
+
+**The operator chose the firmware fix** over raising the bridge's `bms_stale_s`. After a
+window ends `aborted`, `bms_task` waits `bms_retry_s` instead of `bms_poll_s`, then runs
+the window again. A retry aborted in turn waits the full period, so a burst of awaited
+replies cannot keep BLE cycling against the radio. Other ends keep R-3.4d's next-poll retry.
+
+**`bms_retry_s` is row `0x1046`**: u16, default 5 s, range 2 to 60. A timing value is a
+parameter on a node that cannot be reflashed without a walk (root rule 8). The floor leaves
+the aborting reply its backoff, at most `backoff_max_ms` 1500, and its airtime before the
+retry takes the interlock. GateLink's block is 25 rows and 172 bytes; a readback is 240
+bytes, still two `CONFIG_ACK` messages. The HA discovery file and the maintenance
+dashboard's Power card carry it.
+
+`bms_retry_next()` in `bms_link.cpp` decides it, and `test_bms_link` tests it. The target
+builds. **Not yet run on the board**, and the bench bridge needs a reflash before HA can
+set the row.
+
+**Falsified by:** a soak whose `/bms.log` shows an `aborted` line that is not itself a
+retry, followed by a window more than `bms_retry_s` and one window later.
+
+## 2026-10-26 — `bms_retry_s` on the board: each forced abort retried; one abort panicked in NimBLE
+
+**GateLink `a1de65d`, flashed over USB from the Mac**, through a USB 2.0 hub with the 12 V
+supply on. Console only, no bridge or broker. Trace:
+[`data/bms-retry-2026-10-26.log`](data/bms-retry-2026-10-26.log).
+
+**Every forced abort was followed by one retry.** Fifteen `bms now <abort_ms>` commands,
+from 100 to 1000 ms, gave 14 aborted windows; the fifteenth read the pack before its abort
+point. The `bms` line's counts settle it where the line timing cannot. Read 8 s after an
+abort, they showed `read` and `aborted` rising together: 12 and 12, then 13 and 13, then
+14 and 14. The window that read first left `aborted` at 14 and ran no retry. Where both
+lines printed promptly, the retry's `read` line came 5.9 to 6.9 s after the abort's, which
+is `bms_retry_s` 5 plus the retry's window. One abort's line and its retry's printed in the
+same instant, 7 s after the command, which is the late printing the entry of 2026-10-10
+noted.
+
+**Not exercised:** a retry that a reply aborts in turn, which should wait the full period,
+and an abort raised by a real poll. Both need the bridge.
+
+**The first forced abort panicked GateLink.** `bms now 300`, 0.29 s in: `InstrFetchProhibited`,
+PC 0, and the backtrace's one resolvable frame is `NimBLEDevice::host_task`
+(`NimBLEDevice.cpp:837`), the line after `nimble_port_run()` returns. So NimBLE's host task
+ran past `nimble_port_freertos_deinit()` instead of being deleted, during the teardown
+the abort starts. On 2026-10-10, two series of 26 windows with bench aborts ran clean on
+`esp_timer`, and the two soaks' five real aborts did not reset. One panic in 15 here is too few to rate, and
+the retry adds a teardown for every abort. Its cause is not established.
+
+**The card did not mount.** The operator fitted a new card, formatted FAT32 on the Mac with
+the old card's other files copied over, and `f_mount` returned 13, "no valid FAT volume",
+at every boot. `/bms.log` counted 29 failed appends and no lines. A GUID partition map
+would give that, since ESP-IDF's FATFS reads an MBR; not checked.
+
+**Falsified by:** a forced abort whose `bms` counts, read 8 s later, show `aborted` risen
+and `read` not.
+
+## 2026-10-26 — The new card was HFS+; reformatted FAT32, it mounts and takes the retry's line
+
+**The 4 GB card's partition map was MBR, but its volume was Journaled HFS+**, which
+`diskutil info` showed on the Mac. ESP-IDF's FATFS reads only FAT, so `f_mount` returned 13.
+The guess at a GUID map in the previous entry was wrong. The operator reformatted it
+MS-DOS (FAT) on MBR and copied `config.json` back.
+
+**After a `restart`, the card mounted and restored 3 rows.** The boot before it had not
+tried a mount, so `cfg` read `NOT MOUNTED` with 0 mounts failed. One `bms now 400` then
+aborted at 19.14 s, and its retry read the pack at 25.24 s, `bms_retry_s` 5 plus a 1,082 ms
+window. The `bms` line read `ends read 1 aborted 1` and `/bms.log 2 failed 0`: both windows
+wrote their line. Trace:
+[`data/bms-retry-card-2026-10-26.log`](data/bms-retry-card-2026-10-26.log).
