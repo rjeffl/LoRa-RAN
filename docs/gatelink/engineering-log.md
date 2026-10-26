@@ -1964,3 +1964,24 @@ hours.
 
 **Falsified by:** with the abort retry built, a soak whose `/bms.log` shows an `aborted`
 line followed by a window more than one `bms_poll_s` later.
+
+## 2026-10-26 — `bms_retry_s`: an aborted BMS window is retried once, seconds later
+
+**The operator chose the firmware fix** over raising the bridge's `bms_stale_s`. After a
+window ends `aborted`, `bms_task` waits `bms_retry_s` instead of `bms_poll_s`, then runs
+the window again. A retry aborted in turn waits the full period, so a burst of awaited
+replies cannot keep BLE cycling against the radio. Other ends keep R-3.4d's next-poll retry.
+
+**`bms_retry_s` is row `0x1046`**: u16, default 5 s, range 2 to 60. A timing value is a
+parameter on a node that cannot be reflashed without a walk (root rule 8). The floor leaves
+the aborting reply its backoff, at most `backoff_max_ms` 1500, and its airtime before the
+retry takes the interlock. GateLink's block is 25 rows and 172 bytes; a readback is 240
+bytes, still two `CONFIG_ACK` messages. The HA discovery file and the maintenance
+dashboard's Power card carry it.
+
+`bms_retry_next()` in `bms_link.cpp` decides it, and `test_bms_link` tests it. The target
+builds. **Not yet run on the board**, and the bench bridge needs a reflash before HA can
+set the row.
+
+**Falsified by:** a soak whose `/bms.log` shows an `aborted` line that is not itself a
+retry, followed by a window more than `bms_retry_s` and one window later.

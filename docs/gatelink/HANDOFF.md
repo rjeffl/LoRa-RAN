@@ -45,7 +45,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **A BMS window the poll reply aborts costs a whole period.** `/bms.log` shows all five of the second soak's misses as `end=aborted`, at the poll's phase. Choose between retrying soon after an abort (firmware) and raising the bridge's `bms_stale_s` (a bridge row), then build it | Engineering log, 2026-10-26, *`/bms.log` read*; PRD R-3.4d |
+| 3 | **Flash `bms_retry_s` and confirm it on the board.** An aborted BMS window now retries once, 5 s later (row `0x1046`), host-tested and built only. Flash GateLink from the Mac and the bridge so HA can set the row, force an abort with `bms now <abort_ms>`, and check the retry in `/bms.log`; the next soak shows it against real polls | Engineering log, 2026-10-26, *`bms_retry_s`*; plan §5.2 |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -273,8 +273,8 @@ board's are its D-pads (expansion board §6.1).
 - **The BMS misses one window about every 3.5 to 3.7 h** in both soaks (engineering log,
   2026-10-25 and 2026-10-26). In the second run, two single misses went past the bridge's
   `bms_stale_s` of 600 and marked the battery unavailable. `/bms.log` shows each was a
-  window aborted for the poll's reply, met once per pass of the window's drifting phase;
-  the fix is a *Start here* task.
+  window aborted for the poll's reply, met once per pass of the window's drifting phase.
+  `bms_retry_s` retries such a window once, 5 s later; built, not yet run on the board.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,

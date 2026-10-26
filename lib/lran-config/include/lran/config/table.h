@@ -231,6 +231,11 @@ inline constexpr ParamDef kGateLinkParams[] = {
      100, "mA", "Battery current this close to zero is not charging, PRD R-6.4"},
     {0x1045, "charge_inhibit_rise_mv", Owner::Node, Access::ReadWrite, PType::U16, 0, 500, 20,
      "mV", "Battery rise that reads as charging, PRD R-6.4b"},
+    // A poll's reply aborts a window about every 3.6 h, and waiting a whole bms_poll_s
+    // after one let age_s reach the bridge's bms_stale_s (GateLink log, 2026-10-26). The
+    // floor leaves the reply its backoff and airtime before the retry takes the interlock.
+    {0x1046, "bms_retry_s", Owner::Node, Access::ReadWrite, PType::U16, 2, 60, 5, "s",
+     "Retry after a window a reply aborted, Impl Plan 5.2"},
 
     // Panel and bench. The buzzer has no requirement yet, so it starts silent.
     {0x1050, "display_timeout_s", Owner::Node, Access::ReadWrite, PType::U16, 10, 3600, 60,

@@ -120,6 +120,10 @@ const char* bms_end_name(BmsEnd e) {
   return "?";
 }
 
+bool bms_retry_next(BmsEnd end, bool was_retry) {
+  return end == BmsEnd::Aborted && !was_retry;
+}
+
 size_t format_bms_log_line(char* out, size_t cap, uint32_t uptime_s, BmsEnd end,
                            uint32_t window_ms, const BmsTiming& t, bool abort_asked,
                            const BmsRxCounters& k) {

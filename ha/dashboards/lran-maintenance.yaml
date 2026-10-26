@@ -237,6 +237,8 @@ views:
                 name: BMS poll
               - entity: number.gatelink_bms_window_max_ms
                 name: BMS window max
+              - entity: number.gatelink_bms_retry_s
+                name: BMS retry after abort
               - entity: number.gatelink_vedirect_stale_s
                 name: VE.Direct stale after
               - entity: number.gatelink_hex_timeout_ms

@@ -92,6 +92,7 @@ inline constexpr uint16_t kParamVedirectStaleS      = 0x1031;
 // And bms_task's period (GL5, PRD R-3.4a).
 inline constexpr uint16_t kParamBmsPollS            = 0x1040;
 inline constexpr uint16_t kParamBmsWindowMaxMs      = 0x1042;  // the interlock's cap, Impl Plan 5.2
+inline constexpr uint16_t kParamBmsRetryS           = 0x1046;  // after an aborted window
 // And app_task's charge inhibition (PRD R-6.4a, R-6.4b).
 inline constexpr uint16_t kParamChargeConfirmS      = 0x1041;
 inline constexpr uint16_t kParamChargeTempC         = 0x1043;
