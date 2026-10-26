@@ -1,8 +1,8 @@
 # `ha` — session handoff
 
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
-Revised 2026-10-26 for the dev flow through ha-mcp**, which *Where things stand* now
-states. The rest is unchanged.
+Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
+H3.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -16,17 +16,18 @@ states. The rest is unchanged.
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H3.
+Continue from docs/ha/HANDOFF.md: task H4.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H3 and H7 depend only on H1 and can run in any order.
+cited below as *plan*. H4 and H7 depend only on H1 and can run in any order. H9 can run
+now that H3 is done.
 
 | Task | Read |
 |---|---|
-| **H3** LRAN dashboard | Plan §8, §8.2, §4's entity table, §10, §6's `lovelace` block; `ha/dashboards/gate.yaml` as the pattern; *Traps*, below |
 | **H4** Tier 1 alerts | Plan §9.1, §7.2, §7.3, §3; *Traps*, below, before injecting any event |
 | **H7** Tier 4 reports | Plan §9.4 |
+| **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -34,10 +35,11 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H3, the LRAN dashboard**, as `ha/dashboards/lran.yaml`, with the four views of plan §8.2.
-Install it beside `gate.yaml` in `/config/dashboards/lran/` and add the `lran-detail` half
-of plan §6's `lovelace` block, which the sandbox does not have yet. The Network view's path
-must be `network`: the Gate dashboard's link tiles open `/lran-detail/network` (plan §8.1).
+**H4, the Tier 1 alerts**, as `ha/packages/lran/alerts.yaml` (plan §9.1). Each alert is
+verified with a bench-injected event, and the sandbox broker carries GateLink's soak, so
+agree the injection with the operator first (*Traps*). Held-open and FIRE must not repeat
+after an HA restart (**V-5**). Each alert's logbook entry lands on the Events view through
+`script.lran_notify` (plan §7.3).
 
 ## What the last session established
 
@@ -52,6 +54,11 @@ must be `network`: the Gate dashboard's link tiles open `/lran-detail/network` (
   every banner condition forced through HA's REST API and restored (engineering log,
   2026-10-25, H2). Plan v0.3 records the link chip as two tiles and the V sensors without a
   device class.
+- **The LRAN dashboards are installed and meet H3's acceptance as far as the data goes**
+  (engineering log, 2026-10-26, H3). `lran-detail` holds Power, Network and Events;
+  Maintenance is `lran-maintenance`, admin only, because HA cannot gate a view. Every live
+  LRAN entity is on one of the three dashboards, and every graphed entity has statistics.
+  **The cards were not seen rendered**, because the browser pane stops at HA's sign-in.
 
 ## Read these, in this order
 
@@ -67,8 +74,8 @@ must be `network`: the Gate dashboard's link tiles open `/lran-detail/network` (
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2 |
-| Queue | H3 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2, H3 |
+| Queue | H4 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; nothing here reads ha/packages yet
@@ -163,11 +170,15 @@ those two targets changed, which plan §7.3 names.
   for production (plan §12, step 6).
 - **The phone's critical and time-sensitive pushes**, checked at H4. `site.yaml` adds
   `notify.mobile_app_jliphone16` then.
-- **Forcing a state has no ha-mcp route.** H3's and H4's banner and alert checks need
+- **Forcing a state has no ha-mcp route.** H4's alert checks, and any later banner and alert checks need
   either a token on this machine or another way to force a state, for example an
   `input_boolean` override in a test-only package. The operator chooses which.
 - **No CI check reads `ha/packages/`.** H9's `check_entities.py` needs a live HA. A YAML
   syntax check in the checks job would catch a broken file before the sandbox does.
+- **The `write-clearly` skill is not installed on the Mac**, though CLAUDE.md requires it
+  for every prose change. H3's prose was written without it.
+- **The built-in browser cannot sign in to the sandbox**, so no session here can check a
+  render. Enabling ha-mcp's dashboard screenshot beta would give one.
 
 ### Closed, and not to be reopened by habit
 
