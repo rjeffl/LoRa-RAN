@@ -1,0 +1,575 @@
+2026-10-26T16:30:38-0400      0.00 CMD <run: ports ['GL'], mqtt on>
+2026-10-26T16:30:38-0400      0.21 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+2026-10-26T16:30:38-0400      0.21 GL Saved PC:0x42094076
+2026-10-26T16:30:38-0400      0.61 GL LRAN GateLink - node 0x01
+2026-10-26T16:30:38-0400      0.61 GL Binding spec: LRAN-Protocol-Specification v0.18 (ver = 2)
+2026-10-26T16:30:38-0400      0.61 GL Version: 0.1.0 (5fd1509)
+2026-10-26T16:30:38-0400      0.61 GL Reset: usb
+2026-10-26T16:30:38-0400      0.61 GL Node key: provisioned
+2026-10-26T16:30:39-0400      0.82 GL Tasks: 7 of 7 started
+2026-10-26T16:30:39-0400      1.02 GL gate: CLOSED, hold NONE, cause UNKNOWN, inputs 0x1c
+2026-10-26T16:30:39-0400      1.02 GL o RST check passestored, 0 refused, 0 unknown
+2026-10-26T16:30:39-0400      1.02 GL boot: first input read raw 0x00 debounced 0x1c
+2026-10-26T16:30:39-0400      1.02 GL boot: FIRE_ASSERTED present at boot, sent again
+2026-10-26T16:30:44-0400      6.00 CMD mark f4b77f
+2026-10-26T16:30:44-0400      6.00 CMD GL bms now 237
+2026-10-26T16:30:44-0400      6.10 GL bms: window now, abort at 237 ms
+2026-10-26T16:30:45-0400      7.73 GL bms: aborted in 257 ms (init 46 scan 200 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:30:52-0400     13.83 GL bms: read in 987 ms (init 4 scan 91 conn 625 hs 91 ans 159 down 17)
+2026-10-26T16:30:58-0400     20.04 CMD mark 70e995
+2026-10-26T16:30:58-0400     20.04 CMD GL bms now 374
+2026-10-26T16:30:58-0400     20.14 GL bms: window now, abort at 374 ms
+2026-10-26T16:31:05-0400     27.06 GL bms: aborted in 912 ms (init 4 scan 241 conn 640 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:31:05-0400     27.06 GL bms: read in 972 ms (init 4 scan 61 conn 625 hs 91 ans 169 down 22)
+2026-10-26T16:31:12-0400     34.19 CMD mark 173a05
+2026-10-26T16:31:12-0400     34.19 CMD GL bms now 511
+2026-10-26T16:31:12-0400     34.39 GL alive: io=301 vedirect=6661 lora=1661 app=301 bms=5 ui=301 log=1
+2026-10-26T16:31:12-0400     34.39 GL bms: window now, abort at 511 ms
+2026-10-26T16:31:13-0400     35.21 GL bms: aborted in 972 ms (init 4 scan 301 conn 640 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:31:19-0400     41.30 GL bms: read in 942 ms (init 4 scan 31 conn 625 hs 91 ans 169 down 22)
+2026-10-26T16:31:26-0400     48.34 CMD mark d189b4
+2026-10-26T16:31:26-0400     48.34 CMD GL bms now 648
+2026-10-26T16:31:26-0400     48.40 GL bms: window now, abort at 648 ms
+2026-10-26T16:31:27-0400     49.42 GL bms: aborted in 1017 ms (init 4 scan 361 conn 625 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:31:33-0400     55.52 GL bms: read in 972 ms (init 4 scan 51 conn 620 hs 91 ans 189 down 17)
+2026-10-26T16:31:40-0400     62.35 CMD mark 2311da
+2026-10-26T16:31:40-0400     62.35 CMD GL bms now 785
+2026-10-26T16:31:40-0400     62.42 GL alive: io=601 vedirect=13321 lora=1961 app=601 bms=9 ui=601 log=2
+2026-10-26T16:31:40-0400     62.42 GL bms: window now, abort at 785 ms
+2026-10-26T16:31:42-0400     64.66 GL bms: aborted in 2232 ms (init 4 scan 561 conn 1640 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:31:49-0400     71.55 GL bms: read in 1317 ms (init 5 scan 451 conn 625 hs 90 ans 130 down 16)
+2026-10-26T16:31:54-0400     76.50 CMD mark 2c29d7
+2026-10-26T16:31:54-0400     76.50 CMD GL bms now 922
+2026-10-26T16:31:54-0400     76.63 GL bms: window now, abort at 922 ms
+2026-10-26T16:31:55-0400     77.65 GL bms: aborted in 957 ms (init 4 scan 81 conn 636 hs 90 ans 119 down 27); abort asked
+2026-10-26T16:32:01-0400     83.53 GL bms: read in 957 ms (init 4 scan 51 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:32:08-0400     90.63 CMD mark d3cb7f
+2026-10-26T16:32:08-0400     90.63 CMD GL bms now 158
+2026-10-26T16:32:08-0400     90.64 GL bms: window now, abort at 158 ms
+2026-10-26T16:32:09-0400     90.85 GL alive: io=901 vedirect=19981 lora=2400 app=901 bms=13 ui=901 log=3
+2026-10-26T16:32:09-0400     90.85 GL bms: aborted in 177 ms (init 5 scan 161 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:32:15-0400     97.14 GL bms: read in 1197 ms (init 4 scan 241 conn 656 hs 90 ans 189 down 17)
+2026-10-26T16:32:22-0400    104.67 CMD mark b3c1d6
+2026-10-26T16:32:22-0400    104.67 CMD GL bms now 295
+2026-10-26T16:32:23-0400    104.85 GL bms: window now, abort at 295 ms
+2026-10-26T16:32:23-0400    105.06 GL bms: aborted in 306 ms (init 5 scan 290 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:32:29-0400    111.15 GL bms: read in 1032 ms (init 5 scan 130 conn 631 hs 90 ans 160 down 16)
+2026-10-26T16:32:37-0400    118.83 CMD mark 018629
+2026-10-26T16:32:37-0400    118.83 CMD GL bms now 432
+2026-10-26T16:32:37-0400    118.88 GL bms: window now, abort at 432 ms
+2026-10-26T16:32:38-0400    119.89 GL bms: aborted in 957 ms (init 4 scan 291 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:32:44-0400    125.80 GL alive: io=1201 vedirect=26641 lora=2700 app=1201 bms=18 ui=1201 log=4
+2026-10-26T16:32:44-0400    125.80 GL bms: read in 927 ms (init 4 scan 41 conn 630 hs 91 ans 139 down 22)
+2026-10-26T16:32:51-0400    132.97 CMD mark 179b09
+2026-10-26T16:32:51-0400    132.97 CMD GL bms now 569
+2026-10-26T16:32:51-0400    133.11 GL bms: window now, abort at 569 ms
+2026-10-26T16:32:52-0400    134.13 GL bms: aborted in 1002 ms (init 4 scan 341 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:32:58-0400    140.02 GL bms: read in 942 ms (init 4 scan 51 conn 635 hs 91 ans 139 down 22)
+2026-10-26T16:33:05-0400    147.13 CMD mark 55fedb
+2026-10-26T16:33:05-0400    147.13 CMD GL bms now 706
+2026-10-26T16:33:05-0400    147.32 GL bms: window now, abort at 706 ms
+2026-10-26T16:33:06-0400    147.93 GL bms: aborted in 726 ms (init 4 scan 711 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:33:09-0400    150.97 GL alive: io=1501 vedirect=33300 lora=3139 app=1501 bms=22 ui=1501 log=5
+2026-10-26T16:33:13-0400    155.03 GL bms: read in 2142 ms (init 4 scan 701 conn 1141 hs 90 ans 189 down 17)
+2026-10-26T16:33:19-0400    161.18 CMD mark 14b5a8
+2026-10-26T16:33:19-0400    161.18 CMD GL bms now 843
+2026-10-26T16:33:19-0400    161.34 GL bms: window now, abort at 843 ms
+2026-10-26T16:33:20-0400    162.36 GL bms: aborted in 1047 ms (init 4 scan 370 conn 646 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:33:26-0400    168.43 GL bms: read in 972 ms (init 4 scan 41 conn 630 hs 91 ans 189 down 17)
+2026-10-26T16:33:33-0400    175.32 CMD mark 0f852c
+2026-10-26T16:33:33-0400    175.32 CMD GL bms now 980
+2026-10-26T16:33:33-0400    175.35 GL bms: window now, abort at 980 ms
+2026-10-26T16:33:39-0400    180.84 GL bms: aborted in 1137 ms (init 4 scan 481 conn 625 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:33:39-0400    180.84 GL alive: io=1801 vedirect=39960 lora=3439 app=1801 bms=26 ui=1801 log=6
+2026-10-26T16:33:40-0400    182.47 GL bms: read in 957 ms (init 4 scan 31 conn 625 hs 91 ans 189 down 17)
+2026-10-26T16:33:47-0400    189.46 CMD mark 4283fe
+2026-10-26T16:33:47-0400    189.46 CMD GL bms now 216
+2026-10-26T16:33:47-0400    189.59 GL bms: window now, abort at 216 ms
+2026-10-26T16:33:47-0400    189.59 GL bms: aborted in 36 ms (init 4 scan 21 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:33:53-0400    195.49 GL bms: read in 927 ms (init 4 scan 21 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:34:01-0400    203.57 CMD mark e48a6e
+2026-10-26T16:34:01-0400    203.57 CMD GL bms now 353
+2026-10-26T16:34:01-0400    203.62 GL bms: window now, abort at 353 ms
+2026-10-26T16:34:02-0400    204.03 GL bms: aborted in 366 ms (init 4 scan 351 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:34:08-0400    210.12 GL bms: read in 972 ms (init 4 scan 101 conn 630 hs 91 ans 129 down 17)
+2026-10-26T16:34:09-0400    210.93 GL alive: io=2101 vedirect=46620 lora=3877 app=2101 bms=31 ui=2101 log=7
+2026-10-26T16:34:15-0400    217.60 CMD mark 74eb35
+2026-10-26T16:34:15-0400    217.60 CMD GL bms now 490
+2026-10-26T16:34:15-0400    217.65 GL bms: window now, abort at 490 ms
+2026-10-26T16:34:17-0400    219.28 GL bms: aborted in 1602 ms (init 4 scan 411 conn 1160 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:34:23-0400    225.17 GL bms: read in 912 ms (init 4 scan 21 conn 635 hs 106 ans 129 down 17)
+2026-10-26T16:34:30-0400    231.75 CMD mark 340866
+2026-10-26T16:34:30-0400    231.75 CMD GL bms now 627
+2026-10-26T16:34:30-0400    231.88 GL bms: window now, abort at 627 ms
+2026-10-26T16:34:37-0400    238.99 GL bms: aborted in 1107 ms (init 4 scan 441 conn 635 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:34:37-0400    238.99 GL bms: read in 957 ms (init 4 scan 51 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:34:39-0400    240.81 GL alive: io=2401 vedirect=53280 lora=4177 app=2401 bms=35 ui=2401 log=8
+2026-10-26T16:34:44-0400    245.81 CMD mark 8baf36
+2026-10-26T16:34:44-0400    245.81 CMD GL bms now 764
+2026-10-26T16:34:44-0400    245.92 GL bms: window now, abort at 764 ms
+2026-10-26T16:34:45-0400    246.75 GL bms: aborted in 822 ms (init 4 scan 71 conn 630 hs 91 ans 0 down 26); abort asked
+2026-10-26T16:34:51-0400    253.33 GL bms: read in 1467 ms (init 4 scan 31 conn 1135 hs 91 ans 184 down 22)
+2026-10-26T16:34:58-0400    260.14 CMD mark 4bbe95
+2026-10-26T16:34:58-0400    260.14 CMD GL bms now 901
+2026-10-26T16:34:58-0400    260.35 GL bms: window now, abort at 901 ms
+2026-10-26T16:34:59-0400    261.17 GL bms: aborted in 927 ms (init 4 scan 21 conn 635 hs 90 ans 159 down 17); abort asked
+2026-10-26T16:35:05-0400    267.13 GL bms: read in 927 ms (init 4 scan 31 conn 625 hs 91 ans 159 down 17)
+2026-10-26T16:35:09-0400    270.81 GL alive: io=2701 vedirect=59940 lora=4616 app=2701 bms=39 ui=2701 log=9
+2026-10-26T16:35:12-0400    274.27 CMD mark 1de9ae
+2026-10-26T16:35:12-0400    274.27 CMD GL bms now 137
+2026-10-26T16:35:12-0400    274.29 GL bms: window now, abort at 137 ms
+2026-10-26T16:35:12-0400    274.50 GL bms: aborted in 156 ms (init 4 scan 141 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:35:18-0400    280.64 GL bms: read in 987 ms (init 5 scan 90 conn 626 hs 90 ans 160 down 16)
+2026-10-26T16:35:26-0400    288.39 CMD mark 059544
+2026-10-26T16:35:26-0400    288.39 CMD GL bms now 274
+2026-10-26T16:35:26-0400    288.46 GL bms: window now, abort at 274 ms
+2026-10-26T16:35:27-0400    289.28 GL   connect: FAILED
+2026-10-26T16:35:27-0400    289.28 GL bms: connect in 837 ms (init 4 scan 221 conn 601 hs 0 ans 0 down 11)
+2026-10-26T16:35:39-0400    300.83 GL alive: io=3001 vedirect=66600 lora=4916 app=3001 bms=42 ui=3001 log=10
+2026-10-26T16:35:40-0400    302.45 CMD mark 233c4a
+2026-10-26T16:35:40-0400    302.45 CMD GL bms now 411
+2026-10-26T16:35:40-0400    302.48 GL bms: window now, abort at 411 ms
+2026-10-26T16:35:47-0400    309.47 GL bms: aborted in 957 ms (init 4 scan 301 conn 625 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:35:47-0400    309.47 GL bms: read in 987 ms (init 4 scan 41 conn 630 hs 91 ans 124 down 97)
+2026-10-26T16:35:54-0400    316.71 CMD mark 2d6c6d
+2026-10-26T16:35:54-0400    316.71 CMD GL bms now 548
+2026-10-26T16:35:55-0400    316.80 GL bms: window now, abort at 548 ms
+2026-10-26T16:35:55-0400    317.61 GL bms: aborted in 867 ms (init 5 scan 181 conn 655 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:36:09-0400    330.82 GL bms: read in 927 ms (init 4 scan 21 conn 650 hs 91 ans 139 down 22)
+2026-10-26T16:36:09-0400    330.82 GL alive: io=3301 vedirect=73260 lora=5354 app=3301 bms=46 ui=3301 log=11
+2026-10-26T16:36:09-0400    330.87 CMD mark b70a5c
+2026-10-26T16:36:09-0400    330.87 CMD GL bms now 685
+2026-10-26T16:36:09-0400    331.03 GL bms: window now, abort at 685 ms
+2026-10-26T16:36:11-0400    332.86 GL bms: aborted in 1887 ms (init 4 scan 211 conn 1645 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:36:17-0400    338.95 GL bms: read in 957 ms (init 4 scan 31 conn 640 hs 91 ans 169 down 22)
+2026-10-26T16:36:23-0400    344.99 CMD mark d2463e
+2026-10-26T16:36:23-0400    344.99 CMD GL bms now 822
+2026-10-26T16:36:23-0400    345.04 GL bms: window now, abort at 822 ms
+2026-10-26T16:36:24-0400    346.06 GL bms: aborted in 957 ms (init 4 scan 301 conn 626 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:36:30-0400    351.95 GL bms: read in 972 ms (init 4 scan 51 conn 635 hs 91 ans 169 down 22)
+2026-10-26T16:36:37-0400    359.04 CMD mark 203795
+2026-10-26T16:36:37-0400    359.04 CMD GL bms now 959
+2026-10-26T16:36:37-0400    359.06 GL bms: window now, abort at 959 ms
+2026-10-26T16:36:38-0400    360.28 GL bms: aborted in 1152 ms (init 4 scan 491 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:36:45-0400    366.78 GL alive: io=3601 vedirect=79920 lora=5654 app=3601 bms=51 ui=3601 log=12
+2026-10-26T16:36:45-0400    366.78 GL bms: read in 1422 ms (init 4 scan 551 conn 646 hs 90 ans 109 down 22)
+2026-10-26T16:36:51-0400    373.20 CMD mark 9d4b9d
+2026-10-26T16:36:51-0400    373.20 CMD GL bms now 195
+2026-10-26T16:36:51-0400    373.29 GL bms: window now, abort at 195 ms
+2026-10-26T16:36:51-0400    373.49 GL bms: aborted in 206 ms (init 4 scan 191 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:36:58-0400    380.18 GL bms: read in 1722 ms (init 4 scan 321 conn 1145 hs 91 ans 139 down 22)
+2026-10-26T16:37:05-0400    387.25 CMD mark 0c4e40
+2026-10-26T16:37:05-0400    387.25 CMD GL bms now 332
+2026-10-26T16:37:05-0400    387.29 GL bms: window now, abort at 332 ms
+2026-10-26T16:37:05-0400    387.70 GL bms: aborted in 346 ms (init 4 scan 330 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:37:12-0400    393.80 GL alive: io=3901 vedirect=86579 lora=6093 app=3901 bms=55 ui=3901 log=13
+2026-10-26T16:37:12-0400    393.80 GL bms: read in 1017 ms (init 4 scan 151 conn 625 hs 91 ans 129 down 17)
+2026-10-26T16:37:19-0400    401.40 CMD mark c4e6ab
+2026-10-26T16:37:19-0400    401.40 CMD GL bms now 469
+2026-10-26T16:37:19-0400    401.52 GL bms: window now, abort at 469 ms
+2026-10-26T16:37:20-0400    402.54 GL bms: aborted in 987 ms (init 4 scan 311 conn 645 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:37:26-0400    408.44 GL bms: read in 942 ms (init 4 scan 61 conn 641 hs 90 ans 129 down 17)
+2026-10-26T16:37:33-0400    415.55 CMD mark d4a848
+2026-10-26T16:37:33-0400    415.55 CMD GL bms now 606
+2026-10-26T16:37:34-0400    415.75 GL bms: window now, abort at 606 ms
+2026-10-26T16:37:36-0400    417.79 GL bms: aborted in 2037 ms (init 4 scan 361 conn 1645 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:37:39-0400    420.85 GL alive: io=4201 vedirect=93239 lora=6393 app=4201 bms=59 ui=4201 log=14
+2026-10-26T16:37:47-0400    429.68 CMD mark a34b4c
+2026-10-26T16:37:47-0400    429.68 CMD GL bms now 743
+2026-10-26T16:37:48-0400    429.79 GL bms: read in 1332 ms (init 5 scan 461 conn 630 hs 90 ans 130 down 16)
+2026-10-26T16:37:48-0400    429.79 GL bms: window now, abort at 743 ms
+2026-10-26T16:37:49-0400    431.43 GL bms: aborted in 1047 ms (init 5 scan 381 conn 635 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:38:02-0400    443.75 CMD mark 4464b0
+2026-10-26T16:38:02-0400    443.75 CMD GL bms now 880
+2026-10-26T16:38:02-0400    443.82 GL bms: read in 957 ms (init 4 scan 41 conn 630 hs 91 ans 169 down 22)
+2026-10-26T16:38:02-0400    443.82 GL bms: window now, abort at 880 ms
+2026-10-26T16:38:03-0400    445.05 GL bms: aborted in 1227 ms (init 5 scan 51 conn 1144 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:38:09-0400    450.93 GL alive: io=4501 vedirect=99899 lora=6831 app=4501 bms=63 ui=4501 log=15
+2026-10-26T16:38:09-0400    451.54 GL bms: read in 1437 ms (init 4 scan 531 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:38:16-0400    457.91 CMD mark 566a6d
+2026-10-26T16:38:16-0400    457.91 CMD GL bms now 116
+2026-10-26T16:38:16-0400    458.05 GL bms: window now, abort at 116 ms
+2026-10-26T16:38:16-0400    458.25 GL bms: aborted in 136 ms (init 5 scan 120 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:38:22-0400    464.55 GL bms: read in 1362 ms (init 4 scan 501 conn 635 hs 91 ans 109 down 22)
+2026-10-26T16:38:30-0400    471.96 CMD mark d89115
+2026-10-26T16:38:30-0400    471.96 CMD GL bms now 253
+2026-10-26T16:38:30-0400    472.08 GL bms: window now, abort at 253 ms
+2026-10-26T16:38:31-0400    472.88 GL bms: aborted in 732 ms (init 4 scan 41 conn 660 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:38:37-0400    478.77 GL bms: read in 927 ms (init 5 scan 30 conn 655 hs 91 ans 129 down 17)
+2026-10-26T16:38:44-0400    486.10 CMD mark 1265ec
+2026-10-26T16:38:44-0400    486.10 CMD GL bms now 390
+2026-10-26T16:38:44-0400    486.31 GL alive: io=4801 vedirect=106559 lora=7131 app=4801 bms=68 ui=4801 log=16
+2026-10-26T16:38:44-0400    486.31 GL bms: window now, abort at 390 ms
+2026-10-26T16:38:45-0400    486.92 GL bms: aborted in 762 ms (init 4 scan 91 conn 640 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:38:51-0400    493.44 GL bms: read in 1467 ms (init 4 scan 21 conn 1145 hs 91 ans 189 down 17)
+2026-10-26T16:38:58-0400    500.26 CMD mark d339a2
+2026-10-26T16:38:58-0400    500.26 CMD GL bms now 527
+2026-10-26T16:38:58-0400    500.34 GL bms: window now, abort at 527 ms
+2026-10-26T16:38:59-0400    500.96 GL bms: aborted in 546 ms (init 4 scan 531 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:39:05-0400    507.46 GL bms: read in 1527 ms (init 5 scan 130 conn 1156 hs 90 ans 130 down 16)
+2026-10-26T16:39:12-0400    514.38 CMD mark 0cb3dc
+2026-10-26T16:39:12-0400    514.38 CMD GL bms now 664
+2026-10-26T16:39:12-0400    514.56 GL alive: io=5101 vedirect=113219 lora=7570 app=5101 bms=72 ui=5101 log=17
+2026-10-26T16:39:12-0400    514.56 GL bms: window now, abort at 664 ms
+2026-10-26T16:39:14-0400    515.79 GL bms: aborted in 1182 ms (init 4 scan 11 conn 1140 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:39:19-0400    521.68 GL bms: read in 972 ms (init 4 scan 41 conn 645 hs 91 ans 169 down 22)
+2026-10-26T16:39:26-0400    528.44 CMD mark ee0115
+2026-10-26T16:39:26-0400    528.44 CMD GL bms now 801
+2026-10-26T16:39:26-0400    528.58 GL bms: window now, abort at 801 ms
+2026-10-26T16:39:27-0400    529.40 GL bms: aborted in 867 ms (init 4 scan 201 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:39:39-0400    540.98 GL bms: read in 927 ms (init 4 scan 31 conn 640 hs 91 ans 139 down 22)
+2026-10-26T16:39:39-0400    540.98 GL alive: io=5401 vedirect=119878 lora=7870 app=5401 bms=76 ui=5401 log=18
+2026-10-26T16:39:40-0400    542.60 CMD mark 8e05a8
+2026-10-26T16:39:40-0400    542.60 CMD GL bms now 938
+2026-10-26T16:39:40-0400    542.61 GL bms: window now, abort at 938 ms
+2026-10-26T16:39:41-0400    543.62 GL bms: aborted in 972 ms (init 4 scan 200 conn 650 hs 91 ans 0 down 26); abort asked
+2026-10-26T16:39:47-0400    549.72 GL bms: aborted in 927 ms (init 4 scan 51 conn 635 hs 91 ans 119 down 27); abort asked
+2026-10-26T16:39:54-0400    556.72 CMD mark 8f4fdd
+2026-10-26T16:39:54-0400    556.72 CMD GL bms now 174
+2026-10-26T16:39:55-0400    556.84 GL bms: window now, abort at 174 ms
+2026-10-26T16:39:55-0400    557.04 GL bms: aborted in 186 ms (init 5 scan 170 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:40:01-0400    563.15 GL bms: read in 1122 ms (init 4 scan 211 conn 640 hs 90 ans 159 down 17)
+2026-10-26T16:40:09-0400    570.86 CMD mark 740914
+2026-10-26T16:40:09-0400    570.86 CMD GL bms
+2026-10-26T16:40:09-0400    570.89 GL alive: io=5701 vedirect=126538 lora=8306 app=5701 bms=80 ui=5701 log=19
+2026-10-26T16:40:09-0400    570.89 GL bms: read; polling on; window 1122 max 2232 ms; abort 12 max 1447 ms; cap 5000; ends read 38 aborted 40 connect 1; busy 0 off 0; tx waits 8 asked 2 overrun 0; rx 38 crc 0 term 0 other 0; heap 229156/224684 low 179980; drain max 0 ms timeouts 0; /bms.log 79 failed 0; stack free 3276
+2026-10-26T16:40:39-0400    600.98 GL alive: io=6001 vedirect=133198 lora=8606 app=6001 bms=80 ui=6001 log=20
+2026-10-26T16:41:09-0400    630.86 GL alive: io=6301 vedirect=139858 lora=9045 app=6301 bms=80 ui=6301 log=21
+2026-10-26T16:41:39-0400    660.96 GL alive: io=6601 vedirect=146518 lora=9345 app=6601 bms=80 ui=6601 log=22
+2026-10-26T16:42:09-0400    690.99 GL alive: io=6901 vedirect=153178 lora=9784 app=6901 bms=80 ui=6901 log=23
+2026-10-26T16:42:39-0400    720.85 GL alive: io=7201 vedirect=159838 lora=10084 app=7201 bms=80 ui=7201 log=24
+2026-10-26T16:43:24-0400    765.88 CMD mark 1d44dd
+2026-10-26T16:43:24-0400    765.88 CMD mark series2
+2026-10-26T16:43:29-0400    770.93 CMD mark 697b6e
+2026-10-26T16:43:29-0400    770.93 CMD GL bms now 364
+2026-10-26T16:43:29-0400    771.07 GL alive: io=7501 vedirect=166495 lora=10523 app=7501 bms=80 ui=7501 log=25
+2026-10-26T16:43:29-0400    771.07 GL bms: window now, abort at 364 ms
+2026-10-26T16:43:30-0400    771.89 GL bms: aborted in 792 ms (init 4 scan 131 conn 631 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:43:36-0400    777.78 GL bms: read in 987 ms (init 5 scan 40 conn 630 hs 91 ans 199 down 22)
+2026-10-26T16:43:43-0400    785.12 CMD mark e67d6d
+2026-10-26T16:43:43-0400    785.12 CMD GL bms now 575
+2026-10-26T16:43:43-0400    785.30 GL alive: io=7801 vedirect=173155 lora=10823 app=7801 bms=82 ui=7801 log=26
+2026-10-26T16:43:43-0400    785.30 GL bms: window now, abort at 575 ms
+2026-10-26T16:43:44-0400    786.11 GL bms: aborted in 837 ms (init 4 scan 171 conn 636 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:43:50-0400    792.21 GL bms: read in 1047 ms (init 4 scan 31 conn 640 hs 91 ans 189 down 92)
+2026-10-26T16:43:57-0400    799.19 CMD mark 27d8f7
+2026-10-26T16:43:57-0400    799.19 CMD GL bms now 786
+2026-10-26T16:43:57-0400    799.34 GL bms: window now, abort at 786 ms
+2026-10-26T16:43:58-0400    800.16 GL bms: aborted in 806 ms (init 5 scan 790 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:44:04-0400    806.04 GL bms: read in 927 ms (init 4 scan 41 conn 630 hs 91 ans 139 down 22)
+2026-10-26T16:44:09-0400    810.91 GL alive: io=8101 vedirect=179814 lora=11261 app=8101 bms=86 ui=8101 log=27
+2026-10-26T16:44:11-0400    813.34 CMD mark 3a60fb
+2026-10-26T16:44:11-0400    813.34 CMD GL bms now 997
+2026-10-26T16:44:11-0400    813.55 GL bms: window now, abort at 997 ms
+2026-10-26T16:44:12-0400    814.57 GL bms: aborted in 1017 ms (init 4 scan 171 conn 635 hs 91 ans 99 down 17); abort asked
+2026-10-26T16:44:19-0400    821.08 GL bms: read in 1497 ms (init 4 scan 61 conn 1150 hs 121 ans 139 down 22)
+2026-10-26T16:44:25-0400    827.49 CMD mark 8d5143
+2026-10-26T16:44:25-0400    827.49 CMD GL bms now 307
+2026-10-26T16:44:25-0400    827.58 GL bms: window now, abort at 307 ms
+2026-10-26T16:44:32-0400    834.08 GL bms: aborted in 326 ms (init 5 scan 310 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:44:32-0400    834.08 GL bms: read in 1032 ms (init 4 scan 151 conn 625 hs 91 ans 139 down 22)
+2026-10-26T16:44:39-0400    840.99 GL alive: io=8401 vedirect=186471 lora=11561 app=8401 bms=90 ui=8401 log=28
+2026-10-26T16:44:39-0400    841.63 CMD mark 31f48a
+2026-10-26T16:44:39-0400    841.63 CMD GL bms now 518
+2026-10-26T16:44:40-0400    841.80 GL bms: window now, abort at 518 ms
+2026-10-26T16:44:41-0400    843.22 GL bms: aborted in 1467 ms (init 4 scan 300 conn 1135 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:44:47-0400    849.13 GL bms: read in 942 ms (init 4 scan 41 conn 631 hs 90 ans 159 down 17)
+2026-10-26T16:44:53-0400    855.67 CMD mark 24af63
+2026-10-26T16:44:53-0400    855.67 CMD GL bms now 729
+2026-10-26T16:44:54-0400    855.84 GL bms: window now, abort at 729 ms
+2026-10-26T16:44:55-0400    857.46 GL bms: aborted in 1617 ms (init 4 scan 440 conn 1145 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:45:01-0400    863.37 GL bms: read in 957 ms (init 4 scan 41 conn 660 hs 91 ans 139 down 22)
+2026-10-26T16:45:08-0400    869.85 CMD mark d8ec61
+2026-10-26T16:45:08-0400    869.85 CMD GL bms now 940
+2026-10-26T16:45:08-0400    870.07 GL bms: window now, abort at 940 ms
+2026-10-26T16:45:09-0400    870.88 GL alive: io=8701 vedirect=193128 lora=12000 app=8701 bms=94 ui=8701 log=29
+2026-10-26T16:45:09-0400    871.08 GL bms: aborted in 1122 ms (init 4 scan 461 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:45:15-0400    877.57 GL bms: read in 1482 ms (init 5 scan 40 conn 1141 hs 90 ans 190 down 16)
+2026-10-26T16:45:22-0400    883.90 CMD mark a7d43f
+2026-10-26T16:45:22-0400    883.90 CMD GL bms now 250
+2026-10-26T16:45:22-0400    884.06 GL bms: window now, abort at 250 ms
+2026-10-26T16:45:23-0400    884.87 GL bms: aborted in 822 ms (init 4 scan 151 conn 641 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:45:29-0400    890.76 GL bms: read in 927 ms (init 5 scan 31 conn 625 hs 90 ans 160 down 16)
+2026-10-26T16:45:36-0400    898.06 CMD mark fdfe9c
+2026-10-26T16:45:36-0400    898.06 CMD GL bms now 461
+2026-10-26T16:45:36-0400    898.08 GL bms: window now, abort at 461 ms
+2026-10-26T16:45:37-0400    899.09 GL bms: aborted in 852 ms (init 4 scan 191 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:45:39-0400    900.91 GL alive: io=9001 vedirect=199789 lora=12300 app=9001 bms=99 ui=9001 log=30
+2026-10-26T16:45:43-0400    904.99 GL bms: read in 957 ms (init 4 scan 51 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:45:50-0400    912.18 CMD mark c95c80
+2026-10-26T16:45:50-0400    912.18 CMD GL bms now 672
+2026-10-26T16:45:50-0400    912.31 GL bms: window now, abort at 672 ms
+2026-10-26T16:45:52-0400    913.74 GL bms: aborted in 1452 ms (init 4 scan 280 conn 1141 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:45:58-0400    919.81 GL bms: read in 1002 ms (init 4 scan 51 conn 665 hs 91 ans 169 down 22)
+2026-10-26T16:46:04-0400    926.31 CMD mark 08df91
+2026-10-26T16:46:04-0400    926.31 CMD GL bms now 883
+2026-10-26T16:46:04-0400    926.50 GL bms: window now, abort at 883 ms
+2026-10-26T16:46:05-0400    927.51 GL bms: aborted in 1062 ms (init 4 scan 401 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:46:09-0400    930.97 GL alive: io=9301 vedirect=206456 lora=12739 app=9301 bms=103 ui=9301 log=31
+2026-10-26T16:46:18-0400    940.37 CMD mark 2f8d9b
+2026-10-26T16:46:18-0400    940.37 CMD GL bms now 193
+2026-10-26T16:46:18-0400    940.52 GL bms: read in 957 ms (init 5 scan 30 conn 641 hs 90 ans 170 down 21)
+2026-10-26T16:46:18-0400    940.52 GL bms: window now, abort at 193 ms
+2026-10-26T16:46:19-0400    941.13 GL bms: aborted in 687 ms (init 4 scan 21 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:46:32-0400    954.44 CMD mark 0b3916
+2026-10-26T16:46:32-0400    954.44 CMD GL bms now 404
+2026-10-26T16:46:32-0400    954.52 GL bms: read in 1497 ms (init 4 scan 41 conn 1140 hs 91 ans 199 down 22)
+2026-10-26T16:46:32-0400    954.52 GL bms: window now, abort at 404 ms
+2026-10-26T16:46:33-0400    955.54 GL bms: aborted in 882 ms (init 4 scan 221 conn 631 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:46:39-0400    961.43 GL alive: io=9601 vedirect=213116 lora=13039 app=9601 bms=107 ui=9601 log=32
+2026-10-26T16:46:39-0400    961.43 GL bms: read in 1032 ms (init 4 scan 31 conn 685 hs 106 ans 189 down 17)
+2026-10-26T16:46:46-0400    968.49 CMD mark f65813
+2026-10-26T16:46:46-0400    968.49 CMD GL bms now 615
+2026-10-26T16:46:46-0400    968.52 GL bms: window now, abort at 615 ms
+2026-10-26T16:46:48-0400    969.74 GL bms: aborted in 1152 ms (init 4 scan 461 conn 661 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:46:53-0400    975.63 GL bms: read in 927 ms (init 4 scan 51 conn 635 hs 91 ans 129 down 17)
+2026-10-26T16:47:00-0400    982.62 CMD mark 6b0fd6
+2026-10-26T16:47:00-0400    982.62 CMD GL bms now 826
+2026-10-26T16:47:01-0400    982.73 GL bms: window now, abort at 826 ms
+2026-10-26T16:47:01-0400    983.54 GL bms: aborted in 852 ms (init 4 scan 11 conn 630 hs 91 ans 99 down 17); abort asked
+2026-10-26T16:47:07-0400    989.64 GL bms: read in 987 ms (init 4 scan 51 conn 636 hs 90 ans 189 down 17)
+2026-10-26T16:47:09-0400    990.86 GL alive: io=9901 vedirect=219776 lora=13693 app=9901 bms=112 ui=9901 log=33
+2026-10-26T16:47:15-0400    996.78 CMD mark 052022
+2026-10-26T16:47:15-0400    996.78 CMD GL bms now 136
+2026-10-26T16:47:15-0400    996.94 GL bms: window now, abort at 136 ms
+2026-10-26T16:47:15-0400    997.14 GL bms: aborted in 147 ms (init 5 scan 131 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:47:21-0400   1003.23 GL bms: read in 1122 ms (init 4 scan 171 conn 635 hs 91 ans 199 down 22)
+2026-10-26T16:47:29-0400   1010.82 CMD mark d975a9
+2026-10-26T16:47:29-0400   1010.82 CMD GL bms now 347
+2026-10-26T16:47:29-0400   1010.95 GL bms: window now, abort at 347 ms
+2026-10-26T16:47:30-0400   1011.97 GL bms: aborted in 1017 ms (init 4 scan 331 conn 656 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:47:36-0400   1017.85 GL bms: read in 912 ms (init 4 scan 31 conn 625 hs 91 ans 139 down 22)
+2026-10-26T16:47:39-0400   1020.91 GL alive: io=10201 vedirect=226434 lora=13993 app=10201 bms=116 ui=10201 log=34
+2026-10-26T16:47:43-0400   1024.97 CMD mark 0b99e3
+2026-10-26T16:47:43-0400   1024.97 CMD GL bms now 558
+2026-10-26T16:47:43-0400   1025.19 GL bms: window now, abort at 558 ms
+2026-10-26T16:47:44-0400   1026.20 GL bms: aborted in 1017 ms (init 4 scan 351 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:47:50-0400   1032.11 GL bms: read in 957 ms (init 4 scan 51 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:47:57-0400   1039.14 CMD mark d3f3ba
+2026-10-26T16:47:57-0400   1039.14 CMD GL bms now 769
+2026-10-26T16:47:57-0400   1039.23 GL bms: window now, abort at 769 ms
+2026-10-26T16:47:58-0400   1040.24 GL bms: aborted in 1077 ms (init 4 scan 401 conn 646 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:48:05-0400   1046.75 GL bms: read in 1437 ms (init 4 scan 541 conn 626 hs 90 ans 154 down 22)
+2026-10-26T16:48:09-0400   1050.82 GL alive: io=10501 vedirect=233094 lora=14432 app=10501 bms=120 ui=10501 log=35
+2026-10-26T16:48:11-0400   1053.23 CMD mark 5bf625
+2026-10-26T16:48:11-0400   1053.23 CMD GL bms now 980
+2026-10-26T16:48:11-0400   1053.26 GL bms: window now, abort at 980 ms
+2026-10-26T16:48:12-0400   1054.49 GL bms: aborted in 1152 ms (init 4 scan 491 conn 630 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:48:18-0400   1060.58 GL bms: read in 972 ms (init 4 scan 61 conn 625 hs 91 ans 169 down 22)
+2026-10-26T16:48:25-0400   1067.30 CMD mark dd3256
+2026-10-26T16:48:25-0400   1067.30 CMD GL bms now 290
+2026-10-26T16:48:25-0400   1067.49 GL bms: window now, abort at 290 ms
+2026-10-26T16:48:33-0400   1074.81 GL bms: aborted in 837 ms (init 4 scan 161 conn 646 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:48:33-0400   1074.81 GL bms: read in 1512 ms (init 4 scan 41 conn 1140 hs 106 ans 199 down 22)
+2026-10-26T16:48:39-0400   1081.35 CMD mark 3eceac
+2026-10-26T16:48:39-0400   1081.35 CMD GL bms now 501
+2026-10-26T16:48:39-0400   1081.52 GL alive: io=10801 vedirect=239754 lora=14732 app=10801 bms=124 ui=10801 log=36
+2026-10-26T16:48:39-0400   1081.52 GL bms: window now, abort at 501 ms
+2026-10-26T16:48:46-0400   1088.65 GL bms: aborted in 1062 ms (init 4 scan 391 conn 641 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:48:46-0400   1088.65 GL bms: read in 1032 ms (init 4 scan 51 conn 636 hs 105 ans 219 down 17)
+2026-10-26T16:48:53-0400   1095.51 CMD mark 7dba61
+2026-10-26T16:48:53-0400   1095.51 CMD GL bms now 712
+2026-10-26T16:48:53-0400   1095.57 GL bms: window now, abort at 712 ms
+2026-10-26T16:48:54-0400   1096.38 GL bms: aborted in 807 ms (init 4 scan 41 conn 646 hs 90 ans 0 down 26); abort asked
+2026-10-26T16:49:07-0400   1109.61 CMD mark 1f44d1
+2026-10-26T16:49:07-0400   1109.61 CMD GL bms now 923
+2026-10-26T16:49:08-0400   1109.80 GL bms: read in 942 ms (init 4 scan 51 conn 635 hs 91 ans 144 down 17)
+2026-10-26T16:49:08-0400   1109.80 GL bms: window now, abort at 923 ms
+2026-10-26T16:49:09-0400   1110.82 GL bms: aborted in 1002 ms (init 4 scan 231 conn 635 hs 106 ans 0 down 26); abort asked
+2026-10-26T16:49:09-0400   1110.82 GL alive: io=11101 vedirect=246414 lora=15171 app=11101 bms=129 ui=11101 log=37
+2026-10-26T16:49:14-0400   1116.71 GL bms: read in 957 ms (init 4 scan 51 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:49:22-0400   1123.73 CMD mark f00087
+2026-10-26T16:49:22-0400   1123.73 CMD GL bms now 233
+2026-10-26T16:49:22-0400   1123.83 GL bms: window now, abort at 233 ms
+2026-10-26T16:49:28-0400   1130.13 GL bms: aborted in 247 ms (init 5 scan 231 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:49:28-0400   1130.13 GL bms: read in 1077 ms (init 4 scan 191 conn 630 hs 91 ans 139 down 22)
+2026-10-26T16:49:36-0400   1137.87 CMD mark 5dc31b
+2026-10-26T16:49:36-0400   1137.87 CMD GL bms now 444
+2026-10-26T16:49:36-0400   1138.06 GL bms: window now, abort at 444 ms
+2026-10-26T16:49:37-0400   1139.07 GL bms: aborted in 972 ms (init 4 scan 301 conn 641 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:49:39-0400   1140.90 GL alive: io=11401 vedirect=253074 lora=15471 app=11401 bms=133 ui=11401 log=38
+2026-10-26T16:49:43-0400   1144.97 GL bms: read in 1002 ms (init 4 scan 41 conn 630 hs 106 ans 199 down 22)
+2026-10-26T16:49:50-0400   1151.99 CMD mark cf215d
+2026-10-26T16:49:50-0400   1151.99 CMD GL bms now 655
+2026-10-26T16:49:50-0400   1152.08 GL bms: window now, abort at 655 ms
+2026-10-26T16:49:51-0400   1153.29 GL bms: aborted in 1212 ms (init 4 scan 461 conn 646 hs 0 ans 0 down 101); abort asked
+2026-10-26T16:50:04-0400   1166.00 CMD mark ae97ac
+2026-10-26T16:50:04-0400   1166.00 CMD GL bms now 866
+2026-10-26T16:50:04-0400   1166.09 GL bms: read in 1362 ms (init 4 scan 461 conn 645 hs 91 ans 139 down 22)
+2026-10-26T16:50:04-0400   1166.09 GL bms: window now, abort at 866 ms
+2026-10-26T16:50:05-0400   1167.11 GL bms: aborted in 912 ms (init 4 scan 131 conn 630 hs 91 ans 29 down 27); abort asked
+2026-10-26T16:50:11-0400   1173.00 GL alive: io=11701 vedirect=259732 lora=15910 app=11701 bms=137 ui=11701 log=39
+2026-10-26T16:50:11-0400   1173.00 GL bms: read in 942 ms (init 4 scan 41 conn 631 hs 90 ans 159 down 17)
+2026-10-26T16:50:18-0400   1180.10 CMD mark cae5be
+2026-10-26T16:50:18-0400   1180.10 CMD GL bms now 176
+2026-10-26T16:50:18-0400   1180.12 GL bms: window now, abort at 176 ms
+2026-10-26T16:50:24-0400   1186.42 GL bms: aborted in 196 ms (init 4 scan 181 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:50:24-0400   1186.42 GL bms: read in 1062 ms (init 4 scan 181 conn 640 hs 91 ans 129 down 17)
+2026-10-26T16:50:32-0400   1194.26 CMD mark 6fa375
+2026-10-26T16:50:32-0400   1194.26 CMD GL bms now 387
+2026-10-26T16:50:32-0400   1194.32 GL bms: window now, abort at 387 ms
+2026-10-26T16:50:33-0400   1195.34 GL bms: aborted in 867 ms (init 4 scan 201 conn 636 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:50:39-0400   1200.83 GL alive: io=12001 vedirect=266392 lora=16210 app=12001 bms=141 ui=12001 log=40
+2026-10-26T16:50:39-0400   1201.24 GL bms: read in 1002 ms (init 4 scan 41 conn 630 hs 91 ans 139 down 97)
+2026-10-26T16:50:46-0400   1208.39 CMD mark ba06cd
+2026-10-26T16:50:46-0400   1208.39 CMD GL bms now 598
+2026-10-26T16:50:46-0400   1208.56 GL bms: window now, abort at 598 ms
+2026-10-26T16:50:47-0400   1209.37 GL bms: aborted in 897 ms (init 4 scan 231 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:50:53-0400   1215.45 GL bms: read in 972 ms (init 5 scan 40 conn 630 hs 91 ans 189 down 17)
+2026-10-26T16:51:00-0400   1222.41 CMD mark d09b80
+2026-10-26T16:51:00-0400   1222.41 CMD GL bms now 809
+2026-10-26T16:51:00-0400   1222.54 GL bms: window now, abort at 809 ms
+2026-10-26T16:51:01-0400   1223.36 GL bms: aborted in 826 ms (init 4 scan 811 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:51:07-0400   1229.46 GL bms: read in 1017 ms (init 4 scan 141 conn 635 hs 91 ans 129 down 17)
+2026-10-26T16:51:09-0400   1230.88 GL alive: io=12301 vedirect=273052 lora=16649 app=12301 bms=146 ui=12301 log=41
+2026-10-26T16:51:14-0400   1236.58 CMD mark 819f52
+2026-10-26T16:51:14-0400   1236.58 CMD GL bms now 119
+2026-10-26T16:51:15-0400   1236.77 GL bms: window now, abort at 119 ms
+2026-10-26T16:51:15-0400   1236.77 GL bms: aborted in 136 ms (init 4 scan 121 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:51:21-0400   1242.88 GL bms: read in 1047 ms (init 5 scan 151 conn 655 hs 90 ans 129 down 17)
+2026-10-26T16:51:29-0400   1250.77 CMD mark 27f1ba
+2026-10-26T16:51:29-0400   1250.77 CMD GL bms now 330
+2026-10-26T16:51:29-0400   1250.81 GL bms: window now, abort at 330 ms
+2026-10-26T16:51:30-0400   1251.82 GL bms: aborted in 822 ms (init 5 scan 81 conn 635 hs 0 ans 0 down 101); abort asked
+2026-10-26T16:51:36-0400   1258.13 GL bms: read in 1467 ms (init 4 scan 491 conn 645 hs 91 ans 219 down 17)
+2026-10-26T16:51:39-0400   1260.98 GL alive: io=12601 vedirect=279711 lora=16949 app=12601 bms=150 ui=12601 log=42
+2026-10-26T16:51:43-0400   1264.97 CMD mark 9073ba
+2026-10-26T16:51:43-0400   1264.97 CMD GL bms now 541
+2026-10-26T16:51:43-0400   1265.06 GL bms: window now, abort at 541 ms
+2026-10-26T16:51:44-0400   1265.87 GL bms: aborted in 837 ms (init 4 scan 171 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:51:50-0400   1272.38 GL bms: read in 1467 ms (init 4 scan 41 conn 1140 hs 91 ans 169 down 22)
+2026-10-26T16:51:57-0400   1279.08 CMD mark 2fbda9
+2026-10-26T16:51:57-0400   1279.08 CMD GL bms now 752
+2026-10-26T16:51:57-0400   1279.09 GL bms: window now, abort at 752 ms
+2026-10-26T16:51:58-0400   1280.11 GL bms: aborted in 942 ms (init 4 scan 271 conn 641 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:52:04-0400   1286.03 GL bms: read in 942 ms (init 4 scan 41 conn 645 hs 106 ans 129 down 17)
+2026-10-26T16:52:11-0400   1293.17 CMD mark b5be40
+2026-10-26T16:52:11-0400   1293.17 CMD GL bms now 963
+2026-10-26T16:52:11-0400   1293.34 GL alive: io=12901 vedirect=286371 lora=17388 app=12901 bms=154 ui=12901 log=43
+2026-10-26T16:52:11-0400   1293.34 GL bms: window now, abort at 963 ms
+2026-10-26T16:52:12-0400   1294.36 GL bms: aborted in 1137 ms (init 4 scan 391 conn 641 hs 0 ans 0 down 101); abort asked
+2026-10-26T16:52:19-0400   1300.89 GL bms: read in 1362 ms (init 4 scan 461 conn 630 hs 91 ans 159 down 17)
+2026-10-26T16:52:25-0400   1307.34 CMD mark 86e5f2
+2026-10-26T16:52:25-0400   1307.34 CMD GL bms now 273
+2026-10-26T16:52:25-0400   1307.42 GL bms: window now, abort at 273 ms
+2026-10-26T16:52:31-0400   1313.72 GL bms: aborted in 286 ms (init 4 scan 271 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:52:31-0400   1313.72 GL bms: read in 1032 ms (init 4 scan 141 conn 635 hs 91 ans 139 down 22)
+2026-10-26T16:52:39-0400   1321.44 CMD mark ba04c5
+2026-10-26T16:52:39-0400   1321.44 CMD GL bms now 484
+2026-10-26T16:52:39-0400   1321.66 GL alive: io=13201 vedirect=293031 lora=17688 app=13201 bms=158 ui=13201 log=44
+2026-10-26T16:52:39-0400   1321.66 GL bms: window now, abort at 484 ms
+2026-10-26T16:52:40-0400   1322.47 GL bms: aborted in 987 ms (init 4 scan 321 conn 636 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:52:46-0400   1328.58 GL bms: read in 942 ms (init 4 scan 31 conn 640 hs 91 ans 159 down 17)
+2026-10-26T16:52:53-0400   1335.62 CMD mark b6f5f4
+2026-10-26T16:52:53-0400   1335.62 CMD GL bms now 695
+2026-10-26T16:52:53-0400   1335.70 GL bms: window now, abort at 695 ms
+2026-10-26T16:52:54-0400   1336.72 GL bms: aborted in 987 ms (init 4 scan 321 conn 635 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:53:01-0400   1343.23 GL bms: read in 1452 ms (init 4 scan 41 conn 1141 hs 90 ans 159 down 17)
+2026-10-26T16:53:08-0400   1349.84 CMD mark 7c2218
+2026-10-26T16:53:08-0400   1349.84 CMD GL bms now 906
+2026-10-26T16:53:08-0400   1349.95 GL bms: window now, abort at 906 ms
+2026-10-26T16:53:09-0400   1350.96 GL bms: aborted in 942 ms (init 4 scan 291 conn 620 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:53:09-0400   1350.96 GL alive: io=13501 vedirect=299688 lora=18127 app=13501 bms=163 ui=13501 log=45
+2026-10-26T16:53:22-0400   1364.03 CMD mark f71018
+2026-10-26T16:53:22-0400   1364.03 CMD GL bms now 216
+2026-10-26T16:53:22-0400   1364.20 GL bms: read in 972 ms (init 5 scan 51 conn 635 hs 90 ans 170 down 21)
+2026-10-26T16:53:22-0400   1364.20 GL bms: window now, abort at 216 ms
+2026-10-26T16:53:22-0400   1364.41 GL bms: aborted in 236 ms (init 4 scan 220 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:53:28-0400   1370.32 GL bms: read in 1017 ms (init 4 scan 131 conn 630 hs 91 ans 139 down 22)
+2026-10-26T16:53:36-0400   1378.20 CMD mark a0e2e8
+2026-10-26T16:53:36-0400   1378.20 CMD GL bms now 427
+2026-10-26T16:53:36-0400   1378.26 GL bms: window now, abort at 427 ms
+2026-10-26T16:53:37-0400   1379.07 GL bms: aborted in 807 ms (init 4 scan 151 conn 625 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:53:39-0400   1380.90 GL alive: io=13801 vedirect=306342 lora=18427 app=13801 bms=167 ui=13801 log=46
+2026-10-26T16:53:50-0400   1392.29 CMD mark 484431
+2026-10-26T16:53:50-0400   1392.29 CMD GL bms now 638
+2026-10-26T16:53:50-0400   1392.32 GL bms: read in 972 ms (init 4 scan 51 conn 636 hs 90 ans 169 down 22)
+2026-10-26T16:53:50-0400   1392.32 GL bms: window now, abort at 638 ms
+2026-10-26T16:53:51-0400   1393.34 GL bms: aborted in 957 ms (init 4 scan 291 conn 635 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:53:57-0400   1399.44 GL bms: read in 1002 ms (init 4 scan 41 conn 630 hs 106 ans 199 down 22)
+2026-10-26T16:54:04-0400   1406.45 CMD mark 4829aa
+2026-10-26T16:54:04-0400   1406.45 CMD GL bms now 849
+2026-10-26T16:54:04-0400   1406.56 GL bms: window now, abort at 849 ms
+2026-10-26T16:54:05-0400   1407.58 GL bms: aborted in 1032 ms (init 4 scan 361 conn 640 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:54:12-0400   1414.50 GL alive: io=14101 vedirect=312994 lora=18866 app=14101 bms=171 ui=14101 log=47
+2026-10-26T16:54:12-0400   1414.50 GL bms: read in 1962 ms (init 5 scan 30 conn 1646 hs 90 ans 170 down 21)
+2026-10-26T16:54:18-0400   1420.62 CMD mark a1b9b7
+2026-10-26T16:54:18-0400   1420.62 CMD GL bms now 159
+2026-10-26T16:54:19-0400   1420.81 GL bms: window now, abort at 159 ms
+2026-10-26T16:54:19-0400   1421.01 GL bms: aborted in 176 ms (init 4 scan 161 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:54:25-0400   1427.52 GL bms: read in 1632 ms (init 4 scan 251 conn 1140 hs 91 ans 129 down 17)
+2026-10-26T16:54:33-0400   1434.83 CMD mark 144ea2
+2026-10-26T16:54:33-0400   1434.83 CMD GL bms now 370
+2026-10-26T16:54:33-0400   1434.86 GL bms: window now, abort at 370 ms
+2026-10-26T16:54:34-0400   1435.88 GL bms: aborted in 867 ms (init 4 scan 211 conn 626 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:54:39-0400   1440.96 GL alive: io=14401 vedirect=319648 lora=19166 app=14401 bms=175 ui=14401 log=48
+2026-10-26T16:54:47-0400   1448.92 CMD mark e26472
+2026-10-26T16:54:47-0400   1448.92 CMD GL bms now 581
+2026-10-26T16:54:47-0400   1449.12 GL bms: read in 1452 ms (init 5 scan 20 conn 1130 hs 90 ans 189 down 17)
+2026-10-26T16:54:47-0400   1449.12 GL bms: window now, abort at 581 ms
+2026-10-26T16:54:48-0400   1449.93 GL bms: aborted in 972 ms (init 4 scan 301 conn 641 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:55:01-0400   1463.13 CMD mark 37bf3a
+2026-10-26T16:55:01-0400   1463.13 CMD GL bms now 792
+2026-10-26T16:55:01-0400   1463.18 GL bms: read in 927 ms (init 4 scan 31 conn 640 hs 91 ans 139 down 22)
+2026-10-26T16:55:01-0400   1463.18 GL bms: window now, abort at 792 ms
+2026-10-26T16:55:02-0400   1464.61 GL bms: aborted in 1452 ms (init 4 scan 291 conn 1130 hs 0 ans 0 down 27); abort asked
+2026-10-26T16:55:08-0400   1470.71 GL bms: read in 957 ms (init 4 scan 51 conn 665 hs 91 ans 129 down 17)
+2026-10-26T16:55:15-0400   1477.33 CMD mark f5da0c
+2026-10-26T16:55:15-0400   1477.33 CMD GL bms now 102
+2026-10-26T16:55:15-0400   1477.42 GL alive: io=14701 vedirect=326301 lora=19908 app=14701 bms=180 ui=14701 log=49
+2026-10-26T16:55:15-0400   1477.42 GL bms: window now, abort at 102 ms
+2026-10-26T16:55:15-0400   1477.63 GL bms: aborted in 116 ms (init 4 scan 101 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:55:22-0400   1483.73 GL bms: read in 1107 ms (init 4 scan 201 conn 635 hs 91 ans 159 down 17)
+2026-10-26T16:55:29-0400   1491.55 CMD mark 290a6d
+2026-10-26T16:55:29-0400   1491.55 CMD GL bms now 313
+2026-10-26T16:55:29-0400   1491.70 GL bms: window now, abort at 313 ms
+2026-10-26T16:55:30-0400   1492.51 GL bms: aborted in 762 ms (init 4 scan 91 conn 640 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:55:36-0400   1498.42 GL bms: read in 957 ms (init 4 scan 51 conn 620 hs 91 ans 169 down 22)
+2026-10-26T16:55:43-0400   1505.67 CMD mark 5d89f8
+2026-10-26T16:55:43-0400   1505.67 CMD GL bms now 524
+2026-10-26T16:55:44-0400   1505.76 GL alive: io=15001 vedirect=332958 lora=20208 app=15001 bms=184 ui=15001 log=50
+2026-10-26T16:55:44-0400   1505.76 GL bms: window now, abort at 524 ms
+2026-10-26T16:55:44-0400   1506.58 GL bms: aborted in 837 ms (init 4 scan 181 conn 626 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:55:50-0400   1512.68 GL bms: read in 957 ms (init 4 scan 31 conn 640 hs 91 ans 169 down 22)
+2026-10-26T16:55:58-0400   1519.84 CMD mark 6237ae
+2026-10-26T16:55:58-0400   1519.84 CMD GL bms now 735
+2026-10-26T16:55:58-0400   1520.00 GL bms: window now, abort at 735 ms
+2026-10-26T16:55:59-0400   1520.81 GL bms: aborted in 882 ms (init 4 scan 221 conn 631 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:56:04-0400   1526.71 GL bms: read in 927 ms (init 5 scan 30 conn 640 hs 91 ans 139 down 22)
+2026-10-26T16:56:09-0400   1530.98 GL alive: io=15301 vedirect=339607 lora=20647 app=15301 bms=188 ui=15301 log=51
+2026-10-26T16:56:12-0400   1533.99 CMD mark 885704
+2026-10-26T16:56:12-0400   1533.99 CMD GL bms now 946
+2026-10-26T16:56:12-0400   1534.03 GL bms: window now, abort at 946 ms
+2026-10-26T16:56:13-0400   1535.05 GL bms: aborted in 1032 ms (init 4 scan 261 conn 650 hs 91 ans 0 down 26); abort asked
+2026-10-26T16:56:19-0400   1541.16 GL bms: read in 942 ms (init 4 scan 41 conn 630 hs 91 ans 159 down 17)
+2026-10-26T16:56:26-0400   1548.15 CMD mark b6c518
+2026-10-26T16:56:26-0400   1548.15 CMD GL bms now 256
+2026-10-26T16:56:26-0400   1548.27 GL bms: window now, abort at 256 ms
+2026-10-26T16:56:33-0400   1554.80 GL bms: aborted in 276 ms (init 4 scan 261 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:56:33-0400   1554.80 GL bms: read in 1137 ms (init 4 scan 191 conn 630 hs 91 ans 199 down 22)
+2026-10-26T16:56:39-0400   1560.89 GL alive: io=15601 vedirect=346259 lora=20947 app=15601 bms=192 ui=15601 log=52
+2026-10-26T16:56:40-0400   1562.28 CMD mark bc5872
+2026-10-26T16:56:40-0400   1562.28 CMD GL bms now 467
+2026-10-26T16:56:40-0400   1562.31 GL bms: window now, abort at 467 ms
+2026-10-26T16:56:47-0400   1569.41 GL bms: aborted in 1032 ms (init 4 scan 371 conn 630 hs 0 ans 0 down 26); abort asked
+2026-10-26T16:56:47-0400   1569.41 GL bms: read in 942 ms (init 4 scan 31 conn 625 hs 91 ans 169 down 22)
+2026-10-26T16:56:54-0400   1576.32 CMD mark 20a487
+2026-10-26T16:56:54-0400   1576.32 CMD GL bms now 678
+2026-10-26T16:56:54-0400   1576.53 GL bms: window now, abort at 678 ms
+2026-10-26T16:56:55-0400   1577.13 GL bms: aborted in 777 ms (init 4 scan 21 conn 635 hs 90 ans 0 down 26); abort asked
+2026-10-26T16:57:08-0400   1590.45 CMD mark c6c93e
+2026-10-26T16:57:08-0400   1590.45 CMD GL bms now 889
+2026-10-26T16:57:08-0400   1590.55 GL bms: read in 957 ms (init 4 scan 31 conn 640 hs 91 ans 169 down 22)
+2026-10-26T16:57:08-0400   1590.55 GL bms: window now, abort at 889 ms
+2026-10-26T16:57:09-0400   1591.56 GL alive: io=15901 vedirect=352912 lora=21386 app=15901 bms=196 ui=15901 log=53
+2026-10-26T16:57:09-0400   1591.56 GL bms: aborted in 942 ms (init 4 scan 171 conn 636 hs 105 ans 0 down 26); abort asked
+2026-10-26T16:57:15-0400   1597.46 GL bms: read in 972 ms (init 4 scan 51 conn 635 hs 106 ans 159 down 17)
+2026-10-26T16:57:22-0400   1604.63 CMD mark 873f8e
+2026-10-26T16:57:22-0400   1604.63 CMD GL bms now 199
+2026-10-26T16:57:23-0400   1604.79 GL bms: window now, abort at 199 ms
+2026-10-26T16:57:23-0400   1604.99 GL bms: aborted in 216 ms (init 4 scan 201 conn 0 hs 0 ans 0 down 11); abort asked
+2026-10-26T16:57:29-0400   1611.10 GL bms: read in 1017 ms (init 4 scan 131 conn 630 hs 91 ans 139 down 22)
+2026-10-26T16:57:37-0400   1618.78 CMD mark d3f8bf
+2026-10-26T16:57:37-0400   1618.78 CMD GL bms
+2026-10-26T16:57:37-0400   1618.82 GL bms: read; polling on; window 1017 max 2232 ms; abort 17 max 1447 ms; cap 5000; ends read 98 aborted 100 connect 1; busy 0 off 0; tx waits 128 asked 4 overrun 0; rx 98 crc 0 term 0 other 0; heap 229156/224684 low 179960; drain max 0 ms timeouts 0; /bms.log 199 failed 0; stack free 3276
+2026-10-26T16:57:39-0400   1620.86 GL alive: io=16201 vedirect=359570 lora=21685 app=16201 bms=200 ui=16201 log=54
