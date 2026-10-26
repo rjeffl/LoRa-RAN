@@ -1,0 +1,100 @@
+2026-10-26T16:14:19-0400      0.61 GL Version: 0.1.0 (a1de65d)
+2026-10-26T16:14:19-0400      0.61 GL Reset: usb
+2026-10-26T16:16:25-0400    126.35 GL Version: 0.1.0 (a1de65d)
+2026-10-26T16:16:25-0400    126.35 GL Reset: usb
+2026-10-26T16:17:09-0400    170.17 CMD pub lran/gatelink/vedirect/hex/request :74F1000EF
+2026-10-26T16:17:09-0400    170.18 MQTT lran/gatelink/vedirect/hex/request :74F1000EF
+2026-10-26T16:17:11-0400    172.70 MQTT lran/gatelink/vedirect/hex/response {"request":":74F1000EF","seq":11,"outcome":"answered","status":"ok","response":":74F10000100000000004502000045020000CD08A2051E3400FFFFFFFFFFFFFFFFFFFFFFFFFF9F"}
+2026-10-26T16:17:11-0400    172.85 CMD pub lran/gatelink/vedirect/hex/request :7501000EE
+2026-10-26T16:17:11-0400    172.85 MQTT lran/gatelink/vedirect/hex/request :7501000EE
+2026-10-26T16:17:14-0400    175.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7501000EE","seq":12,"outcome":"answered","status":"ok","response":":7501000000000000000000000300530050000000000000000000000000000000000010049003A"}
+2026-10-26T16:17:14-0400    175.85 CMD pub lran/gatelink/vedirect/hex/request :7511000ED
+2026-10-26T16:17:14-0400    175.85 MQTT lran/gatelink/vedirect/hex/request :7511000ED
+2026-10-26T16:17:17-0400    178.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7511000ED","seq":13,"outcome":"answered","status":"ok","response":":751100000000000000000000031052E050000000000EB00000000000100000000006F074800DA"}
+2026-10-26T16:17:17-0400    178.76 CMD pub lran/gatelink/vedirect/hex/request :7521000EC
+2026-10-26T16:17:17-0400    178.76 MQTT lran/gatelink/vedirect/hex/request :7521000EC
+2026-10-26T16:17:20-0400    181.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7521000EC","seq":14,"outcome":"answered","status":"ok","response":":752100000000000000000000037052F0500000000001B02000000000100000000008E07470082"}
+2026-10-26T16:17:20-0400    181.86 CMD pub lran/gatelink/vedirect/hex/request :7531000EB
+2026-10-26T16:17:20-0400    181.86 MQTT lran/gatelink/vedirect/hex/request :7531000EB
+2026-10-26T16:17:23-0400    184.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7531000EB","seq":15,"outcome":"answered","status":"ok","response":":75310000004000000030000008C0521050000000000770100000000290000001C00EF07460034"}
+2026-10-26T16:17:23-0400    184.76 CMD pub lran/gatelink/vedirect/hex/request :7541000EA
+2026-10-26T16:17:23-0400    184.76 MQTT lran/gatelink/vedirect/hex/request :7541000EA
+2026-10-26T16:17:26-0400    187.65 MQTT lran/gatelink/vedirect/hex/response {"request":":7541000EA","seq":16,"outcome":"answered","status":"ok","response":":75410000009000000040000008D05230500000000009C0178005C002D0000001F002C084500ED"}
+2026-10-26T16:17:26-0400    187.96 CMD pub lran/gatelink/vedirect/hex/request :7551000E9
+2026-10-26T16:17:26-0400    187.96 MQTT lran/gatelink/vedirect/hex/request :7551000E9
+2026-10-26T16:17:29-0400    190.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7551000E9","seq":17,"outcome":"answered","status":"ok","response":":7551000000A000000050000008D05E00400000000009C0178005B002E00000020002C0844002E"}
+2026-10-26T16:17:29-0400    190.85 CMD pub lran/gatelink/vedirect/hex/request :7561000E8
+2026-10-26T16:17:29-0400    190.85 MQTT lran/gatelink/vedirect/hex/request :7561000E8
+2026-10-26T16:17:32-0400    193.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7561000E8","seq":18,"outcome":"answered","status":"ok","response":":75610000009000000050000008D05E2040000000000990179005C002E0000001F002808430033"}
+2026-10-26T16:17:32-0400    193.75 CMD pub lran/gatelink/vedirect/hex/request :7571000E7
+2026-10-26T16:17:32-0400    193.75 MQTT lran/gatelink/vedirect/hex/request :7571000E7
+2026-10-26T16:17:35-0400    196.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7571000E7","seq":19,"outcome":"answered","status":"ok","response":":75710000009000000040000008D0523050000000000870178005F003300000023006A084200B7"}
+2026-10-26T16:17:35-0400    196.75 CMD pub lran/gatelink/vedirect/hex/request :7581000E6
+2026-10-26T16:17:35-0400    196.75 MQTT lran/gatelink/vedirect/hex/request :7581000E6
+2026-10-26T16:17:38-0400    199.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7581000E6","seq":20,"outcome":"answered","status":"ok","response":":75810000009000000050000008D05F40400000000009701780068002E00000020002E08410011"}
+2026-10-26T16:17:38-0400    199.84 CMD pub lran/gatelink/vedirect/hex/request :7591000E5
+2026-10-26T16:17:38-0400    199.85 MQTT lran/gatelink/vedirect/hex/request :7591000E5
+2026-10-26T16:17:41-0400    202.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7591000E5","seq":21,"outcome":"answered","status":"ok","response":":75910000009000000050000008D0523050000000000800178006E002F000000200046084000D9"}
+2026-10-26T16:17:41-0400    202.74 CMD pub lran/gatelink/vedirect/hex/request :75A1000E4
+2026-10-26T16:17:41-0400    202.74 MQTT lran/gatelink/vedirect/hex/request :75A1000E4
+2026-10-26T16:17:44-0400    205.61 MQTT lran/gatelink/vedirect/hex/response {"request":":75A1000E4","seq":22,"outcome":"answered","status":"ok","response":":75A10000009000000050000008F05020500000000008F0178007800350000002500CD083F004D"}
+2026-10-26T16:17:44-0400    205.74 CMD pub lran/gatelink/vedirect/hex/request :75B1000E3
+2026-10-26T16:17:44-0400    205.76 MQTT lran/gatelink/vedirect/hex/request :75B1000E3
+2026-10-26T16:17:48-0400    209.61 MQTT lran/gatelink/vedirect/hex/response {"request":":75B1000E3","seq":23,"outcome":"answered","status":"ok","response":":75B10000009000000050000008E0527050000000000A2017C0033003100000022007C083E00AF"}
+2026-10-26T16:17:48-0400    209.89 CMD pub lran/gatelink/vedirect/hex/request :75C1000E2
+2026-10-26T16:17:48-0400    209.90 MQTT lran/gatelink/vedirect/hex/request :75C1000E2
+2026-10-26T16:17:51-0400    212.61 MQTT lran/gatelink/vedirect/hex/response {"request":":75C1000E2","seq":24,"outcome":"answered","status":"ok","response":":75C10000009000000050000008D05F9040000000000830178006D002A0000001D00F7073D005A"}
+2026-10-26T16:17:51-0400    212.79 CMD pub lran/gatelink/vedirect/hex/request :75D1000E1
+2026-10-26T16:17:51-0400    212.80 MQTT lran/gatelink/vedirect/hex/request :75D1000E1
+2026-10-26T16:17:54-0400    215.61 MQTT lran/gatelink/vedirect/hex/response {"request":":75D1000E1","seq":25,"outcome":"answered","status":"ok","response":":75D10000008000000050000008D05270500000000007A01780075002B0000001D000A083C0018"}
+2026-10-26T16:17:54-0400    215.89 CMD pub lran/gatelink/vedirect/hex/request :75E1000E0
+2026-10-26T16:17:54-0400    215.91 MQTT lran/gatelink/vedirect/hex/request :75E1000E0
+2026-10-26T16:17:57-0400    218.61 MQTT lran/gatelink/vedirect/hex/response {"request":":75E1000E0","seq":26,"outcome":"answered","status":"ok","response":":75E10000014000000060000008D05120500000000007F02780000002B0000001F00FF073B0099"}
+2026-10-26T16:17:57-0400    218.79 CMD pub lran/gatelink/vedirect/hex/request :75F1000DF
+2026-10-26T16:17:57-0400    218.80 MQTT lran/gatelink/vedirect/hex/request :75F1000DF
+2026-10-26T16:18:00-0400    221.60 MQTT lran/gatelink/vedirect/hex/response {"request":":75F1000DF","seq":27,"outcome":"answered","status":"ok","response":":75F10000003000000030000007905E70400000000003801000000001A0000001200DE073A00EC"}
+2026-10-26T16:18:00-0400    221.70 CMD pub lran/gatelink/vedirect/hex/request :7601000DE
+2026-10-26T16:18:00-0400    221.71 MQTT lran/gatelink/vedirect/hex/request :7601000DE
+2026-10-26T16:18:03-0400    224.62 MQTT lran/gatelink/vedirect/hex/response {"request":":7601000DE","seq":28,"outcome":"answered","status":"ok","response":":76010000008000000050000008D05DC0400000000006C0178008F002C0000001E002708390039"}
+2026-10-26T16:18:03-0400    224.82 CMD pub lran/gatelink/vedirect/hex/request :7611000DD
+2026-10-26T16:18:03-0400    224.82 MQTT lran/gatelink/vedirect/hex/request :7611000DD
+2026-10-26T16:18:06-0400    227.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7611000DD","seq":29,"outcome":"answered","status":"ok","response":":7611000000E000000060000008D05F70400000000000102780011003500000024000408380013"}
+2026-10-26T16:18:06-0400    227.84 CMD pub lran/gatelink/vedirect/hex/request :7621000DC
+2026-10-26T16:18:06-0400    227.85 MQTT lran/gatelink/vedirect/hex/request :7621000DC
+2026-10-26T16:18:09-0400    230.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7621000DC","seq":30,"outcome":"answered","status":"ok","response":":76210000004000000050000005405F0040000000000760200000000130000000D007907370037"}
+2026-10-26T16:18:09-0400    230.75 CMD pub lran/gatelink/vedirect/hex/request :7631000DB
+2026-10-26T16:18:09-0400    230.76 MQTT lran/gatelink/vedirect/hex/request :7631000DB
+2026-10-26T16:18:12-0400    233.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7631000DB","seq":31,"outcome":"answered","status":"ok","response":":76310000008000000060000008D05260500000000008C019500660038000000260024083600C8"}
+2026-10-26T16:18:12-0400    233.87 CMD pub lran/gatelink/vedirect/hex/request :7641000DA
+2026-10-26T16:18:12-0400    233.87 MQTT lran/gatelink/vedirect/hex/request :7641000DA
+2026-10-26T16:18:15-0400    236.68 MQTT lran/gatelink/vedirect/hex/response {"request":":7641000DA","seq":32,"outcome":"answered","status":"ok","response":":76410000009000000050000008D0507050000000000CA01780044003400000024006A083500A8"}
+2026-10-26T16:18:15-0400    236.77 CMD pub lran/gatelink/vedirect/hex/request :7651000D9
+2026-10-26T16:18:15-0400    236.78 MQTT lran/gatelink/vedirect/hex/request :7651000D9
+2026-10-26T16:18:18-0400    239.62 MQTT lran/gatelink/vedirect/hex/response {"request":":7651000D9","seq":33,"outcome":"answered","status":"ok","response":":76510000009000000040000008D05FA040000000000970178007C00320000002200830834009D"}
+2026-10-26T16:18:18-0400    239.87 CMD pub lran/gatelink/vedirect/hex/request :7661000D8
+2026-10-26T16:18:18-0400    239.88 MQTT lran/gatelink/vedirect/hex/request :7661000D8
+2026-10-26T16:18:21-0400    242.64 MQTT lran/gatelink/vedirect/hex/response {"request":":7661000D8","seq":34,"outcome":"answered","status":"ok","response":":76610000009000000050000008D05F7040000000000AC0179007E002F000000200021083300EE"}
+2026-10-26T16:18:21-0400    242.88 CMD pub lran/gatelink/vedirect/hex/request :7671000D7
+2026-10-26T16:18:21-0400    242.89 MQTT lran/gatelink/vedirect/hex/request :7671000D7
+2026-10-26T16:18:24-0400    245.61 MQTT lran/gatelink/vedirect/hex/response {"request":":7671000D7","seq":35,"outcome":"answered","status":"ok","response":":76710000009000000050000008D05E2040000000000990178007E002D00000020000E0832002C"}
+2026-10-26T16:18:24-0400    245.79 CMD pub lran/gatelink/vedirect/hex/request :7681000D6
+2026-10-26T16:18:24-0400    245.79 MQTT lran/gatelink/vedirect/hex/request :7681000D6
+2026-10-26T16:18:27-0400    248.69 MQTT lran/gatelink/vedirect/hex/response {"request":":7681000D6","seq":36,"outcome":"answered","status":"ok","response":":76810000008000000050000008D0524050000000000940178007B002F000000200024083100DA"}
+2026-10-26T16:18:27-0400    248.89 CMD pub lran/gatelink/vedirect/hex/request :7691000D5
+2026-10-26T16:18:27-0400    248.89 MQTT lran/gatelink/vedirect/hex/request :7691000D5
+2026-10-26T16:18:30-0400    251.60 MQTT lran/gatelink/vedirect/hex/response {"request":":7691000D5","seq":37,"outcome":"answered","status":"ok","response":":7691000000A000000040000008D052305000000000097017A0078002E00000020001A083000E3"}
+2026-10-26T16:18:30-0400    251.78 CMD pub lran/gatelink/vedirect/hex/request :76A1000D4
+2026-10-26T16:18:30-0400    251.78 MQTT lran/gatelink/vedirect/hex/request :76A1000D4
+2026-10-26T16:18:33-0400    254.61 MQTT lran/gatelink/vedirect/hex/response {"request":":76A1000D4","seq":38,"outcome":"answered","status":"ok","response":":76A10000008000000050000008D05230500000000009901780088002E000000200061082F008D"}
+2026-10-26T16:18:33-0400    254.69 CMD pub lran/gatelink/vedirect/hex/request :76B1000D3
+2026-10-26T16:18:33-0400    254.70 MQTT lran/gatelink/vedirect/hex/request :76B1000D3
+2026-10-26T16:18:36-0400    257.61 MQTT lran/gatelink/vedirect/hex/response {"request":":76B1000D3","seq":39,"outcome":"answered","status":"ok","response":":76B10000009000000050000008F052605000000000097017C0076002E000000200023082E00D5"}
+2026-10-26T16:18:36-0400    257.80 CMD pub lran/gatelink/vedirect/hex/request :76C1000D2
+2026-10-26T16:18:36-0400    257.81 MQTT lran/gatelink/vedirect/hex/request :76C1000D2
+2026-10-26T16:18:39-0400    260.61 MQTT lran/gatelink/vedirect/hex/response {"request":":76C1000D2","seq":40,"outcome":"answered","status":"ok","response":":76C1000000A000000060000008C05F3040000000000B601F70000003C0000002900BC072D0037"}
+2026-10-26T16:18:39-0400    260.80 CMD pub lran/gatelink/vedirect/hex/request :76D1000D1
+2026-10-26T16:18:39-0400    260.80 MQTT lran/gatelink/vedirect/hex/request :76D1000D1
+2026-10-26T16:18:42-0400    263.64 MQTT lran/gatelink/vedirect/hex/response {"request":":76D1000D1","seq":41,"outcome":"answered","status":"ok","response":":76D10000006000000050000006E05050500000000008B0200000000260000001A009E072C00AB"}
+2026-10-26T16:18:42-0400    263.92 CMD pub lran/gatelink/vedirect/hex/request :76E1000D0
+2026-10-26T16:18:42-0400    263.92 MQTT lran/gatelink/vedirect/hex/request :76E1000D0
+2026-10-26T16:18:45-0400    266.63 MQTT lran/gatelink/vedirect/hex/response {"request":":76E1000D0","seq":42,"outcome":"answered","status":"ok","response":":76E10000008000000050000008D05270500000000002D017800530035000000240017082B0069"}

@@ -18,8 +18,16 @@ card's `/bms.log`, flashed at `1049387` from the Mac.
 **Updated 2026-10-26 by the soak's second-run session.** The second run ran 19.2 h from the
 Kubuntu laptop, and GateLink did not reset again (engineering log, 2026-10-26, *Bench soak,
 second run*). The BMS missed five windows, and two of them took the battery unavailable at
-the bridge. **`/bms.log`, which says why, is still on the card, unread.** The Kubuntu
-laptop cannot read the card, and the operator will not reflash from it.
+the bridge. A later session read `/bms.log`: each miss was a window the poll's reply
+aborted, and `bms_retry_s` now retries an aborted window once.
+
+**Updated 2026-10-26 by the M14 and NimBLE session.** M14 closed on the MPPT's own history,
+ten days on the gate's 50 W panel (engineering log, 2026-10-26, *The MPPT's history*). The
+forced-abort panic was a queued NimBLE timer event zeroed at de-init. `5fd1509` drains the
+host queue first, and 100 forced aborts then ran without a panic (engineering log,
+2026-10-26, *The NimBLE abort panic*). **The gate goes back into service now**, taking the
+MPPT and the pack off the bench. The remaining soak work waits for a final soak before
+deployment (operator, 2026-10-26).
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -35,19 +43,16 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The input board is built and fitted, and the original StamPLC is back in service**
-(2026-10-24). The pack and the MPPT are on the bench with it, so VE.Direct, the BMS and the
-radio all ran together through the real power chain. Everything below runs on the StamPLC's
-12 V bench supply. **The soak no longer waits on hardware**, and GateLink
-deploys on six inputs (D83).
+**The StamPLC stays on the bench; the MPPT and the pack go back to the gate** (operator,
+2026-10-26). Tier 3 below needs neither: it runs on the StamPLC's 12 V bench supply with the
+bridge. Anything reading the BMS or the MPPT waits for the final soak, when they come back.
+GateLink deploys on six inputs (D83).
 
 | Tier | Task | Read |
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **A forced BMS abort panicked GateLink in NimBLE's `host_task`**, 1 in 15 on 2026-10-26, and a reset at the gate is a walk. Find why the host task returns past `nimble_port_freertos_deinit()` during an abort's teardown, then run a long series of `bms now <abort_ms>` | Engineering log, 2026-10-26, *`bms_retry_s` on the board*; 2026-10-10, the timer-task panic |
-| 2 | **Soak with the bridge for `bms_retry_s` against real polls.** The new 4 GB card is FAT32 and mounts; a forced abort and its retry both wrote `/bms.log` lines. Expect each `aborted` line in `/bms.log` to be followed by a read about 6 s later, and `age_s` never past about 310 s | Engineering log, 2026-10-26, *The new card was HFS+* |
-| — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
+| 2 | **The final soak before deployment**, once the MPPT and the pack are back on the bench. It answers what this bench could not: `bms_retry_s` against real polls, with each `aborted` line in `/bms.log` followed by a read about 6 s later and `age_s` never past about 310 s; and the `bms` line's drain timeouts staying 0 | *The soak's setup*, below; engineering log, 2026-10-26, *The new card was HFS+* and *The NimBLE abort panic* |
 
 ### The soak's setup
 
@@ -107,8 +112,9 @@ install costs a walk to the gate:
 
 **Tier 2's soak has run twice, for 24 h and then 19.2 h**, through the MPPT, the pack and
 the StamPLC, with the radio, VE.Direct, BMS polls and SD writes all active. GateLink reset
-in neither run, so GL5's timer-task panic did not recur in about 43 h; its cause is still
-not established. `/bms.log` explained the BMS misses: each was a window the poll's reply
+in neither run, so GL5's timer-task panic did not recur in about 43 h. The forced-abort
+panic of 2026-10-26 is fixed in `5fd1509`, and the timer-task panic may share its cause,
+not checked (engineering log, 2026-10-26, *The NimBLE abort panic*). `/bms.log` explained the BMS misses: each was a window the poll's reply
 aborted (engineering log, 2026-10-26, *`/bms.log` read*).
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it**
@@ -123,18 +129,17 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **GateLink ran the second soak, 19.2 h, without a reset** (engineering log, 2026-10-26).
-  `uptime_s` places its boot at 19:14:49 on 2026-10-25. All 1,150 polls were answered,
-  `missed_polls` stayed 0, and VE.Direct never went stale. ΔSOC overnight was 0.
-- **The BMS missed five windows, one at a time, about 3.5 h apart**, with one 7.2 h gap.
-  Two misses took `age_s` to 601 and 602, past the bridge's `bms_stale_s` 600, so the
-  bridge published the battery unavailable until the next read.
-- **`/bms.log` is unread.** The console cannot print it, the Kubuntu laptop cannot read
-  the card, and the operator will not reflash from that laptop.
-- **`bench.py` ran 19.2 h under `nohup` with one broker connection.** No broker outage
-  happened, so the keepalive fix is still tested against a fake broker only.
-- **Five events at 10:50 on 2026-10-26, `event_id` 9001 to 9005, were the operator's test
-  publishes**, on MQTT alone. They are not GateLink's.
+- **M14 is closed** (register v0.34). Read over the air through the bridge, the MPPT's
+  history holds ten consecutive days on the gate's 50 W panel since 2026-10-08. Each
+  reached absorption and float, with 0.08–0.10 kWh of yield against 0.04–0.05 kWh of load,
+  and battery Vmin stayed at 12.48 V or above.
+- **The forced-abort panic was NimBLE zeroing `ble_hs_timer` while its event was queued.**
+  `5fd1509` drains the host queue before each de-init, and the `bms` line now reports the
+  drain's longest wait and its timeouts. On that image, 100 forced aborts from 102 to
+  997 ms ran without a panic: 98 retries read the pack, one failed to connect, and no
+  drain timed out.
+- **GateLink needed a restart after the bridge powered up** before it answered over the
+  air, by the operator's report. The cause was not looked at.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -165,7 +170,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | Plan v0.41. The PHY trial, on the air 2026-10-13. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
-| In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i passes on the air (2026-10-24). GL4: every criterion passes on the bench except M14, now possible with the MPPT back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, `vedirect_task`'s CPU share beside NimBLE is measured, and low-temperature inhibition passes on the air by the BMS path; M23, the VE.Direct path on the air and `0x8D` remain |
+| In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i passes on the air (2026-10-24). GL4: every criterion passes, M14 included (2026-10-26). GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, `vedirect_task`'s CPU share beside NimBLE is measured, and low-temperature inhibition passes on the air by the BMS path; M23, the VE.Direct path on the air and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
 
@@ -198,12 +203,12 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `1049387`, flashed over USB from the Mac on 2026-10-25. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `5fd1509`, flashed over USB from the Mac on 2026-10-26. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | **All back at the gate** (operator, 2026-10-13). Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were on the bench for the soaks and go back to the gate on 2026-10-26 (operator). Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -277,6 +282,9 @@ board's are its D-pads (expansion board §6.1).
   window aborted for the poll's reply, met once per pass of the window's drifting phase.
   `bms_retry_s` retries such a window once, 5 s later; on the board each forced abort
   was retried (engineering log, 2026-10-26). Not yet seen against real polls.
+- **GateLink did not answer over the air after the bridge powered up** until the operator
+  restarted it (2026-10-26). Whether it was waiting on a context roll it never heard is not
+  established.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
@@ -399,7 +407,7 @@ board's are its D-pads (expansion board §6.1).
   VictronConnect does not show the setting. A simnode change, if anyone wants it.
 - **The StamPLC was silent on the air for 135 s before a replug** (engineering log,
   2026-10-08). Nothing explains it yet; watch for a repeat.
-- **Measurements** M1–M3, M8–M11, M13, M14, M16 and M23. The register holds their status.
+- **Measurements** M1–M3, M8–M11, M13, M16 and M23. The register holds their status.
 - **The first BMS window after a boot ended `aborted` at about 45 ms, twice** (engineering
   log, 2026-10-10, *M7*). Probably the boot's LoRa traffic; not checked.
 - **The bridge's B6 and B7** wait on GL6. **BF-30**'s scales agree with VictronConnect for every register the app shows; `0xEDF4` and `0xEDF2` read 0, so their scales are not exercised. The LiFePO4 settings disable both, so no readback of this configuration will exercise them.

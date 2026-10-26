@@ -41,4 +41,12 @@ struct BmsHeap {
 };
 BmsHeap bms_heap();
 
+// The wait before each de-init for NimBLE's host queue to empty. A timeout means the
+// de-init went ahead with events still queued, which can panic the host task.
+struct BmsDrain {
+  uint32_t max_ms   = 0;  // longest wait since boot
+  uint32_t timeouts = 0;
+};
+BmsDrain bms_drain();
+
 }  // namespace gatelink

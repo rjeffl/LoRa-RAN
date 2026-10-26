@@ -2034,3 +2034,89 @@ aborted at 19.14 s, and its retry read the pack at 25.24 s, `bms_retry_s` 5 plus
 window. The `bms` line read `ends read 1 aborted 1` and `/bms.log 2 failed 0`: both windows
 wrote their line. Trace:
 [`data/bms-retry-card-2026-10-26.log`](data/bms-retry-card-2026-10-26.log).
+
+## 2026-10-26 — The MPPT's history after two weeks on the gate: ten full days at 50 W, and M14 closes
+
+**Bridge and StamPLC on the bench with the sandbox broker; the MPPT on the pack with no
+PV.** The MPPT went back to the gate after the 2026-10-08 read and stayed on its 50 W panel
+until the operator pulled it for the bench soak. Its history therefore holds the gate days
+that the 2026-10-08 read lacked. GateLink ran `a1de65d`. After the bridge powered up, the
+operator had to restart GateLink before it answered; the cause was not looked at. Trace:
+[`data/m14-mppt-history-2026-10-26.log`](data/m14-mppt-history-2026-10-26.log).
+
+**Every Get from `0x104F` to `0x106E` answered `ok` over the air, with no timeout.** The
+totals record's yield read 581, matching the solar document's `yield_total_kwh` of 5.81.
+It read 467 on 2026-10-08, so the MPPT harvested 1.14 kWh in between.
+
+**The records overlap the 2026-10-08 read at day sequence 58.** Its day 1, 312 minutes of
+bulk and no absorption, is day 15 here, and days 16–30 repeat its days 2–16. The MPPT
+starts a record when PV returns after a dark spell, not at midnight. The 18 calendar days
+since 2026-10-08 made 15 records, so a record's age in days does not give its date.
+
+| Days | Where | Yield kWh | Load kWh | Vbat min | Vbat max | Absorption, float min | Pmax W |
+|---|---|---|---|---|---|---|---|
+| 0–2 | Bench | 0.00 | 0.00 | 13.26–13.28 | 13.28–13.35 | 0, 0 | 0–1 |
+| 3 | Gate or bench, not known | 0.04 | 0.03 | 13.13 | 14.20 | 0, 0 | 41 |
+| 4–13 | Gate, 50 W | 0.08–0.10 | 0.04–0.05 | 12.48–13.19 | 14.21–14.23 | 120–124, 51–120 | 42–53 |
+| 14 | 2026-10-08, bench then gate | 0.20 | 0.06 | 12.98 | 14.21 | 120, 0 | 43 |
+
+**On each of the ten gate days the charger reached absorption and then float**, and no
+record carries an error. The battery was full every day, so the yield shows what the battery
+could take, not what the panel can give. Load-output consumption was 0.04–0.05 kWh a day.
+Days 1 and 2 reached a Vpv maximum of 19.03 V and 19.34 V, but no more than 1 W.
+
+**M14 closes on these records.** It asked for a week of MPPT yield and battery Vmin before
+install, and days 4–13 are ten consecutive days on the gate's own panel. The ten records
+are the MPPT's daily summaries, not a log at GateLink's poll rate.
+
+**Falsified by:** a gate-day record without absorption once the gate is back in service,
+in the same season.
+
+## 2026-10-26 — The NimBLE abort panic: a queued timer event zeroed at de-init; 100 aborts clean after the fix
+
+**The panic of the forced abort was the host task running `ble_hs_timer`'s event after
+the event was zeroed.** The register dump in
+[`data/bms-retry-2026-10-26.log`](data/bms-retry-2026-10-26.log) resolves against the
+`a1de65d` image. A8, `0x40375439`, is the return into `nimble_port_run()` after
+`ble_npl_event_run()`, and A2, the event passed, is `0x3fcad48c`. That is offset 8 in
+`ble_hs_timer`, the static callout in `ble_hs.c`, which is where its embedded event sits.
+PC 0 is that event's `fn`, which was null.
+
+**NimBLE zeroes that callout while its event can still be queued.** `ble_hs_timer_reset()`
+stops and de-inits `ble_hs_timer` once the host is not enabled, and
+`npl_freertos_callout_deinit()` clears the whole callout, event included, without taking
+it off the queue. `ble_hs_stop()`, inside `NimBLEDevice::deinit()`, sets the host to not
+enabled. A scan stop runs `ble_gap_master_reset_state()`, which calls
+`ble_hs_timer_resched()` and queues the event at once. An abort reaches `deinit()`
+microseconds after the scan stop, so the event can still be waiting when the callout is
+zeroed. A window that reads goes on to connect, so the host task runs the event long
+before teardown. NimBLE-Arduino 1.4.3 has that `ble_hs_timer_reset()`, and so does
+esp-nimble's `nimble-1.5.0-idf` branch.
+
+**`5fd1509` drains the host queue before each de-init.** `bms_window()` waits 10 ms, puts
+a marker event on NimBLE's default queue, and waits up to 100 ms for the host task to run
+it. The queue is FIFO, so once the marker runs, every event queued before it has run. The
+`bms` line reports the longest wait and the timeouts. A rescheduling that comes after the
+marker and before `ble_hs_stop()` is not covered. Nothing in a stopped window should
+cause one, but that is reasoning, not a measurement.
+
+**100 forced aborts on `5fd1509` ran without a panic.** Bridge and broker on the bench,
+the pack in reach, and abort points spread from 102 to 997 ms. Trace:
+[`data/bms-abort-drain-2026-10-26.log`](data/bms-abort-drain-2026-10-26.log).
+
+| | Count |
+|---|---|
+| Windows aborted | 100 |
+| Aborted in the scan, the case that panicked | 25 |
+| Retries that read the pack | 98 |
+| Retries that failed to connect | 1 |
+| Panics or resets | 0 |
+| `/bms.log` lines written, failed | 199, 0 |
+| Longest drain wait, timeouts | under 1 ms, 0 |
+
+At the earlier rate of one panic in 15 aborts, 100 clean aborts would come about one time
+in a thousand. The 2026-10-10 timer-task panics on FreeRTOS timers fit the same zeroed
+event, but that was not checked.
+
+**Falsified by:** a panic in `nimble_port_run()` on `5fd1509` or later, or a `bms` line
+with drain timeouts above 0.
