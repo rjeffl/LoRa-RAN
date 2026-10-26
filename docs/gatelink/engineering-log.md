@@ -1855,3 +1855,58 @@ not read back; the operator can read it with the card in a laptop after the soak
 
 **Falsified by:** a `bms` line whose failed count rises while `cfg` reads the card
 mounted.
+
+## 2026-10-26 — Bench soak, second run, 19.2 h: GateLink did not reset, and the BMS missed five windows
+
+**The run was set up by the handoff's *Starting the restart*,** on the Kubuntu laptop, on
+branch `gl-bench-soak`, with GateLink at `1049387`. `bench.py --dir
+~/lran-soak/2026-10-25-run2 run --port BRG=/dev/ttyUSB0 --mqtt` started at 19:10:27 EDT on
+2026-10-25 under `nohup`, with the bridge's console on the laptop and the StamPLC's USB
+unplugged. GateLink's `BOOT` arrived at 19:14:51 with `reset_cause` `power_on`. The logger
+was stopped with `send quit` at 14:25:14 on 2026-10-26, 69,287 s in. It ran to the end,
+outside any Claude Code session.
+
+**GateLink did not reset in 19.2 h.** `uptime_s` in `lran/gatelink/node/state` rose
+without a drop to 69,010 at 14:24:59, which places its boot at 19:14:49. The bridge's
+`event_frames` stayed at 2, the `BOOT` and the first `FIRE_ASSERTED` it raised.
+
+| Watched for | Result |
+|---|---|
+| `BOOT` after the first | none: `uptime_s` continuous, `event_frames` 2 throughout |
+| STATUS rate | 1,153 `status_frames` and 1,150 polls, all answered, one per `poll_interval_s` 60. `missed_polls` 0 in every `diag/state` |
+| Link | RSSI −43 to −53 dBm, SNR 11 dB. `rx_no_interrupt`, `rx_wake_empty` and `tx_errors` 0 throughout; `q_publish_dropped` 0 |
+| Broker | one connection for the whole run, with no outage, so the keepalive fix ran 19 h but was never tested by an outage |
+| VE.Direct | never unavailable in 395 `solar/state` documents after the boot's first |
+| BMS | five missed windows, each one window long, below. Two of them reached the bridge's stale limit |
+| Overnight ΔSOC | 0: SOC 99 % throughout, pack 13,300 to 13,310 mV, `pack_ma` 0 throughout |
+
+**The BMS missed five windows, one at a time, at about 3.5 h spacing.** `age_s` climbed
+past `bms_poll_s` 300 and peaked at 600 at 19:54:59, 602 at 23:20:59, 601 at 02:51:59, 600
+at 06:27:59 and 600 at 13:39:59. A fresh read followed each time. The gaps are 3 h 26 min,
+3 h 31 min and 3 h 36 min, then 7 h 12 min, so a miss expected near 10:03 did not happen.
+The first run's spacing was about 3.7 h (entry of 2026-10-25, *Bench soak, 24 h*). **This
+time two of the misses crossed the line**: at 602 and 601 s, past the bridge's
+`bms_stale_s` 600, the bridge published `battery/state` with `"available": false` until the
+next read. One miss is enough to mark the battery unavailable, depending on where the
+bridge's publish falls against the read.
+
+**`/bms.log` was not read.** It names how each of those five windows ended, which is what
+this run was restarted to find. The console has no command that prints the file. The card
+cannot be read from the Kubuntu laptop, and the operator declined a reflash from it,
+because it carries a different toolchain from the Mac's. The file stays on the card until
+it is read.
+
+**Five events at 10:50 to 10:51 were the operator's, not GateLink's.**
+`vehicle_while_held_open`, `fire_asserted`, `hard_shutdown` and `bms_alarm`, with
+`event_id` 9001 to 9005, `ctx_id` 4294967295 and `uptime_s` 1 to 12, arrived on MQTT
+alone. The bridge's `events` count did not move and no radio frame matches them. The
+operator published them as a test. Their `uptime_s` reads as resets to a script that
+does not filter on topic.
+
+**The MPPT's `load_on` went false at 08:37:59, and it charged in `bulk` from 11:45:00**, at
+1 W and up to 70 mA, as in the first run. `charge_fet` and `discharge_fet` read false and
+`alarms` 65535 again throughout.
+
+**Falsified by:** a `/bms.log` whose lines at `uptime_s` near 2,410, 14,770, 27,430,
+40,390 and 66,310, give or take one `bms_poll_s`, all read `end=read`. The stale ages
+would then come from the path after the window, not from the BLE side.
