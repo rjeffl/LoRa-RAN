@@ -16,16 +16,17 @@ H3, when ha-mcp's dashboard screenshots came into use.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H4.
+Continue from docs/ha/HANDOFF.md: task H4b.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4 and H7 depend only on H1 and can run in any order. H9 can run
-now that H3 is done.
+cited below as *plan*. H4 is done but for its two offline alerts, which need the boards
+powered down (H4b). H5 needs H4. H7 depends only on H1, and H9 on H3.
 
 | Task | Read |
 |---|---|
-| **H4** Tier 1 alerts | Plan §9.1, §7.2, §7.3, §3; *Traps*, below, before injecting any event |
+| **H4b** The two offline alerts | Plan §9.1 and its connectivity-sensor note; engineering log, 2026-10-26, H4; `ha/packages/lran/alerts.yaml` |
+| **H5** Tier 2 health | Plan §9.2, §7.1; *Traps*, below, before injecting any event |
 | **H7** Tier 4 reports | Plan §9.4 |
 | **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
 
@@ -35,13 +36,18 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H4, the Tier 1 alerts**, as `ha/packages/lran/alerts.yaml` (plan §9.1). Each alert is
-verified with a bench-injected event, and the sandbox broker carries GateLink's soak, so
-agree the injection with the operator first (*Traps*). Held-open and FIRE must not repeat
-after an HA restart (**V-5**). Each alert's logbook entry lands on the Events view through
-`script.lran_notify` (plan §7.3).
+**H4b, the two offline alerts.** Set `input_number.lran_offline_warn_min` to 1, unpower
+GateLink until the offline push arrives, then power it on and check the return push names
+the outage. Then unpower the bridge for 5 minutes and check its push sends no email. Both
+interrupt the GateLink soak, so agree the time with the operator. Restore the delay to 10.
 
 ## What the last session established
+
+- **The four Tier 1 event alerts are installed and verified** with events injected through
+  ha-mcp's `mqtt.publish`, `ctx_id` 4294967295 (engineering log, 2026-10-26, H4). The
+  held-open follow-up replaces its push and sends no email; a retransmission is dropped.
+  **FIRE's critical alert was seen on the phone.** V-5 holds across an HA restart. **The
+  offline alerts were not exercised.**
 
 - **The simnodes are gone from the sandbox**, and clearing their retained discovery configs
   is what keeps them gone (engineering log, 2026-10-25).
@@ -150,8 +156,10 @@ those two targets changed, which plan §7.3 names.
 ## Traps that cost real time here
 
 - **The sandbox broker carries GateLink's live bench soak.** A test event published to
-  `lran/gatelink/event/*` reaches the soak's subscribers as well as HA. Before H4 injects
-  one, agree it with the operator, or use a node token nothing else watches.
+  `lran/gatelink/event/*` reaches the soak's subscribers as well as HA. Agree each
+  injection with the operator first. H4 published through ha-mcp's `mqtt.publish`, not
+  retained, with `ctx_id` 4294967295 so the soak's log can tell the fakes apart. **Never
+  publish a retained `availability`**: it would stand over the bridge's own state.
 - **A registry delete does not remove an MQTT-discovered device for good.** Its retained
   config recreates it at the next restart. Clear the config on the broker instead.
 - **`initial:` on a helper resets it at every start.** The packages seed defaults once
@@ -173,9 +181,10 @@ those two targets changed, which plan §7.3 names.
 
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
   for production (plan §12, step 6).
-- **The phone's critical and time-sensitive pushes**, checked at H4. `site.yaml` adds
-  `notify.mobile_app_jliphone16` then.
-- **Forcing a state has no ha-mcp route.** H4's alert checks, and any later banner and alert checks need
+- **Spec §8.9 gives BMS_ALARM's `detail` no meaning.** The alert shows it raw, in hex. A
+  spec revision should define it, or say it is reserved.
+- **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
+  injects the event (H4). A banner check, or an alert on a sensor's state (H5), needs
   either a token on this machine or another way to force a state, for example an
   `input_boolean` override in a test-only package. The operator chooses which.
 - **No CI check reads `ha/packages/`.** H9's `check_entities.py` needs a live HA. A YAML

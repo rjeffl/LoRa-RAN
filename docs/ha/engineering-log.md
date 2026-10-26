@@ -209,3 +209,48 @@ view.
 **Puppet's port 10000 takes no authentication**, so anyone on the sandbox's network can pull
 a signed-in render through it (ha-mcp `docs/beta.md`). It is acceptable on the sandbox's
 LAN. Whether production gets Puppet is a decision for H10.
+
+## 2026-10-26 — H4, the Tier 1 alerts
+
+**`alerts.yaml` holds the six Tier 1 automations and two connectivity sensors**, installed
+on the sandbox with a clean config check. The four event alerts, FIRE's critical push on
+the phone and V-5 pass. **The two offline alerts were not exercised**: the operator could
+not power the boards down this session.
+
+**The events were injected with `mqtt.publish` through ha-mcp**, on the real
+`lran/gatelink/event/<name>` topics, not retained, QoS 1, with `ctx_id` 4294967295 and
+`event_id` 9001 to 9005, so the GateLink soak's log can tell them from real events. The
+operator agreed to that before the first publish. Each payload had the fields
+`publish.cpp`'s `on_event()` writes.
+
+| Injected | Result |
+|---|---|
+| Held-open, first edge, `event_id` 9002 | Admitted. Time-sensitive push, tag `gatelink:4294967295:9002`. One email through the stand-in, with `lran_email_enabled` on for the run |
+| Its follow-up, `direction` `entry` | Admitted on key `…:9002:f`. Push with the same tag, "A vehicle came in…". No email |
+| The first edge again | Dropped, `reason: repeat` |
+| FIRE, `event_id` 9003 | Critical push to the Mac and the phone (`critical: 1`, `channel: alarm_stream`). **The operator saw it on the phone as a critical alert** |
+| Hard shutdown, 9004; BMS alarm, 9005 with `detail` 18 | High pushes. The BMS message reads `detail 0x0012` |
+
+**V-5 holds across a restart.** HA restarted at 10:52:31. Afterwards neither
+`automation.lran_1_vehicle_while_held_open` nor `automation.lran_1_fire_asserted` had a
+`last_triggered` later than its injection, and `input_text.lran_recent_events` came back
+with all six keys, so a retransmission arriving after a restart is still dropped.
+
+**A more-indented line in a folded scalar keeps its newlines.** The first held-open
+message had a line break in the middle of the text, because the continuation of a Jinja
+expression was indented further than the lines around it. The fix moves the expression into
+a variable. A continuation line inside `{{ }}` is harmless only when the text after it is on
+the same line.
+
+**The offline alerts read a new MQTT binary sensor each, not the entities' availability.**
+`binary_sensor.lran_gatelink_online` reads `lran/gatelink/availability` and takes the
+bridge's availability as its own, so a bridge outage leaves it unavailable rather than
+off. That keeps one outage from alerting twice. `binary_sensor.lran_bridge_online` reads
+the bridge's LWT topic.
+
+**`lran_notify` gained `push_only`**, for the bridge-offline alert, which plan §9.1 says
+must not email. Passing `follow_up` would have done it, but it would have said the wrong
+thing about the alert.
+
+**Spec §8.9 gives BMS_ALARM's `detail` no meaning**, so the alert shows the raw value in
+hex. The bridge passes it through unnamed.
