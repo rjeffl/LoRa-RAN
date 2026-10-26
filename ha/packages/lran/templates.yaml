@@ -94,17 +94,19 @@ template:
           {% else %}good{% endif %}
 
       # For the Gate dashboard only (plan 7.4). The recorder excludes them (site.yaml), and
-      # graphs read the raw mV sensors.
+      # graphs read the raw mV sensors. No device class: with one, HA suggests a display
+      # precision of 0 and shows 13.31 V as 13 V, and the template schema rejects
+      # suggested_display_precision (engineering log, 2026-10-25).
       - name: LRAN GateLink pack voltage V
         unique_id: lran_gatelink_pack_voltage_v
         unit_of_measurement: V
-        device_class: voltage
+        icon: mdi:flash
         availability: "{{ has_value('sensor.gatelink_pack_voltage') }}"
         state: "{{ (states('sensor.gatelink_pack_voltage') | float / 1000) | round(2) }}"
       - name: LRAN GateLink PV voltage V
         unique_id: lran_gatelink_pv_voltage_v
         unit_of_measurement: V
-        device_class: voltage
+        icon: mdi:flash
         availability: "{{ has_value('sensor.gatelink_pv_voltage') }}"
         state: "{{ (states('sensor.gatelink_pv_voltage') | float / 1000) | round(2) }}"
 
