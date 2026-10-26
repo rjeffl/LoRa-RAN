@@ -1801,6 +1801,7 @@ void console_command(char* cmd) {
     portEXIT_CRITICAL(&g_bms_mux);
     const BmsRxCounters k = bms_rx_counters();
     const BmsHeap       h = bms_heap();
+    const BmsDrain      d = bms_drain();
     size_t ends = 0;
     char   list[96]  = "";
     for (size_t i = 0; i < static_cast<size_t>(BmsEnd::Count); ++i) {
@@ -1812,7 +1813,8 @@ void console_command(char* cmd) {
     n = std::snprintf(line, sizeof(line),
                       "bms: %s; polling %s; window %lu max %lu ms; abort %lu max %lu ms; cap %lu; "
                       "ends%s; busy %lu off %lu; tx waits %lu asked %lu overrun %lu; rx %lu crc %lu "
-                      "term %lu other %lu; heap %lu/%lu low %lu; %s %lu failed %lu; stack free %lu",
+                      "term %lu other %lu; heap %lu/%lu low %lu; drain max %lu ms timeouts %lu; "
+                      "%s %lu failed %lu; stack free %lu",
                       v.last_end == BmsEnd::Count ? "no window yet" : bms_end_name(v.last_end),
                       g_bms_polling.load() ? "on" : "SUSPENDED",
                       static_cast<unsigned long>(v.window_ms), static_cast<unsigned long>(v.window_max_ms),
@@ -1825,7 +1827,8 @@ void console_command(char* cmd) {
                       static_cast<unsigned long>(k.frames), static_cast<unsigned long>(k.crc_errors),
                       static_cast<unsigned long>(k.bad_term), static_cast<unsigned long>(k.undecoded),
                       static_cast<unsigned long>(h.before), static_cast<unsigned long>(h.after),
-                      static_cast<unsigned long>(h.low), kBmsLogPath,
+                      static_cast<unsigned long>(h.low), static_cast<unsigned long>(d.max_ms),
+                      static_cast<unsigned long>(d.timeouts), kBmsLogPath,
                       static_cast<unsigned long>(v.card_logged),
                       static_cast<unsigned long>(v.card_failed),
                       static_cast<unsigned long>(

@@ -9,11 +9,13 @@
 #include <NimBLEDevice.h>
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include <freertos/task.h>
 
 #include <cstring>
 
 #include "bms_ble/nimble_transport.h"
+#include "nimble/porting/nimble/include/nimble/nimble_port.h"
 #include "bms_ble/tdt_protocol.h"
 
 namespace gatelink {
@@ -143,6 +145,39 @@ NimBleTransport g_transport;
 NotifyHandler   g_notify;
 Finder          g_finder;
 BmsHeap         g_heap;
+BmsDrain        g_drain;
+
+// The host must run every event already queued before deinit() stops it. ble_hs_stop()
+// marks the host not enabled, and any rescheduling of ble_hs_timer after that deinits the
+// callout, zeroing its embedded event. If that event is still on the queue, the host task
+// calls a null fn: the panic of 2026-10-26, PC 0 in nimble_port_run() with ble_hs_timer's
+// event as the argument (engineering log). An abort reaches deinit() microseconds after a
+// scan stop rescheduled that timer, which is why aborts alone have shown it.
+// NimBLE-Arduino 1.4.3 and esp-nimble both deinit there, so the wait is ours to do.
+constexpr uint32_t kDrainSettleMs = 10;   // a zero-delay esp_timer has posted by then
+constexpr uint32_t kDrainWaitMs   = 100;  // the host task has run nothing that long
+
+StaticSemaphore_t g_drain_sem_buf;
+SemaphoreHandle_t g_drain_sem = nullptr;
+ble_npl_event     g_drain_ev;
+
+void drain_ran(ble_npl_event*) { xSemaphoreGive(g_drain_sem); }
+
+// Queues a marker behind everything the host task has pending and waits for it to run.
+// The queue is FIFO, so once the marker runs, ble_hs_timer's event has run too.
+void drain_host_queue() {
+  if (g_drain_sem == nullptr) g_drain_sem = xSemaphoreCreateBinaryStatic(&g_drain_sem_buf);
+  xSemaphoreTake(g_drain_sem, 0);
+  vTaskDelay(pdMS_TO_TICKS(kDrainSettleMs));
+  const uint32_t t0 = now_ms();
+  // init resets `queued`, which a marker left on a queue deinit() discarded keeps set.
+  ble_npl_event_init(&g_drain_ev, drain_ran, nullptr);
+  ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &g_drain_ev);
+  const bool ran = xSemaphoreTake(g_drain_sem, pdMS_TO_TICKS(kDrainWaitMs)) == pdTRUE;
+  const uint32_t ms = now_ms() - t0;
+  if (ms > g_drain.max_ms) g_drain.max_ms = ms;
+  if (!ran) ++g_drain.timeouts;
+}
 
 // The window's own end: the caller's stop, then the cap.
 bool ended(const BmsWindowArgs& a, BmsEnd* why) {
@@ -291,7 +326,10 @@ BmsEnd bms_window(const BmsWindowArgs& args, BmsSnapshot* out, BmsTiming* t) {
     g_transport.disconnect();
     // PRD R-3.4b - the controller goes down between polls. clearAll frees the scan and
     // client objects too, so the heap returns to where it started.
-    if (NimBLEDevice::getInitialized()) NimBLEDevice::deinit(true);
+    if (NimBLEDevice::getInitialized()) {
+      drain_host_queue();
+      NimBLEDevice::deinit(true);
+    }
   }
   g_heap.after = esp_get_free_heap_size();
   g_heap.low   = esp_get_minimum_free_heap_size();
@@ -301,5 +339,7 @@ BmsEnd bms_window(const BmsWindowArgs& args, BmsSnapshot* out, BmsTiming* t) {
 BmsRxCounters bms_rx_counters() { return g_notify.counters(); }
 
 BmsHeap bms_heap() { return g_heap; }
+
+BmsDrain bms_drain() { return g_drain; }
 
 }  // namespace gatelink
