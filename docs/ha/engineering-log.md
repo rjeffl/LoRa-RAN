@@ -119,3 +119,26 @@ sensor restarts with the reload and resumes once the draw current next updates; 
 another entity's state, and an attribute copy of `last_seen` would write the recorder rows
 plan §10 excludes `last_seen` to avoid. The button tiles hide their state, which is the
 time of the last press.
+
+## 2026-10-26 — The dev flow moves to ha-mcp
+
+**The sandbox is now worked through ha-mcp and the Samba mount, not the REST API.** The
+ha-mcp app (8.7.0) runs on the sandbox and is registered at user scope on the Mac as
+`ha-sandbox`. Production will be set up the same way. Files still go over Samba, because
+the repository is their source and plan §12 ports them as a copy. The handoff's *Where
+things stand* lists the tool for each step.
+
+**The first config check through ha-mcp read `valid`** with no errors, from
+`ha_get_system_health(include="config_check")`. The sandbox was at core-2026.10.4, and
+`/config/packages/lran/` held `core.yaml`, `site.yaml` and `templates.yaml`, with `gate.yaml`
+in `/config/dashboards/lran/`. Nothing was changed on the sandbox.
+
+**One REST call has no ha-mcp equivalent.** H2 forced its banner states with
+`POST /api/states/<entity>` (the 2026-10-25 H2 entry). That is a REST endpoint, not a
+service or a WebSocket command, and none of ha-mcp's 77 tools sets a state. The Mac has no
+`~/.lran_ha_token`, so H3's and H4's forced-state checks need a token here or another
+route. The handoff's *Open* records the choice.
+
+**`ha_config_set_dashboard` writes storage-mode dashboards only**, so the LRAN dashboards
+stay YAML files copied over Samba. Editing one through ha-mcp would leave the repository
+and production behind.
