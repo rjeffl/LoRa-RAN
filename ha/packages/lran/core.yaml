@@ -276,10 +276,14 @@ script:
       - condition: template
         value_template: >-
           {{ sev in ['critical', 'high'] or not is_state('input_boolean.lran_alerts_muted', 'on') }}
+      # Attributed to this script so the LRAN dashboard's logbook card, which lists
+      # entities, can show the entry (plan 8.2). An entry with no entity reaches only the
+      # unfiltered logbook.
       - action: logbook.log
         data:
           name: LRAN
           message: "{{ title }}: {{ message }}"
+          entity_id: script.lran_notify
       - if:
           - condition: template
             value_template: "{{ sev != 'low' }}"
