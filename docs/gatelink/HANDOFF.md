@@ -46,7 +46,7 @@ deploys on six inputs (D83).
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 | 3 | **A forced BMS abort panicked GateLink in NimBLE's `host_task`**, 1 in 15 on 2026-10-26, and a reset at the gate is a walk. Find why the host task returns past `nimble_port_freertos_deinit()` during an abort's teardown, then run a long series of `bms now <abort_ms>` | Engineering log, 2026-10-26, *`bms_retry_s` on the board*; 2026-10-10, the timer-task panic |
-| 2 | **Reformat the new card with an MBR partition map** (`diskutil eraseDisk FAT32 NONAME MBRFormat /dev/diskN`, after `diskutil list`), copy `config.json` back, and confirm `/bms.log` lines appear. Then soak with the bridge for the retry against real polls | Same entry |
+| 2 | **Soak with the bridge for `bms_retry_s` against real polls.** The new 4 GB card is FAT32 and mounts; a forced abort and its retry both wrote `/bms.log` lines. Expect each `aborted` line in `/bms.log` to be followed by a read about 6 s later, and `age_s` never past about 310 s | Engineering log, 2026-10-26, *The new card was HFS+* |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup

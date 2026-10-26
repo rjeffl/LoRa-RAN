@@ -2020,3 +2020,17 @@ would give that, since ESP-IDF's FATFS reads an MBR; not checked.
 
 **Falsified by:** a forced abort whose `bms` counts, read 8 s later, show `aborted` risen
 and `read` not.
+
+## 2026-10-26 — The new card was HFS+; reformatted FAT32, it mounts and takes the retry's line
+
+**The 4 GB card's partition map was MBR, but its volume was Journaled HFS+**, which
+`diskutil info` showed on the Mac. ESP-IDF's FATFS reads only FAT, so `f_mount` returned 13.
+The guess at a GUID map in the previous entry was wrong. The operator reformatted it
+MS-DOS (FAT) on MBR and copied `config.json` back.
+
+**After a `restart`, the card mounted and restored 3 rows.** The boot before it had not
+tried a mount, so `cfg` read `NOT MOUNTED` with 0 mounts failed. One `bms now 400` then
+aborted at 19.14 s, and its retry read the pack at 25.24 s, `bms_retry_s` 5 plus a 1,082 ms
+window. The `bms` line read `ends read 1 aborted 1` and `/bms.log 2 failed 0`: both windows
+wrote their line. Trace:
+[`data/bms-retry-card-2026-10-26.log`](data/bms-retry-card-2026-10-26.log).
