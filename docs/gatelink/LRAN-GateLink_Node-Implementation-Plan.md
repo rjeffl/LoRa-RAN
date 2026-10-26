@@ -1,7 +1,7 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.40
+**Version:** 0.41
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
@@ -1123,6 +1123,7 @@ it costs a walk. So a missing card does not block a PHY change. GateLink answers
 | `config.json` | Configuration overrides |
 | `state.json` | Last-known gate/hold state, boot counter |
 | `log/*.txt` | Rotating leveled event log |
+| `bms.log` | One line per BLE window: `uptime_s`, how the window ended, its length and stage timings, and the notification path's cumulative counters. `bms_task` appends it after releasing the interlock. Built 2026-10-25 for the bench soak, which runs with USB unplugged and so without the console's `bms` line. It does not rotate; at one line a `bms_poll_s` of 300 it grows about 50 KB a day |
 
 **Absent-card behaviour:** defaults apply; runtime changes are applied to RAM, ACKed with
 an explicit not-persisted status, and the condition is published as a diagnostic sensor
@@ -1590,6 +1591,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.41** — **§6.4's card holds `bms.log`**, one line per BLE window, so the bench soak
+  can tell why a BMS poll missed with no console attached (engineering log, 2026-10-25).
+  Nothing on the wire changes.
 
 - **v0.40** — **§3.2 reads six inputs (D83, PRD v0.22).** D77's dead port 1 was a firmware
   defect: P1_4–P1_7 do not sample until P1's direction register is written. IN5 (FIRE)

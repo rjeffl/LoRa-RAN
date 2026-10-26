@@ -18,25 +18,6 @@
 
 namespace gatelink {
 
-// How long each step took, in ms. A step that did not run reads 0.
-struct BmsTiming {
-  uint32_t init_ms      = 0;
-  uint32_t scan_ms      = 0;
-  uint32_t connect_ms   = 0;
-  uint32_t handshake_ms = 0;  // HiLink, read-back and the FFF1 subscription
-  uint32_t answer_ms    = 0;  // the 0x8C request to its decoded answer
-  uint32_t teardown_ms  = 0;  // disconnect and controller de-init
-};
-
-// What the notification path saw over the life of the image (root rule 4).
-struct BmsRxCounters {
-  uint32_t frames     = 0;  // complete 0x8C frames that decoded
-  uint32_t crc_errors = 0;
-  uint32_t bad_term   = 0;
-  uint32_t undecoded  = 0;  // complete frames that were not a good 0x8C
-  uint32_t discarded  = 0;  // bytes the reassembler dropped while resyncing
-};
-
 struct BmsWindowArgs {
   const char* name     = nullptr;  // the advertised name, bms-protocol 2
   uint32_t    start_ms = 0;        // when the interlock was taken

@@ -10,7 +10,9 @@
 #   bench.py send "SIM bms on 49A1" "pub lran/bridge/config/set {...}"   prints a mark id
 #   bench.py wait 'decode 0x8C' --since <mark> --timeout 30
 #
-# Start `run` in the background, then alternate `send` and `wait`. Control-file commands:
+# Start `run` in the background, then alternate `send` and `wait`. A soak's `run` goes
+# outside any Claude Code session, which kills its background tasks when it ends; the
+# README says how. Control-file commands:
 #
 #   <TAG> <text>             write <text> and a newline to that serial port
 #   pub [-r] <topic> <body>  MQTT publish at QoS 0, -r to retain
@@ -133,6 +135,7 @@ class Mqtt:
         self.addr, self.user, self.password, self.log = (host, port), user, password, log
         self.sock = None
         self.lock = threading.Lock()
+        self.ping_s = 30  # half the 60 s keepalive in connect_packet
 
     def _recv(self, n):
         buf = b""
@@ -162,13 +165,19 @@ class Mqtt:
             self.sock.sendall(publish_packet(topic, payload.encode(), retain))
 
     def _ping(self):
+        # This thread must outlive a broker outage. In the first soak it read self.sock as
+        # None while the broker was down, died on the AttributeError, and the broker then
+        # dropped every later connection at 1.5 x keepalive (engineering log, 2026-10-25).
         while True:
-            time.sleep(30)
+            time.sleep(self.ping_s)
             try:
                 with self.lock:
-                    self.sock.sendall(b"\xc0\x00")
+                    if self.sock is not None:
+                        self.sock.sendall(b"\xc0\x00")
             except OSError:
-                pass
+                pass  # loop() sees the same failure and reconnects
+            except Exception as e:
+                self.log("MQTT", f"<keepalive error: {e!r}; still pinging>")
 
     def loop(self):
         threading.Thread(target=self._ping, daemon=True).start()
@@ -179,7 +188,12 @@ class Mqtt:
                 head, body = read_packet(self._recv)
                 if head >> 4 == 3:
                     topic, payload = parse_publish(head, body)
-                    self.log("MQTT", f"{topic} {payload.decode('utf-8', 'replace')}")
+                    # The retain flag on a received PUBLISH means the broker replayed a
+                    # stored message, not that the node just sent it. Unmarked, a stale
+                    # node/state restored after a broker reboot read as a reset
+                    # (engineering log, 2026-10-25).
+                    retained = "<retained> " if head & 0x01 else ""
+                    self.log("MQTT", f"{retained}{topic} {payload.decode('utf-8', 'replace')}")
             except (OSError, ConnectionError, IndexError) as e:
                 self.log("MQTT", f"<{e}; reconnecting in 5 s>")
                 if self.sock is not None:
@@ -199,8 +213,14 @@ class Bench:
         self.mqtt = None
 
     def log(self, tag, text):
+        # Local wall-clock time leads each line, so a soak's times are read, not converted
+        # from the relative seconds; the first soak's first conversion was 7 min wrong
+        # (engineering log, 2026-10-25). The offset keeps a run across a DST change
+        # unambiguous, and the relative seconds stay for intervals.
+        now = time.time()
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.localtime(now))
         with self.lock:
-            self.out.write(f"{time.time() - self.t0:9.2f} {tag} {text}\n")
+            self.out.write(f"{stamp} {now - self.t0:9.2f} {tag} {text}\n")
 
     def open_port(self, dev):
         import serial
@@ -249,17 +269,31 @@ class Bench:
             p = self.ports.get(rest.strip())
             if p is None:
                 self.log("CMD", f"<no port {rest.strip()!r}>")
-            elif verb == "reset":
-                p.rts = True
-                time.sleep(0.15)
-                p.rts = False
             else:
-                p.rts = verb == "hold"
+                self._port_op(rest.strip(), lambda: self._rts(p, verb))
         elif verb in self.ports:
-            self.ports[verb].write((rest + "\n").encode())
+            self._port_op(verb, lambda: self.ports[verb].write((rest + "\n").encode()))
         else:
             self.log("CMD", f"<unknown command {verb!r}>")
         return True
+
+    @staticmethod
+    def _rts(p, verb):
+        if verb == "reset":
+            p.rts = True
+            time.sleep(0.15)
+            p.rts = False
+        else:
+            p.rts = verb == "hold"
+
+    def _port_op(self, tag, op):
+        # A port that has re-enumerated raises here, and the StamPLC takes about 24 s to come
+        # back after a flash or a power cycle. Log the command as dropped and let reader()
+        # reopen the port; dying here ended two runs (engineering log, 2026-10-24).
+        try:
+            op()
+        except Exception as e:
+            self.log("CMD", f"<{tag} not written: {e}>")
 
 
 def cmd_run(a):
@@ -317,8 +351,8 @@ def scan(lines, pattern, since=None, tag=None):
             return []
     hits = []
     for line in lines[start:]:
-        fields = line.split(None, 2)
-        if tag and (len(fields) < 2 or fields[1] != tag):
+        fields = line.split(None, 3)  # wall clock, seconds, tag, text
+        if tag and (len(fields) < 3 or fields[2] != tag):
             continue
         if rx.search(line):
             hits.append(line.rstrip("\n"))

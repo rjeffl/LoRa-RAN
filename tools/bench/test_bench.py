@@ -88,6 +88,7 @@ class FakeBrokerTest(unittest.TestCase):
             c.sendall(b"\x20\x02\x00\x00")
             got["subscribe"] = bench.read_packet(rd)
             c.sendall(bench.publish_packet("lran/simnode1/state", b"{}"))
+            c.sendall(bench.publish_packet("lran/gatelink/node/state", b"{}", retain=True))
             got["publish"] = bench.read_packet(rd)
             time.sleep(0.2)
             c.close()
@@ -112,6 +113,30 @@ class FakeBrokerTest(unittest.TestCase):
         self.assertEqual(bench.parse_publish(*got["publish"]),
                          ("lran/bridge/config/set", b'{"set":{}}'))
         self.assertIn(("MQTT", "lran/simnode1/state {}"), lines)
+        self.assertIn(("MQTT", "<retained> lran/gatelink/node/state {}"), lines)
+
+    def test_keepalive_survives_a_missing_socket(self):
+        # The first soak's keepalive died here while the broker was down (2026-10-25).
+        lines = []
+        m = bench.Mqtt("127.0.0.1", 1, "u", "p", lambda tag, text: lines.append((tag, text)))
+        m.ping_s = 0.01
+        t = threading.Thread(target=m._ping, daemon=True)
+        t.start()
+        time.sleep(0.05)
+        self.assertTrue(t.is_alive())
+        sent = []
+
+        class Sock:
+            def sendall(self, b):
+                sent.append(b)
+
+        m.sock = Sock()
+        for _ in range(50):
+            if sent:
+                break
+            time.sleep(0.01)
+        self.assertEqual(sent[0], b"\xc0\x00")
+        self.assertEqual(lines, [])
 
 
 class CommandTest(unittest.TestCase):
@@ -135,20 +160,39 @@ class CommandTest(unittest.TestCase):
         self.b.command("release SIM")
         self.assertFalse(self.port.rts)
 
+    def test_write_to_a_gone_port_is_logged_not_fatal(self):
+        class GonePort(FakePort):
+            def write(self, b):
+                raise OSError("Attempting to use a port that is not open")
+
+        self.b.ports["SIM"] = GonePort()
+        self.assertTrue(self.b.command("SIM status"))
+        self.b.out.flush()
+        log = open(os.path.join(self.tmp.name, "bench.log")).read()
+        self.assertIn("<SIM not written: Attempting", log)
+
     def test_pub_without_mqtt_is_logged_not_dropped(self):
         self.b.command("pub -r lran/x 1")
         self.b.out.flush()
         log = open(os.path.join(self.tmp.name, "bench.log")).read()
         self.assertIn("<no MQTT", log)
 
+    def test_lines_lead_with_wall_clock(self):
+        self.b.log("SIM", "boot")
+        self.b.out.flush()
+        line = open(os.path.join(self.tmp.name, "bench.log")).read()
+        self.assertRegex(line, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d[+-]\d{4} +\d+\.\d\d SIM boot\n$")
+        self.assertEqual(bench.scan([line], "boot", tag="SIM"), [line.rstrip("\n")])
+
     def test_quit(self):
         self.assertFalse(self.b.command("quit"))
 
 
 class WaitTest(unittest.TestCase):
-    LOG = ["  1.00 SIM boot\n", "  2.00 CMD mark aa\n", "  3.00 SIM decode 0x8C ok\n",
-           "  4.00 MQTT lran/x decode 0x8C\n", "  5.00 CMD mark bb\n",
-           "  6.00 SIM decode 0x8C again\n"]
+    T = "2026-10-25T18:30:13-0400"
+    LOG = [f"{T}   1.00 SIM boot\n", f"{T}   2.00 CMD mark aa\n",
+           f"{T}   3.00 SIM decode 0x8C ok\n", f"{T}   4.00 MQTT lran/x decode 0x8C\n",
+           f"{T}   5.00 CMD mark bb\n", f"{T}   6.00 SIM decode 0x8C again\n"]
 
     def test_since_mark_and_tag(self):
         self.assertEqual(len(bench.scan(self.LOG, "decode")), 3)
@@ -156,7 +200,7 @@ class WaitTest(unittest.TestCase):
         # A mark not yet in the log matches nothing, rather than the whole log.
         self.assertEqual(bench.scan(self.LOG, "decode", since="zz"), [])
         self.assertEqual(bench.scan(self.LOG, "decode", since="aa", tag="MQTT"),
-                         ["  4.00 MQTT lran/x decode 0x8C"])
+                         [f"{self.T}   4.00 MQTT lran/x decode 0x8C"])
 
     def test_send_then_wait(self):
         with tempfile.TemporaryDirectory() as d:
@@ -167,7 +211,7 @@ class WaitTest(unittest.TestCase):
             with open(os.path.join(d, "ctl.txt")) as f:
                 self.assertEqual(f.read(), f"mark {mark}\nSIM ping\n")
             with open(os.path.join(d, "bench.log"), "w") as f:
-                f.write(f"  1.00 CMD mark {mark}\n  2.00 SIM pong\n")
+                f.write(f"{self.T}   1.00 CMD mark {mark}\n{self.T}   2.00 SIM pong\n")
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(bench.main(["--dir", d, "wait", "pong", "--since", mark,
                                              "--timeout", "1"]), 0)

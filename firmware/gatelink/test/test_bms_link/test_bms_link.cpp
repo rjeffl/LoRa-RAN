@@ -161,6 +161,31 @@ void test_awaited_replies() {
   TEST_ASSERT_FALSE(gatelink::reply_awaited(nullptr, 64));
 }
 
+void test_log_line_names_the_end_and_its_stages() {
+  gatelink::BmsTiming t;
+  t.init_ms      = 40;
+  t.scan_ms      = 3000;
+  t.teardown_ms  = 25;
+  gatelink::BmsRxCounters k;
+  k.frames     = 287;
+  k.crc_errors = 1;
+  char out[200];
+  const size_t n = gatelink::format_bms_log_line(out, sizeof(out), 87011,
+                                                 gatelink::BmsEnd::NotFound, 3070, t, false, k);
+  TEST_ASSERT_EQUAL_STRING(
+      "uptime_s=87011 end=not_found ms=3070 init=40 scan=3000 conn=0 hs=0 ans=0 down=25 "
+      "abort=0 frames=287 crc=1 bad_term=0 undecoded=0",
+      out);
+  TEST_ASSERT_EQUAL(std::strlen(out), n);
+}
+
+void test_log_line_too_long_returns_zero() {
+  char out[16];
+  TEST_ASSERT_EQUAL(0, gatelink::format_bms_log_line(out, sizeof(out), 1, gatelink::BmsEnd::Read,
+                                                     1, gatelink::BmsTiming{}, true,
+                                                     gatelink::BmsRxCounters{}));
+}
+
 void test_tx_gate() {
   TEST_ASSERT_EQUAL(TxGate::Go, gatelink::tx_gate(false, 0, 1000, true));
   TEST_ASSERT_EQUAL(TxGate::Wait, gatelink::tx_gate(true, 999, 1000, false));
@@ -180,5 +205,7 @@ int main(int, char**) {
   RUN_TEST(test_unmeasured_rssi_reads_no_link);
   RUN_TEST(test_awaited_replies);
   RUN_TEST(test_tx_gate);
+  RUN_TEST(test_log_line_names_the_end_and_its_stages);
+  RUN_TEST(test_log_line_too_long_returns_zero);
   return UNITY_END();
 }

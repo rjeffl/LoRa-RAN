@@ -9,6 +9,18 @@ pins sample. `io_task` now writes it, and all six inputs read.
 too, and then settled D77 as **D83: GateLink deploys on six inputs.** IN5 and IN6 are read,
 FIRE and `HARD_SHUTDOWN` go out on their edges, and R-3.5i passed on the air.
 
+**Updated 2026-10-25 by the bench-soak session.** The first soak ran 24 h through the
+real power chain, and GateLink did not reset (engineering log, 2026-10-25, *Bench soak,
+24 h*). A follow-up session fixed `bench.py`'s keepalive, put wall-clock times in its log
+and marked retained messages, and GateLink now writes each BMS window's outcome to the
+card's `/bms.log`, flashed at `1049387` from the Mac.
+
+**Updated 2026-10-26 by the soak's second-run session.** The second run ran 19.2 h from the
+Kubuntu laptop, and GateLink did not reset again (engineering log, 2026-10-26, *Bench soak,
+second run*). The BMS missed five windows, and two of them took the battery unavailable at
+the bridge. **`/bms.log`, which says why, is still on the card, unread.** The Kubuntu
+laptop cannot read the card, and the operator will not reflash from it.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -33,8 +45,56 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **Bench soak through the real power chain**, 24 to 72 h. Fix `bench.py`'s write-side defect first if the soak is to be watched unattended | Plan §8.2's GL9 row; *Open*, below |
+| 2 | **Read the card's `/bms.log`, from the Mac.** Both soaks passed without a reset, and the second run's five BMS misses are on the card, unread. Either take the card out and read it in the Mac, or add a console command that prints the file and flash it from the Mac. Then explain the misses in a new engineering-log entry | Engineering log, 2026-10-26, *Bench soak, second run*; 2026-10-25, *`/bms.log`*; *Reading `/bms.log`*, below |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
+
+### The soak's setup
+
+The operator chose this on 2026-10-24: the gate is already down, the MPPT runs from a
+30 W panel, and the Mac cannot stay attached.
+
+- **Keep USB off the StamPLC during the soak.** With 12 V on, USB carries all but 3.1 mA of
+  the board's load, so a soak with USB attached does not test the power chain. Flash it
+  over USB, then unplug. A cable with VBUS cut, through the USB 2.0 hub, would keep the
+  console without powering the board; that is the only way to catch a panic's backtrace.
+- **The `BOOT` event names the reset cause** (`reset_cause()` in `task_runtime.cpp`), so
+  an unplanned panic, watchdog or brownout reset shows in the MQTT log without a console.
+- **The bridge goes on its own USB supply, and the simnode is unplugged**, so GateLink
+  is the only node on the air.
+- **The pack charges through M7's warm harness section.** At 30 W that is about 2.3 A, or about
+  1.2 W in the 0.22 Ω. The fix is still owed before a larger panel.
+- **Log with `bench.py --dir <soak dir> run --mqtt`** (`--dir` goes before the
+  subcommand). Its lines lead with wall-clock time, and `<retained>` marks a message the
+  broker replayed. Add a `--port` only for a board whose console is attached without
+  powering it. The run needs the bench `secrets.h` in that checkout, which the operator
+  copies.
+- **Start the logger outside any Claude Code session**, with `nohup`, `systemd-run --user`
+  or a terminal that stays open. The first run was a session's background task, and it was
+  killed when that session ended, 4.3 h before the 24 h mark.
+- **Read the card's `/bms.log` after the soak**, one line per BLE window, for why each
+  missed poll ended. The `bms` line counts lines written and failed.
+- **Watch for:** any `BOOT` after the first, and a steady STATUS rate. Watch for BMS
+  misses, with `/bms.log` naming how each ended. VE.Direct should never go stale; note the
+  overnight ΔSOC.
+- **Build from a clean tree**, so the banner does not read `-dirty`. OTA uploads are the
+  operator's. Quit VictronConnect before the USB upload.
+
+### Reading `/bms.log`
+
+The file has one line per BLE window since the card was last cleared, and `uptime_s` is
+its only clock, because the RTC reads 2049. The second run's boot was at 19:14:49 EDT on
+2026-10-25, so its misses are the lines near `uptime_s` 2,410, 14,770, 27,430, 40,390 and
+66,310. Any line whose `end` is not `read` is a miss, and its timings say where the window
+stopped. **Do it from the Mac**, which holds the toolchain GateLink was built with:
+
+- **Card out:** power the StamPLC down, take the card out, and read it in the Mac. Nothing
+  changes on the board.
+- **Over USB:** a console command that prints `/bms.log` under the SPI lock. That is a
+  firmware change and a flash, which resets GateLink. It is worth having at the gate,
+  where the card is behind the enclosure.
+
+Record what the lines show as a new dated entry in the engineering log, and rewrite this
+file.
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -61,10 +121,10 @@ install costs a walk to the gate:
   board arrives (plan §3.2).
 - Last of all, the production build from the production `secrets.h`.
 
-**Tier 2's soak follows the board**: 24 to 72 h through the MPPT, the pack and the StamPLC,
-with the radio, VE.Direct, BMS polls and SD writes all active. It is also the check on GL5's
-timer-task panic, whose cause is not established. It costs gate downtime, so it is the
-operator's call.
+**Tier 2's soak has run twice, for 24 h and then 19.2 h**, through the MPPT, the pack and
+the StamPLC, with the radio, VE.Direct, BMS polls and SD writes all active. GateLink reset
+in neither run, so GL5's timer-task panic did not recur in about 43 h; its cause is still
+not established. What remains is the BMS misses, and `/bms.log` should explain them.
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it**
 (engineering log, 2026-10-10, *M7*: about 0.22 Ω, about 50 W at 15 A). The operator's.
@@ -78,19 +138,18 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **Low-temperature charge inhibition works by the BMS path** (PRD R-6.4a). With the
-  emulator's `bms temp -5`, GateLink set §7.2.6 bit 3 and the bridge published the reason
-  and `event/charge_inhibited`; the clear followed (engineering log, 2026-10-14). The
-  VE.Direct path, R-6.4b, is host-tested only.
-- **Its thresholds are rows `0x1043`–`0x1045` again**, after a day as constants, because
-  the bridge now caps `config/state` at 3072 bytes on its own (engineering log,
-  2026-10-15). Each row set and persisted on the air, and `app_task` took the new values
-  without a reboot. **Those test values are still stored on the StamPLC**; see
-  *Hardware state*.
-- **Home Assistant's three `number` entities for the rows were not checked.**
-  `ha_examples.py` covers their discovery payloads.
-- **The engineering log was split on 2026-10-15.** Entries for 2026-10-01 and 2026-10-02
-  are in `engineering-log-2026-10-01_2026-10-02.md`.
+- **GateLink ran the second soak, 19.2 h, without a reset** (engineering log, 2026-10-26).
+  `uptime_s` places its boot at 19:14:49 on 2026-10-25. All 1,150 polls were answered,
+  `missed_polls` stayed 0, and VE.Direct never went stale. ΔSOC overnight was 0.
+- **The BMS missed five windows, one at a time, about 3.5 h apart**, with one 7.2 h gap.
+  Two misses took `age_s` to 601 and 602, past the bridge's `bms_stale_s` 600, so the
+  bridge published the battery unavailable until the next read.
+- **`/bms.log` is unread.** The console cannot print it, the Kubuntu laptop cannot read
+  the card, and the operator will not reflash from that laptop.
+- **`bench.py` ran 19.2 h under `nohup` with one broker connection.** No broker outage
+  happened, so the keepalive fix is still tested against a fake broker only.
+- **Five events at 10:50 on 2026-10-26, `event_id` 9001 to 9005, were the operator's test
+  publishes**, on MQTT alone. They are not GateLink's.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -120,7 +179,7 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | Plan v0.38. The PHY trial, on the air 2026-10-13. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
+| Done | Plan v0.41. The PHY trial, on the air 2026-10-13. L1, L2, L3, L4, L5, L6, L7, the split readback, the document amendments. GL0. `wattcycle-reader` M0–M8 (its own milestones) |
 | In progress | GL1: done; PRD v0.18 drops R-3.5j's brownout leg. GL3: BOOT, the roll, polls, PING and the command path pass on the air, dedup and resync included, the task watchdog arms and fires, CONFIG passes with the card and without it, and every reset cause the bench can produce passes against spec §10.7, and state derivation, direction and the held-open alert pass by injection on the air. R-3.5i passes on the air (2026-10-24). GL4: every criterion passes on the bench except M14, now possible with the MPPT back on the gate's PV. GL5: `bms_task` reads the pack, the window and abort latency are measured, `bms_window_max_ms` is set, M7 is closed, `vedirect_task`'s CPU share beside NimBLE is measured, and low-temperature inhibition passes on the air by the BMS path; M23, the VE.Direct path on the air and `0x8D` remain |
 | Not started | GL2, GL6–GL9 |
 | Queue | The rest of §8.1, in any order |
@@ -154,7 +213,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `2afa0d7`, flashed 2026-10-24. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `1049387`, flashed over USB from the Mac on 2026-10-25. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -227,6 +286,17 @@ board's are its D-pads (expansion board §6.1).
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
   defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
+- **The BMS misses one window about every 3.5 to 3.7 h** in both soaks (engineering log,
+  2026-10-25 and 2026-10-26). In the second run, two single misses went past the bridge's
+  `bms_stale_s` of 600 and marked the battery unavailable. The cause is not established.
+  `/bms.log` on the card names how each missed window ended; see *Start here*.
+- **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
+  means opening the enclosure for the card.
+- **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
+  and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
+  established.
+- **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the first
+  soak**, and stayed 0 through the second. Not looked into.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.
 
@@ -257,11 +327,9 @@ board's are its D-pads (expansion board §6.1).
   console then stayed silent, with no `alive:` line for over 30 s and no watchdog reset. A
   USB reset recovered it. Boot's own mount fails without hanging. The cause is not
   established; a second `SD.begin()` after a failed one is the first suspect.
-- **`bench.py run` exits when it writes to a port that has disappeared**
-  (`PortNotOpenError` at `bench.py:259`); the read side reopens, the write side does not. It
-  killed the harness twice on 2026-10-24, on a flash and on a power cycle, and the StamPLC
-  took about 24 s to re-enumerate each time. **Fix it before any unattended soak**, since
-  the harness is what would be watching.
+- ~~**`bench.py run` exits when it writes to a port that has disappeared.**~~ **Closed
+  2026-10-24:** the write side now logs `<TAG not written: …>` and carries on, and
+  `reader()` reopens the port. `test_bench.py` covers it.
 - **The carrier's 3.3 V LED stayed lit with the 12 V off and USB attached.** The carrier
   draws only from Bus pin 1, so something reaches that pin from USB, unless the supply was
   not fully off. With 12 V on, USB carries all but 3.1 mA of the board's load. Find the
@@ -286,6 +354,10 @@ board's are its D-pads (expansion board §6.1).
   blocking write.** The library tolerates it now. GateLink's `bms_task` should read its
   clock after the write.
 
+- ~~**`bench.py` loses its MQTT keepalive in a broker outage.**~~ **Closed 2026-10-25:**
+  `_ping` skips a missing socket and logs any error but `OSError`. Tested against a fake
+  broker only; the restarted soak's first broker outage is the real test.
+
 - **The bench `secrets.h` is temporary.** It holds bench WiFi, the sandbox broker's
   credentials and a bench master key, and the operator creates a production `secrets.h`
   before the final production builds. The GateLink node key derived from the bench master
@@ -307,8 +379,9 @@ board's are its D-pads (expansion board §6.1).
 - **A `COMMAND_ACK` queued at the worst moment of a window keeps about 1.9 s of the
   bridge's 3 s ACK timeout** for media access and airtime: the connect can hold the abort
   for 1.1 s. A late ACK costs one retry and a `DUPLICATE_CACHED`, not a second pulse.
-- **The scheduled poll at `bms_poll_s` was not watched on the bench.** Every bench window
-  came from `bms now`. The soak will show the scheduled one.
+- ~~**The scheduled poll at `bms_poll_s` was not watched on the bench.**~~ **Closed
+  2026-10-25:** the first soak watched it for 24 h, and it misses about once every 3.7 h
+  (above).
 - **Five `CLAUDE.md` passages describe what the file used to say**: range-test's 2.0 dBi
   note, simnode's Kit-variant warning and its `CONFIG_ACK` note, wattcycle-reader's
   `lran-prd-v0_5` §5.7 citation, and the bridge's note on B0's P6-only gating. The
