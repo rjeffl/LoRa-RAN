@@ -298,3 +298,5 @@ each one passes; H4b's offline run drives two of them for real.
 **Optional script fields need `| default`.** HA logs a template warning for every
 undefined variable, so `actions`, unset on every call, had been logging one per alert since
 H1. `lran_notify` now defaults each optional field once, in its variables.
+
+**Later the same day the operator opened the Alerts card and confirmed it renders.**
