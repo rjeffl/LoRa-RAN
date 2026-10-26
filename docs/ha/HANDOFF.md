@@ -2,7 +2,7 @@
 
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
-H3.**
+H3, when ha-mcp's dashboard screenshots came into use.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -58,7 +58,10 @@ after an HA restart (**V-5**). Each alert's logbook entry lands on the Events vi
   (engineering log, 2026-10-26, H3). `lran-detail` holds Power, Network and Events;
   Maintenance is `lran-maintenance`, admin only, because HA cannot gate a view. Every live
   LRAN entity is on one of the three dashboards, and every graphed entity has statistics.
-  **The cards were not seen rendered**, because the browser pane stops at HA's sign-in.
+  The operator confirmed the render.
+- **A session can now see a dashboard rendered**, through ha-mcp's screenshot beta and the
+  Puppet app (engineering log, 2026-10-26, render check). H4 and later tasks check banners
+  and cards this way rather than asking the operator.
 
 ## Read these, in this order
 
@@ -103,6 +106,7 @@ Then, through ha-mcp:
 | Restart, when a reload does not cover the change | `ha_restart(confirm=True)`, which runs the config check itself first |
 | Read states, history, the error log, automation traces | `ha_get_state`, `ha_get_history`, `ha_get_logs`, `ha_get_automation_traces` |
 | Read a dashboard as HA resolved it | `ha_config_get_dashboard(url_path=…)` |
+| See a dashboard rendered | `ha_config_get_dashboard(url_path=…, view_path=…, include_screenshot=True)`. One 1280×800 viewport, so a low card can fall outside it |
 
 **Do not write the LRAN dashboards with `ha_config_set_dashboard`.** It writes storage-mode
 dashboards. Ours are YAML files in the repository, so a dashboard edited through ha-mcp
@@ -131,7 +135,8 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 |---|---|---|---|---|---|
 | Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; carries GateLink's bench soak 2 |
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
-| The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | — | running; its config check read `valid` on 2026-10-26 |
+| The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
+| The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
 
 **The sandbox `site.yaml` exists only on the sandbox.** It pushes to the Mac only and sends
 email to a persistent notification. Rebuilding it is a copy of `site.yaml.example` with
@@ -177,8 +182,8 @@ those two targets changed, which plan §7.3 names.
   syntax check in the checks job would catch a broken file before the sandbox does.
 - **The `write-clearly` skill is not installed on the Mac**, though CLAUDE.md requires it
   for every prose change. H3's prose was written without it.
-- **The built-in browser cannot sign in to the sandbox**, so no session here can check a
-  render. Enabling ha-mcp's dashboard screenshot beta would give one.
+- **Puppet on production** is a decision for H10: its port takes no authentication, and
+  production's network may be less trusted than the sandbox's.
 
 ### Closed, and not to be reopened by habit
 

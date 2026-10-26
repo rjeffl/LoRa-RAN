@@ -187,3 +187,25 @@ the render check.
 single day. A 100 Ah pack at 13 V holds about 1.3 kWh, so neither is a real day's yield. They
 show as two tall bars on the Daily yield chart until they age out of the 30 d window.
 Production's statistics will not have them.
+
+## 2026-10-26 — H3's render check, and ha-mcp's dashboard screenshots
+
+**The operator confirmed H3's render**, viewing the three dashboards themselves. That closes
+the one part of H3's acceptance the entry above left unchecked.
+
+**ha-mcp can now screenshot a dashboard on the sandbox.** The operator turned on ha-mcp's
+two beta flags and installed Puppet, the renderer ha-mcp drives. The flags are in the app's
+web UI under *Server Settings*, not on its *Configuration* tab; ha-mcp's `docs/beta.md` has
+the steps. Puppet is app `0f1cc410_puppet`, 2.6.0, from
+`https://github.com/balloob/home-assistant-addons`, and holds a long-lived token of its own.
+`ha_config_get_dashboard(url_path="lran-detail", view_path="events",
+include_screenshot=True)` returned a 1280×800 render of the Events view in the same session,
+with no reconnect of the MCP server. The logbook card showed the GateLink entities' entries.
+
+**A render is one viewport, not the whole page.** The 1280×800 capture cut off below the
+first row of statistics graphs. A check of a lower card needs a taller viewport or a narrower
+view.
+
+**Puppet's port 10000 takes no authentication**, so anyone on the sandbox's network can pull
+a signed-in render through it (ha-mcp `docs/beta.md`). It is acceptable on the sandbox's
+LAN. Whether production gets Puppet is a decision for H10.
