@@ -45,7 +45,8 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 3 | **Flash `bms_retry_s` and confirm it on the board.** An aborted BMS window now retries once, 5 s later (row `0x1046`), host-tested and built only. Flash GateLink from the Mac and the bridge so HA can set the row, force an abort with `bms now <abort_ms>`, and check the retry in `/bms.log`; the next soak shows it against real polls | Engineering log, 2026-10-26, *`bms_retry_s`*; plan §5.2 |
+| 3 | **A forced BMS abort panicked GateLink in NimBLE's `host_task`**, 1 in 15 on 2026-10-26, and a reset at the gate is a walk. Find why the host task returns past `nimble_port_freertos_deinit()` during an abort's teardown, then run a long series of `bms now <abort_ms>` | Engineering log, 2026-10-26, *`bms_retry_s` on the board*; 2026-10-10, the timer-task panic |
+| 2 | **Reformat the new card with an MBR partition map** (`diskutil eraseDisk FAT32 NONAME MBRFormat /dev/diskN`, after `diskutil list`), copy `config.json` back, and confirm `/bms.log` lines appear. Then soak with the bridge for the retry against real polls | Same entry |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -274,7 +275,8 @@ board's are its D-pads (expansion board §6.1).
   2026-10-25 and 2026-10-26). In the second run, two single misses went past the bridge's
   `bms_stale_s` of 600 and marked the battery unavailable. `/bms.log` shows each was a
   window aborted for the poll's reply, met once per pass of the window's drifting phase.
-  `bms_retry_s` retries such a window once, 5 s later; built, not yet run on the board.
+  `bms_retry_s` retries such a window once, 5 s later; on the board each forced abort
+  was retried (engineering log, 2026-10-26). Not yet seen against real polls.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,

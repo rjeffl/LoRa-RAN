@@ -1985,3 +1985,38 @@ set the row.
 
 **Falsified by:** a soak whose `/bms.log` shows an `aborted` line that is not itself a
 retry, followed by a window more than `bms_retry_s` and one window later.
+
+## 2026-10-26 — `bms_retry_s` on the board: each forced abort retried; one abort panicked in NimBLE
+
+**GateLink `a1de65d`, flashed over USB from the Mac**, through a USB 2.0 hub with the 12 V
+supply on. Console only, no bridge or broker. Trace:
+[`data/bms-retry-2026-10-26.log`](data/bms-retry-2026-10-26.log).
+
+**Every forced abort was followed by one retry.** Fifteen `bms now <abort_ms>` commands,
+from 100 to 1000 ms, gave 14 aborted windows; the fifteenth read the pack before its abort
+point. The `bms` line's counts settle it where the line timing cannot. Read 8 s after an
+abort, they showed `read` and `aborted` rising together: 12 and 12, then 13 and 13, then
+14 and 14. The window that read first left `aborted` at 14 and ran no retry. Where both
+lines printed promptly, the retry's `read` line came 5.9 to 6.9 s after the abort's, which
+is `bms_retry_s` 5 plus the retry's window. One abort's line and its retry's printed in the
+same instant, 7 s after the command, which is the late printing the entry of 2026-10-10
+noted.
+
+**Not exercised:** a retry that a reply aborts in turn, which should wait the full period,
+and an abort raised by a real poll. Both need the bridge.
+
+**The first forced abort panicked GateLink.** `bms now 300`, 0.29 s in: `InstrFetchProhibited`,
+PC 0, and the backtrace's one resolvable frame is `NimBLEDevice::host_task`
+(`NimBLEDevice.cpp:837`), the line after `nimble_port_run()` returns. So NimBLE's host task
+ran past `nimble_port_freertos_deinit()` instead of being deleted, during the teardown
+the abort starts. On 2026-10-10, two series of 26 windows with bench aborts ran clean on
+`esp_timer`, and the two soaks' five real aborts did not reset. One panic in 15 here is too few to rate, and
+the retry adds a teardown for every abort. Its cause is not established.
+
+**The card did not mount.** The operator fitted a new card, formatted FAT32 on the Mac with
+the old card's other files copied over, and `f_mount` returned 13, "no valid FAT volume",
+at every boot. `/bms.log` counted 29 failed appends and no lines. A GUID partition map
+would give that, since ESP-IDF's FATFS reads an MBR; not checked.
+
+**Falsified by:** a forced abort whose `bms` counts, read 8 s later, show `aborted` risen
+and `read` not.
