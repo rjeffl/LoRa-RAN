@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The text of every LRAN push, email and logbook entry, in one place (HA Integration
+# Implementation Plan 7.5). Edit the wording here. Do not edit it in alerts.yaml.
+#
+# To apply an edit, copy this file to /config/packages/lran/ and reload scripts. No restart
+# is needed. script.lran_notify reads the file when the scripts load.
+#
+# WHY .yml AND NOT .yaml. HA loads every *.yaml under packages/lran/ as a package, and this
+# file is not a package. core.yaml reads it with !include, which ignores the extension.
+#
+# AN ENTRY is the name an automation passes as `alert` or `msg`, holding:
+#   title     the push title and email subject
+#   message   the body
+#   level     the alert's default delivery: "Off", Normal, High or Critical, with Off in
+#             quotes, because YAML reads a bare Off as false. Only an entry
+#             with a level has a selector on the Maintenance dashboard. The selector, not
+#             this value, decides delivery. This value is what "Restore default levels"
+#             sets it back to
+#   <field>   a map translating one placeholder's raw value into words. `missing` is the
+#             text for an empty value; `other` is the text for a value the map does not
+#             list. Without `other`, an unlisted value appears as it arrived
+#
+# {name} in a title or message is replaced with the field of that name the automation
+# passes. An empty field becomes the field map's `missing` text, or else _missing below.
+# A placeholder no automation passes appears as written, so a typo shows in the push.
+# Do not write {{ }} or {% %} here: HA would render them as a template.
+
+# Shared text.
+_missing: not reported
+# Appended to the title of a logbook entry for an alert whose level is Off.
+_off_note: (alert off, not pushed)
+
+# --- Tier 1 (plan 9.1) ---
+
+# R-3.2.4. The follow-up with the traversal direction (R-3.2.4b) replaces this push. A
+# direction of none or undetermined says nothing a person can use, so it reads as `other`.
+vehicle_while_held:
+  level: High
+  title: Vehicle at the gate while held open
+  message: "{direction} while the gate was held open (hold source: {hold_source})."
+  direction:
+    entry: A vehicle came in
+    exit: A vehicle went out
+    other: A vehicle passed
+    missing: A vehicle passed
+
+# Spec 8.9, R-3.2.5a. The one LRAN signal allowed to wake someone, so Critical by default.
+fire:
+  level: Critical
+  title: FIRE at the gate
+  message: "GateLink reports FIRE asserted (hold source: {hold_source}, gate {gate_state})."
+  gate_state:
+    missing: state not reported
+
+hard_shutdown:
+  level: High
+  title: GateLink hard shutdown
+  message: "GateLink reports a hard shutdown (gate {gate_state}, detail {detail})."
+  gate_state:
+    missing: state not reported
+
+# {detail} arrives in hex: spec 8.9 gives BMS_ALARM's detail no meaning yet.
+bms_alarm:
+  level: High
+  title: GateLink BMS alarm
+  message: "The GateLink battery's BMS raised an alarm (detail {detail})."
+
+gatelink_offline:
+  level: High
+  title: GateLink offline
+  message: >-
+    The bridge has not heard GateLink for {warn_min} minutes. HA cannot see or command the
+    gate until it returns.
+
+# Sent at gatelink_offline's level, as a follow-up that replaces its push. {gone} arrives
+# formatted, as "12 minutes" or "1 h 05 min".
+gatelink_online:
+  title: GateLink back online
+  message: "GateLink is back after {gone} offline."
+
+# Push only, whatever the level: the HA host that would send the email may be what failed.
+bridge_offline:
+  level: High
+  title: LRAN bridge offline
+  message: >-
+    The LRAN bridge has been off the MQTT broker for 5 minutes. HA cannot see or command
+    any LRAN node until it returns.

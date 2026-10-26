@@ -290,6 +290,12 @@ jobs:
       - name: Home Assistant discovery examples
         run: python3 tools/checks/ha_examples.py
 
+      # HA Plan §7.5: every alert's text in messages.yml, every alert's selector, and every
+      # placeholder its automation passes. lran_notify falls back rather than withhold an
+      # alert, so a renamed entry would otherwise ship silently.
+      - name: Home Assistant alert messages
+        run: python3 tools/checks/ha_messages.py
+
       # GateLink Impl Plan §6.4, D44: `docs/gatelink/gatelink-config.md` is printed from
       # `lib/lran-config/`'s table by a host g++ build, then diffed against the committed
       # file. A table row changed without a regenerated document fails here.

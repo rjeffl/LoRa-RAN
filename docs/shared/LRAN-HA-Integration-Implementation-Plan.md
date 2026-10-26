@@ -1,7 +1,7 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.5
+**Version:** 0.6
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
@@ -136,7 +136,8 @@ ha/
   packages/lran/        hand-written; one package per concern
     core.yaml           helpers, event filter, notification script (§7)
     templates.yaml      derived sensors (§7.4)
-    alerts.yaml         tiers 1 and 2 (§9.1, §9.2)
+    alerts.yaml         tiers 1 and 2 (§9.1, §9.2), and one level selector per alert
+    messages.yml        the text of every push, email and logbook entry (§7.5)
     reminders.yaml      tier 3 (§9.3)
     reports.yaml        tier 4 (§9.4)
     convenience.yaml    tier 5 (§9.5)
@@ -208,6 +209,8 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_number.lran_held_open_reminder_h` | Held-open reminder | 4 |
 | `input_number.lran_pack_capacity_ah` | The pack's capacity, for the autonomy estimate (§7.4) | 100, R-6.1a |
 | `input_boolean.lran_defaults_seeded` | Set once the defaults above are applied | off |
+| `input_select.lran_alert_<alert>` | One per alert: `Off`, `Normal`, `High` or `Critical` (§7.5). In `alerts.yaml`, beside the automations | the alert's `level` in `messages.yml` |
+| `input_boolean.lran_alert_levels_seeded` | Set once the alert levels are applied, by `lran_0_seed_alert_levels` | off |
 | `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
@@ -257,9 +260,12 @@ old one. The list holds fewer than eight only when the keys are long enough to o
 
 ### 7.3 The notification script
 
-`script.lran_notify` takes `severity` (`critical`, `high`, `normal`, `low`), `title`,
-`message`, `tag`, and optional `follow_up`, `push_only` and `actions`. Automations call it and never
-call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
+`script.lran_notify` takes `alert`, `fields`, `tag`, and optional `msg`, `follow_up`,
+`push_only` and `actions`. `alert` names the alert's selector and its `messages.yml` entry;
+`msg` names a different entry, for a follow-up such as GateLink's return; `fields` carries
+the event's raw values for the entry's placeholders (§7.5). A caller with no alert passes
+`severity` (`critical`, `high`, `normal`, `low`), `title` and `message` instead.
+Automations call it and never call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
 `lran_site_email` (§6), so the channels change in one place. Every severity that is not
 muted also writes a logbook entry, logged against `script.lran_notify` so the Events
 view's logbook card, which lists entities, can show it (§8.2).
@@ -270,6 +276,12 @@ view's logbook card, which lists entities, can show it (§8.2).
 | `high` | Time-sensitive push | Yes, if enabled | **No** |
 | `normal` | Ordinary push | No | Yes |
 | `low` | None; logbook entry only | No | Yes |
+| `off` | None. The logbook entry is marked `(alert off, not pushed)` | No | — |
+
+**An alert's severity is its selector's level**, `Off`, `Normal`, `High` or `Critical`,
+which the operator sets on the Maintenance dashboard (§7.5). `severity` applies only to a
+caller with no selector. **FIRE and the held-open vehicle are never muted**, whatever
+their level, so plan §7.1's promise does not depend on the selector.
 
 **`tag` makes a follow-up replace the first alert.** R-3.2.4b sends a follow-up that
 refines the same event with the traversal direction. The script uses the filter's `tag`
@@ -322,6 +334,36 @@ sensor. They carry no device class. With `voltage`, HA suggests a display precis
 the raw sensors. A per-entity display-unit override in HA's registry would do the same, but
 a YAML copy does not carry it to production.
 
+### 7.5 Alert levels and the message catalog
+
+**The operator chose on 2026-10-26 to set each alert's delivery from the dashboard and to
+keep every alert's wording in one file**, so that changing either needs no reading of
+automation YAML.
+
+**Each alert has a level selector**, `input_select.lran_alert_<alert>`, with the options
+`Off`, `Normal`, `High` and `Critical` (§7.3's table). `Off` sends no push and no email,
+and the logbook still records the event, marked as not pushed: an alert switched off is
+hidden from the phone, not from the record. The selectors sit on the Maintenance
+dashboard's *Alerts* card, under a warning that names any alert set to `Off`.
+
+**`ha/packages/lran/messages.yml` holds the text.** Each entry is the alert's name, with
+a `title`, a `message` and a default `level`. `{name}` in the text is replaced with the
+field of that name the automation passes. A map under a field's name translates its raw
+value into words, with `missing` for an empty value and `other` for an unlisted one.
+`lran_notify` reads the file with `!include`, so an edit takes effect at a script reload.
+The extension is `.yml` because HA loads every `*.yaml` in the directory as a package.
+
+**The default levels are seeded once**, by `lran_0_seed_alert_levels`, with a flag of its
+own, so an install seeded before the selectors existed still gets them. The card's
+*Restore default levels* runs `script.lran_alert_levels_default`, which reads the levels
+from `messages.yml`.
+
+**A missing entry does not withhold an alert.** `lran_notify` sends under the bare name,
+and an alert with no selector falls back to the caller's severity. Because that fallback
+is silent, `tools/checks/ha_messages.py`, in the checks job, fails on an alert with no
+entry, an entry with a level and no selector, and a placeholder its automation does not
+pass.
+
 ## 8. Dashboards
 
 Both dashboards use core cards only: `tile`, `entities`, `glance`, `gauge`,
@@ -364,7 +406,7 @@ thresholds are helpers (§7.1), so the bands would drift from them.
 | **Power** | SOC, pack voltage and current, the four cells and their spread, cycles, protection and charge-inhibit flags. PV power and voltage, yield today and total, charge state, charger error. Enclosure and MPPT temperatures, and the pack temperatures once F2 lands. Graphs: `history-graph` for 24 h and 7 d; `statistics-graph` for 30 d and 1 y of SOC, enclosure temperature (min, mean, max) and daily yield |
 | **Network** | Bridge frames received, transmitted and discarded. GateLink RSSI, SNR, missed polls and last seen, with 7 d history. PHY settings, protocol version, unsupported-version flag. Firmware version, commit and OTA slot. BMS BLE RSSI as a 30 d statistics graph, which is the trend M23 reads. WellLink rows, unavailable until it is deployed |
 | **Events** | A `logbook` card of LRAN events and gate state changes. Traversals per day for 30 d. Node boots with their reset cause, which is how a boot loop shows (spec §8.14) |
-| **Maintenance** | `require_admin`. The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer and MPPT write-enable switches. Request status and request configuration. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
+| **Maintenance** | `require_admin`. The *Alerts* card: a level selector per alert, mute, email and *Restore default levels* (§7.5). The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer and MPPT write-enable switches. Request status and request configuration. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
 
 **Maintenance is a dashboard of its own, `lran-maintenance`, because it is admin only.** HA
 gates a dashboard with `require_admin` and has no equivalent for a view. A view's only
@@ -389,7 +431,9 @@ above it stating that, and the view is admin only.
 ## 9. Automations
 
 Every automation has an ID of the form `lran_<tier>_<name>`, so production's automation
-list groups them.
+list groups them. **Every alert in tiers 1 to 3 gets a level selector and a `messages.yml`
+entry** (§7.5), and its automation passes raw fields, not text. Tier 4's reports take their
+text from `messages.yml` too.
 
 ### 9.1 Tier 1 — alerts
 
@@ -521,3 +565,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.4 | 2026-10-26 | H3 done. §8.2's Maintenance view is its own admin-only dashboard, `lran-maintenance`, because HA gates dashboards, not views (§6). §7.4 adds `sensor.lran_gatelink_traversals` for the 30 d traversal chart. §7.3's logbook entries name `script.lran_notify`, so the Events view's logbook card can list them |
 | 0.3 | 2026-10-25 | H2 done. §8.1's link chip is two tiles, so `last_seen` adds no recorder rows; the Network view's path is fixed as `network`. §8 adds the `heading` card. §7.4's V sensors drop their device class, which rounded them to whole volts |
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
+| 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
