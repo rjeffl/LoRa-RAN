@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# Sensors derived from GateLink's (HA Integration Implementation Plan 7.4). Each reads
+# unavailable while an input does, never a cached value (System PRD 6.2). The bridge
+# publishes mV and mA (plan 2), so the arithmetic here is in those units.
+
+template:
+  - sensor:
+      - name: LRAN GateLink cell spread
+        unique_id: lran_gatelink_cell_spread
+        unit_of_measurement: mV
+        device_class: voltage
+        state_class: measurement
+        icon: mdi:battery-sync-outline
+        availability: >-
+          {{ ['sensor.gatelink_cell_1_voltage', 'sensor.gatelink_cell_2_voltage',
+              'sensor.gatelink_cell_3_voltage', 'sensor.gatelink_cell_4_voltage']
+             | map('states') | select('is_number') | list | count == 4 }}
+        state: >-
+          {% set c = ['sensor.gatelink_cell_1_voltage', 'sensor.gatelink_cell_2_voltage',
+                      'sensor.gatelink_cell_3_voltage', 'sensor.gatelink_cell_4_voltage']
+                     | map('states') | map('float') | list %}
+          {{ (c | max - c | min) | round(0) }}
+
+      # Power into the pack: positive while charging, negative while the loads draw it down.
+      # The pack rather than the MPPT's load output, because the gate controller and
+      # GateLink hang on the battery bus and the load output reads 0 (plan 7.4).
+      - name: LRAN GateLink net power
+        unique_id: lran_gatelink_net_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ has_value('sensor.gatelink_pack_voltage')
+             and has_value('sensor.gatelink_pack_current') }}
+        state: >-
+          {{ (states('sensor.gatelink_pack_voltage') | float
+              * states('sensor.gatelink_pack_current') | float / 1000000) | round(1) }}
+
+      # What everything on the battery bus draws: the MPPT's charge current less what
+      # reaches the pack. Both are positive into the battery (spec 7.2.2, 7.2.3). Their
+      # readings are not simultaneous, so a sample can dip below zero, and it is clamped.
+      - name: LRAN GateLink draw current
+        unique_id: lran_gatelink_draw_current
+        unit_of_measurement: mA
+        device_class: current
+        state_class: measurement
+        availability: >-
+          {{ has_value('sensor.gatelink_battery_current_mppt')
+             and has_value('sensor.gatelink_pack_current') }}
+        state: >-
+          {{ [states('sensor.gatelink_battery_current_mppt') | float
+              - states('sensor.gatelink_pack_current') | float, 0] | max | round(0) }}
+
+      # AN ESTIMATE, and the card says so. Remaining charge from SOC and the pack's
+      # capacity, over the mean daily draw across the window the 7-day statistic covers.
+      # Unavailable until that window spans a whole day.
+      - name: LRAN GateLink autonomy days
+        unique_id: lran_gatelink_autonomy_days
+        unit_of_measurement: d
+        device_class: duration
+        state_class: measurement
+        icon: mdi:battery-clock-outline
+        availability: >-
+          {% set days = state_attr('sensor.lran_gatelink_draw_7d', 'age_coverage_ratio')
+                        | float(0) * 7 %}
+          {{ has_value('sensor.gatelink_battery')
+             and is_number(states('sensor.lran_gatelink_draw_7d'))
+             and states('sensor.lran_gatelink_draw_7d') | float > 0
+             and days >= 1 }}
+        state: >-
+          {% set days = state_attr('sensor.lran_gatelink_draw_7d', 'age_coverage_ratio')
+                        | float * 7 %}
+          {% set per_day_mah = states('sensor.lran_gatelink_draw_7d') | float / days %}
+          {% set left_mah = states('sensor.gatelink_battery') | float / 100
+                            * states('input_number.lran_pack_capacity_ah') | float * 1000 %}
+          {{ (left_mah / per_day_mah) | round(1) }}
+
+      # Starting thresholds, not measured ones. SF9's demodulation floor is -12.5 dB SNR,
+      # so -5 dB leaves 7.5 dB of margin and -10 dB leaves 2.5. Revisit them against
+      # production history, as plan 7.1 says of every threshold.
+      - name: LRAN GateLink link quality
+        unique_id: lran_gatelink_link_quality
+        icon: mdi:signal-variant
+        availability: >-
+          {{ is_number(states('sensor.gatelink_snr'))
+             and is_number(states('sensor.gatelink_missed_polls')) }}
+        state: >-
+          {% set snr = states('sensor.gatelink_snr') | float %}
+          {% set missed = states('sensor.gatelink_missed_polls') | int %}
+          {% if missed >= 3 or snr < -10 %}poor
+          {% elif missed >= 1 or snr < -5 %}marginal
+          {% else %}good{% endif %}
+
+      # For the Gate dashboard only (plan 7.4). The recorder excludes them (site.yaml), and
+      # graphs read the raw mV sensors.
+      - name: LRAN GateLink pack voltage V
+        unique_id: lran_gatelink_pack_voltage_v
+        unit_of_measurement: V
+        device_class: voltage
+        availability: "{{ has_value('sensor.gatelink_pack_voltage') }}"
+        state: "{{ (states('sensor.gatelink_pack_voltage') | float / 1000) | round(2) }}"
+      - name: LRAN GateLink PV voltage V
+        unique_id: lran_gatelink_pv_voltage_v
+        unit_of_measurement: V
+        device_class: voltage
+        availability: "{{ has_value('sensor.gatelink_pv_voltage') }}"
+        state: "{{ (states('sensor.gatelink_pv_voltage') | float / 1000) | round(2) }}"
+
+sensor:
+  # mAh drawn, cumulative. max_sub_interval advances it while the draw holds steady,
+  # because the source updates only when its value changes.
+  - platform: integration
+    name: LRAN GateLink draw
+    unique_id: lran_gatelink_draw
+    source: sensor.lran_gatelink_draw_current
+    method: left
+    unit_time: h
+    round: 0
+    max_sub_interval:
+      minutes: 5
+
+  # sampling_size is set because the buffer defaults to 20 samples, far short of a week.
+  # The integration updates at least every 5 minutes, so a week is about 2 000 samples,
+  # and more while the draw changes.
+  - platform: statistics
+    name: LRAN GateLink draw 7d
+    unique_id: lran_gatelink_draw_7d
+    entity_id: sensor.lran_gatelink_draw
+    state_characteristic: change
+    max_age:
+      days: 7
+    sampling_size: 50000
+    keep_last_sample: true
+
+  - platform: statistics
+    name: LRAN GateLink enclosure temp max 24h
+    unique_id: lran_gatelink_enclosure_temp_max_24h
+    entity_id: sensor.gatelink_enclosure_temperature
+    state_characteristic: value_max
+    max_age:
+      hours: 24
+    sampling_size: 20000
+    keep_last_sample: true
+  - platform: statistics
+    name: LRAN GateLink enclosure temp min 24h
+    unique_id: lran_gatelink_enclosure_temp_min_24h
+    entity_id: sensor.gatelink_enclosure_temperature
+    state_characteristic: value_min
+    max_age:
+      hours: 24
+    sampling_size: 20000
+    keep_last_sample: true
