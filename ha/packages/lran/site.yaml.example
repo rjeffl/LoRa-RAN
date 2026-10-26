@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The per-install half of the LRAN package (HA Integration Implementation Plan 6). Copy it
+# to site.yaml beside core.yaml and fill it in. site.yaml is not committed, because it
+# names the operator's phone and mail account. Every other file in packages/lran/ is the
+# same on every install.
+#
+# HA loads every *.yaml in this directory as a package, and this file's .example suffix
+# keeps it out until it is renamed.
+
+script:
+  # Every push LRAN sends goes through here. core.yaml's lran_notify builds `data`: the
+  # tag, the actions and the critical or time-sensitive options. Add one action per phone.
+  lran_site_push:
+    alias: LRAN site push
+    mode: parallel
+    fields:
+      title: { selector: { text: } }
+      message: { selector: { text: } }
+      data: { selector: { object: } }
+    sequence:
+      - action: notify.mobile_app_YOUR_PHONE
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+          data: "{{ data }}"
+
+  # Every email LRAN sends goes through here, and only while
+  # input_boolean.lran_email_enabled is on (plan 7.3).
+  lran_site_email:
+    alias: LRAN site email
+    mode: parallel
+    fields:
+      title: { selector: { text: } }
+      message: { selector: { text: } }
+    sequence:
+      - action: notify.lran_email
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+
+# SMTP is configured in YAML only. The password goes in secrets.yaml, never here.
+notify:
+  - name: lran_email
+    platform: smtp
+    server: smtp.example.com
+    port: 587
+    encryption: starttls
+    timeout: 15
+    sender: lran@example.com
+    sender_name: LRAN
+    username: lran@example.com
+    password: !secret lran_smtp_password
+    recipient:
+      - you@example.com
+
+# Install-wide, so it lives here rather than in core.yaml (plan 10). Every install needs
+# this exclusion: the raw mV sensors already hold the history of the V copies.
+recorder:
+  exclude:
+    entity_globs:
+      - sensor.lran_gatelink_*_voltage_v
+    entities:
+      - sensor.gatelink_last_seen
+      - sensor.gatelink_bms_reading_age
+  # 30 days, if the database has room, so the Events logbook reaches back a month.
+  purge_keep_days: 30

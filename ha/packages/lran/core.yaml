@@ -1,0 +1,302 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# LRAN shared plumbing: helpers, the event filter, and the notification script
+# (HA Integration Implementation Plan 7.1 to 7.3). Every LRAN automation goes through the
+# two scripts here, so the rules in plan 3 are written once.
+#
+# Per-install values (notify targets, email) are in site.yaml, not here. This file is the
+# same on every install.
+
+input_boolean:
+  lran_email_enabled:
+    name: LRAN email enabled
+    icon: mdi:email-outline
+  lran_alerts_muted:
+    name: LRAN alerts muted
+    icon: mdi:bell-off-outline
+  # Set by lran_0_seed_defaults once its work is done. Turn it off to reapply the defaults.
+  lran_defaults_seeded:
+    name: LRAN helper defaults seeded
+    icon: mdi:sprout-outline
+
+input_text:
+  # Space-separated, newest first. Eight keys, or fewer if they would overrun 255
+  # characters: a key with two full-width uint32 fields is 32 characters, though event_id
+  # is in practice short.
+  lran_recent_events:
+    name: LRAN recent event keys
+    max: 255
+
+# No `initial:` on these. HA applies `initial` at every start, which would undo a value
+# tuned in the UI. lran_0_seed_defaults sets the plan 7.1 defaults once instead.
+input_number:
+  lran_soc_warn_pct:
+    name: LRAN SOC warning
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+  lran_soc_alarm_pct:
+    name: LRAN SOC alarm
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+  # Celsius, as R-4.5a rates the host. An automation that compares it with
+  # sensor.gatelink_enclosure_temperature converts by that sensor's unit, because HA
+  # shows temperatures in the install's unit system, which is Fahrenheit on the sandbox.
+  lran_enclosure_temp_warn_c:
+    name: LRAN enclosure temperature warning
+    min: 0
+    max: 85
+    step: 1
+    unit_of_measurement: "°C"
+    mode: box
+  lran_cell_spread_warn_mv:
+    name: LRAN cell spread warning
+    min: 0
+    max: 500
+    step: 5
+    unit_of_measurement: mV
+    mode: box
+  lran_offline_warn_min:
+    name: LRAN node offline warning
+    min: 1
+    max: 240
+    step: 1
+    unit_of_measurement: min
+    mode: box
+  lran_held_open_reminder_h:
+    name: LRAN held-open reminder
+    min: 1
+    max: 48
+    step: 1
+    unit_of_measurement: h
+    mode: box
+  # R-6.1a: 100 Ah, all of it usable. The autonomy estimate in templates.yaml reads it.
+  lran_pack_capacity_ah:
+    name: LRAN pack capacity
+    min: 1
+    max: 1000
+    step: 1
+    unit_of_measurement: Ah
+    mode: box
+
+counter:
+  lran_gatelink_traversals_today:
+    name: GateLink traversals today
+    icon: mdi:car-arrow-right
+    initial: 0
+    step: 1
+    restore: true
+
+automation:
+  - id: lran_0_seed_defaults
+    alias: "LRAN 0 - seed helper defaults"
+    description: >-
+      Sets each LRAN threshold to its plan 7.1 default the first time the package loads,
+      then never again.
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+    conditions:
+      - condition: state
+        entity_id: input_boolean.lran_defaults_seeded
+        state: "off"
+    actions:
+      # Starting values, not measured ones (plan 7.1).
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_soc_warn_pct }
+        data: { value: 40 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_soc_alarm_pct }
+        data: { value: 25 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_enclosure_temp_warn_c }
+        data: { value: 40 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_cell_spread_warn_mv }
+        data: { value: 50 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_offline_warn_min }
+        data: { value: 10 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_held_open_reminder_h }
+        data: { value: 4 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.lran_pack_capacity_ah }
+        data: { value: 100 }
+      - action: input_boolean.turn_on
+        target: { entity_id: input_boolean.lran_defaults_seeded }
+
+script:
+  # The event filter (plan 7.2). An automation on lran/<node>/event/<name> calls this first
+  # and goes on only if `admit` is true:
+  #
+  #   - action: script.lran_event_admit
+  #     data:
+  #       node: "{{ trigger.topic.split('/')[1] }}"
+  #       payload: "{{ trigger.payload_json }}"
+  #     response_variable: ev
+  #   - condition: template
+  #     value_template: "{{ ev.admit }}"
+  #
+  # A script rather than a template condition, because the filter has to record the key it
+  # admits and a condition cannot write. `queued`, so two triggers carrying the same event
+  # are checked one after the other and the second one sees the first one's key.
+  lran_event_admit:
+    alias: LRAN event filter
+    mode: queued
+    max: 50
+    fields:
+      node:
+        description: The node token from the topic, such as gatelink or bridge.
+        required: true
+        selector: { text: }
+      payload:
+        description: The event's JSON payload, as trigger.payload_json.
+        required: true
+        selector: { object: }
+    variables:
+      p: "{{ payload if payload is mapping else {} }}"
+      # The event's identity without the follow-up bit. A follow-up reuses its first edge's
+      # event_id (spec 7.3), so this is also the push tag that lets it replace that alert.
+      # A node keys on ctx_id, the bridge on its boot count (spec 16.3, D67).
+      tag: >-
+        {%- if node == 'bridge' -%}
+          {{- 'bridge:%d:%d' % (p.boot, p.event_id)
+                if p.boot is number and p.event_id is number else '' -}}
+        {%- else -%}
+          {{- '%s:%d:%d' % (node, p.ctx_id, p.event_id)
+                if p.ctx_id is number and p.event_id is number else '' -}}
+        {%- endif -%}
+      # The deduplication key carries the follow-up bit, as the bridge's does since BF-25.
+      # Without it the filter would drop every follow-up as a repeat of its first edge.
+      key: "{{ tag ~ (':f' if p.follow_up is sameas true else ':e') if tag else '' }}"
+      recent: >-
+        {{ states('input_text.lran_recent_events').split()
+           | reject('in', ['unknown', 'unavailable']) | list }}
+    sequence:
+      # `is sameas true`, so a payload missing the key is admitted. An alert withheld by a
+      # malformed payload is the worse failure for a gate (ha/README.md).
+      - if:
+          - condition: template
+            value_template: "{{ p.synthetic is sameas true }}"
+        then:
+          - variables:
+              result: { admit: false, reason: synthetic, key: "{{ key }}", tag: "{{ tag }}" }
+          - stop: synthetic
+            response_variable: result
+      - if:
+          - condition: template
+            value_template: "{{ key != '' and key in recent }}"
+        then:
+          - variables:
+              result: { admit: false, reason: repeat, key: "{{ key }}", tag: "{{ tag }}" }
+          - stop: repeat
+            response_variable: result
+      # An event with no usable key is admitted and not remembered. A repeat of it can
+      # alert twice, which is better than an alert this filter cannot place.
+      - if:
+          - condition: template
+            value_template: "{{ key != '' }}"
+        then:
+          - action: input_text.set_value
+            target: { entity_id: input_text.lran_recent_events }
+            data:
+              value: >-
+                {% set ns = namespace(v='', full=false) %}
+                {% for k in ([key] + recent)[:8] %}
+                  {% set c = ns.v ~ ' ' ~ k if ns.v else k %}
+                  {% if not ns.full and c | length <= 255 %}{% set ns.v = c %}
+                  {% else %}{% set ns.full = true %}{% endif %}
+                {% endfor %}
+                {{ ns.v }}
+      - variables:
+          result: { admit: true, reason: new, key: "{{ key }}", tag: "{{ tag }}" }
+      - stop: admitted
+        response_variable: result
+
+  # The one place LRAN notifies (plan 7.3). Automations call this, never a notify action,
+  # so the channels change in one place. The channels themselves are site.yaml's
+  # lran_site_push and lran_site_email.
+  lran_notify:
+    alias: LRAN notify
+    mode: parallel
+    max: 20
+    fields:
+      severity:
+        description: critical, high, normal or low.
+        required: true
+        selector:
+          select: { options: [critical, high, normal, low] }
+      title:
+        required: true
+        selector: { text: }
+      message:
+        required: true
+        selector: { text: { multiline: true } }
+      tag:
+        description: >-
+          The event's tag from lran_event_admit. A push with the same tag replaces the
+          earlier one.
+        selector: { text: }
+      follow_up:
+        description: >-
+          True for an event that refines an earlier one. It replaces the earlier push and
+          sends no email, because an email cannot be replaced.
+        selector: { boolean: }
+      actions:
+        description: Companion-app notification actions, passed through.
+        selector: { object: }
+    variables:
+      sev: "{{ severity if severity in ['critical', 'high', 'normal', 'low'] else 'high' }}"
+      is_follow_up: "{{ follow_up is sameas true }}"
+      # Critical sounds through Do Not Disturb: iOS critical: 1, Android alarm_stream.
+      # Keys for the other platform are ignored, so one data block serves both.
+      push_data: >-
+        {% set d = {} %}
+        {% if sev == 'critical' %}
+          {% set d = {'push': {'sound': {'name': 'default', 'critical': 1, 'volume': 1.0}},
+                      'ttl': 0, 'priority': 'high', 'channel': 'alarm_stream'} %}
+        {% elif sev == 'high' %}
+          {% set d = {'push': {'interruption-level': 'time-sensitive'},
+                      'ttl': 0, 'priority': 'high'} %}
+        {% endif %}
+        {% if tag %}{% set d = dict(d, tag=tag) %}{% endif %}
+        {% if actions %}{% set d = dict(d, actions=actions) %}{% endif %}
+        {{ d }}
+    sequence:
+      # Muting covers normal and low only. Critical and high are FIRE, the held-open
+      # vehicle and the rest of tier 1, which bench work must never silence.
+      - condition: template
+        value_template: >-
+          {{ sev in ['critical', 'high'] or not is_state('input_boolean.lran_alerts_muted', 'on') }}
+      - action: logbook.log
+        data:
+          name: LRAN
+          message: "{{ title }}: {{ message }}"
+      - if:
+          - condition: template
+            value_template: "{{ sev != 'low' }}"
+        then:
+          - action: script.lran_site_push
+            data:
+              title: "{{ title }}"
+              message: "{{ message }}"
+              data: "{{ push_data }}"
+      - if:
+          - condition: template
+            value_template: "{{ sev in ['critical', 'high'] and not is_follow_up }}"
+          - condition: state
+            entity_id: input_boolean.lran_email_enabled
+            state: "on"
+        then:
+          - action: script.lran_site_email
+            data:
+              title: "{{ title }}"
+              message: "{{ message }}"

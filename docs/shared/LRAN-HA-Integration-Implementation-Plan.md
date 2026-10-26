@@ -1,12 +1,13 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.1
+**Version:** 0.2
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; no task started
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0 and H1 done 2026-10-25
 **Last updated:** 2026-10-25
+**Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
 > dashboards, helpers, scripts and automations live in this repository as YAML, so the
@@ -81,8 +82,8 @@ so no automation has to remember them.
 
 ## 4. What the sandbox shows today
 
-The sandbox HA runs **2026.10.3**, so the YAML here targets that release's automation
-syntax (`triggers`, `conditions`, `actions`). The bridge (`lora_bridge_*`) and GateLink
+The sandbox HA ran **2026.10.3** at the survey and **2026.10.4** at H1, so the YAML here
+targets that release's automation syntax (`triggers`, `conditions`, `actions`). The bridge (`lora_bridge_*`) and GateLink
 (`gatelink_*`) are live. The entity IDs below come from the sandbox registry on 2026-10-25.
 
 | Area | Entities |
@@ -98,7 +99,13 @@ Three things in the sandbox need attention before a dashboard is built on it:
 
 - **The registry holds `simnode_0` to `simnode_3` from bench sessions,** with 44
   unavailable entities. They are a sandbox artifact. Task H0 removes them, so that
-  dashboards are not built on a registry that production will not have.
+  dashboards are not built on a registry that production will not have. **Done
+  2026-10-25:** the registry held 48 entities on four devices. Deleting them from the
+  registry alone was not enough, because the broker still held their 48 retained
+  `homeassistant/+/lran_simnode*/config` configs and would have recreated them at the next
+  restart. Clearing those configs removed the devices. The bridge's own
+  `switch.lora_bridge_simnode_diag_enable` stays. Turning it on with a simnode running
+  brings the devices back, because spec §16.6 keeps bench entities by design.
 - **Voltages and currents are published in mV and mA,** and they stay that way (§2). Only
   the Gate dashboard converts them (§7.4).
 - **The production entity IDs are a premise, not a fact.** They follow from the device
@@ -133,7 +140,7 @@ ha/
     reminders.yaml      tier 3 (§9.3)
     reports.yaml        tier 4 (§9.4)
     convenience.yaml    tier 5 (§9.5)
-    site.yaml.example   the per-install values: notify targets, zones, thresholds
+    site.yaml.example   the per-install values: push and email scripts, SMTP, recorder, zones
   dashboards/
     gate.yaml           the Gate dashboard (§8.1)
     lran.yaml           the LRAN dashboard (§8.2)
@@ -170,9 +177,11 @@ production would drift from the repository and be lost at the next copy. The cos
 the dashboard cannot be edited in the UI. To try a change, edit the file in the sandbox and
 reload.
 
-**`site.yaml` is the only file that differs between installs.** It holds the notify
-service names, the approach zone, and any threshold overridden from its default. It is not
-committed, because it names the operator's phone. `site.yaml.example` documents every key.
+**`site.yaml` is the only file that differs between installs.** It defines two scripts,
+`script.lran_site_push` and `script.lran_site_email`, which call that install's notify
+services, and it holds the SMTP account, the recorder settings (§10) and the approach zone.
+It is not committed, because it names the operator's phone. `site.yaml.example` documents
+every key. Thresholds are helpers (§7.1), so they need no entry here.
 
 ## 7. Shared plumbing
 
@@ -189,32 +198,62 @@ committed, because it names the operator's phone. `site.yaml.example` documents 
 | `input_number.lran_cell_spread_warn_mv` | Cell imbalance | 50 |
 | `input_number.lran_offline_warn_min` | Node offline before alerting | 10 |
 | `input_number.lran_held_open_reminder_h` | Held-open reminder | 4 |
+| `input_number.lran_pack_capacity_ah` | The pack's capacity, for the autonomy estimate (§7.4) | 100, R-6.1a |
+| `input_boolean.lran_defaults_seeded` | Set once the defaults above are applied | off |
 | `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
 spread and the offline delay should be revisited after a month of production history.
 They are helpers so that tuning them needs no file change.
 
+**The defaults are applied once, by automation `lran_0_seed_defaults`, not by `initial:`.**
+HA applies `initial` at every start, which would undo a value tuned in the UI. The
+automation runs at start while `lran_defaults_seeded` is off, and then turns it on. To
+reapply the defaults, turn it off and restart.
+
+**`lran_enclosure_temp_warn_c` is in °C, and HA shows temperatures in the install's unit
+system.** The sandbox shows °F. The H5 automation that compares the two converts by the
+sensor's unit.
+
 ### 7.2 The event filter
 
-Every automation on an event topic calls the same condition, written once in `core.yaml` as
-a template condition:
+Every automation on an event topic first calls `script.lran_event_admit`, written once in
+`core.yaml`, and goes on only if its response says `admit`:
 
 1. Drop the event if `synthetic is sameas true`.
-2. Form its key: `ctx_id:event_id` for a node's event, or `boot:event_id` for the
-   bridge's (D67).
+2. Form its key: `<node>:<ctx_id>:<event_id>` for a node's event, or
+   `bridge:<boot>:<event_id>` for the bridge's (D67), then `:f` for a follow-up or `:e`
+   otherwise.
 3. Drop it if the key is in `input_text.lran_recent_events`. Otherwise, prepend the key and
    keep the last eight.
 
+The response also carries `tag`, the key without its follow-up suffix, which §7.3 uses as
+the push tag.
+
+**The key carries the follow-up bit.** A follow-up reuses its first edge's `event_id`
+(spec §7.3), so a key of `ctx_id:event_id` alone, as v0.1 of this plan had it, drops every
+follow-up as a repeat. That is the defect spec v0.15 corrected in the bridge (BF-25).
+
+**A script, not a template condition**, because the filter has to record the key it
+admits, and a condition cannot write. The script runs `queued`, so two triggers carrying
+the same event are checked one after the other.
+
+**An event with no usable key is admitted and not recorded**, for example a bridge event
+whose `boot` is null. A repeat of it can alert twice, which is better than withholding an
+alert the filter cannot place.
+
 **Eight keys, because a retransmission arrives within seconds.** The filter only has to
 remember the recent past. A key from a new `ctx_id` after a reboot cannot collide with an
-old one.
+old one. The list holds fewer than eight only when the keys are long enough to overrun
+`input_text`'s 255 characters. Seven keys with full-width `uint32` fields fit.
 
 ### 7.3 The notification script
 
 `script.lran_notify` takes `severity` (`critical`, `high`, `normal`, `low`), `title`,
-`message`, `tag`, and optional `actions`. Automations call it and never call a notify
-service directly, so the channels change in one place.
+`message`, `tag`, and optional `follow_up` and `actions`. Automations call it and never
+call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
+`lran_site_email` (§6), so the channels change in one place. Every severity that is not
+muted also writes a logbook entry.
 
 | Severity | Push | Email | Muted by `lran_alerts_muted` |
 |---|---|---|---|
@@ -224,14 +263,16 @@ service directly, so the channels change in one place.
 | `low` | None; logbook entry only | No | Yes |
 
 **`tag` makes a follow-up replace the first alert.** R-3.2.4b sends a follow-up that
-refines the same event with the traversal direction. The script reuses the event's key as
-the push `tag`, so the phone shows one notification, updated, rather than two. Email goes
-out on the first event only, because an email cannot be replaced.
+refines the same event with the traversal direction. The script uses the filter's `tag`
+(§7.2) as the push tag, so the phone shows one notification, updated, rather than two.
+Email goes out on the first event only, because an email cannot be replaced.
 
-**The sandbox's only companion-app device is a Mac** (`notify.mobile_app_jbook16_m5`).
-The operator is adding the sandbox server to the phone's companion app. Critical alerts
-and actionable notifications have to be checked on that phone before the FIRE route
-counts as verified (task H4).
+**At H1 the sandbox's `site.yaml` pushes to the Mac only** (`notify.mobile_app_jbook16_m5`),
+and its email script writes a persistent notification, because the sandbox has no SMTP
+account. The phone has joined the sandbox's companion app since the survey, as
+`notify.mobile_app_jliphone16`. Critical alerts and actionable notifications have to be
+checked on that phone before the FIRE route counts as verified (task H4), and real SMTP
+before email is turned on (§12).
 
 ### 7.4 Derived sensors
 
@@ -241,17 +282,32 @@ is unavailable, as System PRD §6.2 requires.
 | Sensor | Formula |
 |---|---|
 | `sensor.lran_gatelink_cell_spread` | max − min of the four cell voltages, mV |
-| `sensor.lran_gatelink_net_power` | PV power − (pack voltage × load current), W |
-| `sensor.lran_gatelink_autonomy_days` | Remaining capacity ÷ the 7-day mean daily draw. **An estimate**, labelled as one on the card |
-| `sensor.lran_gatelink_link_quality` | `good` / `marginal` / `poor` from RSSI, SNR and missed polls, for the Gate dashboard's status chip |
+| `sensor.lran_gatelink_net_power` | Pack voltage × pack current, W. Positive while the pack charges |
+| `sensor.lran_gatelink_draw_current` | MPPT battery current − pack current, mA, clamped at 0: what everything on the battery bus draws |
+| `sensor.lran_gatelink_draw` | The `integration` integration over the draw current, mAh, cumulative |
+| `sensor.lran_gatelink_draw_7d` | The `statistics` integration's `change` in the draw over 7 days |
+| `sensor.lran_gatelink_autonomy_days` | SOC × `lran_pack_capacity_ah`, over the mean daily draw across the days the 7-day window covers. Unavailable until it covers a day. **An estimate**, labelled as one on the card |
+| `sensor.lran_gatelink_link_quality` | `poor` at 3 or more missed polls or SNR below −10 dB; `marginal` at 1 or more or below −5 dB; otherwise `good`. For the Gate dashboard's status chip |
 | `sensor.lran_gatelink_enclosure_temp_max_24h`, `_min_24h` | The `statistics` integration over 24 h |
 
-**The Gate dashboard's V and A come from rescaling template sensors**, such as
+**Net power and the draw read the pack, not the MPPT's load output.** v0.1 had net power
+as PV power − pack voltage × load current. The gate controller and GateLink hang on the
+battery bus, and the MPPT's load output reads 0, so that formula would have reported the
+whole PV power as surplus. The MPPT's battery current and the pack's are both positive
+into the battery (spec §7.2.2, §7.2.3). The two readings are not simultaneous, so a draw
+sample can dip below zero, and it is clamped.
+
+**Link quality's thresholds are starting values**, as §7.1's are. SF9 demodulates down to
+about −12.5 dB SNR, so −5 dB leaves 7.5 dB of margin and −10 dB leaves 2.5. RSSI is not
+part of the rule: SNR is the margin that matters on this link, and RSSI is on the Network
+view.
+
+**The Gate dashboard's V comes from rescaling template sensors**,
 `sensor.lran_gatelink_pack_voltage_v` and `sensor.lran_gatelink_pv_voltage_v`. Each is the
-raw mV or mA value ÷ 1000, with a display precision of two decimals. They are excluded
-from the recorder (§10), so they add no history rows. Graphs read the raw sensors. A
-per-entity display-unit override in HA's registry would do the same, but a YAML copy does
-not carry it to production.
+raw mV value ÷ 1000, rounded to two decimals. §8.1 shows no current, so there is no A
+sensor. They are excluded from the recorder (§10), so they add no history rows. Graphs read
+the raw sensors. A per-entity display-unit override in HA's registry would do the same, but
+a YAML copy does not carry it to production.
 
 ## 8. Dashboards
 
@@ -359,7 +415,7 @@ is install-wide:
 - **Exclude `sensor.gatelink_last_seen` and `sensor.gatelink_bms_reading_age`.** Both
   count seconds since an update, so they change at every publish, and their history says
   nothing that `missed_polls` and availability do not.
-- **Exclude the rescaling `sensor.lran_gatelink_*_v` and `*_a` template sensors** (§7.4).
+- **Exclude the rescaling `sensor.lran_gatelink_*_voltage_v` template sensors** (§7.4).
   The raw sensors already hold that history. `site.yaml.example` carries this exclusion
   already filled in, because every install needs it.
 - **Raise `purge_keep_days` to 30**, if the production database has room, so the Events
@@ -373,8 +429,8 @@ from the YAML.
 
 | Task | Content | Depends on | Acceptance |
 |---|---|---|---|
-| **H0** | Remove the `simnode_*` devices from the sandbox registry | — | No `simnode` entity in the sandbox registry |
-| **H1** | `core.yaml` and `templates.yaml`: helpers, event filter, notification script, derived sensors | H0 | A replayed event with the same key is dropped. A `synthetic: true` event is dropped. Email sends only with the switch on |
+| **H0** | Remove the `simnode_*` devices from the sandbox registry | — | No `simnode` entity in the sandbox registry. **Met 2026-10-25** (§4) |
+| **H1** | `core.yaml` and `templates.yaml`: helpers, event filter, notification script, derived sensors | H0 | A replayed event with the same key is dropped. A `synthetic: true` event is dropped. Email sends only with the switch on. **Met 2026-10-25** against the email stand-in; real SMTP is not verified (§7.3) |
 | **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then |
 | **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data |
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone |
@@ -413,3 +469,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | Version | Date | Change |
 |---|---|---|
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
+| 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |
