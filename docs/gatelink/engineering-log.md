@@ -1910,3 +1910,57 @@ does not filter on topic.
 **Falsified by:** a `/bms.log` whose lines at `uptime_s` near 2,410, 14,770, 27,430,
 40,390 and 66,310, give or take one `bms_poll_s`, all read `end=read`. The stale ages
 would then come from the path after the window, not from the BLE side.
+
+## 2026-10-26 — `/bms.log` read: all five misses were windows the poll reply aborted
+
+**The operator took the card out and the Mac read it.** `/bms.log` held 239 lines. The
+first three, at `uptime_s` 14 to 617, come from a boot before the soak's. `uptime_s` then
+drops to 302 and climbs without a drop to 71,134, past the logger's stop: the board ran on
+until the card came out. Of the soak boot's 236 windows, 231 read `end=read` and five
+read `end=aborted`. None is `not_found`, a connect failure or a timeout:
+
+```text
+uptime_s=2110 end=aborted ms=1112 init=4 scan=441 conn=650 hs=0 ans=0 down=17 abort=1 frames=6 crc=0 bad_term=0 undecoded=0
+uptime_s=14470 end=aborted ms=2628 init=4 scan=821 conn=1650 hs=121 ans=0 down=32 abort=1 frames=46 crc=0 bad_term=0 undecoded=0
+uptime_s=27130 end=aborted ms=1142 init=4 scan=281 conn=630 hs=91 ans=129 down=7 abort=1 frames=87 crc=0 bad_term=0 undecoded=0
+uptime_s=40090 end=aborted ms=677 init=4 scan=21 conn=635 hs=0 ans=0 down=17 abort=1 frames=129 crc=0 bad_term=0 undecoded=0
+uptime_s=66010 end=aborted ms=247 init=4 scan=241 conn=0 hs=0 ans=0 down=2 abort=1 frames=214 crc=0 bad_term=0 undecoded=0
+```
+
+These lines are the five misses the previous entry predicted, each one `bms_poll_s` before the
+`uptime_s` it estimated from the stale-age peaks. That entry's falsifier did not fire: the
+misses are on the BLE side.
+
+**`aborted` means `lora_task` asked for the radio back** (`TxGate::WaitAbort`,
+`bms_link.cpp`), and it asks only for a frame the bridge awaits. Every abort's line reads
+`uptime_s mod 60` = 10, so the frame is the poll's STATUS reply. The bridge polls every
+60 s, and the polls land at a fixed phase of GateLink's uptime.
+
+**The window walks into that phase about every 3.5 h, because `bms_task` waits
+`bms_poll_s` after a window ends rather than from when it began.** Its period is 300 s plus
+the window, and successive lines step 301 s (142 times), 302 s (89) or 303 s (4). The mean
+window is 1,394 ms, so the window's phase against the 60 s poll cycle advances about 1.4 s
+per window. It crosses the poll's phase once in about 43 windows, about 3.6 h, and the
+logged spacing is 12,360 to 12,960 s. The pass expected near 10:03 did not abort: its
+window logged `uptime_s` 53,350, phase 10, and read in 1,292 ms. At one-second resolution
+the line cannot show whether the poll fell just after that window or the window stepped
+over it.
+
+**A miss costs a whole period because R-3.4d retries at the next poll.** `age_s` then
+reaches about 600, the bridge's `bms_stale_s`. Whether a miss marks the battery unavailable
+depends on where the bridge's publish falls against the next read; two of five did.
+
+**Proposed, the operator's call, Tier 3 since it is a reflash:**
+
+- After `end=aborted`, run the next window a few seconds after the reply goes out instead
+  of `bms_poll_s` later. The abort keeps the radio's priority, and a miss costs seconds
+  rather than a period.
+- Or raise the bridge's `bms_stale_s` above twice `bms_poll_s`, so one miss of any kind
+  never marks the battery unavailable. A bridge row, with no walk to the gate.
+
+Scheduling from the window's start (`vTaskDelayUntil`) is not a fix. The phase would then
+move only with the two crystals' drift, so a collision, once reached, could repeat for
+hours.
+
+**Falsified by:** with the abort retry built, a soak whose `/bms.log` shows an `aborted`
+line followed by a window more than one `bms_poll_s` later.

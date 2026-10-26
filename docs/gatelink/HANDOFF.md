@@ -45,7 +45,7 @@ deploys on six inputs (D83).
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **Read the card's `/bms.log`, from the Mac.** Both soaks passed without a reset, and the second run's five BMS misses are on the card, unread. Either take the card out and read it in the Mac, or add a console command that prints the file and flash it from the Mac. Then explain the misses in a new engineering-log entry | Engineering log, 2026-10-26, *Bench soak, second run*; 2026-10-25, *`/bms.log`*; *Reading `/bms.log`*, below |
+| 3 | **A BMS window the poll reply aborts costs a whole period.** `/bms.log` shows all five of the second soak's misses as `end=aborted`, at the poll's phase. Choose between retrying soon after an abort (firmware) and raising the bridge's `bms_stale_s` (a bridge row), then build it | Engineering log, 2026-10-26, *`/bms.log` read*; PRD R-3.4d |
 | — | **GL4's M14**: the MPPT is on the bench now, so its PV history is reachable. The operator's call | Plan §8.2's GL4 row and §9.8 |
 
 ### The soak's setup
@@ -79,23 +79,6 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
 - **Build from a clean tree**, so the banner does not read `-dirty`. OTA uploads are the
   operator's. Quit VictronConnect before the USB upload.
 
-### Reading `/bms.log`
-
-The file has one line per BLE window since the card was last cleared, and `uptime_s` is
-its only clock, because the RTC reads 2049. The second run's boot was at 19:14:49 EDT on
-2026-10-25, so its misses are the lines near `uptime_s` 2,410, 14,770, 27,430, 40,390 and
-66,310. Any line whose `end` is not `read` is a miss, and its timings say where the window
-stopped. **Do it from the Mac**, which holds the toolchain GateLink was built with:
-
-- **Card out:** power the StamPLC down, take the card out, and read it in the Mac. Nothing
-  changes on the board.
-- **Over USB:** a console command that prints `/bms.log` under the SPI lock. That is a
-  firmware change and a flash, which resets GateLink. It is worth having at the gate,
-  where the card is behind the enclosure.
-
-Record what the lines show as a new dated entry in the engineering log, and rewrite this
-file.
-
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
 section and *The next job*.
@@ -124,7 +107,8 @@ install costs a walk to the gate:
 **Tier 2's soak has run twice, for 24 h and then 19.2 h**, through the MPPT, the pack and
 the StamPLC, with the radio, VE.Direct, BMS polls and SD writes all active. GateLink reset
 in neither run, so GL5's timer-task panic did not recur in about 43 h; its cause is still
-not established. What remains is the BMS misses, and `/bms.log` should explain them.
+not established. `/bms.log` explained the BMS misses: each was a window the poll's reply
+aborted (engineering log, 2026-10-26, *`/bms.log` read*).
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it**
 (engineering log, 2026-10-10, *M7*: about 0.22 Ω, about 50 W at 15 A). The operator's.
@@ -288,8 +272,9 @@ board's are its D-pads (expansion board §6.1).
   morning at the gate would set it and start mapping `0x8D`'s bits.
 - **The BMS misses one window about every 3.5 to 3.7 h** in both soaks (engineering log,
   2026-10-25 and 2026-10-26). In the second run, two single misses went past the bridge's
-  `bms_stale_s` of 600 and marked the battery unavailable. The cause is not established.
-  `/bms.log` on the card names how each missed window ended; see *Start here*.
+  `bms_stale_s` of 600 and marked the battery unavailable. `/bms.log` shows each was a
+  window aborted for the poll's reply, met once per pass of the window's drifting phase;
+  the fix is a *Start here* task.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
