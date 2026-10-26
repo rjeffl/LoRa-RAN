@@ -2034,3 +2034,40 @@ aborted at 19.14 s, and its retry read the pack at 25.24 s, `bms_retry_s` 5 plus
 window. The `bms` line read `ends read 1 aborted 1` and `/bms.log 2 failed 0`: both windows
 wrote their line. Trace:
 [`data/bms-retry-card-2026-10-26.log`](data/bms-retry-card-2026-10-26.log).
+
+## 2026-10-26 — The MPPT's history after two weeks on the gate: ten full days at 50 W, and M14 closes
+
+**Bridge and StamPLC on the bench with the sandbox broker; the MPPT on the pack with no
+PV.** The MPPT went back to the gate after the 2026-10-08 read and stayed on its 50 W panel
+until the operator pulled it for the bench soak. Its history therefore holds the gate days
+that the 2026-10-08 read lacked. GateLink ran `a1de65d`. After the bridge powered up, the
+operator had to restart GateLink before it answered; the cause was not looked at. Trace:
+[`data/m14-mppt-history-2026-10-26.log`](data/m14-mppt-history-2026-10-26.log).
+
+**Every Get from `0x104F` to `0x106E` answered `ok` over the air, with no timeout.** The
+totals record's yield read 581, matching the solar document's `yield_total_kwh` of 5.81.
+It read 467 on 2026-10-08, so the MPPT harvested 1.14 kWh in between.
+
+**The records overlap the 2026-10-08 read at day sequence 58.** Its day 1, 312 minutes of
+bulk and no absorption, is day 15 here, and days 16–30 repeat its days 2–16. The MPPT
+starts a record when PV returns after a dark spell, not at midnight. The 18 calendar days
+since 2026-10-08 made 15 records, so a record's age in days does not give its date.
+
+| Days | Where | Yield kWh | Load kWh | Vbat min | Vbat max | Absorption, float min | Pmax W |
+|---|---|---|---|---|---|---|---|
+| 0–2 | Bench | 0.00 | 0.00 | 13.26–13.28 | 13.28–13.35 | 0, 0 | 0–1 |
+| 3 | Gate or bench, not known | 0.04 | 0.03 | 13.13 | 14.20 | 0, 0 | 41 |
+| 4–13 | Gate, 50 W | 0.08–0.10 | 0.04–0.05 | 12.48–13.19 | 14.21–14.23 | 120–124, 51–120 | 42–53 |
+| 14 | 2026-10-08, bench then gate | 0.20 | 0.06 | 12.98 | 14.21 | 120, 0 | 43 |
+
+**On each of the ten gate days the charger reached absorption and then float**, and no
+record carries an error. The battery was full every day, so the yield shows what the battery
+could take, not what the panel can give. Load-output consumption was 0.04–0.05 kWh a day.
+Days 1 and 2 reached a Vpv maximum of 19.03 V and 19.34 V, but no more than 1 W.
+
+**M14 closes on these records.** It asked for a week of MPPT yield and battery Vmin before
+install, and days 4–13 are ten consecutive days on the gate's own panel. The ten records
+are the MPPT's daily summaries, not a log at GateLink's poll rate.
+
+**Falsified by:** a gate-day record without absorption once the gate is back in service,
+in the same season.
