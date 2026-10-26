@@ -74,3 +74,48 @@ current 0 mA, link quality `good`, pack 13.31 V. The draw is 0 because the MPPT 
 BMS both read 0 mA with no sun on the bench, and the BMS counts in 0.1 A (spec §7.2.3). So
 the autonomy estimate stays unavailable until the 7-day window covers a day with a
 nonzero draw.
+
+## 2026-10-25 — H2: the Gate dashboard
+
+`ha/dashboards/gate.yaml` is installed in the sandbox as `/config/dashboards/lran/gate.yaml`.
+`configuration.yaml` there carries only the `lran-gate` half of plan §6's `lovelace`
+block. H3 adds `lran-detail` with its own file, because a dashboard entry naming a missing
+file is an error.
+
+**The acceptance run, at a 375 × 812 phone viewport:**
+
+- The view rendered in one column, top to bottom in plan §8.1's order.
+- With no state forced, only the FIRE banner showed. That is the bench's truth: IN5 is
+  undriven and inverts, so `binary_sensor.gatelink_fire_input` reads `on` (gatelink
+  engineering log, the IN5 and IN6 edge test).
+- Forcing FIRE `off` and the vehicle-while-held-open, hard-shutdown latch,
+  charging-inhibited and battery-protection binary sensors `on` showed those four banners
+  and hid FIRE's.
+- Forcing `sensor.gatelink_gate` to `unavailable` showed the GateLink-unavailable banner.
+  Forcing `binary_sensor.gatelink_held_open` `on` at the same time showed the hold-source
+  tile, which was absent before and after.
+- After every state was restored, only FIRE's banner showed again.
+
+**The states were forced through HA's REST API** (`POST /api/states/<entity>`), not the
+broker. That changes what HA shows until the next MQTT update and reaches none of the bench
+soak's subscribers. The forced states are in the sandbox recorder's history for the
+minutes they held.
+
+**HA rounded the rescaled voltages to whole volts.** It suggested a display precision of 0
+for `sensor.lran_gatelink_pack_voltage_v` and `_pv_voltage_v`, because they carried
+`device_class: voltage`, so 13.31 V showed as 13 V. Adding
+`suggested_display_precision: 2` to the template sensors passed
+`/api/config/core/check_config`, but the template reload rejected it ("Invalid config for
+'template'"). Every template sensor in the package fell to `unavailable` until the file
+was reverted and reloaded. The fix drops the device class. The two sensors have no
+`state_class`, and the recorder excludes them, so the class bought only an icon, which is
+now set directly. They read 13.31 V and 0.01 V on the dashboard afterwards.
+
+**The template reload reset `sensor.lran_gatelink_draw` to `unknown`.** The integration
+sensor restarts with the reload and resumes once the draw current next updates; its
+`max_sub_interval` is 5 minutes. The draw was 0 mAh before the reload, so nothing was lost.
+
+**Two plan changes went into v0.3.** The link chip is two tiles, because a tile cannot show
+another entity's state, and an attribute copy of `last_seen` would write the recorder rows
+plan §10 excludes `last_seen` to avoid. The button tiles hide their state, which is the
+time of the last press.
