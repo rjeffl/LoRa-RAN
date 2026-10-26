@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.4
+**Version:** 0.5
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26
 **Last updated:** 2026-10-26
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -258,7 +258,7 @@ old one. The list holds fewer than eight only when the keys are long enough to o
 ### 7.3 The notification script
 
 `script.lran_notify` takes `severity` (`critical`, `high`, `normal`, `low`), `title`,
-`message`, `tag`, and optional `follow_up` and `actions`. Automations call it and never
+`message`, `tag`, and optional `follow_up`, `push_only` and `actions`. Automations call it and never
 call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
 `lran_site_email` (§6), so the channels change in one place. Every severity that is not
 muted also writes a logbook entry, logged against `script.lran_notify` so the Events
@@ -275,6 +275,7 @@ view's logbook card, which lists entities, can show it (§8.2).
 refines the same event with the traversal direction. The script uses the filter's `tag`
 (§7.2) as the push tag, so the phone shows one notification, updated, rather than two.
 Email goes out on the first event only, because an email cannot be replaced.
+`push_only` sends no email either, for an alert about a failure the email path may share.
 
 **At H1 the sandbox's `site.yaml` pushes to the Mac only** (`notify.mobile_app_jbook16_m5`),
 and its email script writes a persistent notification, because the sandbox has no SMTP
@@ -401,6 +402,12 @@ list groups them.
 | `lran_1_gatelink_offline` | `lran/gatelink/availability` is `offline` for `lran_offline_warn_min` | `high`. A second push when it returns, with how long it was gone |
 | `lran_1_bridge_offline` | The bridge's own `availability` (its LWT) is `offline` for 5 minutes | `high`. **Push only**, because the HA host that would send the email may be what failed |
 
+**The two offline alerts read `alerts.yaml`'s own MQTT binary sensors**,
+`binary_sensor.lran_gatelink_online` and `binary_sensor.lran_bridge_online`, because a state
+trigger can wait out a delay and an MQTT trigger cannot. The GateLink sensor takes the
+bridge's availability as its own, so a bridge outage leaves it unavailable rather than off,
+and one outage does not alert twice.
+
 ### 9.2 Tier 2 — health
 
 | ID | Trigger | Action |
@@ -474,7 +481,7 @@ from the YAML.
 | **H1** | `core.yaml` and `templates.yaml`: helpers, event filter, notification script, derived sensors | H0 | A replayed event with the same key is dropped. A `synthetic: true` event is dropped. Email sends only with the switch on. **Met 2026-10-25** against the email stand-in; real SMTP is not verified (§7.3) |
 | **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then. **Met 2026-10-25** with states forced through HA's REST API, not the broker |
 | **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data. **Met 2026-10-26**, with the Maintenance view a dashboard of its own (§8.2) |
-| **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone |
+| **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone. **Partly met 2026-10-26**: the four event alerts, V-5 and FIRE on the phone pass; the two offline alerts are not yet exercised |
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold |
 | **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**) |
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal |
@@ -513,3 +520,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |
 | 0.4 | 2026-10-26 | H3 done. §8.2's Maintenance view is its own admin-only dashboard, `lran-maintenance`, because HA gates dashboards, not views (§6). §7.4 adds `sensor.lran_gatelink_traversals` for the 30 d traversal chart. §7.3's logbook entries name `script.lran_notify`, so the Events view's logbook card can list them |
 | 0.3 | 2026-10-25 | H2 done. §8.1's link chip is two tiles, so `last_seen` adds no recorder rows; the Network view's path is fixed as `network`. §8 adds the `heading` card. §7.4's V sensors drop their device class, which rounded them to whole volts |
+| 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |

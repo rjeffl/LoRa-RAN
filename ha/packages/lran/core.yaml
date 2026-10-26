@@ -250,6 +250,11 @@ script:
           True for an event that refines an earlier one. It replaces the earlier push and
           sends no email, because an email cannot be replaced.
         selector: { boolean: }
+      push_only:
+        description: >-
+          True to send no email, for an alert about a failure the email path may share,
+          such as the bridge going offline (plan 9.1).
+        selector: { boolean: }
       actions:
         description: Companion-app notification actions, passed through.
         selector: { object: }
@@ -295,7 +300,9 @@ script:
               data: "{{ push_data }}"
       - if:
           - condition: template
-            value_template: "{{ sev in ['critical', 'high'] and not is_follow_up }}"
+            value_template: >-
+              {{ sev in ['critical', 'high'] and not is_follow_up
+                 and push_only is not sameas true }}
           - condition: state
             entity_id: input_boolean.lran_email_enabled
             state: "on"

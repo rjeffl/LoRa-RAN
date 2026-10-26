@@ -1,0 +1,230 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# LRAN alerts, tier 1 (HA Integration Implementation Plan 9.1). Tier 2 joins this file at
+# H5 (plan 6).
+#
+# Every event alert triggers on the event topic, never on a retained binary_sensor, so an
+# HA restart or a discovery refresh replays nothing (spec 16.3, GateLink PRD V-5). Each one
+# calls script.lran_event_admit before it notifies, which drops a synthetic event and a
+# retransmission (plan 7.2), and notifies through script.lran_notify only (plan 7.3).
+
+mqtt:
+  binary_sensor:
+    # The node's availability as the bridge publishes it, retained (spec 16.5). It goes
+    # unavailable with the bridge's own LWT, so a bridge outage is lran_1_bridge_offline's
+    # alert and is not reported a second time as GateLink offline.
+    - name: LRAN GateLink online
+      unique_id: lran_gatelink_online
+      state_topic: lran/gatelink/availability
+      payload_on: online
+      payload_off: offline
+      device_class: connectivity
+      availability:
+        - topic: lran/bridge/availability
+    # The bridge's LWT (spec 16.5). The broker publishes `offline` when the bridge's
+    # connection drops, so this is the one LRAN alert that does not need the bridge.
+    - name: LRAN bridge online
+      unique_id: lran_bridge_online
+      state_topic: lran/bridge/availability
+      payload_on: online
+      payload_off: offline
+      device_class: connectivity
+
+automation:
+  # R-3.2.4, the primary operational requirement. The first edge reports the vehicle; a
+  # follow-up with the traversal direction (R-3.2.4b) replaces that push through the
+  # shared tag, and sends no second email (plan 7.3).
+  - id: lran_1_vehicle_while_held
+    alias: "LRAN 1 - vehicle while held open"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/vehicle_while_held_open
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+      # none and undetermined say nothing a person can use, so the message leaves them out.
+      passed: >-
+        {{ {'entry': 'A vehicle came in', 'exit': 'A vehicle went out'}
+           .get(p.direction, 'A vehicle passed') }}
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          severity: high
+          title: Vehicle at the gate while held open
+          message: >-
+            {{ passed }} while the gate was held open (hold source:
+            {{ p.hold_source or 'not reported' }}).
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  # Its own automation, so FIRE can be routed apart from every other alert (spec 8.9,
+  # R-3.2.5a). It is the one LRAN signal allowed to wake someone, so it is critical.
+  - id: lran_1_fire
+    alias: "LRAN 1 - FIRE asserted"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/fire_asserted
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          severity: critical
+          title: FIRE at the gate
+          message: >-
+            GateLink reports FIRE asserted (hold source: {{ p.hold_source or 'not reported' }},
+            gate {{ p.gate_state or 'state not reported' }}).
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  - id: lran_1_hard_shutdown
+    alias: "LRAN 1 - GateLink hard shutdown"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/hard_shutdown
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          severity: high
+          title: GateLink hard shutdown
+          message: >-
+            GateLink reports a hard shutdown (gate {{ p.gate_state or 'state not reported' }},
+            detail {{ p.detail if p.detail is number else 'not reported' }}).
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  # The spec gives BMS_ALARM's detail no meaning yet (spec 7.3, 8.9), so the alert passes
+  # the raw value through in hex, as the bridge does.
+  - id: lran_1_bms_alarm
+    alias: "LRAN 1 - BMS alarm"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/bms_alarm
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          severity: high
+          title: GateLink BMS alarm
+          message: >-
+            The GateLink battery's BMS raised an alarm (detail
+            {{ '0x%04X' % p.detail if p.detail is number else 'not reported' }}).
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  # The return push replaces the offline one through the shared tag, and is a follow-up so
+  # it sends no second email. It goes out only if the outage lasted long enough to alert.
+  #
+  # After an HA restart the sensor starts unknown, so a node still offline alerts again
+  # once the delay has run, and the outage it reports on return counts from the restart.
+  # A repeated alert is the better failure than a silent one.
+  - id: lran_1_gatelink_offline
+    alias: "LRAN 1 - GateLink offline"
+    mode: queued
+    max: 10
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.lran_gatelink_online
+        to: "off"
+        for:
+          minutes: "{{ states('input_number.lran_offline_warn_min') | int(10) }}"
+        id: offline
+      - trigger: state
+        entity_id: binary_sensor.lran_gatelink_online
+        from: "off"
+        to: "on"
+        id: online
+    variables:
+      warn_min: "{{ states('input_number.lran_offline_warn_min') | int(10) }}"
+      gone_min: >-
+        {{ ((now() - trigger.from_state.last_changed).total_seconds() / 60) | round(0) | int
+           if trigger.id == 'online' else 0 }}
+    actions:
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: offline
+            sequence:
+              - action: script.lran_notify
+                data:
+                  severity: high
+                  title: GateLink offline
+                  message: >-
+                    The bridge has not heard GateLink for {{ warn_min }} minutes. HA cannot
+                    see or command the gate until it returns.
+                  tag: gatelink:offline
+          - conditions:
+              - condition: trigger
+                id: online
+              - condition: template
+                value_template: "{{ gone_min >= warn_min }}"
+            sequence:
+              - action: script.lran_notify
+                data:
+                  severity: high
+                  title: GateLink back online
+                  message: >-
+                    GateLink is back after
+                    {{ '%d h %02d min' % (gone_min // 60, gone_min % 60)
+                       if gone_min >= 60 else '%d minutes' % gone_min }} offline.
+                  tag: gatelink:offline
+                  follow_up: true
+
+  # Push only, because the HA host that would send the email may be what failed (plan 9.1).
+  - id: lran_1_bridge_offline
+    alias: "LRAN 1 - bridge offline"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.lran_bridge_online
+        to: "off"
+        for: { minutes: 5 }
+    actions:
+      - action: script.lran_notify
+        data:
+          severity: high
+          title: LRAN bridge offline
+          message: >-
+            The LRAN bridge has been off the MQTT broker for 5 minutes. HA cannot see or
+            command any LRAN node until it returns.
+          tag: bridge:offline
+          push_only: true
