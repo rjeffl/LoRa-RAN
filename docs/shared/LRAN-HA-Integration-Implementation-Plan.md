@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.2
+**Version:** 0.3
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0 and H1 done 2026-10-25
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25
 **Last updated:** 2026-10-25
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -305,14 +305,17 @@ view.
 **The Gate dashboard's V comes from rescaling template sensors**,
 `sensor.lran_gatelink_pack_voltage_v` and `sensor.lran_gatelink_pv_voltage_v`. Each is the
 raw mV value ÷ 1000, rounded to two decimals. §8.1 shows no current, so there is no A
-sensor. They are excluded from the recorder (§10), so they add no history rows. Graphs read
+sensor. They carry no device class. With `voltage`, HA suggests a display precision of
+0 and shows 13.31 V as 13 V, and the template schema rejects
+`suggested_display_precision`. They are excluded from the recorder (§10), so they add no history rows. Graphs read
 the raw sensors. A per-entity display-unit override in HA's registry would do the same, but
 a YAML copy does not carry it to production.
 
 ## 8. Dashboards
 
 Both dashboards use core cards only: `tile`, `entities`, `glance`, `gauge`,
-`history-graph`, `statistics-graph`, `logbook`, `conditional`, and `markdown`. Sections
+`history-graph`, `statistics-graph`, `logbook`, `conditional`, `markdown`, and `heading`
+for section titles. Sections
 view layout, so the Gate dashboard reflows to one column on a phone.
 
 ### 8.1 Gate (daily use, phone first)
@@ -321,15 +324,27 @@ From top to bottom:
 
 1. **Alert banners**, each a `conditional` card shown only while its condition holds: FIRE
    input asserted; vehicle while held open; hard-shutdown latch; GateLink unavailable;
-   charging inhibited; battery protection.
+   charging inhibited; battery protection. Each is an `ha-alert` in a text-only markdown
+   card. Charging inhibited reads GateLink's derived indication (R-6.4a), which still
+   reads while VE.Direct is stale.
 2. **Gate control.** A tile for the gate state, with the movement cause beneath. Buttons
    for Open, Close, Hold open and Release hold until F1 replaces them with the cover and
-   hold switch. Hold source shows only while the gate is held.
+   hold switch. Each button asks for confirmation, because a press is a relay pulse at the
+   gate. Hold source shows only while the gate is held.
 3. **Last vehicle.** Time and direction, and today's traversal count.
 4. **Power at a glance.** SOC gauge, pack voltage in V, PV power, net power, and the MPPT
    charge state.
-5. **Link chip.** `link_quality`, with `last_seen` as its secondary text. Tapping it opens
-   the LRAN Network view.
+5. **Link chip.** `link_quality` and `last_seen` as two half-width tiles. Tapping either
+   opens the LRAN Network view, at `/lran-detail/network`, so §8.2's Network view takes the
+   path `network`.
+
+**`last_seen` is a tile of its own, not the link tile's secondary text.** A tile shows only
+its own entity's state and attributes. Copying `last_seen` into an attribute of
+`link_quality` would write a recorder row at every publish, which §10 excludes `last_seen`
+to avoid.
+
+**The SOC gauge has no severity bands.** A gauge's bands are fixed numbers, and the SOC
+thresholds are helpers (§7.1), so the bands would drift from them.
 
 ### 8.2 LRAN (detail)
 
@@ -431,7 +446,7 @@ from the YAML.
 |---|---|---|---|
 | **H0** | Remove the `simnode_*` devices from the sandbox registry | — | No `simnode` entity in the sandbox registry. **Met 2026-10-25** (§4) |
 | **H1** | `core.yaml` and `templates.yaml`: helpers, event filter, notification script, derived sensors | H0 | A replayed event with the same key is dropped. A `synthetic: true` event is dropped. Email sends only with the switch on. **Met 2026-10-25** against the email stand-in; real SMTP is not verified (§7.3) |
-| **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then |
+| **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then. **Met 2026-10-25** with states forced through HA's REST API, not the broker |
 | **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data |
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone |
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold |
@@ -470,3 +485,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 |---|---|---|
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
 | 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |
+| 0.3 | 2026-10-25 | H2 done. §8.1's link chip is two tiles, so `last_seen` adds no recorder rows; the Network view's path is fixed as `network`. §8 adds the `heading` card. §7.4's V sensors drop their device class, which rounded them to whole volts |

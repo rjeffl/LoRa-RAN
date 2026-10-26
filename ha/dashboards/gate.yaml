@@ -1,0 +1,266 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The Gate dashboard (HA Integration Implementation Plan 8.1): daily use, phone first.
+# YAML mode, so this file is the source (plan 6); install it as
+# /config/dashboards/lran/gate.yaml. A sections view reflows to one column on a phone.
+#
+# The four command buttons stand in for the cover and hold switch until bridge task F1
+# (plan 5). When F1 lands, the Gate control section switches to them in the same change.
+
+title: Gate
+views:
+  - title: Gate
+    path: gate
+    icon: mdi:gate
+    type: sections
+    max_columns: 2
+    sections:
+      # Alert banners. Each shows only while its condition holds (plan 8.1, H2's acceptance).
+      # While GateLink is unavailable its binary sensors are too, so only that banner shows.
+      - type: grid
+        cards:
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_fire_input
+                state: "on"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="error" title="FIRE input asserted">The gate
+                operator reports a fire input.</ha-alert>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_vehicle_while_held_open
+                state: "on"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="error" title="Vehicle while held open">A vehicle
+                passed while the gate was held open.</ha-alert>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_hard_shutdown_latch
+                state: "on"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="error" title="Hard-shutdown latch">The gate operator
+                has latched a hard shutdown.</ha-alert>
+          # Every GateLink entity follows the node's availability topic (R-3.3d), so the
+          # gate state stands for all of them.
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: sensor.gatelink_gate
+                state: unavailable
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="warning" title="GateLink unavailable">The bridge is
+                not hearing GateLink. Gate state and commands are unavailable.</ha-alert>
+          # GateLink's derived indication (R-6.4a) rather than the BMS's own flag: it
+          # reads while VE.Direct is stale, and the BMS's flag is on the LRAN dashboard.
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_charging_inhibited
+                state: "on"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="warning" title="Charging inhibited">The pack is
+                not accepting charge.</ha-alert>
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_battery_protection
+                state: "on"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="warning" title="Battery protection">The BMS reports
+                a protection state.</ha-alert>
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Gate
+          - type: tile
+            entity: sensor.gatelink_gate
+            name: Gate
+            icon: mdi:gate
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: sensor.gatelink_movement_cause
+            name: Movement cause
+            grid_options:
+              columns: 12
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_held_open
+                state: "on"
+            card:
+              type: tile
+              entity: sensor.gatelink_hold_source
+              name: Held open by
+              icon: mdi:gate-open
+          # Each press is a relay pulse at the gate, so every button asks first. A button's
+          # state is the time of its last press, which says nothing here, so it is hidden.
+          - type: tile
+            entity: button.gatelink_open
+            name: Open
+            icon: mdi:gate-open
+            grid_options:
+              columns: 6
+            hide_state: true
+            tap_action: &press
+              action: perform-action
+              perform_action: button.press
+              target:
+                entity_id: button.gatelink_open
+              confirmation:
+                text: Open the gate?
+            icon_tap_action: *press
+          - type: tile
+            entity: button.gatelink_close
+            name: Close
+            icon: mdi:gate
+            grid_options:
+              columns: 6
+            hide_state: true
+            tap_action: &close
+              action: perform-action
+              perform_action: button.press
+              target:
+                entity_id: button.gatelink_close
+              confirmation:
+                text: Close the gate?
+            icon_tap_action: *close
+          - type: tile
+            entity: button.gatelink_hold_open
+            name: Hold open
+            icon: mdi:gate-arrow-right
+            grid_options:
+              columns: 6
+            hide_state: true
+            tap_action: &hold
+              action: perform-action
+              perform_action: button.press
+              target:
+                entity_id: button.gatelink_hold_open
+              confirmation:
+                text: Hold the gate open?
+            icon_tap_action: *hold
+          - type: tile
+            entity: button.gatelink_release_hold
+            name: Release hold
+            icon: mdi:gate-arrow-left
+            grid_options:
+              columns: 6
+            hide_state: true
+            tap_action: &release
+              action: perform-action
+              perform_action: button.press
+              target:
+                entity_id: button.gatelink_release_hold
+              confirmation:
+                text: Release the hold?
+            icon_tap_action: *release
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Last vehicle
+          - type: tile
+            entity: sensor.gatelink_last_vehicle
+            name: Time
+            icon: mdi:car
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.gatelink_last_direction
+            name: Direction
+            icon: mdi:swap-horizontal
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: counter.lran_gatelink_traversals_today
+            name: Traversals today
+            icon: mdi:counter
+            grid_options:
+              columns: 12
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Power
+          # No severity bands: the SOC thresholds are helpers (plan 7.1), and a gauge's
+          # bands are fixed numbers that would drift from them.
+          - type: gauge
+            entity: sensor.gatelink_battery
+            name: State of charge
+            min: 0
+            max: 100
+            grid_options:
+              columns: 12
+          - type: tile
+            entity: sensor.lran_gatelink_pack_voltage_v
+            name: Pack voltage
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.gatelink_pv_power
+            name: PV power
+            icon: mdi:solar-power
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.lran_gatelink_net_power
+            name: Net power
+            icon: mdi:battery-charging
+            grid_options:
+              columns: 6
+          - type: tile
+            entity: sensor.gatelink_mppt_charge_state
+            name: Charge state
+            icon: mdi:solar-power-variant
+            grid_options:
+              columns: 6
+
+      # The link chip. Plan 8.1 puts last_seen as link quality's secondary text, but a
+      # tile shows only its own entity's state and attributes. Copying last_seen into an
+      # attribute would write a recorder row at every publish, which plan 10 excludes
+      # last_seen to avoid, so the two sit side by side instead.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Link
+          - type: tile
+            entity: sensor.lran_gatelink_link_quality
+            name: Link quality
+            grid_options:
+              columns: 6
+            tap_action: &network
+              action: navigate
+              navigation_path: /lran-detail/network
+            icon_tap_action: *network
+          - type: tile
+            entity: sensor.gatelink_last_seen
+            name: Last heard
+            icon: mdi:clock-outline
+            grid_options:
+              columns: 6
+            tap_action: *network
+            icon_tap_action: *network

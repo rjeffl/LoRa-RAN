@@ -15,16 +15,15 @@ It replaces the previous file wholesale.
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H2.
+Continue from docs/ha/HANDOFF.md: task H3.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H2, H3 and H7 depend only on H1 and can run in any order.
+cited below as *plan*. H3 and H7 depend only on H1 and can run in any order.
 
 | Task | Read |
 |---|---|
-| **H2** Gate dashboard | Plan §8 and §8.1, §7.4's sensor table, §6's `lovelace` block; *Traps*, below |
-| **H3** LRAN dashboard | Plan §8.2, §4's entity table, §10 |
+| **H3** LRAN dashboard | Plan §8, §8.2, §4's entity table, §10, §6's `lovelace` block; `ha/dashboards/gate.yaml` as the pattern; *Traps*, below |
 | **H4** Tier 1 alerts | Plan §9.1, §7.2, §7.3, §3; *Traps*, below, before injecting any event |
 | **H7** Tier 4 reports | Plan §9.4 |
 
@@ -34,9 +33,10 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H2, the Gate dashboard**, as `ha/dashboards/gate.yaml`, installed in the sandbox under
-`/config/dashboards/lran/` with plan §6's `lovelace` block. It reads the derived sensors
-H1 made (plan §7.4), and the four command buttons stand in for the cover until F1.
+**H3, the LRAN dashboard**, as `ha/dashboards/lran.yaml`, with the four views of plan §8.2.
+Install it beside `gate.yaml` in `/config/dashboards/lran/` and add the `lran-detail` half
+of plan §6's `lovelace` block, which the sandbox does not have yet. The Network view's path
+must be `network`: the Gate dashboard's link tiles open `/lran-detail/network` (plan §8.1).
 
 ## What the last session established
 
@@ -47,6 +47,10 @@ H1 made (plan §7.4), and the four command buttons stand in for the cover until 
   or an event arriving over MQTT.
 - **Plan v0.2 fixed two v0.1 defects**: the filter key now carries the follow-up bit, and
   net power reads the pack.
+- **The Gate dashboard is installed and passes H2's acceptance** at a phone viewport, with
+  every banner condition forced through HA's REST API and restored (engineering log,
+  2026-10-25, H2). Plan v0.3 records the link chip as two tiles and the V sensors without a
+  device class.
 
 ## Read these, in this order
 
@@ -62,8 +66,8 @@ H1 made (plan §7.4), and the four command buttons stand in for the cover until 
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1 |
-| Queue | H2 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2 |
+| Queue | H3 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; nothing here reads ha/packages yet
@@ -74,6 +78,7 @@ to check its configuration before restarting:
 
 ```bash
 cp ha/packages/lran/core.yaml ha/packages/lran/templates.yaml /Volumes/config/packages/lran/
+cp ha/dashboards/gate.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
 curl -s -X POST -H "Authorization: Bearer $(cat ~/.lran_ha_token)" http://192.168.2.52:8123/api/config/core/check_config
 ```
 
@@ -115,6 +120,14 @@ those two targets changed, which plan §7.3 names.
   through `lran_0_seed_defaults` (plan §7.1).
 - **HA shows temperatures in the install's units**, °F on the sandbox. The thresholds are
   in °C (plan §7.1).
+- **`check_config` passes template keys the template reload rejects.** It passed
+  `suggested_display_precision`, and the reload then dropped every template sensor in the
+  package to `unavailable`. After a reload, check that the sensors are not `restored: true`.
+- **A sensor with a device class gets HA's suggested display precision**, 0 for V and W,
+  and the template schema has no key to override it (plan §7.4).
+- **To force a dashboard condition without the broker**, `POST /api/states/<entity>` with
+  the entity's current attributes. The next MQTT update overwrites it, so it never reaches
+  the soak. Restore what you forced.
 
 ## Open, and not closable from here
 
