@@ -254,3 +254,49 @@ thing about the alert.
 
 **Spec §8.9 gives BMS_ALARM's `detail` no meaning**, so the alert shows the raw value in
 hex. The bridge passes it through unnamed.
+
+## 2026-10-26 — Alert levels and the message catalog
+
+**The operator asked for two changes before H4b**: each alert switched on or off and set
+critical or not from the dashboard, and the text of every push and email in one file. They
+chose one selector per alert, `Off`, `Normal`, `High` or `Critical`; a YAML catalog; and
+for `Off`, a logbook entry with no push (plan §7.5, v0.6).
+
+**`ha/packages/lran/messages.yml` holds the text, and `alerts.yaml` now holds none.** Each
+automation passes its alert's name and the event's raw fields to `lran_notify`, which reads
+the catalog and the selector. The file is `.yml` because HA loads every `*.yaml` under
+`packages/lran/` as a package, recursively; `!include` does not care about the extension.
+
+**A bare `Off` in YAML is the boolean false.** The selector options and any `level: "Off"`
+in the catalog need the quotes. `tools/checks/ha_messages.py` fails on an unquoted one,
+and on an alert with no entry, an entry with a level and no selector, and a placeholder
+its automation does not pass.
+
+**The levels seed through a flag of their own**, `lran_alert_levels_seeded`, because the
+sandbox's `lran_defaults_seeded` was already on and its seed would never run again.
+After the restart at about 16:56, all six selectors read their catalog levels.
+
+**Verified on the sandbox by calling `script.lran_notify` directly**, with no MQTT
+publish, so the GateLink soak saw nothing:
+
+| Call | Result |
+|---|---|
+| `vehicle_while_held` at `Off`, `direction` `undetermined` | No push. Logbook: "Vehicle at the gate while held open (alert off, not pushed): A vehicle passed while the gate was held open (hold source: manual)." |
+| `bms_alarm` at `Normal`, `detail` `0x0012` | One ordinary push through `lran_site_push`; no email |
+| An alert with no entry, `severity` `low` | Logged under its bare name; nothing withheld, nothing pushed |
+| `fire` at `Off` | Finished with no push |
+| *Restore default levels* | Every selector back at its catalog level |
+
+The Alerts card's warning renders "Hard shutdown sends no push or email. The logbook still
+records it." with that alert at `Off`, checked through the template engine. **The card was
+not seen rendered**: ha-mcp's screenshot of `lran-maintenance` returned HA's home page,
+which is what a non-admin user gets for an admin-only dashboard. Puppet's user is
+presumably not an admin. **The automations were not driven end to end** since the change,
+because that needs an MQTT publish the soak would see. `ha_messages.py` checks the fields
+each one passes; H4b's offline run drives two of them for real.
+
+**Optional script fields need `| default`.** HA logs a template warning for every
+undefined variable, so `actions`, unset on every call, had been logging one per alert since
+H1. `lran_notify` now defaults each optional field once, in its variables.
+
+**Later the same day the operator opened the Alerts card and confirmed it renders.**

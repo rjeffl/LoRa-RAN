@@ -66,6 +66,45 @@ views:
               **Close immediately**, **restore defaults** and **BMS polling** arrive with
               bridge task F2 (plan 5).
 
+      # Second, beside GateLink state, because an alert left Off is the one setting here
+      # that hides a fault rather than shows one (plan 7.5).
+      - type: grid
+        cards:
+          - type: heading
+            heading: Alerts
+          # Names every alert set to Off, so one left off after bench work is seen.
+          - type: markdown
+            text_only: true
+            content: >-
+              {% set off = states.input_select
+                 | selectattr('entity_id', 'match', 'input_select.lran_alert_')
+                 | selectattr('state', 'eq', 'Off') | map(attribute='name') | list %}
+              {% if off %}<ha-alert alert-type="warning" title="Alerts off">{{ off | join(', ') }}
+              {{ 'sends' if off | count == 1 else 'send' }} no push or email. The logbook
+              still records {{ 'it' if off | count == 1 else 'them' }}.</ha-alert>{% endif %}
+          - type: entities
+            entities:
+              - entity: input_select.lran_alert_fire
+              - entity: input_select.lran_alert_vehicle_while_held
+              - entity: input_select.lran_alert_hard_shutdown
+              - entity: input_select.lran_alert_bms_alarm
+              - entity: input_select.lran_alert_gatelink_offline
+              - entity: input_select.lran_alert_bridge_offline
+              - type: divider
+              - entity: input_boolean.lran_alerts_muted
+                name: Mute normal and low alerts
+              - entity: input_boolean.lran_email_enabled
+                name: Email alerts
+              - entity: script.lran_alert_levels_default
+                name: Restore default levels
+                action_name: Restore
+          - type: markdown
+            content: >-
+              **Off** logs only. **Normal** pushes. **High** pushes as time-sensitive and
+              emails. **Critical** sounds through Do Not Disturb and emails. Muting never
+              silences FIRE or the held-open vehicle. The wording is in
+              `packages/lran/messages.yml`.
+
       - type: grid
         cards:
           - type: heading
@@ -113,10 +152,6 @@ views:
                 name: Held-open reminder
               - entity: input_number.lran_pack_capacity_ah
                 name: Pack capacity
-              - entity: input_boolean.lran_alerts_muted
-                name: Mute normal and low alerts
-              - entity: input_boolean.lran_email_enabled
-                name: Email alerts
 
       - type: grid
         cards:

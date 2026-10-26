@@ -2,7 +2,8 @@
 
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
-H3, when ha-mcp's dashboard screenshots came into use.**
+H3, when ha-mcp's dashboard screenshots came into use, and on 2026-10-26 after the alert
+levels and the message catalog.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -25,8 +26,8 @@ powered down (H4b). H5 needs H4. H7 depends only on H1, and H9 on H3.
 
 | Task | Read |
 |---|---|
-| **H4b** The two offline alerts | Plan §9.1 and its connectivity-sensor note; engineering log, 2026-10-26, H4; `ha/packages/lran/alerts.yaml` |
-| **H5** Tier 2 health | Plan §9.2, §7.1; *Traps*, below, before injecting any event |
+| **H4b** The two offline alerts | Plan §9.1 and its connectivity-sensor note, §7.5; engineering log, 2026-10-26, H4 and alert levels; `ha/packages/lran/alerts.yaml` |
+| **H5** Tier 2 health | Plan §9.2, §7.1, §7.5: each alert adds a selector and a `messages.yml` entry; *Traps*, below, before injecting any event |
 | **H7** Tier 4 reports | Plan §9.4 |
 | **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
 
@@ -42,6 +43,13 @@ the outage. Then unpower the bridge for 5 minutes and check its push sends no em
 interrupt the GateLink soak, so agree the time with the operator. Restore the delay to 10.
 
 ## What the last session established
+
+- **Every alert has a level selector and its text in `messages.yml`** (plan §7.5;
+  engineering log, 2026-10-26, alert levels). The Maintenance dashboard's *Alerts* card
+  sets `Off`, `Normal`, `High` or `Critical` per alert. `lran_notify` was verified by direct
+  calls; **the automations have not been driven end to end since the change**, and H4b's
+  offline run is the first that does. `tools/checks/ha_messages.py` is the first CI check
+  that reads `ha/packages/`.
 
 - **The four Tier 1 event alerts are installed and verified** with events injected through
   ha-mcp's `mqtt.publish`, `ctx_id` 4294967295 (engineering log, 2026-10-26, H4). The
@@ -99,7 +107,7 @@ it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the RES
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
 
 ```bash
-cp ha/packages/lran/core.yaml ha/packages/lran/templates.yaml /Volumes/config/packages/lran/
+cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml messages.yml /Volumes/config/packages/lran/ && cd -
 cp ha/dashboards/gate.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
 ```
 
@@ -187,8 +195,12 @@ those two targets changed, which plan §7.3 names.
   injects the event (H4). A banner check, or an alert on a sensor's state (H5), needs
   either a token on this machine or another way to force a state, for example an
   `input_boolean` override in a test-only package. The operator chooses which.
-- **No CI check reads `ha/packages/`.** H9's `check_entities.py` needs a live HA. A YAML
-  syntax check in the checks job would catch a broken file before the sandbox does.
+- **Only `ha_messages.py` reads `ha/packages/` in CI**, and only the alert catalog. H9's
+  `check_entities.py` needs a live HA. A YAML syntax check in the checks job would catch a
+  broken file before the sandbox does.
+- **ha-mcp cannot render `lran-maintenance`.** Its screenshot returns HA's home page,
+  which is what a non-admin user gets for an admin-only dashboard. Making Puppet's user an
+  admin would fix it; whether to is the operator's call.
 - **The `write-clearly` skill is not installed on the Mac**, though CLAUDE.md requires it
   for every prose change. H3's prose was written without it.
 - **Puppet on production** is a decision for H10: its port takes no authentication, and
