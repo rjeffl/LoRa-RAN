@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.3
+**Version:** 0.4
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25
-**Last updated:** 2026-10-25
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26
+**Last updated:** 2026-10-26
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -54,7 +54,7 @@ together with the entities. The bridge handoff asked for this plan before GL8.
 
 | Question | Choice |
 |---|---|
-| Dashboard layout | **Two dashboards.** *Gate* for daily use; *LRAN* with Power, Network, Events and Maintenance views |
+| Dashboard layout | **Two dashboards.** *Gate* for daily use; *LRAN* with Power, Network, Events and Maintenance views. On 2026-10-26 the operator moved Maintenance to a third, admin-only dashboard, because HA cannot gate a view (§8.2) |
 | Card set | **Core cards only.** Nothing to install on production, and no HACS dependency to keep current |
 | Gate control entity | **Fix it in the bridge.** Discovery publishes the D8 `cover` and hold `switch` (§5, task F1). Dashboards use the four command buttons until F1 lands |
 | Automation tiers | **All five:** alerts, health, reminders, reports, convenience (§9) |
@@ -143,7 +143,8 @@ ha/
     site.yaml.example   the per-install values: push and email scripts, SMTP, recorder, zones
   dashboards/
     gate.yaml           the Gate dashboard (§8.1)
-    lran.yaml           the LRAN dashboard (§8.2)
+    lran.yaml           the LRAN dashboard: Power, Network, Events (§8.2)
+    lran-maintenance.yaml  its Maintenance view, admin only (§8.2)
 tools/ha/
   check_entities.py     every entity ID the YAML names exists in a live HA (H9)
 ```
@@ -170,6 +171,13 @@ lovelace:
       icon: mdi:radio-tower
       show_in_sidebar: true
       require_admin: false
+    lran-maintenance:
+      mode: yaml
+      filename: dashboards/lran/lran-maintenance.yaml
+      title: LRAN maintenance
+      icon: mdi:tune-variant
+      show_in_sidebar: true
+      require_admin: true
 ```
 
 **YAML-mode dashboards, so the repository is the source.** A dashboard edited in the UI on
@@ -253,7 +261,8 @@ old one. The list holds fewer than eight only when the keys are long enough to o
 `message`, `tag`, and optional `follow_up` and `actions`. Automations call it and never
 call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
 `lran_site_email` (§6), so the channels change in one place. Every severity that is not
-muted also writes a logbook entry.
+muted also writes a logbook entry, logged against `script.lran_notify` so the Events
+view's logbook card, which lists entities, can show it (§8.2).
 
 | Severity | Push | Email | Muted by `lran_alerts_muted` |
 |---|---|---|---|
@@ -289,6 +298,7 @@ is unavailable, as System PRD §6.2 requires.
 | `sensor.lran_gatelink_autonomy_days` | SOC × `lran_pack_capacity_ah`, over the mean daily draw across the days the 7-day window covers. Unavailable until it covers a day. **An estimate**, labelled as one on the card |
 | `sensor.lran_gatelink_link_quality` | `poor` at 3 or more missed polls or SNR below −10 dB; `marginal` at 1 or more or below −5 dB; otherwise `good`. For the Gate dashboard's status chip |
 | `sensor.lran_gatelink_enclosure_temp_max_24h`, `_min_24h` | The `statistics` integration over 24 h |
+| `sensor.lran_gatelink_traversals` | The traversal counter's value, with `state_class: total_increasing`, so the Events view's 30 d chart has statistics to read (§8.2). The midnight reset reads as a new cycle |
 
 **Net power and the draw read the pack, not the MPPT's load output.** v0.1 had net power
 as PV power − pack voltage × load current. The gate controller and GateLink hang on the
@@ -354,6 +364,22 @@ thresholds are helpers (§7.1), so the bands would drift from them.
 | **Network** | Bridge frames received, transmitted and discarded. GateLink RSSI, SNR, missed polls and last seen, with 7 d history. PHY settings, protocol version, unsupported-version flag. Firmware version, commit and OTA slot. BMS BLE RSSI as a 30 d statistics graph, which is the trend M23 reads. WellLink rows, unavailable until it is deployed |
 | **Events** | A `logbook` card of LRAN events and gate state changes. Traversals per day for 30 d. Node boots with their reset cause, which is how a boot loop shows (spec §8.14) |
 | **Maintenance** | `require_admin`. The configuration `number` entities, grouped by node and by subsystem. The deployed, dry-run, buzzer and MPPT write-enable switches. Request status and request configuration. The MPPT configuration readback. Configuration persisted, shown first, because `off` means the node is running unsaved settings |
+
+**Maintenance is a dashboard of its own, `lran-maintenance`, because it is admin only.** HA
+gates a dashboard with `require_admin` and has no equivalent for a view. A view's only
+gate is a `visible` list of user IDs, which differ on every install and so would not
+survive the copy to production. The other three views stay in `lran-detail`. The
+operator chose this on 2026-10-26.
+
+**Traversals per day come from `sensor.lran_gatelink_traversals`** (§7.4). The counter has
+no state class, so HA keeps no long-term statistics for it, and its recorder history ends at
+`purge_keep_days`. **A node's reset cause reaches the Events view through the logbook**:
+`lran_2_node_boot` (§9.2) logs it, and the Events view charts boots per day from
+`sensor.gatelink_boot_count`. The logbook card lists entities, so `script.lran_notify`
+logs each entry against itself (§7.3).
+
+**The four command buttons are not on the LRAN dashboard.** Each press is a relay pulse at
+the gate, and the Gate dashboard already carries them, each behind a confirmation.
 
 **The Maintenance view carries an MPPT write-enable warning.** Charge-controller writes
 are a battery-affecting path (GateLink PRD **S-11**). The switch shows with a markdown card
@@ -447,7 +473,7 @@ from the YAML.
 | **H0** | Remove the `simnode_*` devices from the sandbox registry | — | No `simnode` entity in the sandbox registry. **Met 2026-10-25** (§4) |
 | **H1** | `core.yaml` and `templates.yaml`: helpers, event filter, notification script, derived sensors | H0 | A replayed event with the same key is dropped. A `synthetic: true` event is dropped. Email sends only with the switch on. **Met 2026-10-25** against the email stand-in; real SMTP is not verified (§7.3) |
 | **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then. **Met 2026-10-25** with states forced through HA's REST API, not the broker |
-| **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data |
+| **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data. **Met 2026-10-26**, with the Maintenance view a dashboard of its own (§8.2) |
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone |
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold |
 | **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**) |
@@ -485,4 +511,5 @@ H6 and H8 switch to the cover and hold switch in the same change.
 |---|---|---|
 | 0.1 | 2026-10-25 | First draft. Operator choices recorded in §2, including units and no SMS; the sandbox survey in §4; bridge gaps F1–F3; tasks H0–H10 |
 | 0.2 | 2026-10-25 | H0 and H1 done. §7.2's key carries the follow-up bit, which v0.1's would have dropped, and the filter is a script. §7.4's net power and draw read the pack, by operator choice, because the loads are on the battery bus. Defaults seeded once (§7.1); site scripts (§6); link-quality thresholds stated |
+| 0.4 | 2026-10-26 | H3 done. §8.2's Maintenance view is its own admin-only dashboard, `lran-maintenance`, because HA gates dashboards, not views (§6). §7.4 adds `sensor.lran_gatelink_traversals` for the 30 d traversal chart. §7.3's logbook entries name `script.lran_notify`, so the Events view's logbook card can list them |
 | 0.3 | 2026-10-25 | H2 done. §8.1's link chip is two tiles, so `last_seen` adds no recorder rows; the Network view's path is fixed as `network`. §8 adds the `heading` card. §7.4's V sensors drop their device class, which rounded them to whole volts |

@@ -142,3 +142,70 @@ route. The handoff's *Open* records the choice.
 **`ha_config_set_dashboard` writes storage-mode dashboards only**, so the LRAN dashboards
 stay YAML files copied over Samba. Editing one through ha-mcp would leave the repository
 and production behind.
+
+## 2026-10-26 — H3, the LRAN dashboard
+
+**HA cannot make a single view admin only, so Maintenance became a dashboard of its own.**
+Plan §8.2 asked for a `require_admin` Maintenance view. `require_admin` belongs to a
+dashboard's entry in the `lovelace` block. A view's only gate is `visible`, a list of user
+IDs, and a card's `visibility` conditions have a `user` condition but none for "is an
+admin". User IDs differ per install, so a list would break at the copy to production. The
+operator chose a third YAML dashboard, `lran-maintenance`, with `require_admin: true`. The
+other three views stay in `lran-detail`, so `/lran-detail/network` still resolves for the
+Gate dashboard's link tiles. Plan v0.4 records the change.
+
+**A counter keeps no long-term statistics.** `counter.lran_gatelink_traversals_today` has
+no `state_class`, so a 30 d traversal chart could only read recorder history, which ends at
+`purge_keep_days` (10 on the sandbox). `sensor.lran_gatelink_traversals` mirrors the counter
+with `state_class: total_increasing`. The midnight reset reads as a new cycle, and a
+statistics graph of daily `change` gives traversals per day.
+
+**`logbook.log` with no `entity_id` does not reach an entity-filtered logbook card.** The
+card takes `entities` or `target`, and the Events view lists entities. `script.lran_notify`
+now logs each entry against itself, so listing that script brings in every LRAN alert.
+
+**Coverage was checked against the live registry rather than plan §4's prose.** A template
+listed 168 `sensor`, `binary_sensor`, `button`, `switch`, `number`, `select` and `counter`
+entities matching `gatelink`, `lora_bridge`, `welllink` or `lran`, including 55 `number`
+entities, which matches §4's count. Each one is on one of the three dashboards. Two stay off
+the LRAN dashboards: the four command buttons, which pulse the relay and are on the Gate
+dashboard behind confirmations, and the rescaled V sensors, which only the Gate dashboard
+reads. `binary_sensor.gatelink_synthetic_data` and `sensor.gatelink_boot_count` are live
+but not in §4. Both are on the dashboards: synthetic data on the Network view, boot count
+as the Events view's boots per day.
+
+**Every statistics graph has data to read, but the cards were not seen rendered.** A
+statistics query through ha-mcp (`ha_get_history(source="statistics")`, 30 d, daily)
+returned rows for each graphed entity: SOC 8 days, enclosure temperature 19, yield total 9,
+BMS BLE RSSI 8, boot count 3, and the new traversals sensor 1, from the restart onward. HA
+parsed all three dashboards as written (`ha_config_get_dashboard`). Rendering was not
+checked: the browser pane stops at HA's sign-in page, and ha-mcp's dashboard screenshot is
+a beta feature that is off on the sandbox. The operator's own look at the dashboards is
+the render check.
+
+**The sandbox's yield total carries two bench jumps**, 123.45 kWh and 118.78 kWh, each in a
+single day. A 100 Ah pack at 13 V holds about 1.3 kWh, so neither is a real day's yield. They
+show as two tall bars on the Daily yield chart until they age out of the 30 d window.
+Production's statistics will not have them.
+
+## 2026-10-26 — H3's render check, and ha-mcp's dashboard screenshots
+
+**The operator confirmed H3's render**, viewing the three dashboards themselves. That closes
+the one part of H3's acceptance the entry above left unchecked.
+
+**ha-mcp can now screenshot a dashboard on the sandbox.** The operator turned on ha-mcp's
+two beta flags and installed Puppet, the renderer ha-mcp drives. The flags are in the app's
+web UI under *Server Settings*, not on its *Configuration* tab; ha-mcp's `docs/beta.md` has
+the steps. Puppet is app `0f1cc410_puppet`, 2.6.0, from
+`https://github.com/balloob/home-assistant-addons`, and holds a long-lived token of its own.
+`ha_config_get_dashboard(url_path="lran-detail", view_path="events",
+include_screenshot=True)` returned a 1280×800 render of the Events view in the same session,
+with no reconnect of the MCP server. The logbook card showed the GateLink entities' entries.
+
+**A render is one viewport, not the whole page.** The 1280×800 capture cut off below the
+first row of statistics graphs. A check of a lower card needs a taller viewport or a narrower
+view.
+
+**Puppet's port 10000 takes no authentication**, so anyone on the sandbox's network can pull
+a signed-in render through it (ha-mcp `docs/beta.md`). It is acceptable on the sandbox's
+LAN. Whether production gets Puppet is a decision for H10.

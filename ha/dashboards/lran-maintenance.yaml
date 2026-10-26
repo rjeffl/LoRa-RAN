@@ -1,0 +1,275 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The LRAN Maintenance dashboard (HA Integration Implementation Plan 8.2): configuration,
+# switches and the MPPT readback. YAML mode, so this file is the source (plan 6); install
+# it as /config/dashboards/lran/lran-maintenance.yaml.
+#
+# A dashboard of its own, not a view of lran.yaml, because plan 8.2 makes it admin only
+# and HA gates by dashboard (require_admin in the lovelace block), not by view. A view's
+# only gate is a list of user IDs, which differ on every install (engineering log,
+# 2026-10-26).
+
+title: LRAN maintenance
+views:
+  - title: Maintenance
+    path: maintenance
+    icon: mdi:tune-variant
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: GateLink state
+          # First, because off means the node is running settings it has not saved
+          # (plan 8.2), and a power cycle would lose them.
+          - type: conditional
+            conditions:
+              - condition: state
+                entity: binary_sensor.gatelink_configuration_persisted
+                state: "off"
+            card:
+              type: markdown
+              text_only: true
+              content: >-
+                <ha-alert alert-type="warning" title="Configuration not persisted">GateLink
+                is running settings it has not saved. A power cycle loses them.</ha-alert>
+          - type: entities
+            entities:
+              - entity: binary_sensor.gatelink_configuration_persisted
+                name: Configuration persisted
+              - entity: binary_sensor.gatelink_relay_dry_run
+                name: Relay dry run
+              - entity: switch.gatelink_deployed
+                name: Deployed
+              - entity: switch.gatelink_buzzer_enable
+                name: Buzzer
+              - entity: button.gatelink_request_status
+                name: Request status
+              - entity: button.gatelink_request_configuration
+                name: Request configuration
+          # Charge-controller writes are a battery-affecting path (GateLink PRD S-11), so
+          # the switch sits under a statement of that.
+          - type: markdown
+            text_only: true
+            content: >-
+              <ha-alert alert-type="warning" title="MPPT writes">Turning this on lets the
+              bridge write the charge controller's configuration. A wrong value can damage
+              the pack (GateLink PRD S-11).</ha-alert>
+          - type: entities
+            entities:
+              - entity: switch.gatelink_mppt_write_enable
+                name: MPPT write enable
+          - type: markdown
+            content: >-
+              **Close immediately**, **restore defaults** and **BMS polling** arrive with
+              bridge task F2 (plan 5).
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: MPPT configuration
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_system_voltage_setting
+                name: System voltage
+              - entity: sensor.gatelink_battery_type
+                name: Battery type
+              - entity: sensor.gatelink_maximum_charge_current
+                name: Maximum charge current
+              - entity: sensor.gatelink_absorption_voltage
+                name: Absorption voltage
+              - entity: sensor.gatelink_absorption_time_limit
+                name: Absorption time limit
+              - entity: sensor.gatelink_float_voltage
+                name: Float voltage
+              - entity: sensor.gatelink_equalisation_voltage
+                name: Equalisation voltage
+              - entity: sensor.gatelink_automatic_equalisation
+                name: Automatic equalisation
+              - entity: sensor.gatelink_temperature_compensation
+                name: Temperature compensation
+              - entity: sensor.gatelink_low_temperature_charge_cut_off
+                name: Low-temperature charge cut-off
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: LRAN thresholds
+          - type: entities
+            entities:
+              - entity: input_number.lran_soc_warn_pct
+                name: SOC warning
+              - entity: input_number.lran_soc_alarm_pct
+                name: SOC alarm
+              - entity: input_number.lran_cell_spread_warn_mv
+                name: Cell spread warning
+              - entity: input_number.lran_enclosure_temp_warn_c
+                name: Enclosure temperature warning (°C)
+              - entity: input_number.lran_offline_warn_min
+                name: Offline warning
+              - entity: input_number.lran_held_open_reminder_h
+                name: Held-open reminder
+              - entity: input_number.lran_pack_capacity_ah
+                name: Pack capacity
+              - entity: input_boolean.lran_alerts_muted
+                name: Mute normal and low alerts
+              - entity: input_boolean.lran_email_enabled
+                name: Email alerts
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Bridge configuration
+          - type: entities
+            title: Radio
+            entities:
+              - entity: number.lora_bridge_freq_hz
+                name: Frequency
+              - entity: number.lora_bridge_spreading_factor
+                name: Spreading factor
+              - entity: select.lora_bridge_bandwidth_khz
+                name: Bandwidth
+              - entity: number.lora_bridge_coding_rate_denominator
+                name: Coding rate 4/
+              - entity: number.lora_bridge_tx_power_dbm
+                name: TX power
+              - entity: number.lora_bridge_phy_trial_s
+                name: PHY trial window
+              - entity: number.lora_bridge_backoff_max_ms
+                name: Backoff max
+              - entity: number.lora_bridge_cad_retries
+                name: CAD retries
+          - type: entities
+            title: Link timing
+            entities:
+              - entity: number.lora_bridge_poll_reply_timeout_ms
+                name: Poll reply timeout
+              - entity: number.lora_bridge_missed_poll_threshold
+                name: Missed-poll threshold
+              - entity: number.lora_bridge_command_ack_timeout_ms
+                name: Command ACK timeout
+              - entity: number.lora_bridge_cmd_retries
+                name: Command retries
+              - entity: number.lora_bridge_config_ack_timeout_ms
+                name: Config ACK timeout
+              - entity: number.lora_bridge_config_readback_timeout_ms
+                name: Config readback timeout
+              - entity: number.lora_bridge_hex_rsp_timeout_ms
+                name: HEX response timeout
+              - entity: number.lora_bridge_frag_reassembly_timeout_ms
+                name: Fragment reassembly timeout
+              - entity: number.lora_bridge_error_min_interval_ms
+                name: Error minimum interval
+          - type: entities
+            title: Publishing and power
+            entities:
+              - entity: number.lora_bridge_republish_interval_s
+                name: Republish interval
+              - entity: number.lora_bridge_diag_interval_s
+                name: Diagnostics interval
+              - entity: number.lora_bridge_cell_mv_deadband
+                name: Cell voltage deadband
+              - entity: number.lora_bridge_bms_stale_s
+                name: BMS stale after
+              - entity: number.lora_bridge_charge_readback_interval_h
+                name: Charge readback interval
+              - entity: number.lora_bridge_mppt_write_arm_timeout_s
+                name: MPPT write arm timeout
+              - entity: switch.lora_bridge_simnode_diag_enable
+                name: Simnode diagnostics
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: GateLink configuration
+          - type: entities
+            title: Link
+            entities:
+              - entity: number.gatelink_poll_interval_s
+                name: Poll interval
+              - entity: number.gatelink_backoff_max_ms
+                name: Backoff max
+              - entity: number.gatelink_cad_retries
+                name: CAD retries
+              - entity: number.gatelink_dedup_cache_depth
+                name: Dedup cache depth
+              - entity: number.gatelink_frag_reassembly_timeout_ms
+                name: Fragment reassembly timeout
+              - entity: number.gatelink_post_wake_settle_ms
+                name: Post-wake settle
+              - entity: number.gatelink_watchdog_timeout_s
+                name: Watchdog timeout
+              - entity: number.gatelink_display_timeout_s
+                name: Display timeout
+          - type: entities
+            title: Gate and relay
+            entities:
+              - entity: number.gatelink_relay_pulse_ms
+                name: Relay pulse
+              - entity: number.gatelink_relay_min_spacing_ms
+                name: Relay minimum spacing
+              - entity: number.gatelink_hold_confirm_ms
+                name: Hold confirm
+              - entity: number.gatelink_unlock_settle_ms
+                name: Unlock settle
+              - entity: number.gatelink_command_confirm_timeout_s
+                name: Command confirm timeout
+              - entity: number.gatelink_cause_window_ms
+                name: Cause window
+              - entity: number.gatelink_detect_sequence_idle_ms
+                name: Detect sequence idle
+              - entity: number.gatelink_detect_sequence_window_ms
+                name: Detect sequence window
+              - entity: number.gatelink_input_poll_ms
+                name: Input poll
+              - entity: number.gatelink_input_debounce_samples
+                name: Input debounce samples
+              - entity: number.gatelink_held_open_alert_repeat_s
+                name: Held-open alert repeat
+              - entity: number.gatelink_inject_spacing_ms
+                name: Inject spacing
+          - type: entities
+            title: Power
+            entities:
+              - entity: number.gatelink_bms_poll_s
+                name: BMS poll
+              - entity: number.gatelink_bms_window_max_ms
+                name: BMS window max
+              - entity: number.gatelink_vedirect_stale_s
+                name: VE.Direct stale after
+              - entity: number.gatelink_hex_timeout_ms
+                name: HEX timeout
+              - entity: number.gatelink_charge_inhibit_band_ma
+                name: Charge-inhibit band
+              - entity: number.gatelink_charge_inhibit_rise_mv
+                name: Charge-inhibit rise
+              - entity: number.gatelink_charge_inhibit_confirm_s
+                name: Charge-inhibit confirm
+              - entity: number.gatelink_charge_inhibit_temp_c
+                name: Charge-inhibit temperature
+
+      # Unavailable until WellLink is deployed.
+      - type: grid
+        cards:
+          - type: heading
+            heading: WellLink configuration
+          - type: entities
+            entities:
+              - entity: switch.welllink_deployed
+                name: Deployed
+              - entity: button.welllink_request_status
+                name: Request status
+              - entity: button.welllink_request_configuration
+                name: Request configuration
+              - entity: number.welllink_poll_interval_s
+                name: Poll interval
+              - entity: number.welllink_backoff_max_ms
+                name: Backoff max
+              - entity: number.welllink_cad_retries
+                name: CAD retries
+              - entity: number.welllink_dedup_cache_depth
+                name: Dedup cache depth
+              - entity: number.welllink_frag_reassembly_timeout_ms
+                name: Fragment reassembly timeout

@@ -110,6 +110,18 @@ template:
         availability: "{{ has_value('sensor.gatelink_pv_voltage') }}"
         state: "{{ (states('sensor.gatelink_pv_voltage') | float / 1000) | round(2) }}"
 
+      # The traversal counter as a sensor with a state class, so HA keeps long-term
+      # statistics for it and the Events view can chart traversals per day for 30 d
+      # (plan 8.2). A counter has no state class, and the recorder's own history ends at
+      # purge_keep_days. total_increasing reads the midnight reset as a new cycle, so a
+      # day's "change" is that day's count.
+      - name: LRAN GateLink traversals
+        unique_id: lran_gatelink_traversals
+        state_class: total_increasing
+        icon: mdi:car-arrow-right
+        availability: "{{ has_value('counter.lran_gatelink_traversals_today') }}"
+        state: "{{ states('counter.lran_gatelink_traversals_today') | int }}"
+
 sensor:
   # mAh drawn, cumulative. max_sub_interval advances it while the draw holds steady,
   # because the source updates only when its value changes.

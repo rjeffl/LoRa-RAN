@@ -1,0 +1,450 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# The LRAN dashboard (HA Integration Implementation Plan 8.2): the detail behind the Gate
+# dashboard. YAML mode, so this file is the source (plan 6); install it as
+# /config/dashboards/lran/lran.yaml.
+#
+# Three views here; the fourth, Maintenance, is lran-maintenance.yaml, because it is
+# admin only and HA gates by dashboard. Every entity plan 4 lists appears on one of the
+# two, apart from the four command buttons, which stay on the Gate dashboard: each press
+# is a relay pulse at the gate (H3's acceptance).
+#
+# Graphs read the raw mV and mA sensors, not the rescaled V sensors, which the recorder
+# excludes (plan 10). Graphs beyond 10 days are statistics-graph cards: they read
+# long-term statistics, and the recorder's history ends at purge_keep_days (plan 10).
+
+title: LRAN
+views:
+  - title: Power
+    path: power
+    icon: mdi:battery-charging
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Battery
+          # No severity bands, as on the Gate dashboard: the SOC thresholds are helpers
+          # (plan 7.1), and fixed bands would drift from them.
+          - type: gauge
+            entity: sensor.gatelink_battery
+            name: State of charge
+            min: 0
+            max: 100
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_pack_voltage
+                name: Pack voltage
+              - entity: sensor.gatelink_pack_current
+                name: Pack current
+              - entity: sensor.lran_gatelink_net_power
+                name: Net power
+              - entity: sensor.gatelink_battery_cycles
+                name: Cycles
+              - entity: sensor.gatelink_charge_drawn_since_charging
+                name: Drawn since charging
+              - entity: sensor.gatelink_bms_reading_age
+                name: BMS reading age
+          - type: entities
+            title: Cells
+            entities:
+              - entity: sensor.gatelink_cell_1_voltage
+                name: Cell 1
+              - entity: sensor.gatelink_cell_2_voltage
+                name: Cell 2
+              - entity: sensor.gatelink_cell_3_voltage
+                name: Cell 3
+              - entity: sensor.gatelink_cell_4_voltage
+                name: Cell 4
+              - entity: sensor.lran_gatelink_cell_spread
+                name: Spread
+          # Both charge-inhibit flags: GateLink's derived indication (R-6.4a), which the
+          # Gate dashboard's banner reads, and the BMS's own.
+          - type: entities
+            title: Protection
+            entities:
+              - entity: binary_sensor.gatelink_battery_protection
+                name: Battery protection
+              - entity: binary_sensor.gatelink_charging_inhibited
+                name: Charging inhibited (GateLink)
+              - entity: binary_sensor.gatelink_charging_inhibited_bms
+                name: Charging inhibited (BMS)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Solar
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_pv_power
+                name: PV power
+              - entity: sensor.gatelink_pv_voltage
+                name: PV voltage
+              - entity: sensor.gatelink_solar_yield_today
+                name: Yield today
+              - entity: sensor.gatelink_solar_yield_total
+                name: Yield total
+              - entity: sensor.gatelink_mppt_charge_state
+                name: Charge state
+              - entity: sensor.gatelink_mppt_error
+                name: Charger error
+              - entity: sensor.gatelink_battery_voltage_mppt
+                name: Battery voltage (MPPT)
+              - entity: sensor.gatelink_battery_current_mppt
+                name: Battery current (MPPT)
+              - entity: sensor.gatelink_load_current
+                name: Load output current
+          - type: entities
+            title: Consumption
+            entities:
+              - entity: sensor.lran_gatelink_draw_current
+                name: Draw current
+              - entity: sensor.lran_gatelink_draw_7d
+                name: Drawn, last 7 days
+              - entity: sensor.lran_gatelink_draw
+                name: Drawn, cumulative
+              # An estimate (plan 7.4), and unavailable until the 7-day window covers a day.
+              - entity: sensor.lran_gatelink_autonomy_days
+                name: Autonomy (estimate)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Temperatures
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+              - entity: sensor.lran_gatelink_enclosure_temp_max_24h
+                name: Enclosure, 24 h max
+              - entity: sensor.lran_gatelink_enclosure_temp_min_24h
+                name: Enclosure, 24 h min
+              - entity: sensor.gatelink_mppt_temperature
+                name: MPPT
+              - entity: sensor.gatelink_node_supply_voltage
+                name: Node supply voltage
+          # R-4.5b asks for all three temperature sources; the pack's is the F2 gap (plan 5).
+          - type: markdown
+            content: >-
+              **Pack temperatures** arrive with bridge task F2 (plan 5).
+
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: Last 24 hours and 7 days
+          - type: history-graph
+            title: 24 hours
+            hours_to_show: 24
+            entities: &power_history
+              - entity: sensor.gatelink_battery
+                name: SOC
+              - entity: sensor.gatelink_pack_voltage
+                name: Pack voltage
+              - entity: sensor.gatelink_pack_current
+                name: Pack current
+              - entity: sensor.gatelink_pv_power
+                name: PV power
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+            grid_options:
+              columns: 12
+          - type: history-graph
+            title: 7 days
+            hours_to_show: 168
+            entities: *power_history
+            grid_options:
+              columns: 12
+
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: Long term
+          - type: statistics-graph
+            title: State of charge, 30 days
+            entities:
+              - entity: sensor.gatelink_battery
+                name: SOC
+            chart_type: line
+            period: day
+            days_to_show: 30
+            stat_types: [min, mean, max]
+            grid_options:
+              columns: 12
+          - type: statistics-graph
+            title: State of charge, 1 year
+            entities:
+              - entity: sensor.gatelink_battery
+                name: SOC
+            chart_type: line
+            period: week
+            days_to_show: 365
+            stat_types: [min, mean, max]
+            grid_options:
+              columns: 12
+          - type: statistics-graph
+            title: Enclosure temperature, 30 days
+            entities:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+            chart_type: line
+            period: day
+            days_to_show: 30
+            stat_types: [min, mean, max]
+            grid_options:
+              columns: 12
+          - type: statistics-graph
+            title: Enclosure temperature, 1 year
+            entities:
+              - entity: sensor.gatelink_enclosure_temperature
+                name: Enclosure
+            chart_type: line
+            period: week
+            days_to_show: 365
+            stat_types: [min, mean, max]
+            grid_options:
+              columns: 12
+          # The total's daily change rather than yield today's: the total only rises, so
+          # a missed midnight reset cannot double-count a day.
+          - type: statistics-graph
+            title: Daily yield, 30 days
+            entities:
+              - entity: sensor.gatelink_solar_yield_total
+                name: Yield
+            chart_type: bar
+            period: day
+            days_to_show: 30
+            stat_types: [change]
+            grid_options:
+              columns: 12
+          - type: statistics-graph
+            title: Monthly yield, 1 year
+            entities:
+              - entity: sensor.gatelink_solar_yield_total
+                name: Yield
+            chart_type: bar
+            period: month
+            days_to_show: 365
+            stat_types: [change]
+            grid_options:
+              columns: 12
+
+  # The Gate dashboard's link tiles open /lran-detail/network (plan 8.1), so this path is
+  # fixed.
+  - title: Network
+    path: network
+    icon: mdi:radio-tower
+    type: sections
+    max_columns: 3
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Bridge
+          - type: entities
+            entities:
+              - entity: sensor.lora_bridge_frames_received
+                name: Frames received
+              - entity: sensor.lora_bridge_frames_transmitted
+                name: Frames transmitted
+              - entity: sensor.lora_bridge_frames_discarded
+                name: Frames discarded
+              - type: section
+                label: Firmware
+              - entity: sensor.lora_bridge_firmware_version
+                name: Version
+              - entity: sensor.lora_bridge_firmware_commit
+                name: Commit
+              - entity: sensor.lora_bridge_ota_slot
+                name: OTA slot
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: GateLink
+          - type: entities
+            entities:
+              - entity: sensor.lran_gatelink_link_quality
+                name: Link quality
+              - entity: sensor.gatelink_rssi
+                name: RSSI
+              - entity: sensor.gatelink_snr
+                name: SNR
+              - entity: sensor.gatelink_missed_polls
+                name: Missed polls
+              - entity: sensor.gatelink_last_seen
+                name: Last heard
+              - entity: sensor.gatelink_protocol_version
+                name: Protocol version
+              - entity: sensor.gatelink_unsupported_version_seen
+                name: Unsupported version seen
+              - entity: binary_sensor.gatelink_synthetic_data
+                name: Synthetic data
+          - type: entities
+            title: PHY
+            entities:
+              - entity: sensor.gatelink_freq_hz
+                name: Frequency
+              - entity: sensor.gatelink_spreading_factor
+                name: Spreading factor
+              - entity: sensor.gatelink_bandwidth_khz
+                name: Bandwidth
+              - entity: sensor.gatelink_coding_rate_denominator
+                name: Coding rate 4/
+              - entity: sensor.gatelink_tx_power_dbm
+                name: TX power
+              - entity: sensor.gatelink_phy_trial_s
+                name: PHY trial window
+
+      # Unavailable until WellLink is deployed (plan 8.2).
+      - type: grid
+        cards:
+          - type: heading
+            heading: WellLink
+          - type: entities
+            entities:
+              - entity: sensor.welllink_rssi
+                name: RSSI
+              - entity: sensor.welllink_snr
+                name: SNR
+              - entity: sensor.welllink_missed_polls
+                name: Missed polls
+              - entity: sensor.welllink_last_seen
+                name: Last heard
+              - entity: sensor.welllink_protocol_version
+                name: Protocol version
+              - entity: sensor.welllink_unsupported_version_seen
+                name: Unsupported version seen
+          - type: entities
+            title: PHY
+            entities:
+              - entity: sensor.welllink_freq_hz
+                name: Frequency
+              - entity: sensor.welllink_spreading_factor
+                name: Spreading factor
+              - entity: sensor.welllink_bandwidth_khz
+                name: Bandwidth
+              - entity: sensor.welllink_coding_rate_denominator
+                name: Coding rate 4/
+              - entity: sensor.welllink_tx_power_dbm
+                name: TX power
+              - entity: sensor.welllink_phy_trial_s
+                name: PHY trial window
+
+      - type: grid
+        column_span: 3
+        cards:
+          - type: heading
+            heading: History
+          - type: history-graph
+            title: GateLink link, 7 days
+            hours_to_show: 168
+            entities:
+              - entity: sensor.gatelink_rssi
+                name: RSSI
+              - entity: sensor.gatelink_snr
+                name: SNR
+              - entity: sensor.gatelink_missed_polls
+                name: Missed polls
+            grid_options:
+              columns: 12
+          # The trend M23 reads: whether the BMS's BLE link degrades over a season.
+          - type: statistics-graph
+            title: BMS BLE RSSI, 30 days
+            entities:
+              - entity: sensor.gatelink_bms_link_rssi
+                name: BMS BLE RSSI
+            chart_type: line
+            period: day
+            days_to_show: 30
+            stat_types: [min, mean, max]
+            grid_options:
+              columns: 12
+
+  - title: Events
+    path: events
+    icon: mdi:timeline-text
+    type: sections
+    max_columns: 2
+    sections:
+      # LRAN's own entries are logged against script.lran_notify (plan 7.3), so listing
+      # it brings every alert into the card. F3's event entities would add FIRE and the
+      # held-open vehicle directly (plan 5). The card reaches back only as far as the
+      # recorder keeps history.
+      - type: grid
+        column_span: 2
+        cards:
+          - type: heading
+            heading: Logbook
+          - type: logbook
+            hours_to_show: 168
+            target:
+              entity_id:
+                - script.lran_notify
+                - sensor.gatelink_gate
+                - sensor.gatelink_movement_cause
+                - binary_sensor.gatelink_held_open
+                - binary_sensor.gatelink_vehicle_while_held_open
+                - binary_sensor.gatelink_fire_input
+                - binary_sensor.gatelink_hard_shutdown_latch
+            grid_options:
+              columns: 12
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Traffic
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_last_vehicle
+                name: Last vehicle
+              - entity: sensor.gatelink_last_direction
+                name: Direction
+              - entity: counter.lran_gatelink_traversals_today
+                name: Traversals today
+              - entity: sensor.gatelink_hold_source
+                name: Hold source
+          - type: statistics-graph
+            title: Traversals per day, 30 days
+            entities:
+              - entity: sensor.lran_gatelink_traversals
+                name: Traversals
+            chart_type: bar
+            period: day
+            days_to_show: 30
+            stat_types: [change]
+            grid_options:
+              columns: 12
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Gate inputs
+          - type: entities
+            entities:
+              - entity: binary_sensor.gatelink_safety_loop
+                name: Safety loop
+              - entity: binary_sensor.gatelink_exit_wand
+                name: Exit wand
+              - entity: binary_sensor.gatelink_alarm_input
+                name: Alarm input
+              - entity: binary_sensor.gatelink_fire_input
+                name: FIRE input
+              - entity: binary_sensor.gatelink_hard_shutdown_latch
+                name: Hard-shutdown latch
+          # A boot loop shows as a run of boots (spec 8.14). Each boot's reset cause
+          # reaches the logbook through lran_2_node_boot (plan 9.2) once H5 lands.
+          - type: statistics-graph
+            title: GateLink boots per day, 30 days
+            entities:
+              - entity: sensor.gatelink_boot_count
+                name: Boots
+            chart_type: bar
+            period: day
+            days_to_show: 30
+            stat_types: [change]
+            grid_options:
+              columns: 12
