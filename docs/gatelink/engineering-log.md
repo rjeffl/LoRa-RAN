@@ -2120,3 +2120,76 @@ event, but that was not checked.
 
 **Falsified by:** a panic in `nimble_port_run()` on `5fd1509` or later, or a `bms` line
 with drain timeouts above 0.
+
+## 2026-10-27 — The final soak, 12 h: no reset, and every aborted BMS window read on its retry
+
+**The run used the handoff's *The soak's setup*, with the MPPT and the pack back on the
+bench, logged from the Mac.** `bench.py --dir ~/lran-soak/2026-10-26-soak3 run --mqtt`
+started at 17:14:05 EDT on 2026-10-26 and stopped on `send quit` at 05:14:05 on
+2026-10-27, 43,200 s in. No console was attached. GateLink's `BOOT` came before the logger
+started: the first `node/state`, a retained one, read `uptime_s` 130, and the next placed
+the boot at about 17:11:22. So the MQTT log has no `reset_cause`, and no version topic names
+the image. The image carries `a1de65d`'s retry, because the card shows it running. That it
+carries `5fd1509`'s drain was not checked.
+
+**GateLink did not reset.** `uptime_s` rose without a drop from 130 to 43,330. The card's
+`/bms.log` carries the same boot further: its `uptime_s` climbs without a drop to 71,790,
+about 13:08 on 2026-10-27, after the logger stopped. The bridge's `event_frames` stayed at
+1, the `BOOT`.
+
+| Watched for | Result |
+|---|---|
+| `BOOT` after the first | none: `uptime_s` continuous, `event_frames` 1 throughout |
+| Polls | `missed_polls` 0 throughout; the bridge's `rx_frames` reached 739 with every receive-error counter at 0 |
+| BMS | seven aborted windows on the card, each read on its retry 6 or 7 s later. `battery/state` never went unavailable |
+| Battery `age_s` | 301 at most, against 600 to 602 at each miss in the second run |
+| VE.Direct | `solar/state` available throughout; the night run left the MPPT `off`, PV at 10 mV |
+| Overnight ΔSOC | 0: SOC 99 % throughout, `batt_mv` 13,260 to 13,280 |
+| Safety, Exit and Fire | inactive throughout, as wired: all 47 `gate/state` messages read `in_safety`, `in_exit` and `in_fire` false and `input_bits` 0 |
+| Drain timeouts | lost: the console was not attached, and the counters live in RAM, cleared when the StamPLC was powered down |
+
+**The Safety, Exit and Fire inputs were tied to their inactive state for this run**, with
+the input FETs on (operator, 2026-10-27), so their indicators should have stayed inactive
+throughout. They did. Every `gate/state` message read them false, and `detect/state`'s
+`safety` and `exit` read false too. GateLink sent no event frame after its `BOOT`, and a
+Fire edge would have sent `FIRE_ASSERTED` (D83).
+
+**`/bms.log` answers the question the soak was for.** The operator powered the StamPLC
+down, took the card out, and the Mac read it. The file holds 454 lines from several boots. The soak's boot starts at
+line 210, at `uptime_s` 302, and runs 245 lines to 71,790. Of those windows, 237 read
+`end=read`, seven `end=aborted` and one `end=connect`. Each `aborted` line is followed by
+an `end=read` 6 s later, 7 s once:
+
+| Aborted at `uptime_s` | Read at | Gap since the previous abort |
+|---|---|---|
+| 2,110 | 2,116 | — |
+| 13,270 | 13,276 | 3.1 h |
+| 25,030 | 25,036 | 3.3 h |
+| 36,490 | 36,496 | 3.2 h |
+| 47,050 | 47,057 | 2.9 h |
+| 57,910 | 57,916 | 3.0 h |
+| 68,770 | 68,776 | 3.0 h |
+
+Every abort's `uptime_s mod 60` is 10, the poll's STATUS reply, as in the second run (entry
+of 2026-10-26, *`/bms.log` read*). The first four fall inside the logger's span, at the
+four `age_s` peaks of 300 and 301 at 17:46, 20:52, 00:08 and 03:19. Each was followed a
+minute later by an `age_s` near 53. `bms_retry_s` does what it was built for: an abort now
+costs about 6 s of age, not a whole `bms_poll_s`. The windows still walk into the poll's
+phase, so the aborts keep coming. Only their cost changed.
+
+**The one `end=connect` is the last line, at 71,790**, about two minutes before the card was
+read, after the logger had stopped and before the power-down. It is the only connect failure in the soak's boot.
+The retry applies only to an aborted window, so nothing followed it. It was not looked into.
+Trace: [`data/bms-log-soak3-2026-10-27.log`](data/bms-log-soak3-2026-10-27.log), lines
+210 to 454 of the card's file.
+
+**Reading the card means powering GateLink down, so the RAM counters must be read first**
+(operator, 2026-10-27). With the StamPLC installed in GateLink's enclosure, taking the SD
+card out and putting it back is difficult. Caution requires powering the unit down to reach
+the card. That power-down is what lost this soak's drain timeouts. An unattended soak whose
+firmware counters matter has two ways to keep them: write them to the card, or attach USB
+and read them before the card comes out.
+
+**Falsified by:** an `aborted` line in a later `/bms.log` with no `end=read` within
+`bms_retry_s` plus one window, or a `battery/state` `age_s` past about 310 with the pack
+in reach.
