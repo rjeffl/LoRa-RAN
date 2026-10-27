@@ -2265,3 +2265,52 @@ first cold sunny morning at the gate is that test.
 
 **Falsified by:** a `CHARGE_INHIBITED` event whose `detail` disagrees with the `charge:
 INHIBITED, by …` line GateLink logged for the same onset.
+
+## 2026-10-27 — `pack_ma`, the FET flags and `alarms` are not decoding gaps
+
+**Question:** the three soaks read `pack_ma` 0, `charge_fet` and `discharge_fet` false, and
+`alarms` 65535 throughout. Are those the pack's real states, or a gap in the decode? The pack
+was still on the bench, so this was the last chance to read it without a walk to the gate.
+
+**`alarms` and the FET flags are not decoded at all, by design.** `fill_bms_block()` writes
+`bms_alarms` as `UINT16_MAX` and never sets `bms_flags` bits 1–5, because `0x8D` is not
+decoded (bms-protocol §9, `bms_link.h`). The bridge then publishes the sentinel as the number
+65535 and the unset bits as `false` (`publish.cpp`, the battery block). So `alarms` 65535
+means "unavailable", and `charge_fet: false` means "not known", not "off". Spec §7.2.7 gives
+bits 1–5 no way to say "unknown", and that gap is the specification's to close, not the
+bridge's. It is under *Open* in the handoff.
+
+**`pack_ma` 0 is a correct decode of a current below the field's resolution.** A live read
+from the real pack, at 14:39 EDT with the MPPT in bulk and `batt_ma` 20–30:
+
+```text
+bms: cells 4: 3327 3328 3328 3328 mV (delta 1); temps 4: 206 225 198 198 (0.1 C); pack 13310 mV 0 mA (charge flag, raw 0x4000); SOC 99%; 989/1000 (0.1 Ah); cycles 4; SOH 1000; rssi -71
+```
+
+Raw `0x4000` is bms-protocol §6's at-rest pattern: bit 14 set, magnitude 0. The field steps
+in 0.1 A. The StamPLC and carrier draw 43.6 mA (2026-10-06), and the MPPT put 20–30 mA
+in, so the pack's net current was well under one step. The decoder has not changed since M7's
+fix (`5f0e564`, 2026-10-10), which matched −4.0 A and +1.8 A against the WattCycle app on
+this pack. The read took 1393 ms, the real pack's time, not the emulator's.
+
+**This matters for R-6.4c.** If D82's `ah_drawn_dah` integrates `pack_ma`, GateLink's own
+standing draw of about 44 mA never registers, and a night of it reads 0 Ah. About 1 Ah
+a day is lost below the step. R-6.4c still has to choose the current it integrates, and
+the BMS field cannot carry a load this small.
+
+**Opening the StamPLC's console reset it.** `bench.py run --port GL=/dev/cu.usbmodem101`
+opens the port with DTR and RTS low, and the board still restarted:
+`rst:0x15 (USB_UART_CHIP_RESET)`, `Reset: usb`. The RAM counters went with it, so the drain
+timeouts were again not read. They held only what had accumulated since the D81 session's
+flash, not a soak. The handoff's plan, to read the `bms` line over USB before the card
+comes out, needs the console already open before the soak starts. Attaching afterwards
+clears what it came to read. Whether the reset comes from macOS's open or from pyserial's
+line setup is not established.
+
+**The first window after that reset ended `no_answer`** (scan 510 ms, connect 639 ms,
+handshake 90 ms, 3729 ms with no `0x8C` reply). The second ended `connect` at 111 ms, and the
+third read. This joins the 2026-10-10 entry's first-after-boot `aborted` windows; not
+looked into.
+
+**Falsified by:** a raw current field with nonzero magnitude bits that decodes to 0 mA, or a
+`pack_ma` of 0 while the WattCycle app shows 0.1 A or more.

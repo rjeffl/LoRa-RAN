@@ -306,17 +306,24 @@ board's are its D-pads (expansion board §6.1).
 - **The drain timeouts have not been read after a soak.** The next run with the console
   attached should read the `bms` line before anything restarts the board. Taking the card
   out of the installed StamPLC means powering it down, which clears the counters (operator,
-  2026-10-27). An unattended soak needs the counters written to the card, or USB attached
-  and the `bms` line read before the card comes out. A count above 0
-  falsifies the 2026-10-26 entry *The NimBLE abort panic*.
+  2026-10-27). An unattended soak needs the counters written to the card, or the console
+  open from before the soak starts. Opening the StamPLC's console resets it, even with
+  `bench.py`'s DTR and RTS held low, so attaching afterwards clears the counters it came to
+  read (engineering log, 2026-10-27, *`pack_ma`, the FET flags and `alarms`*). A count
+  above 0 falsifies the 2026-10-26 entry *The NimBLE abort panic*.
 - **GateLink did not answer over the air after the bridge powered up** until the operator
   restarted it (2026-10-26). Whether it was waiting on a context roll it never heard is not
   established.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
-- **`charge_fet` and `discharge_fet` read false and `alarms` 65535 throughout the soak**,
-  and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
-  established.
+- **Spec §7.2.7 cannot say a `bms_flags` bit is unknown.** GateLink does not decode `0x8D`,
+  so it leaves bits 1–5 clear and sends `bms_alarms` as `UINT16_MAX`. The bridge publishes
+  `charge_fet: false`, `discharge_fet: false` and `alarms: 65535`, which read as states.
+  The specification has to give those bits an "unknown" before the bridge can publish
+  `null` (engineering log, 2026-10-27).
+- **`pack_ma` steps in 0.1 A, so GateLink's own 44 mA draw reads 0** (engineering log,
+  2026-10-27). If R-6.4c integrates `pack_ma` for `ah_drawn_dah`, a cold night reads
+  0 Ah. PRD R-6.4c has not yet chosen the current.
 - **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the first
   soak**, stayed 0 through the second, and rose to 1 each in the final soak. Not looked
   into.
