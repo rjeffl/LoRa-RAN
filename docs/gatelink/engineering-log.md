@@ -2193,3 +2193,75 @@ and read them before the card comes out.
 **Falsified by:** an `aborted` line in a later `/bms.log` with no `end=read` within
 `bms_retry_s` plus one window, or a `battery/state` `age_s` past about 310 with the pack
 in reach.
+
+## 2026-10-27 — R-6.4b's PV power test cannot hold: a pack that takes nothing leaves PPV at 0 W
+
+**R-6.4b as written could never infer an inhibition, so PRD v0.23 tests PV voltage
+instead** (operator, 2026-10-27). GateLink `3fa9dfe`, with D81, ran on the bench with the
+gate's MPPT 75/15, the WattCycle pack on its battery terminals, a 30 W panel behind a
+window on its PV input, and the bench bridge and sandbox broker. The pack was full, at SOC
+99 % and `pack_ma` 0, so it took no charge, which is how the MPPT sees a pack whose BMS
+refuses charge. Trace:
+[`gl-r64b-ppv-2026-10-27.log`](./data/gl-r64b-ppv-2026-10-27.log), GateLink's console and
+the `solar/state` and `battery/state` documents.
+
+| Seconds | `charge_state` | PV | `pv_w` | Battery |
+|---|---|---|---|---|
+| 0–176 | bulk | 15.26–17.06 V | 1 W | 13.28 V, 30–40 mA |
+| 234 on | bulk | 15.47–20.35 V | 0 W | 13.28 V, 0–10 mA |
+
+**The MPPT stayed in bulk with the sun up and reported 0 W.** A charger whose battery takes
+nothing harvests nothing, so `pv_w > 0` fails in exactly the case R-6.4b is for. Here
+GateLink's VE.Direct condition held for 234 s on the 1 W readings, then failed and
+restarted its clock short of `charge_inhibit_confirm_s`. A load on the MPPT's load output
+would probably keep PPV above 0; `load_ma` read 0 throughout.
+
+**PV voltage shows the sun whatever the battery takes**, so R-6.4b now asks for PV at
+least 1 V above battery voltage. The 1 V is the floor Victron's SmartSolar manuals give for
+charging once it has started; the 75/15's own figure has not been checked. Here PV sat 2 V
+or more above the battery throughout.
+
+**The BMS read at 302 s took over the decision**, as designed: a fresh read outranks
+VE.Direct for three polls. The pack read 19–22 °C, so nothing was inhibited.
+
+**Falsified by:** a `solar/state` in bulk or absorption with `batt_ma` near 0 and
+`pv_mv` below `batt_mv` plus 1000 while the sun is on the panel.
+
+## 2026-10-27 — D81 on the air: `detail` 2 from VE.Direct with the real MPPT, `detail` 1 from the BMS emulator
+
+**Both deciding paths name themselves on the air** (PRD R-6.4e, spec §8.9). GateLink
+`eac974c`, with D81 and PRD v0.23's PV voltage test, ran on the bench with the MPPT, the
+pack and the window panel of the entry above, the simnode's BMS emulator, the bench bridge
+and the sandbox broker. Trace:
+[`gl-d81-detail-2026-10-27.log`](./data/gl-d81-detail-2026-10-27.log). Times are seconds
+from the harness's start, which was about 5 s after GateLink booted.
+
+| Check | What was done | What happened |
+|---|---|---|
+| VE.Direct onset (R-6.4b) | Nothing. The full pack took 0–40 mA in bulk, with PV at 15.5–19.8 V and `pv_w` 0. `bms_poll_s` was set to 3600 at 22 s, so the decision would stay with VE.Direct | At 302.44 `solar/state` read `charge_inhibited: true` and `node/state` reason `charge_inhibited`. At 304.56 `event/charge_inhibited`, event_id 2, carried `detail` 2, `inhibit_path` `vedirect`, `uptime_s` 300. GateLink logged `charge: INHIBITED, by vedirect` |
+| Real pack's read | The BMS window already due at 300 s ran at 307.76 | The pack, at 19.4–22.7 °C, took the decision and cleared it: `charge: no longer inhibited, by bms` |
+| BMS onset (R-6.4a) | `SIM bms on 49A1`, `SIM bms temp -5`, then `GL bms now` five times | The first window reached the real pack. The second reached the emulator, and event_id 3 at 377.54 carried `detail` 1, `inhibit_path` `bms`. The third reached the emulator, and the fourth the real pack, which cleared it at 390.91. The fifth reached the emulator, and event_id 4 at 394.03 carried `detail` 1 again |
+
+**The VE.Direct inference won its race against the BMS read by about 7 s.** Setting
+`bms_poll_s` to 3600 did not move the window already scheduled for 300 s. A rerun that
+needs VE.Direct to hold the decision should set the row before boot, or hide the pack's
+BLE.
+
+**The real pack and the emulator advertise the same name, `XDZN_001_49A1`, and GateLink
+takes whichever its scan meets first.** Read time told them apart: the emulator answered in
+372–402 ms, the pack in 1512–1692 ms. The simnode's `bms status` counted 3 connects, which
+matches the three emulator reads.
+
+**The bench was put back**: `SIM bms temp off`, `SIM bms off`, and `bms_poll_s` set to
+300, which `config/ack` read as `persisted`.
+
+**One console line in the trace is two lines interleaved**, at 316.08, where a `charge:`
+line and a `chg` reply arrived together. It is left as captured.
+
+**Not shown: the inference against a pack whose BMS refuses charge.** The full pack stands
+in for one, and the MPPT sees the same zero current. A BMS that opens its charge FET may
+also let the terminal voltage rise, which would restart the clock until it settles. The
+first cold sunny morning at the gate is that test.
+
+**Falsified by:** a `CHARGE_INHIBITED` event whose `detail` disagrees with the `charge:
+INHIBITED, by …` line GateLink logged for the same onset.

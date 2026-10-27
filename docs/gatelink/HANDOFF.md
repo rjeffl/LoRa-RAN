@@ -35,6 +35,12 @@ the MPPT and the pack back on the bench, and GateLink did not reset (engineering
 retry 6 or 7 s later, and the battery never went unavailable. The drain timeouts were not
 read: no console was attached, and the power-down to take the card out cleared them.
 
+**Updated 2026-10-27 by the D81 session.** `CHARGE_INHIBITED`'s `detail` names the deciding
+path, and both values were seen on the air: 2 from VE.Direct with the real MPPT, 1 from the
+BMS emulator (engineering log, 2026-10-27, *D81 on the air*). R-6.4b's PV power test could
+never hold, because a battery taking nothing leaves PPV at 0 W. PRD v0.23 tests PV voltage
+instead, by operator decision (engineering log, 2026-10-27, *R-6.4b's PV power test*).
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -49,14 +55,14 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The final soak is done, and the StamPLC stays on the bench.** Tier 3 below needs neither
-the MPPT nor the pack: it runs on the StamPLC's 12 V bench supply with the bridge. GateLink
-deploys on six inputs (D83). **Put the card back before the StamPLC boots**: it is in the
-Mac, and it holds `/config.json`.
+**The StamPLC stays on the bench; the MPPT and the pack can go back to the gate.** No
+Tier 3 row needs them. The rows run on the StamPLC's 12 V bench supply with the bridge.
+GateLink deploys on six inputs (D83). The card is in the StamPLC and holds
+`/config.json`; keep it there whenever the board boots.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **Next: spec v0.18's rest**: answer `ACTUATOR_FAULT` for a failed relay write (D78), and send schema `0x13` with `ah_drawn_dah` (D82). D82 waits for PRD R-6.4c to define "charging active" and the current integrated | spec §7.2.10, §8.2, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 
 ### The soak's setup
@@ -103,16 +109,18 @@ section and *The next job*.
 direction, partial traversals and the held-open alert passed on the air (engineering log,
 2026-10-13). GL6 confirms them against real gate cycles, after GL2.
 
-**Low-temperature inhibition is built, and its BMS path passed on the air** through the
-emulator's `bms temp` (engineering log, 2026-10-14). Its VE.Direct path, R-6.4b, is
-host-tested only and waits for the MPPT. Its three thresholds are rows `0x1043`–`0x1045`
+**Low-temperature inhibition is built, and both paths passed on the air**: the BMS path
+through the emulator's `bms temp`, and the VE.Direct path, R-6.4b, through the real MPPT
+with a full pack standing in for a refusing one (engineering log, 2026-10-14 and
+2026-10-27). Each onset's `detail` names its path (D81). R-6.4b tests PV voltage since
+PRD v0.23. Its three thresholds are rows `0x1043`–`0x1045`
 again, settable from HA, and passed on the air (engineering log, 2026-10-15). The bridge
 shows the indication while VE.Direct is down since the same date (bridge engineering log).
 
 **Tier 3 finishes the firmware before deploy**, because every firmware item left after
 install costs a walk to the gate:
 
-- Spec v0.18's GateLink side (D78, D81, D82), the relay-at-watchdog question under
+- Spec v0.18's GateLink side (D78, D82), the relay-at-watchdog question under
   *Open*, and the SD library's `log_w`.
 - The 2N7000 stages for IN3 and IN4 and the IN1 and IN2 harnesses rewired sinking, when the
   board arrives (plan §3.2).
@@ -138,13 +146,14 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **The final soak ran 12 h without a reset**, from 17:14 on 2026-10-26, with the MPPT and
-  the pack on the bench and no console. `missed_polls` stayed 0, and the bridge counted
-  739 frames with no receive error.
-- **`bms_retry_s` works against real polls.** The card's `/bms.log` shows seven aborted
-  windows in the soak's boot, each followed by `end=read` 6 or 7 s later. `age_s` peaked
-  at 301, against 600 to 602 in the second run, and `battery/state` never went
-  unavailable.
+- **D81 is built and seen on the air.** `detail` 2, `inhibit_path` `vedirect`, came from
+  the real MPPT in bulk with a full pack; `detail` 1, `inhibit_path` `bms`, came twice
+  from the emulator's −5 °C reads.
+- **R-6.4b tests PV voltage, not PV power** (PRD v0.23). With the pack taking nothing the
+  MPPT stayed in bulk at 15–20 V PV and reported 0 W, so the old test could not hold.
+- **The real pack and the emulator share the name `XDZN_001_49A1`**, and a window reaches
+  whichever its scan meets first. Read time tells them apart: about 0.4 s for the
+  emulator, about 1.5 s for the pack.
 - **The drain timeouts of `5fd1509` are still unread in a soak.** Their counters live in
   RAM, and the StamPLC was powered down to take the card out. Which image ran was not
   checked beyond its carrying the retry.
@@ -216,7 +225,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were back on the bench for the final soak of 2026-10-26 to 2026-10-27. Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were on the bench from 2026-10-26 for the final soak and D81's run on the air, and can return to the gate. Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -267,6 +276,11 @@ board's are its D-pads (expansion board §6.1).
 
 ## Open, and not closable from here
 
+- **R-6.4b has not seen a BMS that refuses charge.** A full pack stood in for one. A BMS
+  that opens its charge FET may let the terminal voltage rise, which restarts the clock
+  until it settles. The first cold sunny morning at the gate is the test.
+- **R-6.4b's 1 V PV margin is from Victron's SmartSolar manuals**, not checked against the
+  75/15's own.
 - **Why the direction write is lost is not established.** The same write in `board_begin()`
   did not hold. M5GFX pulses GPIO 3 inside `M5.begin()`, and M5StamPLC's
   `io_expander_b_init()` calls `configureDirection(0x0)`, which sets every pin to output

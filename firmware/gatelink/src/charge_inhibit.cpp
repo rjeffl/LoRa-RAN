@@ -14,11 +14,25 @@ namespace {
 constexpr uint8_t kCsBulk       = 3;
 constexpr uint8_t kCsAbsorption = 4;
 
+// R-6.4b's "PV voltage at least 1 V above battery voltage" (PRD v0.23). Not PV power: a
+// battery that takes nothing leaves the MPPT harvesting 0 W (engineering log, 2026-10-27).
+constexpr uint32_t kPvOverBattMv = 1000;
+
 // A BMS read older than this many polls no longer decides. One missed window is common
 // (BmsEnd counts them); three in a row means BLE is unavailable, which is R-6.4b's case.
 constexpr uint32_t kBmsFreshPolls = 3;
 
 bool reached(uint32_t now, uint32_t since, uint32_t span) { return now - since >= span; }
+
+// spec 8.9, D81 - the event's `detail` names the path that decided it (PRD R-6.4e).
+lran::ChargeInhibitPath wire_path(ChargeSource s) {
+  switch (s) {
+    case ChargeSource::Bms:      return lran::ChargeInhibitPath::Bms;
+    case ChargeSource::VeDirect: return lran::ChargeInhibitPath::VeDirect;
+    case ChargeSource::None:     break;
+  }
+  return lran::ChargeInhibitPath::NotStated;
+}
 
 }  // namespace
 
@@ -34,11 +48,11 @@ const char* charge_source_name(ChargeSource s) {
 bool ChargeInhibit::ved_update(const MpptSnapshot& m, uint32_t now_ms, const ChargeParams& p) {
   const int32_t ma = m.batt_ma;
   bool met = (m.mppt_flags & kMpptFlagStale) == 0 &&
-             m.pv_w != lran::kU16NotAvailable && m.pv_w > 0 &&
+             m.pv_cv != lran::kU16NotAvailable && m.batt_mv != lran::kU16NotAvailable &&
+             static_cast<uint32_t>(m.pv_cv) * 10 >= m.batt_mv + kPvOverBattMv &&
              (m.charge_state == kCsBulk || m.charge_state == kCsAbsorption) &&
              m.batt_ma != lran::kI16NotAvailable &&
-             static_cast<uint32_t>(ma < 0 ? -ma : ma) <= p.band_ma &&
-             m.batt_mv != lran::kU16NotAvailable;
+             static_cast<uint32_t>(ma < 0 ? -ma : ma) <= p.band_ma;
   // A rise past rise_mv since the condition began means the battery is taking charge.
   if (met && ved_met_ && m.batt_mv > ved_ref_mv_ + p.rise_mv) met = false;
 
@@ -96,6 +110,7 @@ bool ChargeInhibit::update(const MpptSnapshot& m, const BmsSnapshot& b, uint32_t
     ev.event.gate_state  = static_cast<uint8_t>(g.gate_state);
     ev.event.input_bits  = g.input_bits;
     ev.event.uptime_s    = g.uptime_s;
+    ev.event.detail      = static_cast<uint16_t>(wire_path(source_));
     ev.event.event_id    = ids->next();
     out->add(ev);
   }
