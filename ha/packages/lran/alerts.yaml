@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Robert J. Lee
 #
-# LRAN alerts, tier 1 (HA Integration Implementation Plan 9.1). Tier 2 joins this file at
-# H5 (plan 6).
+# LRAN alerts: tier 1 (HA Integration Implementation Plan 9.1) and tier 2, health (plan
+# 9.2).
 #
 # Every event alert triggers on the event topic, never on a retained binary_sensor, so an
 # HA restart or a discovery refresh replays nothing (spec 16.3, GateLink PRD V-5). Each one
@@ -14,7 +14,7 @@
 # 7.5). A new alert adds a selector here and an entry with a level there.
 
 # One selector per alert, on the Maintenance dashboard. Off sends nothing and logs the
-# event as not pushed; Normal is a push with no email; High a time-sensitive push and an
+# event as not pushed; Low logs it and sends nothing; Normal is a push with no email; High a time-sensitive push and an
 # email; Critical sounds through Do Not Disturb and emails (plan 7.3). No `initial:`, which
 # would undo the operator's choice at every start; lran_0_seed_alert_levels sets each to
 # its messages.yml level once.
@@ -22,27 +22,72 @@ input_select:
   lran_alert_vehicle_while_held:
     name: Vehicle while held open
     icon: mdi:car-arrow-right
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
   lran_alert_fire:
     name: FIRE asserted
     icon: mdi:fire-alert
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
   lran_alert_hard_shutdown:
     name: Hard shutdown
     icon: mdi:power-plug-off-outline
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
   lran_alert_bms_alarm:
     name: BMS alarm
     icon: mdi:battery-alert-variant-outline
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
   lran_alert_gatelink_offline:
     name: GateLink offline
     icon: mdi:lan-disconnect
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
   lran_alert_bridge_offline:
     name: Bridge offline
     icon: mdi:access-point-network-off
-    options: ["Off", Normal, High, Critical]
+    options: ["Off", Low, Normal, High, Critical]
+  # Tier 2. SOC has two alerts, one per threshold, because a selector holds one level.
+  lran_alert_soc_low:
+    name: SOC low
+    icon: mdi:battery-30
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_soc_alarm:
+    name: SOC alarm
+    icon: mdi:battery-alert
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_charge_inhibited:
+    name: Charging inhibited
+    icon: mdi:battery-off-outline
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_mppt_error:
+    name: MPPT error
+    icon: mdi:solar-power-variant-outline
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_enclosure_hot:
+    name: Enclosure hot
+    icon: mdi:thermometer-alert
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_cell_spread:
+    name: Cell spread
+    icon: mdi:battery-sync-outline
+    options: ["Off", Low, Normal, High, Critical]
+  # A boot and a boot loop are two alerts for the same reason as SOC.
+  lran_alert_node_boot:
+    name: GateLink boot
+    icon: mdi:restart
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_node_boot_loop:
+    name: GateLink boot loop
+    icon: mdi:restart-alert
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_phy_reverted:
+    name: PHY reverted
+    icon: mdi:radio-tower
+    options: ["Off", Low, Normal, High, Critical]
+
+# GateLink's recent boot times, epoch seconds, newest first, for lran_2_node_boot's count
+# of boots in the last hour (plan 9.2). Written by that automation only.
+input_text:
+  lran_gatelink_boot_times:
+    name: LRAN GateLink recent boots
+    max: 255
 
 mqtt:
   binary_sensor:
@@ -250,3 +295,247 @@ automation:
           alert: bridge_offline
           tag: bridge:offline
           push_only: true
+
+  # --- Tier 2, health (plan 9.2) ---
+  #
+  # The state alerts use template triggers, not numeric_state, because numeric_state
+  # watches only its entity: a threshold helper changed in the UI would not take effect
+  # until the sensor next moved. A template watches every entity it reads, so moving a
+  # threshold past the reading fires the alert at once, which is also how H5 verifies them
+  # (plan 11).
+  #
+  # A sensor that goes unavailable reads false, and fires again when it returns still past
+  # its threshold, so an outage can repeat an alert. The shared tag makes the repeat
+  # replace the earlier push. A repeat is the better failure than a drop that happened
+  # during an outage and was never reported.
+
+  - id: lran_2_soc_low
+    alias: "LRAN 2 - GateLink SOC low"
+    mode: queued
+    max: 5
+    triggers:
+      - trigger: template
+        value_template: >-
+          {{ states('sensor.gatelink_battery') | is_number and
+             states('sensor.gatelink_battery') | float
+               < states('input_number.lran_soc_warn_pct') | float(40) }}
+        id: warn
+      - trigger: template
+        value_template: >-
+          {{ states('sensor.gatelink_battery') | is_number and
+             states('sensor.gatelink_battery') | float
+               < states('input_number.lran_soc_alarm_pct') | float(25) }}
+        id: alarm
+    actions:
+      # The alarm replaces the warning's push through the shared tag. A reading below
+      # both thresholds at once fires both triggers in no fixed order, so the warning
+      # stands down while the alarm holds; otherwise it could replace the alarm's push.
+      # Two calls rather than one with a templated name, so ha_messages.py can read each.
+      - choose:
+          - conditions:
+              - condition: trigger
+                id: alarm
+            sequence:
+              - action: script.lran_notify
+                data:
+                  alert: soc_alarm
+                  fields:
+                    soc: "{{ states('sensor.gatelink_battery') }}"
+                    limit: "{{ states('input_number.lran_soc_alarm_pct') | int(0) }}"
+                  tag: gatelink:soc
+        default:
+          - condition: template
+            value_template: >-
+              {{ not (states('sensor.gatelink_battery') | float(100)
+                      < states('input_number.lran_soc_alarm_pct') | float(25)) }}
+          - action: script.lran_notify
+            data:
+              alert: soc_low
+              fields:
+                soc: "{{ states('sensor.gatelink_battery') }}"
+                limit: "{{ states('input_number.lran_soc_warn_pct') | int(0) }}"
+              tag: gatelink:soc
+
+  - id: lran_2_charge_inhibited
+    alias: "LRAN 2 - GateLink charging inhibited"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/charge_inhibited
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          alert: charge_inhibited
+          fields:
+            # Spec 8.9, D81: the bridge names the deciding path.
+            inhibit_path: "{{ p.inhibit_path }}"
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  # The spec gives MPPT_ERROR's detail no meaning, so the error comes from the MPPT error
+  # sensor, which the bridge names from VE.Direct's ERR (spec 7.2.2). Underscores become
+  # spaces: formatting, not wording.
+  - id: lran_2_mppt_error
+    alias: "LRAN 2 - GateLink MPPT error"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/mppt_error
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          alert: mppt_error
+          fields:
+            error: >-
+              {% set e = states('sensor.gatelink_mppt_error') %}
+              {{ e | replace('_', ' ') if e not in ['unknown', 'unavailable', 'no_error']
+                 else '' }}
+          tag: "{{ ev.tag }}"
+          follow_up: "{{ p.follow_up is sameas true }}"
+
+  # The threshold is in Celsius and HA shows the sensor in the install's units, Fahrenheit
+  # on the sandbox (plan 7.1), so this converts by the sensor's unit. S-14 asks for each
+  # excursion to be logged; lran_notify logs every alert, a muted or Off one included
+  # (plan 7.3).
+  - id: lran_2_enclosure_hot
+    alias: "LRAN 2 - GateLink enclosure hot"
+    mode: single
+    triggers:
+      - trigger: template
+        value_template: >-
+          {% set t = states('sensor.gatelink_enclosure_temperature') %}
+          {% set u = state_attr('sensor.gatelink_enclosure_temperature',
+                                'unit_of_measurement') %}
+          {% if t | is_number %}
+            {% set c = (t | float - 32) * 5 / 9 if u == '°F' else t | float %}
+            {{ c > states('input_number.lran_enclosure_temp_warn_c') | float(40) }}
+          {% else %}false{% endif %}
+        for: { minutes: 15 }
+    actions:
+      - action: script.lran_notify
+        data:
+          alert: enclosure_hot
+          fields:
+            temp: >-
+              {{ states('sensor.gatelink_enclosure_temperature') }}
+              {{- state_attr('sensor.gatelink_enclosure_temperature', 'unit_of_measurement') }}
+            limit: "{{ states('input_number.lran_enclosure_temp_warn_c') | int(40) }}"
+          tag: gatelink:enclosure_hot
+
+  - id: lran_2_cell_spread
+    alias: "LRAN 2 - GateLink cell spread"
+    mode: single
+    triggers:
+      - trigger: template
+        value_template: >-
+          {{ states('sensor.lran_gatelink_cell_spread') | is_number and
+             states('sensor.lran_gatelink_cell_spread') | float
+               > states('input_number.lran_cell_spread_warn_mv') | float(50) }}
+        for: { minutes: 30 }
+    actions:
+      - action: script.lran_notify
+        data:
+          alert: cell_spread
+          fields:
+            spread: "{{ states('sensor.lran_gatelink_cell_spread') }}"
+            limit: "{{ states('input_number.lran_cell_spread_warn_mv') | int(50) }}"
+          tag: gatelink:cell_spread
+
+  # Three boots within an hour is a boot loop, and sends node_boot_loop instead (plan 9.2).
+  # The count lives in input_text.lran_gatelink_boot_times, because an event leaves no
+  # state to count. `queued`, so two boots are counted one after the other.
+  - id: lran_2_node_boot
+    alias: "LRAN 2 - GateLink boot"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/boot
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - variables:
+          now_s: "{{ now().timestamp() | int }}"
+          boots: >-
+            {{ ([now_s] + states('input_text.lran_gatelink_boot_times').split()
+                          | select('is_number') | map('int')
+                          | select('>', now_s - 3600) | list)[:10] }}
+      - action: input_text.set_value
+        target: { entity_id: input_text.lran_gatelink_boot_times }
+        data:
+          value: "{{ boots | join(' ') }}"
+      - if:
+          - condition: template
+            value_template: "{{ boots | count >= 3 }}"
+        then:
+          - action: script.lran_notify
+            data:
+              alert: node_boot_loop
+              fields:
+                reset_cause: "{{ p.reset_cause }}"
+                count: "{{ boots | count }}"
+              tag: gatelink:boot_loop
+        else:
+          - action: script.lran_notify
+            data:
+              alert: node_boot
+              fields:
+                reset_cause: "{{ p.reset_cause }}"
+              tag: "{{ ev.tag }}"
+
+  # Any node's revert, and the bridge's report of a fleet change that did not commit, on
+  # the same topic leaf (spec 16.7.5). The bridge's payload carries `reason` and the node
+  # that caused it; a node's carries neither.
+  - id: lran_2_phy_reverted
+    alias: "LRAN 2 - PHY reverted"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/+/event/phy_reverted
+    variables:
+      source: "{{ trigger.topic.split('/')[1] }}"
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: "{{ source }}"
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit }}"
+      - action: script.lran_notify
+        data:
+          alert: phy_reverted
+          fields:
+            source: "{{ source }}"
+            reason: "{{ p.reason if p.reason is string else '' }}"
+            culprit: "{{ p.node if p.node is string else '' }}"
+          tag: "{{ ev.tag }}"

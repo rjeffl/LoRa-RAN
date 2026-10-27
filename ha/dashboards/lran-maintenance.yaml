@@ -90,6 +90,17 @@ views:
               - entity: input_select.lran_alert_bms_alarm
               - entity: input_select.lran_alert_gatelink_offline
               - entity: input_select.lran_alert_bridge_offline
+              - type: section
+                label: Health
+              - entity: input_select.lran_alert_soc_low
+              - entity: input_select.lran_alert_soc_alarm
+              - entity: input_select.lran_alert_charge_inhibited
+              - entity: input_select.lran_alert_mppt_error
+              - entity: input_select.lran_alert_enclosure_hot
+              - entity: input_select.lran_alert_cell_spread
+              - entity: input_select.lran_alert_node_boot
+              - entity: input_select.lran_alert_node_boot_loop
+              - entity: input_select.lran_alert_phy_reverted
               - type: divider
               - entity: input_boolean.lran_alerts_muted
                 name: Mute normal and low alerts
@@ -100,9 +111,10 @@ views:
                 action_name: Restore
           - type: markdown
             content: >-
-              **Off** logs only. **Normal** pushes. **High** pushes as time-sensitive and
-              emails. **Critical** sounds through Do Not Disturb and emails. Muting never
-              silences FIRE or the held-open vehicle. The wording is in
+              **Off** logs only, marked as not pushed. **Low** logs only. **Normal**
+              pushes. **High** pushes as time-sensitive and emails. **Critical** sounds
+              through Do Not Disturb and emails. Muting never silences FIRE or the
+              held-open vehicle, and a muted alert is still logged. The wording is in
               `packages/lran/messages.yml`.
 
       - type: grid

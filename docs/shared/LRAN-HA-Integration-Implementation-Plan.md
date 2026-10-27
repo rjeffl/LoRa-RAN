@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.6
+**Version:** 0.7
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26
-**Last updated:** 2026-10-26
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27
+**Last updated:** 2026-10-27
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -209,8 +209,9 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_number.lran_held_open_reminder_h` | Held-open reminder | 4 |
 | `input_number.lran_pack_capacity_ah` | The pack's capacity, for the autonomy estimate (§7.4) | 100, R-6.1a |
 | `input_boolean.lran_defaults_seeded` | Set once the defaults above are applied | off |
-| `input_select.lran_alert_<alert>` | One per alert: `Off`, `Normal`, `High` or `Critical` (§7.5). In `alerts.yaml`, beside the automations | the alert's `level` in `messages.yml` |
+| `input_select.lran_alert_<alert>` | One per alert: `Off`, `Low`, `Normal`, `High` or `Critical` (§7.5). In `alerts.yaml`, beside the automations | the alert's `level` in `messages.yml` |
 | `input_boolean.lran_alert_levels_seeded` | Set once the alert levels are applied, by `lran_0_seed_alert_levels` | off |
+| `input_text.lran_gatelink_boot_times` | GateLink's boot times in the last hour, for `lran_2_node_boot`'s count (§9.2). In `alerts.yaml` | empty |
 | `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
@@ -266,19 +267,21 @@ old one. The list holds fewer than eight only when the keys are long enough to o
 the event's raw values for the entry's placeholders (§7.5). A caller with no alert passes
 `severity` (`critical`, `high`, `normal`, `low`), `title` and `message` instead.
 Automations call it and never call a notify service directly. It calls `site.yaml`'s `lran_site_push` and
-`lran_site_email` (§6), so the channels change in one place. Every severity that is not
-muted also writes a logbook entry, logged against `script.lran_notify` so the Events
-view's logbook card, which lists entities, can show it (§8.2).
+`lran_site_email` (§6), so the channels change in one place. Every alert writes a logbook entry, logged against `script.lran_notify` so the Events
+view's logbook card, which lists entities, can show it (§8.2). **An alert held back by
+`lran_alerts_muted` is still logged**, marked `(alerts muted, not pushed)`, as an `Off`
+one is. S-14 asks for every enclosure excursion to be recorded, and muting is for the
+phone, not the record. Before v0.7 a muted alert left no entry.
 
 | Severity | Push | Email | Muted by `lran_alerts_muted` |
 |---|---|---|---|
 | `critical` | Critical alert: sounds through Do Not Disturb (iOS `critical: 1`; Android `channel: alarm_stream`) | Yes, if enabled | **No** |
 | `high` | Time-sensitive push | Yes, if enabled | **No** |
-| `normal` | Ordinary push | No | Yes |
-| `low` | None; logbook entry only | No | Yes |
+| `normal` | Ordinary push | No | Yes, and logged as muted |
+| `low` | None; logbook entry only | No | Yes, and logged as muted |
 | `off` | None. The logbook entry is marked `(alert off, not pushed)` | No | — |
 
-**An alert's severity is its selector's level**, `Off`, `Normal`, `High` or `Critical`,
+**An alert's severity is its selector's level**, `Off`, `Low`, `Normal`, `High` or `Critical`,
 which the operator sets on the Maintenance dashboard (§7.5). `severity` applies only to a
 caller with no selector. **FIRE and the held-open vehicle are never muted**, whatever
 their level, so plan §7.1's promise does not depend on the selector.
@@ -341,9 +344,10 @@ keep every alert's wording in one file**, so that changing either needs no readi
 automation YAML.
 
 **Each alert has a level selector**, `input_select.lran_alert_<alert>`, with the options
-`Off`, `Normal`, `High` and `Critical` (§7.3's table). `Off` sends no push and no email,
-and the logbook still records the event, marked as not pushed: an alert switched off is
-hidden from the phone, not from the record. The selectors sit on the Maintenance
+`Off`, `Low`, `Normal`, `High` and `Critical` (§7.3's table). `Low`, added in v0.7 for
+H5's boot alert, logs and sends nothing. `Off` sends no push and no email, and the logbook
+still records the event, marked as not pushed: an alert switched off is hidden from the
+phone, not from the record. The selectors sit on the Maintenance
 dashboard's *Alerts* card, under a warning that names any alert set to `Off`.
 
 **`ha/packages/lran/messages.yml` holds the text.** Each entry is the alert's name, with
@@ -353,10 +357,20 @@ value into words, with `missing` for an empty value and `other` for an unlisted 
 `lran_notify` reads the file with `!include`, so an edit takes effect at a script reload.
 The extension is `.yml` because HA loads every `*.yaml` in the directory as a package.
 
+**An alert with two levels is two alerts**, because a selector holds one level: SOC low
+and SOC alarm, and a boot and a boot loop (§9.2). The SOC pair shares a push tag, so the
+alarm replaces the warning on the phone. Each boot keeps its own push, and the boot loop's
+replaces itself at each further boot.
+
 **The default levels are seeded once**, by `lran_0_seed_alert_levels`, with a flag of its
 own, so an install seeded before the selectors existed still gets them. The card's
 *Restore default levels* runs `script.lran_alert_levels_default`, which reads the levels
 from `messages.yml`.
+
+**A selector added after that seed starts at `Off`**, its first option, because the flag
+is already on. The *Alerts* card's warning names it, so the gap shows. Set it on the card,
+or run *Restore default levels*, which also resets every other alert. H5's nine selectors
+were set that way on the sandbox, whose levels were all at their defaults.
 
 **A missing entry does not withhold an alert.** `lran_notify` sends under the bare name,
 and an alert with no selector falls back to the caller's severity. Because that fallback
@@ -456,13 +470,20 @@ and one outage does not alert twice.
 
 | ID | Trigger | Action |
 |---|---|---|
-| `lran_2_soc_low` | SOC below `lran_soc_warn_pct`, then below `lran_soc_alarm_pct` | `normal`, then `high` |
-| `lran_2_charge_inhibited` | `lran/gatelink/event/charge_inhibited` | `normal`, naming the path from `detail` (D81) |
-| `lran_2_mppt_error` | `lran/gatelink/event/mppt_error` | `normal`, with the error name |
-| `lran_2_enclosure_hot` | Enclosure temperature above `lran_enclosure_temp_warn_c` for 15 min | `normal`. **S-14 asks for excursions to be logged and acted on**, so each one is also a logbook entry |
+| `lran_2_soc_low` | SOC below `lran_soc_warn_pct`, then below `lran_soc_alarm_pct` | Alerts `soc_low`, `normal`, then `soc_alarm`, `high`. The alarm replaces the warning's push, and the warning stands down while the alarm holds |
+| `lran_2_charge_inhibited` | `lran/gatelink/event/charge_inhibited` | `normal`, naming the path from `inhibit_path` (D81) |
+| `lran_2_mppt_error` | `lran/gatelink/event/mppt_error` | `normal`, with the error name from `sensor.gatelink_mppt_error`, because spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning |
+| `lran_2_enclosure_hot` | Enclosure temperature above `lran_enclosure_temp_warn_c` for 15 min | `normal`. **S-14 asks for excursions to be logged and acted on**; §7.3 logs every alert, a muted one included |
 | `lran_2_cell_spread` | `cell_spread` above `lran_cell_spread_warn_mv` for 30 min | `normal` |
-| `lran_2_node_boot` | `lran/gatelink/event/boot` | `low`, with `reset_cause`. Three in an hour raises it to `high`, as a boot loop |
-| `lran_2_phy_reverted` | `lran/+/event/phy_reverted` | `high`. A PHY revert means a change failed (spec §12.4.2) |
+| `lran_2_node_boot` | `lran/gatelink/event/boot` | Alert `node_boot`, `low`, with `reset_cause`. The third boot within an hour sends `node_boot_loop`, `high`, instead |
+| `lran_2_phy_reverted` | `lran/+/event/phy_reverted` | `high`. A PHY revert means a change failed (spec §12.4.2). The bridge's report adds the reason and the node (spec §16.7.5) |
+
+**The state alerts use template triggers, not `numeric_state`.** A `numeric_state` trigger
+watches only its entity, so a threshold changed in the UI would take effect only when the
+sensor next moved. A template trigger watches every entity it reads, so moving a threshold
+past the reading fires the alert at once. H5 verified the state alerts that way. A sensor
+that returns from unavailable still past its threshold alerts again, and the shared tag
+replaces the earlier push.
 
 ### 9.3 Tier 3 — reminders
 
@@ -526,7 +547,7 @@ from the YAML.
 | **H2** | Gate dashboard | H1 | Renders on a phone in one column. Each alert banner appears when its condition is forced, and only then. **Met 2026-10-25** with states forced through HA's REST API, not the broker |
 | **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data. **Met 2026-10-26**, with the Maintenance view a dashboard of its own (§8.2) |
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone. **Partly met 2026-10-26**: the four event alerts, V-5 and FIRE on the phone pass; the two offline alerts are not yet exercised |
-| **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold |
+| **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold. **Met 2026-10-27**: the state alerts by moving thresholds, the event alerts by events injected on the sandbox broker |
 | **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**) |
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping **Open gate** with dry-run on issues the open command. Voice control waits for F1 |
@@ -566,3 +587,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.3 | 2026-10-25 | H2 done. §8.1's link chip is two tiles, so `last_seen` adds no recorder rows; the Network view's path is fixed as `network`. §8 adds the `heading` card. §7.4's V sensors drop their device class, which rounded them to whole volts |
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
+| 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |

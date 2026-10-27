@@ -13,7 +13,7 @@
 # AN ENTRY is the name an automation passes as `alert` or `msg`, holding:
 #   title     the push title and email subject
 #   message   the body
-#   level     the alert's default delivery: "Off", Normal, High or Critical, with Off in
+#   level     the alert's default delivery: "Off", Low, Normal, High or Critical, with Off in
 #             quotes, because YAML reads a bare Off as false. Only an entry
 #             with a level has a selector on the Maintenance dashboard. The selector, not
 #             this value, decides delivery. This value is what "Restore default levels"
@@ -31,6 +31,8 @@
 _missing: not reported
 # Appended to the title of a logbook entry for an alert whose level is Off.
 _off_note: (alert off, not pushed)
+# Appended to the title of a logbook entry for an alert held back by lran_alerts_muted.
+_muted_note: (alerts muted, not pushed)
 
 # --- Tier 1 (plan 9.1) ---
 
@@ -87,3 +89,104 @@ bridge_offline:
   message: >-
     The LRAN bridge has been off the MQTT broker for 5 minutes. HA cannot see or command
     any LRAN node until it returns.
+
+# --- Tier 2, health (plan 9.2) ---
+
+# The alarm's push replaces the warning's. {soc} is a percentage, {limit} the threshold
+# crossed, from lran_soc_warn_pct or lran_soc_alarm_pct.
+soc_low:
+  level: Normal
+  title: GateLink battery low
+  message: "The GateLink battery is at {soc} %, below the {limit} % warning."
+
+soc_alarm:
+  level: High
+  title: GateLink battery very low
+  message: >-
+    The GateLink battery is at {soc} %, below the {limit} % alarm. The gate may lose power
+    if it keeps falling.
+
+# Spec 8.9, D81: the path that decided the inhibition.
+charge_inhibited:
+  level: Normal
+  title: GateLink charging inhibited
+  message: "Charging of the GateLink battery is inhibited, decided by {inhibit_path}."
+  inhibit_path:
+    bms: the BMS
+    vedirect: the MPPT (VE.Direct)
+    not_stated: a path GateLink did not state
+
+# {error} is VE.Direct's error name as the bridge gives it, underscores as spaces.
+mppt_error:
+  level: Normal
+  title: GateLink MPPT error
+  message: "The GateLink solar charger reports an error: {error}."
+  error:
+    missing: no error name reported
+
+# S-14: every excursion is also a logbook entry, which lran_notify writes at any level.
+# {temp} arrives with its unit; {limit} is lran_enclosure_temp_warn_c, in °C.
+enclosure_hot:
+  level: Normal
+  title: GateLink enclosure hot
+  message: >-
+    The GateLink enclosure has been at {temp} for 15 minutes, above the {limit} °C
+    warning.
+
+cell_spread:
+  level: Normal
+  title: GateLink cell imbalance
+  message: >-
+    The GateLink battery's cells have differed by {spread} mV for 30 minutes, above the
+    {limit} mV warning.
+
+# Spec 8.14's reset causes, as the bridge names them.
+node_boot:
+  level: Low
+  title: GateLink restarted
+  message: "Reset cause: {reset_cause}."
+  reset_cause:
+    power_on: power applied
+    reboot_command: a reboot command
+    software: a restart the firmware chose
+    watchdog: a watchdog expired
+    panic: a firmware panic
+    brownout: a brownout
+    external: the reset pin or USB
+    unknown: cause unknown
+    other: cause unknown
+
+# Three boots within an hour (plan 9.2). It replaces itself on each further boot.
+node_boot_loop:
+  level: High
+  title: GateLink boot loop
+  message: "GateLink has restarted {count} times in the last hour. The last: {reset_cause}."
+  reset_cause:
+    power_on: power applied
+    reboot_command: a reboot command
+    software: a restart the firmware chose
+    watchdog: a watchdog expired
+    panic: a firmware panic
+    brownout: a brownout
+    external: the reset pin or USB
+    unknown: cause unknown
+    other: cause unknown
+
+# Spec 12.4.2, 16.7.5. The bridge's report carries a reason and the node that caused it;
+# a node's own revert carries neither.
+phy_reverted:
+  level: High
+  title: PHY change reverted
+  message: "A PHY change did not commit, reported by {source}: {reason}. Node named: {culprit}."
+  source:
+    bridge: the bridge
+    gatelink: GateLink
+  reason:
+    not_accepted: a node did not accept every value
+    not_heard: a node was not heard on the new settings
+    restart: the bridge restarted during the trial
+    commit_failed: the bridge could not store the new settings
+    missing: the node went back to its last known-good settings
+  culprit:
+    gatelink: GateLink
+    missing: none
