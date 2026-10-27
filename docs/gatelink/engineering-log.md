@@ -2145,7 +2145,14 @@ about 13:08 on 2026-10-27, after the logger stopped. The bridge's `event_frames`
 | Battery `age_s` | 301 at most, against 600 to 602 at each miss in the second run |
 | VE.Direct | `solar/state` available throughout; the night run left the MPPT `off`, PV at 10 mV |
 | Overnight ΔSOC | 0: SOC 99 % throughout, `batt_mv` 13,260 to 13,280 |
+| Safety, Exit and Fire | inactive throughout, as wired: all 47 `gate/state` messages read `in_safety`, `in_exit` and `in_fire` false and `input_bits` 0 |
 | Drain timeouts | lost: the console was not attached, and the counters live in RAM, cleared when the StamPLC was powered down |
+
+**The Safety, Exit and Fire inputs were tied to their inactive state for this run**, with
+the input FETs on (operator, 2026-10-27), so their indicators should have stayed inactive
+throughout. They did. Every `gate/state` message read them false, and `detect/state`'s
+`safety` and `exit` read false too. GateLink sent no event frame after its `BOOT`, and a
+Fire edge would have sent `FIRE_ASSERTED` (D83).
 
 **`/bms.log` answers the question the soak was for.** The operator powered the StamPLC
 down, took the card out, and the Mac read it. The file holds 454 lines from several boots. The soak's boot starts at
