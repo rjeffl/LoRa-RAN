@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Robert J. Lee
 //
-// Low-temperature charge inhibition, made observable. GL5; PRD 6.4, R-6.4a and R-6.4b;
-// spec 7.2.6 bit 3, 8.7 and 8.9.
+// Low-temperature charge inhibition, made observable. GL5; PRD 6.4, R-6.4a, R-6.4b and
+// R-6.4e; spec 7.2.6 bit 3, 8.7 and 8.9.
 //
 // ARDUINO-FREE, so the native suite drives it. app_task owns one, feeds it the MPPT and BMS
 // snapshots each pass, and queues the pushes it asks for.
@@ -16,8 +16,10 @@
 //                       all held for charge_inhibit_confirm_s. Used only while the BMS has no
 //                       read younger than three polls, the case R-6.4b was written for.
 //
-// Either path sets spec 7.2.6 bit 3, the derived indication. spec 7.2.7 bit 3 is the BMS's
-// own flag and stays clear until 0x8D is decoded: a temperature is not the BMS's word.
+// Either path sets spec 7.2.6 bit 3, the derived indication, and the onset's EVENT names
+// the path in `detail`: 1 for the BMS, 2 for VE.Direct (spec 8.9, D81). spec 7.2.7 bit 3
+// is the BMS's own flag and stays clear until 0x8D is decoded: a temperature is not the
+// BMS's word.
 //
 // The VE.Direct inference clears the way it sets, after the condition has failed for
 // charge_inhibit_confirm_s. A cloud that drops PV for a minute does not flap the flag.
@@ -52,7 +54,8 @@ class ChargeInhibit {
  public:
   // One pass. Returns true when the indication changed, and then adds a STATUS with reason
   // CHARGE_INHIBITED to `out`, and an EVENT as well when it set (spec 8.9: its severity is
-  // Low, and it is the onset that HA logs). `ids` draws the event's id.
+  // Low, and it is the onset that HA logs). The EVENT's `detail` is the deciding path
+  // (D81). `ids` draws the event's id.
   bool update(const MpptSnapshot& m, const BmsSnapshot& b, uint32_t now_ms,
               const ChargeParams& p, const GateContext& g, EventIds* ids, PushList* out);
 

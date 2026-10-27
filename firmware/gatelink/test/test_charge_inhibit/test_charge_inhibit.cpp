@@ -81,6 +81,8 @@ void test_bms_cold_and_not_charging_is_inhibited() {
   TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(lran::EventType::ChargeInhibited),
                           r.out[1].event.event_type);
   TEST_ASSERT_EQUAL_UINT32(1, r.out[1].event.event_id);
+  TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(lran::ChargeInhibitPath::Bms),
+                           r.out[1].event.detail);
 }
 
 // The threshold is "at or below", and in whole degrees against 0.1 C.
@@ -136,6 +138,9 @@ void test_vedirect_infers_after_confirm() {
   TEST_ASSERT_TRUE(r.c.inhibited());
   TEST_ASSERT_EQUAL(ChargeSource::VeDirect, r.c.source());
   TEST_ASSERT_EQUAL_UINT32(2, r.out.size());
+  TEST_ASSERT_EQUAL(Push::Kind::Event, r.out[1].kind);
+  TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(lran::ChargeInhibitPath::VeDirect),
+                           r.out[1].event.detail);
 }
 
 // A BMS read older than three polls hands the decision to VE.Direct.
@@ -225,6 +230,24 @@ void test_no_source_claims_nothing() {
   TEST_ASSERT_EQUAL(ChargeSource::None, r.c.path());
 }
 
+// D81 - the wire values are spec 8.9's, and each onset names its own path: an inhibition
+// that clears and sets again by the other path carries the other value.
+void test_detail_names_the_deciding_path() {
+  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(lran::ChargeInhibitPath::Bms));
+  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(lran::ChargeInhibitPath::VeDirect));
+
+  Rig r;
+  TEST_ASSERT_TRUE(r.step(blocked_mppt(), bms_read(-25, 0, 0), 0));
+  TEST_ASSERT_EQUAL_UINT16(1, r.out[1].event.detail);
+  // The pack warms and is then lost; VE.Direct's inference, warm since t = 0, sets it again.
+  TEST_ASSERT_TRUE(r.step(blocked_mppt(), bms_read(150, 0, 1000), 1000));
+  TEST_ASSERT_FALSE(r.c.inhibited());
+  TEST_ASSERT_EQUAL_UINT32(1, r.out.size());
+  TEST_ASSERT_TRUE(r.step(blocked_mppt(), BmsSnapshot{}, kConfirmMs + 2000));
+  TEST_ASSERT_EQUAL(ChargeSource::VeDirect, r.c.source());
+  TEST_ASSERT_EQUAL_UINT16(2, r.out[1].event.detail);
+}
+
 int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_bms_cold_and_not_charging_is_inhibited);
@@ -239,5 +262,6 @@ int main(int, char**) {
   RUN_TEST(test_a_small_rise_keeps_the_clock);
   RUN_TEST(test_vedirect_clears_after_confirm);
   RUN_TEST(test_no_source_claims_nothing);
+  RUN_TEST(test_detail_names_the_deciding_path);
   return UNITY_END();
 }

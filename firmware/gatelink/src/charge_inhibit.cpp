@@ -20,6 +20,16 @@ constexpr uint32_t kBmsFreshPolls = 3;
 
 bool reached(uint32_t now, uint32_t since, uint32_t span) { return now - since >= span; }
 
+// spec 8.9, D81 - the event's `detail` names the path that decided it (PRD R-6.4e).
+lran::ChargeInhibitPath wire_path(ChargeSource s) {
+  switch (s) {
+    case ChargeSource::Bms:      return lran::ChargeInhibitPath::Bms;
+    case ChargeSource::VeDirect: return lran::ChargeInhibitPath::VeDirect;
+    case ChargeSource::None:     break;
+  }
+  return lran::ChargeInhibitPath::NotStated;
+}
+
 }  // namespace
 
 const char* charge_source_name(ChargeSource s) {
@@ -96,6 +106,7 @@ bool ChargeInhibit::update(const MpptSnapshot& m, const BmsSnapshot& b, uint32_t
     ev.event.gate_state  = static_cast<uint8_t>(g.gate_state);
     ev.event.input_bits  = g.input_bits;
     ev.event.uptime_s    = g.uptime_s;
+    ev.event.detail      = static_cast<uint16_t>(wire_path(source_));
     ev.event.event_id    = ids->next();
     out->add(ev);
   }
