@@ -29,6 +29,12 @@ host queue first, and 100 forced aborts then ran without a panic (engineering lo
 MPPT and the pack off the bench. The remaining soak work waits for a final soak before
 deployment (operator, 2026-10-26).
 
+**Updated 2026-10-27 by the final-soak session.** The final soak ran 12 h from the Mac with
+the MPPT and the pack back on the bench, and GateLink did not reset (engineering log,
+2026-10-27, *The final soak*). All seven aborted BMS windows on the card read on their
+retry 6 or 7 s later, and the battery never went unavailable. The drain timeouts were not
+read: no console was attached, and the power-down to take the card out cleared them.
+
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
 > log, which is a dated record and is only ever appended to. Where this file disagrees with
@@ -43,16 +49,15 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The StamPLC stays on the bench; the MPPT and the pack go back to the gate** (operator,
-2026-10-26). Tier 3 below needs neither: it runs on the StamPLC's 12 V bench supply with the
-bridge. Anything reading the BMS or the MPPT waits for the final soak, when they come back.
-GateLink deploys on six inputs (D83).
+**The final soak is done, and the StamPLC stays on the bench.** Tier 3 below needs neither
+the MPPT nor the pack: it runs on the StamPLC's 12 V bench supply with the bridge. GateLink
+deploys on six inputs (D83). **Put the card back before the StamPLC boots**: it is in the
+Mac, and it holds `/config.json`.
 
 | Tier | Task | Read |
 |---|---|---|
 | 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
-| 2 | **The final soak before deployment**, once the MPPT and the pack are back on the bench. It answers what this bench could not: `bms_retry_s` against real polls, with each `aborted` line in `/bms.log` followed by a read about 6 s later and `age_s` never past about 310 s; and the `bms` line's drain timeouts staying 0 | *The soak's setup*, below; engineering log, 2026-10-26, *The new card was HFS+* and *The NimBLE abort panic* |
 
 ### The soak's setup
 
@@ -110,12 +115,13 @@ install costs a walk to the gate:
   board arrives (plan §3.2).
 - Last of all, the production build from the production `secrets.h`.
 
-**Tier 2's soak has run twice, for 24 h and then 19.2 h**, through the MPPT, the pack and
-the StamPLC, with the radio, VE.Direct, BMS polls and SD writes all active. GateLink reset
-in neither run, so GL5's timer-task panic did not recur in about 43 h. The forced-abort
+**Tier 2's soak has run three times, for 24 h, 19.2 h and 12 h**, through the MPPT, the
+pack and the StamPLC, with the radio, VE.Direct, BMS polls and SD writes all active.
+GateLink reset in none of them, so GL5's timer-task panic did not recur in about 55 h. The forced-abort
 panic of 2026-10-26 is fixed in `5fd1509`, and the timer-task panic may share its cause,
 not checked (engineering log, 2026-10-26, *The NimBLE abort panic*). `/bms.log` explained the BMS misses: each was a window the poll's reply
-aborted (engineering log, 2026-10-26, *`/bms.log` read*).
+aborted (engineering log, 2026-10-26, *`/bms.log` read*). In the final soak `bms_retry_s`
+read each such window 6 or 7 s later (engineering log, 2026-10-27, *The final soak*).
 
 **Fix the warm section of the MPPT's battery harness before the MPPT charges through it**
 (engineering log, 2026-10-10, *M7*: about 0.22 Ω, about 50 W at 15 A). The operator's.
@@ -129,17 +135,16 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **M14 is closed** (register v0.34). Read over the air through the bridge, the MPPT's
-  history holds ten consecutive days on the gate's 50 W panel since 2026-10-08. Each
-  reached absorption and float, with 0.08–0.10 kWh of yield against 0.04–0.05 kWh of load,
-  and battery Vmin stayed at 12.48 V or above.
-- **The forced-abort panic was NimBLE zeroing `ble_hs_timer` while its event was queued.**
-  `5fd1509` drains the host queue before each de-init, and the `bms` line now reports the
-  drain's longest wait and its timeouts. On that image, 100 forced aborts from 102 to
-  997 ms ran without a panic: 98 retries read the pack, one failed to connect, and no
-  drain timed out.
-- **GateLink needed a restart after the bridge powered up** before it answered over the
-  air, by the operator's report. The cause was not looked at.
+- **The final soak ran 12 h without a reset**, from 17:14 on 2026-10-26, with the MPPT and
+  the pack on the bench and no console. `missed_polls` stayed 0, and the bridge counted
+  739 frames with no receive error.
+- **`bms_retry_s` works against real polls.** The card's `/bms.log` shows seven aborted
+  windows in the soak's boot, each followed by `end=read` 6 or 7 s later. `age_s` peaked
+  at 301, against 600 to 602 in the second run, and `battery/state` never went
+  unavailable.
+- **The drain timeouts of `5fd1509` are still unread in a soak.** Their counters live in
+  RAM, and the StamPLC was powered down to take the card out. Which image ran was not
+  checked beyond its carrying the retry.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -208,7 +213,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were on the bench for the soaks and go back to the gate on 2026-10-26 (operator). Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were back on the bench for the final soak of 2026-10-26 to 2026-10-27. Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
@@ -276,12 +281,14 @@ board's are its D-pads (expansion board §6.1).
 - **The pack's real low-temperature cut-off is not measured**, so `charge_inhibit_temp_c`
   defaults to PRD §6.4's "approximately 0 °C". A `0x8C` and `0x8D` capture on a cold
   morning at the gate would set it and start mapping `0x8D`'s bits.
-- **The BMS misses one window about every 3.5 to 3.7 h** in both soaks (engineering log,
-  2026-10-25 and 2026-10-26). In the second run, two single misses went past the bridge's
-  `bms_stale_s` of 600 and marked the battery unavailable. `/bms.log` shows each was a
-  window aborted for the poll's reply, met once per pass of the window's drifting phase.
-  `bms_retry_s` retries such a window once, 5 s later; on the board each forced abort
-  was retried (engineering log, 2026-10-26). Not yet seen against real polls.
+- **A BMS window still aborts for the poll's reply about every 3 h**, once per pass of the
+  window's drifting phase (engineering log, 2026-10-26 and 2026-10-27). Since `bms_retry_s`
+  each costs about 6 s of `age_s`, not a missed window: the final soak's seven were all
+  read on the retry. Its one `end=connect`, the last window before the power-down, is the
+  only connect failure in that boot and was not looked into.
+- **The drain timeouts have not been read after a soak.** The next run with the console
+  attached should read the `bms` line before anything restarts the board. A count above 0
+  falsifies the 2026-10-26 entry *The NimBLE abort panic*.
 - **GateLink did not answer over the air after the bridge powered up** until the operator
   restarted it (2026-10-26). Whether it was waiting on a context roll it never heard is not
   established.
@@ -291,7 +298,8 @@ board's are its D-pads (expansion board §6.1).
   and `pack_ma` read 0. Whether those are the pack's real states or a decoding gap is not
   established.
 - **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the first
-  soak**, and stayed 0 through the second. Not looked into.
+  soak**, stayed 0 through the second, and rose to 1 each in the final soak. Not looked
+  into.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.
 
