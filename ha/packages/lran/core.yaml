@@ -373,7 +373,7 @@ script:
       level: >-
         {{ states('input_select.lran_alert_' ~ alert) | lower if alert else 'unknown' }}
       sev: >-
-        {{ level if level in ['off', 'critical', 'high', 'normal']
+        {{ level if level in ['off', 'critical', 'high', 'normal', 'low']
            else severity if severity in ['critical', 'high', 'normal', 'low'] else 'high' }}
       is_follow_up: "{{ follow_up is sameas true }}"
       # Critical sounds through Do Not Disturb: iOS critical: 1, Android alarm_stream.
@@ -407,10 +407,22 @@ script:
           - stop: alert off
       # Muting covers normal and low only. FIRE and the held-open vehicle are never muted,
       # whatever level their selector is at (plan 7.1); bench work must not silence them.
-      - condition: template
-        value_template: >-
-          {{ sev in ['critical', 'high'] or alert in ['fire', 'vehicle_while_held']
-             or not is_state('input_boolean.lran_alerts_muted', 'on') }}
+      # A muted alert is still logged, marked, as an Off one is: S-14 asks for every
+      # enclosure excursion to be recorded, and muting is for the phone, not the record.
+      - if:
+          - condition: template
+            value_template: >-
+              {{ sev in ['normal', 'low'] and alert not in ['fire', 'vehicle_while_held']
+                 and is_state('input_boolean.lran_alerts_muted', 'on') }}
+        then:
+          - action: logbook.log
+            data:
+              name: LRAN
+              message: >-
+                {{ title_text }} {{ catalog.get('_muted_note', '(alerts muted, not pushed)') }}:
+                {{ message_text }}
+              entity_id: script.lran_notify
+          - stop: muted
       # Attributed to this script so the LRAN dashboard's logbook card, which lists
       # entities, can show the entry (plan 8.2). An entry with no entity reaches only the
       # unfiltered logbook.

@@ -300,3 +300,74 @@ undefined variable, so `actions`, unset on every call, had been logging one per 
 H1. `lran_notify` now defaults each optional field once, in its variables.
 
 **Later the same day the operator opened the Alerts card and confirmed it renders.**
+
+## 2026-10-27 — H5, the Tier 2 health alerts
+
+**The seven §9.2 automations are installed in `alerts.yaml`, with nine selectors and their
+`messages.yml` entries.** H4b was skipped, because the GateLink soak is still running.
+
+**Two of the operator's choices shaped them** (plan v0.7). §9.2 puts the boot alert at
+`low`, which no selector offered, so every selector gains `Low`: a logbook entry and
+nothing sent. And an alert with two levels becomes two alerts, because a selector holds
+one: `soc_low` and `soc_alarm`, `node_boot` and `node_boot_loop`. The operator also chose
+a test-only package as the way to force a state. H5 did not need one, because moving a
+threshold past the live reading fires each state alert, so none was written. A banner
+check still needs it.
+
+**`numeric_state` does not watch a threshold helper.** The first SOC test raised
+`lran_soc_warn_pct` to 100 against a reading of 99, and nothing fired: the trigger listens
+to its own entity, and SOC had not moved. The SOC and cell-spread alerts now use template
+triggers, which watch every entity they read, as the enclosure alert's already did for the
+°F conversion. A threshold changed in the UI now takes effect at once. Before the change
+it would have waited for the sensor's next move.
+
+**A queued warning could replace the alarm.** Both SOC triggers share the tag
+`gatelink:soc`, and the automation runs `queued`. In the second test the warning ran
+after the alarm and its push replaced the alarm's. A reading that comes back from
+unavailable below both thresholds fires both triggers in no fixed order, so the warning
+now stands down while the alarm holds. Retested: alarm at 100, then warning at 100; the
+warning's run ended at that condition, and only the alarm was sent.
+
+**`lran_notify` now logs a muted alert**, marked `(alerts muted, not pushed)`. Before,
+`lran_alerts_muted` stopped the script before its logbook entry. S-14 asks for every
+enclosure excursion to be recorded, and muting is for bench work on the phone, not for the
+record. Plan §7.3 changes with it.
+
+**The nine new selectors started at `Off`**, because `lran_alert_levels_seeded` was
+already on. The six existing ones were at their defaults, so *Restore default levels* was
+run, and all fifteen read their catalog levels, `Low` included. Plan §7.5 now states the
+gap; the Alerts card's warning would have named all nine.
+
+**Verified on the sandbox.** The state alerts were driven by thresholds alone. The event
+alerts were driven by events published through ha-mcp's `mqtt.publish`, non-retained, with
+`ctx_id` 4294967295 and the bridge's `boot` 4294967295, agreed with the operator
+beforehand:
+
+| Alert | Driven by | Result in the logbook |
+|---|---|---|
+| `soc_low` | `lran_soc_warn_pct` 40 → 100, SOC 99 | "GateLink battery low: The GateLink battery is at 99 %, below the 100 % warning." Pushed, no email |
+| `soc_alarm` | `lran_soc_alarm_pct` 25 → 100 | "GateLink battery very low: … below the 100 % alarm. …" |
+| `soc_low` muted | `lran_alerts_muted` on, warning 40 → 100 | "GateLink battery low (alerts muted, not pushed): …" |
+| `charge_inhibited` | event 9001, `inhibit_path` `bms` | "… inhibited, decided by the BMS." |
+| `mppt_error` | event 9002 | "… reports an error: no error name reported." The live sensor read `no_error`, which the alert treats as no name |
+| `phy_reverted`, node | `lran/gatelink/event/phy_reverted`, event 9003 | "… reported by GateLink: the node went back to its last known-good settings. Node named: none." |
+| `phy_reverted`, bridge | `lran/bridge/event/phy_reverted`, `reason` `not_heard`, `node` `gatelink` | "… reported by the bridge: a node was not heard on the new settings. Node named: gatelink." |
+| `node_boot` ×2 | events 9005 and 9006, `power_on` then `watchdog` | Logged at `Low`, nothing pushed |
+| `node_boot_loop` | event 9007, `brownout`, the third within the hour | "GateLink has restarted 3 times in the last hour. The last: a brownout." |
+| `enclosure_hot` | `lran_enclosure_temp_warn_c` 40 → 20 at 13:51 UTC, reading about 27.7 °C | Fired at 14:06:03, 15 minutes on: "The GateLink enclosure has been at 82.04°F for 15 minutes, above the 20 °C warning." |
+| `cell_spread` | `lran_cell_spread_warn_mv` 50 → 0 at 13:51 UTC, spread 5 mV | Fired at 14:21:03, 30 minutes on: "The GateLink battery's cells have differed by 5 mV for 30 minutes, above the 0 mV warning." |
+
+Two wording faults showed in that run and were fixed in the catalog: the boot message
+repeated its title, and the culprit read as the raw token `gatelink`. The three fake boot
+times were cleared from `input_text.lran_gatelink_boot_times` afterwards, so the real
+GateLink's next boot is not counted as a fourth.
+
+Every threshold was set back to its default afterwards, `lran_alerts_muted` is off, and
+the boot list is empty. **Not verified**: a push on the phone for any Tier 2 alert, since
+the sandbox's `site.yaml` pushes to the Mac; real SMTP; and an alert from a real GateLink
+event, since none of these events occurred during the session.
+
+**A gap left open by the operator.** A template trigger fires only when its condition goes
+from false to true. A state alert that is already past its threshold when HA starts or
+reloads its automations therefore stays silent until the condition clears and recurs.
+That covers the SOC, enclosure and cell-spread alerts. The handoff's *Open* carries it.

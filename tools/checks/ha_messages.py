@@ -22,7 +22,7 @@ import yaml
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PKG = os.path.join(ROOT, "ha", "packages", "lran")
-LEVELS = {"Off", "Normal", "High", "Critical"}
+LEVELS = {"Off", "Low", "Normal", "High", "Critical"}
 
 
 class _Loader(yaml.SafeLoader):
