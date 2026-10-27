@@ -49,14 +49,16 @@ of these lines, then read this section and the sections the table names:
 Continue from docs/gatelink/HANDOFF.md: task L<n>.
 ```
 
-**The final soak is done, and the StamPLC stays on the bench.** Tier 3 below needs neither
-the MPPT nor the pack: it runs on the StamPLC's 12 V bench supply with the bridge. GateLink
-deploys on six inputs (D83). **Put the card back before the StamPLC boots**: it is in the
+**The final soak is done, and the StamPLC stays on the bench.** **The MPPT and the pack
+stay on the bench until the first row below is done** (operator, 2026-10-27): it is the
+only Tier 3 work that needs them. The rest runs on the StamPLC's 12 V bench supply with the
+bridge. GateLink deploys on six inputs (D83). **Put the card back before the StamPLC boots**: it is in the
 Mac, and it holds `/config.json`.
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Spec v0.18's GateLink side**: answer `ACTUATOR_FAULT` for a failed relay write (D78), name the path in `CHARGE_INHIBITED`'s `detail` (D81), and send schema `0x13` with `ah_drawn_dah` (D82) | spec §7.2.10, §8.2, §8.9, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **Next: the deciding path, with the MPPT on the bench.** Name the path in `CHARGE_INHIBITED`'s `detail` (D81), then run low-temperature inhibition's VE.Direct path on the air (R-6.4b), seeing `detail` 2 from it and `detail` 1 from the BMS path | spec §8.9; PRD R-6.4b, R-6.4e; engineering log, 2026-10-14, the BMS path on the air |
+| 3 | **Spec v0.18's rest**: answer `ACTUATOR_FAULT` for a failed relay write (D78), and send schema `0x13` with `ah_drawn_dah` (D82). D82 waits for PRD R-6.4c to define "charging active" and the current integrated | spec §7.2.10, §8.2, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 
 ### The soak's setup
@@ -216,7 +218,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
 | Heltec WiFi LoRa 32 V3 | **the simnode Heltec** | OLED on the board, USB-UART bridge (`/dev/cu.usbserial-*`) | `firmware/simnode -e simnode-heltec`, with the L7 BMS emulator and `bms temp`, flashed 2026-10-14 at `a49a90a` | The bridge handoff's *Hardware state* | `/dev/cu.usbserial-4` on 2026-10-02. The bridge handoff owns the board. The emulator is off at boot; `bms on 49A1` starts it for `wattcycle-reader` |
-| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were back on the bench for the final soak of 2026-10-26 to 2026-10-27. Not yet rewired or reprogrammed (GL2) |
+| MPPT 75/15 (PID `0xA075`, FW 175), WattCycle pack, Nice/Apollo 1050 | the installation | At the gate, ~87 m | Charger settings saved from VictronConnect, 2026-10-08; as configured, [`mppt-config.md`](./mppt-config.md) | The 1050's programming, to be recorded in `docs/gatelink/1050-config.md` at GL2 | The 1050 at the gate. The MPPT and the pack were back on the bench for the final soak of 2026-10-26 to 2026-10-27, and stay there for D81's and R-6.4b's run on the air before they return to the gate (operator, 2026-10-27). Not yet rewired or reprogrammed (GL2) |
 
 **A wrong module selection is silent.** A pin table taken from the Kit produces a carrier
 that looks configured and never answers. The Kit's control lines are GPIO 38–42; the header
