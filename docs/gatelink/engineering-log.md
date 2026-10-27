@@ -2176,6 +2176,13 @@ The retry applies only to an aborted window, so nothing followed it. It was not 
 Trace: [`data/bms-log-soak3-2026-10-27.log`](data/bms-log-soak3-2026-10-27.log), lines
 210 to 454 of the card's file.
 
+**Reading the card means powering GateLink down, so the RAM counters must be read first**
+(operator, 2026-10-27). With the StamPLC installed in GateLink's enclosure, taking the SD
+card out and putting it back is difficult. Caution requires powering the unit down to reach
+the card. That power-down is what lost this soak's drain timeouts. An unattended soak whose
+firmware counters matter has two ways to keep them: write them to the card, or attach USB
+and read them before the card comes out.
+
 **Falsified by:** an `aborted` line in a later `/bms.log` with no `end=read` within
 `bms_retry_s` plus one window, or a `battery/state` `age_s` past about 310 with the pack
 in reach.

@@ -84,6 +84,9 @@ The operator chose this on 2026-10-24: the gate is already down, the MPPT runs f
   killed when that session ended, 4.3 h before the 24 h mark.
 - **Read the card's `/bms.log` after the soak**, one line per BLE window, for why each
   missed poll ended. The `bms` line counts lines written and failed.
+- **Read the RAM counters over USB before taking the card out.** In the enclosure, the
+  card comes out only with the unit powered down, and the power-down clears the `bms`
+  line's counters (engineering log, 2026-10-27).
 - **Watch for:** any `BOOT` after the first, and a steady STATUS rate. Watch for BMS
   misses, with `/bms.log` naming how each ended. VE.Direct should never go stale; note the
   overnight ΔSOC.
@@ -287,7 +290,10 @@ board's are its D-pads (expansion board §6.1).
   read on the retry. Its one `end=connect`, the last window before the power-down, is the
   only connect failure in that boot and was not looked into.
 - **The drain timeouts have not been read after a soak.** The next run with the console
-  attached should read the `bms` line before anything restarts the board. A count above 0
+  attached should read the `bms` line before anything restarts the board. Taking the card
+  out of the installed StamPLC means powering it down, which clears the counters (operator,
+  2026-10-27). An unattended soak needs the counters written to the card, or USB attached
+  and the `bms` line read before the card comes out. A count above 0
   falsifies the 2026-10-26 entry *The NimBLE abort panic*.
 - **GateLink did not answer over the air after the bridge powered up** until the operator
   restarted it (2026-10-26). Whether it was waiting on a context roll it never heard is not
