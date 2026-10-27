@@ -354,8 +354,20 @@ beforehand:
 | `phy_reverted`, bridge | `lran/bridge/event/phy_reverted`, `reason` `not_heard`, `node` `gatelink` | "… reported by the bridge: a node was not heard on the new settings. Node named: gatelink." |
 | `node_boot` ×2 | events 9005 and 9006, `power_on` then `watchdog` | Logged at `Low`, nothing pushed |
 | `node_boot_loop` | event 9007, `brownout`, the third within the hour | "GateLink has restarted 3 times in the last hour. The last: a brownout." |
+| `enclosure_hot` | `lran_enclosure_temp_warn_c` 40 → 20 at 13:51 UTC, reading about 27.7 °C | Fired at 14:06:03, 15 minutes on: "The GateLink enclosure has been at 82.04°F for 15 minutes, above the 20 °C warning." |
+| `cell_spread` | `lran_cell_spread_warn_mv` 50 → 0 at 13:51 UTC, spread 5 mV | Fired at 14:21:03, 30 minutes on: "The GateLink battery's cells have differed by 5 mV for 30 minutes, above the 0 mV warning." |
 
 Two wording faults showed in that run and were fixed in the catalog: the boot message
 repeated its title, and the culprit read as the raw token `gatelink`. The three fake boot
 times were cleared from `input_text.lran_gatelink_boot_times` afterwards, so the real
 GateLink's next boot is not counted as a fourth.
+
+Every threshold was set back to its default afterwards, `lran_alerts_muted` is off, and
+the boot list is empty. **Not verified**: a push on the phone for any Tier 2 alert, since
+the sandbox's `site.yaml` pushes to the Mac; real SMTP; and an alert from a real GateLink
+event, since none of these events occurred during the session.
+
+**A gap left open by the operator.** A template trigger fires only when its condition goes
+from false to true. A state alert that is already past its threshold when HA starts or
+reloads its automations therefore stays silent until the condition clears and recurs.
+That covers the SOC, enclosure and cell-spread alerts. The handoff's *Open* carries it.
