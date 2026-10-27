@@ -2,8 +2,8 @@
 
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
-H3, when ha-mcp's dashboard screenshots came into use, and on 2026-10-26 after the alert
-levels and the message catalog.**
+H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
+levels and the message catalog, and on 2026-10-27 at the end of H5.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -21,14 +21,15 @@ Continue from docs/ha/HANDOFF.md: task H4b.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4 is done but for its two offline alerts, which need the boards
-powered down (H4b). H5 needs H4. H7 depends only on H1, and H9 on H3.
+cited below as *plan*. H4 and H5 are done, except for H4's two offline alerts, which need
+the boards powered down (H4b). H6 needs H4 and only uses its event alerts, so it does not
+wait for H4b. H7 depends only on H1, and H9 on H3.
 
 | Task | Read |
 |---|---|
 | **H4b** The two offline alerts | Plan §9.1 and its connectivity-sensor note, §7.5; engineering log, 2026-10-26, H4 and alert levels; `ha/packages/lran/alerts.yaml` |
-| **H5** Tier 2 health | Plan §9.2, §7.1, §7.5: each alert adds a selector and a `messages.yml` entry; *Traps*, below, before injecting any event |
-| **H7** Tier 4 reports | Plan §9.4 |
+| **H6** Tier 3 reminders and the action handler | Plan §9.3, §7.3 (`actions`), §7.5, §11's H6 row (V-8); *Traps*, below |
+| **H7** Tier 4 reports | Plan §9.4, §7.5 |
 | **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -37,12 +38,18 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H4b, the two offline alerts.** Set `input_number.lran_offline_warn_min` to 1, unpower
+**H4b, the two offline alerts, once the GateLink soak allows it.** Set `input_number.lran_offline_warn_min` to 1, unpower
 GateLink until the offline push arrives, then power it on and check the return push names
 the outage. Then unpower the bridge for 5 minutes and check its push sends no email. Both
 interrupt the GateLink soak, so agree the time with the operator. Restore the delay to 10.
 
 ## What the last session established
+
+- **The seven Tier 2 health alerts are installed and verified** (plan v0.7, §9.2;
+  engineering log, 2026-10-27, H5). The state alerts were driven by moving thresholds, and
+  the event alerts by events injected with `ctx_id` 4294967295. Every selector now has
+  `Low`, an alert with two levels is two alerts, and `lran_notify` logs a muted alert,
+  marked. A Tier 2 push on the phone was not checked: the sandbox pushes to the Mac.
 
 - **Every alert has a level selector and its text in `messages.yml`** (plan §7.5;
   engineering log, 2026-10-26, alert levels). The Maintenance dashboard's *Alerts* card
@@ -91,11 +98,11 @@ interrupt the GateLink soak, so agree the time with the operator. Restore the de
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3 |
-| Queue | H4 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2, H3, H5; H4 but for H4b |
+| Queue | H4b, H6 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
-python3 tools/checks/run_ci_local.py      # the checks job; nothing here reads ha/packages yet
+python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
 ```
 
 ### The dev flow: files over Samba, everything else through ha-mcp
@@ -158,6 +165,8 @@ those two targets changed, which plan §7.3 names.
 
 ## Behaviour that changed, and will make older artifacts read differently
 
+- **From 2026-10-27 a muted alert leaves a logbook entry**, marked `(alerts muted, not
+  pushed)`. Before then, muting left no trace of a `normal` or `low` alert.
 - **From 2026-10-25 the sandbox registry has no `simnode_*` devices.** A screenshot or entity
   count from before then includes their 48 entities.
 
@@ -168,6 +177,13 @@ those two targets changed, which plan §7.3 names.
   injection with the operator first. H4 published through ha-mcp's `mqtt.publish`, not
   retained, with `ctx_id` 4294967295 so the soak's log can tell the fakes apart. **Never
   publish a retained `availability`**: it would stand over the bridge's own state.
+- **A `numeric_state` trigger does not watch its threshold helper**, only its entity. An
+  alert on a sensor's state uses a template trigger, or a threshold moved in the UI does
+  nothing until the sensor next changes (plan §9.2). A template trigger that is already
+  true when the automations reload does not fire, so set a test threshold after the
+  reload, not before.
+- **A new alert selector starts at `Off`** on an install already seeded (plan §7.5). Set
+  it after the reload. The Alerts card's warning names any left at `Off`.
 - **A registry delete does not remove an MQTT-discovered device for good.** Its retained
   config recreates it at the next restart. Clear the config on the broker instead.
 - **`initial:` on a helper resets it at every start.** The packages seed defaults once
@@ -192,9 +208,25 @@ those two targets changed, which plan §7.3 names.
 - **Spec §8.9 gives BMS_ALARM's `detail` no meaning.** The alert shows it raw, in hex. A
   spec revision should define it, or say it is reserved.
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
-  injects the event (H4). A banner check, or an alert on a sensor's state (H5), needs
-  either a token on this machine or another way to force a state, for example an
-  `input_boolean` override in a test-only package. The operator chooses which.
+  injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
+  threshold instead. A banner check still needs one. The operator chose a test-only
+  package of `input_boolean` overrides on 2026-10-27, and none is written yet.
+- **A state alert already past its threshold when HA starts or reloads its automations
+  does not fire** until the condition clears and recurs. This covers `lran_2_soc_low`,
+  `lran_2_enclosure_hot` and `lran_2_cell_spread`. A re-check on start and on reload
+  would close it. The operator left it open on 2026-10-27.
+- **The BMS's four temperatures have no HA entity.** The bridge publishes them on
+  `lran/gatelink/battery/state` as `cell1_temp_c` to `cell4_temp_c` (spec §7.2.3,
+  `cell_temp_c[0..3]`), but `discovery.cpp` has no row for them, which makes this a bridge
+  task. **The operator set the rule on 2026-10-27: the reference for low-temperature
+  charging is the lowest of the four.** GateLink's inhibit already uses that rule
+  (`charge_inhibit.cpp`, R-6.4a, `charge_inhibit_temp_c`). HA should show the four and a
+  derived minimum beside `charge_inhibit_temp_c`. The four may not all be cell sensors,
+  though: `aiobmsble` labels them ambient, MOSFET, cell, cell, and nothing has confirmed
+  that on this pack (bms-protocol §10).
+- **Spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning**, as it gives BMS_ALARM's none.
+  `lran_2_mppt_error` takes the name from `sensor.gatelink_mppt_error` instead, which can
+  lag the event. GateLink does not send the event yet.
 - **Only `ha_messages.py` reads `ha/packages/` in CI**, and only the alert catalog. H9's
   `check_entities.py` needs a live HA. A YAML syntax check in the checks job would catch a
   broken file before the sandbox does.
