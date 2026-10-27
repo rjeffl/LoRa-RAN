@@ -1,0 +1,93 @@
+2026-10-27T14:01:32-0400      0.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":10,"pv_mv":15430,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:01:32-0400      0.61 GL LRAN GateLink - node 0x01
+2026-10-27T14:01:32-0400      0.62 GL Version: 0.1.0 (eac974c)
+2026-10-27T14:01:33-0400      1.54 MQTT lran/gatelink/solar/state {"available":false,"batt_mv":null,"batt_ma":null,"pv_mv":null,"pv_w":null,"load_ma":null,"yield_today_kwh":null,"yield_yesterday_kwh":null,"pmax_today_w":null,"yield_total_kwh":null,"charge_state":null,"charge_state_name":null,"error":null,"error_name":null,"tracker":null,"load_on":null,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:01:35-0400      3.54 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":20,"pv_mv":14810,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:01:37-0400      5.14 CMD GL ved
+2026-10-27T14:01:37-0400      5.14 CMD GL chg
+2026-10-27T14:01:37-0400      5.14 CMD SIM bms status
+2026-10-27T14:01:37-0400      5.28 GL ved: block, flags 0x00; batt 13280 mV 10 mA, pv 1547 cV 0 W, load 0 mA
+2026-10-27T14:01:37-0400      5.28 GL ved: cs 3 e22 0
+2026-10-27T14:01:37-0400      5.28 GL ved: last block 131 ms ago; text 5 ok, 0 bad, 0 unsynced, 0 interrupted, 0 overflow, 0 unparsed
+2026-10-27T14:01:37-0400      5.28 GL ved: hex sent 0, retried 0, answered 0, timeouts 0, uart errors 0; async 2, unmatched 0, bad 0, too long 0
+2026-10-27T14:01:37-0400      5.28 GL chg: not inhibited, source none, deciding path vedirect; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:01:37-0400      5.28 GL chg: not inhibited, source none, deciding path vedirect; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:01:37-0400      5.34 SIM OK bms off, no link, handshake no, FFF1 off, MTU 23, fault none x0, temp capture
+2026-10-27T14:01:37-0400      5.34 SIM   connects 0 handshakes 0 hs_rejected 0 ignored_before_hs 0 dropped_no_hs 0
+2026-10-27T14:01:52-0400     20.87 CMD pub lran/gatelink/config/set {"set":{"bms_poll_s":3600}}
+2026-10-27T14:01:54-0400     22.44 MQTT lran/gatelink/config/ack {"op":"set","persist":"persisted","results":{"bms_poll_s":{"status":"ok","value":3600}}}
+2026-10-27T14:02:32-0400     60.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":0,"pv_mv":19860,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:03:32-0400    120.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":10,"pv_mv":14980,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:04:32-0400    180.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13270,"batt_ma":-10,"pv_mv":19920,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:05:33-0400    241.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":30,"pv_mv":16130,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:06:33-0400    301.83 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":30,"pv_mv":15210,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:06:34-0400    302.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":30,"pv_mv":15210,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":true,"synthetic":false}
+2026-10-27T14:06:34-0400    302.44 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":13281,"node_ma":-32768,"enclosure_temp_c":27.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"fire_inputs_sensed":true,"reason":"charge_inhibited","synthetic":false,"uptime_s":300}
+2026-10-27T14:06:36-0400    304.56 MQTT lran/gatelink/event/charge_inhibited {"event_id":2,"ctx_id":984791894,"event_type":"charge_inhibited","event_code":9,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":2,"inhibit_path":"vedirect","uptime_s":300,"synthetic":false}
+2026-10-27T14:06:39-0400    307.76 GL charge: INHIBITED, by vedirect
+2026-10-27T14:06:39-0400    307.76 GL bms: read in 1692 ms (init 5 scan 810 conn 625 hs 91 ans 139 down 22)
+2026-10-27T14:06:40-0400    308.44 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":0,"pv_mv":19780,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:06:40-0400    308.44 MQTT lran/gatelink/battery/state {"available":true,"soc":99,"soc_source":"bms_ble","pack_mv":13300,"pack_ma":0,"cell_count":4,"cell1_mv":3326,"cell2_mv":3327,"cell3_mv":3327,"cell4_mv":3327,"cell1_temp_c":20,"cell2_temp_c":23,"cell3_temp_c":19,"cell4_temp_c":19,"cycles":4,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-66,"age_s":0,"ah_drawn":null,"synthetic":false}
+2026-10-27T14:06:40-0400    308.44 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":13280,"node_ma":-32768,"enclosure_temp_c":27.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"fire_inputs_sensed":true,"reason":"charge_inhibited","synthetic":false,"uptime_s":307}
+2026-10-27T14:06:47-0400    315.89 CMD GL chg
+2026-10-27T14:06:47-0400    315.89 CMD GL bms now
+2026-10-27T14:06:48-0400    316.08 GL charge: no longer inhione, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:06:48-0400    316.08 GL chg: not inhibited, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:06:48-0400    316.08 GL bms: window now
+2026-10-27T14:06:52-0400    320.24 CMD GL chg
+2026-10-27T14:06:52-0400    320.24 CMD GL bms data
+2026-10-27T14:06:52-0400    320.35 GL chg: not inhibited, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:06:52-0400    320.35 GL chg: not inhibited, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:06:52-0400    320.35 GL bms: cells 4: 3325 3328 3327 3328 mV (delta 3); temps 4: 201 227 194 194 (0.1 C); pack 13300 mV 0 mA (charge flag, raw 0x4000); SOC 99%; 988/1000 (0.1 Ah); cycles 4; SOH 1000; rssi -68
+2026-10-27T14:07:04-0400    332.31 CMD SIM bms on 49A1
+2026-10-27T14:07:04-0400    332.31 CMD SIM bms temp -5
+2026-10-27T14:07:04-0400    332.49 SIM OK bms on, advertising XDZN_001_49A1
+2026-10-27T14:07:04-0400    332.49 SIM OK bms temp -5 C on every sensor
+2026-10-27T14:07:07-0400    335.31 CMD GL bms now
+2026-10-27T14:07:07-0400    335.39 GL bms: window now
+2026-10-27T14:07:32-0400    360.45 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":30,"pv_mv":15300,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:07:32-0400    360.46 MQTT lran/gatelink/battery/state {"available":true,"soc":99,"soc_source":"bms_ble","pack_mv":13300,"pack_ma":0,"cell_count":4,"cell1_mv":3326,"cell2_mv":3327,"cell3_mv":3327,"cell4_mv":3327,"cell1_temp_c":20,"cell2_temp_c":23,"cell3_temp_c":19,"cell4_temp_c":19,"cycles":4,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-67,"age_s":23,"ah_drawn":null,"synthetic":false}
+2026-10-27T14:07:32-0400    360.81 GL bms: read in 942 ms (init 4 scan 21 conn 650 hs 90 ans 159 down 17)
+2026-10-27T14:07:38-0400    366.11 CMD GL chg
+2026-10-27T14:07:38-0400    366.11 CMD GL bms data
+2026-10-27T14:07:38-0400    366.11 CMD SIM bms status
+2026-10-27T14:07:38-0400    366.23 SIM OK bms on, no link, handshake no, FFF1 off, MTU 23, fault none x0, temp -5 C
+2026-10-27T14:07:38-0400    366.23 SIM   connects 0 handshakes 0 hs_rejected 0 ignored_before_hs 0 dropped_no_hs 0
+2026-10-27T14:07:38-0400    366.32 GL chg: not inhibite, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:07:38-0400    366.32 GL chg: not inhibited, source none, deciding path bms; temp <= 0 C, band 100 mA, rise 20 mV, confirm 300 s
+2026-10-27T14:07:38-0400    366.32 GL bms: cells 4: 3325 3327 3327 3326 mV (delta 2); temps 4: 201 226 194 194 (0.1 C); pack 13300 mV 0 mA (charge flag, raw 0x4000); SOC 99%; 988/1000 (0.1 Ah); cycles 4; SOH 1000; rssi -67
+2026-10-27T14:07:48-0400    376.03 CMD GL bms now
+2026-10-27T14:07:48-0400    376.06 GL bms: window now
+2026-10-27T14:07:48-0400    376.47 GL bms: read in 402 ms (init 5 scan 60 conn 190 hs 90 ans 40 down 16)
+2026-10-27T14:07:49-0400    377.24 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":10,"pv_mv":15240,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":true,"synthetic":false}
+2026-10-27T14:07:49-0400    377.24 MQTT lran/gatelink/battery/state {"available":true,"soc":100,"soc_source":"bms_ble","pack_mv":13920,"pack_ma":0,"cell_count":4,"cell1_mv":3465,"cell2_mv":3489,"cell3_mv":3484,"cell4_mv":3483,"cell1_temp_c":-5,"cell2_temp_c":-5,"cell3_temp_c":-5,"cell4_temp_c":-5,"cycles":1,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-72,"age_s":0,"ah_drawn":null,"synthetic":false}
+2026-10-27T14:07:49-0400    377.24 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":13281,"node_ma":-32768,"enclosure_temp_c":27.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"fire_inputs_sensed":true,"reason":"charge_inhibited","synthetic":false,"uptime_s":376}
+2026-10-27T14:07:49-0400    377.54 MQTT lran/gatelink/event/charge_inhibited {"event_id":3,"ctx_id":984791894,"event_type":"charge_inhibited","event_code":9,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":1,"inhibit_path":"bms","uptime_s":376,"synthetic":false}
+2026-10-27T14:07:52-0400    380.79 CMD GL bms now
+2026-10-27T14:07:52-0400    380.94 GL charge: INHIBITED, by bms
+2026-10-27T14:07:52-0400    380.94 GL bms: window now
+2026-10-27T14:07:53-0400    381.35 GL bms: read in 372 ms (init 5 scan 40 conn 180 hs 90 ans 39 down 17)
+2026-10-27T14:07:57-0400    385.63 CMD GL bms now
+2026-10-27T14:07:59-0400    387.25 GL bms: window now
+2026-10-27T14:07:59-0400    387.25 GL bms: read in 1512 ms (init 4 scan 51 conn 1160 hs 91 ans 189 down 17)
+2026-10-27T14:07:59-0400    387.94 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":-10,"pv_mv":19860,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":false,"synthetic":false}
+2026-10-27T14:07:59-0400    387.94 MQTT lran/gatelink/battery/state {"available":true,"soc":99,"soc_source":"bms_ble","pack_mv":13300,"pack_ma":0,"cell_count":4,"cell1_mv":3326,"cell2_mv":3327,"cell3_mv":3328,"cell4_mv":3328,"cell1_temp_c":20,"cell2_temp_c":23,"cell3_temp_c":19,"cell4_temp_c":19,"cycles":4,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-68,"age_s":0,"ah_drawn":null,"synthetic":false}
+2026-10-27T14:07:59-0400    387.94 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":13279,"node_ma":-32768,"enclosure_temp_c":27.6,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"fire_inputs_sensed":true,"reason":"charge_inhibited","synthetic":false,"uptime_s":387}
+2026-10-27T14:08:02-0400    390.91 GL charge: no longer inhibited, by bms
+2026-10-27T14:08:03-0400    391.52 CMD GL bms now
+2026-10-27T14:08:03-0400    391.72 GL bms: window now
+2026-10-27T14:08:03-0400    391.93 GL bms: read in 372 ms (init 4 scan 31 conn 190 hs 91 ans 39 down 17)
+2026-10-27T14:08:05-0400    393.73 MQTT lran/gatelink/solar/state {"available":true,"batt_mv":13280,"batt_ma":40,"pv_mv":18370,"pv_w":0,"load_ma":0,"yield_today_kwh":0.00,"yield_yesterday_kwh":0.00,"pmax_today_w":1,"yield_total_kwh":5.81,"charge_state":3,"charge_state_name":"bulk","error":0,"error_name":"no_error","tracker":2,"load_on":false,"temp_c":null,"hex_pending":false,"charge_inhibited":true,"synthetic":false}
+2026-10-27T14:08:05-0400    393.74 MQTT lran/gatelink/battery/state {"available":true,"soc":100,"soc_source":"bms_ble","pack_mv":13920,"pack_ma":0,"cell_count":4,"cell1_mv":3465,"cell2_mv":3489,"cell3_mv":3484,"cell4_mv":3483,"cell1_temp_c":-5,"cell2_temp_c":-5,"cell3_temp_c":-5,"cell4_temp_c":-5,"cycles":1,"capacity_ah":100.0,"alarms":65535,"charge_fet":false,"discharge_fet":false,"charge_inhibited":false,"protection":false,"balancing":false,"ble_rssi_dbm":-71,"age_s":0,"ah_drawn":null,"synthetic":false}
+2026-10-27T14:08:05-0400    393.74 MQTT lran/gatelink/node/state {"boot_count":null,"node_mv":13282,"node_ma":-32768,"enclosure_temp_c":27.5,"config_persisted":true,"sd_ok":true,"dry_run":false,"bms_ble":true,"debug":false,"shutdown_latch":false,"fire_inputs_sensed":true,"reason":"charge_inhibited","synthetic":false,"uptime_s":391}
+2026-10-27T14:08:06-0400    394.03 MQTT lran/gatelink/event/charge_inhibited {"event_id":4,"ctx_id":984791894,"event_type":"charge_inhibited","event_code":9,"follow_up":false,"hold_source":"none","direction":"none","gate_state":"closed","input_bits":0,"detail":1,"inhibit_path":"bms","uptime_s":391,"synthetic":false}
+2026-10-27T14:08:08-0400    396.27 CMD SIM bms status
+2026-10-27T14:08:08-0400    396.30 SIM OK bms on, no link, handshake no, FFF1 off, MTU 23, fault none x0, temp -5 C
+2026-10-27T14:08:08-0400    396.30 SIM   connects 3 handshakes 3 hs_rejected 0 ignored_before_hs 0 dropped_no_hs 0
+2026-10-27T14:08:18-0400    406.30 CMD SIM bms temp off
+2026-10-27T14:08:18-0400    406.30 CMD SIM bms off
+2026-10-27T14:08:18-0400    406.30 CMD pub lran/gatelink/config/set {"set":{"bms_poll_s":300}}
+2026-10-27T14:08:18-0400    406.46 SIM OK bms temp off, the capture's temperatures
+2026-10-27T14:08:18-0400    406.46 SIM OK bms off
+2026-10-27T14:08:19-0400    407.82 GL charge: INHIBITED, by bms
+2026-10-27T14:08:20-0400    408.44 MQTT lran/gatelink/config/ack {"op":"set","persist":"persisted","results":{"bms_poll_s":{"status":"ok","value":300}}}
