@@ -26,12 +26,15 @@ namespace {
 
 constexpr uint32_t kConfirmMs = 300000;  // charge_inhibit_confirm_s's default
 
-// The MPPT in bulk on a sunny day with the pack taking nothing: R-6.4b's condition.
+// The MPPT in bulk on a sunny day with the pack taking nothing: R-6.4b's condition. PV
+// power reads 0 W, as it did on the bench with a pack that took nothing (engineering log,
+// 2026-10-27); PV voltage is what shows the sun.
 MpptSnapshot blocked_mppt(uint16_t batt_mv = 13300) {
   MpptSnapshot m;
   m.batt_mv      = batt_mv;
   m.batt_ma      = 0;
-  m.pv_w         = 40;
+  m.pv_cv        = 1550;
+  m.pv_w         = 0;
   m.charge_state = 3;  // bulk
   m.mppt_flags   = 0;
   return m;
@@ -156,9 +159,10 @@ void test_stale_bms_hands_over_to_vedirect() {
 // Each part of R-6.4b's condition is needed.
 void test_vedirect_needs_every_part() {
   const BmsSnapshot none;
-  MpptSnapshot m[5] = {blocked_mppt(), blocked_mppt(), blocked_mppt(), blocked_mppt(),
-                       blocked_mppt()};
-  m[0].pv_w         = 0;                         // no PV
+  MpptSnapshot m[6] = {blocked_mppt(), blocked_mppt(), blocked_mppt(), blocked_mppt(),
+                       blocked_mppt(), blocked_mppt()};
+  m[0].pv_cv        = 1429;                      // PV 10 mV short of battery + 1 V
+  m[5].pv_cv        = lran::kU16NotAvailable;    // no PV reading
   m[1].charge_state = 5;                         // float
   m[2].batt_ma      = 150;                       // charging past the band
   m[3].batt_ma      = lran::kI16NotAvailable;    // no current reading
@@ -205,7 +209,7 @@ void test_vedirect_clears_after_confirm() {
   TEST_ASSERT_TRUE(r.c.inhibited());
 
   MpptSnapshot cloud = blocked_mppt();
-  cloud.pv_w = 0;
+  cloud.pv_cv = 1300;  // PV below the battery
   for (uint32_t end = t + 60000; t < end; t += 1000) r.step(cloud, none, t);
   r.step(blocked_mppt(), none, t);
   TEST_ASSERT_TRUE(r.c.inhibited());
@@ -232,6 +236,16 @@ void test_no_source_claims_nothing() {
 
 // D81 - the wire values are spec 8.9's, and each onset names its own path: an inhibition
 // that clears and sets again by the other path carries the other value.
+// PRD v0.23 - PV 1 V above the battery is enough, at the margin exactly.
+void test_vedirect_pv_margin_is_inclusive() {
+  Rig r;
+  const BmsSnapshot none;
+  MpptSnapshot edge = blocked_mppt();
+  edge.pv_cv = 1430;  // 14.30 V against 13.30 V
+  for (uint32_t t = 0; t <= kConfirmMs; t += 1000) r.step(edge, none, t);
+  TEST_ASSERT_TRUE(r.c.inhibited());
+}
+
 void test_detail_names_the_deciding_path() {
   TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(lran::ChargeInhibitPath::Bms));
   TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(lran::ChargeInhibitPath::VeDirect));
@@ -262,6 +276,7 @@ int main(int, char**) {
   RUN_TEST(test_a_small_rise_keeps_the_clock);
   RUN_TEST(test_vedirect_clears_after_confirm);
   RUN_TEST(test_no_source_claims_nothing);
+  RUN_TEST(test_vedirect_pv_margin_is_inclusive);
   RUN_TEST(test_detail_names_the_deciding_path);
   return UNITY_END();
 }

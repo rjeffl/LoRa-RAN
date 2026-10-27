@@ -11,10 +11,11 @@
 //   BMS (R-6.4a)        the coldest pack sensor at or below charge_inhibit_temp_c, and the
 //                       pack not charging. The pack's own inhibit flag is in 0x8D, which is
 //                       not decoded (bms-protocol 10), so temperature stands in for it.
-//   VE.Direct (R-6.4b)  PV power present, the charger in bulk or absorption, battery current
-//                       within charge_inhibit_band_ma of zero and battery voltage not rising,
-//                       all held for charge_inhibit_confirm_s. Used only while the BMS has no
-//                       read younger than three polls, the case R-6.4b was written for.
+//   VE.Direct (R-6.4b)  PV voltage at least 1 V above battery voltage, the charger in bulk
+//                       or absorption, battery current within charge_inhibit_band_ma of zero
+//                       and battery voltage not rising, all held for
+//                       charge_inhibit_confirm_s. Used only while the BMS has no read
+//                       younger than three polls, the case R-6.4b was written for.
 //
 // Either path sets spec 7.2.6 bit 3, the derived indication, and the onset's EVENT names
 // the path in `detail`: 1 for the BMS, 2 for VE.Direct (spec 8.9, D81). spec 7.2.7 bit 3

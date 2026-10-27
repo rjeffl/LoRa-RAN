@@ -2193,3 +2193,36 @@ and read them before the card comes out.
 **Falsified by:** an `aborted` line in a later `/bms.log` with no `end=read` within
 `bms_retry_s` plus one window, or a `battery/state` `age_s` past about 310 with the pack
 in reach.
+
+## 2026-10-27 — R-6.4b's PV power test cannot hold: a pack that takes nothing leaves PPV at 0 W
+
+**R-6.4b as written could never infer an inhibition, so PRD v0.23 tests PV voltage
+instead** (operator, 2026-10-27). GateLink `3fa9dfe`, with D81, ran on the bench with the
+gate's MPPT 75/15, the WattCycle pack on its battery terminals, a 30 W panel behind a
+window on its PV input, and the bench bridge and sandbox broker. The pack was full, at SOC
+99 % and `pack_ma` 0, so it took no charge, which is how the MPPT sees a pack whose BMS
+refuses charge. Trace:
+[`gl-r64b-ppv-2026-10-27.log`](./data/gl-r64b-ppv-2026-10-27.log), GateLink's console and
+the `solar/state` and `battery/state` documents.
+
+| Seconds | `charge_state` | PV | `pv_w` | Battery |
+|---|---|---|---|---|
+| 0–176 | bulk | 15.26–17.06 V | 1 W | 13.28 V, 30–40 mA |
+| 234 on | bulk | 15.47–20.35 V | 0 W | 13.28 V, 0–10 mA |
+
+**The MPPT stayed in bulk with the sun up and reported 0 W.** A charger whose battery takes
+nothing harvests nothing, so `pv_w > 0` fails in exactly the case R-6.4b is for. Here
+GateLink's VE.Direct condition held for 234 s on the 1 W readings, then failed and
+restarted its clock short of `charge_inhibit_confirm_s`. A load on the MPPT's load output
+would probably keep PPV above 0; `load_ma` read 0 throughout.
+
+**PV voltage shows the sun whatever the battery takes**, so R-6.4b now asks for PV at
+least 1 V above battery voltage. The 1 V is the floor Victron's SmartSolar manuals give for
+charging once it has started; the 75/15's own figure has not been checked. Here PV sat 2 V
+or more above the battery throughout.
+
+**The BMS read at 302 s took over the decision**, as designed: a fresh read outranks
+VE.Direct for three polls. The pack read 19–22 °C, so nothing was inhibited.
+
+**Falsified by:** a `solar/state` in bulk or absorption with `batt_ma` near 0 and
+`pv_mv` below `batt_mv` plus 1000 while the sun is on the panel.

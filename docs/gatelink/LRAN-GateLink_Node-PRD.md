@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.22
+**Version:** 0.23
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-27
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -802,9 +802,15 @@ failing panel or charge controller.
 - **R-6.4b.** GateLink SHALL ALSO be able to infer it **from VE.Direct alone**, for the
   case where BLE is unavailable:
 
-  > PV power present **AND** charger state is bulk/absorption **AND** battery current
-  > ≈ 0 **AND** battery voltage not rising, sustained for `charge_inhibit_confirm_s`
-  > (default 300) ⇒ **charging inhibited**
+  > PV voltage at least 1 V above battery voltage **AND** charger state is
+  > bulk/absorption **AND** battery current ≈ 0 **AND** battery voltage not rising,
+  > sustained for `charge_inhibit_confirm_s` (default 300) ⇒ **charging inhibited**
+
+  The test is PV *voltage*, not PV power: a charger whose battery takes nothing harvests
+  nothing, so its PV power reads 0 W in exactly the case this requirement detects
+  (engineering log, 2026-10-27). The 1 V margin is the PV voltage above battery that
+  Victron's SmartSolar manuals give as the floor for charging once it has started; the
+  75/15's own figure has not been checked.
 
 - **R-6.4c.** GateLink SHALL maintain a **cumulative Ah drawn since charging was last
   active**, so a multi-day cold event shows consumed reserve rather than just a boolean.
@@ -1027,6 +1033,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.23** — **R-6.4b tests PV voltage, not PV power**, by operator decision 2026-10-27.
+  On the bench, a full pack took no charge and the MPPT stayed in bulk with PV at 15–20 V,
+  yet reported 0 W. The power test could never hold while the battery current was about
+  zero.
 
 - **v0.22** — **IN5 and IN6 are read again**, by operator decision 2026-10-24 (**D83**,
   superseding D77). D77's dead port 1 was a firmware defect. G-9, G-10, §3.2.5, R-3.5i, S-13
