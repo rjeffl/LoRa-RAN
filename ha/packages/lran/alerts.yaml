@@ -88,6 +88,12 @@ input_text:
   lran_gatelink_boot_times:
     name: LRAN GateLink recent boots
     max: 255
+  # When the GateLink outage that alerted began, epoch seconds; empty when none is pending
+  # (plan 9.1). It survives a bridge outage and an HA restart, which the sensor's own
+  # last_changed does not, so the return push can still report the whole outage.
+  lran_gatelink_offline_since:
+    name: LRAN GateLink offline since
+    max: 20
 
 mqtt:
   binary_sensor:
@@ -224,11 +230,15 @@ automation:
           follow_up: "{{ p.follow_up is sameas true }}"
 
   # The return push replaces the offline one through the shared tag, and is a follow-up so
-  # it sends no second email. It goes out only if the outage lasted long enough to alert.
+  # it sends no second email. It goes out only for an outage that alerted, which
+  # input_text.lran_gatelink_offline_since records, and on any arrival at `on`: after a
+  # bridge outage the sensor returns through unavailable and a brief `off`, from the
+  # retained availability, and `from: off` would count the outage from that brief `off`
+  # (engineering log, 2026-10-28).
   #
   # After an HA restart the sensor starts unknown, so a node still offline alerts again
-  # once the delay has run, and the outage it reports on return counts from the restart.
-  # A repeated alert is the better failure than a silent one.
+  # once the delay has run. The recorded start is kept, so the return push still reports
+  # the whole outage. A repeated alert is the better failure than a silent one.
   - id: lran_1_gatelink_offline
     alias: "LRAN 1 - GateLink offline"
     mode: queued
@@ -242,20 +252,29 @@ automation:
         id: offline
       - trigger: state
         entity_id: binary_sensor.lran_gatelink_online
-        from: "off"
         to: "on"
         id: online
     variables:
       warn_min: "{{ states('input_number.lran_offline_warn_min') | int(10) }}"
+      since: "{{ states('input_text.lran_gatelink_offline_since') | int(0) }}"
       gone_min: >-
-        {{ ((now() - trigger.from_state.last_changed).total_seconds() / 60) | round(0) | int
-           if trigger.id == 'online' else 0 }}
+        {{ ((as_timestamp(now()) - since) / 60) | round(0) | int if since > 0 else 0 }}
     actions:
       - choose:
           - conditions:
               - condition: trigger
                 id: offline
             sequence:
+              # The outage began when the sensor went off, the state the trigger waited
+              # out. A re-alert after a restart keeps the start already recorded.
+              - if:
+                  - condition: template
+                    value_template: "{{ since == 0 }}"
+                then:
+                  - action: input_text.set_value
+                    target: { entity_id: input_text.lran_gatelink_offline_since }
+                    data:
+                      value: "{{ as_timestamp(trigger.to_state.last_changed) | int }}"
               - action: script.lran_notify
                 data:
                   alert: gatelink_offline
@@ -266,8 +285,12 @@ automation:
               - condition: trigger
                 id: online
               - condition: template
-                value_template: "{{ gone_min >= warn_min }}"
+                value_template: "{{ since > 0 }}"
             sequence:
+              - action: input_text.set_value
+                target: { entity_id: input_text.lran_gatelink_offline_since }
+                data:
+                  value: ""
               # At gatelink_offline's level: the return is that alert's follow-up.
               - action: script.lran_notify
                 data:

@@ -3,7 +3,8 @@
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
-levels and the message catalog, and on 2026-10-27 at the end of H5.**
+levels and the message catalog, on 2026-10-27 at the end of H5, and on 2026-10-28 at the
+end of H4b.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -17,17 +18,15 @@ levels and the message catalog, and on 2026-10-27 at the end of H5.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H4b.
+Continue from docs/ha/HANDOFF.md: task H6.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4 and H5 are done, except for H4's two offline alerts, which need
-the boards powered down (H4b). H6 needs H4 and only uses its event alerts, so it does not
-wait for H4b. H7 depends only on H1, and H9 on H3.
+cited below as *plan*. H4, H4b and H5 are done; H4b leaves one check for the boards'
+power-up (*The next job*). H6 needs H4, H7 depends only on H1, and H9 on H3.
 
 | Task | Read |
 |---|---|
-| **H4b** The two offline alerts | Plan §9.1 and its connectivity-sensor note, §7.5; engineering log, 2026-10-26, H4 and alert levels; `ha/packages/lran/alerts.yaml` |
 | **H6** Tier 3 reminders and the action handler | Plan §9.3, §7.3 (`actions`), §7.5, §11's H6 row (V-8); *Traps*, below |
 | **H7** Tier 4 reports | Plan §9.4, §7.5 |
 | **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
@@ -38,12 +37,25 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H4b, the two offline alerts, once the GateLink soak allows it.** Set `input_number.lran_offline_warn_min` to 1, unpower
-GateLink until the offline push arrives, then power it on and check the return push names
-the outage. Then unpower the bridge for 5 minutes and check its push sends no email. Both
-interrupt the GateLink soak, so agree the time with the operator. Restore the delay to 10.
+**First, when the bridge and GateLink are powered up: check the GateLink return push**
+(engineering log, 2026-10-28, H4b). Expected: one *GateLink back online* push, replacing the
+2026-10-27 14:59 offline push, naming the outage from 14:49:41, and
+`input_text.lran_gatelink_offline_since` empty afterwards. Read it with
+`ha_get_automation_traces("automation.lran_1_gatelink_offline")` and `ha_get_state`. If no
+push came, the trace says which condition stopped it. Log the result as a new dated entry.
+
+**Then H6**, Tier 3 reminders and the action handler.
 
 ## What the last session established
+
+- **Both offline alerts fired on the soak's real shutdown** (plan v0.8, §9.1; engineering
+  log, 2026-10-28, H4b). GateLink alerted at its 10-minute delay, the bridge at 5 minutes
+  with no email, and a bridge outage did not re-alert GateLink. The operator saw both on
+  the phone and the Mac. The GateLink return push was seen once, for a 15-minute outage.
+- **The return push now counts from a start the offline alert records**, in
+  `input_text.lran_gatelink_offline_since`, and fires on `on` from any state. Before, a
+  bridge outage or an HA restart left a GateLink outage with no return push. **The fixed
+  path has not run yet**: it waits for the boards' power-up.
 
 - **The seven Tier 2 health alerts are installed and verified** (plan v0.7, §9.2;
   engineering log, 2026-10-27, H5). The state alerts were driven by moving thresholds, and
@@ -54,15 +66,14 @@ interrupt the GateLink soak, so agree the time with the operator. Restore the de
 - **Every alert has a level selector and its text in `messages.yml`** (plan §7.5;
   engineering log, 2026-10-26, alert levels). The Maintenance dashboard's *Alerts* card
   sets `Off`, `Normal`, `High` or `Critical` per alert. `lran_notify` was verified by direct
-  calls; **the automations have not been driven end to end since the change**, and H4b's
-  offline run is the first that does. `tools/checks/ha_messages.py` is the first CI check
+  calls, and H4b's offline run drove two automations through it end to end. `tools/checks/ha_messages.py` is the first CI check
   that reads `ha/packages/`.
 
 - **The four Tier 1 event alerts are installed and verified** with events injected through
   ha-mcp's `mqtt.publish`, `ctx_id` 4294967295 (engineering log, 2026-10-26, H4). The
   held-open follow-up replaces its push and sends no email; a retransmission is dropped.
-  **FIRE's critical alert was seen on the phone.** V-5 holds across an HA restart. **The
-  offline alerts were not exercised.**
+  **FIRE's critical alert was seen on the phone.** V-5 holds across an HA restart. The
+  offline alerts were exercised in H4b.
 
 - **The simnodes are gone from the sandbox**, and clearing their retained discovery configs
   is what keeps them gone (engineering log, 2026-10-25).
@@ -98,8 +109,8 @@ interrupt the GateLink soak, so agree the time with the operator. Restore the de
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H5; H4 but for H4b |
-| Queue | H4b, H6 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5. H4b's fixed return push waits on the power-up check |
+| Queue | H6 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -172,6 +183,10 @@ those two targets changed, which plan §7.3 names.
 
 ## Traps that cost real time here
 
+- **A node's `availability` is retained, so it outlives the bridge.** When the bridge
+  comes back, `binary_sensor.lran_gatelink_online` reads the stale value first, then the
+  bridge's own. Anything timed from that sensor's `last_changed` restarts at the bridge's
+  return. Time from a recorded start instead, as the GateLink return push does (plan §9.1).
 - **The sandbox broker carries GateLink's live bench soak.** A test event published to
   `lran/gatelink/event/*` reaches the soak's subscribers as well as HA. Agree each
   injection with the operator first. H4 published through ha-mcp's `mqtt.publish`, not
@@ -203,6 +218,8 @@ those two targets changed, which plan §7.3 names.
 
 ## Open, and not closable from here
 
+- **The 08:00:08 2026-10-28 `lran_notify` run has no logbook entry in ha-mcp's read**,
+  though its trace reached `logbook.log`. Not chased.
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
   for production (plan §12, step 6).
 - **Spec §8.9 gives BMS_ALARM's `detail` no meaning.** The alert shows it raw, in hex. A

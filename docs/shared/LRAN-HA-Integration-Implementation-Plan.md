@@ -1,12 +1,12 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.7
+**Version:** 0.8
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27
-**Last updated:** 2026-10-27
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28
+**Last updated:** 2026-10-28
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
 > **Everything HA-side is built in the sandbox and ported to production as files.** The
@@ -212,6 +212,7 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_select.lran_alert_<alert>` | One per alert: `Off`, `Low`, `Normal`, `High` or `Critical` (§7.5). In `alerts.yaml`, beside the automations | the alert's `level` in `messages.yml` |
 | `input_boolean.lran_alert_levels_seeded` | Set once the alert levels are applied, by `lran_0_seed_alert_levels` | off |
 | `input_text.lran_gatelink_boot_times` | GateLink's boot times in the last hour, for `lran_2_node_boot`'s count (§9.2). In `alerts.yaml` | empty |
+| `input_text.lran_gatelink_offline_since` | When the GateLink outage that alerted began, epoch seconds, for the return push (§9.1). Cleared by that push. In `alerts.yaml` | empty |
 | `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
@@ -457,7 +458,7 @@ text from `messages.yml` too.
 | `lran_1_fire` | `lran/gatelink/event/fire_asserted` | `critical`. **Its own automation, so it can be routed apart from every other alert** (spec §8.9) |
 | `lran_1_hard_shutdown` | `lran/gatelink/event/hard_shutdown` | `high` |
 | `lran_1_bms_alarm` | `lran/gatelink/event/bms_alarm` | `high`, with `detail` |
-| `lran_1_gatelink_offline` | `lran/gatelink/availability` is `offline` for `lran_offline_warn_min` | `high`. A second push when it returns, with how long it was gone |
+| `lran_1_gatelink_offline` | `lran/gatelink/availability` is `offline` for `lran_offline_warn_min` | `high`. A second push when it returns, with how long it was gone, sent only for an outage that alerted |
 | `lran_1_bridge_offline` | The bridge's own `availability` (its LWT) is `offline` for 5 minutes | `high`. **Push only**, because the HA host that would send the email may be what failed |
 
 **The two offline alerts read `alerts.yaml`'s own MQTT binary sensors**,
@@ -465,6 +466,14 @@ text from `messages.yml` too.
 trigger can wait out a delay and an MQTT trigger cannot. The GateLink sensor takes the
 bridge's availability as its own, so a bridge outage leaves it unavailable rather than off,
 and one outage does not alert twice.
+
+**The GateLink return push counts from a recorded start, not from the sensor's last change.**
+The offline alert writes when the outage began to `input_text.lran_gatelink_offline_since`,
+and the return push fires on the next `on` from any state, then clears it. A bridge outage
+breaks the sensor's own history: the bridge comes back with GateLink's retained `offline`,
+so the sensor passes through a brief `off` before `on`, and an outage counted from that `off`
+is too short to report. An HA restart breaks it the same way. The 2026-10-28 run found it
+(engineering log, 2026-10-28, H4b).
 
 ### 9.2 Tier 2 — health
 
@@ -588,3 +597,4 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
+| 0.8 | 2026-10-28 | H4b done, from the soak's shutdown. §9.1's GateLink return push counts from a start the offline alert records, and fires on `on` from any state, because a bridge outage or a restart left the outage unreported. §7.1 adds `input_text.lran_gatelink_offline_since` |
