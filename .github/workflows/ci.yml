@@ -296,6 +296,12 @@ jobs:
       - name: Home Assistant alert messages
         run: python3 tools/checks/ha_messages.py
 
+      # HA Plan §11, H9: parses every package and dashboard and lists the entity IDs they
+      # name. A broken YAML file fails here rather than in the sandbox. Whether those IDs
+      # exist needs a live HA, so that half runs by hand: tools/ha/check_entities.py.
+      - name: Home Assistant YAML parses
+        run: python3 tools/ha/check_entities.py --offline > /dev/null
+
       # GateLink Impl Plan §6.4, D44: `docs/gatelink/gatelink-config.md` is printed from
       # `lib/lran-config/`'s table by a host g++ build, then diffed against the committed
       # file. A table row changed without a regenerated document fails here.
