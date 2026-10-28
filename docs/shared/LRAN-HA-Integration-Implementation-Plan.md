@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.8
+**Version:** 0.9
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9 partly done 2026-10-28
 **Last updated:** 2026-10-28
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -560,7 +560,7 @@ from the YAML.
 | **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**) |
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping **Open gate** with dry-run on issues the open command. Voice control waits for F1 |
-| **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12) |
+| **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Partly met 2026-10-28**: 199 of the 200 entity IDs and the alert-selector prefix are in the sandbox. `number.gatelink_bms_retry_s` is not, because the sandbox's bridge has not run firmware from a1de65d, which added it |
 | **H10** | Port to production | H1–H9; bridge **B6** | §12's procedure, then GL8 |
 
 **F1 to F3 are bridge tasks** (§5). They can run alongside H1 to H7. When F1 lands, H2,
@@ -574,9 +574,10 @@ H6 and H8 switch to the cover and hold switch in the same change.
    in the production config directory, matching the paths in §6. Write
    `site.yaml` from `site.yaml.example` with the production notify targets.
 3. Add the §6 blocks to `configuration.yaml`, check the configuration, and restart.
-4. Run `tools/ha/check_entities.py` against production. **A missing entity ID means the
-   production registry named something differently.** Rename the production entity to
-   match the repository, rather than editing the YAML for one install.
+4. Run `tools/ha/check_entities.py --server ha-prod`. **A missing entity ID means the
+   production registry named something differently, or the bridge runs firmware older
+   than the repository's discovery.** Rename a production entity to match the repository,
+   rather than editing the YAML for one install. Reflash a bridge that is behind.
 5. Verify tier 1 on production with relay dry-run on, as part of GL8.
 6. Turn on `input_boolean.lran_email_enabled` when the operator is ready for email.
 
@@ -597,4 +598,5 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
+| 0.9 | 2026-10-28 | H9 partly done. `check_entities.py` asks HA through ha-mcp, not the REST API, as the dev flow does; `--server` picks the install. Its `--offline` half runs in CI's checks job and parses every package and dashboard |
 | 0.8 | 2026-10-28 | H4b done, from the soak's shutdown. §9.1's GateLink return push counts from a start the offline alert records, and fires on `on` from any state, because a bridge outage or a restart left the outage unreported. §7.1 adds `input_text.lran_gatelink_offline_since` |

@@ -435,3 +435,34 @@ outage from 14:49, and the helper empty afterwards.
 **One logbook gap, not chased.** The 08:00:08 run of `lran_notify` reached its
 `logbook.log` step in the trace, but ha-mcp's logbook read does not return that entry. The
 17:27 entry and the earlier ones are there.
+
+## 2026-10-28 — H9, the entity check, and the one ID the sandbox lacks
+
+**`tools/ha/check_entities.py` asks HA through ha-mcp, not the REST API.** The REST route
+needs `~/.lran_ha_token`, which the Mac does not have. The dev flow already sends every
+question to HA through ha-mcp (handoff, *The dev flow*). The script speaks MCP over HTTP to
+the server named in `~/.claude.json` and renders one template, the list of every entity
+ID. The server's address carries its secret path, so the script reads it and never prints
+it. `--server ha-prod` points it at production when H10 registers that server.
+
+**Telling an entity from a service is the hard part of reading the YAML.** `button.press`
+and `input_number.set_value` match the same pattern as `button.gatelink_close`. The script
+skips a match that also appears under `action:`, `service:` or `perform_action:` in the
+same file. The first run flagged `button.press` because the Gate dashboard names it under
+`perform_action:`, which the first draft did not read. A `script.*` stays in, because a
+script's service is also its entity. `'input_select.lran_alert_' ~ alert` leaves a prefix
+ending in `_`, and the check passes a prefix when at least one live entity starts with it.
+
+**Against the sandbox at 13:55 UTC: 199 of the 200 entity IDs are present, and the prefix
+matches.** The missing one is `number.gatelink_bms_retry_s`, on the Maintenance dashboard.
+`ha/discovery/number-lran_gatelink_bms_retry_s.json` has it, and a1de65d added it on
+2026-10-26. The sandbox has `bms_poll_s` and `bms_window_max_ms` but not this one. A
+discovery config is retained, so a bridge that had ever run a1de65d or later would have
+left the entity behind. **The sandbox's bridge has therefore not run firmware from
+a1de65d on.** The YAML is right. The bridge has been off since 11:55 UTC today, and its
+firmware version reads `unavailable`. The check passes once a bridge built from current
+`main` connects.
+
+**The offline half runs in CI.** `--offline` parses every package and dashboard and lists
+the IDs. A YAML file that does not parse fails the checks job, before it reaches the
+sandbox.
