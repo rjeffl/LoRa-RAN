@@ -466,3 +466,52 @@ firmware version reads `unavailable`. The check passes once a bridge built from 
 **The offline half runs in CI.** `--offline` parses every package and dashboard and lists
 the IDs. A YAML file that does not parse fails the checks job, before it reaches the
 sandbox.
+
+## 2026-10-28 — H6, the Tier 3 reminders and the Close gate handler: built, not verified
+
+**`reminders.yaml` is installed on the sandbox, and V-8 has not run.** The config check
+read valid, and the selectors, scripts and automations reloaded with no LRAN entry in the
+system log. The three new selectors came up `Off`, as the handoff's trap says, and were set
+to `Normal` after the reload. No reminder has been pushed and no Close gate tapped. The
+bridge needs a flash from `main` at the bench first (H9's entry above), then relay dry-run
+on, before the tap means anything.
+
+**Three choices the plan did not state, now in §9.3 (v0.10).**
+
+- "Not closed" is `moving`, `open_countdown` or `open_held`, the gate-state strings in
+  `publish.cpp`. `fault` and `unknown` are left to the Gate dashboard's banners.
+- The nobody-home reminder counts only tracked persons. The sandbox has `person.jeff` and
+  `person.claude_user`, both `unknown`, so a rule of "no person at home" would have read
+  the sandbox as empty all day. With the rule as built, the trigger renders false there.
+- The handler skips a gate that already reads closed and logs the tap. Its action carries
+  iOS's `authenticationRequired: true`, so the phone must be unlocked to run it. Android
+  ignores the key. **Not yet seen on the phone.**
+
+**The sandbox's sun looks wrong for this site.** At 14:05 UTC, `sun.sun` gave the next
+sunset as 16:18 UTC, 12:18 in New York, the install's time zone. The home location is
+probably not set to the property, so `lran_3_open_at_night` would fire at the wrong hour
+there. Production's location needs the same check before H10.
+
+**The V-8 run, when the bench is ready.** Confirm `binary_sensor.gatelink_relay_dry_run`
+reads `on`. Send one reminder through `script.lran_notify` (`alert: held_open_long`, the
+Close gate action), with no broker involved. Tap Close gate on the phone. Expected: a
+`lran_3_close_action` trace that presses `button.gatelink_close`, and GateLink reporting
+the close as `DRY_RUN` with no relay energized. Agree the time with the operator, because
+the press reaches the sandbox broker and the soak.
+
+## 2026-10-28 — H4b's return push ran, and H9's diagnosis holds
+
+**The boards came up at 14:13 UTC, and the fixed GateLink return path ran.**
+`binary_sensor.lran_bridge_online` went `on` at 14:13:30 and
+`binary_sensor.lran_gatelink_online` at 14:14:03. The trace of
+`automation.lran_1_gatelink_offline` for that run took the return branch. It cleared
+`input_text.lran_gatelink_offline_since`, then called `lran_notify` with
+`msg: gatelink_online`, `gone: 19 h 24 min`, the tag `gatelink:offline` and
+`follow_up: true`. 19 h 24 min counts from the recorded start, 18:49:41 UTC on
+2026-10-27, which is 14:49:41 in New York. **Whether the push replaced the 14:59 push on
+the phone was not checked.** The operator was away from the bench.
+
+**The bridge runs c9d3667, from 2026-10-15**, by `sensor.lora_bridge_firmware_commit`.
+`git merge-base --is-ancestor a1de65d c9d3667` says a1de65d is not in it. That confirms
+H9's reading: `number.gatelink_bms_retry_s` is missing because the firmware predates it.
+Relay dry-run reads `off`, and the gate `closed`.
