@@ -192,8 +192,8 @@ phy_reverted:
     missing: none
 
 # --- Tier 3 (plan 9.3) ---
-# Each push carries a Close gate action, and the three share a tag, so a newer reminder
-# replaces an older one on the phone.
+# Each push opens the Gate dashboard and carries no action (plan 9.3). The three share a
+# tag, so a newer reminder replaces an older one on the phone.
 
 # Repeats every lran_held_open_reminder_h while the hold lasts.
 held_open_long:
@@ -216,3 +216,28 @@ open_nobody_home:
   title: Gate open, nobody home
   message: "The gate is {gate_state}, and everyone has been away for 15 minutes."
   gate_state: *open_states
+
+# --- Tier 4 (plan 9.4) ---
+# The automations pass every value formatted, with its unit, so a value that is not known
+# reads "not reported" and not "not reported %".
+
+# 07:00 daily. alerts is "none", or the count and each alert's title once.
+morning_report:
+  level: Normal
+  title: GateLink morning report
+  message: >-
+    Battery {soc}, {soc_change}. Solar yesterday {yield}. Traversals yesterday
+    {traversals}. Enclosure {enc_min} to {enc_max} in 24 h. Most missed polls in a row
+    {missed_polls}. Alerts since the last report: {alerts}.
+  soc_change:
+    missing: change over 24 h not known
+
+# Sunday 08:00, over the seven days to midnight. rssi_change is this week's mean BMS link
+# RSSI less the week before's.
+weekly_battery:
+  level: Normal
+  title: GateLink weekly battery report
+  message: >-
+    Battery {soc_min} to {soc_max}. Cycles added {cycles}. Worst cell spread {spread}. BMS
+    link RSSI {rssi} on average, {rssi_change} on the week before. MPPT time in bulk
+    {mppt_bulk}, absorption {mppt_absorption}, float {mppt_float}, off {mppt_off}.

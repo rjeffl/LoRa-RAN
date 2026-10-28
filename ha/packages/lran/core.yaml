@@ -32,6 +32,11 @@ input_text:
   lran_recent_events:
     name: LRAN recent event keys
     max: 255
+  # The title of each alert since the last morning report, once each, for that report's
+  # list (plan 9.4). Written by script.lran_report_note; cleared by the report.
+  lran_report_alerts:
+    name: LRAN alerts since the report
+    max: 255
 
 # No `initial:` on these. HA applies `initial` at every start, which would undo a value
 # tuned in the UI. lran_0_seed_defaults sets the plan 7.1 defaults once instead.
@@ -94,6 +99,13 @@ counter:
   lran_gatelink_traversals_today:
     name: GateLink traversals today
     icon: mdi:car-arrow-right
+    initial: 0
+    step: 1
+    restore: true
+  # Every alert since the last morning report, repeats included (plan 9.4).
+  lran_report_alert_count:
+    name: LRAN alerts since the report
+    icon: mdi:bell-ring-outline
     initial: 0
     step: 1
     restore: true
@@ -394,6 +406,15 @@ script:
         {% if url %}{% set d = dict(d, url=url, clickAction=url) %}{% endif %}
         {{ d }}
     sequence:
+      # Every alert reaches the morning report's record, an Off or muted one included,
+      # because the report is the day's record and not the phone's (plan 9.4).
+      - if:
+          - condition: template
+            value_template: "{{ name not in ['morning_report', 'weekly_battery'] }}"
+        then:
+          - action: script.lran_report_note
+            data:
+              title: "{{ entry.get('title') or title or name }}"
       # An alert set to Off still reaches the logbook, marked, so the Events view keeps the
       # record of what was not sent (plan 7.5).
       - if:
@@ -456,3 +477,37 @@ script:
             data:
               title: "{{ title_text }}"
               message: "{{ message_text }}"
+
+  # Plan 9.4. A script of its own, `queued`, because lran_notify runs in parallel: two
+  # alerts at once would otherwise each read the list before the other wrote it. The list
+  # keeps the first of each title and drops a title that would overrun 255 characters; the
+  # count still includes it.
+  lran_report_note:
+    alias: LRAN report note
+    mode: queued
+    max: 50
+    fields:
+      title:
+        description: The alert's catalog title, without its placeholders filled.
+        required: true
+        selector: { text: }
+    sequence:
+      - action: counter.increment
+        target: { entity_id: counter.lran_report_alert_count }
+      - variables:
+          current: >-
+            {{ states('input_text.lran_report_alerts')
+               if has_value('input_text.lran_report_alerts') else '' }}
+          updated: >-
+            {% set have = current.split('; ') if current else [] %}
+            {% if title in have %}{{ current }}
+            {% elif not current %}{{ title[:255] }}
+            {% elif (current ~ '; ' ~ title) | length <= 255 %}{{ current ~ '; ' ~ title }}
+            {% else %}{{ current }}{% endif %}
+      - if:
+          - condition: template
+            value_template: "{{ updated != current }}"
+        then:
+          - action: input_text.set_value
+            target: { entity_id: input_text.lran_report_alerts }
+            data: { value: "{{ updated }}" }

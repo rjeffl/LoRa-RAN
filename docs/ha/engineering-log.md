@@ -610,3 +610,59 @@ logging it.
 the *GateLink back online* push of 14:14 UTC stood in place of the 14:59 offline push.
 
 Relay dry-run is still on. It stays on until the operator asks for it off.
+
+## 2026-10-28 — H7, the Tier 4 reports: built and met on the sandbox
+
+**Relay dry-run went off first.** `mqtt.publish` to
+`lran/gatelink/cmd/set_relay_dry_run/set` with payload `0`, not retained, at about 21:42
+UTC, by operator request. `binary_sensor.gatelink_relay_dry_run` read `off` after the HA
+restart at 21:50.
+
+**HA 2026.10 has `recorder.get_statistics`, and it removes most of the sensors H7 would
+have needed.** It returns long-term statistics as a response variable: a measurement
+sensor's `mean`, `min` and `max` per period, and a total's `change`. The morning report
+reads hourly rows for 24 h, and the weekly report reads fourteen daily rows. The rows'
+`start` is in UTC and `today_at()` is local, so the first draft's split of the week, which
+compared the ISO strings, would have been wrong across the offset. It compares timestamps
+instead. The MPPT charge state is text, has no statistics, and needs four `history_stats`
+sensors.
+
+**Two operator choices** (plan v0.12): yesterday's yield comes from an MQTT sensor in
+`reports.yaml`, because discovery makes no entity for `yield_yesterday_kwh` (plan §5, F4).
+"Any event in the last 24 h" is every alert since the last report, which `lran_notify`
+now notes through a queued script.
+
+**Both reports ran at 21:53 UTC**, triggered by hand, after the new selectors were set to
+`Normal`. They start at `Off`, as *Traps* in the handoff says. The weekly report read:
+
+```text
+Battery 99 % to 100 %. Cycles added 12. Worst cell spread 163 mV. BMS link RSSI -72 dBm on
+average, +3 dB on the week before. MPPT time in bulk 14.8 h, absorption 0.0 h, float 0.0 h,
+off 56.4 h.
+```
+
+The "week before" is 2026-10-14 and 10-15, from an earlier soak, against 2026-10-24 to
+10-27. The bench values are not a battery's: the 163 mV spread and the 12 cycles are bench
+artifacts, not measurements of a pack in service.
+
+**The morning report read SOC and yesterday's yield as `not reported`**, because GateLink's
+`battery/state` and `solar/state` carried `available: false` on the bench. The operator
+chose to record that rather than bring the BMS and MPPT up. Its other figures were real:
+enclosure 67.3 °F to 82.6 °F, and 37 missed polls in a row, from today's bridge reflash.
+The first wording read "Battery not reported, not reported in 24 h", so the change's
+missing text became its own: "change over 24 h not known".
+
+**The alert note works.** Three `lran_notify` calls at severity `low`, two titled "H7 test A"
+and one "H7 test B", left the count at 3 and the list at "H7 test A; H7 test B". The next
+morning report printed `3 (H7 test A; H7 test B)` and cleared both.
+
+**The operator confirmed both pushes reached the phone, and a tap opened the Gate dashboard.**
+
+**A bench traversal counted once.** At 21:59:28 UTC GateLink's `vehicle_detected` event
+moved `counter.lran_gatelink_traversals_today` to 1. Its follow-up at 21:59:42, with
+`follow_up: true` and direction `undetermined`, was admitted by the filter as
+`gatelink:2702468059:2:f` and not counted.
+
+**`ha_config_set_automation(run_actions=True)` is refused** while ha-mcp's strict
+best-practices mode is on, until the skill's acknowledgment key is passed.
+`automation.trigger` through `ha_call_service` runs an automation without it.
