@@ -106,6 +106,10 @@ views:
               - entity: input_select.lran_alert_held_open_long
               - entity: input_select.lran_alert_open_at_night
               - entity: input_select.lran_alert_open_nobody_home
+              - type: section
+                label: Reports
+              - entity: input_select.lran_alert_morning_report
+              - entity: input_select.lran_alert_weekly_battery
               - type: divider
               - entity: input_boolean.lran_alerts_muted
                 name: Mute normal and low alerts

@@ -1,0 +1,266 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# LRAN reports: tier 4 (HA Integration Implementation Plan 9.4), and the traversal counter
+# behind them.
+#
+# The reports read HA's long-term statistics through recorder.get_statistics, so a figure
+# over a day or a week needs no statistics sensor of its own. A sensor without a
+# state_class has no statistics: the MPPT charge state is text, so its time in each state
+# comes from the history_stats sensors below.
+#
+# As in alerts.yaml, no wording lives here. Each report has a selector below and an entry
+# in messages.yml (plan 7.5). Every value is passed already formatted, with its unit, or
+# empty when it is not known, which messages.yml shows as "not reported".
+
+input_select:
+  lran_alert_morning_report:
+    name: Morning report
+    icon: mdi:weather-sunset-up
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_weekly_battery:
+    name: Weekly battery report
+    icon: mdi:battery-heart-variant
+    options: ["Off", Low, Normal, High, Critical]
+
+mqtt:
+  sensor:
+    # The bridge publishes yield_yesterday_kwh in solar/state, but discovery makes no entity
+    # for it (plan 5, F4). This stands in until it does, with discovery's availability.
+    - name: LRAN GateLink solar yield yesterday
+      unique_id: lran_gatelink_solar_yield_yesterday
+      state_topic: lran/gatelink/solar/state
+      value_template: "{{ value_json.yield_yesterday_kwh }}"
+      unit_of_measurement: kWh
+      device_class: energy
+      availability_mode: all
+      availability:
+        - topic: lran/gatelink/availability
+        - topic: lran/gatelink/solar/state
+          value_template: "{{ 'online' if value_json.available else 'offline' }}"
+
+sensor:
+  # Plan 9.4, the weekly report's MPPT time in each charge state. Four states cover a
+  # healthy charger; fault reaches the phone through lran_2_mppt_error instead.
+  - platform: history_stats
+    name: LRAN GateLink MPPT bulk 7d
+    unique_id: lran_gatelink_mppt_bulk_7d
+    entity_id: sensor.gatelink_mppt_charge_state
+    state: bulk
+    type: time
+    end: "{{ now() }}"
+    duration: { days: 7 }
+  - platform: history_stats
+    name: LRAN GateLink MPPT absorption 7d
+    unique_id: lran_gatelink_mppt_absorption_7d
+    entity_id: sensor.gatelink_mppt_charge_state
+    state: absorption
+    type: time
+    end: "{{ now() }}"
+    duration: { days: 7 }
+  - platform: history_stats
+    name: LRAN GateLink MPPT float 7d
+    unique_id: lran_gatelink_mppt_float_7d
+    entity_id: sensor.gatelink_mppt_charge_state
+    state: float
+    type: time
+    end: "{{ now() }}"
+    duration: { days: 7 }
+  - platform: history_stats
+    name: LRAN GateLink MPPT off 7d
+    unique_id: lran_gatelink_mppt_off_7d
+    entity_id: sensor.gatelink_mppt_charge_state
+    state: "off"
+    type: time
+    end: "{{ now() }}"
+    duration: { days: 7 }
+
+automation:
+  # Plan 9.4. Through the event filter, so a retransmission or a synthetic event is not
+  # counted. A follow-up refines a traversal already counted (spec 7.3), so it is skipped.
+  - id: lran_4_count_traversal
+    alias: "LRAN 4 - count traversal"
+    mode: queued
+    max: 20
+    triggers:
+      - trigger: mqtt
+        topic: lran/gatelink/event/vehicle_detected
+    variables:
+      p: "{{ trigger.payload_json | default({}) }}"
+    actions:
+      - action: script.lran_event_admit
+        data:
+          node: gatelink
+          payload: "{{ p }}"
+        response_variable: ev
+      - condition: template
+        value_template: "{{ ev.admit and p.follow_up is not sameas true }}"
+      - action: counter.increment
+        target: { entity_id: counter.lran_gatelink_traversals_today }
+
+  # Plan 9.4. The morning report reads yesterday's count from the statistics of
+  # sensor.lran_gatelink_traversals, which treats this reset as a new cycle.
+  - id: lran_4_reset_counter
+    alias: "LRAN 4 - reset traversal counter"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "00:00:00"
+    actions:
+      - action: counter.reset
+        target: { entity_id: counter.lran_gatelink_traversals_today }
+
+  # Plan 9.4. The 24 h figures come from hourly statistics. SOC's change is the reading now
+  # less the mean of the hour that began 24 h ago, because a measurement sensor's
+  # statistics keep a mean, a minimum and a maximum per hour, not a reading.
+  - id: lran_4_morning
+    alias: "LRAN 4 - morning report"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "07:00:00"
+    actions:
+      - action: recorder.get_statistics
+        data:
+          start_time: "{{ (now() - timedelta(hours=24)).isoformat() }}"
+          statistic_ids: [sensor.gatelink_battery, sensor.gatelink_missed_polls]
+          period: hour
+          types: [mean, max]
+        response_variable: day
+      - action: recorder.get_statistics
+        data:
+          start_time: "{{ (today_at() - timedelta(days=1)).isoformat() }}"
+          end_time: "{{ today_at().isoformat() }}"
+          statistic_ids: [sensor.lran_gatelink_traversals]
+          period: day
+          types: [change]
+        response_variable: yday
+      - variables:
+          soc_rows: "{{ day.statistics.get('sensor.gatelink_battery', []) }}"
+          poll_rows: "{{ day.statistics.get('sensor.gatelink_missed_polls', []) }}"
+          trav_rows: "{{ yday.statistics.get('sensor.lran_gatelink_traversals', []) }}"
+          soc_now: "{{ states('sensor.gatelink_battery') | float(none) }}"
+          enc_unit: "{{ state_attr('sensor.lran_gatelink_enclosure_temp_min_24h', 'unit_of_measurement') or '' }}"
+          alert_count: "{{ states('counter.lran_report_alert_count') | int(0) }}"
+      - action: script.lran_notify
+        data:
+          alert: morning_report
+          fields:
+            soc: "{{ '%d %%' % soc_now if soc_now is number else '' }}"
+            soc_change: >-
+              {% set first = soc_rows[0].mean if soc_rows and soc_rows[0].mean is number else none %}
+              {{ '%+d %% in 24 h' % (soc_now - first) | round if soc_now is number and first is number else '' }}
+            yield: >-
+              {{ '%.2f kWh' % states('sensor.lran_gatelink_solar_yield_yesterday') | float
+                 if has_value('sensor.lran_gatelink_solar_yield_yesterday') else '' }}
+            traversals: >-
+              {{ trav_rows[0].change | int if trav_rows and trav_rows[0].change is number else '' }}
+            enc_min: >-
+              {{ '%.1f %s' % (states('sensor.lran_gatelink_enclosure_temp_min_24h') | float, enc_unit)
+                 if has_value('sensor.lran_gatelink_enclosure_temp_min_24h') else '' }}
+            enc_max: >-
+              {{ '%.1f %s' % (states('sensor.lran_gatelink_enclosure_temp_max_24h') | float, enc_unit)
+                 if has_value('sensor.lran_gatelink_enclosure_temp_max_24h') else '' }}
+            missed_polls: >-
+              {% set m = poll_rows | selectattr('max', 'number') | map(attribute='max') | list %}
+              {{ m | max | int if m else '' }}
+            alerts: >-
+              {{ 'none' if alert_count == 0 else '%d (%s)' % (alert_count,
+                 states('input_text.lran_report_alerts')) }}
+          tag: lran:morning_report
+          url: /lran-gate
+      # The record starts again whether or not the report was sent: Off and muted reports
+      # still cover one day each.
+      - action: counter.reset
+        target: { entity_id: counter.lran_report_alert_count }
+      - action: input_text.set_value
+        target: { entity_id: input_text.lran_report_alerts }
+        data: { value: "" }
+
+  # Plan 9.4. The seven days to midnight, from daily statistics. The BMS link's trend is
+  # this week's mean against the week before, so it reads fourteen days.
+  - id: lran_4_weekly_battery
+    alias: "LRAN 4 - weekly battery report"
+    mode: single
+    triggers:
+      - trigger: time
+        at: "08:00:00"
+    conditions:
+      - condition: time
+        weekday: sun
+    actions:
+      - action: recorder.get_statistics
+        data:
+          start_time: "{{ (today_at() - timedelta(days=14)).isoformat() }}"
+          end_time: "{{ today_at().isoformat() }}"
+          statistic_ids:
+            - sensor.gatelink_battery
+            - sensor.gatelink_battery_cycles
+            - sensor.lran_gatelink_cell_spread
+            - sensor.gatelink_bms_link_rssi
+          period: day
+          types: [mean, min, max, change]
+        response_variable: st
+      - variables:
+          # Split by timestamp: the rows' start is in UTC, today_at() in local time, so
+          # their ISO strings do not compare.
+          week_start: "{{ as_timestamp(today_at() - timedelta(days=7)) }}"
+          this_week: >-
+            {% set ns = namespace(d={}) %}
+            {% for k, rows in st.statistics.items() %}
+              {% set r = namespace(l=[]) %}
+              {% for row in rows if as_timestamp(row.start) >= week_start %}
+                {% set r.l = r.l + [row] %}
+              {% endfor %}
+              {% set ns.d = dict(ns.d, **{k: r.l}) %}
+            {% endfor %}
+            {{ ns.d }}
+          rssi_prev: >-
+            {% set r = namespace(l=[]) %}
+            {% for row in st.statistics.get('sensor.gatelink_bms_link_rssi', [])
+               if as_timestamp(row.start) < week_start and row.mean is number %}
+              {% set r.l = r.l + [row.mean] %}
+            {% endfor %}
+            {{ (r.l | sum / r.l | count) if r.l else none }}
+          rssi_now: >-
+            {% set m = this_week.get('sensor.gatelink_bms_link_rssi', [])
+               | selectattr('mean', 'number') | map(attribute='mean') | list %}
+            {{ (m | sum / m | count) if m else none }}
+      - action: script.lran_notify
+        data:
+          alert: weekly_battery
+          fields:
+            soc_min: >-
+              {% set m = this_week.get('sensor.gatelink_battery', [])
+                 | selectattr('min', 'number') | map(attribute='min') | list %}
+              {{ '%d %%' % (m | min) if m else '' }}
+            soc_max: >-
+              {% set m = this_week.get('sensor.gatelink_battery', [])
+                 | selectattr('max', 'number') | map(attribute='max') | list %}
+              {{ '%d %%' % (m | max) if m else '' }}
+            cycles: >-
+              {% set m = this_week.get('sensor.gatelink_battery_cycles', [])
+                 | selectattr('change', 'number') | map(attribute='change') | list %}
+              {{ m | sum | int if m else '' }}
+            spread: >-
+              {% set m = this_week.get('sensor.lran_gatelink_cell_spread', [])
+                 | selectattr('max', 'number') | map(attribute='max') | list %}
+              {{ '%d mV' % (m | max) if m else '' }}
+            rssi: "{{ '%d dBm' % (rssi_now | round) if rssi_now is number else '' }}"
+            rssi_change: >-
+              {{ '%+d dB' % ((rssi_now - rssi_prev) | round)
+                 if rssi_now is number and rssi_prev is number else '' }}
+            mppt_bulk: >-
+              {{ '%.1f h' % states('sensor.lran_gatelink_mppt_bulk_7d') | float
+                 if has_value('sensor.lran_gatelink_mppt_bulk_7d') else '' }}
+            mppt_absorption: >-
+              {{ '%.1f h' % states('sensor.lran_gatelink_mppt_absorption_7d') | float
+                 if has_value('sensor.lran_gatelink_mppt_absorption_7d') else '' }}
+            mppt_float: >-
+              {{ '%.1f h' % states('sensor.lran_gatelink_mppt_float_7d') | float
+                 if has_value('sensor.lran_gatelink_mppt_float_7d') else '' }}
+            mppt_off: >-
+              {{ '%.1f h' % states('sensor.lran_gatelink_mppt_off_7d') | float
+                 if has_value('sensor.lran_gatelink_mppt_off_7d') else '' }}
+          tag: lran:weekly_battery
+          url: /lran-gate

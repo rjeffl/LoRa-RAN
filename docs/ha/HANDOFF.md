@@ -18,16 +18,16 @@ end of H4b, and on 2026-10-28 after the bench checks.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H7.
+Continue from docs/ha/HANDOFF.md: task H8.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5, H6 and H9 are done. H7 depends only on H1 and needs no
-bench.
+cited below as *plan*. H4, H4b, H5, H6, H7 and H9 are done. H8 needs production `person`
+entities, so the sandbox can build it but not verify its trigger.
 
 | Task | Read |
 |---|---|
-| **H7** Tier 4 reports | Plan §9.4, §7.5 |
+| **H8** Tier 5 approach prompt | Plan §9.5, §7.3; §11's H8 row |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -35,14 +35,22 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**H7, the Tier 4 reports** (plan §9.4). It needs no bench and no broker.
+**H8, the approach prompt** (plan §9.5). It sends a plain push that opens the Gate
+dashboard, as the reminders do. Its trigger needs a tracked `person`, which the sandbox
+does not have, so the sandbox can check the push but not the trigger.
 
-**GateLink's relay dry-run is still on** from the H6 runs on 2026-10-28. Turn it off only
-when the operator asks: publish `0` to `lran/gatelink/cmd/set_relay_dry_run/set`, not
-retained, and read `binary_sensor.gatelink_relay_dry_run`.
+**H7's SOC and yield figures are unchecked with real values.** Rerun
+`automation.lran_4_morning_report` through `automation.trigger` once GateLink's BMS and
+MPPT readings are available.
 
 ## What the last session established
 
+- **H7 is met** (engineering log, 2026-10-28, H7). The reports read long-term statistics
+  through `recorder.get_statistics`; plan §9.4 states the method and its three
+  approximations. `lran_notify` notes every alert for the morning report.
+- **GateLink's relay dry-run is off**, by operator request.
+- **`automation.trigger` runs an automation by hand.** ha-mcp's `run_actions` asks for its
+  best-practices key first.
 - **H6 is met** (engineering log, 2026-10-28, H6 is met). The dashboard's Close went out
   with dry-run on, and GateLink's `cmd/ack` carried `result` 16, `DRY_RUN` (spec §8.2).
   The gate state did not change.
@@ -126,8 +134,8 @@ retained, and read `binary_sensor.gatelink_relay_dry_run`.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H9 |
-| Queue | H7, H8, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9 |
+| Queue | H8, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -142,7 +150,7 @@ it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the RES
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
 
 ```bash
-cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml messages.yml /Volumes/config/packages/lran/ && cd -
+cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml reports.yaml messages.yml /Volumes/config/packages/lran/ && cd -
 cp ha/dashboards/gate.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
 ```
 
@@ -182,7 +190,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; the bench soak ended on 2026-10-27. GateLink's relay dry-run is on |
+| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; the bench soak ended on 2026-10-27. GateLink's relay dry-run is off |
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |

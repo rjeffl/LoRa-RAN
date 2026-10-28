@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.11
+**Version:** 0.12
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9 done 2026-10-28; H6 partly done 2026-10-28
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28
 **Last updated:** 2026-10-28
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -123,6 +123,7 @@ Each goes to the bridge task list (`LRAN-Bridge-Firmware-Tasks`) when it is sche
 | **F1** | No `cover` (`device_class: gate`) and no "Hold gate open" `switch`. Discovery publishes four buttons instead | **D8**; GateLink PRD §7.1 | The Gate dashboard uses buttons and the text gate state. Voice control (§9.5) waits for F1 |
 | **F2** | Missing §7.2 entities: auto-close pending, held open by keypad, SOC source, pack temperatures, uptime, close-immediately switch, restore-defaults button, BMS polling switch | GateLink PRD §7.2; R-4.5b asks for all three temperature sources, and the pack's is absent | Power and Maintenance views leave a placeholder row for each |
 | **F3** | No HA `event` entities for FIRE and vehicle-while-held-open | GateLink PRD §7.2 lists both as `event`, non-retained | None for automations, which subscribe to the MQTT topics directly. Without F3, the logbook shows these events only through the Events view's automation-written entries (§8.2) |
+| **F4** | No entity for yesterday's solar yield. The bridge publishes `yield_yesterday_kwh` in `solar/state`, and discovery skips it | GateLink PRD §7.2 | `reports.yaml` defines `sensor.lran_gatelink_solar_yield_yesterday` as an MQTT sensor, with discovery's availability, for the morning report (§9.4). It goes when F4 lands |
 
 **F1 changes what an existing button does.** Once the cover exists, the buttons duplicate
 it, and the PRD has no requirement for them. Whether discovery keeps them is part of F1.
@@ -214,6 +215,7 @@ every key. Thresholds are helpers (§7.1), so they need no entry here.
 | `input_text.lran_gatelink_boot_times` | GateLink's boot times in the last hour, for `lran_2_node_boot`'s count (§9.2). In `alerts.yaml` | empty |
 | `input_text.lran_gatelink_offline_since` | When the GateLink outage that alerted began, epoch seconds, for the return push (§9.1). Cleared by that push. In `alerts.yaml` | empty |
 | `counter.lran_gatelink_traversals_today` | Vehicle traversals, reset at midnight | 0 |
+| `input_text.lran_report_alerts`, `counter.lran_report_alert_count` | Each alert title since the last morning report, listed once, and the number of alerts, repeats included (§9.4). Cleared by that report | empty, 0 |
 
 **Every threshold is a starting value, not a measured one.** The SOC thresholds, the cell
 spread and the offline delay should be revisited after a month of production history.
@@ -273,7 +275,10 @@ Automations call it and never call a notify service directly. It calls `site.yam
 view's logbook card, which lists entities, can show it (§8.2). **An alert held back by
 `lran_alerts_muted` is still logged**, marked `(alerts muted, not pushed)`, as an `Off`
 one is. S-14 asks for every enclosure excursion to be recorded, and muting is for the
-phone, not the record. Before v0.7 a muted alert left no entry.
+phone, not the record. Before v0.7 a muted alert left no entry. **Every alert but the two
+reports is also noted for the morning report** (§9.4), an `Off` or muted one included, through
+`script.lran_report_note`. That script is `queued`, because `lran_notify` runs in parallel and
+two alerts at once would each overwrite the other's note.
 
 | Severity | Push | Email | Muted by `lran_alerts_muted` |
 |---|---|---|---|
@@ -317,6 +322,7 @@ is unavailable, as System PRD §6.2 requires.
 | `sensor.lran_gatelink_link_quality` | `poor` at 3 or more missed polls or SNR below −10 dB; `marginal` at 1 or more or below −5 dB; otherwise `good`. For the Gate dashboard's status chip |
 | `sensor.lran_gatelink_enclosure_temp_max_24h`, `_min_24h` | The `statistics` integration over 24 h |
 | `sensor.lran_gatelink_traversals` | The traversal counter's value, with `state_class: total_increasing`, so the Events view's 30 d chart has statistics to read (§8.2). The midnight reset reads as a new cycle |
+| `sensor.lran_gatelink_mppt_{bulk,absorption,float,off}_7d` | The `history_stats` integration: hours in that MPPT charge state over 7 days, for the weekly report (§9.4). In `reports.yaml` |
 
 **Net power and the draw read the pack, not the MPPT's load output.** v0.1 had net power
 as PV power − pack voltage × load current. The gate controller and GateLink hang on the
@@ -535,6 +541,30 @@ so the first reminder after either can come up to one interval late.
 | `lran_4_count_traversal` | `lran/gatelink/event/vehicle_detected` | Increments the traversal counter. No notification |
 | `lran_4_reset_counter` | Midnight | Resets it |
 
+**The reports read long-term statistics through `recorder.get_statistics`**, so a figure over
+a day or a week needs no statistics sensor of its own. The morning report reads hourly
+rows for the last 24 h and yesterday's daily row of `sensor.lran_gatelink_traversals`. The
+weekly report reads fourteen daily rows and splits them at seven days. HA keeps
+statistics only for a sensor with a `state_class`, so the MPPT charge state, which is text,
+comes from §7.4's `history_stats` sensors instead. Yesterday's yield comes from F4's stand-in
+sensor (§5), and the enclosure range from §7.4's 24 h sensors.
+
+**Three figures are approximations.** SOC's 24 h change is the reading now less the mean of
+the hour that began 24 h ago. A measurement sensor's statistics keep a mean, a minimum and
+a maximum per hour, not a reading. Missed polls is the most in a row over 24 h:
+`missed_polls` counts consecutive misses (spec §16.5), so a sum would mean nothing. The BMS
+link's trend is this week's mean RSSI less the mean of the seven days before.
+
+**"Any event in the last 24 h" is every alert since the last morning report**, noted by
+`lran_notify` (§7.3): a count, with each title once. The morning report clears the note
+whether it was sent or not, so the window stays one day. Each report has a level selector
+and a `messages.yml` entry, as an alert does (§7.5). The automations pass each value already
+formatted with its unit, or empty, which reads as `not reported`.
+
+**The counter counts a first edge, not a follow-up.** `lran_4_count_traversal` goes through
+the event filter (§7.2), and skips an event with `follow_up: true`, because the follow-up
+refines a traversal already counted (spec §7.3).
+
 ### 9.5 Tier 5 — convenience
 
 | ID | Trigger | Action |
@@ -577,7 +607,7 @@ from the YAML.
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone. **Partly met 2026-10-26**: the four event alerts, V-5 and FIRE on the phone pass; the two offline alerts are not yet exercised |
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold. **Met 2026-10-27**: the state alerts by moving thresholds, the event alerts by events injected on the sandbox broker |
 | **H6** | Tier 3 reminders | H4 | Tapping a reminder opens the Gate dashboard. With relay dry-run on, the dashboard's Close issues the close command and GateLink answers `DRY_RUN` (**V-8**). **Met 2026-10-28**: a reminder's tap opened the Gate dashboard on the iPhone, and the dashboard's Close drew `DRY_RUN` from GateLink |
-| **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal |
+| **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal. **Met 2026-10-28**: both reports rendered, with statistics from the sandbox, and reached the phone. SOC and yesterday's yield read `not reported`, because the bench's BMS and MPPT readings were unavailable. A bench traversal counted once, and its follow-up did not |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping the prompt opens the Gate dashboard. Voice control waits for F1 |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Met 2026-10-28** against the sandbox, once its bridge ran 760e9a3 |
 | **H10** | Port to production | H1–H9; bridge **B6** | §12's procedure, then GL8 |
@@ -617,6 +647,7 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
+| 0.12 | 2026-10-28 | H6 and H7 done. §9.4 reads long-term statistics through `recorder.get_statistics`, and states its three approximations. By operator choice, `lran_notify` notes every alert for the morning report (§7.3, §7.1), and yesterday's yield comes from a package MQTT sensor until bridge task F4 adds it to discovery (§5). §7.4 adds the MPPT charge-state `history_stats` sensors |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |
 | 0.9 | 2026-10-28 | H9 partly done. `check_entities.py` asks HA through ha-mcp, not the REST API, as the dev flow does; `--server` picks the install. Its `--offline` half runs in CI's checks job and parses every package and dashboard |
