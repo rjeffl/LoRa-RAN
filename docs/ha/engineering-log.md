@@ -371,3 +371,67 @@ event, since none of these events occurred during the session.
 from false to true. A state alert that is already past its threshold when HA starts or
 reloads its automations therefore stays silent until the condition clears and recurs.
 That covers the SOC, enclosure and cell-spread alerts. The handoff's *Open* carries it.
+
+## 2026-10-28 — H4b, the offline alerts, from the soak's shutdown
+
+**Both offline alerts fired on real outages, at their delays, and the operator saw both
+pushes on the phone and the Mac.** Nothing was injected. The bench soak's shutdown on
+2026-10-27 was the test, with `lran_offline_warn_min` left at 10, not set to 1. Times are
+EDT, from the recorder, the logbook and the automation traces, read through ha-mcp on
+2026-10-28.
+
+| Time | `binary_sensor` | Alert |
+|---|---|---|
+| 13:11:41 | `lran_gatelink_online` off | — |
+| 13:21:41 | | `gatelink_offline`, "…not heard GateLink for 10 minutes…" |
+| 13:26:18 | `lran_gatelink_online` on | Its return push, "GateLink is back after 15 minutes offline." |
+| 14:49:41 | `lran_gatelink_online` off | — |
+| 14:59:41 | | `gatelink_offline` again |
+| 15:24:54 | `lran_bridge_online` off; `lran_gatelink_online` unavailable | — |
+| 15:29:54 | | `bridge_offline`, push only |
+| 17:22, and 07:55 on 2026-10-28 | HA restarted; `lran_bridge_online` unavailable → unknown → off | — |
+| 17:27:41, and 08:00:08 | | `bridge_offline` again, once after each restart |
+
+**The two pushes the operator saw are two outages, not one alert sent twice.** GateLink
+went down 35 minutes before the bridge did, so its alert had already gone out. When the
+bridge dropped, `lran_gatelink_online` went unavailable, not off, and GateLink did not
+alert a second time. That is the double-alert guard of 2026-10-26, H4, working.
+
+**The bridge alert sent no email.** `lran_notify`'s email step read `push_only` true and was
+skipped (trace `084a45b0…`). GateLink's alert skipped its email for a different reason:
+`input_boolean.lran_email_enabled` is off on the sandbox, so its email path is still
+unproven (*Open*, real SMTP).
+
+**The return push names the outage.** The 13:26 push replaced the 13:21 push through the tag
+`gatelink:offline`. The 13:11 outage looks like the GateLink reflash that preceded the
+14:39 boot-loop alert (five restarts, reset pin or USB). Nothing here confirms it.
+
+**A restart re-alerts the bridge outage, as `alerts.yaml` intends.** Each restart started the
+sensor unknown, and the alert fired five minutes later. Neither restart is known to have
+come from this work.
+
+**The GateLink return after a bridge outage was not seen, and the code says it will not be
+sent.** Both boards were still off at 09:20 on 2026-10-28. The retained
+`lran/gatelink/availability` still reads `offline` from 14:49, so when the bridge comes back
+the sensor goes unavailable → off. GateLink's next frame then takes it off → on, but
+`gone_min` counts from that off, which lasted seconds, so the return push is skipped. The
+14:59 push stays on the phone, unreplaced, and the 14:49 outage is never reported over.
+Plan §9.1 promises "a second push when it returns, with how long it was gone". This
+outage would get no second push. An HA restart breaks the count the same way.
+
+**Fixed, by the operator's choice: the offline alert records when the outage began.** The
+alert writes the sensor's `off` time to `input_text.lran_gatelink_offline_since`, unless a
+start is already recorded, so a re-alert after a restart keeps the first. The return push
+now fires on `on` from any state, only while a start is recorded, counts from it, and
+clears it (plan v0.8, §9.1). Installed at 09:46 with a clean config check, and no LRAN
+entry in the system log after the reload.
+
+**The pending outage was seeded by hand**, with 1793126981, the 14:49:41 `off`, because
+the alert that recorded it ran before the helper existed. HA rendered the return text as
+"18 h 57 min" at 09:47. **The return push itself has not been seen.** It needs both boards
+powered up. Expected: one `gatelink_online` push, replacing the 14:59 push, naming the
+outage from 14:49, and the helper empty afterwards.
+
+**One logbook gap, not chased.** The 08:00:08 run of `lran_notify` reached its
+`logbook.log` step in the trace, but ha-mcp's logbook read does not return that entry. The
+17:27 entry and the earlier ones are there.
