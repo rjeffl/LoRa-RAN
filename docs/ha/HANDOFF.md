@@ -22,14 +22,12 @@ Continue from docs/ha/HANDOFF.md: task H7.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b, H5 and H9 are done. **H6 is partly met**: one bench check
-remains, GateLink's `DRY_RUN` answer (*The next job*). H7 depends only on H1 and needs no
+cited below as *plan*. H4, H4b, H5, H6 and H9 are done. H7 depends only on H1 and needs no
 bench.
 
 | Task | Read |
 |---|---|
 | **H7** Tier 4 reports | Plan §9.4, §7.5 |
-| **H6's last check** GateLink's `DRY_RUN` answer | *The next job*; plan §11's H6 row; engineering log, 2026-10-28, bench checks |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -39,19 +37,18 @@ section and *The next job*.
 
 **H7, the Tier 4 reports** (plan §9.4). It needs no bench and no broker.
 
-**H6's last check, when the bench allows.** Relay dry-run is still **on** from the
-2026-10-28 run. Press Close on the Gate dashboard and read GateLink's answer on
-`lran/gatelink/cmd/ack`: expected `DRY_RUN`, with no relay energized. The sandbox broker
-refuses an anonymous `mosquitto_sub`. A listener needs the MQTT login from `secrets.h`,
-and only the operator can approve that. The bridge console is the other way.
-Turn dry-run off afterwards only if the operator says so.
-
-**Also ask the operator** whether the *GateLink back online* push of 14:14 UTC on
-2026-10-28 replaced the 14:59 offline push on the phone (H4b). HA sent it; the phone was
-not checked.
+**GateLink's relay dry-run is still on** from the H6 runs on 2026-10-28. Turn it off only
+when the operator asks: publish `0` to `lran/gatelink/cmd/set_relay_dry_run/set`, not
+retained, and read `binary_sensor.gatelink_relay_dry_run`.
 
 ## What the last session established
 
+- **H6 is met** (engineering log, 2026-10-28, H6 is met). The dashboard's Close went out
+  with dry-run on, and GateLink's `cmd/ack` carried `result` 16, `DRY_RUN` (spec §8.2).
+  The gate state did not change.
+- **`bench.py run --mqtt` reads `cmd/ack` without the bridge console.** It takes the
+  broker login from `secrets.h` and never prints it, with the operator's approval. No
+  serial port opens, so the bridge does not reboot. `--dir` goes before `run`.
 - **Reminders carry no action, by operator choice** (plan v0.11, §3, §9.3, §9.5;
   engineering log, 2026-10-28, bench checks). A reminder is a plain push whose tap opens
   `/lran-gate`, checked on the phone. `lran_3_close_action` is gone, and `lran_notify`
@@ -64,8 +61,8 @@ not checked.
   second time after 2026-10-26 (GateLink handoff, *Open*).
 - **The nobody-home reminder cannot fire on the sandbox**, which has no tracked person.
 - **H4b's fixed return path ran** at 14:14:03 UTC on 2026-10-28 (engineering log, the
-  same date). It counted 19 h 24 min from the recorded start and cleared the helper. The
-  push on the phone was not checked.
+  same date). It counted 19 h 24 min from the recorded start and cleared the helper. By
+  the operator's report, the return push replaced the offline push on the phone.
 - **H9's check runs against the sandbox through ha-mcp** (plan v0.9, §11; engineering
   log, 2026-10-28, H9). `tools/ha/check_entities.py` reads the server's address from
   `~/.claude.json`; `--server ha-prod` will point it at production.
@@ -129,7 +126,7 @@ not checked.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5, H9. H6 but for GateLink's `DRY_RUN` answer |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H6, H9 |
 | Queue | H7, H8, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
