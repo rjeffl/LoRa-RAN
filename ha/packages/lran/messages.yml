@@ -190,3 +190,29 @@ phy_reverted:
   culprit:
     gatelink: GateLink
     missing: none
+
+# --- Tier 3 (plan 9.3) ---
+# Each push carries a Close gate action, and the three share a tag, so a newer reminder
+# replaces an older one on the phone.
+
+# Repeats every lran_held_open_reminder_h while the hold lasts.
+held_open_long:
+  level: Normal
+  title: Gate held open
+  message: "The gate has been held open for {hours} h."
+
+open_at_night:
+  level: Normal
+  title: Gate open after dark
+  message: "The gate is {gate_state}, an hour after sunset."
+  gate_state: &open_states
+    moving: moving
+    open_countdown: open, closing on its timer
+    open_held: held open
+
+# Production only: the sandbox has no tracked person.
+open_nobody_home:
+  level: Normal
+  title: Gate open, nobody home
+  message: "The gate is {gate_state}, and everyone has been away for 15 minutes."
+  gate_state: *open_states

@@ -1,0 +1,149 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Robert J. Lee
+#
+# LRAN reminders: tier 3 (HA Integration Implementation Plan 9.3), and the handler for
+# their Close gate action.
+#
+# Each reminder is an actionable push. Nothing here moves the gate on its own: the gate
+# closes only when a person taps Close gate (GateLink PRD S-8). The handler presses
+# button.gatelink_close, the same command the Gate dashboard sends, until bridge task F1
+# brings the cover (plan 5).
+#
+# As in alerts.yaml, no wording lives here. Each reminder has a selector below and an entry
+# in messages.yml (plan 7.5).
+
+input_select:
+  lran_alert_held_open_long:
+    name: Held open long
+    icon: mdi:gate-open
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_open_at_night:
+    name: Gate open at night
+    icon: mdi:weather-night
+    options: ["Off", Low, Normal, High, Critical]
+  lran_alert_open_nobody_home:
+    name: Gate open, nobody home
+    icon: mdi:home-export-outline
+    options: ["Off", Low, Normal, High, Critical]
+
+automation:
+  # Plan 9.3. Repeats at the same interval while the hold lasts. The `for` timer starts
+  # again at an HA restart or an automation reload, so the first reminder after either
+  # can come up to one interval late. The tag makes each repeat replace the last push.
+  - id: lran_3_held_open_long
+    alias: "LRAN 3 - gate held open long"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.gatelink_held_open
+        to: "on"
+        for:
+          hours: "{{ states('input_number.lran_held_open_reminder_h') | float(4) }}"
+    actions:
+      - repeat:
+          while:
+            - condition: state
+              entity_id: binary_sensor.gatelink_held_open
+              state: "on"
+          sequence:
+            - action: script.lran_notify
+              data:
+                alert: held_open_long
+                fields:
+                  hours: >-
+                    {{ ((now() - states.binary_sensor.gatelink_held_open.last_changed)
+                        .total_seconds() / 3600) | round(1) }}
+                tag: gatelink:reminder
+                actions: &close_action
+                  # authenticationRequired: iOS runs the action only once the phone is
+                  # unlocked, so a tap on a lock screen cannot move the gate. Android
+                  # ignores the key.
+                  - action: LRAN_CLOSE_GATE
+                    title: Close gate
+                    authenticationRequired: true
+            - wait_for_trigger:
+                - trigger: state
+                  entity_id: binary_sensor.gatelink_held_open
+                  to: "off"
+              timeout:
+                hours: "{{ states('input_number.lran_held_open_reminder_h') | float(4) }}"
+
+  # Plan 9.3. One check, an hour after sunset. moving, open_countdown and open_held are
+  # open. fault, unknown and unavailable say nothing about the gate a reminder could
+  # act on, and the Gate dashboard's banners already show them.
+  - id: lran_3_open_at_night
+    alias: "LRAN 3 - gate open at night"
+    mode: single
+    triggers:
+      - trigger: sun
+        event: sunset
+        offset: "01:00:00"
+    conditions:
+      - condition: state
+        entity_id: sensor.gatelink_gate
+        state: [moving, open_countdown, open_held]
+    actions:
+      - action: script.lran_notify
+        data:
+          alert: open_at_night
+          fields:
+            gate_state: "{{ states('sensor.gatelink_gate') }}"
+          tag: gatelink:reminder
+          actions: *close_action
+
+  # Plan 9.3, production only. A person with no tracker reads unknown, as every person on
+  # the sandbox does, and counts as neither home nor away. So this needs at least one
+  # tracked person, and every tracked person away: in another zone or not_home.
+  - id: lran_3_open_nobody_home
+    alias: "LRAN 3 - gate open, nobody home"
+    mode: single
+    triggers:
+      - trigger: template
+        value_template: >-
+          {% set tracked = states.person
+             | rejectattr('state', 'in', ['unknown', 'unavailable']) | list %}
+          {{ is_state('sensor.gatelink_gate', ['moving', 'open_countdown', 'open_held'])
+             and tracked | count > 0
+             and tracked | selectattr('state', 'eq', 'home') | list | count == 0 }}
+        for: { minutes: 15 }
+    actions:
+      - action: script.lran_notify
+        data:
+          alert: open_nobody_home
+          fields:
+            gate_state: "{{ states('sensor.gatelink_gate') }}"
+          tag: gatelink:reminder
+          actions: *close_action
+
+  # Plan 9.3. The only automation in the package that commands the gate, and only because
+  # a person tapped Close gate. A tap on a gate already closed is logged and sends nothing.
+  # The command path reuses its seq on retry (root rule 2), so one press is one pulse.
+  - id: lran_3_close_action
+    alias: "LRAN 3 - Close gate tapped"
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: LRAN_CLOSE_GATE
+    actions:
+      - if:
+          - condition: state
+            entity_id: sensor.gatelink_gate
+            state: closed
+        then:
+          - action: logbook.log
+            data:
+              name: LRAN
+              message: Close gate tapped, but the gate already reads closed. No command sent.
+              entity_id: button.gatelink_close
+          - stop: already closed
+      - action: button.press
+        target: { entity_id: button.gatelink_close }
+      - action: logbook.log
+        data:
+          name: LRAN
+          message: >-
+            Close gate tapped on a notification. Close command sent, gate
+            {{ states('sensor.gatelink_gate') }}.
+          entity_id: button.gatelink_close
