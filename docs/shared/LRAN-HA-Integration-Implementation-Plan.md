@@ -1,11 +1,11 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.9
+**Version:** 0.10
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
 **Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
-**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9 partly done 2026-10-28
+**Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9 and H6 partly done 2026-10-28
 **Last updated:** 2026-10-28
 **Handoff and log:** [`docs/ha/HANDOFF.md`](../ha/HANDOFF.md), [`docs/ha/engineering-log.md`](../ha/engineering-log.md)
 
@@ -507,6 +507,21 @@ calls `cover.close_cover` after F1. **The gate closes only when a person taps th
 | `lran_3_open_at_night` | Gate not closed one hour after sunset |
 | `lran_3_open_nobody_home` | Gate not closed and every `person` away for 15 min. **Production only:** the sandbox has no person entities with trackers |
 
+**"Not closed" means `moving`, `open_countdown` or `open_held`.** `fault`, `unknown` and
+`unavailable` say nothing a reminder could act on, and the Gate dashboard's banners show
+them (§8.1). **"Away" counts tracked persons only**: a person with no tracker reads
+`unknown`, and the reminder needs at least one tracked person and none at `home`. Without
+that rule an install with no trackers would read as nobody home.
+
+**The handler, `lran_3_close_action`, sends nothing when the gate already reads closed**,
+and logs the tap against `button.gatelink_close`. The action carries iOS's
+`authenticationRequired`, so a tap on a locked phone cannot move the gate. Each reminder
+has its own selector and `messages.yml` entry (§7.5), and the three share the push tag
+`gatelink:reminder`, so a newer one replaces an older one.
+
+**The held-open reminder's timer starts over at an HA restart or an automation reload**,
+so the first reminder after either can come up to one interval late.
+
 ### 9.4 Tier 4 — reports
 
 | ID | When | Content |
@@ -557,7 +572,7 @@ from the YAML.
 | **H3** | LRAN dashboard, four views | H1 | Every entity in §4 appears on some view. Statistics graphs show data. **Met 2026-10-26**, with the Maintenance view a dashboard of its own (§8.2) |
 | **H4** | Tier 1 alerts | H1 | Each alert verified once with a bench-injected event; held-open and FIRE verified not to repeat after an HA restart (**V-5**). FIRE's critical alert verified on a phone. **Partly met 2026-10-26**: the four event alerts, V-5 and FIRE on the phone pass; the two offline alerts are not yet exercised |
 | **H5** | Tier 2 health | H4 | Each automation verified by forcing its trigger or lowering its threshold. **Met 2026-10-27**: the state alerts by moving thresholds, the event alerts by events injected on the sandbox broker |
-| **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**) |
+| **H6** | Tier 3 reminders and the action handler | H4 | Tapping **Close gate** presses the close command with relay dry-run on (**V-8**). **Built 2026-10-28, not verified**: installed on the sandbox with a clean config check, but V-8 waits for the bench, with the bridge flashed from `main` and dry-run on |
 | **H7** | Tier 4 reports | H1 | Morning summary renders with real values. Counter increments on a bench traversal |
 | **H8** | Tier 5 approach prompt | H6; production `person` entities | Tapping **Open gate** with dry-run on issues the open command. Voice control waits for F1 |
 | **H9** | `tools/ha/check_entities.py`: every entity ID named in `ha/packages/` and `ha/dashboards/` exists in the HA it is pointed at | H3 | Passes against the sandbox. Run against production at the port (§12). **Partly met 2026-10-28**: 199 of the 200 entity IDs and the alert-selector prefix are in the sandbox. `number.gatelink_bms_retry_s` is not, because the sandbox's bridge has not run firmware from a1de65d, which added it |
@@ -598,5 +613,6 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.5 | 2026-10-26 | H4 partly done. §7.3 adds `push_only`, for the bridge-offline alert. §9.1 states the two connectivity sensors the offline alerts read |
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
+| 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |
 | 0.9 | 2026-10-28 | H9 partly done. `check_entities.py` asks HA through ha-mcp, not the REST API, as the dev flow does; `--server` picks the install. Its `--offline` half runs in CI's checks job and parses every package and dashboard |
 | 0.8 | 2026-10-28 | H4b done, from the soak's shutdown. §9.1's GateLink return push counts from a start the offline alert records, and fires on `on` from any state, because a bridge outage or a restart left the outage unreported. §7.1 adds `input_text.lran_gatelink_offline_since` |

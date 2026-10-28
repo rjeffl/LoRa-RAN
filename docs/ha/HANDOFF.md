@@ -18,16 +18,17 @@ end of H4b.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: task H6.
+Continue from docs/ha/HANDOFF.md: the bench checks.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b and H5 are done. H4b and H9 each leave one check for the
-boards' power-up (*The next job*). H6 needs H4, and H7 depends only on H1.
+cited below as *plan*. H4, H4b and H5 are done. **H6 and H9 are built and wait on the
+bench**: the bridge needs a flash from `main` and relay dry-run on, both hands-on work
+(*The next job*). H7 depends only on H1, so it can run on a day the bench cannot.
 
 | Task | Read |
 |---|---|
-| **H6** Tier 3 reminders and the action handler | Plan §9.3, §7.3 (`actions`), §7.5, §11's H6 row (V-8); *Traps*, below |
+| **Bench checks** H9's pass, H6's V-8, H4b's push on the phone | *The next job*; engineering log, the three 2026-10-28 entries after H4b; plan §11's H6 and H9 rows; *Traps*, below |
 | **H7** Tier 4 reports | Plan §9.4, §7.5 |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
@@ -36,36 +37,46 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**First, when the bridge and GateLink are powered up: check the GateLink return push**
-(engineering log, 2026-10-28, H4b). Expected: one *GateLink back online* push, replacing the
-2026-10-27 14:59 offline push, naming the outage from 14:49:41, and
-`input_text.lran_gatelink_offline_since` empty afterwards. Read it with
-`ha_get_automation_traces("automation.lran_1_gatelink_offline")` and `ha_get_state`. If no
-push came, the trace says which condition stopped it. Log the result as a new dated entry.
+**At the bench, in this order.** Agree each step that reaches the broker with the
+operator first, because the soak listens there (*Traps*).
 
-**Before that power-up, flash the bridge from current `main`, then run
-`python3 tools/ha/check_entities.py`** (engineering log, 2026-10-28, H9). It fails on one
-ID, `number.gatelink_bms_retry_s`, because the sandbox's bridge has not run firmware from
-a1de65d on. A bridge built from `main` publishes it, and the check should then pass, which
-meets H9's acceptance (plan §11). Record the bridge commit HA reports in the same entry.
+1. **Flash the bridge from current `main`.** It runs c9d3667, from 2026-10-15, which lacks
+   a1de65d. Record the commit `sensor.lora_bridge_firmware_commit` then reports.
+2. **Run `python3 tools/ha/check_entities.py`.** It should pass, which meets H9 (plan
+   §11). Today it fails on `number.gatelink_bms_retry_s` alone.
+3. **Turn relay dry-run on** by publishing `set_relay_dry_run` with `arg` 1, and confirm
+   `binary_sensor.gatelink_relay_dry_run` reads `on`.
+4. **Run V-8 for H6** (engineering log, 2026-10-28, H6). Send one reminder through
+   `script.lran_notify` with `alert: held_open_long` and the Close gate action from
+   `reminders.yaml`. Tap Close gate on the phone. Expected: a `lran_3_close_action` trace
+   that presses `button.gatelink_close`, and GateLink reporting `DRY_RUN` with no relay
+   energized. Check that the iOS action asks for an unlock.
+5. **Turn dry-run off again** only if the operator says so.
 
-**Then H6**, Tier 3 reminders and the action handler.
+**Also ask the operator** whether the *GateLink back online* push of 14:14 UTC on
+2026-10-28 replaced the 14:59 offline push on the phone (H4b). HA sent it; the phone was
+not checked.
 
 ## What the last session established
 
+- **H6 is built and installed on the sandbox, not verified** (plan v0.10, §9.3).
+  `reminders.yaml` holds the three reminders and `lran_3_close_action`. The new selectors
+  are at `Normal`. The nobody-home reminder cannot fire on the sandbox, which has no
+  tracked person.
+- **H4b's fixed return path ran** at 14:14:03 UTC on 2026-10-28 (engineering log, the
+  same date). It counted 19 h 24 min from the recorded start and cleared the helper. The
+  push on the phone was not checked.
 - **H9's check exists and runs against the sandbox through ha-mcp** (plan v0.9, §11;
   engineering log, 2026-10-28, H9). `tools/ha/check_entities.py` reads the server's address
   from `~/.claude.json`; `--server ha-prod` will point it at production. 199 of 200 IDs are
   present. The missing one is a bridge firmware lag, not a YAML error (*The next job*).
-- **The H4b bullets below still stand**: the fixed return path has not run.
 - **Both offline alerts fired on the soak's real shutdown** (plan v0.8, §9.1; engineering
   log, 2026-10-28, H4b). GateLink alerted at its 10-minute delay, the bridge at 5 minutes
   with no email, and a bridge outage did not re-alert GateLink. The operator saw both on
   the phone and the Mac. The GateLink return push was seen once, for a 15-minute outage.
 - **The return push now counts from a start the offline alert records**, in
   `input_text.lran_gatelink_offline_since`, and fires on `on` from any state. Before, a
-  bridge outage or an HA restart left a GateLink outage with no return push. **The fixed
-  path has not run yet**: it waits for the boards' power-up.
+  bridge outage or an HA restart left a GateLink outage with no return push.
 
 - **The seven Tier 2 health alerts are installed and verified** (plan v0.7, §9.2;
   engineering log, 2026-10-27, H5). The state alerts were driven by moving thresholds, and
@@ -254,6 +265,9 @@ those two targets changed, which plan §7.3 names.
 - **Spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning**, as it gives BMS_ALARM's none.
   `lran_2_mppt_error` takes the name from `sensor.gatelink_mppt_error` instead, which can
   lag the event. GateLink does not send the event yet.
+- **The sandbox's home location looks wrong for the site.** `sun.sun` put the next sunset
+  at 16:18 UTC on 2026-10-28, 12:18 in New York, so `lran_3_open_at_night` would fire at
+  the wrong hour there. Check production's location before H10.
 - **CI cannot run H9's live half.** The checks job runs `check_entities.py --offline`,
   which parses every package and dashboard. Whether the IDs exist needs ha-mcp, so that
   half runs by hand, on each install.
