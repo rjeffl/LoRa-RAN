@@ -583,3 +583,30 @@ notification's URL, with *Always*, *Open* and *Cancel*. *Always* stops it asking
 
 **What V-8 still owes for H6:** GateLink's `DRY_RUN` answer to a dashboard Close, read from
 `cmd/ack` or the bridge console.
+
+## 2026-10-28 — H6 is met: GateLink answers `DRY_RUN` to the dashboard's Close
+
+**V-8 passes.** The operator pressed Close on the Gate dashboard and confirmed it, with
+relay dry-run still on from the earlier run. `tools/bench/bench.py run --mqtt` logged `lran/#`
+with the broker login it reads from `secrets.h`. No serial port was open, so the bridge
+did not reboot.
+
+```text
+21:40:46 UTC  lran/gatelink/cmd/close/set  PRESS
+21:40:48 UTC  lran/gatelink/cmd/ack        {"outcome":"acked","seq":3,"attempts":1,"result":16,"detail":0}
+```
+
+`result` 16 is 0x10, `DRY_RUN` (spec §8.2, `result` in `COMMAND_ACK`). The bridge sent the
+command once, and `cmd_submitted`, `cmd_sent` and `cmd_acked` each went from 2 to 3. The
+radio log shows the command out as `seq` 3 and GateLink's ACK back at −48 dBm about 0.6 s
+later. `lran/gatelink/gate/state` did not change, and GateLink published no event.
+
+**The first attempt timed out on a press that never happened.** The 5-minute wait ended
+before the operator pressed Close, and `button.gatelink_close` still showed the 20:56:59
+press. The press reached the broker 65 s after the wait ended, and the harness was still
+logging it.
+
+**H4b's return push replaced the offline push on the phone**, by the operator's report:
+the *GateLink back online* push of 14:14 UTC stood in place of the 14:59 offline push.
+
+Relay dry-run is still on. It stays on until the operator asks for it off.
