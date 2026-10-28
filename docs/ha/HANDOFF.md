@@ -3,8 +3,8 @@
 **Written 2026-10-25, at the end of the session that did H0 and H1 and started this file.
 Revised 2026-10-26 for the dev flow through ha-mcp, and again on 2026-10-26 at the end of
 H3, when ha-mcp's dashboard screenshots came into use, on 2026-10-26 after the alert
-levels and the message catalog, on 2026-10-27 at the end of H5, and on 2026-10-28 at the
-end of H4b.**
+levels and the message catalog, on 2026-10-27 at the end of H5, on 2026-10-28 at the
+end of H4b, and on 2026-10-28 after the bench checks.**
 
 > **This file goes stale, and it is rewritten rather than annotated.** It records *session
 > state and next actions*, nothing else. That is what separates it from the engineering
@@ -18,18 +18,18 @@ end of H4b.**
 of these lines, then read this section and the sections the table names:
 
 ```text
-Continue from docs/ha/HANDOFF.md: the bench checks.
+Continue from docs/ha/HANDOFF.md: task H7.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b and H5 are done. **H6 and H9 are built and wait on the
-bench**: the bridge needs a flash from `main` and relay dry-run on, both hands-on work
-(*The next job*). H7 depends only on H1, so it can run on a day the bench cannot.
+cited below as *plan*. H4, H4b, H5 and H9 are done. **H6 is partly met**: one bench check
+remains, GateLink's `DRY_RUN` answer (*The next job*). H7 depends only on H1 and needs no
+bench.
 
 | Task | Read |
 |---|---|
-| **Bench checks** H9's pass, H6's V-8, H4b's push on the phone | *The next job*; engineering log, the three 2026-10-28 entries after H4b; plan §11's H6 and H9 rows; *Traps*, below |
 | **H7** Tier 4 reports | Plan §9.4, §7.5 |
+| **H6's last check** GateLink's `DRY_RUN` answer | *The next job*; plan §11's H6 row; engineering log, 2026-10-28, bench checks |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -37,21 +37,14 @@ section and *The next job*.
 
 ## The next job, in one place
 
-**At the bench, in this order.** Agree each step that reaches the broker with the
-operator first, because the soak listens there (*Traps*).
+**H7, the Tier 4 reports** (plan §9.4). It needs no bench and no broker.
 
-1. **Flash the bridge from current `main`.** It runs c9d3667, from 2026-10-15, which lacks
-   a1de65d. Record the commit `sensor.lora_bridge_firmware_commit` then reports.
-2. **Run `python3 tools/ha/check_entities.py`.** It should pass, which meets H9 (plan
-   §11). Today it fails on `number.gatelink_bms_retry_s` alone.
-3. **Turn relay dry-run on** by publishing `set_relay_dry_run` with `arg` 1, and confirm
-   `binary_sensor.gatelink_relay_dry_run` reads `on`.
-4. **Run V-8 for H6** (engineering log, 2026-10-28, H6). Send one reminder through
-   `script.lran_notify` with `alert: held_open_long` and the Close gate action from
-   `reminders.yaml`. Tap Close gate on the phone. Expected: a `lran_3_close_action` trace
-   that presses `button.gatelink_close`, and GateLink reporting `DRY_RUN` with no relay
-   energized. Check that the iOS action asks for an unlock.
-5. **Turn dry-run off again** only if the operator says so.
+**H6's last check, when the bench allows.** Relay dry-run is still **on** from the
+2026-10-28 run. Press Close on the Gate dashboard and read GateLink's answer on
+`lran/gatelink/cmd/ack`: expected `DRY_RUN`, with no relay energized. The sandbox broker
+refuses an anonymous `mosquitto_sub`. A listener needs the MQTT login from `secrets.h`,
+and only the operator can approve that. The bridge console is the other way.
+Turn dry-run off afterwards only if the operator says so.
 
 **Also ask the operator** whether the *GateLink back online* push of 14:14 UTC on
 2026-10-28 replaced the 14:59 offline push on the phone (H4b). HA sent it; the phone was
@@ -59,17 +52,23 @@ not checked.
 
 ## What the last session established
 
-- **H6 is built and installed on the sandbox, not verified** (plan v0.10, §9.3).
-  `reminders.yaml` holds the three reminders and `lran_3_close_action`. The new selectors
-  are at `Normal`. The nobody-home reminder cannot fire on the sandbox, which has no
-  tracked person.
+- **Reminders carry no action, by operator choice** (plan v0.11, §3, §9.3, §9.5;
+  engineering log, 2026-10-28, bench checks). A reminder is a plain push whose tap opens
+  `/lran-gate`, checked on the phone. `lran_3_close_action` is gone, and `lran_notify`
+  takes `url` in place of `actions`. H8's approach prompt follows the same rule.
+- **iOS does require an unlock, and Face ID gives it silently.** A tap facing the operator
+  unlocked the phone with no prompt; facing away, nothing happened. The old Close gate
+  action was never tried facing away.
+- **H9 passes against the sandbox**, with the bridge on 760e9a3, flashed from `main`.
+- **GateLink was silent after the bridge flash until the operator restarted it**, the
+  second time after 2026-10-26 (GateLink handoff, *Open*).
+- **The nobody-home reminder cannot fire on the sandbox**, which has no tracked person.
 - **H4b's fixed return path ran** at 14:14:03 UTC on 2026-10-28 (engineering log, the
   same date). It counted 19 h 24 min from the recorded start and cleared the helper. The
   push on the phone was not checked.
-- **H9's check exists and runs against the sandbox through ha-mcp** (plan v0.9, §11;
-  engineering log, 2026-10-28, H9). `tools/ha/check_entities.py` reads the server's address
-  from `~/.claude.json`; `--server ha-prod` will point it at production. 199 of 200 IDs are
-  present. The missing one is a bridge firmware lag, not a YAML error (*The next job*).
+- **H9's check runs against the sandbox through ha-mcp** (plan v0.9, §11; engineering
+  log, 2026-10-28, H9). `tools/ha/check_entities.py` reads the server's address from
+  `~/.claude.json`; `--server ha-prod` will point it at production.
 - **Both offline alerts fired on the soak's real shutdown** (plan v0.8, §9.1; engineering
   log, 2026-10-28, H4b). GateLink alerted at its 10-minute delay, the bridge at 5 minutes
   with no email, and a bridge outage did not re-alert GateLink. The operator saw both on
@@ -130,8 +129,8 @@ not checked.
 | | |
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
-| Done | H0, H1, H2, H3, H4, H4b, H5. H4b's fixed return push waits on the power-up check |
-| Queue | H6 to H9, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Done | H0, H1, H2, H3, H4, H4b, H5, H9. H6 but for GateLink's `DRY_RUN` answer |
+| Queue | H7, H8, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran
@@ -146,7 +145,7 @@ it to act goes through the ha-mcp server (app 8.7.0 on the sandbox), not the RES
 token. The REST flow before then needed `~/.lran_ha_token`, which only one machine had.
 
 ```bash
-cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml messages.yml /Volumes/config/packages/lran/ && cd -
+cd ha/packages/lran && cp core.yaml templates.yaml alerts.yaml reminders.yaml messages.yml /Volumes/config/packages/lran/ && cd -
 cp ha/dashboards/gate.yaml /Volumes/config/dashboards/lran/      # a YAML dashboard reloads with the page
 ```
 
@@ -186,7 +185,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; carries GateLink's bench soak 2 |
+| Home Assistant OS VM at 192.168.2.52, with Mosquitto | the sandbox | its address, and `/config/packages/lran/site.yaml`, which is on no other install | HA 2026.10.4 | `/config` holds the installed packages and the sandbox's own `site.yaml`, the only copy of it | running; the bench soak ended on 2026-10-27. GateLink's relay dry-run is on |
 | The sandbox's `/config`, shared over Samba | the mount | mounted at `/Volumes/config` as `ha-samba-user` | — | — | mounted on the macOS machine |
 | The ha-mcp app on the sandbox | ha-mcp | port 9584 and a secret path, registered as `ha-sandbox` | ha-mcp 8.7.0 | beta flags on: beta features and dashboard screenshots, set in its web UI's *Server Settings* | running; its config check read `valid` on 2026-10-26 |
 | The Puppet app on the sandbox | Puppet | app slug `0f1cc410_puppet`, port 10000 | Puppet 2.6.0 | a long-lived token in its `access_token` option | running; renders for ha-mcp's screenshots. **Port 10000 takes no authentication** |
@@ -208,10 +207,9 @@ those two targets changed, which plan §7.3 names.
   comes back, `binary_sensor.lran_gatelink_online` reads the stale value first, then the
   bridge's own. Anything timed from that sensor's `last_changed` restarts at the bridge's
   return. Time from a recorded start instead, as the GateLink return push does (plan §9.1).
-- **The sandbox broker carries GateLink's live bench soak.** A test event published to
-  `lran/gatelink/event/*` reaches the soak's subscribers as well as HA. Agree each
+- **A test event on the sandbox broker reaches every subscriber**, not only HA. Agree each
   injection with the operator first. H4 published through ha-mcp's `mqtt.publish`, not
-  retained, with `ctx_id` 4294967295 so the soak's log can tell the fakes apart. **Never
+  retained, with `ctx_id` 4294967295 so a subscriber's log can tell the fakes apart. **Never
   publish a retained `availability`**: it would stand over the bridge's own state.
 - **A `numeric_state` trigger does not watch its threshold helper**, only its entity. An
   alert on a sensor's state uses a template trigger, or a threshold moved in the UI does
@@ -233,7 +231,7 @@ those two targets changed, which plan §7.3 names.
   and the template schema has no key to override it (plan §7.4).
 - **To force a dashboard condition without the broker**, `POST /api/states/<entity>` with
   the entity's current attributes. The next MQTT update overwrites it, so it never reaches
-  the soak. Restore what you forced. **ha-mcp has no tool for this**: it is a REST
+  the broker. Restore what you forced. **ha-mcp has no tool for this**: it is a REST
   endpoint, not a service or a WebSocket command. It still needs a long-lived token in
   `~/.lran_ha_token`, which the Mac does not have (*Open*).
 
@@ -278,6 +276,9 @@ those two targets changed, which plan §7.3 names.
   for every prose change. H3's prose was written without it.
 - **Puppet on production** is a decision for H10: its port takes no authentication, and
   production's network may be less trusted than the sandbox's.
+
+- **An iOS notification action's unlock is untested** with the phone facing away. It
+  matters only if actions come back (plan §9.3).
 
 ### Closed, and not to be reopened by habit
 

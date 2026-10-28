@@ -515,3 +515,71 @@ the phone was not checked.** The operator was away from the bench.
 `git merge-base --is-ancestor a1de65d c9d3667` says a1de65d is not in it. That confirms
 H9's reading: `number.gatelink_bms_retry_s` is missing because the firmware predates it.
 Relay dry-run reads `off`, and the gate `closed`.
+
+## 2026-10-28 — Bench checks: H9 passes, and the reminders lose their Close gate action
+
+**The bridge was flashed over USB from `main` at 760e9a3**, built on the macOS bench
+machine from a clean tree. `sensor.lora_bridge_firmware_commit` read `760e9a3` once it
+came back. The bench soak had ended the day before, so nothing else was listening on the
+broker.
+
+**H9 passes.** `python3 tools/ha/check_entities.py` printed `ok: 203 entity IDs and 1
+prefixes, all in ha-sandbox (264 entities)`. `number.gatelink_bms_retry_s` appeared, and
+read 5, once GateLink was heard again.
+
+**GateLink was not heard after the flash until the operator restarted it.** Its last
+readings reached HA at 20:43:20–20:43:39 UTC, before the flash. The bridge rebooted
+three times in the next few minutes: once after the upload, and twice more when a capture
+opened its USB port. A 150 s console capture from one of those boots showed no frame from
+GateLink, and HA received no GateLink reading until the operator restarted it, at about
+20:52. A new enclosure temperature arrived at 20:52:40. The same silence followed a bridge
+power-up on 2026-10-26, in the GateLink handoff. Whether GateLink was waiting on a context roll it never
+heard is still not established.
+
+**Relay dry-run went on through HA.** `mqtt.publish` to
+`lran/gatelink/cmd/set_relay_dry_run/set` with payload `1`, not retained, at 20:53:50.
+`binary_sensor.gatelink_relay_dry_run` read `on` at 20:54:50. GateLink's `cmd/ack` was not
+read: the sandbox broker refused `mosquitto_sub` without credentials, and the session did
+not take them from `secrets.h`.
+
+**V-8, as H6 built it, found a gap.** Three reminders went out through
+`script.lran_notify` (`alert: held_open_long`, the Close gate action) at 20:54:57, 21:02:48
+and 21:07:01. The `lran_site_push` trace shows both phones' notify calls carrying
+`actions: [{action: LRAN_CLOSE_GATE, title: Close gate, authenticationRequired: true}]`.
+
+- **The first two taps never reached HA.** The operator tapped the push itself, which only
+  opens or dismisses it on iOS. The action shows only on a long-press, after "loading
+  actions". The press of `button.gatelink_close` at 20:56:59 came from the Gate
+  dashboard's Close, which asks for confirmation, under the operator's user. It went out
+  with dry-run on.
+- **A synthetic `mobile_app_notification_action` event, `action: LRAN_CLOSE_GATE`, fired
+  through the REST API at 21:05:17, triggered the handler.** It logged "Close gate tapped,
+  but the gate already reads closed. No command sent."
+- **The long-pressed action ran from a locked iPhone with no visible unlock prompt.** The
+  handler triggered at 21:07:14 and took the same closed branch. The companion docs say an
+  action with `authenticationRequired: true` needs the device unlocked. Face ID probably
+  unlocked the phone silently: on the plain reminder below, a tap with the phone facing
+  the operator unlocked it with no prompt, and a tap facing away did nothing. The action was
+  not tried facing away, so whether `authenticationRequired` holds is not established.
+- **The press branch could not run at all with dry-run on.** IN1 and IN2 are tied to their
+  off positions, so `sensor.gatelink_gate` reads `closed` and the handler stops before
+  `button.press`. The handoff's recipe expected a press.
+
+**By operator choice, the notification actions are gone** (plan v0.11, §3, §9.3, §9.5). No
+requirement asked for them: GateLink PRD S-8 forbids an automatic close, and v0.10 met it
+with an action a person taps. A reminder is now a plain push whose tap opens the Gate
+dashboard, `/lran-gate`, where Close asks for confirmation. `lran_notify` takes `url` in
+place of `actions`, sent as iOS's `url` and Android's `clickAction`. `lran_3_close_action`
+is removed. H8's approach prompt loses its Open gate action for the same reason. The
+operator's reason is the long-press: an action that shows only after one is easy to miss,
+and it adds little over opening the dashboard.
+
+**The plain reminder works, behind the phone's lock.** Reminders went out at 21:20:32 and
+21:23:47. The trace shows the iPhone's push carrying `tag`, `url: /lran-gate` and
+`clickAction: /lran-gate`, and no actions. A tap opened the Gate dashboard. With the phone
+locked and facing away, a tap neither opened it nor asked for an unlock. Facing the
+operator, Face ID unlocked it silently, and the companion app asked whether to open the
+notification's URL, with *Always*, *Open* and *Cancel*. *Always* stops it asking.
+
+**What V-8 still owes for H6:** GateLink's `DRY_RUN` answer to a dashboard Close, read from
+`cmd/ack` or the bridge console.
