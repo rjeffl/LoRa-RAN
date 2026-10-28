@@ -331,9 +331,11 @@ script:
           True to send no email, for an alert about a failure the email path may share,
           such as the bridge going offline (plan 9.1).
         selector: { boolean: }
-      actions:
-        description: Companion-app notification actions, passed through.
-        selector: { object: }
+      url:
+        description: >-
+          A dashboard path, such as /lran-gate, that tapping the push opens. Pushes carry
+          no actions, by operator choice (plan 9.3).
+        selector: { text: }
     variables:
       catalog: !include messages.yml
       # Every optional field is defaulted here, once, so the templates below can use it
@@ -344,7 +346,7 @@ script:
       severity: "{{ severity | default('') }}"
       title: "{{ title | default('') }}"
       message: "{{ message | default('') }}"
-      actions: "{{ actions | default([]) }}"
+      url: "{{ url | default('') }}"
       name: "{{ msg or alert or '' }}"
       entry: "{{ catalog.get(name) if catalog.get(name) is mapping else {} }}"
       # Each field's raw value turned into words through the entry's map for it (plan 7.5).
@@ -388,7 +390,8 @@ script:
                       'ttl': 0, 'priority': 'high'} %}
         {% endif %}
         {% if tag %}{% set d = dict(d, tag=tag) %}{% endif %}
-        {% if actions %}{% set d = dict(d, actions=actions) %}{% endif %}
+        {# url opens on iOS, clickAction on Android. #}
+        {% if url %}{% set d = dict(d, url=url, clickAction=url) %}{% endif %}
         {{ d }}
     sequence:
       # An alert set to Off still reaches the logbook, marked, so the Events view keeps the
