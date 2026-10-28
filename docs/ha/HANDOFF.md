@@ -22,14 +22,13 @@ Continue from docs/ha/HANDOFF.md: task H6.
 ```
 
 The plan is [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-cited below as *plan*. H4, H4b and H5 are done; H4b leaves one check for the boards'
-power-up (*The next job*). H6 needs H4, H7 depends only on H1, and H9 on H3.
+cited below as *plan*. H4, H4b and H5 are done. H4b and H9 each leave one check for the
+boards' power-up (*The next job*). H6 needs H4, and H7 depends only on H1.
 
 | Task | Read |
 |---|---|
 | **H6** Tier 3 reminders and the action handler | Plan §9.3, §7.3 (`actions`), §7.5, §11's H6 row (V-8); *Traps*, below |
 | **H7** Tier 4 reports | Plan §9.4, §7.5 |
-| **H9** Entity check | Plan §11's H9 row, §6's layout; `ha/dashboards/*.yaml` and `ha/packages/lran/*.yaml` are its input |
 
 **The cleanup the task produced is part of the task.** Close the session by committing,
 pushing and opening the PR. Merge it once the operator accepts it, then rewrite this
@@ -44,10 +43,21 @@ section and *The next job*.
 `ha_get_automation_traces("automation.lran_1_gatelink_offline")` and `ha_get_state`. If no
 push came, the trace says which condition stopped it. Log the result as a new dated entry.
 
+**Before that power-up, flash the bridge from current `main`, then run
+`python3 tools/ha/check_entities.py`** (engineering log, 2026-10-28, H9). It fails on one
+ID, `number.gatelink_bms_retry_s`, because the sandbox's bridge has not run firmware from
+a1de65d on. A bridge built from `main` publishes it, and the check should then pass, which
+meets H9's acceptance (plan §11). Record the bridge commit HA reports in the same entry.
+
 **Then H6**, Tier 3 reminders and the action handler.
 
 ## What the last session established
 
+- **H9's check exists and runs against the sandbox through ha-mcp** (plan v0.9, §11;
+  engineering log, 2026-10-28, H9). `tools/ha/check_entities.py` reads the server's address
+  from `~/.claude.json`; `--server ha-prod` will point it at production. 199 of 200 IDs are
+  present. The missing one is a bridge firmware lag, not a YAML error (*The next job*).
+- **The H4b bullets below still stand**: the fixed return path has not run.
 - **Both offline alerts fired on the soak's real shutdown** (plan v0.8, §9.1; engineering
   log, 2026-10-28, H4b). GateLink alerted at its 10-minute delay, the bridge at 5 minutes
   with no email, and a bridge outage did not re-alert GateLink. The operator saw both on
@@ -244,9 +254,9 @@ those two targets changed, which plan §7.3 names.
 - **Spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning**, as it gives BMS_ALARM's none.
   `lran_2_mppt_error` takes the name from `sensor.gatelink_mppt_error` instead, which can
   lag the event. GateLink does not send the event yet.
-- **Only `ha_messages.py` reads `ha/packages/` in CI**, and only the alert catalog. H9's
-  `check_entities.py` needs a live HA. A YAML syntax check in the checks job would catch a
-  broken file before the sandbox does.
+- **CI cannot run H9's live half.** The checks job runs `check_entities.py --offline`,
+  which parses every package and dashboard. Whether the IDs exist needs ha-mcp, so that
+  half runs by hand, on each install.
 - **ha-mcp cannot render `lran-maintenance`.** Its screenshot returns HA's home page,
   which is what a non-admin user gets for an admin-only dashboard. Making Puppet's user an
   admin would fix it; whether to is the operator's call.
