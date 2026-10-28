@@ -2314,3 +2314,43 @@ looked into.
 
 **Falsified by:** a raw current field with nonzero magnitude bits that decodes to 0 mA, or a
 `pack_ma` of 0 while the WattCycle app shows 0.1 A or more.
+
+## 2026-10-28 — The silence after a bridge restart: GateLink's `deployed` lever was 0, so the bridge never polled it
+
+**Bridge and StamPLC on the bench, both consoles on USB, with the sandbox broker.** The
+bridge ran `760e9a3` and GateLink `eac974c`. Trace:
+[`data/bridge-reboot-silence-2026-10-28.log`](data/bridge-reboot-silence-2026-10-28.log).
+
+**The silence reproduced on the first bridge reset.** For the 2 min that followed, the
+bridge sent no frame and heard none. Its `diag/state` read `rx_frames` 0, and
+`diag/cmd/state` read `roll_sent` 0. GateLink's console printed only `alive:` lines.
+GateLink was not waiting on a roll it had missed, because the bridge never sent one.
+
+**The cause is GateLink's `deployed` lever on the bridge, at its default of 0.** The
+retained `lran/gatelink/config/state` read `"deployed":{"value":0,"source":"default"}`.
+Under D61 (spec §16.5), the bridge polls a node from boot only when that node's `deployed`
+row is set. It enrols any other node when that node's first frame arrives. The §10.6 roll
+is sent under the node's `ctx_id`, and the boot `POLL` is what fetches it. With the lever
+at 0 the bridge sent no `POLL`, so it waited for GateLink to transmit first. GateLink's
+`lora_task` sends unprompted only for a gate, hold or detection change, and none came in
+the 2 min observed. A GateLink restart sends a boot `STATUS`, which enrols it, and the roll
+follows. That is why the operator's restart ended the silence on 2026-10-26 and
+2026-10-28.
+
+**Setting the lever ended it.** `{"set":{"deployed":true}}` on `lran/gatelink/config/set`
+was answered `persisted`. The bridge polled 0x01 within 0.3 s, and the roll completed 3 s
+later. After a second bridge reset, the boot `POLL` went out 634 ms after boot, and the
+roll completed about 3 s after that.
+
+**The bench bridge keeps `deployed` = 1 for GateLink.** Bridge plan §6.6.2 keeps it at 0
+on a bench bridge because the dummy GateLink never answers. The real GateLink is on the
+bench now, so the lever belongs at 1. With it set, the bridge marks GateLink offline three
+missed polls after GateLink loses power.
+
+**The 2026-10-08 silence is only partly explained.** The bridge there had the same default,
+so its radio silence fits. The StamPLC also had no `/dev/cu.usbmodem*` until the replug,
+and this cause does not explain that.
+
+**Falsified by:** a bridge restart with `deployed` = 1 for 0x01 that is followed by no
+`POLL` to 0x01, or a silence after a restart in which the bridge's log shows that `POLL`
+and a completed roll.

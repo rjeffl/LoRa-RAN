@@ -146,17 +146,13 @@ only, because the bridge always sends a valid MAC and resets `seq` itself.
 
 ## What the last session established
 
-- **D81 is built and seen on the air.** `detail` 2, `inhibit_path` `vedirect`, came from
-  the real MPPT in bulk with a full pack; `detail` 1, `inhibit_path` `bms`, came twice
-  from the emulator's −5 °C reads.
-- **R-6.4b tests PV voltage, not PV power** (PRD v0.23). With the pack taking nothing the
-  MPPT stayed in bulk at 15–20 V PV and reported 0 W, so the old test could not hold.
-- **The real pack and the emulator share the name `XDZN_001_49A1`**, and a window reaches
-  whichever its scan meets first. Read time tells them apart: about 0.4 s for the
-  emulator, about 1.5 s for the pack.
-- **The drain timeouts of `5fd1509` are still unread in a soak.** Their counters live in
-  RAM, and the StamPLC was powered down to take the card out. Which image ran was not
-  checked beyond its carrying the retry.
+- **The silence after a bridge restart was the bridge's `deployed` lever for GateLink, at
+  its default of 0** (D61, spec §16.5). With it at 0 the bridge sends no boot `POLL` to
+  0x01, so it cannot roll GateLink's context, and GateLink sends nothing until an input
+  changes. With it at 1, the roll completed about 3 s after a bridge reset. No firmware
+  changed (engineering log, 2026-10-28, *The silence after a bridge restart*).
+- **The bench bridge now has `deployed` = 1 for GateLink**, persisted. The bridge marks
+  GateLink offline when GateLink is unpowered.
 
 ## Decisions taken 2026-10-01, by the operator
 
@@ -220,7 +216,7 @@ git log --branches --not --remotes --oneline    # local-only work; empty is good
 
 | Device | Called here | Told apart by | Firmware / env | Stored state | Current state |
 |---|---|---|---|---|---|
-| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `5fd1509`, flashed over USB from the Mac on 2026-10-26. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
+| M5Stack StamPLC (K141) | **the StamPLC** | DIN case with screw terminals and a colour LCD; nothing else in the fleet looks like it | **The original unit, MAC `50:78:7d:cd:c9:94`**, on `firmware/gatelink -e gatelink` at `5fd1509`, flashed over USB from the Mac on 2026-10-26. Its banner read `eac974c` on 2026-10-28. The replacement, MAC `ac:a7:04:03:52:0c`, ran the new-hardware bench work at `aaf87e8`. The node key is derived from the master and node ID `0x01`, not the MAC, so one image serves either board | A microSD card the board mounts, with `/config.json` holding 3 overrides that boot restores. Those three are `charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20, the default values, each still marked `source: override` (engineering log, 2026-10-24). The 2026-10-15 test values are gone | On the operator's workbench with the carrier fitted and a 12 V supply on VIN. IN1–IN4 wired sinking: COM at +12 V, an input to GND to energize it, IN3 and IN4 on GND for idle. **IN1–IN6 read** since the direction-register fix (engineering log, 2026-10-24); the firmware reads all six (D83). At `/dev/cu.usbmodem101` on 2026-10-24. The expansion board's power fault was fixed that day |
 | XIAO ESP32S3 + Wio-SX1262 **Kit** (p-5982) | **the XIAO Kit** | XIAO with a B2B-connected module; the only board with that stack | `firmware/simnode -e simnode-xiao-wio`. The bridge's handoff owns it as the target-radio simnode | A committed PHY group in NVS (the bridge handoff's *Hardware state*) | Borrowed from the bridge bench. `/dev/cu.usbmodem2101` on 2026-10-02, flashed with the split-readback simnode image, `f1` in `ROLE_GATELINK`. Proves the Wio's radio configuration, **not** the carrier's wiring |
 | Wio-SX1262 for XIAO **header board** (p-6379) | **the carrier's module** | 2.54 mm headers, no XIAO attached | — | — | **In hand and seated in the carrier** (operator, 2026-10-05) |
 | Carrier (expansion board rev 0.3) | **the carrier** | Perfboard on a right-angle 2×8 header | — | — | **Built.** Rails clean and netlist buzzed out, by operator report on 2026-10-05; antenna connected. J4 built as a 2×2 header, and the VE.Direct harness to the gate's MPPT fitted and corrected on 2026-10-08 |
@@ -245,6 +241,11 @@ board's are its D-pads (expansion board §6.1).
 - **A StamPLC on its 12 V supply never appears on a USB-C host port.** It backfeeds 5 V
   onto VBUS. A USB 2.0 hub with USB-A ports works (engineering log, 2026-10-05 and
   2026-10-06).
+- **A bridge restart leaves GateLink silent while its `deployed` lever is 0.** The bridge
+  then sends no boot `POLL` to 0x01, so it never learns GateLink's `ctx_id` or rolls it, and
+  GateLink transmits nothing until an input changes or it restarts. The bench bridge has
+  `deployed` = 1 for GateLink since 2026-10-28. Set it again after any `restore_defaults`
+  or bridge NVS erase (engineering log, 2026-10-28, *The silence after a bridge restart*).
 - **A microSD card over 32 GB will not mount.** The core builds FatFs without exFAT, so
   `SD.begin()` reports `(13) There is no valid FAT volume`. The bring-up image's
   `sd format` makes a FAT32 volume, and only on a card without one.
@@ -311,12 +312,6 @@ board's are its D-pads (expansion board §6.1).
   `bench.py`'s DTR and RTS held low, so attaching afterwards clears the counters it came to
   read (engineering log, 2026-10-27, *`pack_ma`, the FET flags and `alarms`*). A count
   above 0 falsifies the 2026-10-26 entry *The NimBLE abort panic*.
-- **GateLink did not answer over the air after the bridge powered up** until the operator
-  restarted it (2026-10-26). It happened again on 2026-10-28, after a USB flash of
-  the bridge to 760e9a3: no GateLink frame for about 9 minutes, until the operator
-  restarted GateLink (HA engineering log, 2026-10-28, bench checks). Whether it was
-  waiting on a context roll it never heard is not established. A capture of both consoles
-  across a bridge reboot would show it.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **Spec §7.2.7 cannot say a `bms_flags` bit is unknown.** GateLink does not decode `0x8D`,
@@ -444,7 +439,8 @@ board's are its D-pads (expansion board §6.1).
 - **`0xEDF4` reads 0 on the gate's MPPT**, and the simnode's simulated MPPT holds 1420.
   VictronConnect does not show the setting. A simnode change, if anyone wants it.
 - **The StamPLC was silent on the air for 135 s before a replug** (engineering log,
-  2026-10-08). Nothing explains it yet; watch for a repeat.
+  2026-10-08). The bridge's `deployed` default fits the radio silence (engineering log,
+  2026-10-28). Nothing explains the missing `/dev/cu.usbmodem*`; watch for a repeat.
 - **Measurements** M1–M3, M8–M11, M13, M16 and M23. The register holds their status.
 - **The first BMS window after a boot ended `aborted` at about 45 ms, twice** (engineering
   log, 2026-10-10, *M7*). Probably the boot's LoRa traffic; not checked.

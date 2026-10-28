@@ -1,0 +1,64 @@
+2026-10-28T18:11:17-0400      0.08 CMD <run: ports ['BRG', 'GL'], mqtt on>
+2026-10-28T18:11:17-0400      0.17 MQTT <retained> lran/gatelink/config/state {"poll_interval_s":{"value":60,"source":"default"},"deployed":{"value":0,"source":"default"}, ...}
+2026-10-28T18:11:17-0400      0.28 GL rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+2026-10-28T18:11:17-0400      0.66 BRG Version: 0.1.0 (760e9a3)
+2026-10-28T18:11:17-0400      0.66 BRG Reset: power_on
+2026-10-28T18:11:17-0400      0.66 BRG boot: count 134
+2026-10-28T18:11:17-0400      0.83 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, mi[   575][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+2026-10-28T18:11:18-0400      1.09 GL boot: first input read raw 0x1c debounced 0x00
+2026-10-28T18:11:20-0400      3.89 BRG FRAME #0 rx t=3515 peer=0x01 type=4 schema=16 frag=0x01 seq=1 rssi=-47 snr=11 st=0 rx=0 deaf=0
+2026-10-28T18:11:21-0400      4.09 BRG FRAME #1 rx t=3800 peer=0x01 type=5 schema=17 frag=0x01 seq=2 rssi=-48 snr=11 st=0 rx=0 deaf=0
+2026-10-28T18:11:21-0400      4.70 BRG FRAME #2 rx t=4372 peer=0x01 type=4 schema=16 frag=0x01 seq=3 rssi=-48 snr=11 st=0 rx=0 deaf=0
+2026-10-28T18:11:22-0400      5.31 BRG FRAME #3 tx t=5175 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+2026-10-28T18:11:23-0400      6.13 BRG FRAME #4 rx t=5825 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-47 snr=12 st=0 rx=0 deaf=255
+2026-10-28T18:11:23-0400      6.74 BRG roll: 01 rolled to ctx 0xc523e82a after 1 attempt(s)
+2026-10-28T18:11:24-0400      7.55 BRG FRAME #5 tx t=7352 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=305
+2026-10-28T18:11:25-0400      8.57 BRG FRAME #6 rx t=8292 peer=0x01 type=4 schema=16 frag=0x01 seq=2 rssi=-48 snr=11 st=0 rx=0 deaf=497
+2026-10-28T18:11:26-0400      9.59 BRG FRAME #7 rx t=9398 peer=0x01 type=11 schema=18 frag=0x01 seq=3 rssi=-48 snr=11 st=0 rx=0 deaf=497
+2026-10-28T18:11:27-0400     10.20 BRG FRAME #8 rx t=9848 peer=0x01 type=11 schema=18 frag=0x01 seq=4 rssi=-49 snr=11 st=0 rx=0 deaf=497
+2026-10-28T18:11:27-0400     10.81 BRG FRAME #9 tx t=10600 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=518
+2026-10-28T18:11:29-0400     12.08 GL roll 01 <- 00 seq 1: ctx 0x1d369f2c -> 0xc523e82a, ACCEPTED
+2026-10-28T18:11:29-0400     12.23 BRG FRAME #10 rx t=12058 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-47 snr=11 st=0 rx=0 deaf=751
+2026-10-28T18:11:30-0400     13.86 BRG FRAME #11 tx t=13604 peer=0x01 type=3 schema=0 frag=0x01 seq=2 rssi=- snr=- st=0 rx=5 deaf=776
+2026-10-28T18:11:31-0400     14.87 BRG FRAME #12 rx t=14544 peer=0x01 type=4 schema=16 frag=0x01 seq=5 rssi=-47 snr=11 st=0 rx=0 deaf=968
+2026-10-28T18:11:39-0400     22.74 CMD mark 9366a2
+2026-10-28T18:11:39-0400     22.74 CMD mark brg-reset-1
+2026-10-28T18:11:39-0400     22.74 CMD reset BRG
+2026-10-28T18:11:40-0400     23.44 BRG Version: 0.1.0 (760e9a3)
+2026-10-28T18:11:40-0400     23.44 BRG Reset: power_on
+2026-10-28T18:11:40-0400     23.51 BRG boot: count 135
+2026-10-28T18:11:40-0400     23.51 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, mi[   584][W][WiFiGeneric.cpp:1062] _eventCallback(): Reason: 8 - ASSOC_LEAVE
+2026-10-28T18:13:18-0400    120.94 GL alive: io=901 vedirect=4502 lora=2236 app=901 bms=1 ui=901 log=3
+2026-10-28T18:13:18-0400    120.94 GL alive: io=1201 vedirect=6002 lora=2536 app=1201 bms=1 ui=1201 log=4
+2026-10-28T18:13:41-0400    144.59 MQTT lran/bridge/diag/state {"rx_crc_err":0,"rx_runt":0,"rx_oversize":0,"rx_bad_crc":0,"rx_bad_ver":0,"rx_not_addressed":0,"rx_unknown_hdr_ext":0,"rx_bad_frag":0,"rx_unknown_type":0,"rx_unknown_schema":0,"rx_bad_length":0,"rx_not_fragmentable":0,"rx_rejected_ctx":0,"rx_rejected_mac":0,"rx_unknown_src":0,"rx_reassembly_timeout":0,"rx_fragment_overflow":0,"rx_reassembly_abandoned":0,"rx_rejected_seq":0,"rx_frag_duplicate":0,"rx_frag_late":0,"rx_dup_command":0,"rx_dropped":0,"rx_frames":0,"ctx_rolls":0,"ctx_roll_failed":0}
+2026-10-28T18:13:41-0400    144.60 MQTT lran/bridge/diag/cmd/state {"cmd_submitted":0,"cmd_refused_busy":0,"cmd_sent":0,"cmd_retries":0,"cmd_acked":0,"cmd_no_ack":0,"cmd_resyncs":0,"cmd_resync_failed":0,"cmd_unconfirmed":0,"cmd_ack_ignored":0,"cmd_refused_roll_pending":0,"roll_sent":0,"roll_retries":0,"roll_busy":0,"roll_by_rejected_ctx":0}
+2026-10-28T18:14:18-0400    180.90 GL alive: io=1501 vedirect=7502 lora=2836 app=1501 bms=1 ui=1501 log=5
+2026-10-28T18:14:18-0400    180.90 GL alive: io=1801 vedirect=9002 lora=3136 app=1801 bms=1 ui=1801 log=6
+2026-10-28T18:14:36-0400    199.18 CMD mark e40159
+2026-10-28T18:14:36-0400    199.18 CMD mark deployed-set
+2026-10-28T18:14:36-0400    199.18 CMD pub lran/gatelink/config/set {"set":{"deployed":true}}
+2026-10-28T18:14:36-0400    199.44 MQTT lran/gatelink/config/ack {"op":"set","persist":"persisted","results":{"deployed":{"status":"ok","value":1}}}
+2026-10-28T18:14:36-0400    199.69 BRG levers: gen 4 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+2026-10-28T18:14:36-0400    199.70 BRG FRAME #0 tx t=176603 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=21
+2026-10-28T18:14:37-0400    200.71 BRG FRAME #1 rx t=177705 peer=0x01 type=4 schema=16 frag=0x01 seq=6 rssi=-46 snr=11 st=0 rx=0 deaf=213
+2026-10-28T18:14:38-0400    201.74 BRG FRAME #2 tx t=178611 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=238
+2026-10-28T18:14:38-0400    201.86 GL roll 01 <- 00 seq 1: ctx 0xc523e82a -> 0x257605c0, ACCEPTED
+2026-10-28T18:14:39-0400    202.34 BRG FRAME #3 rx t=179262 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-46 snr=10 st=0 rx=0 deaf=471
+2026-10-28T18:14:39-0400    202.75 BRG roll: 01 rolled to ctx 0x257605c0 after 1 attempt(s)
+2026-10-28T18:14:39-0400    202.75 BRG FRAME #4 tx t=179604 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=492
+2026-10-28T18:14:41-0400    204.18 BRG FRAME #5 rx t=181062 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-46 snr=11 st=0 rx=0 deaf=725
+2026-10-28T18:14:46-0400    209.20 CMD mark 0be62c
+2026-10-28T18:14:46-0400    209.20 CMD mark brg-reset-2
+2026-10-28T18:14:46-0400    209.20 CMD reset BRG
+2026-10-28T18:14:46-0400    209.86 BRG Version: 0.1.0 (760e9a3)
+2026-10-28T18:14:46-0400    209.86 BRG Reset: power_on
+2026-10-28T18:14:47-0400    210.05 BRG boot: count 136
+2026-10-28T18:14:47-0400    210.05 BRG levers: gen 2 - diag 60 s, poll reply 10000 ms, missed 3, cmd ack 3000 ms x3, config ack 8000 ms, readback 15000 ms, hex rsp 3000 ms, arm 300 s, charge readback 0 h, simnode diag off
+2026-10-28T18:14:47-0400    210.12 BRG FRAME #0 tx t=634 peer=0x01 type=3 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=25
+2026-10-28T18:14:48-0400    211.13 BRG FRAME #1 rx t=1574 peer=0x01 type=4 schema=16 frag=0x01 seq=2 rssi=-46 snr=11 st=0 rx=0 deaf=217
+2026-10-28T18:14:49-0400    212.14 BRG FRAME #2 tx t=2591 peer=0x01 type=1 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=242
+2026-10-28T18:14:49-0400    212.24 GL roll 01 <- 00 seq 1: ctx 0x257605c0 -> 0x61cbc42e, ACCEPTED
+2026-10-28T18:14:49-0400    212.76 BRG FRAME #3 rx t=3240 peer=0x01 type=2 schema=0 frag=0x01 seq=1 rssi=-46 snr=11 st=0 rx=0 deaf=475
+2026-10-28T18:14:50-0400    213.16 BRG roll: 01 rolled to ctx 0x61cbc42e after 1 attempt(s)
+2026-10-28T18:14:50-0400    213.16 BRG FRAME #4 tx t=3592 peer=0x01 type=8 schema=0 frag=0x01 seq=1 rssi=- snr=- st=0 rx=5 deaf=496
+2026-10-28T18:14:51-0400    214.59 BRG FRAME #5 rx t=5050 peer=0x01 type=9 schema=0 frag=0x01 seq=1 rssi=-46 snr=11 st=0 rx=0 deaf=729
