@@ -312,8 +312,11 @@ board's are its D-pads (expansion board §6.1).
   read (engineering log, 2026-10-27, *`pack_ma`, the FET flags and `alarms`*). A count
   above 0 falsifies the 2026-10-26 entry *The NimBLE abort panic*.
 - **GateLink did not answer over the air after the bridge powered up** until the operator
-  restarted it (2026-10-26). Whether it was waiting on a context roll it never heard is not
-  established.
+  restarted it (2026-10-26). It happened again on 2026-10-28, after a USB flash of
+  the bridge to 760e9a3: no GateLink frame for about 9 minutes, until the operator
+  restarted GateLink (HA engineering log, 2026-10-28, bench checks). Whether it was
+  waiting on a context roll it never heard is not established. A capture of both consoles
+  across a bridge reboot would show it.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
 - **Spec §7.2.7 cannot say a `bms_flags` bit is unknown.** GateLink does not decode `0x8D`,
