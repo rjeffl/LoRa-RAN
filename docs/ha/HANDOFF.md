@@ -135,7 +135,7 @@ MPPT readings are available.
 |---|---|
 | Branch and merge state | **Not written here — it cannot be kept true.** Run the commands in *Git state* |
 | Done | H0, H1, H2, H3, H4, H4b, H5, H6, H7, H9 |
-| Queue | H8, then H10 at the port. F1 to F3 are bridge tasks (plan §5) |
+| Queue | H8, then H10 at the port. Bridge tasks F1 to F4 are built (plan §5) |
 
 ```bash
 python3 tools/checks/run_ci_local.py      # the checks job; ha_messages.py reads ha/packages/lran

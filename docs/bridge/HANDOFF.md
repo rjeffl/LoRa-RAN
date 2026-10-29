@@ -202,8 +202,9 @@ GateLink's GL8 runs on the production broker after this: every entity present, h
 and FIRE events firing once only, and the configuration `number` entities reading and
 writing. HA dashboards and automations are planned in
 [`LRAN-HA-Integration-Implementation-Plan`](../shared/LRAN-HA-Integration-Implementation-Plan.md),
-whose tasks H0–H9 come before GL8. Its §5 lists three discovery gaps, F1–F3, that are
-bridge work: the D8 `cover` and hold `switch` first among them.
+whose tasks H0–H9 come before GL8. Its §5's four discovery gaps, F1–F4, were built
+2026-10-28 (engineering log, same date), the D8 `cover` and hold `switch` among them. Their
+on-air check waits for an OTA of that branch.
 
 ## Waits on GateLink or the operator
 
