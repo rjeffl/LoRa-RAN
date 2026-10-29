@@ -2354,3 +2354,21 @@ and this cause does not explain that.
 **Falsified by:** a bridge restart with `deployed` = 1 for 0x01 that is followed by no
 `POLL` to 0x01, or a silence after a restart in which the bridge's log shows that `POLL`
 and a completed roll.
+
+## 2026-10-28 — R-6.4c counts the BMS's remaining capacity, because neither current sees GateLink's draw
+
+**The operator chose both of R-6.4c's terms (2026-10-28).** Charging is active while the MPPT
+is in bulk, absorption or float with VE.Direct battery current above 0. `ah_drawn_dah` is the
+fall in the BMS's remaining capacity since then, not an integrated current (PRD v0.24).
+
+**Neither current GateLink reads carries its own 44 mA.** `pack_ma` steps in 0.1 A, so the
+draw reads 0 (2026-10-27, *`pack_ma`, the FET flags and `alarms`*). VE.Direct's `I` is the
+charger's own output, and GateLink takes its supply straight from the pack (PRD R-4.4a), not
+from the load output, so `I` never includes it. At night both integrate to about 0 Ah.
+
+**The choice rests on an unmeasured premise:** that the BMS's coulomb counter registers a
+draw its current field shows as 0. The remaining capacity also steps in 0.1 Ah (`989/1000`
+in the 2026-10-27 read), and the soaks did not log it overnight.
+
+**Falsified by:** BMS remaining capacity unchanged across a night with GateLink's load alone,
+where about 0.5 Ah over 12 h is expected.

@@ -62,7 +62,7 @@ GateLink deploys on six inputs (D83). The card is in the StamPLC and holds
 
 | Tier | Task | Read |
 |---|---|---|
-| 3 | **Next: spec v0.18's rest**: answer `ACTUATOR_FAULT` for a failed relay write (D78), and send schema `0x13` with `ah_drawn_dah` (D82). D82 waits for PRD R-6.4c to define "charging active" and the current integrated | spec §7.2.10, §8.2, §7.2.8; PRD R-6.4c; plan §5.2 |
+| 3 | **Next: spec v0.18's rest**: answer `ACTUATOR_FAULT` for a failed relay write (D78), and send schema `0x13` with `ah_drawn_dah` (D82). PRD v0.24's R-6.4c defines it: the fall in the BMS's remaining capacity since the MPPT last charged with battery current above 0 | spec §7.2.10, §8.2, §7.2.8; PRD R-6.4c; plan §5.2 |
 | 3 | **The relay at a watchdog reset** — a written proposal; and the SD library's `log_w` | *Open*, below |
 
 ### The soak's setup
@@ -319,17 +319,16 @@ board's are its D-pads (expansion board §6.1).
   `charge_fet: false`, `discharge_fet: false` and `alarms: 65535`, which read as states.
   The specification has to give those bits an "unknown" before the bridge can publish
   `null` (engineering log, 2026-10-27).
-- **`pack_ma` steps in 0.1 A, so GateLink's own 44 mA draw reads 0** (engineering log,
-  2026-10-27). If R-6.4c integrates `pack_ma` for `ah_drawn_dah`, a cold night reads
-  0 Ah. PRD R-6.4c has not yet chosen the current.
+- **R-6.4c's `ah_drawn_dah` assumes the BMS's remaining capacity falls under GateLink's
+  44 mA draw**, which `pack_ma` cannot show. Unmeasured. PRD R-6.4c names the check: the
+  real pack across a night with GateLink's load alone, expecting about 0.5 Ah over 12 h.
+  The check needs the real pack, which *Start here* lets go back to the gate.
 - **The bridge's `rx_no_interrupt` and `rx_wake_empty` rose from 0 to 4 in the first
   soak**, stayed 0 through the second, and rose to 1 each in the final soak. Not looked
   into.
 - **The BMS path has no hysteresis.** A pack sitting at the threshold could send a STATUS
   and an event on every poll, every 300 s at most.
 
-- **PRD R-3.2.3e does not say `held_open_alert_repeat_s` is a rate limit.** The operator
-  confirmed it is (2026-10-13), and `detect.h` says so. The next PRD revision states it.
 - **Event to MQTT took up to 6 s on the bench**, most under 2 s (engineering log,
   2026-10-13). Not lost, and the cause is not established.
 - **A `ctx_id` drawn after boot may not come from a true entropy source.** `ROLL_CONTEXT`
@@ -338,9 +337,6 @@ board's are its D-pads (expansion board §6.1).
 - **The `BOOT` event's `input_bits` is always 0**, because it is built before `io_task`'s
   first read. Harmless while the BOOT event carries no input state; a spec reader may
   expect otherwise.
-- **R-3.5j's *Verified by* says "on a scope"**; GL1 used a logic analyzer on the contacts,
-  which cannot see a coil glitch shorter than the operate time. Proposed: accept the
-  analyzer, with that limit stated. The operator's call, then a PRD and plan §8.2 edit.
 - **A watchdog reset holds an energized relay until `setup()`** (engineering log,
   2026-10-07). A hang 100 ms into a 500 ms pulse would close the relay for about 1 s. Any
   fix is a design question, since releasing the relay at the panic would mean I²C from
