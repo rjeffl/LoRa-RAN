@@ -256,6 +256,9 @@ is the node half's state machine; `nvs_persist.{h,cpp}` is the store behind it (
   `ctx_id`** (Impl Plan §6.7.7). A roll changes the `ctx_id` and keeps the
   configuration (spec §10.1), so a readback keyed on the context fires after every
   bridge restart and still misses nothing it should catch.
+- **A node's `restore_defaults` leaves the bridge's per-node rows** (operator,
+  2026-10-28). It sends the node's `RESTORE_DEFAULTS` and nothing else; clearing the
+  bridge's half reset `deployed` to 0 on the bench. The bridge's topic clears its global rows.
 - **NVS restores through `Store::restore()`**, not `apply()`, since BF-33: a stored PHY
   value replayed through `apply()` would open a trial at every boot. A value stored before a range changed is
   clamped on the way back in and a row that has since become `READ_ONLY` is refused.

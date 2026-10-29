@@ -272,13 +272,16 @@ size_t ConfigStore::apply(ConfigScope scope, lran::NodeId node, const ConfigSetR
 size_t ConfigStore::restore_defaults(ConfigScope scope, lran::NodeId node,
                                      ConfigResult* results, size_t cap,
                                      AckPersist* persist) {
-  lran::config::Store* store =
-      scope == ConfigScope::Bridge ? bridge_store_ : store_for(node);
-  if (store != nullptr) {
+  // A NODE'S RESTORE IS THE NODE'S (operator, 2026-10-28). On a node's topic it sends spec
+  // 8.10's RESTORE_DEFAULTS and leaves the bridge's per-node rows alone. Clearing them took
+  // `deployed` to 0 when HA's Restore defaults was pressed on the bench, and a node
+  // undeployed at the bridge's next restart is enrolled only once heard (spec 16.5).
+  // A per-node row returns to its default by a `set`.
+  if (scope == ConfigScope::Bridge && bridge_store_ != nullptr) {
     // D52 - the return says whether the nonvolatile copy was cleared too. The RAM
     // overrides are gone either way, which is why read_all() below reports the defaults
     // whatever this answered.
-    (void)store->restore_defaults();
+    (void)bridge_store_->restore_defaults();
   }
   return read_all(scope, node, results, cap, persist);
 }
