@@ -314,11 +314,6 @@ board's are its D-pads (expansion board §6.1).
   above 0 falsifies the 2026-10-26 entry *The NimBLE abort panic*.
 - **GateLink's console cannot print a file from the card.** Reading `/bms.log` at the gate
   means opening the enclosure for the card.
-- **Spec §7.2.7 cannot say a `bms_flags` bit is unknown.** GateLink does not decode `0x8D`,
-  so it leaves bits 1–5 clear and sends `bms_alarms` as `UINT16_MAX`. The bridge publishes
-  `charge_fet: false`, `discharge_fet: false` and `alarms: 65535`, which read as states.
-  The specification has to give those bits an "unknown" before the bridge can publish
-  `null` (engineering log, 2026-10-27).
 - **R-6.4c's `ah_drawn_dah` assumes the BMS's remaining capacity falls under GateLink's
   44 mA draw**, which `pack_ma` cannot show. Unmeasured. PRD R-6.4c names the check: the
   real pack across a night with GateLink's load alone, expecting about 0.5 Ah over 12 h.
@@ -331,9 +326,11 @@ board's are its D-pads (expansion board §6.1).
 
 - **Event to MQTT took up to 6 s on the bench**, most under 2 s (engineering log,
   2026-10-13). Not lost, and the cause is not established.
-- **A `ctx_id` drawn after boot may not come from a true entropy source.** `ROLL_CONTEXT`
-  and `lran ctx new` call `esp_random()`, which is true random only while the RF subsystem
-  runs, and BLE is down between windows. Spec §10.1 asks for true entropy at every draw.
+- **A roll's `ctx_id` does not come from a true entropy source.** `ROLL_CONTEXT` and
+  `lran ctx new` call `esp_random()`, which is true random only while the RF subsystem
+  runs, and BLE is down between windows. Spec v0.19 §10.1 and PRD R-3.5h require true
+  entropy at a roll too (**D87**), and permit a word drawn during a BLE window and held for
+  the roll. A firmware task.
 - **The `BOOT` event's `input_bits` is always 0**, because it is built before `io_task`'s
   first read. Harmless while the BOOT event carries no input state; a spec reader may
   expect otherwise.
@@ -363,9 +360,6 @@ board's are its D-pads (expansion board §6.1).
 - **Some `bms now` results printed about 13 s after `window now`**, though each window
   reported about 1.2 s (engineering log, 2026-10-10). Whether the window started late or
   its line printed late is not established.
-- **Decision Register D49 says `APPLIED_NOT_PERSISTED` means no usable store, "microSD on
-  GateLink"**. GateLink's PHY group is now in NVS (plan §6.4), so D49's wording may need an
-  amendment. The register's owner should decide.
 - **The SD library prints its retries to `Serial` from `lora_task`**, through the core's
   `log_w` at `CORE_DEBUG_LEVEL=2`. That breaks *Only `log_task` writes to `Serial`*
   (`firmware/gatelink/CLAUDE.md`), and only configuration traffic with a bad card reaches it.
@@ -395,8 +389,6 @@ board's are its D-pads (expansion board §6.1).
 - **The pack is matched by its advertised name, `XDZN_001_49A1`, compiled in**
   (`board_profile.h`). A replacement pack means a USB reflash at the gate. A parameter
   cannot hold a name; whether to match any `XDZN_001_` instead is the operator's call.
-- **Spec §7.2.3 names no sentinel for `cell_temp_c`.** GateLink sends `INT8_MIN` for a
-  sensor the pack did not report, under root rule 6. The specification should say so.
 - **`bms_alarms` and `bms_flags` bits 1–5 are sent unavailable**, because `0x8D` is not
   decoded (`bms-protocol.md` §9). R-3.4a and R-3.4c need it, and the decode needs a
   capture during a protection event.

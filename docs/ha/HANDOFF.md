@@ -246,8 +246,6 @@ those two targets changed, which plan §7.3 names.
   though its trace reached `logbook.log`. Not chased.
 - **Real SMTP.** Needs an account in the sandbox's `site.yaml` and `secrets.yaml`, or waits
   for production (plan §12, step 6).
-- **Spec §8.9 gives BMS_ALARM's `detail` no meaning.** The alert shows it raw, in hex. A
-  spec revision should define it, or say it is reserved.
 - **Forcing a state has no ha-mcp route.** An event alert needs none: `mqtt.publish`
   injects the event (H4). An alert on a sensor's state needs none either: H5 moved its
   threshold instead. A banner check still needs one. The operator chose a test-only
@@ -265,9 +263,10 @@ those two targets changed, which plan §7.3 names.
   derived minimum beside `charge_inhibit_temp_c`. The four may not all be cell sensors,
   though: `aiobmsble` labels them ambient, MOSFET, cell, cell, and nothing has confirmed
   that on this pack (bms-protocol §10).
-- **Spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning**, as it gives BMS_ALARM's none.
-  `lran_2_mppt_error` takes the name from `sensor.gatelink_mppt_error` instead, which can
-  lag the event. GateLink does not send the event yet.
+- **`lran_2_mppt_error` can name the error from `detail`.** Spec v0.19 §8.9 puts the
+  VE.Direct `ERR` code in `MPPT_ERROR`'s `detail`, and `bms_alarms` in `BMS_ALARM`'s
+  (**D86**). The alert still reads `sensor.gatelink_mppt_error`, which can lag the event.
+  GateLink sends neither event yet, and `bms_alarms`' bits wait on `0x8D`'s decode.
 - **The sandbox's home location looks wrong for the site.** `sun.sun` put the next sunset
   at 16:18 UTC on 2026-10-28, 12:18 in New York, so `lran_3_open_at_night` would fire at
   the wrong hour there. Check production's location before H10.
