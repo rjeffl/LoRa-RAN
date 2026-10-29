@@ -103,11 +103,46 @@ inline constexpr const char* kPayloadOffline = "offline";
 inline constexpr const char* kTopicCmdFilter = "lran/+/cmd/+/set";
 
 // What arrived on one. `cmd` is spec 8.1's value; `arg` and `arg2` come from the
-// payload (parse_cmd_payload).
+// payload (parse_cmd_payload). On a face topic, below, `face` is its action token and
+// `cmd` stays 0 until parse_cmd_face() reads the payload.
 struct CmdTopic {
-  uint8_t node_id = 0;
-  uint8_t cmd     = 0;
+  uint8_t     node_id = 0;
+  uint8_t     cmd     = 0;
+  const char* face    = nullptr;
 };
+
+// ---------------------------------------------------------------------------
+// HA plan F1, D8 - the face topics: `lran/<node>/cmd/gate/set` for the cover and
+// `lran/<node>/cmd/hold/set` for the "Hold gate open" switch.
+//
+// ON A FACE TOPIC THE PAYLOAD NAMES THE COMMAND, because a cover and a switch each publish
+// to one command topic. Each row maps one of Home Assistant's native payloads to a spec 8.1
+// row and its `arg`, so a face is still spec 8.1 and still passes command_allowed(): there
+// is no gate branch here (BG-2). CLOSE carries `arg` 1, release then immediate close, which
+// is what the cover's close means (GateLink PRD 7.1).
+//
+// THE ACTION TOKENS AND THE PAYLOADS ARE FROZEN once published, like the others above.
+// discovery.cpp reads its payloads from this table, so the two ends cannot drift. The
+// per-command topics (`cmd/open/set` and the rest) stay parsed after their buttons went.
+// ---------------------------------------------------------------------------
+
+struct CmdFace {
+  const char* action;   // the topic's `<action>` segment
+  const char* payload;  // what Home Assistant publishes on it
+  uint8_t     cmd;      // spec 8.1
+  uint8_t     arg;
+};
+extern const CmdFace kCmdFaces[];
+extern const size_t  kCmdFaceCount;
+
+// The payload `action`'s face publishes for spec 8.1's `cmd`, or nullptr when it has none.
+const char* cmd_face_payload(const char* action, uint8_t cmd);
+
+// A face topic's payload as spec 8.1's `cmd` and `arg`; `arg2` is always 0. False for a
+// payload the face does not name, which is refused rather than guessed at, as
+// parse_cmd_payload() refuses one.
+bool parse_cmd_face(const char* action, const char* payload, size_t len, uint8_t* cmd,
+                    uint8_t* arg, uint16_t* arg2);
 
 // Parses `lran/<node>/cmd/<action>/set` into an address and a spec 8.1 `cmd`. False
 // for any topic that is not exactly that shape, an unknown node token, or an action

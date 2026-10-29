@@ -1,7 +1,7 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.25
+**Version:** 0.26
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
@@ -869,9 +869,21 @@ Driven from real IN1/IN2 state, non-optimistic.
 | HA operation | GateLink action |
 |---|---|
 | `cover.open_cover` | G-1 — momentary open |
-| `cover.close_cover` | G-3 — release, then immediate close if configured |
+| `cover.close_cover` | G-3 — release, then immediate close (`CLOSE` with `arg` 1) |
 | `switch.turn_on` ("Hold gate open") | G-2 — open and lock |
 | `switch.turn_off` ("Hold gate open") | Unlock; auto-close then closes |
+
+**The cover always closes at once.** ▼ sends spec §8.1's `CLOSE` with `arg` 1, release
+then immediate close, and there is no setting to change that. The release-only path is
+the hold switch turned off, which lets auto-close finish the job (operator, 2026-10-28).
+
+**The cover shows a direction that IN1 and IN2 cannot see.** Protocol Spec §8.3 infers
+direction during motion from the previous stable state, and the bridge does that
+inference: `MOVING` after `CLOSED` is opening, and after `OPEN_COUNTDOWN` or `OPEN_HELD` it
+is closing. With no stable state remembered, after a bridge restart mid-travel, it shows
+open rather than guess. Two limits follow from the wiring. After an obstruction or a
+safety reversal the direction stays wrong until the next stable state. A closing gate
+reads `OPEN_COUNTDOWN` until it leaves the open limit, so "closing" appears late.
 
 **A `switch` rather than a second cover.** Hold-open is a persistent *mode*, not a
 momentary action, and a switch models a mode correctly — it shows current state, it is
@@ -895,7 +907,6 @@ as unavailable.
 | Gate | `cover` (gate) | IN1/IN2 |
 | Hold gate open | `switch` | derived hold state |
 | Hold source | `sensor` (text, diagnostic) | derived |
-| Close immediately | `switch` (config) | — |
 | Gate state | `sensor` (text, diagnostic) | IN1/IN2 |
 | Auto-close pending | `binary_sensor` | IN2 while IN1 asserted |
 | Held open by keypad | `binary_sensor` | IN5 |
@@ -1063,6 +1074,11 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.26** — **§7.1's cover always closes at once**, and §7.2 drops the Close immediately
+  switch (operator, 2026-10-28). ▼ sends `CLOSE` with `arg` 1, and the hold switch turned
+  off is the release-only path. §7.1 also states the cover's direction inference and its
+  two limits (Protocol Spec §8.3; HA Integration Plan §5, F1).
 
 - **v0.25** — **Protocol specification v0.18 → v0.19.** R-3.5h covers a roll's draw as
   well as the boot's (**D87**), and its check reads each call site, because a log without

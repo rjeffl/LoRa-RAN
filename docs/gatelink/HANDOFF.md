@@ -141,6 +141,11 @@ read each such window 6 or 7 s later (engineering log, 2026-10-27, *The final so
 it on Radio Open and Close), M23, GL6, then GL7. The bridge handoff carries the bridge and
 Home Assistant work that has to be ready by the install visit.
 
+**At GL7, check that `RELEASE_HOLD` (K2) releases a `keypad_fire` hold.** HA's "Hold gate
+open" switch shows a keypad hold as on, and turning it off sends `RELEASE_HOLD` whoever set
+the hold (PRD §7.1). The brief of 2026-10-28 put this check in GL6, but GL6 runs with the
+relays disconnected, so K2 cannot act until GL7.
+
 The node's refusals of a bad MAC, a stale `seq` and an unauthenticated Set are host-tested
 only, because the bridge always sends a valid MAC and resets `seq` itself.
 

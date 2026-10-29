@@ -5,8 +5,8 @@
 # YAML mode, so this file is the source (plan 6); install it as
 # /config/dashboards/lran/gate.yaml. A sections view reflows to one column on a phone.
 #
-# The four command buttons stand in for the cover and hold switch until bridge task F1
-# (plan 5). When F1 lands, the Gate control section switches to them in the same change.
+# The Gate section drives the cover and the "Hold gate open" switch (D8, GateLink PRD 7.1),
+# which replaced the four command buttons when bridge task F1 landed (plan 5).
 
 title: Gate
 views:
@@ -95,10 +95,11 @@ views:
         cards:
           - type: heading
             heading: Gate
+          # The cover's state carries the direction the bridge infers (spec 8.3): open,
+          # opening, closing or closed. The raw gate state is on the LRAN dashboard.
           - type: tile
-            entity: sensor.gatelink_gate
+            entity: cover.gatelink_gate
             name: Gate
-            icon: mdi:gate
             grid_options:
               columns: 12
           - type: tile
@@ -116,25 +117,26 @@ views:
               entity: sensor.gatelink_hold_source
               name: Held open by
               icon: mdi:gate-open
-          # Each press is a relay pulse at the gate, so every button asks first. A button's
-          # state is the time of its last press, which says nothing here, so it is hidden.
+          # Each action is a relay pulse at the gate, so every one asks first. That is why
+          # these are tiles with a confirmation rather than the cover tile's own buttons,
+          # which cannot ask.
           - type: tile
-            entity: button.gatelink_open
+            entity: cover.gatelink_gate
             name: Open
             icon: mdi:gate-open
             grid_options:
               columns: 6
             hide_state: true
-            tap_action: &press
+            tap_action: &open
               action: perform-action
-              perform_action: button.press
+              perform_action: cover.open_cover
               target:
-                entity_id: button.gatelink_open
+                entity_id: cover.gatelink_gate
               confirmation:
                 text: Open the gate?
-            icon_tap_action: *press
+            icon_tap_action: *open
           - type: tile
-            entity: button.gatelink_close
+            entity: cover.gatelink_gate
             name: Close
             icon: mdi:gate
             grid_options:
@@ -142,42 +144,27 @@ views:
             hide_state: true
             tap_action: &close
               action: perform-action
-              perform_action: button.press
+              perform_action: cover.close_cover
               target:
-                entity_id: button.gatelink_close
+                entity_id: cover.gatelink_gate
               confirmation:
-                text: Close the gate?
+                text: Close the gate now?
             icon_tap_action: *close
+          # On whoever set the hold, the keypad included; off releases it (PRD 7.1).
           - type: tile
-            entity: button.gatelink_hold_open
-            name: Hold open
+            entity: switch.gatelink_hold_gate_open
+            name: Hold gate open
             icon: mdi:gate-arrow-right
             grid_options:
-              columns: 6
-            hide_state: true
+              columns: 12
             tap_action: &hold
               action: perform-action
-              perform_action: button.press
+              perform_action: switch.toggle
               target:
-                entity_id: button.gatelink_hold_open
+                entity_id: switch.gatelink_hold_gate_open
               confirmation:
-                text: Hold the gate open?
+                text: Change the hold on the gate?
             icon_tap_action: *hold
-          - type: tile
-            entity: button.gatelink_release_hold
-            name: Release hold
-            icon: mdi:gate-arrow-left
-            grid_options:
-              columns: 6
-            hide_state: true
-            tap_action: &release
-              action: perform-action
-              perform_action: button.press
-              target:
-                entity_id: button.gatelink_release_hold
-              confirmation:
-                text: Release the hold?
-            icon_tap_action: *release
 
       - type: grid
         cards:

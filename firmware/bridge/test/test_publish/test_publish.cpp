@@ -666,6 +666,92 @@ void test_worst_documents_fit() {
   }
 }
 
+// HA plan F1, spec 8.3's note - the cover's direction comes from the last stable state.
+void test_cover_state_infers_direction() {
+  StableGate last = StableGate::None;
+  const auto st   = [&](GateState g) { return cover_state(static_cast<uint8_t>(g), &last); };
+
+  TEST_ASSERT_EQUAL_STRING("closed", st(GateState::Closed));
+  TEST_ASSERT_EQUAL_STRING("opening", st(GateState::Moving));
+  TEST_ASSERT_EQUAL_STRING("opening", st(GateState::Moving));  // still travelling
+  TEST_ASSERT_EQUAL_STRING("open", st(GateState::OpenCountdown));
+  TEST_ASSERT_EQUAL_STRING("closing", st(GateState::Moving));
+  TEST_ASSERT_EQUAL_STRING("closed", st(GateState::Closed));
+
+  // A held gate is open, and leaving the hold closes it.
+  TEST_ASSERT_EQUAL_STRING("open", st(GateState::OpenHeld));
+  TEST_ASSERT_EQUAL_STRING("closing", st(GateState::Moving));
+
+  // A safety reversal: the gate reopens while the bridge still says closing, until the
+  // next stable state corrects it. publish.h states this limit.
+  TEST_ASSERT_EQUAL_STRING("closing", st(GateState::Moving));
+  TEST_ASSERT_EQUAL_STRING("open", st(GateState::OpenCountdown));
+}
+
+// The restart fallback: travel with nothing remembered reads open, never a direction.
+void test_cover_state_without_memory_is_open() {
+  StableGate last = StableGate::None;
+  TEST_ASSERT_EQUAL_STRING("open", cover_state(static_cast<uint8_t>(GateState::Moving), &last));
+  TEST_ASSERT_EQUAL(StableGate::None, last);
+
+  // FAULT and UNKNOWN are HA's unknown, and they forget the last stable state.
+  last = StableGate::Closed;
+  TEST_ASSERT_NULL(cover_state(static_cast<uint8_t>(GateState::Fault), &last));
+  TEST_ASSERT_EQUAL_STRING("open", cover_state(static_cast<uint8_t>(GateState::Moving), &last));
+  last = StableGate::Open;
+  TEST_ASSERT_NULL(cover_state(static_cast<uint8_t>(GateState::Unknown), &last));
+  TEST_ASSERT_EQUAL(StableGate::None, last);
+  TEST_ASSERT_NULL(cover_state(0x07, &last));  // not in spec 8.3's table
+}
+
+// The memory is per node and lives in the policy: a fresh policy, which is a bridge
+// restart, reads a moving gate as open.
+void test_cover_state_in_the_document() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.gate_state = static_cast<uint8_t>(GateState::Moving);
+  offer(p, gatelink(), s, 1000, r);
+  expect(r.find("lran/gatelink/gate/state"), "cover_state", "\"open\"");
+
+  s.gate_state = static_cast<uint8_t>(GateState::Closed);
+  r.clear();
+  offer(p, gatelink(), s, 2000, r);
+  expect(r.find("lran/gatelink/gate/state"), "cover_state", "\"closed\"");
+
+  s.gate_state = static_cast<uint8_t>(GateState::Moving);
+  r.clear();
+  offer(p, gatelink(), s, 3000, r);
+  expect(r.find("lran/gatelink/gate/state"), "cover_state", "\"opening\"");
+
+  s.gate_state = static_cast<uint8_t>(GateState::Fault);
+  r.clear();
+  offer(p, gatelink(), s, 4000, r);
+  expect(r.find("lran/gatelink/gate/state"), "cover_state", "null");
+}
+
+// HA plan F2 - boot_time is now less uptime, to the minute, outside the hash.
+void test_boot_time() {
+  PublicationPolicy p;
+  Recorder          r;
+  auto              s = healthy();
+  s.uptime_s = 3600 + 29;  // rounds down
+  offer(p, gatelink(), s, 1000, r);
+  expect(r.find("lran/gatelink/node/state"), "boot_time", "\"2026-09-23T11:00:00Z\"");
+
+  // Uptime moving does not publish, and neither does the boot time it carries.
+  r.clear();
+  s.uptime_s += 31;
+  offer(p, gatelink(), s, 2000, r, kNow + 31);
+  TEST_ASSERT_NULL(r.find("lran/gatelink/node/state"));
+
+  // No wall clock, no time.
+  PublicationPolicy q;
+  r.clear();
+  offer(q, gatelink(), s, 1000, r, 0);
+  expect(r.find("lran/gatelink/node/state"), "boot_time", "null");
+}
+
 void test_format_utc() {
   char b[24];
   TEST_ASSERT_TRUE(format_utc(0, b, sizeof(b)) > 0);
@@ -684,6 +770,10 @@ int main(int, char**) {
   RUN_TEST(test_cell_jitter_is_not_republished);
   RUN_TEST(test_cell_drift_crosses_the_deadband);
   RUN_TEST(test_uptime_alone_is_not_a_change);
+  RUN_TEST(test_cover_state_infers_direction);
+  RUN_TEST(test_cover_state_without_memory_is_open);
+  RUN_TEST(test_cover_state_in_the_document);
+  RUN_TEST(test_boot_time);
   RUN_TEST(test_health_uptime_alone_is_not_a_change);
   RUN_TEST(test_health_link_figures_alone_are_not_a_change);
   RUN_TEST(test_mppt_codes_are_named);

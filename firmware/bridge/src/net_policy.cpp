@@ -189,6 +189,15 @@ bool cmd_from_action(const char* tok, size_t len, uint8_t* out) {
   return false;
 }
 
+// A face's action token, or nullptr. Returned from the table so CmdTopic can keep it.
+const char* face_from_action(const char* tok, size_t len) {
+  for (size_t i = 0; i < kCmdFaceCount; ++i) {
+    const char* a = kCmdFaces[i].action;
+    if (std::strlen(a) == len && std::strncmp(a, tok, len) == 0) return a;
+  }
+  return nullptr;
+}
+
 // `out` receives the segment's start and length. False when there is no `n`th segment.
 bool segment(const char* topic, size_t index, const char** out, size_t* len) {
   const char* p = topic;
@@ -248,9 +257,45 @@ bool parse_cmd_topic(const char* topic, CmdTopic* out) {
 
   CmdTopic parsed;
   if (!node_id_from_token(node_seg, node_len, &parsed.node_id)) return false;
-  if (!cmd_from_action(action_seg, action_len, &parsed.cmd)) return false;
+  if (!cmd_from_action(action_seg, action_len, &parsed.cmd)) {
+    parsed.face = face_from_action(action_seg, action_len);
+    if (parsed.face == nullptr) return false;
+  }
   *out = parsed;
   return true;
+}
+
+const CmdFace kCmdFaces[] = {
+    {"gate", "OPEN", static_cast<uint8_t>(lran::Cmd::Open), 0},
+    {"gate", "CLOSE", static_cast<uint8_t>(lran::Cmd::Close), 1},  // spec 8.1 - then close
+    {"hold", "ON", static_cast<uint8_t>(lran::Cmd::HoldOpen), 0},
+    {"hold", "OFF", static_cast<uint8_t>(lran::Cmd::ReleaseHold), 0},
+};
+const size_t kCmdFaceCount = sizeof(kCmdFaces) / sizeof(kCmdFaces[0]);
+
+const char* cmd_face_payload(const char* action, uint8_t cmd) {
+  if (action == nullptr) return nullptr;
+  for (const CmdFace& f : kCmdFaces) {
+    if (f.cmd == cmd && std::strcmp(f.action, action) == 0) return f.payload;
+  }
+  return nullptr;
+}
+
+bool parse_cmd_face(const char* action, const char* payload, size_t len, uint8_t* cmd,
+                    uint8_t* arg, uint16_t* arg2) {
+  if (action == nullptr || payload == nullptr || cmd == nullptr || arg == nullptr ||
+      arg2 == nullptr) {
+    return false;
+  }
+  for (const CmdFace& f : kCmdFaces) {
+    if (std::strcmp(f.action, action) != 0) continue;
+    if (std::strlen(f.payload) != len || std::strncmp(f.payload, payload, len) != 0) continue;
+    *cmd  = f.cmd;
+    *arg  = f.arg;
+    *arg2 = 0;
+    return true;
+  }
+  return false;
 }
 
 bool parse_config_topic(const char* topic, ConfigTopic* out) {

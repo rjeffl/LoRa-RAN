@@ -1,12 +1,12 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.45
+**Version:** 0.46
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.25
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.26
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
@@ -1593,6 +1593,10 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.46** — **PRD v0.25 → v0.26.** No change here. The PRD's revision is the Home
+  Assistant surface, which the bridge's discovery builds: the cover's close always sends
+  `CLOSE` with `arg` 1, and the Close immediately switch is gone.
 
 - **v0.45** — **Protocol specification v0.18 → v0.19, PRD v0.24 → v0.25.** R-3.5h now
   covers a roll's draw (**D87**). `ROLL_CONTEXT` and `lran ctx new` call `esp_random()`

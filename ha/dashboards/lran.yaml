@@ -43,6 +43,8 @@ views:
                 name: Net power
               - entity: sensor.gatelink_battery_cycles
                 name: Cycles
+              - entity: sensor.gatelink_battery_soc_source
+                name: SOC source
               - entity: sensor.gatelink_charge_drawn_since_charging
                 name: Drawn since charging
               - entity: sensor.gatelink_bms_reading_age
@@ -125,10 +127,16 @@ views:
                 name: MPPT
               - entity: sensor.gatelink_node_supply_voltage
                 name: Node supply voltage
-          # R-4.5b asks for all three temperature sources; the pack's is the F2 gap (plan 5).
-          - type: markdown
-            content: >-
-              **Pack temperatures** arrive with bridge task F2 (plan 5).
+              # R-4.5b's third source. Numbered, because which BMS sensor is which is
+              # unconfirmed (bms-protocol 10).
+              - entity: sensor.gatelink_pack_temperature_1
+                name: Pack 1
+              - entity: sensor.gatelink_pack_temperature_2
+                name: Pack 2
+              - entity: sensor.gatelink_pack_temperature_3
+                name: Pack 3
+              - entity: sensor.gatelink_pack_temperature_4
+                name: Pack 4
 
       - type: grid
         column_span: 3
@@ -371,8 +379,8 @@ views:
     max_columns: 2
     sections:
       # LRAN's own entries are logged against script.lran_notify (plan 7.3), so listing
-      # it brings every alert into the card. F3's event entities would add FIRE and the
-      # held-open vehicle directly (plan 5). The card reaches back only as far as the
+      # it brings every alert into the card. The two event entities (plan 5, F3) add FIRE
+      # and the held-open vehicle directly. The card reaches back only as far as the
       # recorder keeps history.
       - type: grid
         column_span: 2
@@ -390,6 +398,8 @@ views:
                 - binary_sensor.gatelink_vehicle_while_held_open
                 - binary_sensor.gatelink_fire_input
                 - binary_sensor.gatelink_hard_shutdown_latch
+                - event.gatelink_fire_asserted
+                - event.gatelink_vehicle_while_held_open
             grid_options:
               columns: 12
 
@@ -435,6 +445,10 @@ views:
                 name: FIRE input
               - entity: binary_sensor.gatelink_hard_shutdown_latch
                 name: Hard-shutdown latch
+          - type: entities
+            entities:
+              - entity: sensor.gatelink_last_boot
+                name: Last boot
           # A boot loop shows as a run of boots (spec 8.14). Each boot's reset cause
           # reaches the logbook through lran_2_node_boot (plan 9.2) once H5 lands.
           - type: statistics-graph

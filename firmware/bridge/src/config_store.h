@@ -209,8 +209,9 @@ class ConfigStore {
   // Step 8, or an abandon after step 5 - effective() is the committed group again.
   void revert_phy_trial();
 
-  // D52 - RESTORE_DEFAULTS clears every override in the scope and is answered as
-  // GET_ALL is. The node half is the caller's to send.
+  // D52 - RESTORE_DEFAULTS is answered as GET_ALL is. On the bridge's topic it clears the
+  // bridge's global overrides. On a node's topic it clears nothing here: the node half,
+  // the caller's to send, clears the node's own, and the bridge's per-node rows stay.
   size_t restore_defaults(ConfigScope scope, lran::NodeId node, ConfigResult* results,
                           size_t cap, AckPersist* persist);
 

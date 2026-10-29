@@ -543,6 +543,29 @@ void test_restore_defaults_clears_the_overrides_and_answers_like_get_all() {
   TEST_ASSERT_EQUAL_INT32(60, r->value);
 }
 
+// A node's restore leaves the bridge's per-node rows, `deployed` above all (operator,
+// 2026-10-28): clearing it undeployed GateLink on the bench.
+void test_a_node_restore_keeps_the_bridge_s_per_node_rows() {
+  FakePersist p;
+  ConfigStore store;
+  store.begin(&p, nullptr, 0);
+
+  ConfigResult results[config::kMaxTableParams];
+  (void)store.apply(ConfigScope::Node, kNodeGateLink, one("deployed", 1), results,
+                    config::kMaxTableParams, nullptr, nullptr);
+  const config::ParamDef* d = find_param(ConfigScope::Node, kNodeGateLink, "deployed");
+  TEST_ASSERT_NOT_NULL(d);
+  TEST_ASSERT_EQUAL_INT32(1, store.node_value(kNodeGateLink, d->id));
+
+  const size_t n = store.restore_defaults(ConfigScope::Node, kNodeGateLink, results,
+                                          config::kMaxTableParams, nullptr);
+  TEST_ASSERT_EQUAL_INT(0, p.clears_);
+  TEST_ASSERT_EQUAL_INT32(1, store.node_value(kNodeGateLink, d->id));
+  const ConfigResult* r = result_named(results, n, "deployed");
+  TEST_ASSERT_NOT_NULL(r);
+  TEST_ASSERT_EQUAL_INT32(1, r->value);
+}
+
 void test_read_all_answers_every_row_of_the_scope() {
   ConfigStore store;
   store.begin(nullptr, nullptr, 0);
@@ -752,6 +775,7 @@ int main(int, char**) {
   RUN_TEST(test_a_set_that_applied_nothing_is_not_applied);
 
   RUN_TEST(test_restore_defaults_clears_the_overrides_and_answers_like_get_all);
+  RUN_TEST(test_a_node_restore_keeps_the_bridge_s_per_node_rows);
   RUN_TEST(test_read_all_answers_every_row_of_the_scope);
   RUN_TEST(test_a_nodes_own_rows_have_no_value_until_a_readback);
   RUN_TEST(test_state_marks_an_override_as_one);

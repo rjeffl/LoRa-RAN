@@ -1,0 +1,1 @@
+{"~":"lran/gatelink","name":"Vehicle while held open","uniq_id":"lran_gatelink_vehicle_while_held_open","stat_t":"~/event/vehicle_while_held_open","evt_typ":["vehicle_while_held_open"],"avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","dev":{"ids":["lran_gatelink"],"name":"GateLink","mf":"LRAN","mdl":"GateLink","via_device":"lran_bridge"}}

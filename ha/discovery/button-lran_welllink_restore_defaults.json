@@ -1,0 +1,1 @@
+{"~":"lran/welllink","name":"Restore defaults","uniq_id":"lran_welllink_restore_defaults","cmd_t":"~/config/set","payload_press":"{\"op\":\"restore_defaults\"}","avty_t":"~/availability","pl_avail":"online","pl_not_avail":"offline","ent_cat":"config","dev":{"ids":["lran_welllink"],"name":"WellLink","mf":"LRAN","mdl":"WellLink","via_device":"lran_bridge"}}

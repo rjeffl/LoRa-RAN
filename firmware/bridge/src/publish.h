@@ -159,6 +159,34 @@ const char* event_type_name(uint8_t v);
 // ISO 8601, `2026-09-23T14:05:09Z`. Returns the length written, or 0 for a short `cap`.
 size_t format_utc(UtcSeconds t, char* out, size_t cap);
 
+// The last stable position a node's gate reported, which is all the bridge remembers to
+// give a moving gate a direction (HA plan F1, D8).
+enum class StableGate : uint8_t { None, Closed, Open };
+
+// Home Assistant's cover state for one spec 8.3 `gate_state`, and the memory it updates:
+// `open`, `closed`, `opening`, `closing`, or null for HA's unknown.
+//
+// SPEC 8.3 PUTS THE DIRECTION HERE. IN1 and IN2 cannot tell opening from closing, so its
+// note infers direction from the previous stable state and carries it in the cover entity.
+// The bridge infers it, because HA's MQTT cover template keeps no reliable memory between
+// messages, and it does so here, inside the GateLink decoder's publication, so no gate
+// logic sits anywhere else (BG-2).
+//
+//   CLOSED                         closed, and remembers Closed
+//   OPEN_COUNTDOWN, OPEN_HELD      open, and remembers Open
+//   MOVING after Closed            opening
+//   MOVING after Open              closing
+//   MOVING with nothing remembered open. Never a guess: a bridge restarted mid-travel
+//                                  has no previous state, and open is the safe reading
+//   FAULT, UNKNOWN, unlisted       null, and forgets, so travel after it reads open
+//
+// TWO LIMITS, BOTH THE WIRING'S. After an obstruction or safety reversal the direction is
+// wrong until the next stable state corrects it. And a closing gate reads 1/1
+// (OPEN_COUNTDOWN) until it leaves the open limit, so `closing` appears only once it has.
+//
+// NOT `last_direction`. That is spec 8.6's vehicle traversal direction, not the gate's.
+const char* cover_state(uint8_t gate_state, StableGate* last);
+
 class PublicationPolicy {
  public:
   void set_levers(const PublishLevers& v) { levers_ = v; }
@@ -216,6 +244,7 @@ class PublicationPolicy {
     uint16_t   cell_mv[4]  = {0, 0, 0, 0};
     bool       traversal_valid = false;
     UtcSeconds traversal       = 0;
+    StableGate stable          = StableGate::None;  // cover_state()'s memory
   };
 
   // `hashed` is how much of the document decides whether it changed; 0 means all of it.

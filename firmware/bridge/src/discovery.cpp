@@ -103,27 +103,29 @@ constexpr size_t kNodeLinkEntityCount =
 // neighbours carry a bitmask in `arg2`, and a button cannot express one; they are
 // reachable from the topic and belong to the configuration work, not here.
 //
+// THE GATE'S FOUR ARE NOT BUTTONS ANY MORE (HA plan F1, D8). The cover and the "Hold gate
+// open" switch replaced Open, Close, Hold open and Release hold, and GateLink PRD 7.1 asks
+// for no button beside them. Their topics, `cmd/open/set` and the rest, are still parsed.
+//
 // REBOOT IS NOT HERE AT ALL. Spec 8.1 guards it with 0xA5 in `arg` precisely so that it
 // cannot be issued by accident, and a button on a dashboard is the accident that guard
 // describes. It stays reachable by publishing to the topic.
+//
+// RESTORE DEFAULTS IS spec 16.7.2's `op`, not a command (GateLink PRD 7.2). It publishes
+// to `config/set` and has no guard value, by the operator's choice on 2026-10-28; a node's
+// configuration is readable before and after, and nothing it restores moves the gate.
 // ---------------------------------------------------------------------------
 
 constexpr EntityDesc kNodeCommandEntities[] = {
-    {"cmd_open", "Open", "button", nullptr, nullptr, nullptr, nullptr, nullptr,
-     "cmd/open/set", "PRESS", static_cast<uint8_t>(lran::Cmd::Open), false},
-    {"cmd_close", "Close", "button", nullptr, nullptr, nullptr, nullptr, nullptr,
-     "cmd/close/set", "PRESS", static_cast<uint8_t>(lran::Cmd::Close), false},
-    {"cmd_hold_open", "Hold open", "button", nullptr, nullptr, nullptr, nullptr, nullptr,
-     "cmd/hold_open/set", "PRESS", static_cast<uint8_t>(lran::Cmd::HoldOpen), false},
-    {"cmd_release_hold", "Release hold", "button", nullptr, nullptr, nullptr, nullptr,
-     nullptr, "cmd/release_hold/set", "PRESS",
-     static_cast<uint8_t>(lran::Cmd::ReleaseHold), false},
     {"cmd_request_status", "Request status", "button", nullptr, nullptr, nullptr, nullptr,
      nullptr, "cmd/request_status/set", "PRESS",
      static_cast<uint8_t>(lran::Cmd::RequestStatus), false},
     {"cmd_request_config", "Request configuration", "button", nullptr, nullptr, nullptr,
      nullptr, nullptr, "cmd/request_config/set", "PRESS",
      static_cast<uint8_t>(lran::Cmd::RequestConfig), false},
+    {"restore_defaults", "Restore defaults", "button", nullptr, nullptr, nullptr, nullptr,
+     nullptr, "config/set", "{\"op\":\"restore_defaults\"}", 0, false, false, nullptr,
+     true},
 };
 constexpr size_t kNodeCommandEntityCount =
     sizeof(kNodeCommandEntities) / sizeof(kNodeCommandEntities[0]);
@@ -142,16 +144,35 @@ constexpr size_t kNodeCommandEntityCount =
 // WHICH ROWS EXIST IS A CHOICE, and the documents carry more than this. A key without an
 // entity is still on the topic. The rows below are the ones a person looks at, as R-3.5e
 // reasons about the MPPT's registers; `uptime_s` in particular has no entity, because it
-// changes on every poll and would fill HA's history with nothing.
+// changes on every poll and would fill HA's history with nothing. "Last boot" reads
+// `boot_time` instead, which moves only at a boot.
+//
+// THE COVER AND THE HOLD SWITCH ARE HERE, not among the buttons, because their state is
+// gate/state, which only this node type publishes (HA plan F1). Their commands still pass
+// command_allowed(), through their face (applies()).
 // ---------------------------------------------------------------------------
 
 constexpr EntityDesc kGateLinkStateEntities[] = {
+    // GateLink PRD 7.1 (D8). Non-optimistic: it shows what IN1 and IN2 say, with the
+    // direction spec 8.3 infers (publish.h, cover_state). No stop, which spec 8.1 lacks.
+    {"gate", "Gate", "cover", "gate/state", "cover_state",
+     nullptr, "gate", nullptr, "cmd/gate/set", nullptr, 0, false, false, "gate"},
+    // On from the observed hold, whoever set it; off releases it (PRD 7.1).
+    {"hold_gate_open", "Hold gate open", "switch", "gate/state", "held_open",
+     nullptr, nullptr, nullptr, "cmd/hold/set", nullptr, 0, false, false, "hold"},
     {"gate_state", "Gate", "sensor", "gate/state", "state",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"held_open", "Held open", "binary_sensor", "gate/state", "held_open",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"hold_source", "Hold source", "sensor", "gate/state", "hold_source",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    // IN2 while IN1 is asserted (PRD 7.2), which is spec 8.3's OPEN_COUNTDOWN.
+    {"auto_close_pending", "Auto-close pending", "binary_sensor", "gate/state", "state",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false, false, nullptr, false,
+     "open_countdown"},
+    {"held_by_keypad", "Held open by keypad", "binary_sensor", "gate/state", "hold_source",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false, false, nullptr, false,
+     "keypad_fire"},
     {"movement_cause", "Movement cause", "sensor", "gate/state", "movement_cause",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"last_direction", "Last direction", "sensor", "gate/state", "last_direction",
@@ -162,6 +183,14 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
     {"alarm_input", "ALARM input", "binary_sensor", "gate/state", "in_alarm",
      nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
+
+    // Spec 16.3 - the automation trigger, never retained; the binary sensors beside them
+    // are for the dashboard. The topic's leaf is the event type HA lists.
+    {"fire_asserted", "FIRE asserted", "event", "event/fire_asserted", nullptr,
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
+    {"vehicle_while_held_open", "Vehicle while held open", "event",
+     "event/vehicle_while_held_open", nullptr,
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
 
     {"vehicle_while_held", "Vehicle while held open", "binary_sensor", "detect/state",
      "vehicle_while_held", nullptr, nullptr, nullptr, nullptr, nullptr, 0, false},
@@ -184,6 +213,10 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      "mA", "current", "measurement", nullptr, nullptr, 0, false},
     {"yield_today", "Solar yield today", "sensor", "solar/state", "yield_today_kwh",
      "kWh", "energy", "total_increasing", nullptr, nullptr, 0, false},
+    // Yesterday's total, fixed for a day: no state class, because it falls at midnight
+    // and HA's statistics would read the fall as a meter reset.
+    {"yield_yesterday", "Solar yield yesterday", "sensor", "solar/state",
+     "yield_yesterday_kwh", "kWh", "energy", nullptr, nullptr, nullptr, 0, false},
     {"yield_total", "Solar yield total", "sensor", "solar/state", "yield_total_kwh",
      "kWh", "energy", "total_increasing", nullptr, nullptr, 0, false},
     {"mppt_charge_state", "MPPT charge state", "sensor", "solar/state", "charge_state_name",
@@ -199,6 +232,8 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
 
     {"soc", "Battery", "sensor", "battery/state", "soc",
      "%", "battery", "measurement", nullptr, nullptr, 0, false},
+    {"soc_source", "Battery SOC source", "sensor", "battery/state", "soc_source",
+     nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
     {"pack_voltage", "Pack voltage", "sensor", "battery/state", "pack_mv",
      "mV", "voltage", "measurement", nullptr, nullptr, 0, false},
     {"pack_current", "Pack current", "sensor", "battery/state", "pack_ma",
@@ -211,6 +246,16 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
     {"cell4_voltage", "Cell 4 voltage", "sensor", "battery/state", "cell4_mv",
      "mV", "voltage", "measurement", nullptr, nullptr, 0, true},
+    // Numbered, not named for a place in the pack: which sensor is which is unconfirmed
+    // (bms-protocol 10). A name given now would outlive a wrong guess.
+    {"pack_temp1", "Pack temperature 1", "sensor", "battery/state", "cell1_temp_c",
+     "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, false},
+    {"pack_temp2", "Pack temperature 2", "sensor", "battery/state", "cell2_temp_c",
+     "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, false},
+    {"pack_temp3", "Pack temperature 3", "sensor", "battery/state", "cell3_temp_c",
+     "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, false},
+    {"pack_temp4", "Pack temperature 4", "sensor", "battery/state", "cell4_temp_c",
+     "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, false},
     {"bms_cycles", "Battery cycles", "sensor", "battery/state", "cycles",
      nullptr, nullptr, "total_increasing", nullptr, nullptr, 0, true},
     {"bms_protection", "Battery protection", "binary_sensor", "battery/state", "protection",
@@ -236,10 +281,19 @@ constexpr EntityDesc kGateLinkStateEntities[] = {
      "enclosure_temp_c", "\u00b0C", "temperature", "measurement", nullptr, nullptr, 0, true},
     {"boot_count", "Boot count", "sensor", "node/state", "boot_count",
      nullptr, nullptr, "total_increasing", nullptr, nullptr, 0, true},
+    {"last_boot", "Last boot", "sensor", "node/state", "boot_time",
+     nullptr, "timestamp", nullptr, nullptr, nullptr, 0, true},
     {"config_persisted", "Configuration persisted", "binary_sensor", "node/state",
      "config_persisted", nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
     {"dry_run", "Relay dry run", "binary_sensor", "node/state", "dry_run",
      nullptr, nullptr, nullptr, nullptr, nullptr, 0, true},
+    // GateLink PRD 7.2 and R-3.4e - spec 8.1's SET_BMS_POLLING, `ON` arg 1 and `OFF` arg 0
+    // (net_policy.h, parse_cmd_payload), with spec 7.2.8 bit 3 as its state. The command,
+    // not a configuration row: GateLink polls again after a reboot (PRD R-3.4a), so a
+    // suspend left on cannot outlive one. Decided with the operator on 2026-10-28.
+    {"bms_polling", "BMS polling", "switch", "node/state", "bms_ble",
+     nullptr, nullptr, nullptr, "cmd/set_bms_polling/set", nullptr,
+     static_cast<uint8_t>(lran::Cmd::SetBmsPolling), false, false, nullptr, true},
     {"shutdown_latch", "Hard-shutdown latch", "binary_sensor", "node/state",
      "shutdown_latch", nullptr, "problem", nullptr, nullptr, nullptr, 0, false},
     // R-5.2d - a synthetic frame is marked in every document, and this is where a person
@@ -361,11 +415,27 @@ bool is_select(const ParamDef& p) {
 }
 
 // True when this row belongs to this node type. A link entity always does; a button does
-// only if the node implements the command.
+// only if the node implements the command, and a face only if it implements every command
+// the face maps to.
 bool applies(const EntityDesc& d, NodeType type) {
   if (d.vedirect) return hex_allowed(type);
+  if (d.face != nullptr) {
+    bool any = false;
+    for (size_t i = 0; i < kCmdFaceCount; ++i) {
+      if (std::strcmp(kCmdFaces[i].action, d.face) != 0) continue;
+      if (!command_allowed(type, kCmdFaces[i].cmd)) return false;
+      any = true;
+    }
+    return any;
+  }
   if (d.command_suffix == nullptr) return true;
   return command_allowed(type, d.cmd);
+}
+
+// A topic's last segment: `fire_asserted` from `event/fire_asserted`.
+const char* leaf(const char* topic) {
+  const char* slash = std::strrchr(topic, '/');
+  return slash == nullptr ? topic : slash + 1;
 }
 
 // `lran_<token>` - the device identifier and the unique_id prefix (R-3.3c).
@@ -594,6 +664,8 @@ bool discovery_next(DiscoveryCursor* cur, const NodeInfo* nodes, size_t node_cou
     // write_enable topics still answer an operator who publishes to them (D65's reason),
     // which is how V-B6 runs at a desk.
     if (d != nullptr && d->vedirect && info.is_bench) continue;
+    // BF-35's rule for a configuration control: a bench node gets none.
+    if (d != nullptr && d->config && info.is_bench) continue;
 
     out->valid   = true;
     out->node_id = info.id;
@@ -658,7 +730,7 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   std::snprintf(uniq, sizeof(uniq), "%s_%s", dev, d.object_id);
 
   char topic[64];
-  char tmpl[64];
+  char tmpl[96];
 
   JsonObject j(out, cap);
   j.str("~", base);
@@ -669,7 +741,13 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
     std::snprintf(topic, sizeof(topic), "~/%s", d.state_suffix);
     j.str("stat_t", topic);
   }
-  if (d.value_key != nullptr) {
+  if (d.value_key != nullptr && d.equals != nullptr) {
+    // A comparison, with null kept as `None`: an unknown state is not "not pending".
+    std::snprintf(tmpl, sizeof(tmpl),
+                  "{{ value_json.%s == '%s' if value_json.%s is not none else None }}",
+                  d.value_key, d.equals, d.value_key);
+    j.str("val_tpl", tmpl);
+  } else if (d.value_key != nullptr) {
     // `value_json.<key>` and nothing more. A default or a filter here would turn an
     // absent reading into a number, which spec 16.2.1's null exists to prevent.
     std::snprintf(tmpl, sizeof(tmpl), "{{ value_json.%s }}", d.value_key);
@@ -681,11 +759,38 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
     j.str("payload_press", d.press_payload);
   }
 
-  if (std::strcmp(d.component, "binary_sensor") == 0) {
+  const bool binary = std::strcmp(d.component, "binary_sensor") == 0;
+  const bool toggle = std::strcmp(d.component, "switch") == 0 && d.value_key != nullptr;
+  if (binary) {
     // A JSON boolean renders as `True` or `False`, and null as `None`, which HA reads as
     // unknown. Matching the rendering keeps a null reading from becoming `off`.
     j.str("pl_on", "True");
     j.str("pl_off", "False");
+  } else if (toggle) {
+    // The same rendering, read as a switch's state. Its payloads are the face's below.
+    j.str("stat_on", "True");
+    j.str("stat_off", "False");
+  }
+  if (d.face != nullptr) {
+    // HA plan F1 - the payloads come from the face table the bridge parses them with
+    // (net_policy.h), so the two ends cannot drift. HA's names for the two keys differ
+    // by component; the table's order within a face is the order below.
+    const char* keys[2] = {toggle ? "pl_on" : "pl_open", toggle ? "pl_off" : "pl_cls"};
+    size_t      k       = 0;
+    for (size_t i = 0; i < kCmdFaceCount && k < 2; ++i) {
+      if (std::strcmp(kCmdFaces[i].action, d.face) == 0) j.str(keys[k++], kCmdFaces[i].payload);
+    }
+    // Spec 8.1 has no STOP (GateLink PRD 7.1), and HA offers a stop only for a non-null
+    // payload. Non-optimistic: the state is what the gate reports (D8).
+    if (!toggle) j.raw("pl_stop", "null");
+    j.raw("opt", "false");
+  }
+  if (std::strcmp(d.component, "event") == 0) {
+    // Spec 16.3 - the payload's `event_type` is the topic's leaf (publish.cpp,
+    // event_type_name), so the leaf is the one type this entity lists.
+    char types[64];
+    std::snprintf(types, sizeof(types), "[\"%s\"]", leaf(d.state_suffix));
+    j.raw("evt_typ", types);
   }
 
   // R-3.3d - THAT NODE'S availability topic, never the bridge's LWT. For the bridge's own
@@ -719,7 +824,11 @@ size_t discovery_config_json(const DiscoveryItem& item, char* out, size_t cap) {
   j.str("stat_cla", d.state_class);
   // Spec 16.6 axis 3 - every bench entity is diagnostic, its buttons included, so a
   // simnode's Open never lands on a dashboard beside the gate's.
-  if (d.diagnostic || lran::is_bench_node(item.node_id)) j.str("ent_cat", "diagnostic");
+  if (d.diagnostic || lran::is_bench_node(item.node_id)) {
+    j.str("ent_cat", "diagnostic");
+  } else if (d.config) {
+    j.str("ent_cat", "config");
+  }
 
   char device[256];
   if (device_block(item.node_id, dev, dname, device, sizeof(device)) == 0) {

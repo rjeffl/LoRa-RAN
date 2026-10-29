@@ -24,6 +24,7 @@
 #include "charge_readback.h"
 #include "discovery.h"
 #include "mqtt_transport.h"
+#include "lran/schema/gatelink_event_v1.h"
 #include "lran/schema/gatelink_status_v1.h"
 #include "net_policy.h"
 #include "publish.h"
@@ -410,6 +411,8 @@ void test_a_button_publishes_to_a_topic_the_bridge_parses() {
   for (size_t i = 0; i < w.n; ++i) {
     if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     if (w.items[i].desc->vedirect) continue;  // the write switch: its own test below
+    // The faces and Restore defaults: their own tests below.
+    if (w.items[i].desc->face != nullptr || w.items[i].desc->config) continue;
     ++buttons;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "~", base, sizeof(base)));
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "cmd_t", cmd, sizeof(cmd)));
@@ -431,6 +434,7 @@ void test_a_button_press_payload_is_one_the_bridge_accepts() {
   for (size_t i = 0; i < w.n; ++i) {
     if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
     if (w.items[i].desc->vedirect) continue;
+    if (w.items[i].desc->face != nullptr || w.items[i].desc->config) continue;
     TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "payload_press", press, sizeof(press)));
     uint8_t  arg  = 0xFF;
     uint16_t arg2 = 0xFFFF;
@@ -470,6 +474,7 @@ void test_an_unset_field_is_omitted_rather_than_written_null() {
   w.run(f, false);
   for (size_t i = 0; i < w.n; ++i) {
     if (w.items[i].desc == nullptr || w.items[i].desc->command_suffix == nullptr) continue;
+    if (std::strcmp(w.items[i].desc->component, "button") != 0) continue;
     TEST_ASSERT_FALSE(has_key(w.configs[i], "unit_of_meas"));
     TEST_ASSERT_FALSE(has_key(w.configs[i], "stat_cla"));
     TEST_ASSERT_FALSE(has_key(w.configs[i], "stat_t"));
@@ -538,6 +543,211 @@ void test_an_invalid_item_produces_nothing() {
 // ---------------------------------------------------------------------------
 // The cursor.
 // ---------------------------------------------------------------------------
+
+
+// ---------------------------------------------------------------------------
+// HA plan F1-F4 - the cover, the hold switch, and GateLink PRD 7.2's remaining entities.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// The config of one GateLink row, or a test failure.
+const char* gatelink_config(const Walk& w, const char* object_id) {
+  for (size_t i = 0; i < w.n; ++i) {
+    if (w.items[i].node_id != kNodeGateLink || w.items[i].desc == nullptr) continue;
+    if (std::strcmp(w.items[i].desc->object_id, object_id) == 0) return w.configs[i];
+  }
+  TEST_FAIL_MESSAGE(object_id);
+  return nullptr;
+}
+
+// A face payload as the bridge would read it from that config's command topic.
+void expect_face(const char* doc, const char* key, Cmd cmd, uint8_t arg) {
+  char base[80], cmd_t[80], payload[32], full[160];
+  TEST_ASSERT_NOT_NULL(value_of(doc, "~", base, sizeof(base)));
+  TEST_ASSERT_NOT_NULL(value_of(doc, "cmd_t", cmd_t, sizeof(cmd_t)));
+  TEST_ASSERT_NOT_NULL_MESSAGE(value_of(doc, key, payload, sizeof(payload)), key);
+  std::snprintf(full, sizeof(full), "%s%s", base, cmd_t + 1);
+  CmdTopic t;
+  TEST_ASSERT_TRUE_MESSAGE(parse_cmd_topic(full, &t), full);
+  TEST_ASSERT_NOT_NULL(t.face);
+  uint8_t  got = 0, got_arg = 0xFF;
+  uint16_t arg2 = 0xFFFF;
+  TEST_ASSERT_TRUE_MESSAGE(
+      parse_cmd_face(t.face, payload, std::strlen(payload), &got, &got_arg, &arg2), payload);
+  TEST_ASSERT_EQUAL_HEX8(static_cast<uint8_t>(cmd), got);
+  TEST_ASSERT_EQUAL_UINT8(arg, got_arg);
+}
+
+}  // namespace
+
+void test_the_gate_is_a_non_optimistic_cover_without_stop() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  const char* doc = gatelink_config(w, "gate");
+  char        v[96];
+  TEST_ASSERT_NOT_NULL(value_of(doc, "dev_cla", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("gate", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "val_tpl", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("{{ value_json.cover_state }}", v);
+  TEST_ASSERT_NOT_NULL(std::strstr(doc, "\"pl_stop\":null"));
+  TEST_ASSERT_NOT_NULL(std::strstr(doc, "\"opt\":false"));
+  expect_face(doc, "pl_open", Cmd::Open, 0);
+  expect_face(doc, "pl_cls", Cmd::Close, 1);  // spec 8.1 - release, then immediate close
+}
+
+void test_hold_gate_open_is_a_switch_on_the_observed_hold() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  const char* doc = gatelink_config(w, "hold_gate_open");
+  char        v[96];
+  TEST_ASSERT_NOT_NULL(value_of(doc, "val_tpl", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("{{ value_json.held_open }}", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "stat_on", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("True", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "stat_off", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("False", v);
+  TEST_ASSERT_FALSE(has_key(doc, "pl_stop"));
+  expect_face(doc, "pl_on", Cmd::HoldOpen, 0);
+  expect_face(doc, "pl_off", Cmd::ReleaseHold, 0);
+}
+
+// F2 - the BMS polling switch is SET_BMS_POLLING, and its state is node_flags bit 3.
+void test_bms_polling_is_a_switch_on_the_command() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  const char* doc = gatelink_config(w, "bms_polling");
+  char        base[80], cmd_t[80], full[160], v[96];
+  TEST_ASSERT_NOT_NULL(value_of(doc, "val_tpl", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("{{ value_json.bms_ble }}", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "stat_on", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("True", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "ent_cat", v, sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("config", v);
+  TEST_ASSERT_NOT_NULL(value_of(doc, "~", base, sizeof(base)));
+  TEST_ASSERT_NOT_NULL(value_of(doc, "cmd_t", cmd_t, sizeof(cmd_t)));
+  std::snprintf(full, sizeof(full), "%s%s", base, cmd_t + 1);
+  CmdTopic t;
+  TEST_ASSERT_TRUE_MESSAGE(parse_cmd_topic(full, &t), full);
+  TEST_ASSERT_EQUAL_HEX8(static_cast<uint8_t>(Cmd::SetBmsPolling), t.cmd);
+  // HA's default switch payloads, which the config leaves unset.
+  TEST_ASSERT_FALSE(has_key(doc, "pl_on"));
+  uint8_t  arg  = 0;
+  uint16_t arg2 = 0;
+  TEST_ASSERT_TRUE(parse_cmd_payload("ON", 2, &arg, &arg2));
+  TEST_ASSERT_EQUAL_UINT8(1, arg);
+  TEST_ASSERT_TRUE(parse_cmd_payload("OFF", 3, &arg, &arg2));
+  TEST_ASSERT_EQUAL_UINT8(0, arg);
+}
+
+// F1 - the four buttons went with the cover, and nothing else lost its button.
+void test_the_gate_buttons_are_gone() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  for (size_t i = 0; i < w.n; ++i) {
+    const EntityDesc* d = w.items[i].desc;
+    if (d == nullptr || std::strcmp(d->component, "button") != 0) continue;
+    TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::Open), d->cmd);
+    TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::Close), d->cmd);
+    TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::HoldOpen), d->cmd);
+    TEST_ASSERT_NOT_EQUAL(static_cast<uint8_t>(Cmd::ReleaseHold), d->cmd);
+  }
+  gatelink_config(w, "cmd_request_status");
+  gatelink_config(w, "cmd_request_config");
+}
+
+// F2 - a comparison keeps null as unknown rather than off.
+void test_a_comparison_sensor_keeps_null_unknown() {
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  char v[128];
+  TEST_ASSERT_NOT_NULL(string_of(gatelink_config(w, "auto_close_pending"), "val_tpl", v,
+                                 sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING(
+      "{{ value_json.state == 'open_countdown' if value_json.state is not none else None }}",
+      v);
+  TEST_ASSERT_NOT_NULL(string_of(gatelink_config(w, "held_by_keypad"), "val_tpl", v,
+                                 sizeof(v)));
+  TEST_ASSERT_EQUAL_STRING("{{ value_json.hold_source == 'keypad_fire' if "
+                           "value_json.hold_source is not none else None }}",
+                           v);
+}
+
+// F2 - Restore defaults is spec 16.7.2's op, on every production node and no bench node.
+void test_restore_defaults_publishes_the_spec_op() {
+  Fleet f;
+  Walk  w;
+  w.run(f, true);
+  size_t seen = 0;
+  for (size_t i = 0; i < w.n; ++i) {
+    const EntityDesc* d = w.items[i].desc;
+    if (d == nullptr || std::strcmp(d->object_id, "restore_defaults") != 0) continue;
+    TEST_ASSERT_FALSE(is_bench_node(w.items[i].node_id));
+    ++seen;
+    char v[96];
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "ent_cat", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("config", v);
+    TEST_ASSERT_NOT_NULL(value_of(w.configs[i], "cmd_t", v, sizeof(v)));
+    TEST_ASSERT_EQUAL_STRING("~/config/set", v);
+    TEST_ASSERT_NOT_NULL(string_of(w.configs[i], "payload_press", v, sizeof(v)));
+    ConfigSetRequest req;
+    const char*      err = nullptr;
+    TEST_ASSERT_TRUE_MESSAGE(parse_config_set(v, std::strlen(v), &req, &err), v);
+    TEST_ASSERT_EQUAL(ConfigOp::RestoreDefaults, req.op);
+  }
+  TEST_ASSERT_GREATER_THAN(0, seen);
+}
+
+// F3 - each event entity lists the event_type its topic carries, as on_event() writes it.
+void test_an_event_entity_lists_its_topic_s_event_type() {
+  struct Rec final : PublishSink {
+    char topic[kMaxTopicLen] = {0};
+    char doc[kMaxPayloadLen] = {0};
+    bool emit(const char* t, const char* p, bool, uint8_t) override {
+      std::snprintf(topic, sizeof(topic), "%s", t);
+      std::snprintf(doc, sizeof(doc), "%s", p);
+      return true;
+    }
+  };
+  Fleet f;
+  Walk  w;
+  w.run(f, false);
+  const struct {
+    const char* object_id;
+    EventType   type;
+  } kCases[] = {{"fire_asserted", EventType::FireAsserted},
+                {"vehicle_while_held_open", EventType::VehicleWhileHeldOpen}};
+  uint32_t id = 1;
+  for (const auto& c : kCases) {
+    lran::schema::GateLinkEventV1 e;
+    e.event_type = static_cast<uint8_t>(c.type);
+    e.event_id   = id++;
+    uint8_t buf[lran::schema::kGateLinkEventV1Len];
+    size_t  len = 0;
+    TEST_ASSERT_EQUAL(Status::Ok, lran::schema::serialize(e, buf, sizeof(buf), &len));
+    lran::Header h;
+    h.type   = MsgType::Event;
+    h.src    = kNodeGateLink;
+    h.schema = kSchemaGateLinkEventV1;
+    PublicationPolicy p;
+    Rec               r;
+    p.on_event(NodeInfo{kNodeGateLink, NodeType::GateLink, false}, h, buf, len, false, r);
+
+    const char* doc = gatelink_config(w, c.object_id);
+    char        stat_t[64], want[96], published[64];
+    TEST_ASSERT_NOT_NULL(value_of(doc, "stat_t", stat_t, sizeof(stat_t)));
+    std::snprintf(want, sizeof(want), "lran/gatelink/%s", stat_t + 2);
+    TEST_ASSERT_EQUAL_STRING(want, r.topic);
+    TEST_ASSERT_NOT_NULL(value_of(r.doc, "event_type", published, sizeof(published)));
+    std::snprintf(want, sizeof(want), "\"evt_typ\":[\"%s\"]", published);
+    TEST_ASSERT_NOT_NULL_MESSAGE(std::strstr(doc, want), doc);
+  }
+}
 
 void test_the_walk_ends_and_stays_ended() {
   // R-3.3b republishes the whole set on every reconnect, so the cursor is restarted
@@ -620,7 +830,8 @@ void test_every_state_entity_reads_a_key_the_policy_writes() {
   for (size_t i = 0; i < w.n; ++i) {
     const EntityDesc* d = w.items[i].desc;
     if (w.items[i].node_id != kNodeGateLink || d == nullptr || d->state_suffix == nullptr ||
-        std::strncmp(d->state_suffix, "diag/", 5) == 0 || d->vedirect) {
+        std::strncmp(d->state_suffix, "diag/", 5) == 0 ||
+        std::strncmp(d->state_suffix, "event/", 6) == 0 || d->vedirect) {
       continue;
     }
     char topic[kMaxTopicLen], key[48];
@@ -927,6 +1138,13 @@ int main() {
   RUN_TEST(test_a_button_exists_only_where_the_command_path_would_send_it);
   RUN_TEST(test_welllink_gets_no_gate_buttons);
   RUN_TEST(test_reboot_has_no_button_anywhere);
+  RUN_TEST(test_the_gate_is_a_non_optimistic_cover_without_stop);
+  RUN_TEST(test_hold_gate_open_is_a_switch_on_the_observed_hold);
+  RUN_TEST(test_the_gate_buttons_are_gone);
+  RUN_TEST(test_bms_polling_is_a_switch_on_the_command);
+  RUN_TEST(test_a_comparison_sensor_keeps_null_unknown);
+  RUN_TEST(test_restore_defaults_publishes_the_spec_op);
+  RUN_TEST(test_an_event_entity_lists_its_topic_s_event_type);
   RUN_TEST(test_a_button_publishes_to_a_topic_the_bridge_parses);
   RUN_TEST(test_a_button_press_payload_is_one_the_bridge_accepts);
   RUN_TEST(test_a_value_template_reads_the_key_and_nothing_more);
