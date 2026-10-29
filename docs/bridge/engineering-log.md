@@ -2035,3 +2035,15 @@ restore, it left GateLink's node rows null for three minutes. A `get_all` on
 `config/set` then answered in 4.9 s and filled 34 rows. `cmd/ack` was not captured, so
 whether `REQUEST_CONFIG`'s readback (spec §8.1, §7.4) arrived and went unused, or never
 arrived, is not known. The bridge handoff carries it.
+
+## 2026-10-28 — A node's Restore defaults keeps `deployed`
+
+The operator decided that a node's Restore defaults must not touch the bridge's per-node
+rows. `ConfigStore::restore_defaults()` cleared the bridge's per-node store on a node's
+topic; it now clears only the bridge's global store, on the bridge's topic, and the node
+half goes to the node as before. `test_config_store` checks that `deployed` survives.
+
+The bridge was flashed over OTA with `addfd6b`. Once GateLink was heard again, HA's
+Restore defaults drew `config/ack` with `persist` `persisted` in 6.7 s, and its results
+read `deployed` 1. `config/state` then listed `deployed` and the six PHY rows as the only
+overrides, and `switch.gatelink_deployed` stayed on.
