@@ -1930,3 +1930,61 @@ with an empty retained publish to `homeassistant/sensor/lran_gatelink_node_curre
 
 **GateLink was on the air.** The bridge heard it at −35 dBm and +11 dB SNR and marked it
 `online` at 110 s, with `deployed` 0. Nothing in this run addressed it.
+
+## 2026-10-28 — HA plan F1–F4: the gate cover, the hold switch and PRD §7.2's entities
+
+Built on branch `f1-f4-gate-discovery`, as the operator decided each gap that day
+(HA Integration Plan §5; D8; GateLink PRD §7; spec §8.3). The bridge native suite passed,
+552 cases, and the `heltec` target built. **Not on air:** the bench bridge still runs
+`760e9a3`, and the OTA is the operator's.
+
+**The cover and the hold switch publish to face topics**, `cmd/gate/set` and
+`cmd/hold/set`, where the payload names the spec §8.1 row. `CLOSE` sends `arg` 1, release
+then immediate close. `kCmdFaces` in `net_policy.cpp` holds the mapping, and discovery
+writes its payloads from the same table. The four gate buttons are gone from discovery;
+their topics still parse.
+
+**The cover's direction is the bridge's inference**, in `cover_state()` beside
+`gate_state_name()`. Spec §16.2.1 leaves `gate/state`'s keys to the bridge, so the new key
+needed no spec change. Neither did `node/state`'s `boot_time`. The inference keeps each
+node's last stable state; with none, after a restart mid-travel, a moving gate reads
+`open`. `FAULT` and `UNKNOWN` read null and forget it. Its two limits are the wiring's: a
+reversal reads the old direction until the next stable state, and a closing gate shows
+`OPEN_COUNTDOWN` until it leaves the open limit.
+
+**The BMS polling switch is the command, not a configuration row.** The brief planned a
+new GateLink row, `bms_poll_enable`. Its session found `SET_BMS_POLLING` and `node_flags`
+bit 3 already built, and the operator dropped the row: a row persists across a reboot, and
+the command does not. The switch sends `set_bms_polling` and reads `bms_ble`.
+
+**HA read the configs as intended, at the broker.** With the bridge unchanged, the new
+configs were published retained from `ha/discovery/`, then `gate/state` documents in this
+branch's shape, marked synthetic. HA showed:
+
+| `state` | `cover_state` sent | Cover | Hold switch | Auto-close pending | Held by keypad |
+|---|---|---|---|---|---|
+| `closed` | `closed` | closed | off | off | off |
+| `moving` | `opening` | opening | off | off | off |
+| `open_countdown` | `open` | open | off | on | off |
+| `moving` | `closing` | closing | off | off | off |
+| `open_held`, `keypad_fire` | `open` | open | on | off | on |
+| `fault` | null | unknown | off | off | off |
+
+The cover's `supported_features` read 3, open and close with no stop. Calling the cover
+and switch actions published `OPEN`, `CLOSE`, `ON` and `OFF` on the face topics, not
+retained, and neither entity's state moved, so neither is optimistic. Bridge `760e9a3`
+does not parse those topics, so nothing reached GateLink. A synthetic `fire_asserted` and
+`vehicle_while_held_open` each set their event entity with the matching `event_type`.
+*Restore defaults* and *BMS polling* were not pressed, because bridge `760e9a3` would have
+sent both to the bench GateLink.
+
+**The sandbox was brought to the branch.** The four buttons' retained configs were cleared
+with empty retained publishes; `760e9a3` republishes them at a broker reconnect until the
+OTA. The changed packages and dashboards were copied in, after checking that the sandbox
+copies matched `main`. The orphaned stand-in, `sensor.lran_gatelink_solar_yield_yesterday`,
+was removed from the registry. `check_entities.py` then passed, 221 entity IDs. The
+synthetic `gate/state` document stays retained until the bridge publishes its own; until
+the OTA, that document has no `cover_state`, and the cover keeps its last state.
+
+**Owed:** the OTA, then a dummy publish over USB to show the bridge's own inference
+end to end, and a check that `restore_defaults` and BMS polling act on GateLink.
