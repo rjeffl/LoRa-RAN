@@ -1988,3 +1988,21 @@ the OTA, that document has no `cover_state`, and the cover keeps its last state.
 
 **Owed:** the OTA, then a dummy publish over USB to show the bridge's own inference
 end to end, and a check that `restore_defaults` and BMS polling act on GateLink.
+
+## 2026-10-28 — F1–F4 on air: the bridge's own documents
+
+The bridge was flashed over OTA with `57997fa`, at the operator's request, and
+`sensor.lora_bridge_firmware_commit` read that commit. The four gate buttons did not return
+after the reconnect, and every F1–F4 entity was present.
+
+**The bridge's own documents carry the new keys.** GateLink's next `gate/state`, marked
+`synthetic: false`, read `"state":"closed","cover_state":"closed"`, and HA showed the cover
+closed. `node/state` read `"uptime_s":12181,"boot_time":"2026-10-28T22:11:00Z"`, and
+`sensor.gatelink_last_boot` showed that time. `switch.gatelink_bms_polling` read on, from
+`bms_ble`. The `battery/state` and `solar/state` blocks were stale on the bench, so the pack
+temperatures, SOC source and yield yesterday read unavailable, as R-5.2b requires.
+
+**A moving gate was not seen from the bridge.** The bench GateLink's IN1 and IN2 stay at
+0/0 with no gate controller, and the dummy publish refuses a node heard this boot. The
+inference rests on `test_publish` and the broker-level sequence above until GL6's real gate
+cycles.
