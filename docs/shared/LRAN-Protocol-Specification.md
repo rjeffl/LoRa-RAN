@@ -1,12 +1,12 @@
 # LRAN Protocol Specification
 
 **Document:** `LRAN-Protocol-Specification`
-**Version:** 0.18
+**Version:** 0.19
 **Protocol version on the wire:** `ver = 2` — **unchanged since v0.3**
 **Status:** Authoritative for `/lib/lran-protocol/`. Blocks all node firmware.
 **Supersedes:** `lora-gatelink-wire-format-v0.1`
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-28
 
 > **Every LRAN node PRD and implementation plan references this document.** No node
 > document may redefine a frame layout, an enumeration value, a schema ID or an MQTT
@@ -598,8 +598,8 @@ understands a later one, and the bridge decodes it correctly instead of misparsi
 Given that remote nodes have no OTA and will drift out of sync, this is worth one
 byte.
 
-Schema definitions live in `/lib/lran-protocol/schemas/` and are the versioned
-contract between node and bridge.
+Schema definitions live in `/lib/lran-protocol/`, declared in `include/lran/schema/` and
+implemented in `src/schema/`. They are the versioned contract between node and bridge.
 
 **Adding a field to a schema requires a new schema ID, not a `ver` bump**, provided
 the frame header is unchanged. This is the mechanism that lets one node gain a
@@ -689,13 +689,13 @@ Populated from the TDT BLE client. Frame formats and the register decode live in
 | 46 | `uint16` | `cell_mv[1]` | mV | |
 | 48 | `uint16` | `cell_mv[2]` | mV | |
 | 50 | `uint16` | `cell_mv[3]` | mV | |
-| 52 | `int8` | `cell_temp_c[0]` | °C | |
-| 53 | `int8` | `cell_temp_c[1]` | °C | |
-| 54 | `int8` | `cell_temp_c[2]` | °C | |
-| 55 | `int8` | `cell_temp_c[3]` | °C | Third thermal reference point (with `mppt_temp_c10` and `enclosure_temp_c10`) |
+| 52 | `int8` | `cell_temp_c[0]` | °C | `INT8_MIN` = not available (**D84**) |
+| 53 | `int8` | `cell_temp_c[1]` | °C | `INT8_MIN` = not available (**D84**) |
+| 54 | `int8` | `cell_temp_c[2]` | °C | `INT8_MIN` = not available (**D84**) |
+| 55 | `int8` | `cell_temp_c[3]` | °C | `INT8_MIN` = not available (**D84**). Third thermal reference point (with `mppt_temp_c10` and `enclosure_temp_c10`) |
 | 56 | `uint16` | `bms_cycles` | — | |
 | 58 | `uint16` | `bms_capacity_dah` | 0.1 Ah | Reported pack capacity |
-| 60 | `uint16` | `bms_alarms` | — | Protection/alarm bitfield, passed through from the BMS unmodified |
+| 60 | `uint16` | `bms_alarms` | — | Protection/alarm bitfield, passed through from the BMS unmodified. `UINT16_MAX` = not available, and `bms_flags` bits 1–5 are then unknown (§7.2.7, **D85**) |
 | 62 | `uint16` | `bms_age_s` | s | Seconds since the last successful BMS read. Saturates at `UINT16_MAX` — deliberately narrower than `last_traversal_age_s`; see §7.2.9 |
 
 **Per-cell voltages are carried every frame, not published every frame.** Readings
@@ -771,6 +771,13 @@ indication readable while bit 1 is set. Stated in v0.18; the bridge has read it 
 | 4 | Any protection flag active — see `bms_alarms` |
 | 5 | Cell balancing active |
 | 7:6 | `soc_source` — `0` = `bms_ble`, `1` = `smartshunt`, `2` = `voltage_coarse`, `3` = unknown |
+
+**Bits 1–5 are unknown while `bms_alarms` is `UINT16_MAX`** (**D85**). They come from the
+same BMS register as `bms_alarms`, so a node that cannot read or decode it sends
+`bms_alarms` as `UINT16_MAX` and writes bits 1–5 zero. A receiver does not read them then,
+and the bridge publishes each as `null`, not `false`. The byte has no spare bit to say
+this, and tying the five bits to their source's sentinel needs no new schema. Bit 0 and
+`soc_source` keep their meaning whatever `bms_alarms` holds.
 
 `soc_source` is on the wire rather than assumed by the bridge because the fallback
 chain is a runtime condition, and an SOC figure whose provenance is invisible is worse
@@ -877,7 +884,7 @@ reflashed only by a walk to it (§13.1). The simnode's `0xFE` still mirrors `0x1
 | 3 | `uint8` | `direction` | §8.6 — `UNDETERMINED` if not yet classified |
 | 4 | `uint8` | `gate_state` | §8.3 — gate state at the moment of the event |
 | 5 | `uint8` | `input_bits` | Raw inputs at the moment of the event (§7.2.1) |
-| 6 | `uint16` | `detail` | Event-specific |
+| 6 | `uint16` | `detail` | Event-specific; §8.9 says what each `event_type` carries |
 | 8 | `uint32` | `event_id` | Monotonic per node per boot, never reused within a `ctx_id` |
 | 12 | `uint32` | `uptime_s` | Node uptime when the event occurred |
 
@@ -1401,8 +1408,8 @@ bit 1 (§6.4), and republishes `config/state` from it (§16.7.4).
 | `0x04` | `VEHICLE_DETECTED` | Normal |
 | `0x05` | `GATE_STATE_CHANGE` | Normal |
 | `0x06` | `HOLD_STATE_CHANGE` | Normal |
-| `0x07` | `BMS_ALARM` | High |
-| `0x08` | `MPPT_ERROR` | Normal |
+| `0x07` | `BMS_ALARM` | High. `detail` carries `bms_alarms` (§7.2.3) at the event, passed through unmodified. A node sends none while `bms_alarms` is `UINT16_MAX` (**D86**) |
+| `0x08` | `MPPT_ERROR` | Normal. `detail` carries `mppt_err` (§7.2.2), the VE.Direct `ERR` code, in its low byte; the high byte is `0`. A node that reports the error clearing sends `detail` = `0` (**D86**) |
 | `0x09` | `CHARGE_INHIBITED` | Low. `detail` names the path that decided it: `0` = not stated, `1` = BMS, `2` = VE.Direct (**D81**) |
 | `0x0A` | `BOOT` | Low. `detail` carries the reset cause, §8.14 (**D71**) |
 | `0x0B` | `PHY_REVERTED` | Normal — a PHY change failed and this node went back to its last known-good settings (§12.4.2 step 8). **Added in v0.14 (D59)** |
@@ -1431,7 +1438,7 @@ exists to prevent. The PHY group changes on the bridge's topic alone (§16.7.1).
 | Value | Name |
 |---|---|
 | `0x00` | `PERSISTED` |
-| `0x01` | `APPLIED_NOT_PERSISTED` — no usable nonvolatile store: microSD on GateLink, NVS on the bridge (**D49**); RAM only until reboot |
+| `0x01` | `APPLIED_NOT_PERSISTED` — the nonvolatile store that holds the parameter is absent, or a write to it failed (**D49**, amended by **D88**); RAM only until reboot. A node's implementation plan says which store holds which parameter |
 | `0x02` | `NOT_APPLIED` — nothing in the set was applied: an unknown `op`, or a `SET` whose every entry was rejected (§7.4) |
 
 ### 8.12 per-entry config `status`
@@ -1742,11 +1749,14 @@ it in every frame it sends to that node. The bridge maintains a per-node table o
 context, invalidating every previously captured command addressed to it.
 
 **A node SHALL draw `ctx_id` from a true entropy source**, never from a generator seeded
-with a constant, a build value or uptime. On an ESP32 that is the hardware RNG while the
-RF subsystem or the bootloader's entropy source is enabled; without either, ESP-IDF
-documents `esp_random()` as pseudo-random. A node that uses neither WiFi nor Bluetooth
-enables the entropy source for the draw. **A `ctx_id` repeated across a reboot defeats
-three mechanisms at once:**
+with a constant, a build value or uptime. The rule covers every draw: the boot's, and a
+roll's after `ROLL_CONTEXT` (§10.6) or any other request for a new context (**D87**). On
+an ESP32 that is the hardware RNG while the RF subsystem or the bootloader's entropy source
+is enabled; without either, ESP-IDF documents `esp_random()` as pseudo-random. A node that
+uses neither WiFi nor Bluetooth enables the entropy source for the draw. A node whose RF
+subsystem runs only part of the time, as GateLink's BLE does between BMS windows, may draw
+a word while it runs, hold it for its next roll and spend it once. **A `ctx_id` repeated
+across a reboot defeats three mechanisms at once:**
 
 - replay protection, because the reboot set `rx_high_water` to `0` under a context a
   captured command still matches (§9.4 step 5);
@@ -1756,7 +1766,9 @@ three mechanisms at once:**
   of the old boot's (§7.3).
 
 The check that falsifies compliance is a node's `ctx_id` logged across consecutive
-reboots, including a watchdog reset and a power cycle. Any repeat fails it.
+reboots, including a watchdog reset and a power cycle, and across consecutive rolls. Any
+repeat fails it. A log without a repeat does not show that the source was a true one, so
+each draw's call site is also read against this rule.
 
 The bridge's own frames carry the **destination node's** `ctx_id`, not one of its own.
 The bridge does not have a context; it is the party that tracks everyone else's.
@@ -3503,6 +3515,27 @@ LRAN_MAX_SCHEMA_PAYLOAD 196     LRAN_PING_MAX_ECHO      202
 ---
 
 ## 20. Changelog
+
+- **v0.19 (2026-10-28)** — **D84–D88: five gaps raised since v0.18, and two owed
+  corrections.** `ver` stays at `2`; **no frame layout, header field, schema ID,
+  enumeration value or authentication scope changes.** The operator decided all five on
+  2026-10-28. **§7.2.3 names `INT8_MIN` as `cell_temp_c`'s sentinel** (D84), which GateLink
+  already sends under root rule 6, and `UINT16_MAX` as `bms_alarms`'s. **§7.2.7's bits 1–5
+  are unknown while `bms_alarms` is `UINT16_MAX`** (D85), so the bridge can publish `null`
+  for the FET, inhibit, protection and balancing flags while `0x8D` is undecoded. **§8.9
+  gives `BMS_ALARM`'s and `MPPT_ERROR`'s `detail` a meaning** (D86): `bms_alarms` and
+  `mppt_err` at the event, and §7.3's row points there. **§10.1's true-entropy rule covers a
+  roll's draw** (D87), and a node whose radio runs part-time may hold a word drawn while it
+  ran; GateLink's `ROLL_CONTEXT` draw is a firmware change, not a relaxation here. **§8.11's
+  `APPLIED_NOT_PERSISTED` names no device** (D88, amending D49): GateLink's PHY group moved
+  to NVS, and the store that holds a parameter is the node plan's to say. **Corrected**:
+  §7.1 placed schema definitions in `/lib/lran-protocol/schemas/`, which does not exist;
+  they are in `include/lran/schema/` and `src/schema/` (operator, 2026-10-03). **Recorded
+  late**: on 2026-10-03, at v0.17, §1 and §7.2.3 were pointed at
+  `docs/gatelink/bms-protocol.md` and §7.4 at `docs/gatelink/gatelink-config.md` without a
+  changelog entry. Each change gives a meaning to a value or field the text left undefined
+  and moves no byte, so §13.2 requires no version bump, and **the W4 vectors are
+  unchanged**.
 
 - **v0.18 (2026-10-15)** — **D78–D82: what GateLink's build found the specification did
   not say.** `ver` stays at `2`; **no header field or authentication scope changes, and no

@@ -1,10 +1,10 @@
 # LRAN Decision Register
 
 **Document:** `LRAN-Decision-Register`
-**Version:** 0.34
+**Version:** 0.35
 **Status:** Living document. Updated whenever a decision changes state.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Last updated:** 2026-10-26
+**Last updated:** 2026-10-28
 
 > **This is the only place a decision's status is recorded.** Every other document in
 > the set references decisions by number and describes the *outcome* where it is
@@ -39,7 +39,7 @@ design change removed the thing it was about. A retired decision is not a decisi
 was answered; it is one that no longer needs answering, and the distinction matters when
 reading old material.
 
-**Adding a decision.** New numbers continue from the highest issued, currently **D83** for
+**Adding a decision.** New numbers continue from the highest issued, currently **D88** for
 decisions and **M26** for measurement-backlog items.
 A decision belongs here rather than in a node document when its answer would change more
 than one section, or when it is blocking work.
@@ -399,7 +399,7 @@ Frames from a node that is not deployed are processed as they are now.
 | **D46** | Whether `param_id` is one namespace, and whose schema `0x12` is | **One namespace for the fleet, allocated in blocks per owner**: `0x0000`–`0x00FF` bridge, `0x0100`–`0x01FF` every node, `0x1000`–`0x1FFF` GateLink, `0x2000`–`0x2FFF` WellLink. Schema `0x12` keeps its value and becomes **node config v1**, carried by any node. No byte changes | Protocol Spec §7.1, §7.4 |
 | **D47** | Where a parameter about a node is held | **Each parameter declares its owner**: the bridge, globally; the bridge, per node; or the node. The bridge applies its own half of a `config/set`, sends the node's half as `CONFIG`, and publishes one `config/ack` when both have an outcome. `config/state` shows the node's and the bridge's per-node values together, so HA sees one device with one configuration | Protocol Spec §16.7, Protocol Library Plan §4 |
 | **D48** | The `config/set`, `config/ack` and `config/state` payloads (**closes D42's deferral**) | **One JSON topic per node, keyed by parameter name**, not `param_id`. HA `number` entities publish into it through a `command_template`. `config/ack` carries per-entry status and the **effective** value, and a new persistence outcome, **`unknown`**, for a `CONFIG` that got no `CONFIG_ACK`; the bridge resolves it by readback and publishes a second `config/ack` | Protocol Spec §16.7 (**BF-32**) |
-| **D49** | What `persist_status` means on a node with no microSD slot | **The bridge persists to NVS.** §8.11's `APPLIED_NOT_PERSISTED` means *no usable nonvolatile store* — microSD on GateLink, NVS on the bridge — and the bridge reports it only when an NVS write fails | Protocol Spec §8.11, §16.6 |
+| **D49** | What `persist_status` means on a node with no microSD slot | **The bridge persists to NVS.** §8.11's `APPLIED_NOT_PERSISTED` means *no usable nonvolatile store* — microSD on GateLink, NVS on the bridge — and the bridge reports it only when an NVS write fails. *Amended by D88 (2026-10-28):* the meaning names no device; GateLink's PHY group is in NVS, the rest of its parameters on microSD | Protocol Spec §8.11, §16.6 |
 | **D50** | How a `GET` entry, a `GET_ALL` and a `RESTORE_DEFAULTS` are encoded | **A `GET` entry carries the expected `ptype` and `len` = 0. `GET_ALL` and `RESTORE_DEFAULTS` carry `count` = 0**, and a receiver ignores any entries it finds in one. What simnode BF-6 already reads | Protocol Spec §7.4, §8.10 |
 | **D51** | An entry whose `len` does not match its `ptype` | **Rejected with `TYPE_MISMATCH`; the rest of the set applies.** `len` delimits the entry, so the frame stays parseable. Discarding the frame was rejected: it would break §7.4's per-entry results. What simnode BF-6 already does | Protocol Spec §7.4 |
 | **D52** | What answers `RESTORE_DEFAULTS` | **The full effective configuration, as for `GET_ALL`**, so the bridge can republish `config/state` without a second readback. Simnode BF-6 answers with no results and changes to match | Protocol Spec §7.4, §8.10 |
@@ -434,6 +434,11 @@ Frames from a node that is not deployed are processed as they are now.
 | **D81** | What `CHARGE_INHIBITED`'s `detail` carries | **The deciding path: `0` not stated, `1` BMS, `2` VE.Direct.** Operator, 2026-10-15, §3.16 | Protocol Spec §8.9 |
 | **D82** | Where GateLink PRD R-6.4c's Ah drawn travels | **A new schema, `0x13`, GateLink status v2: `0x10` and `ah_drawn_dah`.** Operator, 2026-10-15, §3.16 | Protocol Spec §7.2.10 |
 | **D83** | Which inputs GateLink deploys on, now that IN5–IN8 read | **Six. FIRE on IN5 and the 1050's alarm output on IN6**, each sent as an event on its rising edge (PRD G-9, G-10). GateLink never sets `node_flags` bit 7; D80's bit stays in the spec for a node that cannot sense them. D72 and M3 apply again. Supersedes D77. Operator, 2026-10-24, §3.17 | GateLink PRD §3.1.4, §3.2.5, R-3.5i, R-3.5l; GateLink Impl Plan §3.2 |
+| **D84** | A sentinel for §7.2.3's `cell_temp_c` | **`INT8_MIN` = not available**, as GateLink already sends under root rule 6. Operator, 2026-10-28, §3.18 | Protocol Spec §7.2.3 |
+| **D85** | How `bms_flags` says bits 1–5 are unknown | **They are unknown while `bms_alarms` is `UINT16_MAX`**, written zero and not read; the bridge publishes `null`. No new schema. Operator, 2026-10-28, §3.18 | Protocol Spec §7.2.3, §7.2.7 |
+| **D86** | What `BMS_ALARM`'s and `MPPT_ERROR`'s `detail` carry | **`BMS_ALARM`: `bms_alarms` at the event. `MPPT_ERROR`: `mppt_err` in the low byte**, and `0` when a node reports the error clearing. Operator, 2026-10-28, §3.18 | Protocol Spec §7.3, §8.9 |
+| **D87** | Whether §10.1's true-entropy rule binds a roll's `ctx_id` | **Yes, and the firmware changes.** GateLink's `ROLL_CONTEXT` and `lran ctx new` draws move to a true source, such as a word drawn during a BLE window and held for the roll. Operator, 2026-10-28, §3.18 | Protocol Spec §10.1; GateLink Impl Plan |
+| **D88** | Amends D49: what `APPLIED_NOT_PERSISTED` names | **The store that holds the parameter is absent or a write to it failed.** The spec names no device; a node's plan says which store holds which group. Operator, 2026-10-28, §3.18 | Protocol Spec §8.11; GateLink Impl Plan §6.4 |
 
 
 ### 3.1 Notes on D32 and D33
@@ -1250,6 +1255,35 @@ the replacement StamPLC and the original both read IN5 and IN6, and both follow 
 after install costs a walk to the gate, and FIRE is the one signal the system routes
 separately (spec §8.9).
 
+### 3.18 D84–D88 — the spec v0.19 set, 2026-10-28
+
+**Five gaps raised since spec v0.18 waited on a specification revision.** The GateLink,
+bridge and HA handoffs carried them as open items. The operator chose an answer for each on
+2026-10-28, and spec v0.19 carries the text. None moves a byte, so none needs a version
+bump (§13.2).
+
+- **D84.** GateLink sends `INT8_MIN` for a temperature the pack did not report, under root
+  rule 6, and the spec named no sentinel. **Rejected:** also making slots at or above
+  `cell_count` unavailable. The four temperatures may not all be cell sensors (`bms-protocol`
+  §10), so `cell_count` does not say which exist.
+- **D85.** `bms_flags` has no spare bit: bits 0–5 and 7:6 are assigned. GateLink does not
+  decode `0x8D`, so it leaves bits 1–5 clear and sends `bms_alarms` as `UINT16_MAX`, and the
+  bridge published `charge_fet: false` as a state. Bits 1–5 and `bms_alarms` come from the
+  same register, so the one sentinel can cover both. **Rejected:** a new schema with a
+  validity mask, which costs a schema ID, codec work, vectors and a reflash for one
+  undecoded register; and redefining bit 0, which changes a deployed bit's meaning.
+- **D86.** Neither event is sent yet, and HA showed the raw value or lagged on the sensor.
+  Both fields fit `detail`'s `uint16`. **Rejected:** reserving `BMS_ALARM`'s until `0x8D`
+  is decoded. The pass-through needs no decode, and HA can name the bits once the decode exists.
+- **D87.** GateLink's boot draw already enables the bootloader's entropy source before BLE
+  starts. Its roll draws call `esp_random()` between BLE windows, when it is pseudo-random.
+  The spec now says the rule covers a roll, and permits holding a word drawn while the radio
+  ran. **Rejected:** relaxing §10.1 for a roll, which would weaken the guarantee the rule
+  exists for. The firmware change is a GateLink task.
+- **D88.** D49 said "microSD on GateLink", and GateLink's committed PHY group moved to NVS
+  (operator, 2026-10-13; GateLink Impl Plan §6.4). **Rejected:** listing both stores in the
+  spec, which would make §8.11 track a node plan's storage layout.
+
 ## 4. Retired decisions
 
 | # | Decision | Why retired |
@@ -1408,6 +1442,11 @@ the gaps make it weaker. This bounds every "clear" verdict above and is a reason
 ---
 
 ## 6. Changelog
+
+- **v0.35** — **D84–D88 resolved on 2026-10-28**, the spec v0.19 set: `cell_temp_c`'s
+  sentinel, `bms_flags` bits 1–5 unknown with `bms_alarms`, `detail` for `BMS_ALARM` and
+  `MPPT_ERROR`, true entropy at a roll's draw, and D49 amended by D88. §3.18 has the
+  reasoning, and spec v0.19 carries the text.
 
 - **v0.34** — **M14 closed on 2026-10-26** on the MPPT's own history: ten days on the gate's
   50 W panel, each reaching absorption and float.
