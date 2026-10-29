@@ -2006,3 +2006,32 @@ temperatures, SOC source and yield yesterday read unavailable, as R-5.2b require
 0/0 with no gate controller, and the dummy publish refuses a node heard this boot. The
 inference rests on `test_publish` and the broker-level sequence above until GL6's real gate
 cycles.
+
+## 2026-10-28 — BMS polling and Restore defaults pressed from HA, on the bench GateLink
+
+At the operator's request, on bridge `57997fa`.
+
+**BMS polling, off then on.** `switch.turn_off` published `OFF` on
+`cmd/set_bms_polling/set`, and `cmd/ack` read `acked`, `seq` 1, one attempt, 1.7 s later.
+The next `node/state`, 22.7 s after the command, read `bms_ble` false, and the switch
+showed off. `switch.turn_on` drew `acked`, `seq` 2, in 1.5 s, and `bms_ble` read true
+45.5 s after the command. Both followed at GateLink's next status rather than at the ACK.
+
+**Restore defaults kept the PHY group, as D60 requires.** Before it, a `get_all` read
+eleven overrides: `deployed` 1, the six PHY rows on Envelope A, `bms_poll_s` 300,
+`charge_inhibit_temp_c` 0, `charge_inhibit_band_ma` 100 and `charge_inhibit_rise_mv` 20.
+The five non-PHY node values equal their defaults (`gatelink-config.md`), so restoring
+them changed no behaviour. The press drew `config/ack` with `persist` `persisted` 5.7 s
+later, and `config/state` then listed the six PHY rows alone as overrides. The link stayed
+up, at −45 dBm.
+
+**The press also reset the bridge's own per-node row, `deployed`, to 0.** That takes
+effect at the bridge's next restart, which would then enrol GateLink only once heard
+(spec §16.5). `deployed` was set back to 1 from HA straight after. Whether a node's Restore
+defaults should reach the bridge's per-node rows is open; the bridge handoff carries it.
+
+**The Request configuration button did not refresh `config/state`.** Pressed before the
+restore, it left GateLink's node rows null for three minutes. A `get_all` on
+`config/set` then answered in 4.9 s and filled 34 rows. `cmd/ack` was not captured, so
+whether `REQUEST_CONFIG`'s readback (spec §8.1, §7.4) arrived and went unused, or never
+arrived, is not known. The bridge handoff carries it.

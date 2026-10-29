@@ -88,6 +88,11 @@ same day. The other two stay host-tested, because one needs a reset timed inside
 trial's restore and the other a flag set while NVS refuses the write.
 
 - **An answer lost before the reset was not reproduced.** Group 7 carries it.
+- **Two findings from F1–F4's bench presses, 2026-10-28** (engineering log, same date).
+  A node's Restore defaults also reset the bridge's per-node `deployed` to 0; decide
+  whether it should. And the Request configuration button left `config/state`'s node rows
+  null, where a `get_all` filled them; capture `cmd/ack` and the frame log to see whether
+  `REQUEST_CONFIG`'s readback arrives.
 
 ### 2. BF-27's simulators, and the watchdog's reach
 
