@@ -1,13 +1,13 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.23
+**Version:** 0.24
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
 **Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
-**Last updated:** 2026-10-27
+**Last updated:** 2026-10-28
 
 > **This document states goals and requirements only.** Part numbers, pin maps, wiring
 > detail, firmware architecture and bring-up procedure live in the implementation plan.
@@ -286,6 +286,11 @@ Four properties of the installed topology shape the logic:
 - **R-3.2.3e.** Configurable parameters: `detect_sequence_window_ms` (default
   **60000**), `detect_sequence_idle_ms` (default 10000), `input_debounce_samples`
   (default 2), `held_open_alert_repeat_s` (default 0 = one alert per detection).
+  `held_open_alert_repeat_s` is a **rate limit**, by operator decision 2026-10-13. At 0,
+  every detection while HELD_OPEN alerts. Above 0, a detection within that many seconds
+  of the last alert sends `VEHICLE_DETECTED` instead and sets `detect_flags` bit 4
+  (Protocol Spec §7.2.5). The limit filters the double alert from a vehicle towing a
+  trailer.
 
 #### 3.2.4 Held-open alert — the primary operational requirement
 
@@ -433,8 +438,10 @@ the node's side:
 - **R-3.5j.** **No relay may energize from reset until the firmware drives it.** The
   relay drivers SHALL hold every output off through the boot ROM and a watchdog reset,
   whatever state the ESP32's pins pass through. A pulse at boot is an unauthenticated
-  gate command. **Verified by** each relay output observed on a scope through a power
-  cycle and a watchdog reset. A brownout is out of scope: the pack's BMS cuts off near
+  gate command. **Verified by** each relay's contact observed on a logic analyzer through
+  a power cycle and a watchdog reset. The analyzer sees the contact, not the coil, so a
+  coil glitch shorter than the relay's operate time does not show; the operator accepted
+  that limit on 2026-10-28 (engineering log, 2026-10-07). A brownout is out of scope: the pack's BMS cuts off near
   10 V and the node runs down to at least 5.25 V, so VIN reaches the reset point only if
   the BMS and the battery have both failed.
 - **R-3.5k.** GateLink SHALL reset the SX1262 through its reset line at every boot. An
@@ -816,7 +823,28 @@ failing panel or charge controller.
   active**, so a multi-day cold event shows consumed reserve rather than just a boolean.
   It travels as `ah_drawn_dah` in status schema `0x13` (Protocol Spec §7.2.10, **D82**),
   which leaves this document to define "charging active" and the current integrated.
-  **Neither is defined yet**; that comes before the count is built.
+  Both are operator decisions of 2026-10-28.
+
+  > **Charging active** ⇔ charger state is bulk, absorption or float **AND** VE.Direct
+  > battery current > 0
+
+  > **Ah drawn** = BMS remaining capacity at the last read while charging was active
+  > **minus** BMS remaining capacity at the latest read, floored at 0
+
+  The count reads 0 while charging is active. **No current is integrated.** The count is
+  the fall in the BMS's own remaining-capacity figure, which steps in 0.1 Ah. Neither
+  current GateLink reads can carry its own standing draw of about 44 mA. `pack_ma` steps
+  in 0.1 A, so that draw reads 0, and a cold night integrated from it would read 0 Ah
+  (engineering log, 2026-10-27). VE.Direct's battery current never sees the draw at all,
+  because GateLink takes its supply from the pack, not from the charger's load output
+  (R-4.4a). The BMS counts charge internally, so its remaining capacity may register a
+  draw its current field cannot show. That is unmeasured. **Falsified by** BMS
+  remaining capacity unchanged across a night with GateLink's load alone, which should
+  draw about 0.5 Ah over 12 h.
+
+  Without a BMS read since charging was last active, GateLink sends `UINT16_MAX`. A
+  reset loses the reference reading, so GateLink sends `UINT16_MAX` from then until
+  charging is next active (Protocol Spec §7.2.10).
 - **R-6.4d.** Upgrading the panel does not help while charging is inhibited, and the
   documentation SHALL say so where a panel upgrade is discussed.
 - **R-6.4e.** GateLink SHALL name the path that decided an inhibition in
@@ -1033,6 +1061,15 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.24** — **R-6.4c defines "charging active" and the count**, by operator decision
+  2026-10-28. That unblocks **D82**'s schema `0x13`. Charging is active while the MPPT is
+  in bulk, absorption or float with battery current above 0. `ah_drawn_dah` is the fall in
+  the BMS's remaining capacity since then, not an integrated current, because `pack_ma`
+  cannot carry GateLink's 44 mA draw and VE.Direct's current never sees it. **R-3.2.3e**
+  states that `held_open_alert_repeat_s` is a rate limit (operator, 2026-10-13).
+  **R-3.5j** is verified by a logic analyzer on the contacts, with the coil-glitch limit
+  stated (operator, 2026-10-28).
 
 - **v0.23** — **R-6.4b tests PV voltage, not PV power**, by operator decision 2026-10-27.
   On the bench, a full pack took no charge and the MPPT stayed in bulk with PV at 15–20 V,
