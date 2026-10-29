@@ -64,10 +64,10 @@ struct EntityDesc {
   const char* object_id;
 
   const char* name;       // the entity name HA shows under the device
-  const char* component;  // `sensor`, `binary_sensor`, `button` - HA's discovery segment
+  const char* component;  // `sensor`, `binary_sensor`, `button`, ... - HA's discovery segment
 
   // The state topic, relative to the device's `~` base. Null for a button, which has a
-  // command topic instead.
+  // command topic instead. For an `event`, the event topic, whose leaf is the event type.
   const char* state_suffix;
 
   // The key to read out of the state topic's JSON document, or null to use the payload
@@ -78,7 +78,8 @@ struct EntityDesc {
   const char* device_class;  // `dev_cla`
   const char* state_class;   // `stat_cla`
 
-  // The command topic for a button, relative to `~`, and what to publish on a press.
+  // The command topic for a button, cover or switch, relative to `~`, and what a button
+  // publishes on a press.
   const char* command_suffix;
   const char* press_payload;
 
@@ -93,6 +94,19 @@ struct EntityDesc {
   // applies where hex_allowed() says an MPPT sits behind the node, as a button applies
   // where command_allowed() does.
   bool vedirect = false;
+
+  // HA plan F1 - a face's action token (net_policy.h, kCmdFaces): this row is the cover or
+  // the switch publishing to `cmd/<face>/set`, with the face table's payloads. It applies
+  // where command_allowed() allows every spec 8.1 row the face maps to.
+  const char* face = nullptr;
+
+  // `ent_cat: config` - a control that changes the node's configuration, as a table row's
+  // does (BF-35). A bench node gets none, on BF-35's ground.
+  bool config = false;
+
+  // A binary sensor that is true while `value_key` reads this string (HA plan F2). Null
+  // stays unknown, never off.
+  const char* equals = nullptr;
 };
 
 // ---------------------------------------------------------------------------

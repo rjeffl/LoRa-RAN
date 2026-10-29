@@ -23,22 +23,6 @@ input_select:
     icon: mdi:battery-heart-variant
     options: ["Off", Low, Normal, High, Critical]
 
-mqtt:
-  sensor:
-    # The bridge publishes yield_yesterday_kwh in solar/state, but discovery makes no entity
-    # for it (plan 5, F4). This stands in until it does, with discovery's availability.
-    - name: LRAN GateLink solar yield yesterday
-      unique_id: lran_gatelink_solar_yield_yesterday
-      state_topic: lran/gatelink/solar/state
-      value_template: "{{ value_json.yield_yesterday_kwh }}"
-      unit_of_measurement: kWh
-      device_class: energy
-      availability_mode: all
-      availability:
-        - topic: lran/gatelink/availability
-        - topic: lran/gatelink/solar/state
-          value_template: "{{ 'online' if value_json.available else 'offline' }}"
-
 sensor:
   # Plan 9.4, the weekly report's MPPT time in each charge state. Four states cover a
   # healthy charger; fault reaches the phone through lran_2_mppt_error instead.
@@ -151,8 +135,8 @@ automation:
               {% set first = soc_rows[0].mean if soc_rows and soc_rows[0].mean is number else none %}
               {{ '%+d %% in 24 h' % (soc_now - first) | round if soc_now is number and first is number else '' }}
             yield: >-
-              {{ '%.2f kWh' % states('sensor.lran_gatelink_solar_yield_yesterday') | float
-                 if has_value('sensor.lran_gatelink_solar_yield_yesterday') else '' }}
+              {{ '%.2f kWh' % states('sensor.gatelink_solar_yield_yesterday') | float
+                 if has_value('sensor.gatelink_solar_yield_yesterday') else '' }}
             traversals: >-
               {{ trav_rows[0].change | int if trav_rows and trav_rows[0].change is number else '' }}
             enc_min: >-

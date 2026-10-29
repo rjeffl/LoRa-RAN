@@ -201,7 +201,10 @@ reconnect; Impl Plan §4.4.1. `json_writer.h` is BF-19's JSON writer, lifted out
 - **There is no "first time" flag, and adding one would break R-3.3b.** A boot and a
   reconnect take the same path, so the reconnect case cannot be the one that rots.
 - **A button's existence is `command_allowed()`'s answer**, never a table per node type.
-  The moment a node type gets its own button list, **BG-2** is broken.
+  The moment a node type gets its own button list, **BG-2** is broken. The cover and the
+  hold switch (HA plan F1) follow the same rule through their face: `kCmdFaces` in
+  `net_policy.cpp` maps each HA payload to a spec 8.1 row, and discovery writes its
+  payloads from that table, so a face cannot publish what the bridge does not parse.
 - **A bench node produces discovery only while `simnode_diag_enable` is set** (spec §16.6,
   BF-26), through the same `bench_publication_allowed()` the availability watchdog uses.
   Switching the flag on restarts the set. Every bench entity is `ent_cat: diagnostic`,
@@ -275,7 +278,7 @@ and spec §10.6. **Four things to keep:**
 
 **`BF-24` — the publication policy, built and host-tested 2026-09-23; dummy frames on air
 the same day, no production frame yet.** `publish.{h,cpp}` renders a `STATUS` into documents and `app_task` queues
-them; Impl Plan §6.3.1. **Four things to keep:**
+them; Impl Plan §6.3.1. **Five things to keep:**
 
 - **A document is rendered from the frame in hand or not at all.** Nothing keeps a cached
   reading to republish, and R-5.2b depends on that staying true.
@@ -283,6 +286,9 @@ them; Impl Plan §6.3.1. **Four things to keep:**
   list that document in `avty` with `avty_mode: all`, which is how HA shows them
   unavailable while the node is online. `key_survives_staleness()` names the keys that
   stay readable; an entity on one of them follows the node alone.
+- **`cover_state` is the one key with memory.** It reads each node's last stable gate
+  state, so a moving gate shows a direction (spec 8.3). Without one, after a restart, it
+  reads `open`, never a guess. `test_publish` covers both.
 - **Document keys are frozen like `unique_id`s.** `test_discovery` checks every state
   entity's key against a document the policy rendered. Rename one on both sides or not at
   all.

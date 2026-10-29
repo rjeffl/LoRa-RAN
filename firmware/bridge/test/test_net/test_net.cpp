@@ -252,6 +252,50 @@ void test_a_topic_outside_the_grammar_is_refused() {
   TEST_ASSERT_FALSE(parse_cmd_topic("lran/gatelink/cmd//set", &t));        // empty action
 }
 
+// HA plan F1 - a face topic parses with no cmd, and its payload names the spec 8.1 row.
+void test_a_face_topic_takes_its_command_from_the_payload() {
+  const CmdTopic gate = parsed_or_fail("lran/gatelink/cmd/gate/set");
+  TEST_ASSERT_EQUAL_STRING("gate", gate.face);
+  TEST_ASSERT_EQUAL_HEX8(0, gate.cmd);
+  TEST_ASSERT_EQUAL_STRING("hold", parsed_or_fail("lran/gatelink/cmd/hold/set").face);
+  TEST_ASSERT_NULL(parsed_or_fail("lran/gatelink/cmd/open/set").face);  // still parsed
+
+  struct Case {
+    const char* action;
+    const char* payload;
+    Cmd         cmd;
+    uint8_t     arg;
+  };
+  const Case kCases[] = {
+      {"gate", "OPEN", Cmd::Open, 0},
+      {"gate", "CLOSE", Cmd::Close, 1},  // spec 8.1 - release, then immediate close
+      {"hold", "ON", Cmd::HoldOpen, 0},
+      {"hold", "OFF", Cmd::ReleaseHold, 0},
+  };
+  for (const Case& c : kCases) {
+    uint8_t  cmd  = 0xFF;
+    uint8_t  arg  = 0xFF;
+    uint16_t arg2 = 0xFFFF;
+    TEST_ASSERT_TRUE_MESSAGE(
+        parse_cmd_face(c.action, c.payload, std::strlen(c.payload), &cmd, &arg, &arg2),
+        c.payload);
+    TEST_ASSERT_EQUAL_HEX8(static_cast<uint8_t>(c.cmd), cmd);
+    TEST_ASSERT_EQUAL_UINT8(c.arg, arg);
+    TEST_ASSERT_EQUAL_UINT16(0, arg2);
+    TEST_ASSERT_EQUAL_STRING(c.payload, cmd_face_payload(c.action, static_cast<uint8_t>(c.cmd)));
+  }
+
+  // A payload the face does not name is refused, never defaulted.
+  uint8_t  cmd = 0, arg = 0;
+  uint16_t arg2 = 0;
+  TEST_ASSERT_FALSE(parse_cmd_face("gate", "STOP", 4, &cmd, &arg, &arg2));
+  TEST_ASSERT_FALSE(parse_cmd_face("gate", "ON", 2, &cmd, &arg, &arg2));
+  TEST_ASSERT_FALSE(parse_cmd_face("hold", "OPEN", 4, &cmd, &arg, &arg2));
+  TEST_ASSERT_FALSE(parse_cmd_face("gate", "", 0, &cmd, &arg, &arg2));
+  TEST_ASSERT_FALSE(parse_cmd_face("gate", "open", 4, &cmd, &arg, &arg2));
+  TEST_ASSERT_NULL(cmd_face_payload("gate", static_cast<uint8_t>(Cmd::HoldOpen)));
+}
+
 void test_a_command_payload_carries_arg_and_arg2() {
   uint8_t  arg  = 9;
   uint16_t arg2 = 9;
@@ -438,6 +482,7 @@ int main() {
   RUN_TEST(test_a_command_topic_parses_to_an_address_and_a_spec_8_1_cmd);
   RUN_TEST(test_the_parsed_node_token_is_the_published_one);
   RUN_TEST(test_a_topic_outside_the_grammar_is_refused);
+  RUN_TEST(test_a_face_topic_takes_its_command_from_the_payload);
   RUN_TEST(test_a_command_payload_carries_arg_and_arg2);
   RUN_TEST(test_an_unreadable_command_payload_is_refused);
   RUN_TEST(test_an_inbound_message_is_copied_by_length_and_terminated);

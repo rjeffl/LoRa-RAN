@@ -301,6 +301,29 @@ const char* event_type_name(uint8_t v) {
   return nullptr;
 }
 
+const char* cover_state(uint8_t gate_state, StableGate* last) {
+  StableGate none = StableGate::None;
+  StableGate& was = last != nullptr ? *last : none;
+  switch (static_cast<lran::GateState>(gate_state)) {
+    case lran::GateState::Closed:
+      was = StableGate::Closed;
+      return "closed";
+    case lran::GateState::OpenCountdown:
+    case lran::GateState::OpenHeld:
+      was = StableGate::Open;
+      return "open";
+    case lran::GateState::Moving:
+      if (was == StableGate::Closed) return "opening";
+      if (was == StableGate::Open) return "closing";
+      return "open";
+    case lran::GateState::Unknown:
+    case lran::GateState::Fault:
+      break;
+  }
+  was = StableGate::None;
+  return nullptr;
+}
+
 const char* domain_path(Domain d) {
   switch (d) {
     case Domain::Gate:    return "gate";
@@ -555,6 +578,8 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
   {
     JsonObject j(doc_, sizeof(doc_));
     str_or_null(j, "state", gate_state_name(s.gate_state));
+    // HA plan F1 - the cover entity's state, direction included (publish.h, cover_state).
+    str_or_null(j, "cover_state", cover_state(s.gate_state, &held_[ni].stable));
     j.boolean("held_open", (s.hold & kHoldHeldOpen) != 0);
     str_or_null(j, "hold_source", hold_source_name(static_cast<uint8_t>((s.hold >> 1) & 0x07)));
     str_or_null(j, "movement_cause", movement_cause_name(s.movement_cause));
@@ -752,6 +777,18 @@ void PublicationPolicy::on_status(const NodeInfo& info, const lran::Header& hdr,
     // still publishes, because boot_count changes with it.
     const size_t hashed = j.length();
     j.u32("uptime_s", s.uptime_s);
+    // HA plan F2 - when the node booted, for "Last boot". Outside the hash with uptime_s,
+    // which it is computed from. Rounded to the minute, because the frame's time in the air
+    // and the queues moves the difference by a second between polls. Null without a wall
+    // clock, as last_traversal is.
+    char             boot[24];
+    const UtcSeconds booted = utc_at_rx - static_cast<UtcSeconds>(s.uptime_s);
+    if (utc_at_rx >= kUtcPlausible && booted >= 0 &&
+        format_utc((booted + 30) / 60 * 60, boot, sizeof(boot)) > 0) {
+      j.str("boot_time", boot);
+    } else {
+      j.null("boot_time");
+    }
     offer(ni, Domain::Node, token, j.finish(), now_ms, sink, hashed);
   }
 }

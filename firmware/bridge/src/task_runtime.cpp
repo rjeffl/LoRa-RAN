@@ -2239,19 +2239,24 @@ class CommandInbound final : public MqttInbound {
       ++g_cmd_inbound.bad_topic;
       return;
     }
+    // HA plan F1 - on a face topic the payload names the command, so it is read first.
+    CommandRequest req;
+    const bool     read = topic.face != nullptr
+                              ? parse_cmd_face(topic.face, msg.payload, msg.payload_len,
+                                               &topic.cmd, &req.arg, &req.arg2)
+                              : parse_cmd_payload(msg.payload, msg.payload_len, &req.arg,
+                                                  &req.arg2);
+    if (!read) {
+      ++g_cmd_inbound.bad_payload;
+      return;
+    }
     // Impl Plan 6.2 step 1 - checked here so a solar node is not woken to refuse it.
     if (!command_allowed(info->type, topic.cmd)) {
       ++g_cmd_inbound.not_allowed;
       return;
     }
-
-    CommandRequest req;
     req.dst = topic.node_id;
     req.cmd = topic.cmd;
-    if (!parse_cmd_payload(msg.payload, msg.payload_len, &req.arg, &req.arg2)) {
-      ++g_cmd_inbound.bad_payload;
-      return;
-    }
     (void)send_command(req);  // send_command() counts a refusal of its own
   }
 };

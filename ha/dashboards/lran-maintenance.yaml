@@ -49,6 +49,21 @@ views:
                 name: Request status
               - entity: button.gatelink_request_configuration
                 name: Request configuration
+              # SET_BMS_POLLING (R-3.4e). GateLink polls again after a reboot (R-3.4a).
+              - entity: switch.gatelink_bms_polling
+                name: BMS polling
+              # Every GateLink setting back to its default, at once, so it asks first.
+              - type: button
+                entity: button.gatelink_restore_defaults
+                name: Restore defaults
+                action_name: Restore
+                tap_action:
+                  action: perform-action
+                  perform_action: button.press
+                  target:
+                    entity_id: button.gatelink_restore_defaults
+                  confirmation:
+                    text: Restore every GateLink setting to its default?
           # Charge-controller writes are a battery-affecting path (GateLink PRD S-11), so
           # the switch sits under a statement of that.
           - type: markdown
@@ -61,10 +76,6 @@ views:
             entities:
               - entity: switch.gatelink_mppt_write_enable
                 name: MPPT write enable
-          - type: markdown
-            content: >-
-              **Close immediately**, **restore defaults** and **BMS polling** arrive with
-              bridge task F2 (plan 5).
 
       # Second, beside GateLink state, because an alert left Off is the one setting here
       # that hides a fault rather than shows one (plan 7.5).
