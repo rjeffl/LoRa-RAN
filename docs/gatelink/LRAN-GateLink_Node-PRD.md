@@ -1,11 +1,11 @@
 # LRAN GateLink Node PRD
 
 **Document:** `LRAN-GateLink_Node-PRD`
-**Version:** 0.24
+**Version:** 0.25
 **Node:** `GateLink`, node ID `0x01`
 **Status:** Requirements settled. Several field measurements outstanding.
 **Parent document:** [`LRAN-System-PRD`](../LRAN-System-PRD.md)
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Companion:** [`LRAN-GateLink_Node-Implementation-Plan`](./LRAN-GateLink_Node-Implementation-Plan.md)
 **Last updated:** 2026-10-28
 
@@ -428,10 +428,12 @@ the node's side:
 - **R-3.5g.** GateLink SHALL send a `BOOT` event after every boot, carrying the reset
   cause in `detail` (§8.14, **D71**). A directed reboot reads `REBOOT_COMMAND` only if
   GateLink records its intent before it resets, in memory that survives a software reset.
-- **R-3.5h.** GateLink SHALL draw `ctx_id` from a true entropy source (§10.1). The draw
-  happens at boot, which may be before BLE starts, so GateLink enables the entropy source
-  for it. **Verified by** `ctx_id` logged across consecutive reboots of each cause in
-  §8.14 that the bench can produce, with no repeat.
+- **R-3.5h.** GateLink SHALL draw `ctx_id` from a true entropy source (§10.1), at boot
+  and at every roll (**D87**). The boot draw may come before BLE starts, so GateLink
+  enables the entropy source for it. A roll may come between BMS windows, with BLE down.
+  **Verified by** `ctx_id` logged across consecutive reboots of each cause in §8.14 that
+  the bench can produce, and across consecutive rolls, with no repeat, and by reading each
+  draw's call site.
 - **R-3.5i.** GateLink SHALL send `FIRE_ASSERTED` or `HARD_SHUTDOWN` after its `BOOT`
   status when the condition is present at boot (**D72**). An event queued at a reset is
   lost, and a second alert is the accepted price of never missing a fire.
@@ -1061,6 +1063,13 @@ implementation plan.*
 ---
 
 ## 10. Changelog
+
+- **v0.25** — **Protocol specification v0.18 → v0.19.** R-3.5h covers a roll's draw as
+  well as the boot's (**D87**), and its check reads each call site, because a log without
+  a repeat cannot show the source was a true one. **D84** names the `INT8_MIN` GateLink
+  sends for a missing temperature, **D85** the `bms_alarms` rule it already follows, and
+  **D86** what `BMS_ALARM`'s and `MPPT_ERROR`'s `detail` carry. **D88** rewords D49 to fit
+  the stores GateLink already uses.
 
 - **v0.24** — **R-6.4c defines "charging active" and the count**, by operator decision
   2026-10-28. That unblocks **D82**'s schema `0x13`. Charging is active while the MPPT is

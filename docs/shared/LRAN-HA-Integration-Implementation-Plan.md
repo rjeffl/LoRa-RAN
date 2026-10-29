@@ -1,9 +1,9 @@
 # LRAN Home Assistant Integration Implementation Plan
 
 **Document:** `LRAN-HA-Integration-Implementation-Plan`
-**Version:** 0.12
+**Version:** 0.13
 **Artifact:** `/ha/packages/`, `/ha/dashboards/` and the check that ties them to discovery
-**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.18**
+**Binding specification:** [`LRAN-Protocol-Specification`](./LRAN-Protocol-Specification.md) **v0.19**
 **Requirements:** [System PRD](../LRAN-System-PRD.md) §6.2 and §10, [GateLink PRD](../gatelink/LRAN-GateLink_Node-PRD.md) §3.2 and §7, [Bridge PRD](../bridge/LRAN-Bridge_Node-PRD.md)
 **Status:** **Draft.** Operator choices taken 2026-10-25; H0, H1 and H2 done 2026-10-25; H3 done 2026-10-26; H4 partly done 2026-10-26; H5 done 2026-10-27; H4b done 2026-10-28; H9, H6 and H7 done 2026-10-28
 **Last updated:** 2026-10-28
@@ -488,7 +488,7 @@ is too short to report. An HA restart breaks it the same way. The 2026-10-28 run
 |---|---|---|
 | `lran_2_soc_low` | SOC below `lran_soc_warn_pct`, then below `lran_soc_alarm_pct` | Alerts `soc_low`, `normal`, then `soc_alarm`, `high`. The alarm replaces the warning's push, and the warning stands down while the alarm holds |
 | `lran_2_charge_inhibited` | `lran/gatelink/event/charge_inhibited` | `normal`, naming the path from `inhibit_path` (D81) |
-| `lran_2_mppt_error` | `lran/gatelink/event/mppt_error` | `normal`, with the error name from `sensor.gatelink_mppt_error`, because spec §7.3 gives `MPPT_ERROR`'s `detail` no meaning |
+| `lran_2_mppt_error` | `lran/gatelink/event/mppt_error` | `normal`, with the error name from `sensor.gatelink_mppt_error`. Spec v0.19 puts the `ERR` code in `detail` (§8.9, **D86**), and this alert has not moved to it |
 | `lran_2_enclosure_hot` | Enclosure temperature above `lran_enclosure_temp_warn_c` for 15 min | `normal`. **S-14 asks for excursions to be logged and acted on**; §7.3 logs every alert, a muted one included |
 | `lran_2_cell_spread` | `cell_spread` above `lran_cell_spread_warn_mv` for 30 min | `normal` |
 | `lran_2_node_boot` | `lran/gatelink/event/boot` | Alert `node_boot`, `low`, with `reset_cause`. The third boot within an hour sends `node_boot_loop`, `high`, instead |
@@ -648,6 +648,7 @@ H6 and H8 switch to the cover and hold switch in the same change.
 | 0.6 | 2026-10-26 | By operator choice, §7.5 adds a level selector per alert and `messages.yml`, the one file of alert text. §7.3's script takes `alert` and `fields`, and adds the `off` level. §8.2's Maintenance dashboard gains the *Alerts* card |
 | 0.7 | 2026-10-27 | H5 done. By operator choice, every selector gains `Low` (§7.5), and an alert with two levels is two alerts (§9.2). §7.3 logs a muted alert, for S-14. §9.2's state alerts use template triggers, and §7.1 adds the boot-time helper. §7.5 states that a selector added after the seed starts at `Off` |
 | 0.12 | 2026-10-28 | H6 and H7 done. §9.4 reads long-term statistics through `recorder.get_statistics`, and states its three approximations. By operator choice, `lran_notify` notes every alert for the morning report (§7.3, §7.1), and yesterday's yield comes from a package MQTT sensor until bridge task F4 adds it to discovery (§5). §7.4 adds the MPPT charge-state `history_stats` sensors |
+| 0.13 | 2026-10-28 | Protocol specification v0.18 → v0.19. §9's `lran_2_mppt_error` row says spec §8.9 now defines `MPPT_ERROR`'s and `BMS_ALARM`'s `detail` (**D86**). The MPPT alert does not read it yet, and the BMS alert shows it raw |
 | 0.11 | 2026-10-28 | By operator choice, H6 drops the **Close gate** action and its handler, and §9.5 the **Open gate** action: an action is easy to miss and adds little. A reminder opens the Gate dashboard instead (§3, §9.3, §9.5). §7.3's script takes `url` in place of `actions`. H9 done |
 | 0.10 | 2026-10-28 | H6 built, not verified. §9.3 states what counts as open and as away, and that the handler skips a closed gate and needs an unlocked iOS phone |
 | 0.9 | 2026-10-28 | H9 partly done. `check_entities.py` asks HA through ha-mcp, not the REST API, as the dev flow does; `--server` picks the install. Its `--offline` half runs in CI's checks job and parses every package and dashboard |

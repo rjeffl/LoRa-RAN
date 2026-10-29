@@ -1,7 +1,7 @@
 {
   "name": "lran-node",
   "version": "0.1.0",
-  "description": "LRAN node-side protocol engine - the receive ladder, context and roll, CommandGate's two calls, BOOT, CONFIG and the spec 12.4.2 PHY trial, and HEX transport. Arduino-free; each node supplies an Application. GateLink task L1. Binding specification: LRAN-Protocol-Specification v0.18 (ver = 2).",
+  "description": "LRAN node-side protocol engine - the receive ladder, context and roll, CommandGate's two calls, BOOT, CONFIG and the spec 12.4.2 PHY trial, and HEX transport. Arduino-free; each node supplies an Application. GateLink task L1. Binding specification: LRAN-Protocol-Specification v0.19 (ver = 2).",
   "keywords": ["lora", "lran"],
   "license": "MIT",
   "frameworks": "*",

@@ -1,13 +1,13 @@
 # LRAN GateLink Node Implementation Plan
 
 **Document:** `LRAN-GateLink_Node-Implementation-Plan`
-**Version:** 0.44
+**Version:** 0.45
 **Node:** `GateLink`, node ID `0x01`
 **Firmware target:** `firmware/gatelink/`
 **Status:** Reconciled with the built fleet. Four library tasks (§8.1) come before the
 firmware starts, and four measurements come before the carrier is populated.
-**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.24
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
+**Requirements source:** [`LRAN-GateLink_Node-PRD`](./LRAN-GateLink_Node-PRD.md) v0.25
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
 **Carrier design:** [`gatelink-expansion-board`](./gatelink-expansion-board.md) rev 0.3
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
 **Open document defects:** [`doc-findings`](./doc-findings.md)
@@ -1593,6 +1593,14 @@ across a season **and** the shortfall is not attributable to charging-inhibited 
 ---
 
 ## 10. Changelog
+
+- **v0.45** — **Protocol specification v0.18 → v0.19, PRD v0.24 → v0.25.** R-3.5h now
+  covers a roll's draw (**D87**). `ROLL_CONTEXT` and `lran ctx new` call `esp_random()`
+  between BMS windows, with BLE down, so they do not yet meet it; the fix is open in the
+  handoff. **D84** and **D85** state what GateLink already sends: `INT8_MIN` for a missing
+  temperature, and `bms_alarms` as `UINT16_MAX` with `bms_flags` bits 1–5 clear. **D86**
+  defines `detail` for `BMS_ALARM` and `MPPT_ERROR`, neither of which GateLink sends yet.
+  **D88** amends D49 to name no device, which fits §6.4's microSD and NVS stores.
 
 - **v0.44** — **PRD v0.23 → v0.24.** §8.2's GL1 row verifies R-3.5j with a logic
   analyzer on the contacts, as GL1 did on 2026-10-07, and states its limit. R-6.4c now

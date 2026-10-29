@@ -1,15 +1,15 @@
 # LRAN Bridge Node Implementation Plan
 
 **Document:** `LRAN-Bridge_Node-Implementation-Plan`
-**Version:** 0.94
+**Version:** 0.95
 **Node:** Bridge Node (`lran-bridge`), node ID `0x00`
 **Firmware targets:** `lran-bridge`, `lran-simnode` (§10), `lran-rangetest` (§11.2)
 **Status:** Ready for build. No blocking measurements.
-**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.19
-**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.18**
-**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.30 — **built first, gates this node**
+**Requirements source:** [`LRAN-Bridge_Node-PRD`](./LRAN-Bridge_Node-PRD.md) v0.20
+**Binding protocol:** [`LRAN-Protocol-Specification`](../shared/LRAN-Protocol-Specification.md) **v0.19**
+**Shared codec:** [`LRAN-Protocol-Library-Implementation-Plan`](../shared/LRAN-Protocol-Library-Implementation-Plan.md) v0.31 — **built first, gates this node**
 **Decision status:** [`LRAN-Decision-Register`](../shared/LRAN-Decision-Register.md)
-**Last updated:** 2026-10-26
+**Last updated:** 2026-10-28
 
 > **This document is the basis for firmware development and validation, and is what is
 > handed to Claude Code for this node.** Requirement identifiers (`R-*`, `BG-*`, `BS-*`,
@@ -3122,6 +3122,13 @@ that drifts is the one that gets followed.
 ---
 
 ## 12. Changelog
+
+- **v0.95** — **Protocol specification v0.18 → v0.19, with PRD v0.20 and Library Plan
+  v0.31.** PRD R-5.2c
+  takes **D84** and **D85**: `battery/state` publishes `null` for a `cell_temp_c` of
+  `INT8_MIN`, and for `alarms` and the four `bms_flags` flags while `bms_alarms` is
+  `UINT16_MAX`. The keys do not change. `publish.cpp` sends `-128` and `false` today,
+  and the fix is the handoff's group 5.
 
 - **v0.94** — **Cites Library Plan v0.30**, whose GateLink block adds `bms_retry_s`
   (`0x1046`): 25 rows, and a 240-byte readback, still two messages. The bridge carries the

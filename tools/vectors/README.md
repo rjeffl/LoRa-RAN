@@ -1,6 +1,6 @@
 # LRAN protocol test vectors — W4
 
-**Binding specification:** `LRAN-Protocol-Specification` v0.18 (`ver = 2`)
+**Binding specification:** `LRAN-Protocol-Specification` v0.19 (`ver = 2`)
 **Vectors last regenerated against:** v0.18, on 2026-10-15: **83 vectors**. v0.18 adds
 schema `0x13`, GateLink status v2 (D82), and three vectors cover it:
 `status_gatelink_0x13_nominal`, `status_gatelink_0x13_all_unavailable`, which carries

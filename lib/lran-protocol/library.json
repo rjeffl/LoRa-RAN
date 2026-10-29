@@ -1,7 +1,7 @@
 {
   "name": "lran-protocol",
   "version": "0.1.0",
-  "description": "LRAN wire codec - framing, CRC16, MAC, schemas, fragmentation. Binding specification: LRAN-Protocol-Specification v0.18 (ver = 2).",
+  "description": "LRAN wire codec - framing, CRC16, MAC, schemas, fragmentation. Binding specification: LRAN-Protocol-Specification v0.19 (ver = 2).",
   "keywords": ["lora", "lran", "protocol"],
   "license": "MIT",
   "frameworks": "*",
